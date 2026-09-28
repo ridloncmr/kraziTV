@@ -13,7 +13,8 @@ This folder tracks build sequencing, milestones, and task breakdowns.
   readiness-gated publication, shared fan-out, slow-subscriber isolation,
   late-join initialization, idle grace, process shutdown, pacing, and multi-item
   continuity
-- Add automated lifecycle and fan-out tests using fake playout/process adapters
+- Add automated lifecycle and fan-out tests using fake playout/process adapters,
+  including failed administrative cleanup and idempotent retry
 - Run the Plex HDHomeRun compatibility spike through those retained primitives,
   including first-worker initial tune drift, real-time pacing and any required
   startup catch-up, late join, two viewers on one encoder, idle shutdown, and a

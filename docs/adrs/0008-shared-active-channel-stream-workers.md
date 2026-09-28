@@ -25,6 +25,15 @@ for idle grace. Re-enabling a channel allows a later subscription to create a
 fresh worker. Ordinary programming changes do not force this shutdown and keep
 the current broadcast under the schedule-regeneration policy.
 
+An administrative stop is idempotent and retryable. If cleanup fails after the
+configuration mutation commits, the mutation remains committed and `apps/server`
+returns a retryable `503` that explicitly reports `persistenceCommitted: true`.
+The manager retains a non-joinable per-channel lifecycle record and all unsettled
+resource handles until a later stop attempt or server shutdown completes cleanup.
+Repeated disable requests retry the stop even when the channel is already
+disabled; repeated delete requests retry it even when configuration is already
+absent. Re-enabling cannot commit until cleanup of the prior worker succeeds.
+
 The first worker resolves current channel state again after asynchronous worker
 preparation and immediately before creating its SignalPackager/FFmpeg process.
 It starts from that fresh wall-clock offset and retains the selected item's
@@ -88,6 +97,9 @@ harness and its fixed metadata and media paths are disposable.
 - Worker lifecycle also responds to committed channel disable/delete mutations;
   administrative stops bypass idle grace and terminate current subscriber
   streams.
+- Cleanup failure does not roll back a committed disable/delete or masquerade as
+  success. It produces a retryable partial-success error and retains the runtime
+  handles needed for idempotent cleanup.
 - Worker creation must be guarded so concurrent tune requests cannot create duplicate workers for one channel.
 - Worker publication is readiness-gated: pending creations may be shared by
   waiters but are not joinable active workers.

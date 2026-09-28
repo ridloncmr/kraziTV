@@ -117,6 +117,13 @@ The user can:
 
 The UI must not implement scheduling rules locally. It submits channel configuration to the API and renders API responses.
 
+If a disable or delete response reports
+`channel_runtime_cleanup_failed`, the UI must state that the configuration
+change was saved but runtime cleanup did not finish. It offers a retry action for
+the same operation and must not present the failure as though the channel were
+still enabled or undeleted. A successful retry confirms that cleanup settled;
+it does not recreate deleted configuration.
+
 ### Schedule And Current State UI
 
 The user can view:
@@ -201,6 +208,8 @@ Important boundaries:
 - A user can create and edit simple media collections through the UI.
 - A user can reorder collection items to define chronological playback order.
 - A user can create and edit channels through the UI.
+- A user can distinguish a validation/persistence failure from a committed
+  disable/delete whose runtime cleanup needs retry, and can retry that cleanup.
 - A user can select chronological or random playback mode through the UI.
 - A user can view upcoming schedule entries for a channel.
 - A user can view current channel state and offset when available.

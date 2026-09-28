@@ -145,6 +145,15 @@ worker, SignalPackager session, subscribers, and child processes settle. A later
 subscription may start a fresh worker only after channel authorization reports
 that the channel is enabled again.
 
+`stopChannel()` is idempotent and retryable. If any cleanup step fails, it
+rejects but retains the per-channel lifecycle record in a non-joinable stopping
+or cleanup-failed state together with every resource handle still needed for a
+retry. A later call resumes cleanup of the remaining resources. It must not
+return success merely because the worker was removed from the active registry,
+and it removes the lifecycle record only after all owned resources settle.
+Subscription and worker-publication transitions continue to lose while this
+record exists.
+
 Manager shutdown is terminal and distinct from worker-local shutdown. Once manager shutdown begins, new subscriptions are rejected and no replacement workers may start. Pending worker creations must be cancelled when possible and awaited in all cases. If a pending creation starts a worker, SignalPackager session, or FFmpeg process before observing cancellation, it must stop those resources without publishing the worker. `shutdown()` resolves only after active workers, pending creations, SignalPackager sessions, subscriber streams, and child processes have settled.
 
 ### Channel Worker
@@ -506,6 +515,7 @@ Failure cases should include:
 - FFmpeg startup failure
 - FFmpeg exits before producing usable output
 - Worker startup readiness timeout
+- Administrative runtime cleanup failure after persistence commit
 
 Errors should be logged with channel ID, media item ID, media path when safe,
 offset, readiness phase, and FFmpeg exit information when available. Because a
@@ -513,6 +523,12 @@ new worker is not published before readiness, startup failures return a
 structured HTTP error without a partially successful streaming response. After
 streaming begins, failures are logged and the affected subscriber streams
 terminate; the MVP does not synthesize an error or filler stream.
+
+When a committed disable or delete cannot finish `stopChannel()`, `apps/server`
+maps that operational failure to the channel API's retryable
+`channel_runtime_cleanup_failed` response. SignalPackager and the manager do not
+reverse persistence. A retry invokes the same idempotent stop against the
+retained lifecycle record.
 
 If the shared worker dies, all current subscribers are affected. The MVP may log the worker failure, terminate connected subscriber streams, remove the failed worker from the registry, and allow the next tune request to create a new worker. Automatic restart and seamless recovery are deferred.
 
@@ -532,6 +548,9 @@ the current program.
   subscriber disconnects and the idle grace period expires.
 - Channel disable/delete is an administrative exception: it bypasses idle grace,
   closes all subscribers, cancels pending creation, and stops the worker.
+- A failed administrative stop retains its non-joinable lifecycle record and
+  unsettled process/session handles for retry; it is not an active or reusable
+  worker.
 - Pending worker creation consumes encoding resources but is not joinable; it is
   tracked separately and shares one bounded readiness wait across concurrent
   subscriptions.
@@ -717,6 +736,12 @@ contract.
   without waiting for idle grace.
 - A successful disable/delete response is not returned until the channel's
   SignalPackager session and child processes have settled.
+- If administrative cleanup fails after persistence commits, the manager retains
+  the non-joinable lifecycle record and remaining resource handles, and the API
+  reports a retryable cleanup failure without reverting persistence.
+- Repeating `stopChannel()` retries only unsettled cleanup and succeeds
+  idempotently after all worker, session, subscriber, preparation, and child
+  process resources settle.
 - Re-enabling a channel permits a later subscription to create a fresh worker;
   it never reuses the administratively stopped worker.
 - Ordinary programming changes do not stop the active worker or interrupt the
