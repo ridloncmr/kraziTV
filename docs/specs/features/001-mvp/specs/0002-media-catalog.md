@@ -46,10 +46,12 @@ After creating a media root, the user can trigger a scan. kraziTV walks the root
 The user can list cataloged media and see at least:
 
 - File path
-- Display title or filename-derived title
+- Display title
 - Duration
-- Scan status
-- Last scanned time
+- Catalog status
+- Last probed time
+
+The user can also see when each media root was last scanned. After triggering a scan, the user receives a summary of that scan.
 
 If a file cannot be probed, the catalog should preserve enough error state for the user to understand that the file was discovered but is not currently usable for scheduling.
 
@@ -60,16 +62,22 @@ If a file cannot be probed, the catalog should preserve enough error state for t
 - A media root represents a local directory that kraziTV is allowed to scan.
 - Media roots are persisted.
 - A media root has a stable identifier, filesystem path, enabled flag, and timestamps.
+- Root paths are immutable after creation. Changing a path requires creating a new media root so catalog identity does not silently change.
+- Two media roots cannot use the same normalized absolute path.
 - Disabled roots are ignored by scans but remain configured.
 - Missing or inaccessible roots should not prevent the API server from starting.
+- A root path must be absolute, but it may be outside the project directory when the server process can access it.
 
 ### File Discovery
 
 - Scans recurse through enabled media roots.
-- Scans should ignore hidden files and common non-media sidecar files.
+- Scans skip hidden files and directories and only consider files with a supported extension.
+- Scans do not follow directory symlinks in the first implementation.
 - Supported extensions should initially include common video containers such as `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and `.webm`.
 - File discovery should produce normalized absolute paths.
-- File identity should be stable across scans. The initial identity can be the normalized absolute path, with room to improve later using file size, modified time, or content hashes.
+- A media item's initial identity is the pair `(mediaRootId, normalized absolute path)`. The same path rediscovered under the same root updates the existing record.
+- Overlapping roots may catalog the same file as separate media items. Deduplication across roots is deferred.
+- The first implementation derives the display title from the filename and defers show, season, and episode inference.
 
 ### Media Probing
 
@@ -87,6 +95,7 @@ The API should expose endpoints equivalent to:
 ```text
 GET /media-roots
 POST /media-roots
+PATCH /media-roots/:id
 POST /media-roots/:id/scan
 GET /media-items
 GET /media-items/:id
@@ -94,14 +103,19 @@ GET /media-items/:id
 
 Exact route names can change during implementation, but the capabilities should remain equivalent.
 
-Scan triggering can be synchronous for the first implementation if the API returns enough status to debug failures. A background job model can be added later if scans become slow.
+`PATCH /media-roots/:id` must support changing the root's `enabled` flag.
+
+Requesting a scan for a disabled root returns a conflict response and does not traverse the filesystem.
+
+Scan triggering is synchronous for the first implementation. A successful response includes the root ID, start and completion times, and counts for files discovered, successfully probed, probe failures, and items marked missing. A persistent scan-job model can be added later if scans become slow.
 
 ### Persistence
 
 - SQLite stores media roots and media items.
 - The database lives under the local runtime data directory.
 - Catalog data should survive API restarts.
-- Removing a file from disk should mark the media item unavailable or missing on the next scan, not immediately delete its history.
+- Removing a file from disk should mark the media item `missing` on the next completed scan, not immediately delete its history.
+- Missing-state reconciliation happens only after the scanner completes traversal of an accessible root. A failed scan preserves existing item statuses and does not update `lastScannedAt`.
 
 ## Data Model Impact
 
@@ -140,47 +154,39 @@ Initial media item statuses:
 - `missing`
 - `probe_failed`
 
+Status invariants:
+
+- `available` requires a positive `durationSeconds` and a null `probeError`.
+- `probe_failed` requires a non-empty `probeError`; `durationSeconds` is null unless a complete usable duration was recovered.
+- `missing` preserves previously probed metadata for history, but the item is not schedulable.
+- `lastSeenAt` changes when a scan discovers the path. `lastProbedAt` changes only when ffprobe is invoked.
+
 Future specs may add richer media typing, episode fields, provider mappings, user tags, artwork, and collections.
 
 Media roots are filesystem discovery boundaries, not programming rules. Channel programming should use media collections from the channel configuration slice rather than pointing channels directly at root paths.
 
 ## Architecture Boundaries
 
-This slice affects:
-
-- Schedule: not directly, but it provides the media inputs schedules will later consume.
-- Playout timeline: not directly.
-- Channel state: not directly.
-- kraziBrain: only through future consumption of normalized catalog records.
-- SignalPackager: not directly.
-- Provider adapters: not directly.
-
-Important boundaries:
-
 - `packages/media` owns filesystem/media probing helpers and ffprobe normalization.
 - `apps/server` owns API routes, scan orchestration, and persistence wiring.
 - `packages/core` may define shared media-facing domain types only if they are scheduling concepts, not raw probe results.
-- kraziBrain must not shell out to ffprobe.
-- SignalPackager must not decide which files belong in the catalog.
-- Plex/Jellyfin provider adapters must not be required for local catalog scans.
-
-## Open Questions
-
-- Should media root paths be allowed outside the project directory by default?
-- Should scans follow symlinks?
-- Should the first scanner infer show, season, and episode from paths, or defer that to a later metadata spec?
-- Should scan status be represented as a persistent scan job table in the first implementation?
-- Should duplicate files across roots be allowed, merged, or flagged?
+- kraziBrain may later consume normalized catalog records, but it must not perform discovery or invoke ffprobe.
+- SignalPackager and provider adapters do not participate in catalog discovery or decide which files belong in the catalog.
 
 ## Acceptance Criteria
 
 - A media root can be created with a local filesystem path.
+- Duplicate normalized media-root paths are rejected.
+- A media root can be enabled or disabled after creation.
 - Configured media roots can be listed after API restart.
 - A scan discovers supported media files under an enabled root.
+- A scan request for a disabled root is rejected without traversing it.
+- A completed scan returns discovery, probe, failure, and missing-item counts.
 - Each discovered playable file is probed with ffprobe through `packages/media`.
 - Successfully probed files are stored as media items with duration in seconds.
 - Probe failures are stored without crashing the entire scan.
 - Missing files are marked `missing` on a later scan.
+- A failed or inaccessible-root scan does not mark previously cataloged items `missing`.
 - Cataloged media items can be listed through the API.
 - The API server can start even when a configured media root is missing or inaccessible.
 - No Plex, Jellyfin, schedule generation, playout timeline generation, or FFmpeg streaming is required for this slice.

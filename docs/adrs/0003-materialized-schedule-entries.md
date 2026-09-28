@@ -16,7 +16,9 @@ kraziTV will persist generated `ScheduleEntry` records.
 
 Schedule generation will extend a future horizon for enabled channels. Persisted entries are the authority for guide output, playout lookup, and stream selection.
 
-Configuration changes must not silently change what is currently airing. Regeneration must happen only after an explicit boundary, such as the current program end or another documented scheduling boundary.
+Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end; when nothing is airing, it begins at the first future entry or the persisted schedule anchor when no entries exist.
+
+Catalog availability changes do not rewrite published schedule entries. Channel-state lookup reports unavailable media explicitly instead of silently selecting a replacement.
 
 ## Consequences
 

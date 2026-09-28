@@ -103,11 +103,22 @@ The MVP should support:
 - Non-zero exit handling
 - Transitioning from the current item to at least the next item in one logical HTTP stream
 
-The first implementation may use broad compatibility settings rather than exposing user-configurable transcoding profiles.
+The MVP transcodes every program into one compatibility profile. Stream copy is deferred so media transitions do not depend on source codec compatibility.
+
+Initial compatibility profile:
+
+```text
+Video: H.264, yuv420p, 1920x1080, 30 fps
+Audio: AAC, 48 kHz, stereo
+Container: MPEG-TS
+Content type: video/MP2T
+```
+
+Video preserves source aspect ratio and is scaled and padded to the target frame without cropping.
 
 The command must be constructed from structured arguments, not shell string concatenation.
 
-The MVP may implement cross-item continuity by restarting FFmpeg per item and piping each item's MPEG-TS bytes to the same HTTP response, or by using an FFmpeg concat/filter approach. The implementation choice belongs in `packages/signal`; callers should only see one continuous response stream.
+The compatibility spike determines whether independent FFmpeg processes can cross a file boundary reliably in Plex. The formal implementation must use the simplest verified strategy, whether sequential processes or a concat-oriented FFmpeg graph. Callers see one continuous response stream either way.
 
 If sequential FFmpeg processes are used, Plex compatibility must be verified with a real two-file boundary, not only by checking that the HTTP connection remains open. The compatibility spike should confirm that Plex continues playback across the boundary despite any MPEG-TS timestamp, PCR, or continuity-counter discontinuities caused by independent encoder runs.
 
@@ -129,6 +140,8 @@ The stream endpoint should:
 - Return MPEG-TS output.
 - Stop FFmpeg when the client disconnects.
 
+The provider-neutral endpoint is registered by `apps/server`; provider adapters link to it rather than owning a separate packaging route.
+
 ### Error Handling
 
 Failure cases should include:
@@ -142,15 +155,17 @@ Failure cases should include:
 - FFmpeg startup failure
 - FFmpeg exits before producing usable output
 
-Errors should be logged with channel ID, media item ID, media path when safe, offset, and FFmpeg exit information when available.
+Errors should be logged with channel ID, media item ID, media path when safe, offset, and FFmpeg exit information when available. Before response bytes begin, failures return a structured HTTP error. After streaming begins, failures are logged and the response terminates; the MVP does not synthesize an error or filler stream.
 
 ### Resource Management
 
 - One stream request may start one FFmpeg process.
 - If a stream crosses a program boundary, one request may start more than one FFmpeg process over its lifetime.
 - FFmpeg processes must be terminated when clients disconnect.
-- The MVP does not need shared stream fan-out across multiple viewers.
+- Each viewer request owns its FFmpeg process or process sequence. Shared stream fan-out is deferred.
 - Later implementations may add process reuse, buffering, or per-channel stream workers.
+
+The FFmpeg executable defaults to `ffmpeg` on `PATH` and can be overridden with the `FFMPEG_PATH` environment variable.
 
 ## Data Model Impact
 
@@ -181,26 +196,28 @@ Important boundaries:
 - `packages/signal` owns FFmpeg lifecycle, transcoding, muxing, stream continuity, seeking, packaging, and encoding-profile code.
 - `packages/media` owns media discovery, filesystem inspection, ffprobe, and source metadata. It must not grow stream packaging responsibilities.
 
-## Open Questions
+## Compatibility Spike Output
 
-- Should the first stream endpoint live in `apps/server` directly or behind a provider-neutral streaming route module?
-- Should the MVP transcode all streams to a fixed codec set, or copy compatible streams when possible?
-- What minimum FFmpeg flags are required for Plex Live TV compatibility?
-- Should stream failures return JSON errors before bytes start, or a short MPEG-TS error/filler stream later?
-- Should there be a configurable FFmpeg binary path?
-- Should per-viewer stream requests each spawn FFmpeg, or should shared per-channel workers be introduced earlier?
-- Should the first continuous stream implementation use sequential FFmpeg processes or a concat-oriented FFmpeg graph?
-- What replenishment contract should replace the finite `items[]` handoff after the MVP boundary-crossing proof?
+The Plex spike must record the verified FFmpeg arguments and whether sequential encoders preserve playback across the two-file boundary. Those empirical values may refine the fixed profile without changing the provider-neutral packaging contract.
+
+## Deferred Work
+
+- Stream-copy optimization for compatible sources.
+- Shared per-channel workers and multi-viewer fan-out.
+- A replenishable queue for indefinitely long responses beyond the MVP boundary proof.
+- Filler streams for failures after response bytes begin.
 
 ## Acceptance Criteria
 
 - A stream request for an enabled channel with a current playout item starts FFmpeg for the selected media file.
 - FFmpeg receives the current offset calculated outside SignalPackager.
 - The HTTP response uses MPEG-TS output.
+- Every item is transcoded to the fixed MVP compatibility profile.
 - A viewer connected to a channel stream remains connected when the current playout item ends and the next scheduled item begins.
 - Plex remains playing across an actual two-file boundary during the compatibility spike.
 - FFmpeg stderr and exit information are logged for failures.
 - FFmpeg is terminated when the HTTP client disconnects.
+- Each viewer owns its packaging process sequence; shared fan-out is not required.
 - Missing media, invalid offsets, disabled channels, and no-current-item states fail clearly.
 - SignalPackager does not choose media, generate schedules, generate playout timelines, or mutate channel state.
 - kraziBrain does not construct FFmpeg commands.

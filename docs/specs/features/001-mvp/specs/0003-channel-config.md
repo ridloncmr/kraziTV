@@ -57,7 +57,7 @@ The user can list configured channels and see whether each channel is enabled, w
 
 Disabling a channel keeps its configuration but excludes it from future guide, provider, and playout behavior.
 
-Deleting a channel removes the channel configuration. Future implementation may preserve historical playback data, but the MVP does not require that history.
+Deleting a channel permanently removes its configuration, schedule entries, and schedule state. It does not delete media collections or catalog items. Soft deletion and historical playback retention are deferred.
 
 ## Technical Behavior
 
@@ -67,6 +67,8 @@ Deleting a channel removes the channel configuration. Future implementation may 
 - Each channel has a user-visible `number`.
 - Each channel has a user-visible `name`.
 - Channel numbers must be unique among all configured channels, including disabled channels.
+- Channel numbers are stored as canonical strings containing a positive integer major number and an optional positive integer subchannel, such as `69` or `69.1`.
+- Channel numbers must match `[1-9][0-9]*(\.[1-9][0-9]*)?`; whitespace, signs, leading zeroes, and multiple decimal separators are rejected.
 - Channel IDs must not encode provider names or provider-specific identifiers.
 
 ### Programming Collection Selection
@@ -74,7 +76,9 @@ Deleting a channel removes the channel configuration. Future implementation may 
 - A channel programming source points at a media collection.
 - A media collection is a logical set of cataloged media items that are eligible for programming on a channel.
 - A media root represents filesystem scope and must not be used directly as channel programming intent.
-- The first implementation may support simple collections backed by explicit media item IDs.
+- The first implementation supports ordered collections backed by explicit media item IDs.
+- Each membership has a zero-based `position` that is unique within its collection.
+- Collection replacement requests define the complete item order. The server stores contiguous positions in request order.
 - Disabled or unavailable media items should not make channel configuration invalid by themselves.
 - A channel with an empty collection can be saved, but later scheduling should report that it has no schedulable media.
 
@@ -85,7 +89,7 @@ MVP playback modes:
 - `chronological`
 - `random`
 
-Chronological means schedule generation should later preserve a deterministic order based on normalized catalog ordering or explicit episode metadata when available.
+Chronological means schedule generation follows the media collection's explicit item order and loops to the first item after the last. The catalog does not need to infer season or episode metadata to honor this mode.
 
 Random means schedule generation should later use deterministic seeded selection, not process-global randomness.
 
@@ -117,7 +121,7 @@ PUT /media-collections/:id/items
 
 Exact route names can change during implementation, but the capabilities should remain equivalent.
 
-Collection creation should require a non-empty name. Collection membership updates may replace the full explicit item set for the MVP.
+Collection creation should require a non-empty name. Collection membership updates replace the full explicit ordered item set for the MVP. Duplicate media item IDs in one collection are rejected.
 
 API validation should reject invalid channel numbers, empty names, duplicate channel numbers, unsupported playback modes, unknown media collection IDs, and unknown media item IDs in collection membership.
 
@@ -167,6 +171,7 @@ Minimum collection membership fields:
 MediaCollectionItem
 mediaCollectionId
 mediaItemId
+position
 createdAt
 ```
 
@@ -198,19 +203,18 @@ Media roots and media collections are separate concepts:
 - Media collections answer what media a channel or programming rule can select.
 - Channels should reference media collections, not filesystem roots, for programming eligibility.
 
-## Open Questions
+## Deferred Work
 
-- Should channel numbers be integers only, or should subchannels such as `69.1` be allowed?
-- Should channel deletion be hard delete or soft delete?
-- Should logos be included in MVP channel configuration or deferred until Plex guide polish?
-- Should a later collection editor support saved catalog filters in addition to explicit item IDs?
+- Channel logos are deferred until Plex guide polish.
+- Saved catalog filters and query-backed collections are deferred until explicit ordered collections prove insufficient.
+- Historical playback retention and soft deletion are deferred.
 
 ## Acceptance Criteria
 
 - A channel can be created with number, name, enabled state, playback mode, and media collection selection.
-- Media collections can be created from explicit cataloged media item IDs.
+- Media collections can be created from an explicit ordered list of cataloged media item IDs.
 - Media collections can be listed, fetched, updated, and deleted through the API.
-- Media collection membership can be replaced through the API using explicit cataloged media item IDs.
+- Media collection membership can be replaced through the API using an explicit order without duplicate media item IDs.
 - Configured channels can be listed through the API.
 - A single channel can be fetched through the API.
 - Channel configuration can be updated through the API.
@@ -218,6 +222,7 @@ Media roots and media collections are separate concepts:
 - A channel can be deleted.
 - Channel configuration persists across API restarts.
 - Duplicate channel numbers are rejected, including numbers assigned to disabled channels.
+- Integer and subchannel numbers are accepted in canonical string form; malformed or non-canonical numbers are rejected.
 - Unsupported playback modes are rejected.
 - Channel programming eligibility is based on media collections, not direct filesystem roots.
 - Channel configuration does not require Plex, Jellyfin, FFmpeg, schedule generation, playout timeline generation, or streaming.

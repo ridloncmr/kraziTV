@@ -72,7 +72,7 @@ Playout timeline generation uses:
 - Available media catalog items referenced by the schedule
 - Wall-clock evaluation time
 
-For the MVP, each guide-visible schedule entry maps to one program playout item unless the media item is unavailable.
+For the MVP, each guide-visible schedule entry maps to one derived program playout item when its media item is available. Playout items are generated on demand from persisted schedule entries; they are not stored in a separate table.
 
 ### Playout Items
 
@@ -119,7 +119,9 @@ now - startsAt + startOffsetSeconds
 
 The offset must be clamped to the media item's playable duration.
 
-If no item exists for the requested time, the API should return a clear no-current-item state. Later specs may introduce filler behavior.
+If no schedule entry exists for the requested time, the API returns a no-current-item state with reason `schedule_gap`.
+
+If the current schedule entry references missing or otherwise unavailable media, kraziTV must not silently substitute another program because that would disagree with the published schedule. The API returns a no-current-item state with reason `media_unavailable` and identifies the affected schedule entry. The stream endpoint fails before sending media bytes. Later filler behavior may provide an explicit replacement policy.
 
 ### Channel State
 
@@ -133,7 +135,7 @@ Minimum current channel state fields:
 - Evaluated at timestamp
 - Next playout item when available
 
-Channel state can be computed on demand from persisted schedules and media catalog data for the MVP. Persisting snapshots is optional unless needed for performance or debugging.
+Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
 
 ### API
 
@@ -148,7 +150,7 @@ Exact route names can change during implementation, but the capabilities should 
 
 The playout endpoint returns timeline items for a bounded time window.
 
-The now endpoint returns current channel state at the server's current wall-clock time, with an optional query parameter for testability if needed.
+The now endpoint returns current channel state at the server's current wall-clock time. It also accepts an optional ISO 8601 `at` timestamp for deterministic tests and debugging; production provider flows omit it.
 
 ### Determinism
 
@@ -156,9 +158,11 @@ For the same channel configuration, schedule entries, media catalog state, and e
 
 The implementation should use injected clocks in core tests instead of directly reading process time inside deterministic domain logic.
 
+All persisted and API timestamps use UTC ISO 8601 values. User-interface timezone conversion is presentation behavior and must not change schedule or playout calculations.
+
 ## Data Model Impact
 
-If playout timelines are persisted, minimum fields are:
+The derived playout item domain/API shape is:
 
 ```text
 PlayoutItem
@@ -175,9 +179,7 @@ createdAt
 updatedAt
 ```
 
-If playout timelines are generated on demand, these fields still describe the API/domain shape even if no table exists initially.
-
-Current channel state does not need to be persisted for the MVP if it can be computed deterministically from schedule and media data.
+`createdAt` and `updatedAt` reflect the source schedule entry; no separate playout-item persistence is added. Current channel state is also not persisted because it is computed deterministically from schedule and media data.
 
 ## Architecture Boundaries
 
@@ -200,14 +202,6 @@ Important boundaries:
 - `packages/core` should own current item lookup and offset calculation.
 - `apps/server` should own API routing, persistence wiring, and request validation.
 
-## Open Questions
-
-- Should playout items be persisted immediately or generated on demand from schedule entries for MVP?
-- Should `/now` accept an explicit timestamp query for debugging and deterministic integration tests?
-- What should happen if the current schedule entry references media that has become missing?
-- Should clock skew or server timezone handling be defined here or in an operational config spec?
-- Should generated playout windows extend beyond schedule windows to guarantee a next item?
-
 ## Acceptance Criteria
 
 - A playout timeline can be produced for an enabled channel with generated schedule entries.
@@ -216,5 +210,8 @@ Important boundaries:
 - Current offset is clamped to the media item's playable duration.
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.
+- Unavailable media produces an explicit `media_unavailable` state without silently changing the schedule.
+- Playout items and channel state are derived on demand and are not persisted separately in the MVP.
+- Schedule, playout, and channel-state timestamps are interpreted in UTC.
 - Playout timeline behavior does not require Plex, Jellyfin, FFmpeg command construction, stream packaging, XMLTV, or M3U output.
 - Playout items are distinct from guide schedule entries even when they map one-to-one in the MVP.

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-kraziTV uses SQLite for local persistence. Persistence-heavy MVP slices need tables and migrations for media roots, media items, media collections, channels, schedule entries, and playout timeline state.
+kraziTV uses SQLite for local persistence. Persistence-heavy MVP slices need tables and migrations for media roots, media items, ordered media-collection membership, channels, schedule entries, and channel schedule state. MVP playout items and channel state are derived rather than persisted separately.
 
 The project considered Drizzle and Kysely.
 

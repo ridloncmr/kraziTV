@@ -7,8 +7,11 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 - Scaffold the TypeScript monorepo - done
 - Build the server health endpoint - done
 - Select Kysely for SQLite queries and migrations - done
-- Add SQLite persistence
-- Add the Web UI shell
+- Add the Web UI shell - done
 - Run the Plex HDHomeRun compatibility spike, including a real two-file stream boundary
-- Implement basic schedule generation
-- Expose Plex-compatible guide and stream endpoints
+- Implement the local media catalog and SQLite persistence
+- Implement channel and ordered media-collection configuration
+- Implement deterministic schedule generation and current channel state
+- Implement SignalPackager using the compatibility-spike results
+- Expose Plex-compatible tuner, guide, and stream endpoints
+- Complete the MVP Web Admin flow

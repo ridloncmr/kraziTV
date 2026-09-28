@@ -14,12 +14,12 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | `specs/0004-schedule-generation.md` | Accepted    | Deterministic guide schedule generation from cataloged media           |
 | `specs/0005-playout-timeline.md`    | Accepted    | Runtime timeline and current broadcast position                        |
 | `specs/0006-signal-packager.md`     | Accepted    | FFmpeg MPEG-TS stream packaging for selected media                     |
-| `specs/0007-plex-adapter.md`        | Accepted    | Plex-compatible discovery, guide, playlist, and stream exposure        |
+| `specs/0007-plex-adapter.md`        | Draft       | Plex-compatible tuner, guide, and stream exposure                      |
 | `specs/0008-web-admin.md`           | Accepted    | Minimal browser flow for configuring and observing the MVP             |
 
 The first release should intentionally be small and focused on proving the core loop.
 
-Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and keep playing across an actual two-file stream boundary.
+Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and keep playing across an actual two-file stream boundary. Record the verified HDHomeRun response fields and FFmpeg continuity strategy in the Plex adapter spec before changing it to `Accepted`.
 
 ADR 0004 is accepted. Persistence-heavy MVP slices use Kysely consistently for SQLite queries and migrations.
 

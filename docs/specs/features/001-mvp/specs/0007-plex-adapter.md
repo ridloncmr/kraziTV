@@ -1,6 +1,6 @@
 # Plex Adapter MVP
 
-Status: Accepted
+Status: Draft
 
 This spec defines the MVP Plex adapter behavior: exposing kraziTV channels, guide data, and stream URLs in Plex-compatible forms without moving scheduling or media packaging decisions into the adapter.
 
@@ -16,7 +16,6 @@ The adapter should be thin. It should expose what kraziTV has decided, not decid
 - Expose an HDHomeRun-compatible tuner discovery/device API that Plex can add manually.
 - Provide a channel lineup with stable channel stream URLs.
 - Provide XMLTV-compatible guide data from schedule entries.
-- Keep a generic M3U playlist available for debugging and future IPTV-style clients.
 - Map provider-neutral channel identity to Plex-facing channel identifiers.
 - Point Plex stream URLs at provider-neutral stream endpoints.
 - Keep Plex-specific formatting out of kraziBrain.
@@ -66,9 +65,9 @@ HDHomeRun lineup entries should include at least:
 - Channel name
 - Stream URL
 
-HDHomeRun `/lineup.json` does not need to expose an arbitrary internal ID field. Stable kraziTV channel IDs should instead back URL paths, XMLTV channel IDs, M3U `tvg-id` values, and any provider mapping needed internally. Those identifiers must be derived from stable channel identity, not mutable display names.
+HDHomeRun `/lineup.json` does not need to expose an arbitrary internal ID field. Stable kraziTV channel IDs should instead back URL paths, XMLTV channel IDs, and any provider mapping needed internally. Those identifiers must be derived from stable channel identity, not mutable display names.
 
-Disabled channels should not appear in the tuner lineup, M3U playlist, or guide output.
+Disabled channels should not appear in the tuner lineup or guide output.
 
 ### HDHomeRun-Compatible Tuner API
 
@@ -99,20 +98,6 @@ Example:
 
 The tuner output should not embed scheduling decisions or FFmpeg options.
 
-### M3U Output
-
-The API may also expose an endpoint equivalent to:
-
-```text
-GET /channels.m3u
-```
-
-The playlist should be valid extended M3U and useful for debugging, Jellyfin exploration, or generic IPTV clients.
-
-Each channel entry should point to the provider-neutral stream endpoint for that channel or to a Plex-namespaced redirect that delegates to the provider-neutral stream endpoint.
-
-The M3U output should not be considered the primary Plex Live TV integration path unless the compatibility spike proves Plex setup requires it.
-
 ### XMLTV Output
 
 The API should expose an endpoint equivalent to:
@@ -132,20 +117,15 @@ XMLTV output should include:
 
 The MVP can use simple titles from schedule entries. Rich metadata such as season, episode, descriptions, ratings, categories, and artwork can be added later.
 
-XMLTV generation should request or read schedule entries for a bounded guide window. The first implementation should support enough future guide data for Plex setup and basic browsing.
+XMLTV generation reads the available schedule horizon and emits up to 72 hours of future guide data for Plex setup and basic browsing.
 
 ### Stream URL Mapping
 
 Stream URLs exposed to Plex should map to existing channel stream behavior.
 
-Example:
-
-```text
-#EXTINF:-1 tvg-id="channel_69" tvg-chno="69" tvg-name="Krazi Comedy",Krazi Comedy
-http://127.0.0.1:3000/channels/channel_69/stream
-```
-
 Exact URL shape can change during implementation, but Plex-facing URLs must be stable enough for Plex configuration.
+
+All absolute tuner, lineup, guide, and stream URLs are built from a configured `PUBLIC_BASE_URL`. It defaults to `http://127.0.0.1:3000` for local development. Deployments where Plex runs in another process, container, or host must configure a URL Plex can reach; request `Host` headers are not treated as authoritative public configuration.
 
 ### API
 
@@ -157,7 +137,6 @@ GET /lineup_status.json
 GET /lineup.json
 GET /device.xml
 GET /plex/xmltv.xml
-GET /channels.m3u
 ```
 
 Optional debug endpoints can be added later, but are not required for the MVP.
@@ -204,7 +183,7 @@ Important boundaries:
 - Plex adapter does not construct FFmpeg commands.
 - `packages/plex` owns Plex-specific formatting helpers.
 - `apps/server` owns HTTP route registration and response wiring.
-- `packages/core` should remain free of Plex-specific HDHomeRun, XMLTV, and M3U formatting details where possible.
+- `packages/core` should remain free of Plex-specific HDHomeRun and XMLTV formatting details.
 
 ## Compatibility Spike
 
@@ -237,28 +216,30 @@ Spike success criteria:
 - Video plays.
 - Plex remains playing across an actual two-file stream boundary.
 
-After the spike succeeds, the hard-coded implementation can be discarded or refactored into the formal MVP adapter.
+After the spike succeeds, record the required HDHomeRun response fields, verified FFmpeg arguments, and successful stream-boundary strategy in this spec. Then change the spec status to `Accepted`. The hard-coded spike can be discarded or refactored into the formal MVP adapter.
 
-## Open Questions
+## Decisions Required From The Spike
 
-- What exact HDHomeRun fields does Plex require for reliable manual tuner setup?
-- How much future XMLTV guide data does Plex expect during setup?
-- Should Plex endpoints be configurable by external base URL for Docker or LAN access?
-- Should stream URLs be provider-neutral paths or `/plex/...` paths that redirect internally?
-- Should XMLTV include minimal episode numbering if inferred metadata exists?
-- Should channel logos be deferred or included as optional URLs in the MVP?
+- Exact HDHomeRun response fields required for reliable manual tuner setup.
+- Any Plex constraints on XMLTV horizon beyond the MVP's 72-hour schedule horizon.
+- The verified FFmpeg continuity strategy for a real two-file boundary.
+
+## Deferred Work
+
+- Generic M3U output for debugging or non-Plex IPTV clients.
+- Automatic network tuner discovery.
+- Episode numbering, channel logos, artwork, and richer XMLTV metadata.
 
 ## Acceptance Criteria
 
 - Plex accepts kraziTV's HDHomeRun-compatible tuner endpoints during manual Live TV setup.
 - Tuner lineup output lists enabled kraziTV channels.
-- Disabled channels are omitted from M3U and XMLTV output.
+- Disabled channels are omitted from XMLTV output.
 - Disabled channels are omitted from HDHomeRun lineup output.
 - HDHomeRun lineup entries include channel names, channel numbers, and stream URLs.
-- Plex-facing XMLTV and M3U identifiers are derived from stable kraziTV channel IDs.
+- Plex-facing XMLTV identifiers are derived from stable kraziTV channel IDs.
 - XMLTV output includes channel declarations and programme entries from schedule data.
 - XMLTV programme entries include start time, stop time, channel ID, and title.
 - Plex-facing stream URLs delegate to provider-neutral channel stream behavior.
-- Generic M3U output remains available but is not the primary Plex tuner contract.
 - Plex adapter does not generate schedules, generate playout timelines, choose media, mutate channel state, or construct FFmpeg commands.
-- kraziBrain does not emit Plex-specific HDHomeRun, XMLTV, or M3U formatting.
+- kraziBrain does not emit Plex-specific HDHomeRun or XMLTV formatting.
