@@ -19,7 +19,7 @@ The goal is to behave like a small broadcast automation system rather than a sim
 - Plex/Jellyfin integration: HTTP API clients
 - Packaging: Docker later, native install later
 
-## Planned Structure
+## Project Structure
 
 ```text
 kraziTV/
@@ -29,9 +29,20 @@ kraziTV/
   packages/
     core/        scheduling, channel rules, guide generation
     plex/        Plex API client
-    jellyfin/    Jellyfin API client later
     media/       ffprobe helpers, duration, metadata utilities
   data/          local runtime data, gitignored
+```
+
+Jellyfin support is planned for a later package once the Plex-first MVP loop is working.
+
+## Development
+
+```bash
+npm install
+npm run dev
+npm run typecheck
+npm test
+npm run build
 ```
 
 ## Core Concepts

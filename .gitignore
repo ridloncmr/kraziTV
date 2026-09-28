@@ -18,6 +18,9 @@ dist/
 build/
 coverage/
 
+# Local runtime data
+data/
+
 # Python caches, if used later
 __pycache__/
 *.py[cod]

@@ -4,19 +4,19 @@ Use this guide to decide which skill to use during kraziTV work.
 
 ## Quick Router
 
-| Situation | Use Skill |
-| --- | --- |
-| Working on scheduling, channel state, playout timelines, SignalPackager, or providers | `krazitv-domain` |
-| Naming domain concepts or updating shared vocabulary | `domain-modeling` |
-| Designing packages, modules, interfaces, or refactors | `codebase-design` |
-| Implementing deterministic behavior or fixing a bug with test coverage | `tdd` |
-| Researching Plex, Jellyfin, XMLTV, M3U, FFmpeg, or external behavior | `research` |
-| Diagnosing a bug, stream failure, test failure, or regression | `diagnosing-bugs` |
-| Reviewing a diff or implementation | `code-review` |
-| Writing or updating AI-facing docs, skills, agents, or prompts | `writing-for-agents` |
-| Turning a conversation or feature idea into a durable spec | `to-spec` |
-| Breaking a spec or milestone into implementation tasks | `to-tickets` |
-| Pausing or ending a long session | `handoff` |
+| Situation                                                                             | Use Skill            |
+| ------------------------------------------------------------------------------------- | -------------------- |
+| Working on scheduling, channel state, playout timelines, SignalPackager, or providers | `krazitv-domain`     |
+| Naming domain concepts or updating shared vocabulary                                  | `domain-modeling`    |
+| Designing packages, modules, interfaces, or refactors                                 | `codebase-design`    |
+| Implementing deterministic behavior or fixing a bug with test coverage                | `tdd`                |
+| Researching Plex, Jellyfin, XMLTV, M3U, FFmpeg, or external behavior                  | `research`           |
+| Diagnosing a bug, stream failure, test failure, or regression                         | `diagnosing-bugs`    |
+| Reviewing a diff or implementation                                                    | `code-review`        |
+| Writing or updating AI-facing docs, skills, agents, or prompts                        | `writing-for-agents` |
+| Turning a conversation or feature idea into a durable spec                            | `to-spec`            |
+| Breaking a spec or milestone into implementation tasks                                | `to-tickets`         |
+| Pausing or ending a long session                                                      | `handoff`            |
 
 ## Default Flow For New Features
 
