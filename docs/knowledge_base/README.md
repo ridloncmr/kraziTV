@@ -10,3 +10,4 @@ This folder stores research notes, references, useful commands, and operational 
 - FFmpeg command patterns
 - Media probing notes
 - Local development setup
+- opencode AI infrastructure

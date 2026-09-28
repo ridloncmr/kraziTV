@@ -822,3 +822,9 @@ In short:
 ## Development
 
 Project setup is in progress.
+
+## AI Agent Infrastructure
+
+Project-local opencode configuration lives in `opencode.json`, `AGENTS.md`, and `.opencode/`.
+
+See `docs/knowledge_base/opencode-ai-infra.md` for the agent, skill, and attribution details.
