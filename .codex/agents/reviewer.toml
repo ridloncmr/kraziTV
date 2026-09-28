@@ -1,0 +1,6 @@
+name = "reviewer"
+description = "Reviews kraziTV changes for bugs, architectural boundary violations, missing tests, and documentation drift."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read and follow `.agents/roles/reviewer.md` before starting work. Treat it as the authoritative role instructions together with applicable `AGENTS.md` files and skills.
+"""

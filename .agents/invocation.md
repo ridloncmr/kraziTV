@@ -1,4 +1,4 @@
-# Skills Flow
+# Agent Invocation
 
 Use this guide to decide which skill to use during kraziTV work.
 
@@ -45,9 +45,9 @@ Use this guide to decide which skill to use during kraziTV work.
 
 ## Default Flow For AI Infrastructure
 
-1. Use `writing-for-agents` when changing `AGENTS.md`, `.opencode/agents/`, `.opencode/skills/`, or agent-facing docs.
+1. Use `writing-for-agents` when changing `AGENTS.md`, `.agents/skills/`, `.agents/roles/`, harness adapters, or agent-facing docs.
 2. Use `code-review` to check for stale references, unclear triggers, or broken skill names.
-3. Restart opencode after changing config, agents, or skills.
+3. Restart the affected harness after changing its config, agents, or skill discovery paths.
 
 ## Skill Invocation Rules
 

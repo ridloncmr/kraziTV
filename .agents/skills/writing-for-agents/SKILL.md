@@ -1,6 +1,6 @@
 ---
 name: writing-for-agents
-description: Use when writing AGENTS.md, opencode skills, agent prompts, command prompts, specs, ADRs, or docs intended for AI agents. Adapted from Matt Pocock's writing-for-agents skill.
+description: Use when writing AGENTS.md, Agent Skills, agent roles, harness adapters, prompts, specs, ADRs, or docs intended for AI agents. Adapted from Matt Pocock's writing-for-agents skill.
 license: MIT
 ---
 
@@ -14,7 +14,8 @@ Write docs that make future agent work safer and faster.
 
 - Put durable project rules in `AGENTS.md`.
 - Put product behavior in feature-scoped specs under `docs/specs/features/`.
-- Put decisions in `docs/adrs/`.
+- Put product and system decisions in `docs/adrs/`.
+- Put AI harness and agent-infrastructure decisions in `.agents/adr/`.
 - Put build sequencing in `docs/implementation_plan/`.
 - Put researched facts in `docs/knowledge_base/`.
 - Prefer imperative, concrete instructions over vague preferences.

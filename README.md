@@ -836,6 +836,6 @@ Project setup is in progress.
 
 ## AI Agent Infrastructure
 
-Project-local opencode configuration lives in `opencode.json`, `AGENTS.md`, and `.opencode/`.
+Shared agent guidance lives in `AGENTS.md`, `.agents/skills/`, and `.agents/roles/`. Harness-specific adapters stay in their own configuration directories.
 
-See `docs/knowledge_base/opencode-ai-infra.md` for the agent, skill, and attribution details.
+See `.agents/README.md` for framework support, skill discovery, roles, and attribution details.
