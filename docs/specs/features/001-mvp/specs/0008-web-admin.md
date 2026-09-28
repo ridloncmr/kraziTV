@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, channels, playback mode, and observing generated programming and current channel state.
+This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, playback mode, and observing generated programming and current channel state.
 
 ## Problem
 
@@ -15,11 +15,13 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 - Provide a minimal browser UI for MVP setup.
 - Let users configure local media roots.
 - Let users trigger or observe media scans.
+- Let users create simple media collections from cataloged media.
 - Let users create and edit channels.
 - Let users choose chronological or random playback mode.
 - Let users view generated schedule entries.
 - Let users view current channel state and playback offset.
-- Expose Plex setup URLs for M3U and XMLTV.
+- Expose Plex tuner and XMLTV setup URLs.
+- Expose a generic M3U URL as a secondary/debugging aid.
 - Keep domain decisions in backend APIs and core packages.
 
 ## Non-Goals
@@ -41,11 +43,12 @@ The Web Admin should support a basic setup flow:
 1. Open kraziTV Web Admin.
 2. Add a local media root.
 3. Scan the media root.
-4. Create a channel.
-5. Select channel number, name, source, and playback mode.
-6. View upcoming schedule entries.
-7. View what is currently playing.
-8. Copy Plex playlist and guide URLs.
+4. Create a media collection from cataloged items.
+5. Create a channel.
+6. Select channel number, name, media collection, and playback mode.
+7. View upcoming schedule entries.
+8. View what is currently playing.
+9. Copy Plex tuner and guide URLs.
 ```
 
 The UI should make empty states clear, especially when:
@@ -53,6 +56,7 @@ The UI should make empty states clear, especially when:
 - No media roots exist.
 - A media root has not been scanned.
 - A scan found no schedulable media.
+- No media collections exist.
 - No channels exist.
 - A channel has no generated schedule.
 - A channel has no current playout item.
@@ -67,6 +71,7 @@ The MVP UI should include navigation or sections for:
 
 - Overview
 - Media roots and catalog
+- Media collections
 - Channels
 - Schedule/current state
 - Plex setup
@@ -86,6 +91,18 @@ The user can:
 
 The UI should display API validation errors directly enough for the user to fix input.
 
+### Media Collection UI
+
+The user can:
+
+- List media collections.
+- Create a media collection.
+- Add cataloged media items to a collection.
+- Remove media items from a collection.
+- See whether a collection has schedulable available media.
+
+The UI should present media collections as programming eligibility, not as filesystem locations.
+
 ### Channel UI
 
 The user can:
@@ -95,7 +112,7 @@ The user can:
 - Edit channel number and name.
 - Enable or disable a channel.
 - Select playback mode.
-- Select a media source from available catalog/media-root options.
+- Select a media collection.
 - Delete a channel when the API supports it.
 
 The UI must not implement scheduling rules locally. It submits channel configuration to the API and renders API responses.
@@ -115,10 +132,11 @@ The UI can request schedule or current-state data from the API, but it must not 
 
 The user can view or copy:
 
-- Plex M3U playlist URL
+- Plex tuner base URL
 - Plex XMLTV guide URL
+- Generic M3U playlist URL
 
-The UI may include short instructions for using those URLs in Plex Live TV setup.
+The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. M3U should be presented as secondary/debug output rather than the primary Plex setup path.
 
 ### API Integration
 
@@ -129,6 +147,7 @@ Expected API areas:
 - Health
 - Media roots
 - Media items
+- Media collections
 - Channels
 - Schedule
 - Current channel state
@@ -160,7 +179,7 @@ Important boundaries:
 - `packages/core` owns domain behavior and deterministic decisions.
 - `packages/media` owns probing/catalog behavior exposed through API responses.
 - `packages/plex` owns Plex-specific formatting exposed through API URLs.
-- The Web Admin must not duplicate scheduling algorithms, playout lookup, XMLTV generation, M3U generation, or FFmpeg command construction.
+- The Web Admin must not duplicate scheduling algorithms, playout lookup, HDHomeRun formatting, XMLTV generation, M3U generation, or FFmpeg command construction.
 
 ## Open Questions
 
@@ -177,10 +196,12 @@ Important boundaries:
 - The UI can show API health or connection status.
 - A user can add or view media roots through the UI.
 - A user can trigger or observe media scanning when the API supports it.
+- A user can create and edit simple media collections through the UI.
 - A user can create and edit channels through the UI.
 - A user can select chronological or random playback mode through the UI.
 - A user can view upcoming schedule entries for a channel.
 - A user can view current channel state and offset when available.
-- A user can view or copy Plex M3U and XMLTV URLs.
+- A user can view or copy Plex tuner and XMLTV URLs.
+- A user can view or copy a generic M3U URL as a secondary/debugging aid.
 - UI behavior does not require Jellyfin, advanced transcoding profiles, commercials, manual schedule editing, or authentication.
 - The Web Admin does not implement authoritative scheduling, playout timeline lookup, Plex formatting, or FFmpeg command construction.

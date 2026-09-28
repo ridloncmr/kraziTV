@@ -15,7 +15,7 @@ The MVP needs channel configuration that is useful enough to drive basic schedul
 - Let users create, list, update, enable, disable, and delete channels.
 - Assign each channel a stable internal identifier.
 - Require a channel number and display name.
-- Allow a channel to select cataloged local media as its source.
+- Allow a channel to select a media collection as its programming source.
 - Support chronological and random playback modes.
 - Persist channel configuration in SQLite.
 - Keep channel configuration provider-neutral.
@@ -40,7 +40,7 @@ A user can create a channel with:
 - Channel name
 - Enabled state
 - Playback mode
-- Media source selection
+- Media collection selection
 
 Example channel:
 
@@ -48,11 +48,11 @@ Example channel:
 Channel 69
 Name: Krazi Comedy
 Playback mode: Chronological
-Source: /mnt/media/TV/Comedy
+Collection: Comedy Shows
 Enabled: true
 ```
 
-The user can list configured channels and see whether each channel is enabled, what source it uses, and what playback mode it will use when schedules are generated.
+The user can list configured channels and see whether each channel is enabled, what collection it uses, and what playback mode it will use when schedules are generated.
 
 Disabling a channel keeps its configuration but excludes it from future guide, provider, and playout behavior.
 
@@ -68,12 +68,14 @@ Deleting a channel removes the channel configuration. Future implementation may 
 - Channel numbers must be unique among active configured channels.
 - Channel IDs must not encode provider names or provider-specific identifiers.
 
-### Source Selection
+### Programming Collection Selection
 
-- A channel source points at cataloged local media from the media catalog slice.
-- The first implementation may represent a source as one media root, a subset of media items, or a simple catalog query, but it must not require Plex or Jellyfin.
+- A channel programming source points at a media collection.
+- A media collection is a logical set of cataloged media items that are eligible for programming on a channel.
+- A media root represents filesystem scope and must not be used directly as channel programming intent.
+- The first implementation may support simple collections backed by explicit media item IDs.
 - Disabled or unavailable media items should not make channel configuration invalid by themselves.
-- A channel with an empty source can be saved, but later scheduling should report that it has no schedulable media.
+- A channel with an empty collection can be saved, but later scheduling should report that it has no schedulable media.
 
 ### Playback Mode
 
@@ -109,7 +111,7 @@ API validation should reject invalid channel numbers, empty names, duplicate act
 - SQLite stores channel configuration.
 - Channel configuration survives API restarts.
 - Channel rows should use timestamps for creation and updates.
-- Source selection should be persisted in a way that can evolve beyond the first source type.
+- Collection selection should be persisted in a way that can evolve beyond the first collection type.
 
 ## Data Model Impact
 
@@ -122,8 +124,7 @@ number
 name
 enabled
 playbackMode
-sourceType
-sourceConfig
+mediaCollectionId
 createdAt
 updatedAt
 ```
@@ -133,12 +134,26 @@ Initial playback mode values:
 - `chronological`
 - `random`
 
-Initial source type values:
+Minimum media collection fields:
 
-- `media_root`
-- `media_items`
+```text
+MediaCollection
+id
+name
+createdAt
+updatedAt
+```
 
-`sourceConfig` should be treated as channel configuration, not scheduling output. Schedule entries and playout timeline items belong to later specs.
+Minimum collection membership fields:
+
+```text
+MediaCollectionItem
+mediaCollectionId
+mediaItemId
+createdAt
+```
+
+Schedule entries and playout timeline items belong to later specs.
 
 ## Architecture Boundaries
 
@@ -160,17 +175,24 @@ Important boundaries:
 - `packages/media` owns media catalog/probe concepts, not channel scheduling decisions.
 - Provider adapters may later map channel config into provider-specific outputs without modifying core channel identity.
 
+Media roots and media collections are separate concepts:
+
+- Media roots answer where kraziTV can discover media.
+- Media collections answer what media a channel or programming rule can select.
+- Channels should reference media collections, not filesystem roots, for programming eligibility.
+
 ## Open Questions
 
 - Should channel numbers be integers only, or should subchannels such as `69.1` be allowed?
 - Should disabled channels reserve their channel numbers?
-- Should a channel source initially point to media roots, explicit media item IDs, or both?
+- Should the first media collection editor support explicit item IDs only, or also simple catalog filters?
 - Should channel deletion be hard delete or soft delete?
 - Should logos be included in MVP channel configuration or deferred until Plex guide polish?
 
 ## Acceptance Criteria
 
-- A channel can be created with number, name, enabled state, playback mode, and source selection.
+- A channel can be created with number, name, enabled state, playback mode, and media collection selection.
+- Media collections can be created from explicit cataloged media item IDs.
 - Configured channels can be listed through the API.
 - A single channel can be fetched through the API.
 - Channel configuration can be updated through the API.
@@ -179,4 +201,5 @@ Important boundaries:
 - Channel configuration persists across API restarts.
 - Duplicate active channel numbers are rejected.
 - Unsupported playback modes are rejected.
+- Channel programming eligibility is based on media collections, not direct filesystem roots.
 - Channel configuration does not require Plex, Jellyfin, FFmpeg, schedule generation, playout timeline generation, or streaming.

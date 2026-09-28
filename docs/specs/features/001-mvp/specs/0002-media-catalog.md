@@ -142,6 +142,8 @@ Initial media item statuses:
 
 Future specs may add richer media typing, episode fields, provider mappings, user tags, artwork, and collections.
 
+Media roots are filesystem discovery boundaries, not programming rules. Channel programming should use media collections from the channel configuration slice rather than pointing channels directly at root paths.
+
 ## Architecture Boundaries
 
 This slice affects:
