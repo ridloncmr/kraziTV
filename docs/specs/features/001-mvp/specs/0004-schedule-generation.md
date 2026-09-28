@@ -152,10 +152,19 @@ revision.
 Concurrent requests for the same channel must serialize at the database
 boundary. An in-process mutex may reduce contention, but it is not the
 correctness mechanism because another process or connection could bypass it.
-The SQLite implementation may use an immediate write transaction or an
-equivalent database-enforced compare-and-swap strategy. A request that loses a
-race must retry from freshly read persisted state or return a retryable error; it
-must not commit entries calculated from stale state.
+The SQLite implementation uses a project-owned immediate-transaction helper
+that pins one Kysely connection and executes `BEGIN IMMEDIATE` before reading
+schedule entries or `ChannelScheduleState`. Every read and write in the mutation
+uses the Kysely instance bound to that connection, followed by an explicit
+`COMMIT` or `ROLLBACK` on the same connection. Ordinary Kysely
+`db.transaction()` starts a deferred SQLite transaction and does not satisfy
+this requirement.
+
+The helper must not be nested or mixed with Kysely-managed transactions or
+`better-sqlite3` transaction wrappers. A request that cannot acquire write
+authority must retry the entire mutation from freshly read persisted state or
+return a retryable error; it must not commit entries calculated from stale
+state.
 
 When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the current UTC Unix epoch millisecond and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
@@ -243,6 +252,10 @@ Important boundaries:
   one database transaction.
 - Concurrent generation requests cannot allocate the same channel sequence
   number or create overlapping schedule entries.
+- Integration tests using at least two connections to the same SQLite database
+  prove that a schedule mutation acquires write authority before reading and
+  that a losing concurrent request retries from fresh state or fails with a
+  retryable error.
 - The database enforces unique `(channelId, sequenceNumber)` values and provides
   channel/time indexes for schedule range lookups.
 - Overlapping schedule reads return the same persisted entries for the overlapping time range.

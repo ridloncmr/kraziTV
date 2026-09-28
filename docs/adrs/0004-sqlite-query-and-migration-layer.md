@@ -19,6 +19,22 @@ with Kysely's `SqliteDialect` backed by `better-sqlite3`.
 
 Use Kysely migrations for schema changes. Keep migration files readable and explicit, and avoid hiding the schema behind broad repository abstractions before the persistence model stabilizes.
 
+Kysely's built-in `SqliteDriver` currently starts transactions with plain
+`BEGIN`, which SQLite treats as deferred. Ordinary `db.transaction()` therefore
+does not satisfy a requirement to acquire write authority before the first
+read.
+
+Schedule read-modify-write mutations use a project-owned immediate-transaction
+helper. The helper obtains a Kysely instance pinned to one connection, executes
+`BEGIN IMMEDIATE` before invoking domain work, runs every mutation query through
+that pinned instance, and explicitly commits or rolls back on the same
+connection. It must not be nested or mixed with Kysely-managed transactions.
+
+Do not wrap async Kysely work in `better-sqlite3`'s synchronous
+`transaction(...).immediate()` API. If a future Kysely release adds supported
+SQLite transaction modes, the helper may be replaced only while retaining the
+same concurrency tests and `BEGIN IMMEDIATE` semantics.
+
 ## Consequences
 
 - Persistence-heavy MVP work can proceed without agents choosing between Drizzle and Kysely per slice.
@@ -28,5 +44,10 @@ Use Kysely migrations for schema changes. Keep migration files readable and expl
 - `apps/server` should own database connection and migration wiring unless a later package boundary becomes necessary.
 - `apps/server` owns the `better-sqlite3` connection lifecycle and passes that
   connection to Kysely's `SqliteDialect`.
+- `apps/server` owns the narrow immediate-transaction helper used by schedule
+  persistence. Domain code receives its scoped persistence interface rather
+  than issuing transaction-control SQL.
+- Ordinary Kysely `db.transaction()` is not sufficient for schedule mutations
+  that must own SQLite write authority before reading.
 - Domain packages should receive typed data or narrow persistence interfaces instead of importing Kysely directly by default.
 - If future schema needs strongly favor another migration or ORM layer, that change should get a new ADR rather than reopening this one casually.

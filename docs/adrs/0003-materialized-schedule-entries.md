@@ -32,6 +32,12 @@ ordering, or contents increments the revision exactly once in the same commit;
 a no-op coverage check does not increment it. Concurrent requests must serialize
 through the database; an in-process lock alone is insufficient.
 
+With the selected Kysely `SqliteDialect`, schedule mutations use the
+project-owned, connection-pinned immediate-transaction helper defined by ADR 0004. The helper executes `BEGIN IMMEDIATE` before reading the schedule or
+`ChannelScheduleState`; ordinary Kysely `db.transaction()` is deferred on
+SQLite and does not satisfy this invariant. Failure to acquire write authority
+must retry the entire mutation from fresh state or return a retryable error.
+
 Derived channel-state and playout selections carry the revision from the same
 consistent snapshot as their source schedule entries. Active channel stream
 workers may prefetch future selections, but must revalidate the current
@@ -52,6 +58,8 @@ schedule-state row per channel. Indexes on `(channelId, startsAt)` and
   associated schedule state.
 - Concurrent schedule requests cannot reserve the same sequence number or commit
   overlapping extensions from stale state.
+- Multi-connection integration tests prove that schedule mutations acquire
+  SQLite write authority before their first domain read.
 - Active stream workers cannot treat prefetched future programming as
   authoritative after the materialized schedule revision changes.
 - The database carries schedule data, not only channel configuration and media catalog data.
