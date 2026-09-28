@@ -21,4 +21,32 @@ describe("buildServer", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
   });
+
+  it("allows the local Web UI origin", async () => {
+    const server = buildServer({ logger: false });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/health",
+      headers: { origin: "http://127.0.0.1:5173" },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "http://127.0.0.1:5173",
+    );
+  });
+
+  it("does not allow an unconfigured browser origin", async () => {
+    const server = buildServer({ logger: false });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/health",
+      headers: { origin: "https://attacker.example" },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
 });
