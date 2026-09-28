@@ -20,5 +20,6 @@ Use Fastify for the API server, React and Vite for the Web UI, SQLite for local 
 
 - Development can move quickly in a language the project owner is comfortable with.
 - Plex and Jellyfin integration can be implemented through HTTP/XML/JSON APIs.
-- FFmpeg work can be isolated behind process wrappers in the media package.
+- FFmpeg process wrappers live in SignalPackager under `packages/signal`, as
+  established by ADR 0005. `packages/media` owns ffprobe and source inspection.
 - C# remains an option later if a component benefits from a separate service boundary.
