@@ -143,8 +143,10 @@ Responsibilities:
 - Maintain independent subscriber buffers.
 - Maintain the late-join initialization state required by the compatibility-spike results.
 - Prefetch future selected playout candidates when its queue becomes low.
-- Revalidate the persisted schedule revision immediately before every item
-  transition and discard stale future candidates.
+- Prepare future packaging resources without committing those candidates to the
+  broadcast.
+- Revalidate the persisted schedule revision and commit exactly one prepared
+  item at every scheduled transition boundary.
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
@@ -197,15 +199,39 @@ are not sufficient evidence.
 The materialized schedule remains authoritative while a worker is active. Every
 current or following playout selection carries the monotonic `scheduleRevision`
 under which it was derived. A worker may retain multiple future candidates for
-I/O preparation, but it must not treat that queue as committed programming.
+I/O preparation, but neither selection nor preparation commits that programming
+to the broadcast.
 
-Immediately before passing a following item to SignalPackager for transition,
-the worker reads the channel's current persisted schedule revision. If it does
-not equal the candidate's revision, the worker discards every queued future
-candidate and asks the playout provider for fresh selected playout. Only an item
-selected under the current revision may be appended. The current item is not
-interrupted solely by a revision change; schedule regeneration preserves it
-through its existing scheduled end.
+The worker may ask SignalPackager to prepare a future item before its scheduled
+boundary. Preparation may allocate resources or prewarm an encoder, but it must
+not alter session output, reserve that item as the next broadcast item, or make
+it immune to schedule regeneration. An uncommitted preparation is revocable and
+must be discardable when its selection becomes stale or the worker stops.
+
+At or after the item's scheduled transition deadline, the worker enters the
+schedule-transition coordination boundary. This boundary uses the same
+connection-pinned SQLite `BEGIN IMMEDIATE` mechanism as schedule mutation. After
+acquiring write authority, the worker obtains the boundary time, reads the
+persisted revision, and confirms that the prepared schedule entry is the entry
+covering that time (`startsAt <= boundaryTime < endsAt`). It discards all stale
+preparations and asks the playout provider for fresh selected playout when either
+check fails.
+
+While it still owns that coordination boundary, the worker synchronously
+commits the valid preparation to SignalPackager. Successful `commit()` return is
+the transition's single linearization point: the preparation has been consumed,
+the item is irrevocably accepted as the next transmitted item, and later
+schedule regeneration treats it as the item already airing through its existing
+`endsAt`. `commit()` must not perform asynchronous preparation or return before
+acceptance. A failed `commit()` accepts no item and is a worker/session failure;
+the expired previous item must not be extended to conceal it.
+
+Schedule regeneration uses its transaction's time after acquiring the same
+write authority. If regeneration acquires authority first, it commits its new
+revision before the worker can validate, so the worker discards the stale
+preparation. If the worker commits the transition first, later regeneration sees
+the newly current entry and preserves it. An item must never be committed before
+its scheduled boundary merely to avoid this coordination.
 
 Revision revalidation is required even when no in-process schedule-change
 notification was observed. A notification may invalidate the queue earlier,
@@ -226,12 +252,25 @@ interface SignalPackager {
 
 interface SignalSession {
   output: Readable;
-  append(item: SignalPlayoutItem): Promise<void>;
+  prepare(item: SignalPlayoutItem): Promise<SignalPreparation>;
   stop(): Promise<void>;
+}
+
+interface SignalPreparation {
+  commit(): void;
+  discard(): Promise<void>;
 }
 ```
 
 Exact names may change during implementation. The durable contract is that SignalPackager owns encoding mechanics while the worker owns active broadcast lifetime and replenishment.
+
+`prepare()` resolves only when the item is ready for a bounded, synchronous
+commit. It does not change the broadcast and does not promise that the item will
+be used. `commit()` consumes the preparation exactly once and is the only
+operation that makes it authoritative for output. `discard()` releases an
+uncommitted preparation and is idempotent. Committing a preparation from another
+session, or committing one that was already committed or discarded, fails
+without changing output.
 
 Minimum selected playout item fields:
 
@@ -456,9 +495,10 @@ Important boundaries:
   channel is disabled or deleted; `apps/server` owns coordinating that request
   with the committed configuration mutation.
 - ChannelWorker owns active broadcast lifetime, non-authoritative playout
-  prefetch, schedule-revision revalidation, stream fan-out, late-join stream
-  initialization, and subscriber isolation.
-- SignalPackager accepts selected media and offset from the worker; it does not decide what should be playing.
+  prefetch, schedule-transition coordination, schedule-revision revalidation,
+  stream fan-out, late-join stream initialization, and subscriber isolation.
+- SignalPackager prepares selected media and performs the worker's synchronous
+  transition commit; it does not decide what should be playing.
 - SignalPackager owns FFmpeg command construction.
 - kraziBrain owns playout decisions and current offset calculation.
 - Provider adapters expose stream URLs that target the provider-neutral endpoint; they do not construct FFmpeg commands.
@@ -552,8 +592,20 @@ contract.
 - A schedule regeneration while a worker is active preserves the current item,
   invalidates future candidates selected under the old `scheduleRevision`, and
   transitions to the item selected from the new materialized schedule.
-- The worker revalidates `scheduleRevision` immediately before every item
-  transition even if it received no schedule-change notification.
+- Preparing a future item does not commit it to the broadcast, and a stale or
+  unused preparation can be discarded without changing session output.
+- At every following-item boundary, the worker acquires the same SQLite
+  immediate-transaction coordination boundary used by schedule mutation,
+  revalidates the revision and entry, and calls synchronous `commit()` before
+  releasing the boundary.
+- A regeneration/transition race has one deterministic winner: regeneration
+  first invalidates the preparation, while transition commit first makes the
+  item current and requires regeneration to preserve it through `endsAt`.
+- Multi-connection integration coverage exercises both orderings of a
+  regeneration/transition race and proves that stale prepared output is never
+  committed.
+- No following item is committed before its scheduled boundary, even when it
+  has already been prepared.
 - A second viewer tuning the same channel reuses the existing worker.
 - A second FFmpeg pipeline is not started for a second viewer on the same channel.
 - Both viewers receive the shared broadcast signal.

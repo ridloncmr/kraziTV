@@ -33,11 +33,17 @@ does not replace this startup synchronization step.
 
 The worker does not decide programming. It receives selected current and future
 playout items from kraziBrain-owned domain logic. Future selections are
-non-authoritative prefetch: each carries the materialized `scheduleRevision`,
-and the worker must compare that revision with current persisted schedule state
-immediately before every item transition. A mismatch invalidates all prefetched
-future items and requires a fresh selection. The item already transmitting is
-not interrupted solely because the revision changed.
+non-authoritative prefetch: each carries the materialized `scheduleRevision`.
+SignalPackager may prepare packaging resources for those selections, but
+preparation remains revocable and cannot change broadcast output. At or after
+the scheduled boundary, the worker acquires the same SQLite immediate-transaction
+coordination boundary as schedule mutation, revalidates the revision and entry,
+and synchronously commits the valid preparation before releasing the boundary.
+That commit is the transition linearization point. A regeneration that commits
+first invalidates the preparation; a transition that commits first makes the
+entry current and causes later regeneration to preserve it through `endsAt`.
+The item already transmitting is not interrupted solely because the revision
+changed.
 
 SignalPackager remains responsible for encoding mechanics, FFmpeg process
 construction, transcoding, muxing, seeking, and stream continuity primitives.
@@ -78,6 +84,10 @@ harness and its fixed metadata and media paths are disposable.
 - A worker's future-item queue is a prefetch cache, not an independent
   programming authority; schedule revision changes invalidate it before the
   next transition.
+- SignalPackager preparation is revocable. Only the worker's synchronous commit
+  at the scheduled boundary makes a prepared item authoritative for output.
+- Schedule regeneration and following-item transition commitment serialize at
+  the SQLite write-authority boundary, closing the check-then-transition race.
 - The number of encoders scales with active channels rather than viewers.
 - The architecture better supports commercials, station IDs, shared interruptions, and channel monitoring later.
 - The compatibility spike becomes the first integration consumer of the durable

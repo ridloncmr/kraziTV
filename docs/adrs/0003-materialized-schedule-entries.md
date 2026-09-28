@@ -40,10 +40,14 @@ must retry the entire mutation from fresh state or return a retryable error.
 
 Derived channel-state and playout selections carry the revision from the same
 consistent snapshot as their source schedule entries. Active channel stream
-workers may prefetch future selections, but must revalidate the current
-persisted revision immediately before each transition and discard prefetched
-future selections when it changes. The item already transmitting remains in
-place through its scheduled end under the regeneration policy above.
+workers may prefetch and prepare future selections, but those preparations are
+revocable. At or after a scheduled boundary, a worker uses the same
+connection-pinned immediate-transaction helper as schedule mutation, revalidates
+the entry and current persisted revision, and synchronously commits the prepared
+SignalPackager item before releasing write authority. That commit is the point
+at which the item becomes irrevocable. A regeneration transaction that commits
+first invalidates the stale preparation; a transition that commits first makes
+the entry current, so later regeneration preserves it through its scheduled end.
 
 The database enforces a unique `(channelId, sequenceNumber)` constraint and one
 schedule-state row per channel. Indexes on `(channelId, startsAt)` and
@@ -62,4 +66,9 @@ schedule-state row per channel. Indexes on `(channelId, startsAt)` and
   SQLite write authority before their first domain read.
 - Active stream workers cannot treat prefetched future programming as
   authoritative after the materialized schedule revision changes.
+- Schedule regeneration and broadcast transition commitment have a deterministic
+  order at the SQLite write-authority boundary.
+- Following-item commits briefly acquire SQLite write authority even though they
+  do not change the materialized schedule; the synchronous commit keeps that
+  coordination window bounded.
 - The database carries schedule data, not only channel configuration and media catalog data.

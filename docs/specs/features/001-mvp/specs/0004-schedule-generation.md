@@ -134,8 +134,9 @@ Schedule generation should extend the persisted schedule forward from the last g
 Every schedule mutation for a channel must be atomic. Initial state creation,
 horizon extension, gap repair, and delete-and-regenerate operations each run in
 one SQLite write transaction. The mutation must acquire database write authority
-before reading the current entries and `ChannelScheduleState`, then re-evaluate
-the required work inside that transaction. Entry inserts or deletes and updates
+before reading the current entries and `ChannelScheduleState`, obtain its
+effective current time after acquiring that authority, then re-evaluate the
+required work inside that transaction. Entry inserts or deletes and updates
 to `lastGeneratedThrough`, `nextSequenceNumber`, `scheduleRevision`, and other
 schedule state commit together or roll back together.
 
@@ -159,6 +160,17 @@ uses the Kysely instance bound to that connection, followed by an explicit
 `COMMIT` or `ROLLBACK` on the same connection. Ordinary Kysely
 `db.transaction()` starts a deferred SQLite transaction and does not satisfy
 this requirement.
+
+An active worker's following-item transition uses the same immediate-transaction
+helper as a coordination boundary. At or after the scheduled boundary, the
+worker acquires write authority, obtains the boundary time, revalidates the
+candidate entry and `scheduleRevision`, and synchronously commits its prepared
+SignalPackager item before releasing authority. The transition does not mutate
+the materialized schedule or increment `scheduleRevision`. If regeneration owns
+write authority first, the worker validates only after its commit and observes
+the resulting revision. If transition commit occurs first, regeneration obtains
+its effective time afterward and preserves that now-current entry through
+`endsAt`.
 
 The helper must not be nested or mixed with Kysely-managed transactions or
 `better-sqlite3` transaction wrappers. A request that cannot acquire write
@@ -256,6 +268,10 @@ Important boundaries:
   prove that a schedule mutation acquires write authority before reading and
   that a losing concurrent request retries from fresh state or fails with a
   retryable error.
+- Multi-connection integration tests prove both orderings of a concurrent
+  schedule regeneration and following-item transition: regeneration first
+  invalidates the prepared item, while transition commit first preserves the
+  newly current entry.
 - The database enforces unique `(channelId, sequenceNumber)` values and provides
   channel/time indexes for schedule range lookups.
 - Overlapping schedule reads return the same persisted entries for the overlapping time range.
