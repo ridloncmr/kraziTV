@@ -16,6 +16,15 @@ kraziTV will use at most one lazily-created shared stream worker per channel whi
 
 The worker owns one SignalPackager/FFmpeg broadcast pipeline and dynamically fans encoded MPEG-TS output out to all current channel subscribers. The first subscriber starts the worker. Later subscribers reuse the same worker. The worker stops after the last subscriber disconnects and an idle grace period expires.
 
+Channel disable and deletion are operational shutdown signals. After the
+configuration mutation commits, `apps/server` asks `ChannelStreamManager` to
+stop that channel and awaits cleanup before returning success. The manager
+cancels pending creation, rejects or closes racing subscriptions, closes current
+subscriber streams, and stops the active or idle-grace worker without waiting
+for idle grace. Re-enabling a channel allows a later subscription to create a
+fresh worker. Ordinary programming changes do not force this shutdown and keep
+the current broadcast under the schedule-regeneration policy.
+
 The first worker resolves current channel state again after asynchronous worker
 preparation and immediately before creating its SignalPackager/FFmpeg process.
 It starts from that fresh wall-clock offset and retains the selected item's
@@ -50,10 +59,16 @@ This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker
   initial tune drift, and startup delay must not move the next scheduled
   transition.
 - Worker lifecycle becomes part of server shutdown behavior.
+- Worker lifecycle also responds to committed channel disable/delete mutations;
+  administrative stops bypass idle grace and terminate current subscriber
+  streams.
 - Worker creation must be guarded so concurrent tune requests cannot create duplicate workers for one channel.
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.
 - Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving encoder processes behind.
 - Failed workers may terminate current subscribers in the MVP; the next tune request can create a new worker.
+- Every subscription revalidates inside its serialized per-channel transition
+  that the channel exists and is enabled before attaching, including when a
+  worker is already registered.
 - A worker's future-item queue is a prefetch cache, not an independent
   programming authority; schedule revision changes invalidate it before the
   next transition.

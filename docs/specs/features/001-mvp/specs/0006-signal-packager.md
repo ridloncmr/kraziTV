@@ -70,6 +70,10 @@ Conceptual interface:
 ```ts
 interface ChannelStreamManager {
   subscribe(channelId: ChannelId): Promise<ChannelSubscription>;
+  stopChannel(
+    channelId: ChannelId,
+    reason: "disabled" | "deleted",
+  ): Promise<void>;
   shutdown(): Promise<void>;
 }
 
@@ -89,7 +93,10 @@ Responsibilities:
 - Track subscriber counts.
 - Stop idle workers after a configurable grace period.
 - Prevent duplicate workers from being created concurrently for the same channel.
-- Serialize subscription, idle timeout, worker failure, and worker-shutdown transitions per channel.
+- Validate channel existence and enabled state inside every serialized
+  subscription transition, including subscriptions to an existing worker.
+- Serialize subscription, administrative stop, idle timeout, worker failure,
+  and worker-shutdown transitions per channel.
 - Cancel pending idle shutdown and reuse the worker when a subscriber returns during idle grace.
 - Never attach a subscriber to a worker after shutdown has begun.
 - Reject new subscriptions after manager shutdown begins.
@@ -97,7 +104,23 @@ Responsibilities:
 
 The manager does not decide what media should play.
 
-Concurrent subscriptions for the same channel must await the same worker creation. All subscribe, final-unsubscribe, idle-timeout, worker-failure, and worker-shutdown state changes must be serialized per channel. A subscription arriving during idle grace cancels the pending shutdown and reuses the worker. If worker-local shutdown has begun, the subscription waits for the old worker to close and leave the registry, then participates in the single shared creation of its replacement. It must never attach to a stopping worker or overlap the old pipeline with a replacement.
+Concurrent subscriptions for the same channel must await the same worker
+creation. All subscribe, administrative-stop, final-unsubscribe, idle-timeout,
+worker-failure, and worker-shutdown state changes must be serialized per
+channel. A subscription arriving during idle grace cancels the pending shutdown
+and reuses the worker. If worker-local shutdown has begun, the subscription
+waits for the old worker to close and leave the registry, then participates in
+the single shared creation of its replacement only if the channel still exists
+and is enabled. It must never attach to a stopping worker or overlap the old
+pipeline with a replacement.
+
+`stopChannel()` is a per-channel operational stop, not terminal manager
+shutdown. It cancels pending creation, prevents publication of a worker created
+by a losing race, closes current subscriber streams, and stops the active or
+idle-grace worker without waiting for idle grace. It resolves only after the
+worker, SignalPackager session, subscribers, and child processes settle. A later
+subscription may start a fresh worker only after channel authorization reports
+that the channel is enabled again.
 
 Manager shutdown is terminal and distinct from worker-local shutdown. Once manager shutdown begins, new subscriptions are rejected and no replacement workers may start. Pending worker creations must be cancelled when possible and awaited in all cases. If a pending creation starts a worker, SignalPackager session, or FFmpeg process before observing cancellation, it must stop those resources without publishing the worker. `shutdown()` resolves only after active workers, pending creations, SignalPackager sessions, subscriber streams, and child processes have settled.
 
@@ -376,13 +399,22 @@ Errors should be logged with channel ID, media item ID, media path when safe, of
 
 If the shared worker dies, all current subscribers are affected. The MVP may log the worker failure, terminate connected subscriber streams, remove the failed worker from the registry, and allow the next tune request to create a new worker. Automatic restart and seamless recovery are deferred.
 
+If an administrator disables or deletes a channel, connected streams terminate
+when the manager performs the channel's operational stop. The stop reason and
+channel ID are logged. Because response bytes have already begun, subscribers
+observe stream closure rather than a replacement error payload or completion of
+the current program.
+
 ### Resource Management
 
 - Each channel has at most one live shared channel worker, including during idle grace and shutdown.
 - Each channel worker owns one active FFmpeg process or process sequence at a time.
 - Multiple viewers on the same channel share the worker output.
 - Channels without an active or idle-grace worker consume no encoding resources.
-- Workers stop only after the final subscriber disconnects and the idle grace period expires.
+- Under ordinary viewer-driven lifecycle, workers stop only after the final
+  subscriber disconnects and the idle grace period expires.
+- Channel disable/delete is an administrative exception: it bypasses idle grace,
+  closes all subscribers, cancels pending creation, and stops the worker.
 - Client disconnect closes that subscriber without stopping the worker if other subscribers remain.
 - FFmpeg processes must be terminated when their channel worker stops.
 - Worker shutdown must wait for child-process closure and escalate termination after a bounded grace period; the MVP default is 5 seconds.
@@ -416,6 +448,9 @@ This slice affects:
 Important boundaries:
 
 - ChannelStreamManager owns lazy worker creation, subscriber tracking, idle shutdown, and worker cleanup.
+- ChannelStreamManager owns per-channel operational stops requested after a
+  channel is disabled or deleted; `apps/server` owns coordinating that request
+  with the committed configuration mutation.
 - ChannelWorker owns active broadcast lifetime, non-authoritative playout
   prefetch, schedule-revision revalidation, stream fan-out, late-join stream
   initialization, and subscriber isolation.
@@ -480,6 +515,15 @@ contract.
 - Disconnecting one viewer does not affect other subscribers.
 - A subscriber returning during idle grace cancels pending shutdown and reuses the existing worker.
 - A subscription racing with worker shutdown never attaches to the stopping worker and never creates an overlapping FFmpeg pipeline.
+- Disabling or deleting a channel cancels pending worker creation, rejects new
+  subscriptions, closes existing subscriber streams, and stops its worker
+  without waiting for idle grace.
+- A successful disable/delete response is not returned until the channel's
+  SignalPackager session and child processes have settled.
+- Re-enabling a channel permits a later subscription to create a fresh worker;
+  it never reuses the administratively stopped worker.
+- Ordinary programming changes do not stop the active worker or interrupt the
+  current item.
 - After manager shutdown begins, new subscriptions are rejected and no replacement worker starts.
 - Manager shutdown resolves only after active workers and pending creations have settled and no SignalPackager session or FFmpeg process remains.
 - Closing the same channel subscription more than once removes it and decrements the subscriber count only once.
