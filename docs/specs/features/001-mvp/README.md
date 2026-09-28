@@ -9,19 +9,19 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | Spec                                | Status      | Description                                                            |
 | ----------------------------------- | ----------- | ---------------------------------------------------------------------- |
 | `specs/0001-bootstrap.md`           | Implemented | Local startup, health checks, and workspace verification               |
-| `specs/0002-media-catalog.md`       | Draft       | Local media roots, scanning, ffprobe metadata, and catalog persistence |
-| `specs/0003-channel-config.md`      | Draft       | Channel creation, configuration, and media collection selection        |
-| `specs/0004-schedule-generation.md` | Draft       | Deterministic guide schedule generation from cataloged media           |
-| `specs/0005-playout-timeline.md`    | Draft       | Runtime timeline and current broadcast position                        |
-| `specs/0006-signal-packager.md`     | Draft       | FFmpeg MPEG-TS stream packaging for selected media                     |
-| `specs/0007-plex-adapter.md`        | Draft       | Plex-compatible discovery, guide, playlist, and stream exposure        |
-| `specs/0008-web-admin.md`           | Draft       | Minimal browser flow for configuring and observing the MVP             |
+| `specs/0002-media-catalog.md`       | Accepted    | Local media roots, scanning, ffprobe metadata, and catalog persistence |
+| `specs/0003-channel-config.md`      | Accepted    | Channel creation, configuration, and media collection selection        |
+| `specs/0004-schedule-generation.md` | Accepted    | Deterministic guide schedule generation from cataloged media           |
+| `specs/0005-playout-timeline.md`    | Accepted    | Runtime timeline and current broadcast position                        |
+| `specs/0006-signal-packager.md`     | Accepted    | FFmpeg MPEG-TS stream packaging for selected media                     |
+| `specs/0007-plex-adapter.md`        | Accepted    | Plex-compatible discovery, guide, playlist, and stream exposure        |
+| `specs/0008-web-admin.md`           | Accepted    | Minimal browser flow for configuring and observing the MVP             |
 
 The first release should intentionally be small and focused on proving the core loop.
 
-Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and play one stream.
+Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and keep playing across an actual two-file stream boundary.
 
-Before persistence-heavy MVP slices begin, ADR 0004 must be accepted and the selected SQLite query and migration layer should be used consistently.
+ADR 0004 is accepted. Persistence-heavy MVP slices use Kysely consistently for SQLite queries and migrations.
 
 ## Scope
 

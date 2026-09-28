@@ -453,100 +453,98 @@ The Jellyfin adapter may expose:
 
 The exact provider integration should remain isolated from kraziBrain.
 
-## Proposed Data Model
+## MVP Data Model Overview
 
-SQLite should be sufficient for the initial implementation.
+SQLite stores the initial domain data. The feature specs under `docs/specs/features/001-mvp/specs/` define the authoritative fields and behavior.
+
+### MediaRoot
+
+```text
+id
+path
+enabled
+createdAt
+updatedAt
+lastScannedAt
+```
 
 ### Channel
 
 ```text
-Id
-Name
-Number
-Logo
-EncodingProfile
-Enabled
+id
+number
+name
+enabled
+playbackMode
+mediaCollectionId
+createdAt
+updatedAt
 ```
 
 ### MediaCollection
 
 ```text
-Id
-Name
+id
+name
+createdAt
+updatedAt
 ```
 
 ### MediaCollectionItem
 
 ```text
-MediaCollectionId
-MediaItemId
-CreatedAt
+mediaCollectionId
+mediaItemId
+createdAt
 ```
 
 ### MediaItem
 
 ```text
-Id
-Path
-Series
-Season
-Episode
-Title
-Duration
-Metadata
-```
-
-### ProgramRule
-
-```text
-Id
-ChannelId
-DaysOfWeek
-StartTime
-EndTime
-SelectorType
-SelectorConfig
-Priority
-```
-
-### PlaybackHistory
-
-```text
-ChannelId
-MediaItemId
-PlayedAt
-```
-
-### Commercial
-
-```text
-Id
-Path
-Duration
-Tags
-Weight
+id
+mediaRootId
+path
+title
+durationSeconds
+status
+probeError
+createdAt
+updatedAt
+lastSeenAt
+lastProbedAt
 ```
 
 ### ScheduleEntry
 
 ```text
-Id
-ChannelId
-MediaItemId
-StartsAt
-EndsAt
+id
+channelId
+mediaItemId
+title
+startsAt
+endsAt
+durationSeconds
+sequenceNumber
+createdAt
+updatedAt
 ```
 
-### PlayoutEntry
+### PlayoutItem
+
+Playout items describe the domain/API shape. They may be derived from persisted schedule entries instead of stored separately in the MVP.
 
 ```text
-Id
-ChannelId
-Type
-MediaPath
-StartsAt
-EndsAt
-SourceScheduleEntryId
+id
+channelId
+scheduleEntryId
+mediaItemId
+type
+startsAt
+endsAt
+durationSeconds
+startOffsetSeconds
+createdAt
+updatedAt
 ```
 
 ## High-Level Architecture
@@ -688,28 +686,22 @@ Do not initially build:
 
 ## MVP Success Criteria
 
-The first major milestone is:
+The MVP succeeds when this complete loop works:
 
 ```text
 1. Start kraziTV.
-
-2. Create a channel.
-
-3. Select a media collection.
-
-4. Configure the channel.
-
-5. Open Plex.
-
-6. Navigate to Live TV.
-
-7. Select the kraziTV channel.
-
-8. See the currently-running program.
-
-9. Tune in halfway through an episode.
-
-10. Receive the stream from approximately the correct broadcast position.
+2. Prove Plex accepts kraziTV as a tuner through the compatibility spike.
+3. Create a channel.
+4. Select a media collection.
+5. Configure the channel.
+6. Open Plex.
+7. Navigate to Live TV.
+8. Select the kraziTV channel.
+9. See the currently-running program.
+10. Tune in halfway through an episode.
+11. Receive the stream from approximately the correct broadcast position.
+12. Remain connected when the stream crosses into the next scheduled program.
+13. Confirm Plex remains playing across an actual two-file boundary.
 ```
 
 Example:

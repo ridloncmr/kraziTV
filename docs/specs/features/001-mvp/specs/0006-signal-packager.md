@@ -1,6 +1,6 @@
 # SignalPackager MVP
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP SignalPackager behavior: converting selected playout media and offsets into a continuous MPEG-TS stream using FFmpeg without making programming decisions.
 

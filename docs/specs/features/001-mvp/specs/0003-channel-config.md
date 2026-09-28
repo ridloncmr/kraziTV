@@ -1,6 +1,6 @@
 # Channel Configuration
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, selecting a media collection as channel input, and storing enough configuration for later schedule generation.
 
@@ -66,7 +66,7 @@ Deleting a channel removes the channel configuration. Future implementation may 
 - Each channel has a stable internal `id`.
 - Each channel has a user-visible `number`.
 - Each channel has a user-visible `name`.
-- Channel numbers must be unique among active configured channels.
+- Channel numbers must be unique among all configured channels, including disabled channels.
 - Channel IDs must not encode provider names or provider-specific identifiers.
 
 ### Programming Collection Selection
@@ -119,7 +119,7 @@ Exact route names can change during implementation, but the capabilities should 
 
 Collection creation should require a non-empty name. Collection membership updates may replace the full explicit item set for the MVP.
 
-API validation should reject invalid channel numbers, empty names, duplicate active channel numbers, unsupported playback modes, unknown media collection IDs, and unknown media item IDs in collection membership.
+API validation should reject invalid channel numbers, empty names, duplicate channel numbers, unsupported playback modes, unknown media collection IDs, and unknown media item IDs in collection membership.
 
 ### Persistence
 
@@ -201,7 +201,6 @@ Media roots and media collections are separate concepts:
 ## Open Questions
 
 - Should channel numbers be integers only, or should subchannels such as `69.1` be allowed?
-- Should disabled channels reserve their channel numbers?
 - Should channel deletion be hard delete or soft delete?
 - Should logos be included in MVP channel configuration or deferred until Plex guide polish?
 - Should a later collection editor support saved catalog filters in addition to explicit item IDs?
@@ -218,7 +217,7 @@ Media roots and media collections are separate concepts:
 - A channel can be disabled without deleting it.
 - A channel can be deleted.
 - Channel configuration persists across API restarts.
-- Duplicate active channel numbers are rejected.
+- Duplicate channel numbers are rejected, including numbers assigned to disabled channels.
 - Unsupported playback modes are rejected.
 - Channel programming eligibility is based on media collections, not direct filesystem roots.
 - Channel configuration does not require Plex, Jellyfin, FFmpeg, schedule generation, playout timeline generation, or streaming.

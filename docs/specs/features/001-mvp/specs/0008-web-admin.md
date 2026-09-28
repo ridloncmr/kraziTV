@@ -1,6 +1,6 @@
 # Web Admin MVP
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, playback mode, and observing generated programming and current channel state.
 

@@ -1,6 +1,6 @@
 # Schedule Generation
 
-Status: Draft
+Status: Accepted
 
 This spec defines MVP guide schedule generation: producing deterministic, provider-neutral schedule entries for configured channels from cataloged local media.
 

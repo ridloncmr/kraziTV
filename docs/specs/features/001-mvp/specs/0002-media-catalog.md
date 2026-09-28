@@ -1,6 +1,6 @@
 # Local Media Catalog
 
-Status: Draft
+Status: Accepted
 
 This spec defines the vertical slice that lets kraziTV discover local media files, normalize basic metadata, and make that catalog available to later channel and scheduling work.
 

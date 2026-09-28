@@ -1,6 +1,6 @@
 # Plex Adapter MVP
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP Plex adapter behavior: exposing kraziTV channels, guide data, and stream URLs in Plex-compatible forms without moving scheduling or media packaging decisions into the adapter.
 
@@ -227,7 +227,7 @@ The spike may hard-code one channel:
 Krazi Comedy
 ```
 
-It may also hard-code one stream source. No database, scheduler, Web UI, complete domain model, or reusable adapter implementation is required.
+It should hard-code two local media files and serve them sequentially through one stream response so the test crosses a real file boundary. No database, scheduler, Web UI, complete domain model, or reusable adapter implementation is required.
 
 Spike success criteria:
 
