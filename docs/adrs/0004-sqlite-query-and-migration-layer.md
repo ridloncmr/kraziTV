@@ -30,6 +30,14 @@ helper. The helper obtains a Kysely instance pinned to one connection, executes
 that pinned instance, and explicitly commits or rolls back on the same
 connection. It must not be nested or mixed with Kysely-managed transactions.
 
+Read-only repository operations that derive channel state or selected playout
+use an ordinary Kysely transaction. They read `scheduleRevision` first to
+establish the SQLite snapshot and perform every subsequent source query through
+the transaction-bound Kysely instance. They must not use the root database
+handle inside the callback. If a read determines that schedule coverage must be
+mutated, it ends and returns a retry condition; the caller performs the mutation
+through the immediate-transaction helper and reruns the whole read operation.
+
 Do not wrap async Kysely work in `better-sqlite3`'s synchronous
 `transaction(...).immediate()` API. If a future Kysely release adds supported
 SQLite transaction modes, the helper may be replaced only while retaining the
@@ -49,5 +57,8 @@ same concurrency tests and `BEGIN IMMEDIATE` semantics.
   than issuing transaction-control SQL.
 - Ordinary Kysely `db.transaction()` is not sufficient for schedule mutations
   that must own SQLite write authority before reading.
+- Ordinary Kysely `db.transaction()` is the standard for multi-query read-only
+  schedule snapshots; mutation and read-snapshot helpers remain separate so a
+  deferred read is never upgraded into a write.
 - Domain packages should receive typed data or narrow persistence interfaces instead of importing Kysely directly by default.
 - If future schema needs strongly favor another migration or ORM layer, that change should get a new ADR rather than reopening this one casually.

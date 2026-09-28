@@ -57,8 +57,12 @@ Example flow:
 6. The fresh current offset is 555000 milliseconds.
 7. ChannelWorker starts one SignalPackager/FFmpeg session for the channel.
 8. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
-9. The viewer receives MPEG-TS bytes from the shared broadcast.
-10. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
+9. ChannelWorker immediately connects session output to its bounded startup and
+   fan-out buffer, then waits for SignalSession readiness.
+10. After usable MPEG-TS is buffered, ChannelStreamManager publishes the worker
+    and completes the subscription.
+11. The viewer receives MPEG-TS bytes from the shared broadcast.
+12. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
 ```
 
 If media cannot be opened or FFmpeg fails before response bytes begin, the initial stream request should fail with a clear error and log context. If the shared worker fails after streaming begins, the affected subscriber streams terminate and the failure is logged. Future filler behavior can replace failures later.
@@ -73,7 +77,10 @@ Conceptual interface:
 
 ```ts
 interface ChannelStreamManager {
-  subscribe(channelId: ChannelId): Promise<ChannelSubscription>;
+  subscribe(
+    channelId: ChannelId,
+    options?: { signal?: AbortSignal },
+  ): Promise<ChannelSubscription>;
   stopChannel(
     channelId: ChannelId,
     reason: "disabled" | "deleted",
@@ -97,11 +104,15 @@ Responsibilities:
 - Track subscriber counts.
 - Stop idle workers after a configurable grace period.
 - Prevent duplicate workers from being created concurrently for the same channel.
+- Track starting workers as private pending creations and publish only workers
+  that have produced usable buffered output.
 - Validate channel existence and enabled state inside every serialized
   subscription transition, including subscriptions to an existing worker.
 - Serialize subscription, administrative stop, idle timeout, worker failure,
   and worker-shutdown transitions per channel.
 - Cancel pending idle shutdown and reuse the worker when a subscriber returns during idle grace.
+- Remove a cancelled startup waiter without cancelling the shared creation while
+  other waiters remain; cancel creation if no waiter remains before publication.
 - Never attach a subscriber to a worker after shutdown has begun.
 - Reject new subscriptions after manager shutdown begins.
 - Stop all active workers during server shutdown.
@@ -118,6 +129,14 @@ the single shared creation of its replacement only if the channel still exists
 and is enabled. It must never attach to a stopping worker or overlap the old
 pipeline with a replacement.
 
+A pending creation is not an active, joinable worker. Concurrent subscriptions
+may share and await it, but the manager must not return a `ChannelSubscription`,
+publish the worker in its active registry, or let an HTTP handler commit a
+successful streaming response until worker readiness completes. Publication is
+serialized with cancellation, administrative stop, shutdown, and worker failure
+so a session that becomes ready while being stopped cannot escape into the
+active registry.
+
 `stopChannel()` is a per-channel operational stop, not terminal manager
 shutdown. It cancels pending creation, prevents publication of a worker created
 by a losing race, closes current subscriber streams, and stops the active or
@@ -125,6 +144,15 @@ idle-grace worker without waiting for idle grace. It resolves only after the
 worker, SignalPackager session, subscribers, and child processes settle. A later
 subscription may start a fresh worker only after channel authorization reports
 that the channel is enabled again.
+
+`stopChannel()` is idempotent and retryable. If any cleanup step fails, it
+rejects but retains the per-channel lifecycle record in a non-joinable stopping
+or cleanup-failed state together with every resource handle still needed for a
+retry. A later call resumes cleanup of the remaining resources. It must not
+return success merely because the worker was removed from the active registry,
+and it removes the lifecycle record only after all owned resources settle.
+Subscription and worker-publication transitions continue to lose while this
+record exists.
 
 Manager shutdown is terminal and distinct from worker-local shutdown. Once manager shutdown begins, new subscriptions are rejected and no replacement workers may start. Pending worker creations must be cancelled when possible and awaited in all cases. If a pending creation starts a worker, SignalPackager session, or FFmpeg process before observing cancellation, it must stop those resources without publishing the worker. `shutdown()` resolves only after active workers, pending creations, SignalPackager sessions, subscriber streams, and child processes have settled.
 
@@ -140,11 +168,15 @@ Responsibilities:
   SignalPackager/FFmpeg process.
 - Transition between scheduled playout items.
 - Broadcast encoded MPEG-TS output to multiple subscribers.
+- Expose readiness only after usable initialization and media output is retained
+  for the first subscriber.
 - Maintain independent subscriber buffers.
 - Maintain the late-join initialization state required by the compatibility-spike results.
 - Prefetch future selected playout candidates when its queue becomes low.
-- Revalidate the persisted schedule revision immediately before every item
-  transition and discard stale future candidates.
+- Prepare future packaging resources without committing those candidates to the
+  broadcast.
+- Revalidate the persisted schedule revision and commit exactly one prepared
+  item at every scheduled transition boundary.
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
@@ -192,20 +224,79 @@ verify a bounded startup strategy such as `-readrate_initial_burst`,
 tested end to end with emitted MPEG-TS and Plex; its input-rate semantics alone
 are not sufficient evidence.
 
+### Startup Readiness and Worker Publication
+
+SignalPackager returns a `SignalSession` synchronously so the worker can attach
+the broadcaster to `output` immediately and can stop a session whose startup is
+still pending. The session exposes a `ready` promise. Process creation, a live
+child process, or the first arbitrary stdout byte must not resolve it.
+
+`ready` resolves only after the session has emitted the initialization and media
+output required by the compatibility spike's verified MPEG-TS startup strategy.
+The worker must attach its bounded startup/late-join buffer before awaiting this
+promise. Worker readiness additionally requires that this usable output is
+retained in that buffer and that the worker has not entered stopping or failed
+state.
+
+The manager tracks the worker privately as a pending creation during startup.
+All concurrent subscriptions await the same pending creation, but none attaches
+and no successful HTTP response begins until the worker is ready and is
+published through the serialized per-channel lifecycle transition. Publication
+must recheck cancellation, manager shutdown, worker failure, and channel
+authorization. A losing startup is stopped and settled without ever becoming
+joinable.
+
+Startup waiting is bounded by both the current item's absolute `endsAt` and a
+configurable worker-startup timeout. The compatibility spike sets the MVP timeout
+from observed FFmpeg and Plex behavior. If the item expires first, the worker
+stops that session and resolves fresh current state while time remains in the
+overall startup timeout. If readiness rejects, the timeout expires, shared
+creation cancellation wins, or the worker fails before publication, the
+remaining waiting subscriptions fail without streaming response bytes and all
+session and child-process resources must settle. A readiness rejection caused by
+the worker stopping an expired attempt is handled by the bounded fresh-state
+retry rather than reported as an independent packaging failure. `stop()` is
+valid before readiness and must cause a pending `ready` promise to reject or
+otherwise settle without leaking a child process.
+
 ### Schedule Revision and Prefetch
 
 The materialized schedule remains authoritative while a worker is active. Every
 current or following playout selection carries the monotonic `scheduleRevision`
 under which it was derived. A worker may retain multiple future candidates for
-I/O preparation, but it must not treat that queue as committed programming.
+I/O preparation, but neither selection nor preparation commits that programming
+to the broadcast.
 
-Immediately before passing a following item to SignalPackager for transition,
-the worker reads the channel's current persisted schedule revision. If it does
-not equal the candidate's revision, the worker discards every queued future
-candidate and asks the playout provider for fresh selected playout. Only an item
-selected under the current revision may be appended. The current item is not
-interrupted solely by a revision change; schedule regeneration preserves it
-through its existing scheduled end.
+The worker may ask SignalPackager to prepare a future item before its scheduled
+boundary. Preparation may allocate resources or prewarm an encoder, but it must
+not alter session output, reserve that item as the next broadcast item, or make
+it immune to schedule regeneration. An uncommitted preparation is revocable and
+must be discardable when its selection becomes stale or the worker stops.
+
+At or after the item's scheduled transition deadline, the worker enters the
+schedule-transition coordination boundary. This boundary uses the same
+connection-pinned SQLite `BEGIN IMMEDIATE` mechanism as schedule mutation. After
+acquiring write authority, the worker obtains the boundary time, reads the
+persisted revision, and confirms that the prepared schedule entry is the entry
+covering that time (`startsAt <= boundaryTime < endsAt`). It discards all stale
+preparations and asks the playout provider for fresh selected playout when either
+check fails.
+
+While it still owns that coordination boundary, the worker synchronously
+commits the valid preparation to SignalPackager. Successful `commit()` return is
+the transition's single linearization point: the preparation has been consumed,
+the item is irrevocably accepted as the next transmitted item, and later
+schedule regeneration treats it as the item already airing through its existing
+`endsAt`. `commit()` must not perform asynchronous preparation or return before
+acceptance. A failed `commit()` accepts no item and is a worker/session failure;
+the expired previous item must not be extended to conceal it.
+
+Schedule regeneration uses its transaction's time after acquiring the same
+write authority. If regeneration acquires authority first, it commits its new
+revision before the worker can validate, so the worker discards the stale
+preparation. If the worker commits the transition first, later regeneration sees
+the newly current entry and preserves it. An item must never be committed before
+its scheduled boundary merely to avoid this coordination.
 
 Revision revalidation is required even when no in-process schedule-change
 notification was observed. A notification may invalidate the queue earlier,
@@ -225,13 +316,33 @@ interface SignalPackager {
 }
 
 interface SignalSession {
+  readonly ready: Promise<void>;
   output: Readable;
-  append(item: SignalPlayoutItem): Promise<void>;
+  prepare(item: SignalPlayoutItem): Promise<SignalPreparation>;
   stop(): Promise<void>;
+}
+
+interface SignalPreparation {
+  commit(): void;
+  discard(): Promise<void>;
 }
 ```
 
 Exact names may change during implementation. The durable contract is that SignalPackager owns encoding mechanics while the worker owns active broadcast lifetime and replenishment.
+
+`ready` settles exactly once. It resolves only after usable output has been
+emitted according to the verified startup strategy and rejects if packaging
+fails or stops first. The worker attaches and drains `output` before awaiting
+`ready`; callers must not wait for readiness before consuming the readable or
+startup can deadlock behind stream backpressure.
+
+`prepare()` resolves only when the item is ready for a bounded, synchronous
+commit. It does not change the broadcast and does not promise that the item will
+be used. `commit()` consumes the preparation exactly once and is the only
+operation that makes it authoritative for output. `discard()` releases an
+uncommitted preparation and is idempotent. Committing a preparation from another
+session, or committing one that was already committed or discarded, fails
+without changing output.
 
 Minimum selected playout item fields:
 
@@ -280,7 +391,15 @@ interface PlayoutSelection {
 `atMs` is a UTC Unix epoch timestamp in integer milliseconds, consistent with ADR 0007.
 `CurrentChannelState` and every item in `PlayoutSelection` carry the same
 `scheduleRevision` as the materialized schedule snapshot used to derive them.
-The revision read and entry reads must be consistent with one another.
+`getCurrent()` and `getFollowing()` are atomic snapshot operations at this
+interface boundary. Their SQLite adapter reads the revision first and all source
+schedule, channel, and catalog rows afterward through one connection-pinned
+Kysely read transaction. The adapter returns only the completed domain result;
+the worker cannot combine a revision from one call with items from another.
+
+`getScheduleRevision()` is the narrow revalidation read used inside the
+separately specified transition coordination boundary. It does not replace the
+snapshot guarantee for current or following selection.
 
 For the MVP, `afterScheduleEntryId` is the continuation cursor because each
 program playout item maps one-to-one to a persisted schedule entry. The provider
@@ -294,7 +413,10 @@ The exact shape can evolve. The rule is that the worker asks for selected playou
 
 ### Output Contract
 
-SignalPackager produces a readable MPEG-TS stream for a channel worker. The channel worker fans that stream out to HTTP subscribers.
+SignalPackager produces a readable MPEG-TS stream for a channel worker. The
+channel worker begins draining it into the broadcaster immediately, including
+while startup readiness is pending, and later fans that shared output out to
+HTTP subscribers.
 
 MVP output format:
 
@@ -381,6 +503,8 @@ The stream endpoint should:
 - Subscribe the HTTP client through `ChannelStreamManager`.
 - Lazily start a `ChannelWorker` for the channel when needed.
 - Reuse an existing `ChannelWorker` for later subscribers.
+- Delay a successful streaming response until a new worker has produced and
+  buffered usable output.
 - Return MPEG-TS output from the shared broadcast.
 - Close only that viewer's subscription when the client disconnects.
 
@@ -398,8 +522,21 @@ Failure cases should include:
 - FFmpeg not found
 - FFmpeg startup failure
 - FFmpeg exits before producing usable output
+- Worker startup readiness timeout
+- Administrative runtime cleanup failure after persistence commit
 
-Errors should be logged with channel ID, media item ID, media path when safe, offset, and FFmpeg exit information when available. Before response bytes begin, failures return a structured HTTP error. After streaming begins, failures are logged and the affected subscriber streams terminate; the MVP does not synthesize an error or filler stream.
+Errors should be logged with channel ID, media item ID, media path when safe,
+offset, readiness phase, and FFmpeg exit information when available. Because a
+new worker is not published before readiness, startup failures return a
+structured HTTP error without a partially successful streaming response. After
+streaming begins, failures are logged and the affected subscriber streams
+terminate; the MVP does not synthesize an error or filler stream.
+
+When a committed disable or delete cannot finish `stopChannel()`, `apps/server`
+maps that operational failure to the channel API's retryable
+`channel_runtime_cleanup_failed` response. SignalPackager and the manager do not
+reverse persistence. A retry invokes the same idempotent stop against the
+retained lifecycle record.
 
 If the shared worker dies, all current subscribers are affected. The MVP may log the worker failure, terminate connected subscriber streams, remove the failed worker from the registry, and allow the next tune request to create a new worker. Automatic restart and seamless recovery are deferred.
 
@@ -419,6 +556,12 @@ the current program.
   subscriber disconnects and the idle grace period expires.
 - Channel disable/delete is an administrative exception: it bypasses idle grace,
   closes all subscribers, cancels pending creation, and stops the worker.
+- A failed administrative stop retains its non-joinable lifecycle record and
+  unsettled process/session handles for retry; it is not an active or reusable
+  worker.
+- Pending worker creation consumes encoding resources but is not joinable; it is
+  tracked separately and shares one bounded readiness wait across concurrent
+  subscriptions.
 - Client disconnect closes that subscriber without stopping the worker if other subscribers remain.
 - FFmpeg processes must be terminated when their channel worker stops.
 - Worker shutdown must wait for child-process closure and escalate termination after a bounded grace period; the MVP default is 5 seconds.
@@ -451,14 +594,19 @@ This slice affects:
 
 Important boundaries:
 
-- ChannelStreamManager owns lazy worker creation, subscriber tracking, idle shutdown, and worker cleanup.
+- ChannelStreamManager owns lazy worker creation, readiness-gated publication,
+  subscriber tracking, idle shutdown, and worker cleanup.
 - ChannelStreamManager owns per-channel operational stops requested after a
   channel is disabled or deleted; `apps/server` owns coordinating that request
   with the committed configuration mutation.
 - ChannelWorker owns active broadcast lifetime, non-authoritative playout
-  prefetch, schedule-revision revalidation, stream fan-out, late-join stream
-  initialization, and subscriber isolation.
-- SignalPackager accepts selected media and offset from the worker; it does not decide what should be playing.
+  prefetch, schedule-transition coordination, schedule-revision revalidation,
+  startup buffering, stream fan-out, late-join stream initialization, and
+  subscriber isolation.
+- SignalPackager prepares selected media and performs the worker's synchronous
+  transition commit. It also reports when its output first satisfies the
+  verified usable-output strategy; it does not decide what should be playing or
+  when a worker becomes joinable.
 - SignalPackager owns FFmpeg command construction.
 - kraziBrain owns playout decisions and current offset calculation.
 - Provider adapters expose stream URLs that target the provider-neutral endpoint; they do not construct FFmpeg commands.
@@ -475,7 +623,8 @@ MVP:
 
 - `ChannelStreamManager` creation deduplication and per-channel lifecycle
   serialization.
-- `ChannelWorker` lifecycle, item transitions, idle grace, and shutdown.
+- `ChannelWorker` startup readiness, lifecycle, item transitions, idle grace,
+  and shutdown.
 - SignalPackager session and FFmpeg process lifecycle.
 - Shared broadcaster fan-out and independently bounded subscriber buffers.
 - Slow-subscriber eviction without upstream backpressure.
@@ -494,13 +643,14 @@ routes or launch scripts. A harness component may be refactored into the Plex
 adapter, but disposable harness code must not own a second worker, broadcaster,
 or SignalPackager implementation.
 
-Before Plex testing, automated tests cover worker-creation deduplication, two
-subscribers sharing one broadcaster, independent backpressure, idempotent
-subscription close, late join against the chosen bounded initialization
-strategy, idle-grace cancellation, administrative and server shutdown, and
-multi-item session orchestration. Real FFmpeg and Plex tests then verify the
-environment-dependent pacing, initialization, and continuity behavior that
-fakes cannot prove.
+Before Plex testing, automated tests cover worker-creation deduplication,
+readiness-gated publication, shared success or failure for concurrent startup
+waiters, cancellation before readiness, two subscribers sharing one broadcaster,
+independent backpressure, idempotent subscription close, late join against the
+chosen bounded initialization strategy, idle-grace cancellation, administrative
+and server shutdown, and multi-item session orchestration. Real FFmpeg and Plex
+tests then verify the environment-dependent pacing, initialization, and
+continuity behavior that fakes cannot prove.
 
 ## Compatibility Spike Output
 
@@ -534,6 +684,22 @@ contract.
   harness.
 - Reusable lifecycle and fan-out behavior has automated coverage independent of
   Plex before the manual compatibility run.
+- A starting `SignalSession` is immediately stoppable and exposes a `ready`
+  promise that does not resolve for process spawn or an arbitrary first byte.
+- The worker drains session output into a bounded startup buffer before awaiting
+  readiness, preventing startup backpressure and retaining initialization output
+  for the first subscriber.
+- A starting worker remains a private pending creation. Concurrent subscriptions
+  await that one creation, and no subscription or successful HTTP stream response
+  is published until usable output is buffered.
+- Shared startup failure, timeout, administrative cancellation, or
+  pre-publication worker failure rejects every remaining waiter without response
+  bytes and settles the session and child process.
+- Cancelling one startup waiter does not fail other waiters. If every waiter
+  cancels before publication, the pending worker and SignalSession are stopped
+  instead of becoming an unwatched active broadcast.
+- Publication is serialized with stop and shutdown so a worker cannot become
+  joinable after cancellation has won.
 - The first worker resolves current channel state after asynchronous preparation
   and immediately before process creation; it does not start from the
   preliminary subscription-time offset.
@@ -543,6 +709,9 @@ contract.
   absolute scheduled `endsAt`; an item that expires before usable output is
   discarded and resolved again.
 - FFmpeg receives `mediaOffsetMs` and `playDurationMs` calculated outside SignalPackager.
+- Each `getCurrent()` and `getFollowing()` result contains a schedule revision
+  and source entries read through one connection-pinned SQLite read transaction;
+  the worker never assembles one selection from separate provider calls.
 - Following-item lookup uses the persisted `scheduleEntryId` as its stable MVP
   cursor and rejects a missing or cross-channel cursor.
 - The shared broadcast advances at approximately 1x wall-clock speed and does not race ahead when subscribers can accept data faster than real time.
@@ -552,8 +721,20 @@ contract.
 - A schedule regeneration while a worker is active preserves the current item,
   invalidates future candidates selected under the old `scheduleRevision`, and
   transitions to the item selected from the new materialized schedule.
-- The worker revalidates `scheduleRevision` immediately before every item
-  transition even if it received no schedule-change notification.
+- Preparing a future item does not commit it to the broadcast, and a stale or
+  unused preparation can be discarded without changing session output.
+- At every following-item boundary, the worker acquires the same SQLite
+  immediate-transaction coordination boundary used by schedule mutation,
+  revalidates the revision and entry, and calls synchronous `commit()` before
+  releasing the boundary.
+- A regeneration/transition race has one deterministic winner: regeneration
+  first invalidates the preparation, while transition commit first makes the
+  item current and requires regeneration to preserve it through `endsAt`.
+- Multi-connection integration coverage exercises both orderings of a
+  regeneration/transition race and proves that stale prepared output is never
+  committed.
+- No following item is committed before its scheduled boundary, even when it
+  has already been prepared.
 - A second viewer tuning the same channel reuses the existing worker.
 - A second FFmpeg pipeline is not started for a second viewer on the same channel.
 - Both viewers receive the shared broadcast signal.
@@ -566,6 +747,12 @@ contract.
   without waiting for idle grace.
 - A successful disable/delete response is not returned until the channel's
   SignalPackager session and child processes have settled.
+- If administrative cleanup fails after persistence commits, the manager retains
+  the non-joinable lifecycle record and remaining resource handles, and the API
+  reports a retryable cleanup failure without reverting persistence.
+- Repeating `stopChannel()` retries only unsettled cleanup and succeeds
+  idempotently after all worker, session, subscriber, preparation, and child
+  process resources settle.
 - Re-enabling a channel permits a later subscription to create a fresh worker;
   it never reuses the administratively stopped worker.
 - Ordinary programming changes do not stop the active worker or interrupt the

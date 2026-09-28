@@ -25,19 +25,48 @@ for idle grace. Re-enabling a channel allows a later subscription to create a
 fresh worker. Ordinary programming changes do not force this shutdown and keep
 the current broadcast under the schedule-regeneration policy.
 
+An administrative stop is idempotent and retryable. If cleanup fails after the
+configuration mutation commits, the mutation remains committed and `apps/server`
+returns a retryable `503` that explicitly reports `persistenceCommitted: true`.
+The manager retains a non-joinable per-channel lifecycle record and all unsettled
+resource handles until a later stop attempt or server shutdown completes cleanup.
+Repeated disable requests retry the stop even when the channel is already
+disabled; repeated delete requests retry it even when configuration is already
+absent. Re-enabling cannot commit until cleanup of the prior worker succeeds.
+
 The first worker resolves current channel state again after asynchronous worker
 preparation and immediately before creating its SignalPackager/FFmpeg process.
 It starts from that fresh wall-clock offset and retains the selected item's
 scheduled end as an absolute transition deadline. Real-time FFmpeg input pacing
 does not replace this startup synchronization step.
 
+SignalPackager returns a stoppable session immediately and exposes asynchronous
+readiness separately. The worker connects session output to its bounded startup
+and fan-out buffer before awaiting readiness. Process spawn or an arbitrary
+first stdout byte is insufficient; readiness requires output satisfying the
+MPEG-TS initialization strategy verified by the compatibility spike.
+
+The manager keeps a starting worker in its pending-creation state. Concurrent
+subscriptions share that pending creation, but the worker is not published to
+the active registry and no subscription succeeds until usable output is
+buffered. Publication is a serialized per-channel lifecycle transition that
+loses to cancellation, administrative stop, manager shutdown, or worker failure.
+Startup timeout and the current item's absolute end bound the wait, and every
+failed or cancelled startup settles its session and child processes.
+
 The worker does not decide programming. It receives selected current and future
 playout items from kraziBrain-owned domain logic. Future selections are
-non-authoritative prefetch: each carries the materialized `scheduleRevision`,
-and the worker must compare that revision with current persisted schedule state
-immediately before every item transition. A mismatch invalidates all prefetched
-future items and requires a fresh selection. The item already transmitting is
-not interrupted solely because the revision changed.
+non-authoritative prefetch: each carries the materialized `scheduleRevision`.
+SignalPackager may prepare packaging resources for those selections, but
+preparation remains revocable and cannot change broadcast output. At or after
+the scheduled boundary, the worker acquires the same SQLite immediate-transaction
+coordination boundary as schedule mutation, revalidates the revision and entry,
+and synchronously commits the valid preparation before releasing the boundary.
+That commit is the transition linearization point. A regeneration that commits
+first invalidates the preparation; a transition that commits first makes the
+entry current and causes later regeneration to preserve it through `endsAt`.
+The item already transmitting is not interrupted solely because the revision
+changed.
 
 SignalPackager remains responsible for encoding mechanics, FFmpeg process
 construction, transcoding, muxing, seeking, and stream continuity primitives.
@@ -68,7 +97,14 @@ harness and its fixed metadata and media paths are disposable.
 - Worker lifecycle also responds to committed channel disable/delete mutations;
   administrative stops bypass idle grace and terminate current subscriber
   streams.
+- Cleanup failure does not roll back a committed disable/delete or masquerade as
+  success. It produces a retryable partial-success error and retains the runtime
+  handles needed for idempotent cleanup.
 - Worker creation must be guarded so concurrent tune requests cannot create duplicate workers for one channel.
+- Worker publication is readiness-gated: pending creations may be shared by
+  waiters but are not joinable active workers.
+- Startup failure is reported before a streaming response succeeds, and a
+  cancelled or timed-out startup cannot leave an encoder process behind.
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.
 - Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving encoder processes behind.
 - Failed workers may terminate current subscribers in the MVP; the next tune request can create a new worker.
@@ -78,6 +114,10 @@ harness and its fixed metadata and media paths are disposable.
 - A worker's future-item queue is a prefetch cache, not an independent
   programming authority; schedule revision changes invalidate it before the
   next transition.
+- SignalPackager preparation is revocable. Only the worker's synchronous commit
+  at the scheduled boundary makes a prepared item authoritative for output.
+- Schedule regeneration and following-item transition commitment serialize at
+  the SQLite write-authority boundary, closing the check-then-transition race.
 - The number of encoders scales with active channels rather than viewers.
 - The architecture better supports commercials, station IDs, shared interruptions, and channel monitoring later.
 - The compatibility spike becomes the first integration consumer of the durable

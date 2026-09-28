@@ -10,9 +10,11 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 - Add the Web UI shell - done
 - Build production-intent `packages/signal` primitives for the compatibility
   spike: `ChannelStreamManager`, `ChannelWorker`, SignalPackager sessions,
-  shared fan-out, slow-subscriber isolation, late-join initialization, idle
-  grace, process shutdown, pacing, and multi-item continuity
-- Add automated lifecycle and fan-out tests using fake playout/process adapters
+  readiness-gated publication, shared fan-out, slow-subscriber isolation,
+  late-join initialization, idle grace, process shutdown, pacing, and multi-item
+  continuity
+- Add automated lifecycle and fan-out tests using fake playout/process adapters,
+  including failed administrative cleanup and idempotent retry
 - Run the Plex HDHomeRun compatibility spike through those retained primitives,
   including first-worker initial tune drift, real-time pacing and any required
   startup catch-up, late join, two viewers on one encoder, idle shutdown, and a
@@ -20,7 +22,9 @@ This folder tracks build sequencing, milestones, and task breakdowns.
   paths, and playout inputs hard-coded in the disposable harness
 - Implement the local media catalog and SQLite persistence
 - Implement channel and ordered media-collection configuration
-- Implement deterministic schedule generation and current channel state
+- Implement deterministic schedule generation and current channel state,
+  including connection-pinned read snapshots and an interleaved two-connection
+  regeneration test
 - Integrate the spike-tested `packages/signal` primitives with real channel
   authorization, channel state, selected playout, and administrative shutdown
 - Apply the spike's verified FFmpeg arguments and measured buffer/idle defaults

@@ -39,11 +39,23 @@ SQLite and does not satisfy this invariant. Failure to acquire write authority
 must retry the entire mutation from fresh state or return a retryable error.
 
 Derived channel-state and playout selections carry the revision from the same
-consistent snapshot as their source schedule entries. Active channel stream
-workers may prefetch future selections, but must revalidate the current
-persisted revision immediately before each transition and discard prefetched
-future selections when it changes. The item already transmitting remains in
-place through its scheduled end under the regeneration policy above.
+consistent snapshot as their source schedule entries. Their persistence adapter
+reads the revision first and every contributing schedule, channel, and catalog
+row afterward through one connection-pinned Kysely read transaction. It passes
+only the completed typed projection to domain code and never mixes queries on
+the transaction object with queries on the root database handle. A required
+horizon extension or gap repair runs separately as a write, followed by a full
+snapshot retry; the read transaction is never upgraded into a mutation.
+
+Active channel stream workers may prefetch and prepare future selections, but
+those preparations are revocable. At or after a scheduled boundary, a worker
+uses the same connection-pinned immediate-transaction helper as schedule
+mutation, revalidates the entry and current persisted revision, and
+synchronously commits the prepared SignalPackager item before releasing write
+authority. That commit is the point at which the item becomes irrevocable. A
+regeneration transaction that commits first invalidates the stale preparation;
+a transition that commits first makes the entry current, so later regeneration
+preserves it through its scheduled end.
 
 The database enforces a unique `(channelId, sequenceNumber)` constraint and one
 schedule-state row per channel. Indexes on `(channelId, startsAt)` and
@@ -60,6 +72,14 @@ schedule-state row per channel. Indexes on `(channelId, startsAt)` and
   overlapping extensions from stale state.
 - Multi-connection integration tests prove that schedule mutations acquire
   SQLite write authority before their first domain read.
+- Multi-connection integration tests also interleave regeneration with a paused
+  channel-state read and prove that revision and source rows never come from
+  different committed schedule versions.
 - Active stream workers cannot treat prefetched future programming as
   authoritative after the materialized schedule revision changes.
+- Schedule regeneration and broadcast transition commitment have a deterministic
+  order at the SQLite write-authority boundary.
+- Following-item commits briefly acquire SQLite write authority even though they
+  do not change the materialized schedule; the synchronous commit keeps that
+  coordination window bounded.
 - The database carries schedule data, not only channel configuration and media catalog data.

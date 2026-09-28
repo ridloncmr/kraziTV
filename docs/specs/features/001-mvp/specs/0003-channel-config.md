@@ -164,6 +164,49 @@ then closed by the serialized stop, or the new disabled/missing state and is
 rejected. If the process exits between those steps, process shutdown removes the
 worker. The successful API response is not sent until runtime cleanup settles.
 
+If runtime cleanup fails after persistence commits, the server must not roll the
+configuration mutation back or return a normal success response. It returns
+`503 Service Unavailable` with a structured error equivalent to:
+
+```json
+{
+  "code": "channel_runtime_cleanup_failed",
+  "channelId": "channel-id",
+  "operation": "disable",
+  "persistenceCommitted": true,
+  "retryable": true
+}
+```
+
+`operation` is `disable` or `delete`. The response and administrative UI must
+make clear that the configuration change already committed and that retrying is
+for runtime cleanup, not for reversing or repeating the persistence mutation.
+The failure is logged with the cleanup phase, stop reason, channel ID, and child
+process information when available.
+
+Disable and delete retries are idempotent operational-stop requests. Setting an
+already-disabled channel to disabled again must still call `stopChannel()` even
+when persistence is a no-op. `DELETE /channels/:id` is idempotent for runtime
+cleanup: if configuration is already absent, the route still calls
+`stopChannel(id, "deleted")` and returns success once cleanup settles. Therefore
+a delete retry also succeeds for an ID that never existed; `GET` retains normal
+not-found behavior.
+
+The manager retains an unsettled per-channel lifecycle record, including any
+child-process handle, after cleanup failure. The record remains non-joinable,
+blocks worker replacement, and is removed only after a later stop attempt or
+server shutdown confirms that the worker, SignalPackager session, subscribers,
+preparations, and child processes have settled. A partial stop is retried from
+its remaining unsettled resources rather than recreating resources or treating a
+missing active-worker registration as success. No persistent cleanup-pending
+field or automatic background retry is required for the MVP.
+
+Re-enabling a disabled channel while its manager lifecycle record is still
+unsettled must first retry and complete the prior operational stop. The server
+must not commit `enabled: true` while old runtime resources remain. If cleanup
+still fails, the channel stays disabled and the re-enable request returns the
+same retryable cleanup error.
+
 Re-enabling a disabled channel permits the next subscription to create a fresh
 worker; it does not resurrect the old process or subscriber streams. Changes to
 name, number, collection, playback mode, or other ordinary programming inputs do
@@ -230,7 +273,8 @@ Important boundaries:
 - Channel configuration must not include FFmpeg command options.
 - `apps/server` owns HTTP validation, route registration, and persistence wiring.
 - `apps/server` coordinates committed channel disable/delete mutations with the
-  per-channel runtime stop and does not return success before cleanup settles.
+  per-channel runtime stop, returns a structured retryable `503` when cleanup
+  fails after commit, and does not return success before cleanup settles.
 - `packages/core` may define provider-neutral channel types and validation rules.
 - `packages/media` owns media catalog/probe concepts, not channel scheduling decisions.
 - Provider adapters may later map channel config into provider-specific outputs without modifying core channel identity.
@@ -263,6 +307,16 @@ Media roots and media collections are separate concepts:
   without idle grace before the administrative request succeeds.
 - A subscription racing disable/delete cannot attach to or publish a worker
   after the committed channel state becomes disabled or missing.
+- Cleanup failure after commit returns a retryable
+  `channel_runtime_cleanup_failed` error that explicitly reports
+  `persistenceCommitted: true`; the persisted disable/delete remains in effect.
+- Repeating disable for an already-disabled channel and repeating delete for an
+  absent channel both retry the operational stop and succeed once runtime
+  resources settle.
+- A failed administrative stop retains its non-joinable lifecycle record and
+  resource handles until retry or server shutdown completes cleanup.
+- Re-enabling cannot commit while a prior administrative stop still owns
+  unsettled runtime resources.
 - Re-enabling a channel allows a later subscription to create a fresh worker.
 - Channel configuration persists across API restarts.
 - Duplicate channel numbers are rejected, including numbers assigned to disabled channels.

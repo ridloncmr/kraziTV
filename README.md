@@ -95,8 +95,9 @@ does not make a network-exposed API safe.
 
 CI runs install, formatting, typecheck, test, and build checks on every pull
 request and on pushes to `main`. At present, automated tests cover the core
-channel description helper and server health-route injection, so a passing test
-step reflects that limited coverage rather than full MVP behavior coverage.
+channel description helper, server health and CORS behavior through request
+injection, and network/CORS configuration helpers. A passing test step still
+reflects limited bootstrap coverage rather than full MVP behavior coverage.
 
 ## License
 
@@ -105,8 +106,9 @@ kraziTV is source-available under the
 redistribute it for noncommercial purposes. Commercial use is not licensed.
 
 Third-party material retains its own license and attribution notices. In
-particular, the adapted agent skills are covered by the notices documented in
-[`.agents/README.md`](.agents/README.md).
+particular, the adapted agent skills are covered by the complete MIT notice in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the attribution documented
+in [`.agents/README.md`](.agents/README.md).
 
 ## Documentation
 

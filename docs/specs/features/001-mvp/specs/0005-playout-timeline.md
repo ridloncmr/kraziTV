@@ -146,16 +146,51 @@ Minimum current channel state fields:
 
 Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
 
+### Consistent Schedule Read Snapshots
+
+The persistence adapter that supplies current channel state and following
+playout must read every SQLite row contributing to one result from one
+connection-pinned read transaction. This includes `ChannelScheduleState`, source
+schedule entries, channel configuration needed for authorization, and media
+catalog rows used for availability, path, and duration. The adapter reads
+`scheduleRevision` first, establishing the SQLite read snapshot, and performs
+every later query through the same Kysely transaction object. It returns the
+revision and the plain typed source data together to kraziBrain-owned domain
+logic.
+
+Ordinary Kysely `db.transaction()` is appropriate for this read-only invariant:
+it pins one connection and SQLite's first read establishes the snapshot used by
+the rest of that transaction. This is distinct from schedule mutation and
+following-item transition commitment, which require the project-owned
+`BEGIN IMMEDIATE` helper to acquire write authority before reading. Snapshot
+code must never mix the transaction object with the root `db` handle.
+
+The read transaction must remain read-only. If it discovers missing horizon
+coverage or a schedule gap requiring repair, it returns a typed retry condition
+to the application layer and ends. The application performs the required
+schedule mutation separately through the immediate-transaction helper, then
+retries the complete snapshot read. It must not attempt to upgrade the existing
+deferred read transaction into a write transaction.
+
+A single SQL statement that returns the complete revision and source projection
+would also be snapshot-safe, but the MVP standardizes the multi-query repository
+implementation on the connection-pinned read transaction. Kysely transaction
+objects and database row shapes do not cross into `packages/core` or
+`packages/signal`.
+
 Channel state also supplies selected current and following playout items to the
 runtime stream layer. Each selection carries the `scheduleRevision` read from
 `ChannelScheduleState` in the same consistent database snapshot as the schedule
 entries used to derive it. A `ChannelWorker` may prefetch future playout, but
-prefetched items are only candidates. The worker must revalidate their revision
-against the current persisted schedule revision immediately before each item
-transition and discard all prefetched future items when the revision differs.
-It then requests fresh selected playout from kraziBrain-owned domain logic. The
-currently transmitting item continues; the worker does not replace it merely
-because its selection revision became old.
+prefetched and SignalPackager-prepared items are only revocable candidates. At
+or after the scheduled boundary, the worker acquires the same SQLite immediate
+transaction coordination boundary as schedule mutation, revalidates the
+candidate revision and entry, and synchronously commits the valid preparation
+before releasing that boundary. A mismatch discards every stale preparation and
+requests fresh selected playout from kraziBrain-owned domain logic. The
+successful preparation commit is the point at which the item becomes the
+current broadcast item. The currently transmitting item continues; the worker
+does not replace it merely because its selection revision became old.
 
 The worker does not select media or decide what should play next. A prefetched
 queue must never become an authoritative programming source independent of the
@@ -243,7 +278,8 @@ Important boundaries:
 - Playout timeline generation must not emit Plex-specific output.
 - Schedule entries remain guide-facing; playout items represent transmission-facing items.
 - `packages/core` should own current item lookup and offset calculation.
-- `apps/server` should own API routing, persistence wiring, and request validation.
+- `apps/server` should own API routing, persistence wiring, request validation,
+  and the connection-pinned schedule snapshot repository.
 
 ## Acceptance Criteria
 
@@ -258,6 +294,16 @@ Important boundaries:
 - Channel state can supply selected current and following playout items to a shared channel worker.
 - Current and following selections carry the materialized `scheduleRevision`
   read consistently with their source entries.
+- The persistence adapter reads the revision and every SQLite source row for one
+  current/following result through one Kysely read transaction and never falls
+  back to the root database handle inside that transaction.
+- A multi-connection integration test pauses after the revision read, commits a
+  regeneration from another connection, and proves that the reader returns a
+  complete old or complete new snapshot, never a mixed revision and entry set.
+- Missing coverage ends the read transaction before horizon maintenance or gap
+  repair runs; the complete snapshot read is retried afterward.
+- A future selection or packaging preparation remains revocable until the
+  worker validates and commits it at its scheduled boundary.
 - Unavailable media produces an explicit `media_unavailable` state without silently changing the schedule.
 - Playout items and channel state are derived on demand and are not persisted separately in the MVP.
 - Schedule, playout, and channel-state timestamps are interpreted in UTC.

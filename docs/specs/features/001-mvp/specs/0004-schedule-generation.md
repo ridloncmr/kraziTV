@@ -134,8 +134,9 @@ Schedule generation should extend the persisted schedule forward from the last g
 Every schedule mutation for a channel must be atomic. Initial state creation,
 horizon extension, gap repair, and delete-and-regenerate operations each run in
 one SQLite write transaction. The mutation must acquire database write authority
-before reading the current entries and `ChannelScheduleState`, then re-evaluate
-the required work inside that transaction. Entry inserts or deletes and updates
+before reading the current entries and `ChannelScheduleState`, obtain its
+effective current time after acquiring that authority, then re-evaluate the
+required work inside that transaction. Entry inserts or deletes and updates
 to `lastGeneratedThrough`, `nextSequenceNumber`, `scheduleRevision`, and other
 schedule state commit together or roll back together.
 
@@ -149,6 +150,15 @@ revision update commits atomically with the affected entries so readers cannot
 observe new programming with an old revision or old programming with a new
 revision.
 
+Readers deriving channel state or selected playout use a separate read-only
+transaction contract. The persistence adapter reads `scheduleRevision` first to
+establish a SQLite snapshot, then reads every contributing schedule, channel,
+and catalog row through that same Kysely transaction object. Ordinary deferred
+`db.transaction()` is sufficient for this read-only snapshot and must not be
+confused with the immediate-transaction helper required for mutations. If the
+reader discovers that horizon maintenance or gap repair is required, it ends the
+read transaction, performs the write separately, and retries the entire read.
+
 Concurrent requests for the same channel must serialize at the database
 boundary. An in-process mutex may reduce contention, but it is not the
 correctness mechanism because another process or connection could bypass it.
@@ -159,6 +169,17 @@ uses the Kysely instance bound to that connection, followed by an explicit
 `COMMIT` or `ROLLBACK` on the same connection. Ordinary Kysely
 `db.transaction()` starts a deferred SQLite transaction and does not satisfy
 this requirement.
+
+An active worker's following-item transition uses the same immediate-transaction
+helper as a coordination boundary. At or after the scheduled boundary, the
+worker acquires write authority, obtains the boundary time, revalidates the
+candidate entry and `scheduleRevision`, and synchronously commits its prepared
+SignalPackager item before releasing authority. The transition does not mutate
+the materialized schedule or increment `scheduleRevision`. If regeneration owns
+write authority first, the worker validates only after its commit and observes
+the resulting revision. If transition commit occurs first, regeneration obtains
+its effective time afterward and preserves that now-current entry through
+`endsAt`.
 
 The helper must not be nested or mixed with Kysely-managed transactions or
 `better-sqlite3` transaction wrappers. A request that cannot acquire write
@@ -256,6 +277,10 @@ Important boundaries:
   prove that a schedule mutation acquires write authority before reading and
   that a losing concurrent request retries from fresh state or fails with a
   retryable error.
+- Multi-connection integration tests prove both orderings of a concurrent
+  schedule regeneration and following-item transition: regeneration first
+  invalidates the prepared item, while transition commit first preserves the
+  newly current entry.
 - The database enforces unique `(channelId, sequenceNumber)` values and provides
   channel/time indexes for schedule range lookups.
 - Overlapping schedule reads return the same persisted entries for the overlapping time range.
@@ -270,6 +295,9 @@ Important boundaries:
 - Every committed change to a channel's materialized schedule increments its
   `scheduleRevision` atomically with the entry changes; no-op coverage checks do
   not increment it.
+- Channel-state and selected-playout reads obtain their revision and every source
+  row from one connection-pinned read transaction; integration coverage proves a
+  concurrent regeneration cannot produce a torn revision/entry result.
 - Enabled schedulable channels maintain at least 72 hours of future schedule data.
 - Channels with no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.
