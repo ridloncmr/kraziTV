@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This spec defines the MVP channel configuration slice: creating channels, assigning stable channel identity, selecting cataloged media as channel input, and storing enough configuration for later schedule generation.
+This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, selecting a media collection as channel input, and storing enough configuration for later schedule generation.
 
 ## Problem
 
@@ -13,6 +13,7 @@ The MVP needs channel configuration that is useful enough to drive basic schedul
 ## Goals
 
 - Let users create, list, update, enable, disable, and delete channels.
+- Let users create, list, update, and delete media collections backed by explicit media item membership.
 - Assign each channel a stable internal identifier.
 - Require a channel number and display name.
 - Allow a channel to select a media collection as its programming source.
@@ -92,7 +93,7 @@ This spec stores the chosen playback mode but does not define the full schedule-
 
 ### API
 
-The API should expose endpoints equivalent to:
+The channel API should expose endpoints equivalent to:
 
 ```text
 GET /channels
@@ -102,9 +103,23 @@ PATCH /channels/:id
 DELETE /channels/:id
 ```
 
+The media collection API should expose endpoints equivalent to:
+
+```text
+GET /media-collections
+POST /media-collections
+GET /media-collections/:id
+PATCH /media-collections/:id
+DELETE /media-collections/:id
+GET /media-collections/:id/items
+PUT /media-collections/:id/items
+```
+
 Exact route names can change during implementation, but the capabilities should remain equivalent.
 
-API validation should reject invalid channel numbers, empty names, duplicate active channel numbers, and unsupported playback modes.
+Collection creation should require a non-empty name. Collection membership updates may replace the full explicit item set for the MVP.
+
+API validation should reject invalid channel numbers, empty names, duplicate active channel numbers, unsupported playback modes, unknown media collection IDs, and unknown media item IDs in collection membership.
 
 ### Persistence
 
@@ -112,6 +127,8 @@ API validation should reject invalid channel numbers, empty names, duplicate act
 - Channel configuration survives API restarts.
 - Channel rows should use timestamps for creation and updates.
 - Collection selection should be persisted in a way that can evolve beyond the first collection type.
+- Media collection membership should be persisted separately from media roots and media catalog rows.
+- Deleting a media collection that is assigned to a channel should be rejected unless the channel is updated first.
 
 ## Data Model Impact
 
@@ -185,14 +202,16 @@ Media roots and media collections are separate concepts:
 
 - Should channel numbers be integers only, or should subchannels such as `69.1` be allowed?
 - Should disabled channels reserve their channel numbers?
-- Should the first media collection editor support explicit item IDs only, or also simple catalog filters?
 - Should channel deletion be hard delete or soft delete?
 - Should logos be included in MVP channel configuration or deferred until Plex guide polish?
+- Should a later collection editor support saved catalog filters in addition to explicit item IDs?
 
 ## Acceptance Criteria
 
 - A channel can be created with number, name, enabled state, playback mode, and media collection selection.
 - Media collections can be created from explicit cataloged media item IDs.
+- Media collections can be listed, fetched, updated, and deleted through the API.
+- Media collection membership can be replaced through the API using explicit cataloged media item IDs.
 - Configured channels can be listed through the API.
 - A single channel can be fetched through the API.
 - Channel configuration can be updated through the API.

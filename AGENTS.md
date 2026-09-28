@@ -14,7 +14,7 @@ It should behave like a small broadcast automation system, not a playlist genera
 - Language: TypeScript
 - API server: Fastify
 - Database: SQLite
-- Query layer: Drizzle or Kysely, not decided yet
+- Query layer: Kysely
 - Web UI: React, Vite, TypeScript
 - Media engine: FFmpeg and ffprobe through child processes
 - Initial provider: Plex

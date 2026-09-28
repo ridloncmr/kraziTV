@@ -2,22 +2,24 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-kraziTV uses SQLite for local persistence. The project has not yet chosen the TypeScript query and migration layer.
+kraziTV uses SQLite for local persistence. Persistence-heavy MVP slices need tables and migrations for media roots, media items, media collections, channels, schedule entries, and playout timeline state.
 
-Current candidates include Drizzle and Kysely.
+The project considered Drizzle and Kysely.
 
 ## Decision
 
-No final decision yet.
+Use Kysely as the TypeScript query layer for SQLite persistence.
 
-The chosen layer should support typed queries, readable migrations, local SQLite development, and straightforward test setup.
+Use Kysely migrations for schema changes. Keep migration files readable and explicit, and avoid hiding the schema behind broad repository abstractions before the persistence model stabilizes.
 
 ## Consequences
 
-- Implementation should avoid deep persistence abstractions until this decision is accepted.
-- Specs can define tables and relationships without committing to library-specific syntax.
-- Before persistence-heavy MVP work begins, this ADR should be updated to Accepted with the selected tool and rationale.
+- Persistence-heavy MVP work can proceed without agents choosing between Drizzle and Kysely per slice.
+- Specs can continue to define tables and relationships in provider-neutral terms without using Kysely syntax.
+- `apps/server` should own database connection and migration wiring unless a later package boundary becomes necessary.
+- Domain packages should receive typed data or narrow persistence interfaces instead of importing Kysely directly by default.
+- If future schema needs strongly favor another migration or ORM layer, that change should get a new ADR rather than reopening this one casually.

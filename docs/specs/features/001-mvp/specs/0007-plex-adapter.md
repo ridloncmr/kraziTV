@@ -62,12 +62,11 @@ The Plex adapter exposes enabled channels only.
 
 HDHomeRun lineup entries should include at least:
 
-- Stable channel ID
 - Channel number
 - Channel name
 - Stream URL
 
-The adapter should derive Plex-facing IDs from stable kraziTV channel IDs, not from mutable display names.
+HDHomeRun `/lineup.json` does not need to expose an arbitrary internal ID field. Stable kraziTV channel IDs should instead back URL paths, XMLTV channel IDs, M3U `tvg-id` values, and any provider mapping needed internally. Those identifiers must be derived from stable channel identity, not mutable display names.
 
 Disabled channels should not appear in the tuner lineup, M3U playlist, or guide output.
 
@@ -236,6 +235,7 @@ Spike success criteria:
 - Channel 69 appears in Plex Live TV.
 - Plex successfully tunes Channel 69.
 - Video plays.
+- Plex remains playing across an actual two-file stream boundary.
 
 After the spike succeeds, the hard-coded implementation can be discarded or refactored into the formal MVP adapter.
 
@@ -254,7 +254,8 @@ After the spike succeeds, the hard-coded implementation can be discarded or refa
 - Tuner lineup output lists enabled kraziTV channels.
 - Disabled channels are omitted from M3U and XMLTV output.
 - Disabled channels are omitted from HDHomeRun lineup output.
-- Lineup entries include stable IDs, channel names, channel numbers, and stream URLs.
+- HDHomeRun lineup entries include channel names, channel numbers, and stream URLs.
+- Plex-facing XMLTV and M3U identifiers are derived from stable kraziTV channel IDs.
 - XMLTV output includes channel declarations and programme entries from schedule data.
 - XMLTV programme entries include start time, stop time, channel ID, and title.
 - Plex-facing stream URLs delegate to provider-neutral channel stream behavior.

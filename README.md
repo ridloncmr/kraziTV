@@ -12,7 +12,7 @@ The goal is to behave like a small broadcast automation system rather than a sim
 - Language: TypeScript
 - API server: Fastify
 - Database: SQLite
-- Query layer: Drizzle or Kysely, to be decided during implementation
+- Query layer: Kysely
 - Web UI: React, Vite, and TypeScript
 - Scheduling: Node worker process initially
 - Media inspection: ffmpeg and ffprobe via child processes

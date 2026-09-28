@@ -73,6 +73,8 @@ contentType
 
 The request is produced by API/channel-state code after kraziBrain resolves the current playout item and enough following playout items to keep the stream alive across at least one boundary.
 
+For the MVP, `items[]` is a finite handoff buffer. It is sufficient to prove joining an in-progress item and crossing at least one program boundary, but it is not the permanent abstraction for a forever-running channel. A later stream worker or replenishment contract should be added before kraziTV relies on one HTTP response staying live indefinitely. That future contract must still receive selected playout items from channel state or kraziBrain-owned scheduling code; SignalPackager must not query scheduling state directly.
+
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
 ### Output Contract
@@ -106,6 +108,8 @@ The first implementation may use broad compatibility settings rather than exposi
 The command must be constructed from structured arguments, not shell string concatenation.
 
 The MVP may implement cross-item continuity by restarting FFmpeg per item and piping each item's MPEG-TS bytes to the same HTTP response, or by using an FFmpeg concat/filter approach. The implementation choice belongs in `packages/signal`; callers should only see one continuous response stream.
+
+If sequential FFmpeg processes are used, Plex compatibility must be verified with a real two-file boundary, not only by checking that the HTTP connection remains open. The compatibility spike should confirm that Plex continues playback across the boundary despite any MPEG-TS timestamp, PCR, or continuity-counter discontinuities caused by independent encoder runs.
 
 ### Stream Endpoint
 
@@ -186,6 +190,7 @@ Important boundaries:
 - Should there be a configurable FFmpeg binary path?
 - Should per-viewer stream requests each spawn FFmpeg, or should shared per-channel workers be introduced earlier?
 - Should the first continuous stream implementation use sequential FFmpeg processes or a concat-oriented FFmpeg graph?
+- What replenishment contract should replace the finite `items[]` handoff after the MVP boundary-crossing proof?
 
 ## Acceptance Criteria
 
@@ -193,6 +198,7 @@ Important boundaries:
 - FFmpeg receives the current offset calculated outside SignalPackager.
 - The HTTP response uses MPEG-TS output.
 - A viewer connected to a channel stream remains connected when the current playout item ends and the next scheduled item begins.
+- Plex remains playing across an actual two-file boundary during the compatibility spike.
 - FFmpeg stderr and exit information are logged for failures.
 - FFmpeg is terminated when the HTTP client disconnects.
 - Missing media, invalid offsets, disabled channels, and no-current-item states fail clearly.

@@ -21,6 +21,8 @@ The first release should intentionally be small and focused on proving the core 
 
 Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and play one stream.
 
+Before persistence-heavy MVP slices begin, ADR 0004 must be accepted and the selected SQLite query and migration layer should be used consistently.
+
 ## Scope
 
 Support:
@@ -63,4 +65,5 @@ Do not initially build:
 10. Tune in halfway through an episode.
 11. Receive the stream from approximately the correct broadcast position.
 12. Remain connected when the stream crosses into the next scheduled program.
+13. Confirm Plex remains playing across an actual two-file boundary.
 ```
