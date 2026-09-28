@@ -75,6 +75,13 @@ Playout timeline generation uses:
 
 For the MVP, each guide-visible schedule entry maps to one derived program playout item when its media item is available. Playout items are generated on demand from persisted schedule entries; they are not stored in a separate table.
 
+Because that MVP mapping is one-to-one, `scheduleEntryId` is the stable identity
+and continuation cursor for a derived program playout item. The MVP does not
+create a separate `playoutItemId`. Following-item lookup finds the source
+schedule entry within the channel and continues in channel sequence order.
+Schedule revision revalidation prevents a worker from continuing with a cursor
+into future entries that regeneration has replaced.
+
 ### Playout Items
 
 A playout item represents something transmitted by the channel.
@@ -93,7 +100,7 @@ Future playout item types:
 Minimum program playout item fields:
 
 - Channel ID
-- Schedule entry ID
+- Schedule entry ID, also used as the stable MVP playout cursor
 - Media item ID
 - Media path
 - Title
@@ -187,7 +194,6 @@ The derived playout item domain shape is:
 
 ```text
 PlayoutItem
-id
 channelId
 scheduleRevision
 scheduleEntryId
@@ -206,9 +212,16 @@ updatedAt
 `mediaPath` is an internal packaging input and must not be exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
 
 `scheduleRevision` identifies the materialized schedule snapshot from which the
-item was selected. `createdAt` and `updatedAt` reflect the source schedule entry;
-no separate playout-item persistence is added. Current channel state is also not
-persisted because it is computed deterministically from schedule and media data.
+item was selected. `scheduleEntryId` is the item's MVP identity and stable
+following-item cursor. `createdAt` and `updatedAt` reflect the source schedule
+entry; no separate playout-item persistence or identifier is added. Current
+channel state is also not persisted because it is computed deterministically
+from schedule and media data.
+
+When commercials, bumpers, or other behavior allow one schedule entry to
+produce multiple playout items, the playout contract will introduce a richer
+`PlayoutCursor` that identifies a position within the expanded transmission
+sequence. That future need does not justify an undefined derived ID in the MVP.
 
 ## Architecture Boundaries
 
@@ -250,3 +263,5 @@ Important boundaries:
 - Schedule, playout, and channel-state timestamps are interpreted in UTC.
 - Playout timeline behavior does not require Plex, Jellyfin, FFmpeg command construction, stream packaging, XMLTV, or M3U output.
 - Playout items are distinct from guide schedule entries even when they map one-to-one in the MVP.
+- `scheduleEntryId` is the stable MVP playout identity and following-item cursor;
+  no separate `playoutItemId` is required.

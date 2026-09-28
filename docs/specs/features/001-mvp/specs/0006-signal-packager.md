@@ -211,7 +211,7 @@ Minimum selected playout item fields:
 ```text
 SignalPlayoutItem
 channelId
-playoutItemId
+scheduleEntryId
 mediaItemId
 mediaPath
 mediaOffsetMs
@@ -238,7 +238,7 @@ interface PlayoutProvider {
   getCurrent(channelId: ChannelId, atMs: number): Promise<CurrentChannelState>;
   getFollowing(
     channelId: ChannelId,
-    afterPlayoutItemId: string,
+    afterScheduleEntryId: ScheduleEntryId,
     count: number,
   ): Promise<PlayoutSelection>;
   getScheduleRevision(channelId: ChannelId): Promise<number>;
@@ -254,6 +254,14 @@ interface PlayoutSelection {
 `CurrentChannelState` and every item in `PlayoutSelection` carry the same
 `scheduleRevision` as the materialized schedule snapshot used to derive them.
 The revision read and entry reads must be consistent with one another.
+
+For the MVP, `afterScheduleEntryId` is the continuation cursor because each
+program playout item maps one-to-one to a persisted schedule entry. The provider
+finds that entry within `channelId` and returns following items in channel
+sequence order. A cursor that does not belong to the channel or no longer exists
+under the selected schedule revision returns a stale/invalid-cursor result; the
+worker must not guess a successor. A richer `PlayoutCursor` is deferred until a
+single schedule entry can expand into multiple transmitted items.
 
 The exact shape can evolve. The rule is that the worker asks for selected playout; it never selects playout.
 
@@ -454,6 +462,8 @@ contract.
   absolute scheduled `endsAt`; an item that expires before usable output is
   discarded and resolved again.
 - FFmpeg receives `mediaOffsetMs` and `playDurationMs` calculated outside SignalPackager.
+- Following-item lookup uses the persisted `scheduleEntryId` as its stable MVP
+  cursor and rejects a missing or cross-channel cursor.
 - The shared broadcast advances at approximately 1x wall-clock speed and does not race ahead when subscribers can accept data faster than real time.
 - The HTTP response uses MPEG-TS output.
 - Every item is transcoded to the fixed MVP compatibility profile.
