@@ -25,6 +25,8 @@ kraziTV channels are broadcasts, not viewer sessions. The MVP should prove the s
 - Keep programming and schedule decisions out of SignalPackager.
 - Report packaging failures clearly enough for API logs and debugging.
 - Provide a stream contract future provider adapters can point at.
+- Build the compatibility spike's worker, broadcaster, session, and process
+  lifecycle as production-intent `packages/signal` code that the MVP retains.
 
 ## Non-Goals
 
@@ -37,6 +39,8 @@ kraziTV channels are broadcasts, not viewer sessions. The MVP should prove the s
 - Do not implement adaptive bitrate streaming, HLS, DASH, DVR, pause, rewind, or recording features.
 - Do not implement distributed workers, cluster coordination, automatic worker failover, or GPU scheduling.
 - Do not guarantee frame-perfect joins in the MVP.
+- Do not build a separate throwaway streaming stack solely for the compatibility
+  spike.
 
 ## User-Facing Behavior
 
@@ -47,13 +51,14 @@ Example flow:
 ```text
 1. A viewer requests a channel stream URL.
 2. ChannelStreamManager subscribes the viewer to the channel.
-3. If no worker exists, kraziBrain-owned channel state resolves the current playout item.
+3. If no worker exists, a preliminary channel-state lookup validates that the channel can start.
 4. Current item points to /mnt/media/TV/Show A/S01E02.mkv.
-5. Current internal offset is 555000 milliseconds.
-6. ChannelWorker starts one SignalPackager/FFmpeg session for the channel.
-7. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
-8. The viewer receives MPEG-TS bytes from the shared broadcast.
-9. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
+5. After worker preparation, ChannelWorker resolves channel state again as the final step before process creation.
+6. The fresh current offset is 555000 milliseconds.
+7. ChannelWorker starts one SignalPackager/FFmpeg session for the channel.
+8. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
+9. The viewer receives MPEG-TS bytes from the shared broadcast.
+10. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
 ```
 
 If media cannot be opened or FFmpeg fails before response bytes begin, the initial stream request should fail with a clear error and log context. If the shared worker fails after streaming begins, the affected subscriber streams terminate and the failure is logged. Future filler behavior can replace failures later.
@@ -69,6 +74,10 @@ Conceptual interface:
 ```ts
 interface ChannelStreamManager {
   subscribe(channelId: ChannelId): Promise<ChannelSubscription>;
+  stopChannel(
+    channelId: ChannelId,
+    reason: "disabled" | "deleted",
+  ): Promise<void>;
   shutdown(): Promise<void>;
 }
 
@@ -88,7 +97,10 @@ Responsibilities:
 - Track subscriber counts.
 - Stop idle workers after a configurable grace period.
 - Prevent duplicate workers from being created concurrently for the same channel.
-- Serialize subscription, idle timeout, worker failure, and worker-shutdown transitions per channel.
+- Validate channel existence and enabled state inside every serialized
+  subscription transition, including subscriptions to an existing worker.
+- Serialize subscription, administrative stop, idle timeout, worker failure,
+  and worker-shutdown transitions per channel.
 - Cancel pending idle shutdown and reuse the worker when a subscriber returns during idle grace.
 - Never attach a subscriber to a worker after shutdown has begun.
 - Reject new subscriptions after manager shutdown begins.
@@ -96,7 +108,23 @@ Responsibilities:
 
 The manager does not decide what media should play.
 
-Concurrent subscriptions for the same channel must await the same worker creation. All subscribe, final-unsubscribe, idle-timeout, worker-failure, and worker-shutdown state changes must be serialized per channel. A subscription arriving during idle grace cancels the pending shutdown and reuses the worker. If worker-local shutdown has begun, the subscription waits for the old worker to close and leave the registry, then participates in the single shared creation of its replacement. It must never attach to a stopping worker or overlap the old pipeline with a replacement.
+Concurrent subscriptions for the same channel must await the same worker
+creation. All subscribe, administrative-stop, final-unsubscribe, idle-timeout,
+worker-failure, and worker-shutdown state changes must be serialized per
+channel. A subscription arriving during idle grace cancels the pending shutdown
+and reuses the worker. If worker-local shutdown has begun, the subscription
+waits for the old worker to close and leave the registry, then participates in
+the single shared creation of its replacement only if the channel still exists
+and is enabled. It must never attach to a stopping worker or overlap the old
+pipeline with a replacement.
+
+`stopChannel()` is a per-channel operational stop, not terminal manager
+shutdown. It cancels pending creation, prevents publication of a worker created
+by a losing race, closes current subscriber streams, and stops the active or
+idle-grace worker without waiting for idle grace. It resolves only after the
+worker, SignalPackager session, subscribers, and child processes settle. A later
+subscription may start a fresh worker only after channel authorization reports
+that the channel is enabled again.
 
 Manager shutdown is terminal and distinct from worker-local shutdown. Once manager shutdown begins, new subscriptions are rejected and no replacement workers may start. Pending worker creations must be cancelled when possible and awaited in all cases. If a pending creation starts a worker, SignalPackager session, or FFmpeg process before observing cancellation, it must stop those resources without publishing the worker. `shutdown()` resolves only after active workers, pending creations, SignalPackager sessions, subscriber streams, and child processes have settled.
 
@@ -108,14 +136,82 @@ Responsibilities:
 
 - Own one active SignalPackager/FFmpeg process or process sequence for the channel.
 - Consume selected playout items supplied by kraziBrain-owned channel state.
+- Resolve current channel state again immediately before creating the first
+  SignalPackager/FFmpeg process.
 - Transition between scheduled playout items.
 - Broadcast encoded MPEG-TS output to multiple subscribers.
 - Maintain independent subscriber buffers.
 - Maintain the late-join initialization state required by the compatibility-spike results.
-- Request future selected playout items when its queue becomes low.
+- Prefetch future selected playout candidates when its queue becomes low.
+- Revalidate the persisted schedule revision immediately before every item
+  transition and discard stale future candidates.
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
+
+### First-Worker Wall-Clock Synchronization
+
+A current-state lookup performed when subscription or worker creation begins is
+only a preliminary validation. Worker setup, dependency calls, and process
+startup consume wall-clock time, so the worker must resolve current channel
+state again after asynchronous preparation and as the final step immediately
+before creating the first SignalPackager/FFmpeg process. No avoidable
+asynchronous work may occur between that lookup and process creation.
+
+The worker derives `mediaOffsetMs` and the remaining scheduled airtime from this
+fresh state's `evaluatedAt`. It retains the current playout item's `endsAt` as an
+absolute wall-clock transition deadline. Startup latency must not extend the
+item past that deadline and shift later programming. If the item ends before
+the process produces usable output, the worker discards that startup attempt
+and resolves current state again instead of emitting the expired item.
+
+For the MVP, the first active worker's absolute initial tune drift must be no
+more than 2,000 milliseconds. The compatibility spike measures:
+
+```text
+scheduledMediaPositionMs =
+  startOffsetMs + firstUsableOutputAtMs - startsAt
+
+initialTuneDriftMs =
+  actualMediaPositionAtFirstUsableOutputMs - scheduledMediaPositionMs
+```
+
+Negative drift means the emitted broadcast is behind the wall-clock schedule.
+"First usable output" means the earliest captured MPEG-TS point for which the
+test can identify the program and decode media after the required stream
+initialization data; process creation and the first arbitrary stdout byte do not
+count. The spike must use a test asset or capture analysis that can identify the
+actual media position represented by that output.
+
+Real-time pacing and startup synchronization are separate requirements.
+`-readrate 1` or `-re` prevents normal file ingestion from racing ahead, but it
+does not by itself prove that encoder startup latency was recovered. If late
+state resolution cannot meet the 2,000 millisecond ceiling, the spike must
+verify a bounded startup strategy such as `-readrate_initial_burst`,
+`-readrate_catchup`, or an equivalent mechanism. Any such mechanism must be
+tested end to end with emitted MPEG-TS and Plex; its input-rate semantics alone
+are not sufficient evidence.
+
+### Schedule Revision and Prefetch
+
+The materialized schedule remains authoritative while a worker is active. Every
+current or following playout selection carries the monotonic `scheduleRevision`
+under which it was derived. A worker may retain multiple future candidates for
+I/O preparation, but it must not treat that queue as committed programming.
+
+Immediately before passing a following item to SignalPackager for transition,
+the worker reads the channel's current persisted schedule revision. If it does
+not equal the candidate's revision, the worker discards every queued future
+candidate and asks the playout provider for fresh selected playout. Only an item
+selected under the current revision may be appended. The current item is not
+interrupted solely by a revision change; schedule regeneration preserves it
+through its existing scheduled end.
+
+Revision revalidation is required even when no in-process schedule-change
+notification was observed. A notification may invalidate the queue earlier,
+but it is an optimization rather than the correctness mechanism. Consequently,
+an active worker cannot maintain a long authoritative queue independent of the
+persisted materialized schedule.
 
 ### SignalPackager Session Contract
 
@@ -142,7 +238,7 @@ Minimum selected playout item fields:
 ```text
 SignalPlayoutItem
 channelId
-playoutItemId
+scheduleEntryId
 mediaItemId
 mediaPath
 mediaOffsetMs
@@ -151,7 +247,14 @@ playDurationMs
 
 `mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration to emit from that position before transitioning to the next selected playout item.
 
-For the initial current item, the worker maps channel state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs` from the remaining scheduled airtime (`endsAt - evaluatedAt`), clamped to the media remaining after `mediaOffsetMs`. For a following item, the worker maps the playout item's `startOffsetMs` to `mediaOffsetMs` and its selected playout duration to `playDurationMs`. Both fields use safe integer milliseconds.
+For the initial current item, the worker maps the final pre-spawn channel
+state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs`
+from the remaining scheduled airtime (`endsAt - evaluatedAt`), clamped to the
+media remaining after `mediaOffsetMs`. The worker also enforces `endsAt` as an
+absolute transition deadline, so process initialization time cannot extend the
+program. For a following item, the worker maps the playout item's
+`startOffsetMs` to `mediaOffsetMs` and its selected playout duration to
+`playDurationMs`. Both fields use safe integer milliseconds.
 
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
@@ -162,13 +265,30 @@ interface PlayoutProvider {
   getCurrent(channelId: ChannelId, atMs: number): Promise<CurrentChannelState>;
   getFollowing(
     channelId: ChannelId,
-    afterPlayoutItemId: string,
+    afterScheduleEntryId: ScheduleEntryId,
     count: number,
-  ): Promise<PlayoutItem[]>;
+  ): Promise<PlayoutSelection>;
+  getScheduleRevision(channelId: ChannelId): Promise<number>;
+}
+
+interface PlayoutSelection {
+  scheduleRevision: number;
+  items: PlayoutItem[];
 }
 ```
 
 `atMs` is a UTC Unix epoch timestamp in integer milliseconds, consistent with ADR 0007.
+`CurrentChannelState` and every item in `PlayoutSelection` carry the same
+`scheduleRevision` as the materialized schedule snapshot used to derive them.
+The revision read and entry reads must be consistent with one another.
+
+For the MVP, `afterScheduleEntryId` is the continuation cursor because each
+program playout item maps one-to-one to a persisted schedule entry. The provider
+finds that entry within `channelId` and returns following items in channel
+sequence order. A cursor that does not belong to the channel or no longer exists
+under the selected schedule revision returns a stale/invalid-cursor result; the
+worker must not guess a successor. A richer `PlayoutCursor` is deferred until a
+single schedule entry can expand into multiple transmitted items.
 
 The exact shape can evolve. The rule is that the worker asks for selected playout; it never selects playout.
 
@@ -215,7 +335,7 @@ The command must be constructed from structured arguments, not shell string conc
 
 FFmpeg is spawned directly with `shell: false`. Process stderr retained for diagnostics uses a 64 KiB tail buffer so a noisy encoder cannot grow server memory without bound.
 
-The broadcast must advance at approximately 1x wall-clock speed. FFmpeg file input must use verified real-time pacing, such as `-readrate 1`, `-re`, or an equivalent mechanism, so subscriber isolation does not allow the encoder to race ahead of the playout timeline. The compatibility spike must verify the exact arguments and acceptable drift across a real two-file boundary.
+The broadcast must advance at approximately 1x wall-clock speed. FFmpeg file input must use verified real-time pacing, such as `-readrate 1`, `-re`, or an equivalent mechanism, so subscriber isolation does not allow the encoder to race ahead of the playout timeline. Pacing does not replace the first-worker synchronization rule above. The compatibility spike must verify the exact pacing and any startup catch-up arguments, initial tune drift, and drift across a real two-file boundary.
 
 SignalPackager validates `mediaOffsetMs` as a non-negative safe integer and `playDurationMs` as a positive safe integer. It converts them to decimal-second strings only at FFmpeg argument construction; internal packaging contracts do not use floating-point seconds.
 
@@ -283,13 +403,22 @@ Errors should be logged with channel ID, media item ID, media path when safe, of
 
 If the shared worker dies, all current subscribers are affected. The MVP may log the worker failure, terminate connected subscriber streams, remove the failed worker from the registry, and allow the next tune request to create a new worker. Automatic restart and seamless recovery are deferred.
 
+If an administrator disables or deletes a channel, connected streams terminate
+when the manager performs the channel's operational stop. The stop reason and
+channel ID are logged. Because response bytes have already begun, subscribers
+observe stream closure rather than a replacement error payload or completion of
+the current program.
+
 ### Resource Management
 
 - Each channel has at most one live shared channel worker, including during idle grace and shutdown.
 - Each channel worker owns one active FFmpeg process or process sequence at a time.
 - Multiple viewers on the same channel share the worker output.
 - Channels without an active or idle-grace worker consume no encoding resources.
-- Workers stop only after the final subscriber disconnects and the idle grace period expires.
+- Under ordinary viewer-driven lifecycle, workers stop only after the final
+  subscriber disconnects and the idle grace period expires.
+- Channel disable/delete is an administrative exception: it bypasses idle grace,
+  closes all subscribers, cancels pending creation, and stops the worker.
 - Client disconnect closes that subscriber without stopping the worker if other subscribers remain.
 - FFmpeg processes must be terminated when their channel worker stops.
 - Worker shutdown must wait for child-process closure and escalate termination after a bounded grace period; the MVP default is 5 seconds.
@@ -323,7 +452,12 @@ This slice affects:
 Important boundaries:
 
 - ChannelStreamManager owns lazy worker creation, subscriber tracking, idle shutdown, and worker cleanup.
-- ChannelWorker owns active broadcast lifetime, selected playout queue consumption, stream fan-out, late-join stream initialization, and subscriber isolation.
+- ChannelStreamManager owns per-channel operational stops requested after a
+  channel is disabled or deleted; `apps/server` owns coordinating that request
+  with the committed configuration mutation.
+- ChannelWorker owns active broadcast lifetime, non-authoritative playout
+  prefetch, schedule-revision revalidation, stream fan-out, late-join stream
+  initialization, and subscriber isolation.
 - SignalPackager accepts selected media and offset from the worker; it does not decide what should be playing.
 - SignalPackager owns FFmpeg command construction.
 - kraziBrain owns playout decisions and current offset calculation.
@@ -332,9 +466,58 @@ Important boundaries:
 - `packages/signal` owns channel stream workers, subscriber fan-out, late-join stream initialization, FFmpeg lifecycle, transcoding, muxing, stream continuity, seeking, packaging, and encoding-profile code.
 - `packages/media` owns media discovery, filesystem inspection, ffprobe, and source metadata. It must not grow stream packaging responsibilities.
 
+## Compatibility Spike Code Boundary
+
+The compatibility spike is an early vertical integration environment, not a
+throwaway implementation of the streaming runtime. The following code is built
+under `packages/signal` with production module boundaries and retained for the
+MVP:
+
+- `ChannelStreamManager` creation deduplication and per-channel lifecycle
+  serialization.
+- `ChannelWorker` lifecycle, item transitions, idle grace, and shutdown.
+- SignalPackager session and FFmpeg process lifecycle.
+- Shared broadcaster fan-out and independently bounded subscriber buffers.
+- Slow-subscriber eviction without upstream backpressure.
+- Late-join initialization buffering selected by the spike.
+- Real-time pacing, first-worker synchronization, and two-file continuity.
+
+Those primitives consume narrow injected interfaces for channel authorization,
+selected playout, clocks/timers, and process creation. During the spike, small
+fakes may hard-code Channel 69, two media files, and following-item selection.
+The real scheduler, database, catalog, and provider metadata are integrated
+later without replacing the tested streaming primitives.
+
+Only the spike harness is disposable: hard-coded media paths, fake playout
+state, fixed Plex/HDHomeRun metadata, manual measurement hooks, and temporary
+routes or launch scripts. A harness component may be refactored into the Plex
+adapter, but disposable harness code must not own a second worker, broadcaster,
+or SignalPackager implementation.
+
+Before Plex testing, automated tests cover worker-creation deduplication, two
+subscribers sharing one broadcaster, independent backpressure, idempotent
+subscription close, late join against the chosen bounded initialization
+strategy, idle-grace cancellation, administrative and server shutdown, and
+multi-item session orchestration. Real FFmpeg and Plex tests then verify the
+environment-dependent pacing, initialization, and continuity behavior that
+fakes cannot prove.
+
 ## Compatibility Spike Output
 
-The Plex spike must record the verified FFmpeg arguments, real-time pacing and drift behavior, whether sequential encoders preserve playback across the two-file boundary, the verified late-join initialization strategy, subscriber buffering behavior, idle-grace behavior, and whether two viewers share one active encoder. Before this spec changes from `Draft` to `Accepted`, it must define measurable MVP defaults or pass thresholds for acceptable pacing drift, subscriber buffer limits, late-join startup behavior, and idle-grace duration. Those empirical values may refine the fixed profile without changing the provider-neutral packaging contract.
+The Plex spike must record the final pre-spawn state-evaluation time, process
+creation time, first usable output time, represented media position, calculated
+initial tune drift, verified FFmpeg arguments, real-time pacing and drift
+behavior, and any startup catch-up behavior. It must also record whether
+sequential encoders preserve playback across the two-file boundary, the
+verified late-join initialization strategy, subscriber buffering behavior,
+idle-grace behavior, and whether two viewers share one active encoder.
+
+The spike fails if absolute initial tune drift exceeds 2,000 milliseconds. Before
+this spec changes from `Draft` to `Accepted`, it must also define measurable MVP
+defaults or pass thresholds for ongoing pacing drift, subscriber buffer limits,
+late-join startup behavior, and idle-grace duration. Those empirical values may
+refine the fixed profile without changing the provider-neutral packaging
+contract.
 
 ## Deferred Work
 
@@ -345,11 +528,32 @@ The Plex spike must record the verified FFmpeg arguments, real-time pacing and d
 ## Acceptance Criteria
 
 - A first stream request for an enabled channel with a current playout item starts one `ChannelWorker` and one FFmpeg pipeline for the channel.
+- The compatibility spike exercises the production-intent
+  `ChannelStreamManager`, `ChannelWorker`, broadcaster, and SignalPackager
+  session primitives from `packages/signal`; it does not duplicate them in the
+  harness.
+- Reusable lifecycle and fan-out behavior has automated coverage independent of
+  Plex before the manual compatibility run.
+- The first worker resolves current channel state after asynchronous preparation
+  and immediately before process creation; it does not start from the
+  preliminary subscription-time offset.
+- Absolute initial tune drift at first usable output is at most 2,000
+  milliseconds during the compatibility spike.
+- First-worker startup latency never extends the current item beyond its
+  absolute scheduled `endsAt`; an item that expires before usable output is
+  discarded and resolved again.
 - FFmpeg receives `mediaOffsetMs` and `playDurationMs` calculated outside SignalPackager.
+- Following-item lookup uses the persisted `scheduleEntryId` as its stable MVP
+  cursor and rejects a missing or cross-channel cursor.
 - The shared broadcast advances at approximately 1x wall-clock speed and does not race ahead when subscribers can accept data faster than real time.
 - The HTTP response uses MPEG-TS output.
 - Every item is transcoded to the fixed MVP compatibility profile.
 - A viewer connected to a channel stream remains connected when the current playout item ends and the next scheduled item begins.
+- A schedule regeneration while a worker is active preserves the current item,
+  invalidates future candidates selected under the old `scheduleRevision`, and
+  transitions to the item selected from the new materialized schedule.
+- The worker revalidates `scheduleRevision` immediately before every item
+  transition even if it received no schedule-change notification.
 - A second viewer tuning the same channel reuses the existing worker.
 - A second FFmpeg pipeline is not started for a second viewer on the same channel.
 - Both viewers receive the shared broadcast signal.
@@ -357,6 +561,15 @@ The Plex spike must record the verified FFmpeg arguments, real-time pacing and d
 - Disconnecting one viewer does not affect other subscribers.
 - A subscriber returning during idle grace cancels pending shutdown and reuses the existing worker.
 - A subscription racing with worker shutdown never attaches to the stopping worker and never creates an overlapping FFmpeg pipeline.
+- Disabling or deleting a channel cancels pending worker creation, rejects new
+  subscriptions, closes existing subscriber streams, and stops its worker
+  without waiting for idle grace.
+- A successful disable/delete response is not returned until the channel's
+  SignalPackager session and child processes have settled.
+- Re-enabling a channel permits a later subscription to create a fresh worker;
+  it never reuses the administratively stopped worker.
+- Ordinary programming changes do not stop the active worker or interrupt the
+  current item.
 - After manager shutdown begins, new subscriptions are rejected and no replacement worker starts.
 - Manager shutdown resolves only after active workers and pending creations have settled and no SignalPackager session or FFmpeg process remains.
 - Closing the same channel subscription more than once removes it and decrements the subscriber count only once.

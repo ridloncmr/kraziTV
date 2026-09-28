@@ -50,6 +50,7 @@ Example current state:
 ```json
 {
   "channelId": "channel_69",
+  "scheduleRevision": 12,
   "currentItem": {
     "type": "program",
     "mediaItemId": "media_123",
@@ -74,6 +75,13 @@ Playout timeline generation uses:
 
 For the MVP, each guide-visible schedule entry maps to one derived program playout item when its media item is available. Playout items are generated on demand from persisted schedule entries; they are not stored in a separate table.
 
+Because that MVP mapping is one-to-one, `scheduleEntryId` is the stable identity
+and continuation cursor for a derived program playout item. The MVP does not
+create a separate `playoutItemId`. Following-item lookup finds the source
+schedule entry within the channel and continues in channel sequence order.
+Schedule revision revalidation prevents a worker from continuing with a cursor
+into future entries that regeneration has replaced.
+
 ### Playout Items
 
 A playout item represents something transmitted by the channel.
@@ -92,7 +100,7 @@ Future playout item types:
 Minimum program playout item fields:
 
 - Channel ID
-- Schedule entry ID
+- Schedule entry ID, also used as the stable MVP playout cursor
 - Media item ID
 - Media path
 - Title
@@ -130,6 +138,7 @@ Channel state is the deterministic runtime state needed to join a broadcast in p
 Minimum current channel state fields:
 
 - Channel ID
+- Schedule revision
 - Current playout item
 - Current offset milliseconds
 - Evaluated at timestamp
@@ -137,7 +146,20 @@ Minimum current channel state fields:
 
 Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
 
-Channel state also supplies selected current and following playout items to the runtime stream layer. A `ChannelWorker` may ask for more future playout when its queue is low, but the worker does not select media or decide what should play next.
+Channel state also supplies selected current and following playout items to the
+runtime stream layer. Each selection carries the `scheduleRevision` read from
+`ChannelScheduleState` in the same consistent database snapshot as the schedule
+entries used to derive it. A `ChannelWorker` may prefetch future playout, but
+prefetched items are only candidates. The worker must revalidate their revision
+against the current persisted schedule revision immediately before each item
+transition and discard all prefetched future items when the revision differs.
+It then requests fresh selected playout from kraziBrain-owned domain logic. The
+currently transmitting item continues; the worker does not replace it merely
+because its selection revision became old.
+
+The worker does not select media or decide what should play next. A prefetched
+queue must never become an authoritative programming source independent of the
+materialized schedule.
 
 ### API
 
@@ -172,8 +194,8 @@ The derived playout item domain shape is:
 
 ```text
 PlayoutItem
-id
 channelId
+scheduleRevision
 scheduleEntryId
 mediaItemId
 mediaPath
@@ -189,7 +211,17 @@ updatedAt
 
 `mediaPath` is an internal packaging input and must not be exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
 
-`createdAt` and `updatedAt` reflect the source schedule entry; no separate playout-item persistence is added. Current channel state is also not persisted because it is computed deterministically from schedule and media data.
+`scheduleRevision` identifies the materialized schedule snapshot from which the
+item was selected. `scheduleEntryId` is the item's MVP identity and stable
+following-item cursor. `createdAt` and `updatedAt` reflect the source schedule
+entry; no separate playout-item persistence or identifier is added. Current
+channel state is also not persisted because it is computed deterministically
+from schedule and media data.
+
+When commercials, bumpers, or other behavior allow one schedule entry to
+produce multiple playout items, the playout contract will introduce a richer
+`PlayoutCursor` that identifies a position within the expanded transmission
+sequence. That future need does not justify an undefined derived ID in the MVP.
 
 ## Architecture Boundaries
 
@@ -224,8 +256,12 @@ Important boundaries:
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.
 - Channel state can supply selected current and following playout items to a shared channel worker.
+- Current and following selections carry the materialized `scheduleRevision`
+  read consistently with their source entries.
 - Unavailable media produces an explicit `media_unavailable` state without silently changing the schedule.
 - Playout items and channel state are derived on demand and are not persisted separately in the MVP.
 - Schedule, playout, and channel-state timestamps are interpreted in UTC.
 - Playout timeline behavior does not require Plex, Jellyfin, FFmpeg command construction, stream packaging, XMLTV, or M3U output.
 - Playout items are distinct from guide schedule entries even when they map one-to-one in the MVP.
+- `scheduleEntryId` is the stable MVP playout identity and following-item cursor;
+  no separate `playoutItemId` is required.

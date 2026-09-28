@@ -13,6 +13,7 @@ The MVP needs channel configuration that is useful enough to drive basic schedul
 ## Goals
 
 - Let users create, list, update, enable, disable, and delete channels.
+- Define how disabling or deleting a channel affects its active runtime worker.
 - Let users create, list, update, and delete media collections backed by explicit media item membership.
 - Assign each channel a stable internal identifier.
 - Require a channel number and display name.
@@ -55,9 +56,16 @@ Enabled: true
 
 The user can list configured channels and see whether each channel is enabled, what collection it uses, and what playback mode it will use when schedules are generated.
 
-Disabling a channel keeps its configuration but excludes it from future guide, provider, and playout behavior.
+Disabling a channel keeps its configuration but excludes it from future guide,
+provider, and playout behavior. If the channel has an active or idle-grace
+stream worker, disabling it is also an operational shutdown: new subscriptions
+are rejected, current subscriber streams are closed, pending worker creation is
+cancelled, and the worker is stopped without waiting for idle grace.
 
-Deleting a channel permanently removes its configuration, schedule entries, and schedule state. It does not delete media collections or catalog items. Soft deletion and historical playback retention are deferred.
+Deleting a channel permanently removes its configuration, schedule entries, and
+schedule state. It applies the same immediate runtime shutdown policy as
+disabling. It does not delete media collections or catalog items. Soft deletion
+and historical playback retention are deferred.
 
 ## Technical Behavior
 
@@ -134,6 +142,34 @@ API validation should reject invalid channel numbers, empty names, duplicate cha
 - Media collection membership should be persisted separately from media roots and media catalog rows.
 - Deleting a media collection that is assigned to a channel should be rejected unless the channel is updated first.
 
+### Active Worker Lifecycle
+
+Every stream subscription validates that the channel still exists and is
+enabled inside its serialized per-channel manager transition and immediately
+before it attaches to an existing worker or participates in creating a new one.
+This check is required even when a worker is already registered.
+
+After a disable or delete mutation commits, `apps/server` tells
+`ChannelStreamManager` to stop that channel for reason `disabled` or `deleted`
+and awaits completion before returning a successful administrative response.
+The per-channel manager transition cancels pending creation, prevents a racing
+subscription from publishing or joining a worker, closes all subscriber
+streams, stops the SignalPackager session, and terminates its FFmpeg process.
+Administrative shutdown bypasses idle grace but retains the normal bounded
+child-process termination grace.
+
+Persistence is committed before runtime shutdown begins. Therefore a
+subscription racing the operation observes either the old enabled state and is
+then closed by the serialized stop, or the new disabled/missing state and is
+rejected. If the process exits between those steps, process shutdown removes the
+worker. The successful API response is not sent until runtime cleanup settles.
+
+Re-enabling a disabled channel permits the next subscription to create a fresh
+worker; it does not resurrect the old process or subscriber streams. Changes to
+name, number, collection, playback mode, or other ordinary programming inputs do
+not force an operational shutdown. Schedule regeneration and revision
+revalidation preserve the current broadcast under their existing policy.
+
 ## Data Model Impact
 
 Minimum channel fields:
@@ -193,6 +229,8 @@ Important boundaries:
 - Channel configuration must not include Plex, Jellyfin, or Emby-specific fields.
 - Channel configuration must not include FFmpeg command options.
 - `apps/server` owns HTTP validation, route registration, and persistence wiring.
+- `apps/server` coordinates committed channel disable/delete mutations with the
+  per-channel runtime stop and does not return success before cleanup settles.
 - `packages/core` may define provider-neutral channel types and validation rules.
 - `packages/media` owns media catalog/probe concepts, not channel scheduling decisions.
 - Provider adapters may later map channel config into provider-specific outputs without modifying core channel identity.
@@ -220,9 +258,17 @@ Media roots and media collections are separate concepts:
 - Channel configuration can be updated through the API.
 - A channel can be disabled without deleting it.
 - A channel can be deleted.
+- Disabling or deleting an active channel rejects new subscriptions, closes
+  existing subscriber streams, cancels pending creation, and stops the worker
+  without idle grace before the administrative request succeeds.
+- A subscription racing disable/delete cannot attach to or publish a worker
+  after the committed channel state becomes disabled or missing.
+- Re-enabling a channel allows a later subscription to create a fresh worker.
 - Channel configuration persists across API restarts.
 - Duplicate channel numbers are rejected, including numbers assigned to disabled channels.
 - Integer and subchannel numbers are accepted in canonical string form; malformed or non-canonical numbers are rejected.
 - Unsupported playback modes are rejected.
 - Channel programming eligibility is based on media collections, not direct filesystem roots.
-- Channel configuration does not require Plex, Jellyfin, FFmpeg, schedule generation, playout timeline generation, or streaming.
+- Channel configuration remains provider-neutral and does not construct FFmpeg,
+  schedule, or playout behavior; active disable/delete operations coordinate
+  with the separately owned streaming runtime lifecycle.

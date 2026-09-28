@@ -1,14 +1,20 @@
+import type { Readable } from "node:stream";
+
 export type SignalPlayoutItem = {
-  playoutItemId: string;
+  channelId: string;
+  scheduleEntryId: string;
   mediaItemId: string;
   mediaPath: string;
-  offsetMs: number;
-  durationMs: number;
+  mediaOffsetMs: number;
+  playDurationMs: number;
 };
 
-export type PackageStreamRequest = {
-  channelId: string;
-  initialPlayoutItemId: string;
-  items: SignalPlayoutItem[];
-  contentType: "video/MP2T";
-};
+export interface SignalPackager {
+  start(initialItem: SignalPlayoutItem): SignalSession;
+}
+
+export interface SignalSession {
+  readonly output: Readable;
+  append(item: SignalPlayoutItem): Promise<void>;
+  stop(): Promise<void>;
+}

@@ -8,14 +8,22 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 - Build the server health endpoint - done
 - Select Kysely for SQLite queries and migrations - done
 - Add the Web UI shell - done
-- Run the Plex HDHomeRun compatibility spike, including shared channel workers, real-time pacing, late join, two viewers on one encoder, idle shutdown, and a real two-file stream boundary
+- Build production-intent `packages/signal` primitives for the compatibility
+  spike: `ChannelStreamManager`, `ChannelWorker`, SignalPackager sessions,
+  shared fan-out, slow-subscriber isolation, late-join initialization, idle
+  grace, process shutdown, pacing, and multi-item continuity
+- Add automated lifecycle and fan-out tests using fake playout/process adapters
+- Run the Plex HDHomeRun compatibility spike through those retained primitives,
+  including first-worker initial tune drift, real-time pacing and any required
+  startup catch-up, late join, two viewers on one encoder, idle shutdown, and a
+  real two-file stream boundary; keep only the tuner metadata, channel, media
+  paths, and playout inputs hard-coded in the disposable harness
 - Implement the local media catalog and SQLite persistence
 - Implement channel and ordered media-collection configuration
 - Implement deterministic schedule generation and current channel state
-- Implement lazy `ChannelStreamManager`
-- Implement one shared `ChannelWorker` per active channel
-- Implement subscriber fan-out with slow-subscriber isolation
-- Implement late-join support using the compatibility-spike results
-- Implement SignalPackager session primitives using the compatibility-spike results
+- Integrate the spike-tested `packages/signal` primitives with real channel
+  authorization, channel state, selected playout, and administrative shutdown
+- Apply the spike's verified FFmpeg arguments and measured buffer/idle defaults
+  to the retained SignalPackager and worker configuration
 - Expose Plex-compatible tuner, guide, and stream endpoints
 - Complete the MVP Web Admin flow
