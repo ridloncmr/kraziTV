@@ -112,10 +112,33 @@ Responsibilities:
 - Broadcast encoded MPEG-TS output to multiple subscribers.
 - Maintain independent subscriber buffers.
 - Maintain the late-join initialization state required by the compatibility-spike results.
-- Request future selected playout items when its queue becomes low.
+- Prefetch future selected playout candidates when its queue becomes low.
+- Revalidate the persisted schedule revision immediately before every item
+  transition and discard stale future candidates.
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
+
+### Schedule Revision and Prefetch
+
+The materialized schedule remains authoritative while a worker is active. Every
+current or following playout selection carries the monotonic `scheduleRevision`
+under which it was derived. A worker may retain multiple future candidates for
+I/O preparation, but it must not treat that queue as committed programming.
+
+Immediately before passing a following item to SignalPackager for transition,
+the worker reads the channel's current persisted schedule revision. If it does
+not equal the candidate's revision, the worker discards every queued future
+candidate and asks the playout provider for fresh selected playout. Only an item
+selected under the current revision may be appended. The current item is not
+interrupted solely by a revision change; schedule regeneration preserves it
+through its existing scheduled end.
+
+Revision revalidation is required even when no in-process schedule-change
+notification was observed. A notification may invalidate the queue earlier,
+but it is an optimization rather than the correctness mechanism. Consequently,
+an active worker cannot maintain a long authoritative queue independent of the
+persisted materialized schedule.
 
 ### SignalPackager Session Contract
 
@@ -164,11 +187,20 @@ interface PlayoutProvider {
     channelId: ChannelId,
     afterPlayoutItemId: string,
     count: number,
-  ): Promise<PlayoutItem[]>;
+  ): Promise<PlayoutSelection>;
+  getScheduleRevision(channelId: ChannelId): Promise<number>;
+}
+
+interface PlayoutSelection {
+  scheduleRevision: number;
+  items: PlayoutItem[];
 }
 ```
 
 `atMs` is a UTC Unix epoch timestamp in integer milliseconds, consistent with ADR 0007.
+`CurrentChannelState` and every item in `PlayoutSelection` carry the same
+`scheduleRevision` as the materialized schedule snapshot used to derive them.
+The revision read and entry reads must be consistent with one another.
 
 The exact shape can evolve. The rule is that the worker asks for selected playout; it never selects playout.
 
@@ -323,7 +355,9 @@ This slice affects:
 Important boundaries:
 
 - ChannelStreamManager owns lazy worker creation, subscriber tracking, idle shutdown, and worker cleanup.
-- ChannelWorker owns active broadcast lifetime, selected playout queue consumption, stream fan-out, late-join stream initialization, and subscriber isolation.
+- ChannelWorker owns active broadcast lifetime, non-authoritative playout
+  prefetch, schedule-revision revalidation, stream fan-out, late-join stream
+  initialization, and subscriber isolation.
 - SignalPackager accepts selected media and offset from the worker; it does not decide what should be playing.
 - SignalPackager owns FFmpeg command construction.
 - kraziBrain owns playout decisions and current offset calculation.
@@ -350,6 +384,11 @@ The Plex spike must record the verified FFmpeg arguments, real-time pacing and d
 - The HTTP response uses MPEG-TS output.
 - Every item is transcoded to the fixed MVP compatibility profile.
 - A viewer connected to a channel stream remains connected when the current playout item ends and the next scheduled item begins.
+- A schedule regeneration while a worker is active preserves the current item,
+  invalidates future candidates selected under the old `scheduleRevision`, and
+  transitions to the item selected from the new materialized schedule.
+- The worker revalidates `scheduleRevision` immediately before every item
+  transition even if it received no schedule-change notification.
 - A second viewer tuning the same channel reuses the existing worker.
 - A second FFmpeg pipeline is not started for a second viewer on the same channel.
 - Both viewers receive the shared broadcast signal.

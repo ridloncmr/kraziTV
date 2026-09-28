@@ -26,8 +26,18 @@ Every mutation of a channel's materialized schedule runs in one SQLite write
 transaction. The transaction acquires database write authority before reading
 the schedule and `ChannelScheduleState`, re-evaluates the required work, and
 atomically commits entry changes with state such as `lastGeneratedThrough` and
-`nextSequenceNumber`. Concurrent requests must serialize through the database;
-an in-process lock alone is insufficient.
+`nextSequenceNumber`. `ChannelScheduleState` also stores a monotonic
+`scheduleRevision`. Every transaction that changes the persisted entry set,
+ordering, or contents increments the revision exactly once in the same commit;
+a no-op coverage check does not increment it. Concurrent requests must serialize
+through the database; an in-process lock alone is insufficient.
+
+Derived channel-state and playout selections carry the revision from the same
+consistent snapshot as their source schedule entries. Active channel stream
+workers may prefetch future selections, but must revalidate the current
+persisted revision immediately before each transition and discard prefetched
+future selections when it changes. The item already transmitting remains in
+place through its scheduled end under the regeneration policy above.
 
 The database enforces a unique `(channelId, sequenceNumber)` constraint and one
 schedule-state row per channel. Indexes on `(channelId, startsAt)` and
@@ -42,4 +52,6 @@ schedule-state row per channel. Indexes on `(channelId, startsAt)` and
   associated schedule state.
 - Concurrent schedule requests cannot reserve the same sequence number or commit
   overlapping extensions from stale state.
+- Active stream workers cannot treat prefetched future programming as
+  authoritative after the materialized schedule revision changes.
 - The database carries schedule data, not only channel configuration and media catalog data.

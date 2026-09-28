@@ -136,8 +136,18 @@ horizon extension, gap repair, and delete-and-regenerate operations each run in
 one SQLite write transaction. The mutation must acquire database write authority
 before reading the current entries and `ChannelScheduleState`, then re-evaluate
 the required work inside that transaction. Entry inserts or deletes and updates
-to `lastGeneratedThrough`, `nextSequenceNumber`, and other schedule state commit
-together or roll back together.
+to `lastGeneratedThrough`, `nextSequenceNumber`, `scheduleRevision`, and other
+schedule state commit together or roll back together.
+
+`ChannelScheduleState.scheduleRevision` is a monotonically increasing safe
+integer that identifies the committed materialized schedule revision for a
+channel. State creation with the initial materialized entries sets it to `1`.
+Every successful transaction that changes the channel's persisted schedule
+entry set, ordering, or contents increments it exactly once. A transaction that
+only checks coverage and makes no entry change does not increment it. The
+revision update commits atomically with the affected entries so readers cannot
+observe new programming with an old revision or old programming with a new
+revision.
 
 Concurrent requests for the same channel must serialize at the database
 boundary. An in-process mutex may reduce contention, but it is not the
@@ -184,6 +194,7 @@ lastGeneratedThrough
 regenerationAllowedAfter
 nextSequenceNumber
 algorithmVersion
+scheduleRevision
 createdAt
 updatedAt
 ```
@@ -243,6 +254,9 @@ Important boundaries:
 - Random mode derives each selection from the persisted seed and channel-wide sequence number.
 - Configuration changes do not silently change the currently airing program.
 - Configuration changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Every committed change to a channel's materialized schedule increments its
+  `scheduleRevision` atomically with the entry changes; no-op coverage checks do
+  not increment it.
 - Enabled schedulable channels maintain at least 72 hours of future schedule data.
 - Channels with no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.

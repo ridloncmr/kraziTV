@@ -50,6 +50,7 @@ Example current state:
 ```json
 {
   "channelId": "channel_69",
+  "scheduleRevision": 12,
   "currentItem": {
     "type": "program",
     "mediaItemId": "media_123",
@@ -130,6 +131,7 @@ Channel state is the deterministic runtime state needed to join a broadcast in p
 Minimum current channel state fields:
 
 - Channel ID
+- Schedule revision
 - Current playout item
 - Current offset milliseconds
 - Evaluated at timestamp
@@ -137,7 +139,20 @@ Minimum current channel state fields:
 
 Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
 
-Channel state also supplies selected current and following playout items to the runtime stream layer. A `ChannelWorker` may ask for more future playout when its queue is low, but the worker does not select media or decide what should play next.
+Channel state also supplies selected current and following playout items to the
+runtime stream layer. Each selection carries the `scheduleRevision` read from
+`ChannelScheduleState` in the same consistent database snapshot as the schedule
+entries used to derive it. A `ChannelWorker` may prefetch future playout, but
+prefetched items are only candidates. The worker must revalidate their revision
+against the current persisted schedule revision immediately before each item
+transition and discard all prefetched future items when the revision differs.
+It then requests fresh selected playout from kraziBrain-owned domain logic. The
+currently transmitting item continues; the worker does not replace it merely
+because its selection revision became old.
+
+The worker does not select media or decide what should play next. A prefetched
+queue must never become an authoritative programming source independent of the
+materialized schedule.
 
 ### API
 
@@ -174,6 +189,7 @@ The derived playout item domain shape is:
 PlayoutItem
 id
 channelId
+scheduleRevision
 scheduleEntryId
 mediaItemId
 mediaPath
@@ -189,7 +205,10 @@ updatedAt
 
 `mediaPath` is an internal packaging input and must not be exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
 
-`createdAt` and `updatedAt` reflect the source schedule entry; no separate playout-item persistence is added. Current channel state is also not persisted because it is computed deterministically from schedule and media data.
+`scheduleRevision` identifies the materialized schedule snapshot from which the
+item was selected. `createdAt` and `updatedAt` reflect the source schedule entry;
+no separate playout-item persistence is added. Current channel state is also not
+persisted because it is computed deterministically from schedule and media data.
 
 ## Architecture Boundaries
 
@@ -224,6 +243,8 @@ Important boundaries:
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.
 - Channel state can supply selected current and following playout items to a shared channel worker.
+- Current and following selections carry the materialized `scheduleRevision`
+  read consistently with their source entries.
 - Unavailable media produces an explicit `media_unavailable` state without silently changing the schedule.
 - Playout items and channel state are derived on demand and are not persisted separately in the MVP.
 - Schedule, playout, and channel-state timestamps are interpreted in UTC.

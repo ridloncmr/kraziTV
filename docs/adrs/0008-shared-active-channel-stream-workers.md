@@ -16,7 +16,16 @@ kraziTV will use at most one lazily-created shared stream worker per channel whi
 
 The worker owns one SignalPackager/FFmpeg broadcast pipeline and dynamically fans encoded MPEG-TS output out to all current channel subscribers. The first subscriber starts the worker. Later subscribers reuse the same worker. The worker stops after the last subscriber disconnects and an idle grace period expires.
 
-The worker does not decide programming. It receives selected current and future playout items from kraziBrain-owned domain logic. SignalPackager remains responsible for encoding mechanics, FFmpeg process construction, transcoding, muxing, seeking, and stream continuity primitives.
+The worker does not decide programming. It receives selected current and future
+playout items from kraziBrain-owned domain logic. Future selections are
+non-authoritative prefetch: each carries the materialized `scheduleRevision`,
+and the worker must compare that revision with current persisted schedule state
+immediately before every item transition. A mismatch invalidates all prefetched
+future items and requires a fresh selection. The item already transmitting is
+not interrupted solely because the revision changed.
+
+SignalPackager remains responsible for encoding mechanics, FFmpeg process
+construction, transcoding, muxing, seeking, and stream continuity primitives.
 
 Per-viewer FFmpeg encoders are not the intended kraziTV streaming architecture.
 
@@ -35,5 +44,8 @@ This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.
 - Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving encoder processes behind.
 - Failed workers may terminate current subscribers in the MVP; the next tune request can create a new worker.
+- A worker's future-item queue is a prefetch cache, not an independent
+  programming authority; schedule revision changes invalidate it before the
+  next transition.
 - The number of encoders scales with active channels rather than viewers.
 - The architecture better supports commercials, station IDs, shared interruptions, and channel monitoring later.
