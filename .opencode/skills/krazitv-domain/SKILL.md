@@ -53,7 +53,7 @@ Avoid first:
 
 ## Documentation Placement
 
-- Product behavior belongs in `docs/specs/`.
+- Product behavior belongs in feature-scoped specs under `docs/specs/features/`.
 - Architecture decisions belong in `docs/adrs/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
 - Research belongs in `docs/knowledge_base/`.

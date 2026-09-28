@@ -23,7 +23,7 @@ It should behave like a small broadcast automation system, not a playlist genera
 ## Source Of Truth
 
 - `README.md` contains the high-level product and architecture overview.
-- `docs/specs/` contains product and technical specs.
+- `docs/specs/` contains feature folders, feature goals, and feature-scoped product and technical specs.
 - `docs/adrs/` contains accepted architecture decisions.
 - `docs/implementation_plan/` contains milestone and task sequencing.
 - `docs/knowledge_base/` contains research notes and operational knowledge.
@@ -77,7 +77,7 @@ For opencode skills:
 
 ## Documentation Rules
 
-- Product behavior belongs in `docs/specs/`.
+- Product behavior belongs in feature-scoped specs under `docs/specs/features/`.
 - Architecture decisions belong in `docs/adrs/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
 - Research and references belong in `docs/knowledge_base/`.

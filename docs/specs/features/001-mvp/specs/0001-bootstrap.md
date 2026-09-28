@@ -1,5 +1,7 @@
 # System Bootstrap And Health
 
+Status: Implemented
+
 This spec defines the first vertical slice for kraziTV: starting the system locally and proving that the API and Web UI are reachable.
 
 ## Problem

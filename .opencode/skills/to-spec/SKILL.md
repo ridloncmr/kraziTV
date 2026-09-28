@@ -12,7 +12,13 @@ Use this skill to convert a conversation into a durable spec.
 
 ## Output Location
 
-Save specs in `docs/specs/` unless they are pure implementation sequencing, which belongs in `docs/implementation_plan/`.
+Save feature-scoped specs under `docs/specs/features/<feature>/specs/`.
+
+Use the feature folder `README.md` for the feature goal and status table.
+
+Use `docs/specs/README.md` and `docs/specs/features/README.md` as indexes.
+
+Pure implementation sequencing belongs in `docs/implementation_plan/`.
 
 ## Spec Shape
 

@@ -1,5 +1,7 @@
 # Architecture
 
+Status: Accepted
+
 kraziTV is organized around three main responsibilities:
 
 - kraziBrain decides what plays, when it plays, and why it was selected

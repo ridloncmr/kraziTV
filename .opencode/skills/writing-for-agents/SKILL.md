@@ -13,7 +13,7 @@ Write docs that make future agent work safer and faster.
 ## Rules
 
 - Put durable project rules in `AGENTS.md`.
-- Put product behavior in `docs/specs/`.
+- Put product behavior in feature-scoped specs under `docs/specs/features/`.
 - Put decisions in `docs/adrs/`.
 - Put build sequencing in `docs/implementation_plan/`.
 - Put researched facts in `docs/knowledge_base/`.
