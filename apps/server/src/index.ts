@@ -1,13 +1,6 @@
-import cors from "@fastify/cors";
-import Fastify from "fastify";
+import { buildServer } from "./app.js";
 
-const server = Fastify({ logger: true });
-
-await server.register(cors, {
-  origin: true,
-});
-
-server.get("/health", async () => ({ status: "ok" }));
+const server = buildServer({ logger: true });
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "127.0.0.1";
