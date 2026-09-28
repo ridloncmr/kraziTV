@@ -119,8 +119,11 @@ Several skills are adapted from Matt Pocock's `skills` repository:
 
 - Repository: https://github.com/mattpocock/skills
 - License: MIT
+- Complete upstream notice: [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)
 
-The adapted files are intentionally shortened for this project while retaining attribution and license metadata.
+The adapted files are intentionally shortened for this project while retaining
+inline attribution and license metadata. The complete upstream copyright and
+permission notice is retained in the repository-level third-party notices file.
 
 The skills follow the open Agent Skills structure: https://agentskills.io
 

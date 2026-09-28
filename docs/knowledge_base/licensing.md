@@ -24,6 +24,7 @@ for noncommercial purposes while withholding permission for commercial use?
 - [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)
 - [SPDX license entry](https://spdx.org/licenses/PolyForm-Noncommercial-1.0.0.html)
 - [Open Source Definition](https://opensource.org/osd)
+- [Matt Pocock skills MIT license](https://github.com/mattpocock/skills/blob/main/LICENSE)
 
 ## Implications For kraziTV
 
@@ -32,6 +33,8 @@ for noncommercial purposes while withholding permission for commercial use?
 - Package metadata uses the standard SPDX identifier.
 - Project documentation describes kraziTV as source-available and does not call
   it open source.
+- The root `THIRD_PARTY_NOTICES.md` identifies every adapted Matt Pocock skill
+  and retains the complete upstream MIT copyright and permission notice.
 - Anyone seeking commercial-use rights must obtain a separate license from the
   copyright holder.
 
