@@ -51,7 +51,7 @@ http://127.0.0.1:3000/plex/xmltv.xml
 
 Plex should see enabled kraziTV channels with their channel numbers and display names.
 
-When a user selects a kraziTV channel in Plex, Plex requests the channel stream URL from the tuner lineup. kraziTV resolves the current channel state and delegates MPEG-TS packaging to SignalPackager.
+When a user selects a kraziTV channel in Plex, Plex requests the channel stream URL from the tuner lineup. kraziTV subscribes that request to the channel's shared active broadcast through `ChannelStreamManager`. Plex remains unaware of worker lifecycle.
 
 ## Technical Behavior
 
@@ -121,7 +121,7 @@ XMLTV generation reads the available schedule horizon and emits up to 72 hours o
 
 ### Stream URL Mapping
 
-Stream URLs exposed to Plex should map to existing channel stream behavior.
+Stream URLs exposed to Plex should map to existing channel stream behavior. Multiple Plex clients tuning the same channel should subscribe to the same active channel worker and receive the same broadcast signal.
 
 Exact URL shape can change during implementation, but Plex-facing URLs must be stable enough for Plex configuration.
 
@@ -212,17 +212,30 @@ Spike success criteria:
 
 - Plex recognizes kraziTV as a tuner.
 - Channel 69 appears in Plex Live TV.
-- Plex successfully tunes Channel 69.
-- Video plays.
-- Plex remains playing across an actual two-file stream boundary.
+- Viewer A successfully tunes Channel 69.
+- ChannelWorker 69 starts.
+- Video plays for Viewer A.
+- The broadcast advances at approximately 1x wall-clock speed without racing ahead of the scheduled program.
+- Viewer B tunes Channel 69 while Viewer A remains connected.
+- No second FFmpeg encoder starts.
+- Viewer B joins the already-running shared worker successfully.
+- Viewer A and Viewer B receive the same broadcast signal.
+- Disconnecting Viewer A does not affect Viewer B.
+- Plex remains playing for both viewers across an actual two-file stream boundary.
+- After the final viewer disconnects, ChannelWorker 69 stops after the idle grace period.
+- No FFmpeg process remains for Channel 69.
 
-After the spike succeeds, record the required HDHomeRun response fields, verified FFmpeg arguments, and successful stream-boundary strategy in this spec. Then change the spec status to `Accepted`. The hard-coded spike can be discarded or refactored into the formal MVP adapter.
+After the spike succeeds, record the required HDHomeRun response fields, verified FFmpeg pacing arguments, successful stream-boundary strategy, late-join behavior and initialization requirements, subscriber buffering strategy, and Plex behavior when joining an already-running MPEG-TS stream in this spec. Then change the spec status to `Accepted`. The hard-coded spike can be discarded or refactored into the formal MVP adapter.
 
 ## Decisions Required From The Spike
 
 - Exact HDHomeRun response fields required for reliable manual tuner setup.
 - Any Plex constraints on XMLTV horizon beyond the MVP's 72-hour schedule horizon.
 - The verified FFmpeg continuity strategy for a real two-file boundary.
+- The verified real-time pacing arguments and a measurable maximum drift across file boundaries.
+- The verified late-join strategy for an already-running MPEG-TS worker.
+- The subscriber fan-out strategy and concrete byte or duration limits needed to keep slow clients isolated.
+- A concrete idle grace duration that avoids encoder churn during Plex reconnects.
 
 ## Deferred Work
 
@@ -241,5 +254,8 @@ After the spike succeeds, record the required HDHomeRun response fields, verifie
 - XMLTV output includes channel declarations and programme entries from schedule data.
 - XMLTV programme entries include start time, stop time, channel ID, and title.
 - Plex-facing stream URLs delegate to provider-neutral channel stream behavior.
+- The shared channel broadcast remains aligned with wall-clock time independently of viewer throughput.
+- Multiple Plex viewers on the same channel share one active channel worker and one FFmpeg pipeline.
+- A late Plex viewer can join an already-running shared channel worker.
 - Plex adapter does not generate schedules, generate playout timelines, choose media, mutate channel state, or construct FFmpeg commands.
 - kraziBrain does not emit Plex-specific HDHomeRun or XMLTV formatting.

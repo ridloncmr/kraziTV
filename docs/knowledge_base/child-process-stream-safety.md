@@ -32,8 +32,15 @@ FFmpeg work?
 - Limit concurrent probes with a worker pool.
 - Confirm child closure after cancellation and escalate when a process does not
   exit during the grace period.
-- Pipe FFmpeg stdout to the HTTP response with backpressure propagation. Never
-  accumulate an MPEG-TS response in an application-owned unbounded buffer.
+- Continuously drain FFmpeg stdout into the owning channel broadcaster so one
+  HTTP client's backpressure cannot stall the shared channel signal.
+- Fan broadcast output out through independent, bounded subscriber buffers.
+  Disconnect a subscriber that exceeds its limit without stalling FFmpeg or
+  other subscribers.
+- While a worker is retained without subscribers during idle grace, continue
+  draining its output. Discard unneeded bytes or retain only the explicitly
+  bounded initialization buffer required for late join.
+- Never accumulate MPEG-TS output in an unbounded application-owned buffer.
 
 ## Open Questions
 

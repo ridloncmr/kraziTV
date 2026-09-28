@@ -6,26 +6,33 @@ Channels behave as if they are continuously broadcasting. When a viewer tunes in
 
 ## Architecture
 
-kraziTV separates three responsibilities:
+kraziTV separates four responsibilities:
 
 - **kraziBrain** decides what plays, when it plays, and why.
+- **Channel stream workers** operate one shared broadcast signal per watched channel.
 - **SignalPackager** turns selected media into a continuous stream.
 - **Provider adapters** expose channels, streams, and guide data to Plex and future providers.
 
 Provider-specific behavior must not leak into scheduling. FFmpeg command construction belongs to SignalPackager, not kraziBrain.
 
 ```text
-Web Admin
-    |
-    v
-kraziBrain ---- schedule / playout timeline / channel state
-    |
-    v
-SignalPackager ---- MPEG-TS stream
-    |
-    v
-Provider adapter ---- Plex first, Jellyfin later
+Configuration and exposure:
+
+Web Admin ----> kraziBrain ---- schedule / guide ----> provider adapter ----> Plex / Jellyfin
+
+Tune and stream:
+
+Plex / Jellyfin ---- tune ----> provider-neutral stream endpoint ----> channel stream worker
+kraziBrain ---- selected playout ------------------------------------> channel stream worker
+                                                                         |
+                                                                         v
+                                                                  SignalPackager
+                                                                         |
+                                                                         v
+                                                             shared MPEG-TS signal
 ```
+
+Provider adapters expose tuner metadata, guide data, and stream URLs. Stream bytes flow through the provider-neutral endpoint and shared channel worker, not through the provider adapter.
 
 The guide-facing **schedule** is separate from the **playout timeline** containing everything actually transmitted. **Channel state** identifies the current playout item and join-in-progress offset at a given time.
 
@@ -38,7 +45,7 @@ apps/
 packages/
   core/        scheduling, channel rules, and playout decisions
   media/       discovery, ffprobe, and source metadata
-  signal/      FFmpeg lifecycle and stream packaging
+  signal/      active channel workers, FFmpeg lifecycle, and stream packaging
   plex/        HDHomeRun-compatible and XMLTV formatting
 docs/
   specs/       feature goals and behavior specifications

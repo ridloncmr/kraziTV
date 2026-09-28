@@ -17,7 +17,7 @@ The guide-facing schedule says what viewers see in the EPG. The playout timeline
 - Calculate the media offset needed to join a broadcast in progress.
 - Keep channel state deterministic across API restarts.
 - Use schedule entries and cataloged media as inputs.
-- Produce a narrow input contract for SignalPackager.
+- Produce a narrow current/future playout contract for active channel stream workers.
 - Keep playout decisions separate from FFmpeg command construction.
 
 ## Non-Goals
@@ -32,7 +32,7 @@ The guide-facing schedule says what viewers see in the EPG. The playout timeline
 
 ## User-Facing Behavior
 
-When a viewer tunes into a channel, kraziTV can determine the currently-running program and the playback offset.
+When a viewer tunes into a channel, kraziTV can determine the currently-running program and the playback offset. Provider stream routes use this state to subscribe the viewer to the channel's shared active broadcast worker, starting that worker lazily when needed.
 
 Example:
 
@@ -137,6 +137,8 @@ Minimum current channel state fields:
 
 Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
 
+Channel state also supplies selected current and following playout items to the runtime stream layer. A `ChannelWorker` may ask for more future playout when its queue is low, but the worker does not select media or decide what should play next.
+
 ### API
 
 The API should expose endpoints equivalent to:
@@ -203,7 +205,8 @@ This slice affects:
 Important boundaries:
 
 - kraziBrain decides which playout item is current and what offset should be used.
-- SignalPackager receives selected media and offset later; it does not decide what should be playing.
+- Channel stream workers receive selected current and following playout items; they do not decide what should be playing.
+- SignalPackager receives selected media, media offset, and play duration from the worker later; it does not decide what should be playing.
 - Playout timeline generation must not construct FFmpeg commands.
 - Playout timeline generation must not emit Plex-specific output.
 - Schedule entries remain guide-facing; playout items represent transmission-facing items.
@@ -220,6 +223,7 @@ Important boundaries:
 - Current offset is clamped to the media item's playable duration.
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.
+- Channel state can supply selected current and following playout items to a shared channel worker.
 - Unavailable media produces an explicit `media_unavailable` state without silently changing the schedule.
 - Playout items and channel state are derived on demand and are not persisted separately in the MVP.
 - Schedule, playout, and channel-state timestamps are interpreted in UTC.
