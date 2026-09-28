@@ -48,14 +48,16 @@ horizon extension or gap repair runs separately as a write, followed by a full
 snapshot retry; the read transaction is never upgraded into a mutation.
 
 Active channel stream workers may prefetch and prepare future selections, but
-those preparations are revocable. At or after a scheduled boundary, a worker
-uses the same connection-pinned immediate-transaction helper as schedule
-mutation, revalidates the entry and current persisted revision, and
-synchronously commits the prepared SignalPackager item before releasing write
-authority. That commit is the point at which the item becomes irrevocable. A
-regeneration transaction that commits first invalidates the stale preparation;
-a transition that commits first makes the entry current, so later regeneration
-preserves it through its scheduled end.
+those preparations are revocable and limited to one prepared-next item. At or
+after a scheduled boundary, a worker delegates to an injected
+`TransitionCoordinator`. The production persistence adapter uses the same
+connection-pinned immediate-transaction helper as schedule mutation, revalidates
+the entry and current persisted revision, and synchronously invokes the prepared
+SignalPackager commit before releasing write authority. `ChannelWorker` does not
+depend on SQLite or Kysely. That commit is the point at which the item becomes
+irrevocable. A regeneration transaction that commits first invalidates the stale
+preparation; a transition that commits first makes the entry current, so later
+regeneration preserves it through its scheduled end.
 
 The database enforces a unique `(channelId, sequenceNumber)` constraint and one
 schedule-state row per channel. Indexes on `(channelId, startsAt)` and
