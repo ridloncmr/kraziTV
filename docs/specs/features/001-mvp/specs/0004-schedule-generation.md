@@ -131,6 +131,22 @@ Persisted entries are the authority for guide data and the shared scheduling inp
 
 Schedule generation should extend the persisted schedule forward from the last generated entry for a channel. Repeated generation requests should be idempotent for already-covered windows unless an explicit regeneration operation is requested.
 
+Every schedule mutation for a channel must be atomic. Initial state creation,
+horizon extension, gap repair, and delete-and-regenerate operations each run in
+one SQLite write transaction. The mutation must acquire database write authority
+before reading the current entries and `ChannelScheduleState`, then re-evaluate
+the required work inside that transaction. Entry inserts or deletes and updates
+to `lastGeneratedThrough`, `nextSequenceNumber`, and other schedule state commit
+together or roll back together.
+
+Concurrent requests for the same channel must serialize at the database
+boundary. An in-process mutex may reduce contention, but it is not the
+correctness mechanism because another process or connection could bypass it.
+The SQLite implementation may use an immediate write transaction or an
+equivalent database-enforced compare-and-swap strategy. A request that loses a
+race must retry from freshly read persisted state or return a retryable error; it
+must not commit entries calculated from stale state.
+
 When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the creation time truncated to a whole second and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
 If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current time truncated to a whole second; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
@@ -174,6 +190,14 @@ updatedAt
 
 Schedule data should reference media catalog items but should not duplicate raw ffprobe output.
 
+The schema must enforce one `ChannelScheduleState` row per channel and a unique
+`(channelId, sequenceNumber)` pair for schedule entries. It must also index
+`(channelId, startsAt)` and `(channelId, endsAt)` so bounded-window, current-entry,
+and horizon-boundary queries do not require scanning schedule entries for every
+channel. SQLite cannot express non-overlapping time ranges with a standard unique
+constraint, so overlap prevention remains part of the transactional mutation
+invariant and must be covered by tests.
+
 ## Architecture Boundaries
 
 This slice affects:
@@ -199,6 +223,12 @@ Important boundaries:
 
 - Schedule entries can be generated for an enabled channel with schedulable media.
 - Generated schedule entries are persisted.
+- Each schedule mutation commits its entry changes and channel schedule state in
+  one database transaction.
+- Concurrent generation requests cannot allocate the same channel sequence
+  number or create overlapping schedule entries.
+- The database enforces unique `(channelId, sequenceNumber)` values and provides
+  channel/time indexes for schedule range lookups.
 - Overlapping schedule reads return the same persisted entries for the overlapping time range.
 - Schedule generation extends a channel's future schedule horizon without changing already-materialized entries.
 - Generated entries include channel ID, media item ID, title, start time, end time, and duration.

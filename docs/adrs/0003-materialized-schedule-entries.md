@@ -22,9 +22,24 @@ Horizon maintenance extends schedules without replacing entries in already-cover
 
 Catalog availability changes do not rewrite published schedule entries. Channel-state lookup reports unavailable media explicitly instead of silently selecting a replacement.
 
+Every mutation of a channel's materialized schedule runs in one SQLite write
+transaction. The transaction acquires database write authority before reading
+the schedule and `ChannelScheduleState`, re-evaluates the required work, and
+atomically commits entry changes with state such as `lastGeneratedThrough` and
+`nextSequenceNumber`. Concurrent requests must serialize through the database;
+an in-process lock alone is insufficient.
+
+The database enforces a unique `(channelId, sequenceNumber)` constraint and one
+schedule-state row per channel. Indexes on `(channelId, startsAt)` and
+`(channelId, endsAt)` support overlap, current-entry, and horizon queries.
+
 ## Consequences
 
 - Guide responses remain stable across restarts and overlapping API requests.
 - The playout timeline, channel state, and stream output can resolve from the same schedule entries Plex sees without collapsing those concepts into the schedule.
 - Schedule regeneration needs explicit policy and logging.
+- Schedule mutation failures roll back both materialized entries and their
+  associated schedule state.
+- Concurrent schedule requests cannot reserve the same sequence number or commit
+  overlapping extensions from stale state.
 - The database carries schedule data, not only channel configuration and media catalog data.
