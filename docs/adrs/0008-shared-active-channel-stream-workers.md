@@ -46,6 +46,12 @@ Per-viewer FFmpeg encoders are not the intended kraziTV streaming architecture.
 
 This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker`, subscriber fan-out, and late-join stream initialization in `packages/signal` alongside SignalPackager.
 
+The Plex compatibility spike will exercise production-intent implementations of
+those `packages/signal` primitives. It may inject hard-coded channel and playout
+data through narrow interfaces, but it must not build a parallel throwaway
+worker, broadcaster, session, or FFmpeg lifecycle. Only the Plex/HDHomeRun
+harness and its fixed metadata and media paths are disposable.
+
 ## Consequences
 
 - Multiple viewers on one channel share encoding work.
@@ -74,3 +80,6 @@ This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker
   next transition.
 - The number of encoders scales with active channels rather than viewers.
 - The architecture better supports commercials, station IDs, shared interruptions, and channel monitoring later.
+- The compatibility spike becomes the first integration consumer of the durable
+  streaming runtime rather than a prototype that must be rewritten after it
+  succeeds.

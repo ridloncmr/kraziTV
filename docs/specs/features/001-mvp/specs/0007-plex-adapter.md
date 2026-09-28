@@ -206,7 +206,17 @@ The spike may hard-code one channel:
 Krazi Comedy
 ```
 
-It should hard-code two local media files and serve them sequentially through one stream response so the test crosses a real file boundary. No database, scheduler, Web UI, complete domain model, or reusable adapter implementation is required.
+It should hard-code two local media files and serve them sequentially through
+one stream response so the test crosses a real file boundary. No database,
+scheduler, Web UI, complete domain model, or reusable provider-adapter
+implementation is required.
+
+The hard-coded tuner routes and Plex metadata form a thin spike harness. They
+must call the production-intent `ChannelStreamManager`, `ChannelWorker`, shared
+broadcaster, and SignalPackager session primitives in `packages/signal`. The
+harness may inject a fake channel authorizer and playout provider for Channel 69
+and the two files, but it must not contain parallel worker, fan-out, pacing,
+shutdown, or FFmpeg lifecycle implementations.
 
 Spike success criteria:
 
@@ -234,8 +244,9 @@ initial tune drift and measurement method, verified FFmpeg pacing and any
 startup catch-up arguments, successful stream-boundary strategy, late-join
 behavior and initialization requirements, subscriber buffering strategy, and
 Plex behavior when joining an already-running MPEG-TS stream in this spec. Then
-change the spec status to `Accepted`. The hard-coded spike can be discarded or
-refactored into the formal MVP adapter.
+change the spec status to `Accepted`. The hard-coded provider harness may be
+discarded or refactored into the formal MVP adapter; the exercised
+`packages/signal` primitives are retained.
 
 ## Decisions Required From The Spike
 
@@ -250,6 +261,8 @@ refactored into the formal MVP adapter.
 - The verified late-join strategy for an already-running MPEG-TS worker.
 - The subscriber fan-out strategy and concrete byte or duration limits needed to keep slow clients isolated.
 - A concrete idle grace duration that avoids encoder churn during Plex reconnects.
+- Any changes required in the retained `packages/signal` primitives before they
+  are accepted for MVP integration.
 
 ## Deferred Work
 
@@ -271,5 +284,7 @@ refactored into the formal MVP adapter.
 - The shared channel broadcast remains aligned with wall-clock time independently of viewer throughput.
 - Multiple Plex viewers on the same channel share one active channel worker and one FFmpeg pipeline.
 - A late Plex viewer can join an already-running shared channel worker.
+- The spike's hard-coded Plex harness delegates streaming behavior to the same
+  `packages/signal` primitives retained by the MVP.
 - Plex adapter does not generate schedules, generate playout timelines, choose media, mutate channel state, or construct FFmpeg commands.
 - kraziBrain does not emit Plex-specific HDHomeRun or XMLTV formatting.

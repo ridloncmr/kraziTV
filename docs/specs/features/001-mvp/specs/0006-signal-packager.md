@@ -25,6 +25,8 @@ kraziTV channels are broadcasts, not viewer sessions. The MVP should prove the s
 - Keep programming and schedule decisions out of SignalPackager.
 - Report packaging failures clearly enough for API logs and debugging.
 - Provide a stream contract future provider adapters can point at.
+- Build the compatibility spike's worker, broadcaster, session, and process
+  lifecycle as production-intent `packages/signal` code that the MVP retains.
 
 ## Non-Goals
 
@@ -37,6 +39,8 @@ kraziTV channels are broadcasts, not viewer sessions. The MVP should prove the s
 - Do not implement adaptive bitrate streaming, HLS, DASH, DVR, pause, rewind, or recording features.
 - Do not implement distributed workers, cluster coordination, automatic worker failover, or GPU scheduling.
 - Do not guarantee frame-perfect joins in the MVP.
+- Do not build a separate throwaway streaming stack solely for the compatibility
+  spike.
 
 ## User-Facing Behavior
 
@@ -462,6 +466,42 @@ Important boundaries:
 - `packages/signal` owns channel stream workers, subscriber fan-out, late-join stream initialization, FFmpeg lifecycle, transcoding, muxing, stream continuity, seeking, packaging, and encoding-profile code.
 - `packages/media` owns media discovery, filesystem inspection, ffprobe, and source metadata. It must not grow stream packaging responsibilities.
 
+## Compatibility Spike Code Boundary
+
+The compatibility spike is an early vertical integration environment, not a
+throwaway implementation of the streaming runtime. The following code is built
+under `packages/signal` with production module boundaries and retained for the
+MVP:
+
+- `ChannelStreamManager` creation deduplication and per-channel lifecycle
+  serialization.
+- `ChannelWorker` lifecycle, item transitions, idle grace, and shutdown.
+- SignalPackager session and FFmpeg process lifecycle.
+- Shared broadcaster fan-out and independently bounded subscriber buffers.
+- Slow-subscriber eviction without upstream backpressure.
+- Late-join initialization buffering selected by the spike.
+- Real-time pacing, first-worker synchronization, and two-file continuity.
+
+Those primitives consume narrow injected interfaces for channel authorization,
+selected playout, clocks/timers, and process creation. During the spike, small
+fakes may hard-code Channel 69, two media files, and following-item selection.
+The real scheduler, database, catalog, and provider metadata are integrated
+later without replacing the tested streaming primitives.
+
+Only the spike harness is disposable: hard-coded media paths, fake playout
+state, fixed Plex/HDHomeRun metadata, manual measurement hooks, and temporary
+routes or launch scripts. A harness component may be refactored into the Plex
+adapter, but disposable harness code must not own a second worker, broadcaster,
+or SignalPackager implementation.
+
+Before Plex testing, automated tests cover worker-creation deduplication, two
+subscribers sharing one broadcaster, independent backpressure, idempotent
+subscription close, late join against the chosen bounded initialization
+strategy, idle-grace cancellation, administrative and server shutdown, and
+multi-item session orchestration. Real FFmpeg and Plex tests then verify the
+environment-dependent pacing, initialization, and continuity behavior that
+fakes cannot prove.
+
 ## Compatibility Spike Output
 
 The Plex spike must record the final pre-spawn state-evaluation time, process
@@ -488,6 +528,12 @@ contract.
 ## Acceptance Criteria
 
 - A first stream request for an enabled channel with a current playout item starts one `ChannelWorker` and one FFmpeg pipeline for the channel.
+- The compatibility spike exercises the production-intent
+  `ChannelStreamManager`, `ChannelWorker`, broadcaster, and SignalPackager
+  session primitives from `packages/signal`; it does not duplicate them in the
+  harness.
+- Reusable lifecycle and fan-out behavior has automated coverage independent of
+  Plex before the manual compatibility run.
 - The first worker resolves current channel state after asynchronous preparation
   and immediately before process creation; it does not start from the
   preliminary subscription-time offset.

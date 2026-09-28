@@ -19,7 +19,20 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 
 The first release should intentionally be small and focused on proving the core loop.
 
-Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel, share one active channel worker across two viewers, start the first worker within 2,000 milliseconds of the wall-clock schedule position, allow a late viewer to join an already-running stream, keep the broadcast paced to wall-clock time, and keep playing across an actual two-file stream boundary. Record the initial-tune-drift measurement, verified HDHomeRun response fields, FFmpeg pacing and any startup catch-up arguments, continuity strategy, late-join behavior, subscriber buffering limits, and idle-grace behavior in the SignalPackager and Plex adapter specs before changing either spec to `Accepted`.
+Before the full MVP chain, run a hard-coded Plex compatibility spike that
+exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one
+channel, share one active channel worker across two viewers, start the first
+worker within 2,000 milliseconds of the wall-clock schedule position, allow a
+late viewer to join an already-running stream, keep the broadcast paced to
+wall-clock time, and keep playing across an actual two-file stream boundary.
+Build the manager, worker, broadcaster, SignalPackager session, pacing, and
+shutdown behavior as production-intent `packages/signal` primitives retained by
+the MVP; only the hard-coded channel, media selection, and Plex harness are
+disposable. Record the initial-tune-drift measurement, verified HDHomeRun
+response fields, FFmpeg pacing and any startup catch-up arguments, continuity
+strategy, late-join behavior, subscriber buffering limits, and idle-grace
+behavior in the SignalPackager and Plex adapter specs before changing either
+spec to `Accepted`.
 
 ADR 0004 is accepted. Persistence-heavy MVP slices consistently use Kysely with
 `SqliteDialect` and `better-sqlite3` for SQLite queries and migrations.
