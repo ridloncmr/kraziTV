@@ -1,6 +1,6 @@
 # Schedule Generation
 
-Status: Draft
+Status: Accepted
 
 This spec defines MVP guide schedule generation: producing deterministic, provider-neutral schedule entries for configured channels from cataloged local media.
 
@@ -66,7 +66,7 @@ Schedule generation uses:
 - Available media catalog items
 - Requested schedule window start
 - Requested schedule window end
-- Deterministic seed or channel schedule state
+- Persisted channel schedule state
 
 Only media items with status `available` and valid positive durations are schedulable.
 
@@ -82,23 +82,19 @@ Minimum schedule entry fields:
 - Start time
 - End time
 - Duration seconds
-- Sequence number within the generated window or channel timeline
+- Monotonically increasing sequence number within the channel timeline
 
 Schedule entries must not represent commercials, bumpers, station IDs, FFmpeg segments, transcode decisions, or stream URLs.
 
 ### Chronological Playback
 
-Chronological playback uses a stable order for the selected media set.
-
-The initial ordering should be deterministic from available catalog data. Acceptable first-pass ordering can use normalized title and path ordering. Later specs may refine this with show, season, and episode metadata.
+Chronological playback uses the media collection's explicit membership order. It must not substitute title or path sorting for that order.
 
 When the end of the selected media set is reached, chronological playback may loop back to the first item for the MVP.
 
 ### Random Playback
 
-Random playback must be deterministic for the same inputs.
-
-The implementation should use a seed derived from stable channel identity and schedule period, or persisted channel schedule state. It must not rely on process-global randomness.
+Random playback must be deterministic for the same inputs. Each channel stores a random seed in `ChannelScheduleState`. The initial seed is derived from the stable channel ID and schedule anchor. Selection is derived from that seed plus each entry's channel-wide sequence number, so regeneration can reproduce an entry without replaying mutable process state. It must not rely on process-global randomness or a request-window-specific seed.
 
 The MVP may allow repeats. Repeat prevention can be added later once playback history exists.
 
@@ -110,7 +106,7 @@ The first implementation should support at least a 24-hour window. Longer window
 
 Entries may begin before the requested window if the program overlaps the window start. Entries may end after the requested window if the program overlaps the window end.
 
-kraziBrain should maintain a future scheduling horizon for enabled channels. The first implementation should target a configurable horizon of at least 48 hours beyond the current time, with 72 hours preferred if generation remains simple and fast.
+kraziBrain maintains a schedule through at least 72 hours beyond the current time for enabled, schedulable channels. The server ensures this horizon at startup, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. A periodic background check may extend the horizon proactively, but correctness must not depend on that timer. API reads may request smaller bounded windows.
 
 ### API
 
@@ -125,19 +121,23 @@ Exact route names can change during implementation, but the capabilities should 
 
 The retrieval endpoint should return schedule entries for the requested channel and time window.
 
-The generation endpoint can be synchronous for the MVP if the requested window is bounded.
+The generation endpoint can be synchronous for the MVP if the requested window is bounded. It is an explicit administrative trigger that ensures persisted coverage through the requested end; it does not replace entries in an already-covered window unless the request invokes the regeneration policy below.
 
 ### Persistence
 
 The MVP persists generated schedule entries.
 
-Persisted entries are the authority for guide data, current playout state, and stream selection. Schedule reads must not casually regenerate overlapping windows in a way that changes already-materialized entries.
+Persisted entries are the authority for guide data and the shared scheduling input from which kraziBrain derives the playout timeline and channel state. Stream selection consumes that derived channel state. Schedule reads and horizon maintenance must not replace entries in already-covered windows.
 
-Schedule generation should extend the persisted timeline forward from the last generated entry for a channel. Repeated generation requests should be idempotent for already-covered windows unless an explicit regeneration operation is requested.
+Schedule generation should extend the persisted schedule forward from the last generated entry for a channel. Repeated generation requests should be idempotent for already-covered windows unless an explicit regeneration operation is requested.
 
-If persisted schedule entries become stale because channel configuration, media collection membership, or media catalog inputs changed, the system should either regenerate only an explicitly allowed future range or clearly mark the schedule as stale.
+When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the creation time truncated to a whole second and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
-Configuration updates must not silently change what is currently airing. The MVP should use a regeneration boundary such as the current program end or the next scheduling boundary. The exact boundary can evolve, but it must be explicit in API behavior and logs.
+If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current time truncated to a whole second; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
+
+Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current time truncated to a whole second when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
+
+Catalog availability changes do not rewrite already-materialized entries. Missing-media behavior is handled by channel-state lookup so the guide does not silently change after publication.
 
 ## Data Model Impact
 
@@ -157,7 +157,7 @@ createdAt
 updatedAt
 ```
 
-Schedule horizon/state fields may include:
+Required schedule state fields:
 
 ```text
 ChannelScheduleState
@@ -166,6 +166,8 @@ seed
 anchorTime
 lastGeneratedThrough
 regenerationAllowedAfter
+nextSequenceNumber
+algorithmVersion
 createdAt
 updatedAt
 ```
@@ -193,14 +195,6 @@ Important boundaries:
 - `packages/media` provides catalog data but does not decide programming order.
 - Provider adapters map schedule entries later; they do not decide what plays.
 
-## Open Questions
-
-- What should the default schedule anchor time be for a newly created channel?
-- Should chronological playback sort by path, title, or inferred episode metadata in the first implementation?
-- Should random playback use a daily seed, channel seed, or persisted sequence state?
-- How far ahead should kraziTV generate guide data for Plex in the MVP?
-- What exact regeneration boundary should apply after channel configuration changes?
-
 ## Acceptance Criteria
 
 - Schedule entries can be generated for an enabled channel with schedulable media.
@@ -209,9 +203,11 @@ Important boundaries:
 - Schedule generation extends a channel's future schedule horizon without changing already-materialized entries.
 - Generated entries include channel ID, media item ID, title, start time, end time, and duration.
 - The same inputs produce the same schedule entries for the same requested window.
-- Chronological mode uses a stable media ordering.
-- Random mode uses deterministic seeded selection.
+- Chronological mode follows explicit media-collection order.
+- Random mode derives each selection from the persisted seed and channel-wide sequence number.
 - Configuration changes do not silently change the currently airing program.
+- Configuration changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Enabled schedulable channels maintain at least 72 hours of future schedule data.
 - Channels with no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.
 - Schedule entries represent guide-visible programs, not commercials, bumpers, stream segments, or provider-specific output.

@@ -16,11 +16,11 @@ kraziTV separates media roots from media collections.
 
 Media roots answer where media is located. Media collections answer what media can be selected for programming.
 
-Channels and programming rules should reference media collections rather than filesystem roots.
+Channels and programming rules should reference media collections rather than filesystem roots. MVP collection membership is explicitly ordered so chronological playback has a stable user-defined sequence without requiring episode inference.
 
 ## Consequences
 
 - Channel configuration better represents programming intent.
 - A single root can contain media for many channels without forcing all of it into every channel.
-- MVP collections can be simple explicit media item lists.
+- MVP collections are explicit media item lists with a persisted position for each membership.
 - Advanced query-based or tag-based collections can be added later without changing the media root model.

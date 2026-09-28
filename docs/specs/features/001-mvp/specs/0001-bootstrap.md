@@ -120,11 +120,11 @@ Important boundaries:
 - `packages/media` should not be invoked by the health endpoint.
 - `packages/plex` should not be invoked by the health endpoint.
 
-## Open Questions
+## Deferred Work
 
-- Should the root `npm run dev` eventually start both API and Web UI, or should separate commands stay explicit?
-- Should the health endpoint include version/build metadata later?
-- Should there be a separate readiness endpoint once SQLite and media-provider dependencies exist?
+- Decide whether a future production command should start both the API and Web Admin.
+- Add version/build metadata if deployment diagnostics require it.
+- Add a readiness endpoint when startup depends on SQLite or external media tooling.
 
 ## Acceptance Criteria
 

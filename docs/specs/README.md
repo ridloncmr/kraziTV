@@ -20,9 +20,6 @@ features/
       0001-*.md     detailed behavior specs
 ```
 
-## Current Features
+## Feature Index
 
-| Feature                      | Status   | Description                                             |
-| ---------------------------- | -------- | ------------------------------------------------------- |
-| `features/000-architecture/` | Accepted | System architecture, responsibilities, and request flow |
-| `features/001-mvp/`          | Accepted | First usable Plex-focused kraziTV release               |
+See [`features/README.md`](features/README.md) for the canonical feature list and current statuses.

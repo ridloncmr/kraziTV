@@ -14,7 +14,7 @@ Projects such as xTeVe and Threadfin commonly integrate with Plex by exposing an
 
 The Plex adapter will expose HDHomeRun-compatible endpoints for tuner discovery, device metadata, status, and channel lineup.
 
-The adapter will also expose XMLTV guide data. A generic M3U endpoint may remain available, but it is not the primary Plex integration contract.
+The adapter will also expose XMLTV guide data. Generic M3U output is deferred until a non-Plex client or debugging workflow requires it.
 
 Manual tuner configuration is sufficient for the MVP. Automatic network discovery can be added later if needed.
 
@@ -23,4 +23,4 @@ Manual tuner configuration is sufficient for the MVP. Automatic network discover
 - Plex integration risk is tested against the workflow Plex actually expects.
 - Plex-specific protocol details remain isolated in `packages/plex` and HTTP route wiring.
 - XMLTV generation remains a guide-data concern, separate from tuner discovery.
-- M3U output can still be useful for debugging and future non-Plex clients.
+- M3U output can be added later without becoming part of the Plex adapter's MVP contract.

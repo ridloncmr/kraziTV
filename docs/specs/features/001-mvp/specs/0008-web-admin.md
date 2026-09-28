@@ -1,6 +1,6 @@
 # Web Admin MVP
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, playback mode, and observing generated programming and current channel state.
 
@@ -20,8 +20,7 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 - Let users choose chronological or random playback mode.
 - Let users view generated schedule entries.
 - Let users view current channel state and playback offset.
-- Expose Plex tuner and XMLTV setup URLs.
-- Expose a generic M3U URL as a secondary/debugging aid.
+- Expose Plex tuner and XMLTV setup URLs after the Plex adapter contract is verified and accepted.
 - Keep domain decisions in backend APIs and core packages.
 
 ## Non-Goals
@@ -48,7 +47,7 @@ The Web Admin should support a basic setup flow:
 6. Select channel number, name, media collection, and playback mode.
 7. View upcoming schedule entries.
 8. View what is currently playing.
-9. Copy Plex tuner and guide URLs.
+9. After the Plex adapter is accepted, copy Plex tuner and guide URLs.
 ```
 
 The UI should make empty states clear, especially when:
@@ -74,7 +73,7 @@ The MVP UI should include navigation or sections for:
 - Media collections
 - Channels
 - Schedule/current state
-- Plex setup
+- Plex setup, when the Plex adapter is accepted
 
 The exact visual layout can change during implementation, but the setup path should remain obvious.
 
@@ -84,9 +83,9 @@ The user can:
 
 - List configured media roots.
 - Add a media root by path.
-- Enable or disable a media root when the API supports it.
-- Trigger a scan when the API supports it.
-- See scan status or last scanned time.
+- Enable or disable a media root.
+- Trigger a scan.
+- See the last scanned time and the result summary returned by a triggered scan.
 - See media item counts or basic catalog results.
 
 The UI should display API validation errors directly enough for the user to fix input.
@@ -99,6 +98,7 @@ The user can:
 - Create a media collection.
 - Add cataloged media items to a collection.
 - Remove media items from a collection.
+- Reorder collection items to define chronological playback order.
 - See whether a collection has schedulable available media.
 
 The UI should present media collections as programming eligibility, not as filesystem locations.
@@ -130,13 +130,14 @@ The UI can request schedule or current-state data from the API, but it must not 
 
 ### Plex Setup UI
 
+This UI is conditional on the Plex compatibility spike and acceptance of the Plex adapter spec. Until then, its response fields and setup URLs are not a stable implementation requirement.
+
 The user can view or copy:
 
 - Plex tuner base URL
 - Plex XMLTV guide URL
-- Generic M3U playlist URL
 
-The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. M3U should be presented as secondary/debug output rather than the primary Plex setup path.
+The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. The backend supplies these URLs from its configured `PUBLIC_BASE_URL`; the browser must not reconstruct them from its own location.
 
 ### API Integration
 
@@ -151,9 +152,13 @@ Expected API areas:
 - Channels
 - Schedule
 - Current channel state
-- Plex endpoints
+- Plex endpoints, when the Plex adapter is accepted
 
 The UI should handle loading, empty, success, and error states for each API-backed view.
+
+The browser API base URL uses `VITE_API_BASE_URL` when configured. During local development it defaults to `http://127.0.0.1:3000`; production packaging may use same-origin API requests when the variable is absent.
+
+Media scans are synchronous in the MVP. The UI shows a pending state while the request is active and displays the returned summary when it completes. Current channel state refreshes every 10 seconds while its view is visible and also supports manual refresh.
 
 ## Data Model Impact
 
@@ -179,29 +184,26 @@ Important boundaries:
 - `packages/core` owns domain behavior and deterministic decisions.
 - `packages/media` owns probing/catalog behavior exposed through API responses.
 - `packages/plex` owns Plex-specific formatting exposed through API URLs.
-- The Web Admin must not duplicate scheduling algorithms, playout lookup, HDHomeRun formatting, XMLTV generation, M3U generation, or FFmpeg command construction.
+- The Web Admin must not duplicate scheduling algorithms, playout lookup, HDHomeRun formatting, XMLTV generation, or FFmpeg command construction.
 
-## Open Questions
+## Deferred Work
 
-- Should the MVP Web Admin be served by the Fastify server in production, or remain a separate Vite app until packaging work begins?
-- Should API base URL be configured at build time, runtime, or inferred from the browser origin?
-- Should the MVP include authentication warnings if the server binds beyond localhost?
-- Should scan progress be polled, streamed, or refreshed manually in the first implementation?
-- Should current channel state refresh automatically, and if so at what interval?
-- Should Plex setup URLs use localhost by default or a configured external base URL?
+- Decide how the Web Admin is served in production when packaging work begins.
+- Add authentication before treating the administration API as safe for untrusted networks.
+- Add background scan jobs and progress reporting if synchronous scans prove too slow.
 
 ## Acceptance Criteria
 
 - The Web Admin loads in a browser.
 - The UI can show API health or connection status.
 - A user can add or view media roots through the UI.
-- A user can trigger or observe media scanning when the API supports it.
+- A user can trigger media scanning and see its result summary through the UI.
 - A user can create and edit simple media collections through the UI.
+- A user can reorder collection items to define chronological playback order.
 - A user can create and edit channels through the UI.
 - A user can select chronological or random playback mode through the UI.
 - A user can view upcoming schedule entries for a channel.
 - A user can view current channel state and offset when available.
-- A user can view or copy Plex tuner and XMLTV URLs.
-- A user can view or copy a generic M3U URL as a secondary/debugging aid.
+- After the Plex adapter spec is accepted, a user can view or copy Plex tuner and XMLTV URLs.
 - UI behavior does not require Jellyfin, advanced transcoding profiles, commercials, manual schedule editing, or authentication.
 - The Web Admin does not implement authoritative scheduling, playout timeline lookup, Plex formatting, or FFmpeg command construction.
