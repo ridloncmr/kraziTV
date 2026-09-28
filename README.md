@@ -76,6 +76,11 @@ npm run format
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. The Web Admin runs separately during development.
 
+CI runs install, formatting, typecheck, test, and build checks on every pull
+request and on pushes to `main`. At present, only `@krazitv/core` has an automated
+test script, so a passing test step reflects that limited coverage rather than
+full MVP behavior coverage.
+
 ## Documentation
 
 - [`docs/specs/`](docs/specs/README.md) defines product behavior and spec statuses.
