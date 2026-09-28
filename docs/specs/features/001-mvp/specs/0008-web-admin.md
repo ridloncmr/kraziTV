@@ -20,7 +20,7 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 - Let users choose chronological or random playback mode.
 - Let users view generated schedule entries.
 - Let users view current channel state and playback offset.
-- Expose Plex tuner and XMLTV setup URLs.
+- Expose Plex tuner and XMLTV setup URLs after the Plex adapter contract is verified and accepted.
 - Keep domain decisions in backend APIs and core packages.
 
 ## Non-Goals
@@ -47,7 +47,7 @@ The Web Admin should support a basic setup flow:
 6. Select channel number, name, media collection, and playback mode.
 7. View upcoming schedule entries.
 8. View what is currently playing.
-9. Copy Plex tuner and guide URLs.
+9. After the Plex adapter is accepted, copy Plex tuner and guide URLs.
 ```
 
 The UI should make empty states clear, especially when:
@@ -73,7 +73,7 @@ The MVP UI should include navigation or sections for:
 - Media collections
 - Channels
 - Schedule/current state
-- Plex setup
+- Plex setup, when the Plex adapter is accepted
 
 The exact visual layout can change during implementation, but the setup path should remain obvious.
 
@@ -130,6 +130,8 @@ The UI can request schedule or current-state data from the API, but it must not 
 
 ### Plex Setup UI
 
+This UI is conditional on the Plex compatibility spike and acceptance of the Plex adapter spec. Until then, its response fields and setup URLs are not a stable implementation requirement.
+
 The user can view or copy:
 
 - Plex tuner base URL
@@ -150,7 +152,7 @@ Expected API areas:
 - Channels
 - Schedule
 - Current channel state
-- Plex endpoints
+- Plex endpoints, when the Plex adapter is accepted
 
 The UI should handle loading, empty, success, and error states for each API-backed view.
 
@@ -202,6 +204,6 @@ Important boundaries:
 - A user can select chronological or random playback mode through the UI.
 - A user can view upcoming schedule entries for a channel.
 - A user can view current channel state and offset when available.
-- A user can view or copy Plex tuner and XMLTV URLs.
+- After the Plex adapter spec is accepted, a user can view or copy Plex tuner and XMLTV URLs.
 - UI behavior does not require Jellyfin, advanced transcoding profiles, commercials, manual schedule editing, or authentication.
 - The Web Admin does not implement authoritative scheduling, playout timeline lookup, Plex formatting, or FFmpeg command construction.

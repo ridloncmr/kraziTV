@@ -162,7 +162,7 @@ All persisted and API timestamps use UTC ISO 8601 values. User-interface timezon
 
 ## Data Model Impact
 
-The derived playout item domain/API shape is:
+The derived playout item domain shape is:
 
 ```text
 PlayoutItem
@@ -170,6 +170,8 @@ id
 channelId
 scheduleEntryId
 mediaItemId
+mediaPath
+title
 type
 startsAt
 endsAt
@@ -178,6 +180,8 @@ startOffsetSeconds
 createdAt
 updatedAt
 ```
+
+`mediaPath` is an internal packaging input and must not be exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
 
 `createdAt` and `updatedAt` reflect the source schedule entry; no separate playout-item persistence is added. Current channel state is also not persisted because it is computed deterministically from schedule and media data.
 

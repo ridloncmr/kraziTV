@@ -106,7 +106,7 @@ The first implementation should support at least a 24-hour window. Longer window
 
 Entries may begin before the requested window if the program overlaps the window start. Entries may end after the requested window if the program overlaps the window end.
 
-kraziBrain maintains a schedule through at least 72 hours beyond the current time for enabled, schedulable channels. API reads may request smaller bounded windows.
+kraziBrain maintains a schedule through at least 72 hours beyond the current time for enabled, schedulable channels. The server ensures this horizon at startup, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. A periodic background check may extend the horizon proactively, but correctness must not depend on that timer. API reads may request smaller bounded windows.
 
 ### API
 
@@ -121,19 +121,21 @@ Exact route names can change during implementation, but the capabilities should 
 
 The retrieval endpoint should return schedule entries for the requested channel and time window.
 
-The generation endpoint can be synchronous for the MVP if the requested window is bounded.
+The generation endpoint can be synchronous for the MVP if the requested window is bounded. It is an explicit administrative trigger that ensures persisted coverage through the requested end; it does not replace entries in an already-covered window unless the request invokes the regeneration policy below.
 
 ### Persistence
 
 The MVP persists generated schedule entries.
 
-Persisted entries are the authority for guide data, current playout state, and stream selection. Schedule reads must not casually regenerate overlapping windows in a way that changes already-materialized entries.
+Persisted entries are the authority for guide data and the shared scheduling input from which kraziBrain derives the playout timeline and channel state. Stream selection consumes that derived channel state. Schedule reads and horizon maintenance must not replace entries in already-covered windows.
 
-Schedule generation should extend the persisted timeline forward from the last generated entry for a channel. Repeated generation requests should be idempotent for already-covered windows unless an explicit regeneration operation is requested.
+Schedule generation should extend the persisted schedule forward from the last generated entry for a channel. Repeated generation requests should be idempotent for already-covered windows unless an explicit regeneration operation is requested.
 
 When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the creation time truncated to a whole second and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
-If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, regeneration starts at the first future entry or at the persisted anchor when no entries exist.
+If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current time truncated to a whole second; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
+
+Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current time truncated to a whole second when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
 
 Catalog availability changes do not rewrite already-materialized entries. Missing-media behavior is handled by channel-state lookup so the guide does not silently change after publication.
 
