@@ -47,13 +47,14 @@ Example flow:
 ```text
 1. A viewer requests a channel stream URL.
 2. ChannelStreamManager subscribes the viewer to the channel.
-3. If no worker exists, kraziBrain-owned channel state resolves the current playout item.
+3. If no worker exists, a preliminary channel-state lookup validates that the channel can start.
 4. Current item points to /mnt/media/TV/Show A/S01E02.mkv.
-5. Current internal offset is 555000 milliseconds.
-6. ChannelWorker starts one SignalPackager/FFmpeg session for the channel.
-7. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
-8. The viewer receives MPEG-TS bytes from the shared broadcast.
-9. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
+5. After worker preparation, ChannelWorker resolves channel state again as the final step before process creation.
+6. The fresh current offset is 555000 milliseconds.
+7. ChannelWorker starts one SignalPackager/FFmpeg session for the channel.
+8. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
+9. The viewer receives MPEG-TS bytes from the shared broadcast.
+10. When Show A ends, the broadcast transitions to the next playout item without requiring clients to retune.
 ```
 
 If media cannot be opened or FFmpeg fails before response bytes begin, the initial stream request should fail with a clear error and log context. If the shared worker fails after streaming begins, the affected subscriber streams terminate and the failure is logged. Future filler behavior can replace failures later.
@@ -108,6 +109,8 @@ Responsibilities:
 
 - Own one active SignalPackager/FFmpeg process or process sequence for the channel.
 - Consume selected playout items supplied by kraziBrain-owned channel state.
+- Resolve current channel state again immediately before creating the first
+  SignalPackager/FFmpeg process.
 - Transition between scheduled playout items.
 - Broadcast encoded MPEG-TS output to multiple subscribers.
 - Maintain independent subscriber buffers.
@@ -118,6 +121,49 @@ Responsibilities:
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
+
+### First-Worker Wall-Clock Synchronization
+
+A current-state lookup performed when subscription or worker creation begins is
+only a preliminary validation. Worker setup, dependency calls, and process
+startup consume wall-clock time, so the worker must resolve current channel
+state again after asynchronous preparation and as the final step immediately
+before creating the first SignalPackager/FFmpeg process. No avoidable
+asynchronous work may occur between that lookup and process creation.
+
+The worker derives `mediaOffsetMs` and the remaining scheduled airtime from this
+fresh state's `evaluatedAt`. It retains the current playout item's `endsAt` as an
+absolute wall-clock transition deadline. Startup latency must not extend the
+item past that deadline and shift later programming. If the item ends before
+the process produces usable output, the worker discards that startup attempt
+and resolves current state again instead of emitting the expired item.
+
+For the MVP, the first active worker's absolute initial tune drift must be no
+more than 2,000 milliseconds. The compatibility spike measures:
+
+```text
+scheduledMediaPositionMs =
+  startOffsetMs + firstUsableOutputAtMs - startsAt
+
+initialTuneDriftMs =
+  actualMediaPositionAtFirstUsableOutputMs - scheduledMediaPositionMs
+```
+
+Negative drift means the emitted broadcast is behind the wall-clock schedule.
+"First usable output" means the earliest captured MPEG-TS point for which the
+test can identify the program and decode media after the required stream
+initialization data; process creation and the first arbitrary stdout byte do not
+count. The spike must use a test asset or capture analysis that can identify the
+actual media position represented by that output.
+
+Real-time pacing and startup synchronization are separate requirements.
+`-readrate 1` or `-re` prevents normal file ingestion from racing ahead, but it
+does not by itself prove that encoder startup latency was recovered. If late
+state resolution cannot meet the 2,000 millisecond ceiling, the spike must
+verify a bounded startup strategy such as `-readrate_initial_burst`,
+`-readrate_catchup`, or an equivalent mechanism. Any such mechanism must be
+tested end to end with emitted MPEG-TS and Plex; its input-rate semantics alone
+are not sufficient evidence.
 
 ### Schedule Revision and Prefetch
 
@@ -174,7 +220,14 @@ playDurationMs
 
 `mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration to emit from that position before transitioning to the next selected playout item.
 
-For the initial current item, the worker maps channel state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs` from the remaining scheduled airtime (`endsAt - evaluatedAt`), clamped to the media remaining after `mediaOffsetMs`. For a following item, the worker maps the playout item's `startOffsetMs` to `mediaOffsetMs` and its selected playout duration to `playDurationMs`. Both fields use safe integer milliseconds.
+For the initial current item, the worker maps the final pre-spawn channel
+state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs`
+from the remaining scheduled airtime (`endsAt - evaluatedAt`), clamped to the
+media remaining after `mediaOffsetMs`. The worker also enforces `endsAt` as an
+absolute transition deadline, so process initialization time cannot extend the
+program. For a following item, the worker maps the playout item's
+`startOffsetMs` to `mediaOffsetMs` and its selected playout duration to
+`playDurationMs`. Both fields use safe integer milliseconds.
 
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
@@ -247,7 +300,7 @@ The command must be constructed from structured arguments, not shell string conc
 
 FFmpeg is spawned directly with `shell: false`. Process stderr retained for diagnostics uses a 64 KiB tail buffer so a noisy encoder cannot grow server memory without bound.
 
-The broadcast must advance at approximately 1x wall-clock speed. FFmpeg file input must use verified real-time pacing, such as `-readrate 1`, `-re`, or an equivalent mechanism, so subscriber isolation does not allow the encoder to race ahead of the playout timeline. The compatibility spike must verify the exact arguments and acceptable drift across a real two-file boundary.
+The broadcast must advance at approximately 1x wall-clock speed. FFmpeg file input must use verified real-time pacing, such as `-readrate 1`, `-re`, or an equivalent mechanism, so subscriber isolation does not allow the encoder to race ahead of the playout timeline. Pacing does not replace the first-worker synchronization rule above. The compatibility spike must verify the exact pacing and any startup catch-up arguments, initial tune drift, and drift across a real two-file boundary.
 
 SignalPackager validates `mediaOffsetMs` as a non-negative safe integer and `playDurationMs` as a positive safe integer. It converts them to decimal-second strings only at FFmpeg argument construction; internal packaging contracts do not use floating-point seconds.
 
@@ -368,7 +421,20 @@ Important boundaries:
 
 ## Compatibility Spike Output
 
-The Plex spike must record the verified FFmpeg arguments, real-time pacing and drift behavior, whether sequential encoders preserve playback across the two-file boundary, the verified late-join initialization strategy, subscriber buffering behavior, idle-grace behavior, and whether two viewers share one active encoder. Before this spec changes from `Draft` to `Accepted`, it must define measurable MVP defaults or pass thresholds for acceptable pacing drift, subscriber buffer limits, late-join startup behavior, and idle-grace duration. Those empirical values may refine the fixed profile without changing the provider-neutral packaging contract.
+The Plex spike must record the final pre-spawn state-evaluation time, process
+creation time, first usable output time, represented media position, calculated
+initial tune drift, verified FFmpeg arguments, real-time pacing and drift
+behavior, and any startup catch-up behavior. It must also record whether
+sequential encoders preserve playback across the two-file boundary, the
+verified late-join initialization strategy, subscriber buffering behavior,
+idle-grace behavior, and whether two viewers share one active encoder.
+
+The spike fails if absolute initial tune drift exceeds 2,000 milliseconds. Before
+this spec changes from `Draft` to `Accepted`, it must also define measurable MVP
+defaults or pass thresholds for ongoing pacing drift, subscriber buffer limits,
+late-join startup behavior, and idle-grace duration. Those empirical values may
+refine the fixed profile without changing the provider-neutral packaging
+contract.
 
 ## Deferred Work
 
@@ -379,6 +445,14 @@ The Plex spike must record the verified FFmpeg arguments, real-time pacing and d
 ## Acceptance Criteria
 
 - A first stream request for an enabled channel with a current playout item starts one `ChannelWorker` and one FFmpeg pipeline for the channel.
+- The first worker resolves current channel state after asynchronous preparation
+  and immediately before process creation; it does not start from the
+  preliminary subscription-time offset.
+- Absolute initial tune drift at first usable output is at most 2,000
+  milliseconds during the compatibility spike.
+- First-worker startup latency never extends the current item beyond its
+  absolute scheduled `endsAt`; an item that expires before usable output is
+  discarded and resolved again.
 - FFmpeg receives `mediaOffsetMs` and `playDurationMs` calculated outside SignalPackager.
 - The shared broadcast advances at approximately 1x wall-clock speed and does not race ahead when subscribers can accept data faster than real time.
 - The HTTP response uses MPEG-TS output.

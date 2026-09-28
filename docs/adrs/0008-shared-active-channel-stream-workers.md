@@ -16,6 +16,12 @@ kraziTV will use at most one lazily-created shared stream worker per channel whi
 
 The worker owns one SignalPackager/FFmpeg broadcast pipeline and dynamically fans encoded MPEG-TS output out to all current channel subscribers. The first subscriber starts the worker. Later subscribers reuse the same worker. The worker stops after the last subscriber disconnects and an idle grace period expires.
 
+The first worker resolves current channel state again after asynchronous worker
+preparation and immediately before creating its SignalPackager/FFmpeg process.
+It starts from that fresh wall-clock offset and retains the selected item's
+scheduled end as an absolute transition deadline. Real-time FFmpeg input pacing
+does not replace this startup synchronization step.
+
 The worker does not decide programming. It receives selected current and future
 playout items from kraziBrain-owned domain logic. Future selections are
 non-authoritative prefetch: each carries the materialized `scheduleRevision`,
@@ -39,6 +45,10 @@ This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker
 - Slow clients must be isolated so they cannot stall the shared broadcast.
 - Late joining requires a verified MPEG-TS initialization strategy. A small rolling buffer is one candidate, not a decision made before the compatibility spike.
 - The broadcast pipeline must advance at wall-clock speed independently of subscriber backpressure. The compatibility spike determines the verified FFmpeg pacing arguments.
+- The compatibility spike must measure first usable output against the
+  wall-clock schedule. The MVP permits at most 2,000 milliseconds of absolute
+  initial tune drift, and startup delay must not move the next scheduled
+  transition.
 - Worker lifecycle becomes part of server shutdown behavior.
 - Worker creation must be guarded so concurrent tune requests cannot create duplicate workers for one channel.
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.

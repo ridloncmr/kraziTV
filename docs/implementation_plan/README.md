@@ -8,7 +8,10 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 - Build the server health endpoint - done
 - Select Kysely for SQLite queries and migrations - done
 - Add the Web UI shell - done
-- Run the Plex HDHomeRun compatibility spike, including shared channel workers, real-time pacing, late join, two viewers on one encoder, idle shutdown, and a real two-file stream boundary
+- Run the Plex HDHomeRun compatibility spike, including first-worker initial
+  tune drift, shared channel workers, real-time pacing and any required startup
+  catch-up, late join, two viewers on one encoder, idle shutdown, and a real
+  two-file stream boundary
 - Implement the local media catalog and SQLite persistence
 - Implement channel and ordered media-collection configuration
 - Implement deterministic schedule generation and current channel state
