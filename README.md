@@ -98,6 +98,16 @@ request and on pushes to `main`. At present, automated tests cover the core
 channel description helper and server health-route injection, so a passing test
 step reflects that limited coverage rather than full MVP behavior coverage.
 
+## License
+
+kraziTV is source-available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and
+redistribute it for noncommercial purposes. Commercial use is not licensed.
+
+Third-party material retains its own license and attribution notices. In
+particular, the adapted agent skills are covered by the notices documented in
+[`.agents/README.md`](.agents/README.md).
+
 ## Documentation
 
 - [`docs/specs/`](docs/specs/README.md) defines product behavior and spec statuses.
