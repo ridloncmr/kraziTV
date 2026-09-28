@@ -13,7 +13,7 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | `specs/0003-channel-config.md`      | Draft       | Channel creation, configuration, and source selection                  |
 | `specs/0004-schedule-generation.md` | Draft       | Deterministic guide schedule generation from cataloged media           |
 | `specs/0005-playout-timeline.md`    | Draft       | Runtime timeline and current broadcast position                        |
-| `specs/0006-signal-packager.md`     | Planned     | FFmpeg MPEG-TS stream packaging for selected media                     |
+| `specs/0006-signal-packager.md`     | Draft       | FFmpeg MPEG-TS stream packaging for selected media                     |
 | `specs/0007-plex-adapter.md`        | Planned     | Plex-compatible discovery, guide, playlist, and stream exposure        |
 | `specs/0008-web-admin.md`           | Planned     | Minimal browser flow for configuring and observing the MVP             |
 
