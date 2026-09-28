@@ -175,8 +175,8 @@ Responsibilities:
 - Prefetch future selected playout candidates when its queue becomes low.
 - Prepare future packaging resources without committing those candidates to the
   broadcast.
-- Revalidate the persisted schedule revision and commit exactly one prepared
-  item at every scheduled transition boundary.
+- Submit exactly one prepared item to an injected `TransitionCoordinator` at
+  every scheduled transition boundary.
 - Stop when the channel remains idle after the grace period.
 
 The worker must not generate schedules, choose media, apply programming rules, decide what plays next, modify guide data, or become a second kraziBrain.
@@ -263,33 +263,63 @@ otherwise settle without leaking a child process.
 
 The materialized schedule remains authoritative while a worker is active. Every
 current or following playout selection carries the monotonic `scheduleRevision`
-under which it was derived. A worker may retain multiple future candidates for
-I/O preparation, but neither selection nor preparation commits that programming
-to the broadcast.
+under which it was derived. An active channel has one committed encoder pipeline
+and at most one prepared-next item. The worker may retain a bounded amount of
+future selection metadata, but it must not accumulate prepared output or freely
+spawn FFmpeg processes for a queue of future items. Neither selection nor
+preparation commits programming to the broadcast.
 
-The worker may ask SignalPackager to prepare a future item before its scheduled
-boundary. Preparation may allocate resources or prewarm an encoder, but it must
+The worker may ask SignalPackager to prepare one future item before its scheduled
+boundary. Preparation may allocate resources or prewarm an encoder, but its
+memory, buffered output, and other resources must have explicit limits. It must
 not alter session output, reserve that item as the next broadcast item, or make
 it immune to schedule regeneration. An uncommitted preparation is revocable and
 must be discardable when its selection becomes stale or the worker stops.
+Whether preparation uses a second FFmpeg process is deliberately left to the
+compatibility spike; the durable rule is the one-prepared-next limit, not a
+particular process topology.
 
-At or after the item's scheduled transition deadline, the worker enters the
-schedule-transition coordination boundary. This boundary uses the same
+At or after the item's scheduled transition deadline, the worker submits the
+candidate and its synchronous preparation commit to its injected
+`TransitionCoordinator`. `ChannelWorker` depends only on this abstraction and
+must not import SQLite, Kysely, database row types, or transaction helpers.
+
+Conceptual interface:
+
+```ts
+type TransitionCandidate = {
+  channelId: string;
+  scheduleEntryId: string;
+  scheduleRevision: number;
+};
+
+interface TransitionCoordinator {
+  commitPreparedTransition(
+    candidate: TransitionCandidate,
+    commit: () => void,
+  ): Promise<"committed" | "stale">;
+}
+```
+
+The production persistence adapter implements this boundary with the same
 connection-pinned SQLite `BEGIN IMMEDIATE` mechanism as schedule mutation. After
-acquiring write authority, the worker obtains the boundary time, reads the
-persisted revision, and confirms that the prepared schedule entry is the entry
-covering that time (`startsAt <= boundaryTime < endsAt`). It discards all stale
-preparations and asks the playout provider for fresh selected playout when either
-check fails.
+acquiring write authority, it obtains the boundary time, reads the persisted
+revision, and confirms that the candidate schedule entry is the entry covering
+that time (`startsAt <= boundaryTime < endsAt`). The spike injects an in-memory
+fake with the same observable result. Persistence implementation and dependency
+wiring stay outside `packages/signal`.
 
-While it still owns that coordination boundary, the worker synchronously
-commits the valid preparation to SignalPackager. Successful `commit()` return is
-the transition's single linearization point: the preparation has been consumed,
-the item is irrevocably accepted as the next transmitted item, and later
-schedule regeneration treats it as the item already airing through its existing
-`endsAt`. `commit()` must not perform asynchronous preparation or return before
-acceptance. A failed `commit()` accepts no item and is a worker/session failure;
-the expired previous item must not be extended to conceal it.
+While it still owns that coordination boundary, the coordinator invokes the
+worker-supplied callback synchronously for a valid candidate. Successful
+callback return is the transition's single linearization point: the preparation
+has been consumed, the item is irrevocably accepted as the next transmitted
+item, and later schedule regeneration treats it as the item already airing
+through its existing `endsAt`. The coordinator returns `"stale"` without
+invoking the callback when revalidation fails, and the worker discards that
+preparation and requests fresh selected playout. The callback must not perform
+asynchronous preparation or return before acceptance. A callback failure is a
+worker/session failure; the expired previous item must not be extended to
+conceal it.
 
 Schedule regeneration uses its transaction's time after acquiring the same
 write authority. If regeneration acquires authority first, it commits its new
@@ -338,11 +368,13 @@ startup can deadlock behind stream backpressure.
 
 `prepare()` resolves only when the item is ready for a bounded, synchronous
 commit. It does not change the broadcast and does not promise that the item will
-be used. `commit()` consumes the preparation exactly once and is the only
-operation that makes it authoritative for output. `discard()` releases an
-uncommitted preparation and is idempotent. Committing a preparation from another
-session, or committing one that was already committed or discarded, fails
-without changing output.
+be used. A session exposes at most one outstanding preparation; the worker must
+commit or discard it before requesting another. Preparation must bound memory,
+buffered output, and process resources. `commit()` consumes the preparation
+exactly once and is the only operation that makes it authoritative for output.
+`discard()` releases an uncommitted preparation and is idempotent. Committing a
+preparation from another session, or committing one that was already committed
+or discarded, fails without changing output.
 
 Minimum selected playout item fields:
 
@@ -549,7 +581,9 @@ the current program.
 ### Resource Management
 
 - Each channel has at most one live shared channel worker, including during idle grace and shutdown.
-- Each channel worker owns one active FFmpeg process or process sequence at a time.
+- Each channel worker owns one committed encoder pipeline and at most one
+  prepared-next item. The spike determines whether that bounded preparation
+  requires a second FFmpeg process.
 - Multiple viewers on the same channel share the worker output.
 - Channels without an active or idle-grace worker consume no encoding resources.
 - Under ordinary viewer-driven lifecycle, workers stop only after the final
@@ -600,9 +634,12 @@ Important boundaries:
   channel is disabled or deleted; `apps/server` owns coordinating that request
   with the committed configuration mutation.
 - ChannelWorker owns active broadcast lifetime, non-authoritative playout
-  prefetch, schedule-transition coordination, schedule-revision revalidation,
-  startup buffering, stream fan-out, late-join stream initialization, and
-  subscriber isolation.
+  prefetch, transition orchestration through an injected coordinator, startup
+  buffering, stream fan-out, late-join stream initialization, and subscriber
+  isolation. It does not own persistence or transaction mechanics.
+- TransitionCoordinator owns atomic schedule-revision/entry revalidation and
+  synchronous prepared-item commit. Its production adapter owns the SQLite
+  immediate-transaction mechanics; the spike may inject an in-memory fake.
 - SignalPackager prepares selected media and performs the worker's synchronous
   transition commit. It also reports when its output first satisfies the
   verified usable-output strategy; it does not decide what should be playing or
@@ -632,8 +669,9 @@ MVP:
 - Real-time pacing, first-worker synchronization, and two-file continuity.
 
 Those primitives consume narrow injected interfaces for channel authorization,
-selected playout, clocks/timers, and process creation. During the spike, small
-fakes may hard-code Channel 69, two media files, and following-item selection.
+selected playout, transition coordination, clocks/timers, and process creation.
+During the spike, small fakes may hard-code Channel 69, two media files,
+following-item selection, and in-memory transition validation.
 The real scheduler, database, catalog, and provider metadata are integrated
 later without replacing the tested streaming primitives.
 
@@ -723,10 +761,14 @@ contract.
   transitions to the item selected from the new materialized schedule.
 - Preparing a future item does not commit it to the broadcast, and a stale or
   unused preparation can be discarded without changing session output.
-- At every following-item boundary, the worker acquires the same SQLite
+- At every following-item boundary, the worker delegates to its injected
+  `TransitionCoordinator`. The production adapter acquires the same SQLite
   immediate-transaction coordination boundary used by schedule mutation,
-  revalidates the revision and entry, and calls synchronous `commit()` before
-  releasing the boundary.
+  revalidates the revision and entry, and invokes synchronous `commit()` before
+  releasing the boundary; an in-memory fake provides the spike behavior.
+- An active channel has one committed encoder pipeline and at most one
+  bounded prepared-next item; whether preparation uses a second FFmpeg process
+  is determined by the compatibility spike.
 - A regeneration/transition race has one deterministic winner: regeneration
   first invalidates the preparation, while transition commit first makes the
   item current and requires regeneration to preserve it through `endsAt`.

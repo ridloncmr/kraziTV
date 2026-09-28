@@ -183,10 +183,12 @@ runtime stream layer. Each selection carries the `scheduleRevision` read from
 `ChannelScheduleState` in the same consistent database snapshot as the schedule
 entries used to derive it. A `ChannelWorker` may prefetch future playout, but
 prefetched and SignalPackager-prepared items are only revocable candidates. At
-or after the scheduled boundary, the worker acquires the same SQLite immediate
-transaction coordination boundary as schedule mutation, revalidates the
-candidate revision and entry, and synchronously commits the valid preparation
-before releasing that boundary. A mismatch discards every stale preparation and
+or after the scheduled boundary, the worker delegates to an injected
+`TransitionCoordinator`. Its production persistence adapter acquires the same
+SQLite immediate-transaction coordination boundary as schedule mutation,
+revalidates the candidate revision and entry, and synchronously invokes the
+valid preparation's commit before releasing that boundary. The worker never
+imports SQLite or Kysely. A mismatch discards every stale preparation and
 requests fresh selected playout from kraziBrain-owned domain logic. The
 successful preparation commit is the point at which the item becomes the
 current broadcast item. The currently transmitting item continues; the worker

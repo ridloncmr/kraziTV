@@ -170,11 +170,13 @@ uses the Kysely instance bound to that connection, followed by an explicit
 `db.transaction()` starts a deferred SQLite transaction and does not satisfy
 this requirement.
 
-An active worker's following-item transition uses the same immediate-transaction
-helper as a coordination boundary. At or after the scheduled boundary, the
-worker acquires write authority, obtains the boundary time, revalidates the
-candidate entry and `scheduleRevision`, and synchronously commits its prepared
-SignalPackager item before releasing authority. The transition does not mutate
+An active worker's following-item transition delegates to an injected
+`TransitionCoordinator`; the worker does not depend on SQLite, Kysely, or their
+transaction APIs. The production coordinator uses the same immediate-transaction
+helper as schedule mutation. At or after the scheduled boundary, it acquires
+write authority, obtains the boundary time, revalidates the candidate entry and
+`scheduleRevision`, and synchronously invokes the prepared SignalPackager commit
+before releasing authority. The transition does not mutate
 the materialized schedule or increment `scheduleRevision`. If regeneration owns
 write authority first, the worker validates only after its commit and observes
 the resulting revision. If transition commit occurs first, regeneration obtains
