@@ -16,7 +16,7 @@ The goal is to behave like a small broadcast automation system rather than a sim
 - Web UI: React, Vite, and TypeScript
 - Scheduling: Node worker process initially
 - Media inspection: ffmpeg and ffprobe via child processes
-- Plex/Jellyfin integration: HTTP API clients
+- Plex integration: HDHomeRun-compatible tuner API and XMLTV provider adapter
 - Packaging: Docker later, native install later
 
 ## Project Structure
@@ -24,12 +24,13 @@ The goal is to behave like a small broadcast automation system rather than a sim
 ```text
 kraziTV/
   apps/
-    server/      Fastify API, scheduler, XMLTV/M3U endpoints
+    server/      Fastify API, scheduler, provider route wiring
     web/         React admin UI
   packages/
-    core/        scheduling, channel rules, guide generation
-    plex/        Plex API client
-    media/       ffprobe helpers, duration, metadata utilities
+    core/        scheduling, channel rules, playout decisions
+    media/       discovery, ffprobe, source metadata
+    signal/      FFmpeg lifecycle, transcoding, MPEG-TS packaging
+    plex/        HDHomeRun emulation, XMLTV, Plex-facing integration
   data/          local runtime data, gitignored
 ```
 
@@ -472,14 +473,20 @@ Enabled
 ```text
 Id
 Name
-Type
+```
+
+### MediaCollectionItem
+
+```text
+MediaCollectionId
+MediaItemId
+CreatedAt
 ```
 
 ### MediaItem
 
 ```text
 Id
-CollectionId
 Path
 Series
 Season
@@ -643,13 +650,12 @@ Plex Client
 
 ## First Milestone
 
-- Create the TypeScript monorepo
-- Build a server health endpoint
-- Add a SQLite schema for channels, media, and schedules
-- Add a basic WebUI shell
-- Add Plex connection configuration
-- Generate a simple simulated channel schedule
-- Expose XMLTV and M3U endpoints for Plex
+- Scaffold the TypeScript monorepo - done
+- Build the server health endpoint - done
+- Select Kysely for SQLite queries and migrations - done
+- Run a hard-coded Plex HDHomeRun compatibility spike
+- Confirm Plex discovers one channel and plays its stream
+- Confirm Plex remains playing across an actual two-file boundary
 
 ## MVP Scope
 
