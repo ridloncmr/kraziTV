@@ -13,8 +13,10 @@ The adapter should be thin. It should expose what kraziTV has decided, not decid
 ## Goals
 
 - Expose enabled kraziTV channels to Plex.
-- Provide an M3U-compatible playlist with stable channel stream URLs.
+- Expose an HDHomeRun-compatible tuner discovery/device API that Plex can add manually.
+- Provide a channel lineup with stable channel stream URLs.
 - Provide XMLTV-compatible guide data from schedule entries.
+- Keep a generic M3U playlist available for debugging and future IPTV-style clients.
 - Map provider-neutral channel identity to Plex-facing channel identifiers.
 - Point Plex stream URLs at provider-neutral stream endpoints.
 - Keep Plex-specific formatting out of kraziBrain.
@@ -34,18 +36,23 @@ The adapter should be thin. It should expose what kraziTV has decided, not decid
 
 ## User-Facing Behavior
 
-A user can configure Plex Live TV with kraziTV as a tuner-like source by using kraziTV-provided playlist and guide URLs.
+A user can configure Plex Live TV with kraziTV as a tuner-like source by pointing Plex at the kraziTV server.
+
+The MVP does not need automatic network discovery. Manual tuner configuration is sufficient if Plex accepts kraziTV's HDHomeRun-compatible endpoints.
 
 Example URLs:
 
 ```text
-http://127.0.0.1:3000/plex/channels.m3u
+http://127.0.0.1:3000/discover.json
+http://127.0.0.1:3000/lineup_status.json
+http://127.0.0.1:3000/lineup.json
+http://127.0.0.1:3000/device.xml
 http://127.0.0.1:3000/plex/xmltv.xml
 ```
 
 Plex should see enabled kraziTV channels with their channel numbers and display names.
 
-When a user selects a kraziTV channel in Plex, Plex requests the channel stream URL from the playlist. kraziTV resolves the current channel state and delegates MPEG-TS packaging to SignalPackager.
+When a user selects a kraziTV channel in Plex, Plex requests the channel stream URL from the tuner lineup. kraziTV resolves the current channel state and delegates MPEG-TS packaging to SignalPackager.
 
 ## Technical Behavior
 
@@ -53,7 +60,7 @@ When a user selects a kraziTV channel in Plex, Plex requests the channel stream 
 
 The Plex adapter exposes enabled channels only.
 
-M3U channel entries should include at least:
+HDHomeRun lineup entries should include at least:
 
 - Stable channel ID
 - Channel number
@@ -62,21 +69,50 @@ M3U channel entries should include at least:
 
 The adapter should derive Plex-facing IDs from stable kraziTV channel IDs, not from mutable display names.
 
-Disabled channels should not appear in the Plex playlist or guide output.
+Disabled channels should not appear in the tuner lineup, M3U playlist, or guide output.
+
+### HDHomeRun-Compatible Tuner API
+
+The Plex adapter should expose endpoints equivalent to:
+
+```text
+GET /discover.json
+GET /lineup_status.json
+GET /lineup.json
+GET /device.xml
+```
+
+`/lineup.json` should return enabled kraziTV channels in a shape Plex can treat as tuner channels.
+
+Example:
+
+```json
+[
+  {
+    "GuideNumber": "69",
+    "GuideName": "Krazi Comedy",
+    "URL": "http://127.0.0.1:3000/channels/channel_69/stream"
+  }
+]
+```
+
+`/discover.json`, `/lineup_status.json`, and `/device.xml` should contain stable device identity and status data. Exact fields should be verified during the Plex compatibility spike before the full MVP adapter is implemented.
+
+The tuner output should not embed scheduling decisions or FFmpeg options.
 
 ### M3U Output
 
-The API should expose an endpoint equivalent to:
+The API may also expose an endpoint equivalent to:
 
 ```text
-GET /plex/channels.m3u
+GET /channels.m3u
 ```
 
-The playlist should be valid extended M3U.
+The playlist should be valid extended M3U and useful for debugging, Jellyfin exploration, or generic IPTV clients.
 
 Each channel entry should point to the provider-neutral stream endpoint for that channel or to a Plex-namespaced redirect that delegates to the provider-neutral stream endpoint.
 
-The M3U output should not embed scheduling decisions or FFmpeg options.
+The M3U output should not be considered the primary Plex Live TV integration path unless the compatibility spike proves Plex setup requires it.
 
 ### XMLTV Output
 
@@ -117,8 +153,12 @@ Exact URL shape can change during implementation, but Plex-facing URLs must be s
 The Plex adapter should expose endpoints equivalent to:
 
 ```text
-GET /plex/channels.m3u
+GET /discover.json
+GET /lineup_status.json
+GET /lineup.json
+GET /device.xml
 GET /plex/xmltv.xml
+GET /channels.m3u
 ```
 
 Optional debug endpoints can be added later, but are not required for the MVP.
@@ -165,11 +205,43 @@ Important boundaries:
 - Plex adapter does not construct FFmpeg commands.
 - `packages/plex` owns Plex-specific formatting helpers.
 - `apps/server` owns HTTP route registration and response wiring.
-- `packages/core` should remain free of Plex-specific XMLTV/M3U formatting details where possible.
+- `packages/core` should remain free of Plex-specific HDHomeRun, XMLTV, and M3U formatting details where possible.
+
+## Compatibility Spike
+
+Before the full MVP dependency chain is implemented, run a hard-coded Plex tuner compatibility spike.
+
+The spike should implement:
+
+```text
+GET /discover.json
+GET /lineup_status.json
+GET /lineup.json
+GET /device.xml
+GET /channels/69/stream
+```
+
+The spike may hard-code one channel:
+
+```text
+69
+Krazi Comedy
+```
+
+It may also hard-code one stream source. No database, scheduler, Web UI, complete domain model, or reusable adapter implementation is required.
+
+Spike success criteria:
+
+- Plex recognizes kraziTV as a tuner.
+- Channel 69 appears in Plex Live TV.
+- Plex successfully tunes Channel 69.
+- Video plays.
+
+After the spike succeeds, the hard-coded implementation can be discarded or refactored into the formal MVP adapter.
 
 ## Open Questions
 
-- What exact M3U attributes does Plex require for reliable channel number and guide matching?
+- What exact HDHomeRun fields does Plex require for reliable manual tuner setup?
 - How much future XMLTV guide data does Plex expect during setup?
 - Should Plex endpoints be configurable by external base URL for Docker or LAN access?
 - Should stream URLs be provider-neutral paths or `/plex/...` paths that redirect internally?
@@ -178,11 +250,14 @@ Important boundaries:
 
 ## Acceptance Criteria
 
-- Plex-compatible M3U output lists enabled kraziTV channels.
+- Plex accepts kraziTV's HDHomeRun-compatible tuner endpoints during manual Live TV setup.
+- Tuner lineup output lists enabled kraziTV channels.
 - Disabled channels are omitted from M3U and XMLTV output.
-- M3U channel entries include stable IDs, channel names, channel numbers, and stream URLs.
+- Disabled channels are omitted from HDHomeRun lineup output.
+- Lineup entries include stable IDs, channel names, channel numbers, and stream URLs.
 - XMLTV output includes channel declarations and programme entries from schedule data.
 - XMLTV programme entries include start time, stop time, channel ID, and title.
 - Plex-facing stream URLs delegate to provider-neutral channel stream behavior.
+- Generic M3U output remains available but is not the primary Plex tuner contract.
 - Plex adapter does not generate schedules, generate playout timelines, choose media, mutate channel state, or construct FFmpeg commands.
-- kraziBrain does not emit Plex-specific XMLTV or M3U formatting.
+- kraziBrain does not emit Plex-specific HDHomeRun, XMLTV, or M3U formatting.
