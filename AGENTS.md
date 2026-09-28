@@ -31,12 +31,17 @@ It should behave like a small broadcast automation system, not a playlist genera
 ## Core Architecture Boundaries
 
 - kraziBrain decides what plays, when it plays, and why.
+- One active channel owns one broadcast signal.
+- Viewers subscribe to the shared channel signal.
+- The shared channel signal advances at wall-clock speed independently of viewer backpressure.
 - SignalPackager decides how selected media becomes a continuous stream.
 - Provider adapters decide where streams and guide data are exposed.
 
 Do not leak provider-specific assumptions into core scheduling logic.
 
 Do not put programming or scheduling decisions inside the SignalPackager.
+
+Do not create independent programming or encoding sessions per viewer for the same active channel.
 
 Do not make FFmpeg command construction part of kraziBrain.
 
@@ -99,6 +104,7 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Schedule: What viewers see in the guide.
 - Playout timeline: Everything actually transmitted by a channel.
 - Channel state: The deterministic runtime state that lets viewers join a broadcast in progress.
+- Channel stream worker: The active runtime worker that owns one shared broadcast signal for a watched channel.
 - kraziBrain: The scheduling and playout decision engine.
 - SignalPackager: The streaming and media normalization layer.
 - Provider adapter: Plex/Jellyfin/Emby-specific integration layer.

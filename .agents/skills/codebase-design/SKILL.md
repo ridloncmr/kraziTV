@@ -23,7 +23,8 @@ Design for deep modules: a lot of behavior behind a small, stable interface.
 Good seams:
 
 - Scheduling rules to playout timeline generation
-- Playout timeline to SignalPackager input
+- Playout timeline and channel state to channel stream worker input
+- Channel stream worker to SignalPackager session
 - Provider adapter to guide/channel/stream exposure
 - Media probing to normalized media metadata
 
