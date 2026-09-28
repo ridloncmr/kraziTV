@@ -12,6 +12,7 @@ Architecture decision records document important technical choices.
 | [0004](0004-sqlite-query-and-migration-layer.md) | Accepted | Use Kysely with `SqliteDialect` and `better-sqlite3`        |
 | [0005](0005-signal-packager-package-boundary.md) | Accepted | SignalPackager has a dedicated package boundary             |
 | [0006](0006-media-roots-and-collections.md)      | Accepted | Media roots and media collections are separate concepts     |
+| [0007](0007-integer-millisecond-time.md)         | Accepted | Use integer milliseconds for internal and persisted time    |
 
 ## Format
 

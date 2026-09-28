@@ -81,7 +81,7 @@ Minimum schedule entry fields:
 - Title
 - Start time
 - End time
-- Duration seconds
+- Duration milliseconds
 - Monotonically increasing sequence number within the channel timeline
 
 Schedule entries must not represent commercials, bumpers, station IDs, FFmpeg segments, transcode decisions, or stream URLs.
@@ -147,11 +147,11 @@ equivalent database-enforced compare-and-swap strategy. A request that loses a
 race must retry from freshly read persisted state or return a retryable error; it
 must not commit entries calculated from stale state.
 
-When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the creation time truncated to a whole second and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
+When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the current UTC Unix epoch millisecond and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
-If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current time truncated to a whole second; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
+If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current UTC Unix epoch millisecond; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
 
-Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current time truncated to a whole second when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
+Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current UTC Unix epoch millisecond when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
 
 Catalog availability changes do not rewrite already-materialized entries. Missing-media behavior is handled by channel-state lookup so the guide does not silently change after publication.
 
@@ -167,7 +167,7 @@ mediaItemId
 title
 startsAt
 endsAt
-durationSeconds
+durationMs
 sequenceNumber
 createdAt
 updatedAt
@@ -189,6 +189,11 @@ updatedAt
 ```
 
 Schedule data should reference media catalog items but should not duplicate raw ffprobe output.
+
+Durations use integer milliseconds. Persisted schedule instants, including
+`startsAt`, `endsAt`, and all `ChannelScheduleState` time fields, use integer UTC
+Unix epoch milliseconds. API boundaries may serialize those instants as UTC ISO
+8601 strings, but schedule arithmetic and database queries use the integer values.
 
 The schema must enforce one `ChannelScheduleState` row per channel and a unique
 `(channelId, sequenceNumber)` pair for schedule entries. It must also index
@@ -232,6 +237,7 @@ Important boundaries:
 - Overlapping schedule reads return the same persisted entries for the overlapping time range.
 - Schedule generation extends a channel's future schedule horizon without changing already-materialized entries.
 - Generated entries include channel ID, media item ID, title, start time, end time, and duration.
+- Schedule durations and persisted instants use integer milliseconds.
 - The same inputs produce the same schedule entries for the same requested window.
 - Chronological mode follows explicit media-collection order.
 - Random mode derives each selection from the persisted seed and channel-wide sequence number.

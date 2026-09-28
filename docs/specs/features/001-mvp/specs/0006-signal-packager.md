@@ -42,8 +42,8 @@ Example flow:
 ```text
 1. kraziBrain resolves current playout item.
 2. Current item points to /mnt/media/TV/Show A/S01E02.mkv.
-3. Current offset is 555 seconds.
-4. SignalPackager starts FFmpeg with that file and offset.
+3. Current internal offset is 555000 milliseconds.
+4. SignalPackager converts that offset to FFmpeg's required decimal-second argument and starts FFmpeg.
 5. Client receives MPEG-TS bytes over HTTP.
 6. When Show A ends, the stream transitions to the next playout item without requiring the client to retune.
 ```
@@ -66,8 +66,8 @@ items[]
   playoutItemId
   mediaItemId
   mediaPath
-  offsetSeconds
-  durationSeconds
+  offsetMs
+  durationMs
 contentType
 ```
 
@@ -117,6 +117,11 @@ Content type: video/MP2T
 Video preserves source aspect ratio and is scaled and padded to the target frame without cropping.
 
 The command must be constructed from structured arguments, not shell string concatenation.
+
+SignalPackager validates offsets as non-negative safe integer milliseconds and
+durations as positive safe integer milliseconds. It converts them to
+decimal-second strings only at FFmpeg argument construction; internal packaging
+contracts do not use floating-point seconds.
 
 The compatibility spike determines whether independent FFmpeg processes can cross a file boundary reliably in Plex. The formal implementation must use the simplest verified strategy, whether sequential processes or a concat-oriented FFmpeg graph. Callers see one continuous response stream either way.
 

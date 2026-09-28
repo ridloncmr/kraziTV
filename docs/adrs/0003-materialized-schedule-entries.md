@@ -16,7 +16,7 @@ kraziTV will persist generated `ScheduleEntry` records.
 
 Schedule generation will extend a future horizon for enabled channels. Persisted entries are the authority for guide output and the shared scheduling input from which kraziBrain derives the playout timeline and channel state. Stream selection uses that derived channel state.
 
-Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end. When nothing is airing, it begins at the current time, truncated to a whole second, and replaces future entries from that boundary. Initial generation begins at the persisted schedule anchor.
+Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end. When nothing is airing, it begins at the current UTC Unix epoch millisecond and replaces future entries from that boundary. Initial generation begins at the persisted schedule anchor.
 
 Horizon maintenance extends schedules without replacing entries in already-covered windows. It runs when the server starts, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. An enabled, schedulable channel with no entry covering the current time requires an explicit, logged gap repair before normal horizon extension continues.
 

@@ -56,7 +56,7 @@ Example current state:
     "title": "Show A - Episode 2",
     "startedAt": "2026-09-28T20:22:00Z",
     "endsAt": "2026-09-28T20:44:00Z",
-    "offsetSeconds": 555
+    "offsetMs": 555000
   }
 }
 ```
@@ -98,10 +98,10 @@ Minimum program playout item fields:
 - Title
 - Starts at
 - Ends at
-- Duration seconds
-- Start offset seconds
+- Duration milliseconds
+- Start offset milliseconds
 
-For the MVP, `startOffsetSeconds` is usually `0` for timeline items. The current playback offset is calculated from wall-clock time when a viewer tunes in.
+For the MVP, `startOffsetMs` is usually `0` for timeline items. The current playback offset is calculated from wall-clock time when a viewer tunes in.
 
 ### Current Item Lookup
 
@@ -114,7 +114,7 @@ startsAt <= now < endsAt
 The current offset is:
 
 ```text
-now - startsAt + startOffsetSeconds
+now - startsAt + startOffsetMs
 ```
 
 The offset must be clamped to the media item's playable duration.
@@ -131,7 +131,7 @@ Minimum current channel state fields:
 
 - Channel ID
 - Current playout item
-- Current offset seconds
+- Current offset milliseconds
 - Evaluated at timestamp
 - Next playout item when available
 
@@ -158,7 +158,11 @@ For the same channel configuration, schedule entries, media catalog state, and e
 
 The implementation should use injected clocks in core tests instead of directly reading process time inside deterministic domain logic.
 
-All persisted and API timestamps use UTC ISO 8601 values. User-interface timezone conversion is presentation behavior and must not change schedule or playout calculations.
+All internal and persisted instants use integer UTC Unix epoch milliseconds.
+Provider-neutral API responses serialize instants as UTC ISO 8601 values, while
+duration and offset fields remain integer milliseconds. User-interface timezone
+conversion is presentation behavior and must not change schedule or playout
+calculations.
 
 ## Data Model Impact
 
@@ -175,8 +179,8 @@ title
 type
 startsAt
 endsAt
-durationSeconds
-startOffsetSeconds
+durationMs
+startOffsetMs
 createdAt
 updatedAt
 ```
@@ -211,6 +215,8 @@ Important boundaries:
 - A playout timeline can be produced for an enabled channel with generated schedule entries.
 - A current playout item can be resolved for a channel and wall-clock timestamp.
 - The current offset is calculated from wall-clock time and item start time.
+- Playout arithmetic uses integer milliseconds without repeated floating-point
+  conversion.
 - Current offset is clamped to the media item's playable duration.
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.

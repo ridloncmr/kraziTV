@@ -4,5 +4,5 @@ export type MediaProbeInput = {
 
 export type MediaProbeResult = {
   path: string;
-  durationSeconds: number;
+  durationMs: number;
 };
