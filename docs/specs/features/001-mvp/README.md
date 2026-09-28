@@ -10,7 +10,7 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | ----------------------------------- | ----------- | ---------------------------------------------------------------------- |
 | `specs/0001-bootstrap.md`           | Implemented | Local startup, health checks, and workspace verification               |
 | `specs/0002-media-catalog.md`       | Draft       | Local media roots, scanning, ffprobe metadata, and catalog persistence |
-| `specs/0003-channel-config.md`      | Planned     | Channel creation, configuration, and source selection                  |
+| `specs/0003-channel-config.md`      | Draft       | Channel creation, configuration, and source selection                  |
 | `specs/0004-schedule-generation.md` | Planned     | Deterministic guide schedule generation from cataloged media           |
 | `specs/0005-playout-timeline.md`    | Planned     | Runtime timeline and current broadcast position                        |
 | `specs/0006-signal-packager.md`     | Planned     | FFmpeg MPEG-TS stream packaging for selected media                     |
