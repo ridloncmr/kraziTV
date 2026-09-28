@@ -391,7 +391,15 @@ interface PlayoutSelection {
 `atMs` is a UTC Unix epoch timestamp in integer milliseconds, consistent with ADR 0007.
 `CurrentChannelState` and every item in `PlayoutSelection` carry the same
 `scheduleRevision` as the materialized schedule snapshot used to derive them.
-The revision read and entry reads must be consistent with one another.
+`getCurrent()` and `getFollowing()` are atomic snapshot operations at this
+interface boundary. Their SQLite adapter reads the revision first and all source
+schedule, channel, and catalog rows afterward through one connection-pinned
+Kysely read transaction. The adapter returns only the completed domain result;
+the worker cannot combine a revision from one call with items from another.
+
+`getScheduleRevision()` is the narrow revalidation read used inside the
+separately specified transition coordination boundary. It does not replace the
+snapshot guarantee for current or following selection.
 
 For the MVP, `afterScheduleEntryId` is the continuation cursor because each
 program playout item maps one-to-one to a persisted schedule entry. The provider
@@ -701,6 +709,9 @@ contract.
   absolute scheduled `endsAt`; an item that expires before usable output is
   discarded and resolved again.
 - FFmpeg receives `mediaOffsetMs` and `playDurationMs` calculated outside SignalPackager.
+- Each `getCurrent()` and `getFollowing()` result contains a schedule revision
+  and source entries read through one connection-pinned SQLite read transaction;
+  the worker never assembles one selection from separate provider calls.
 - Following-item lookup uses the persisted `scheduleEntryId` as its stable MVP
   cursor and rejects a missing or cross-channel cursor.
 - The shared broadcast advances at approximately 1x wall-clock speed and does not race ahead when subscribers can accept data faster than real time.

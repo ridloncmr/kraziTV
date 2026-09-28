@@ -29,6 +29,18 @@ while using Kysely's `SqliteDialect` with `better-sqlite3`?
   database connection. A project-owned helper can issue `BEGIN IMMEDIATE` on
   that instance, run all schedule queries through it, and explicitly `COMMIT` or
   `ROLLBACK` on the same connection.
+- Read-only consistency has a different requirement from mutation. A deferred
+  transaction establishes its read snapshot on the first `SELECT`; later reads
+  in that transaction continue from that snapshot even if another connection
+  commits newer data.
+- Kysely's ordinary `db.transaction()` pins its callback work to the transaction
+  connection and is suitable for a multi-query read-only snapshot, provided
+  every query uses the callback's transaction object rather than the root
+  database handle.
+- A deferred read transaction should not later be upgraded into schedule
+  mutation. If the read discovers work such as horizon extension or gap repair,
+  it should end, run that work through the immediate-transaction helper, and
+  retry the read from the beginning.
 
 ## Sources
 
@@ -52,6 +64,14 @@ while using Kysely's `SqliteDialect` with `better-sqlite3`?
 - Integration tests use at least two connections to the same SQLite database
   file and prove that concurrent read-modify-write schedule mutations cannot
   both proceed from stale state.
+- Channel-state and selected-playout repositories use a separate ordinary
+  Kysely transaction for consistent multi-query reads. They read the schedule
+  revision first, keep every source read on that transaction object, and return
+  only the completed typed projection.
+- Read-snapshot integration tests may enable WAL mode so a writer can commit
+  regeneration while the reader's transaction remains open. The reader must
+  still return the complete earlier snapshot, never the earlier revision paired
+  with regenerated entries.
 
 ## Open Questions
 

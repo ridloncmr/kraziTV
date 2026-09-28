@@ -150,6 +150,15 @@ revision update commits atomically with the affected entries so readers cannot
 observe new programming with an old revision or old programming with a new
 revision.
 
+Readers deriving channel state or selected playout use a separate read-only
+transaction contract. The persistence adapter reads `scheduleRevision` first to
+establish a SQLite snapshot, then reads every contributing schedule, channel,
+and catalog row through that same Kysely transaction object. Ordinary deferred
+`db.transaction()` is sufficient for this read-only snapshot and must not be
+confused with the immediate-transaction helper required for mutations. If the
+reader discovers that horizon maintenance or gap repair is required, it ends the
+read transaction, performs the write separately, and retries the entire read.
+
 Concurrent requests for the same channel must serialize at the database
 boundary. An in-process mutex may reduce contention, but it is not the
 correctness mechanism because another process or connection could bypass it.
@@ -286,6 +295,9 @@ Important boundaries:
 - Every committed change to a channel's materialized schedule increments its
   `scheduleRevision` atomically with the entry changes; no-op coverage checks do
   not increment it.
+- Channel-state and selected-playout reads obtain their revision and every source
+  row from one connection-pinned read transaction; integration coverage proves a
+  concurrent regeneration cannot produce a torn revision/entry result.
 - Enabled schedulable channels maintain at least 72 hours of future schedule data.
 - Channels with no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.

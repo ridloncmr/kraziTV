@@ -22,7 +22,9 @@ This folder tracks build sequencing, milestones, and task breakdowns.
   paths, and playout inputs hard-coded in the disposable harness
 - Implement the local media catalog and SQLite persistence
 - Implement channel and ordered media-collection configuration
-- Implement deterministic schedule generation and current channel state
+- Implement deterministic schedule generation and current channel state,
+  including connection-pinned read snapshots and an interleaved two-connection
+  regeneration test
 - Integrate the spike-tested `packages/signal` primitives with real channel
   authorization, channel state, selected playout, and administrative shutdown
 - Apply the spike's verified FFmpeg arguments and measured buffer/idle defaults
