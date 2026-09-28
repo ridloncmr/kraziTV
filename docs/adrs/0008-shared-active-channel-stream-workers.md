@@ -31,6 +31,20 @@ It starts from that fresh wall-clock offset and retains the selected item's
 scheduled end as an absolute transition deadline. Real-time FFmpeg input pacing
 does not replace this startup synchronization step.
 
+SignalPackager returns a stoppable session immediately and exposes asynchronous
+readiness separately. The worker connects session output to its bounded startup
+and fan-out buffer before awaiting readiness. Process spawn or an arbitrary
+first stdout byte is insufficient; readiness requires output satisfying the
+MPEG-TS initialization strategy verified by the compatibility spike.
+
+The manager keeps a starting worker in its pending-creation state. Concurrent
+subscriptions share that pending creation, but the worker is not published to
+the active registry and no subscription succeeds until usable output is
+buffered. Publication is a serialized per-channel lifecycle transition that
+loses to cancellation, administrative stop, manager shutdown, or worker failure.
+Startup timeout and the current item's absolute end bound the wait, and every
+failed or cancelled startup settles its session and child processes.
+
 The worker does not decide programming. It receives selected current and future
 playout items from kraziBrain-owned domain logic. Future selections are
 non-authoritative prefetch: each carries the materialized `scheduleRevision`.
@@ -75,6 +89,10 @@ harness and its fixed metadata and media paths are disposable.
   administrative stops bypass idle grace and terminate current subscriber
   streams.
 - Worker creation must be guarded so concurrent tune requests cannot create duplicate workers for one channel.
+- Worker publication is readiness-gated: pending creations may be shared by
+  waiters but are not joinable active workers.
+- Startup failure is reported before a streaming response succeeds, and a
+  cancelled or timed-out startup cannot leave an encoder process behind.
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.
 - Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving encoder processes behind.
 - Failed workers may terminate current subscribers in the MVP; the next tune request can create a new worker.

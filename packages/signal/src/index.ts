@@ -26,6 +26,11 @@ export interface SignalPreparation {
 }
 
 export interface SignalSession {
+  /**
+   * Resolves only after the session has produced usable stream initialization
+   * and media output. Process spawn or an arbitrary first byte is not ready.
+   */
+  readonly ready: Promise<void>;
   readonly output: Readable;
   prepare(item: SignalPlayoutItem): Promise<SignalPreparation>;
   stop(): Promise<void>;

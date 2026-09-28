@@ -226,6 +226,8 @@ Spike success criteria:
 - ChannelWorker 69 starts.
 - The first worker re-resolves current channel state immediately before FFmpeg
   process creation.
+- The tune request remains pending until the worker has buffered usable MPEG-TS
+  output; process spawn or an arbitrary first byte does not publish the worker.
 - Video plays for Viewer A.
 - The first usable MPEG-TS output represents a media position within 2,000
   milliseconds of the wall-clock schedule position.
@@ -255,6 +257,8 @@ discarded or refactored into the formal MVP adapter; the exercised
 - The verified FFmpeg continuity strategy for a real two-file boundary.
 - The measured time and media position of first usable output, with absolute
   initial tune drift no greater than 2,000 milliseconds.
+- The verified usable-output readiness signal and a bounded worker-startup
+  timeout suitable for Plex tune requests.
 - Whether late state resolution is sufficient or a verified initial burst or
   catch-up mechanism is required.
 - The verified real-time pacing arguments and a measurable maximum drift across file boundaries.
@@ -283,6 +287,8 @@ discarded or refactored into the formal MVP adapter; the exercised
 - Plex-facing stream URLs delegate to provider-neutral channel stream behavior.
 - The shared channel broadcast remains aligned with wall-clock time independently of viewer throughput.
 - Multiple Plex viewers on the same channel share one active channel worker and one FFmpeg pipeline.
+- Plex receives no successful stream response from a newly starting worker until
+  that worker has buffered usable MPEG-TS output.
 - A late Plex viewer can join an already-running shared channel worker.
 - The spike's hard-coded Plex harness delegates streaming behavior to the same
   `packages/signal` primitives retained by the MVP.
