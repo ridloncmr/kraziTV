@@ -28,7 +28,7 @@ Prioritize tests around:
 - Randomization with deterministic seeds
 - Chronological episode progression
 - Repeat prevention
-- XMLTV/M3U output shape
+- HDHomeRun and XMLTV output shape
 - Media duration/probe parsing
 
 ## Avoid

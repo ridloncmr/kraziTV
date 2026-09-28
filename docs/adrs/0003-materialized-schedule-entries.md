@@ -16,15 +16,30 @@ kraziTV will persist generated `ScheduleEntry` records.
 
 Schedule generation will extend a future horizon for enabled channels. Persisted entries are the authority for guide output and the shared scheduling input from which kraziBrain derives the playout timeline and channel state. Stream selection uses that derived channel state.
 
-Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end. When nothing is airing, it begins at the current time, truncated to a whole second, and replaces future entries from that boundary. Initial generation begins at the persisted schedule anchor.
+Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end. When nothing is airing, it begins at the current UTC Unix epoch millisecond and replaces future entries from that boundary. Initial generation begins at the persisted schedule anchor.
 
 Horizon maintenance extends schedules without replacing entries in already-covered windows. It runs when the server starts, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. An enabled, schedulable channel with no entry covering the current time requires an explicit, logged gap repair before normal horizon extension continues.
 
 Catalog availability changes do not rewrite published schedule entries. Channel-state lookup reports unavailable media explicitly instead of silently selecting a replacement.
+
+Every mutation of a channel's materialized schedule runs in one SQLite write
+transaction. The transaction acquires database write authority before reading
+the schedule and `ChannelScheduleState`, re-evaluates the required work, and
+atomically commits entry changes with state such as `lastGeneratedThrough` and
+`nextSequenceNumber`. Concurrent requests must serialize through the database;
+an in-process lock alone is insufficient.
+
+The database enforces a unique `(channelId, sequenceNumber)` constraint and one
+schedule-state row per channel. Indexes on `(channelId, startsAt)` and
+`(channelId, endsAt)` support overlap, current-entry, and horizon queries.
 
 ## Consequences
 
 - Guide responses remain stable across restarts and overlapping API requests.
 - The playout timeline, channel state, and stream output can resolve from the same schedule entries Plex sees without collapsing those concepts into the schedule.
 - Schedule regeneration needs explicit policy and logging.
+- Schedule mutation failures roll back both materialized entries and their
+  associated schedule state.
+- Concurrent schedule requests cannot reserve the same sequence number or commit
+  overlapping extensions from stale state.
 - The database carries schedule data, not only channel configuration and media catalog data.

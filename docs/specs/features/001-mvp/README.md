@@ -21,7 +21,8 @@ The first release should intentionally be small and focused on proving the core 
 
 Before the full MVP chain, run a hard-coded Plex compatibility spike that exposes HDHomeRun-compatible tuner endpoints and proves Plex can discover one channel and keep playing across an actual two-file stream boundary. Record the verified HDHomeRun response fields and FFmpeg continuity strategy in the Plex adapter spec before changing it to `Accepted`.
 
-ADR 0004 is accepted. Persistence-heavy MVP slices use Kysely consistently for SQLite queries and migrations.
+ADR 0004 is accepted. Persistence-heavy MVP slices consistently use Kysely with
+`SqliteDialect` and `better-sqlite3` for SQLite queries and migrations.
 
 ## Scope
 

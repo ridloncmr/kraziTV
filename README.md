@@ -55,6 +55,11 @@ The MVP proves one complete Plex loop: configure local media and a channel, mate
 
 Commercial insertion, advanced programming rules, Jellyfin, authentication, and production packaging are deferred.
 
+> **Security warning:** The MVP has no authentication. Keep the API bound to the
+> default `127.0.0.1` unless every client on the network is trusted. A LAN-exposed
+> instance allows unauthenticated access to mutable administration APIs, including
+> local-media scan capabilities that accept absolute filesystem paths.
+
 ## Development
 
 Requirements:
@@ -75,6 +80,16 @@ npm run format
 ```
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. The Web Admin runs separately during development.
+
+Browser CORS access defaults to the local Web UI at
+`http://127.0.0.1:5173`. Set `CORS_ORIGINS` to a comma-separated list of exact
+allowed origins when the UI is served elsewhere. CORS is not authentication and
+does not make a network-exposed API safe.
+
+CI runs install, formatting, typecheck, test, and build checks on every pull
+request and on pushes to `main`. At present, automated tests cover the core
+channel description helper and server health-route injection, so a passing test
+step reflects that limited coverage rather than full MVP behavior coverage.
 
 ## Documentation
 

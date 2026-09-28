@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/media" },
+    { "path": "./packages/plex" },
+    { "path": "./packages/signal" },
+    { "path": "./apps/server" }
+  ]
+}

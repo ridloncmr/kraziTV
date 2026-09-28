@@ -2,8 +2,8 @@ export type SignalPlayoutItem = {
   playoutItemId: string;
   mediaItemId: string;
   mediaPath: string;
-  offsetSeconds: number;
-  durationSeconds: number;
+  offsetMs: number;
+  durationMs: number;
 };
 
 export type PackageStreamRequest = {

@@ -39,7 +39,7 @@ Support first:
 - Simple schedule generation
 - Random and chronological playback
 - Continuous channel state
-- XMLTV/M3U-style guide and channel exposure
+- HDHomeRun-compatible channel exposure and XMLTV guide output
 - FFmpeg MPEG-TS output
 
 Avoid first:

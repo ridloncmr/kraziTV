@@ -77,7 +77,11 @@ The initial Web UI shell should load in a browser and identify the application a
 - The server defaults to host `127.0.0.1`.
 - The server defaults to port `3000`.
 - The server accepts `HOST` and `PORT` environment variables.
-- The server enables CORS for local development.
+- The server enables CORS for the exact local Web UI origin during development.
+- Additional browser origins require an explicit `CORS_ORIGINS` allowlist; the
+  server must not reflect arbitrary request origins.
+- The server logs a prominent trusted-network-only warning when `HOST` is not a
+  loopback address because the MVP has no authentication.
 - Startup must not require database files, media roots, Plex credentials, FFmpeg, or ffprobe.
 
 ### Web UI
@@ -131,6 +135,10 @@ Important boundaries:
 - `npm install` completes from the repository root.
 - `npm run dev` starts the API server.
 - `GET /health` returns HTTP 200 with `{ "status": "ok" }`.
+- Browser CORS responses allow configured origins and do not reflect arbitrary
+  origins.
+- A non-loopback bind logs that unauthenticated administration and filesystem
+  scan APIs are safe only on a trusted network.
 - `npm run dev --workspace @krazitv/web` starts the Web UI.
 - `npm run typecheck` passes from the repository root.
 - `npm test` passes from the repository root.
