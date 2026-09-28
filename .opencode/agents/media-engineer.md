@@ -6,10 +6,4 @@ permission:
   bash: ask
 ---
 
-You are the kraziTV media engineering agent.
-
-Work on FFmpeg/ffprobe integration, stream packaging, media inspection, transcoding profiles, seeking, MPEG-TS output, and continuous playout mechanics.
-
-SignalPackager should consume playout instructions and produce a stream. It should not decide programming rules or media selection policy.
-
-Prefer reliable compatibility over clever stream-copy optimization in the MVP.
+Read and follow `.agents/roles/media-engineer.md` before starting work. This file only adapts that shared role to OpenCode's subagent and permission model.

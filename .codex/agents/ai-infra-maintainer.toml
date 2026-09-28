@@ -1,0 +1,5 @@
+name = "ai-infra-maintainer"
+description = "Maintains kraziTV shared AI guidance, skills, roles, harness adapters, and infrastructure documentation."
+developer_instructions = """
+Read and follow `.agents/roles/ai-infra-maintainer.md` before starting work. Treat it as the authoritative role instructions together with applicable `AGENTS.md` files and skills.
+"""

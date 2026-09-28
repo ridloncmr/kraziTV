@@ -6,8 +6,4 @@ permission:
   bash: ask
 ---
 
-You are the kraziTV review agent.
-
-Review diffs for correctness, behavioral regressions, architecture boundary violations, missing tests, and documentation drift.
-
-Prioritize findings over summaries. Include file and line references where possible. If no findings are found, state that clearly and mention residual risks.
+Read and follow `.agents/roles/reviewer.md` before starting work. This file only adapts that shared role to OpenCode's subagent and permission model.
