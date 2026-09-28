@@ -118,6 +118,10 @@ Video preserves source aspect ratio and is scaled and padded to the target frame
 
 The command must be constructed from structured arguments, not shell string concatenation.
 
+FFmpeg is spawned directly with `shell: false`. Process stderr retained for
+diagnostics uses a 64 KiB tail buffer so a noisy encoder cannot grow server memory
+without bound.
+
 SignalPackager validates offsets as non-negative safe integer milliseconds and
 durations as positive safe integer milliseconds. It converts them to
 decimal-second strings only at FFmpeg argument construction; internal packaging
@@ -169,6 +173,18 @@ Errors should be logged with channel ID, media item ID, media path when safe, of
 - FFmpeg processes must be terminated when clients disconnect.
 - Each viewer request owns its FFmpeg process or process sequence. Shared stream fan-out is deferred.
 - Later implementations may add process reuse, buffering, or per-channel stream workers.
+
+FFmpeg stdout must be connected to the HTTP response with Node stream
+backpressure propagation, preferably `pipeline()`. If the implementation writes
+chunks manually, it must stop reading or writing when the response's `write()`
+returns `false` and resume only after `drain`. It must not concatenate MPEG-TS
+chunks or maintain an unbounded application buffer for slow clients.
+
+Client disconnect, request cancellation, and pipeline failure must destroy the
+stream pipeline and terminate the active FFmpeg process. The implementation waits
+for child closure and escalates termination after a 5-second grace period so a
+stuck encoder does not outlive its request. A following FFmpeg process must not
+be started after the request has been cancelled.
 
 The FFmpeg executable defaults to `ffmpeg` on `PATH` and can be overridden with the `FFMPEG_PATH` environment variable.
 
@@ -222,6 +238,9 @@ The Plex spike must record the verified FFmpeg arguments and whether sequential 
 - Plex remains playing across an actual two-file boundary during the compatibility spike.
 - FFmpeg stderr and exit information are logged for failures.
 - FFmpeg is terminated when the HTTP client disconnects.
+- FFmpeg output honors HTTP backpressure without unbounded MPEG-TS buffering.
+- FFmpeg stderr capture is bounded, and cancellation waits for child termination
+  with escalation for a stuck process.
 - Each viewer owns its packaging process sequence; shared fan-out is not required.
 - Missing media, invalid offsets, disabled channels, and no-current-item states fail clearly.
 - SignalPackager does not choose media, generate schedules, generate playout timelines, or mutate channel state.

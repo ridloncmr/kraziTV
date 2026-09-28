@@ -10,3 +10,7 @@ This folder stores research notes, references, useful commands, and operational 
 - FFmpeg command patterns
 - Media probing notes
 - Local development setup
+
+## Notes
+
+- [Child process and stream safety](child-process-stream-safety.md)

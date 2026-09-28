@@ -91,6 +91,30 @@ If a file cannot be probed, the catalog should preserve enough error state for t
   seconds.
 - Optional metadata can include container format, video codec, audio codec, resolution, and frame rate when available.
 
+ffprobe must be spawned directly with a structured argument array and
+`shell: false`. The executable defaults to `ffprobe` on `PATH` and can be
+overridden with `FFPROBE_PATH`. Probe output uses ffprobe's JSON writer with
+explicitly selected fields; callers must not parse human-oriented console output.
+
+Each file probe has a timeout, defaulting to 30 seconds and configurable with the
+positive integer `FFPROBE_TIMEOUT_MS`. On timeout or cancellation, the wrapper
+terminates the child, escalates termination if it has not exited within a 5-second
+grace period, and waits for process closure before settling. Timeout failures are
+stored as `probe_failed` with a distinguishable error code or message so the scan
+can continue.
+
+Probe capture is limited to 1 MiB of stdout and the latest 64 KiB of stderr.
+Exceeding the stdout limit terminates the probe and records a failure rather than
+allowing a child process to grow server memory without bound.
+
+### Probe Concurrency
+
+A scan probes files through a bounded worker pool rather than starting one child
+process per discovered file. The default concurrency is 4 and can be configured
+with the positive integer `FFPROBE_CONCURRENCY`. A worker slot remains occupied
+until its child has closed, including timeout cleanup. Configuration accepts only
+integer values from 1 through 32.
+
 ### API
 
 The API should expose endpoints equivalent to:
@@ -189,6 +213,11 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 - Successfully probed files are stored as media items with integer millisecond
   durations.
 - Probe failures are stored without crashing the entire scan.
+- ffprobe uses structured arguments, honors `FFPROBE_PATH`, and never invokes a
+  shell.
+- Every probe has bounded runtime and output capture, and timed-out children are
+  terminated before their worker slot is reused.
+- Scans enforce the configured probe concurrency limit.
 - Missing files are marked `missing` on a later scan.
 - A failed or inaccessible-root scan does not mark previously cataloged items `missing`.
 - Cataloged media items can be listed through the API.
