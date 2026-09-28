@@ -2,6 +2,12 @@
 
 This folder tracks build sequencing, milestones, and task breakdowns.
 
+## Detailed Plans
+
+- [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - ready to
+  start; production-intent signal runtime, compatibility evidence, and
+  production integration
+
 ## Initial Milestones
 
 - Scaffold the TypeScript monorepo - done
