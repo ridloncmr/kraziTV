@@ -1,8 +1,9 @@
 export type ChannelId = string;
+export type ChannelNumber = string;
 
 export type Channel = {
   id: ChannelId;
-  number: number;
+  number: ChannelNumber;
   name: string;
 };
 
