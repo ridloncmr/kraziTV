@@ -30,7 +30,7 @@ type StartupInterruption = "aborted" | "timeout";
 
 type StartupGuard = {
   readonly interrupted: Promise<StartupInterruption>;
-  readonly outcome: StartupInterruption | undefined;
+  check(): StartupInterruption | undefined;
   dispose(): void;
 };
 
@@ -225,6 +225,7 @@ function createStartupGuard(
   signal: AbortSignal,
   options: ChannelWorkerOptions,
 ): StartupGuard {
+  const deadlineAt = options.clock.now() + options.startupTimeoutMs;
   let resolve!: (outcome: StartupInterruption) => void;
   let outcome: StartupInterruption | undefined;
   const interrupted = new Promise<StartupInterruption>((settle) => {
@@ -245,7 +246,10 @@ function createStartupGuard(
 
   return {
     interrupted,
-    get outcome() {
+    check: () => {
+      if (outcome === undefined && options.clock.now() >= deadlineAt) {
+        interrupt("timeout");
+      }
       return outcome;
     },
     dispose: () => {
@@ -261,8 +265,9 @@ async function awaitControlled<T>(
   guard: StartupGuard,
   channelId: ChannelId,
 ): Promise<T> {
-  if (guard.outcome !== undefined) {
-    throw interruptionError(guard.outcome, channelId);
+  const existingInterruption = guard.check();
+  if (existingInterruption !== undefined) {
+    throw interruptionError(existingInterruption, channelId);
   }
   const operation = startOperation();
   const result = await Promise.race([
@@ -275,6 +280,10 @@ async function awaitControlled<T>(
       outcome,
     })),
   ]);
+  const interruption = guard.check();
+  if (interruption !== undefined) {
+    throw interruptionError(interruption, channelId);
+  }
   if (result.status === "value") return result.value;
   if (result.status === "error") throw result.error;
   throw interruptionError(result.outcome, channelId);
@@ -300,7 +309,13 @@ async function waitForAttempt(
     );
   });
   try {
-    return await Promise.race([readiness, expiry, guard.interrupted]);
+    const outcome = await Promise.race([readiness, expiry, guard.interrupted]);
+    const interruption = guard.check();
+    if (interruption !== undefined) return interruption;
+    if (outcome === "ready" && options.clock.now() >= endsAt) {
+      return "expired";
+    }
+    return outcome;
   } finally {
     expiryTask?.cancel();
   }

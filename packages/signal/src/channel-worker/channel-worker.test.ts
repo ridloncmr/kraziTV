@@ -253,6 +253,52 @@ describe("ChannelWorker startup", () => {
     await worker.stop();
   });
 
+  it("rechecks the absolute item deadline after readiness wins the race", async () => {
+    const clock = new FakeClock(0);
+    const timers = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const first = currentItem(0, {
+      mediaOffsetMs: 500,
+      item: {
+        ...currentItem(0).item,
+        endsAt: 100,
+      },
+    });
+    const second = currentItem(100, {
+      mediaOffsetMs: 600,
+      item: {
+        ...currentItem(100).item,
+        scheduleEntryId: "entry-2",
+        mediaItemId: "media-2",
+        endsAt: 1_000,
+      },
+    });
+    const provider = new SequencePlayoutProvider([first, first, second]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      { ...workerOptions(provider, packager, clock), timers },
+    );
+    await settlePromises();
+
+    packager.sessions[0]?.pushOutput("INIT-expiring");
+    packager.sessions[0]?.resolveReady();
+    clock.advanceTo(100);
+    await settlePromises();
+
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(packager.startCalls).toHaveLength(2);
+    expect(packager.startCalls[1]).toMatchObject({
+      scheduleEntryId: "entry-2",
+      playDurationMs: 900,
+    });
+
+    packager.sessions[1]?.pushOutput("INIT-next");
+    packager.sessions[1]?.resolveReady();
+    const worker = await starting;
+    await worker.stop();
+  });
+
   it("stops the session and rejects when the overall startup timeout wins", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
@@ -274,6 +320,35 @@ describe("ChannelWorker startup", () => {
     await rejected;
     expect(packager.sessions[0]?.stopCalls).toBe(1);
     expect(clock.pendingTimerCount).toBe(0);
+  });
+
+  it("rechecks the absolute startup deadline after readiness wins the race", async () => {
+    const clock = new FakeClock(0);
+    const timers = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      {
+        ...workerOptions(provider, packager, clock),
+        timers,
+        startupTimeoutMs: 250,
+      },
+    );
+    const rejected = expectSignalError(starting, "worker_startup_timeout");
+    await settlePromises();
+
+    packager.sessions[0]?.pushOutput("INIT-ready");
+    packager.sessions[0]?.resolveReady();
+    clock.advanceTo(250);
+
+    await rejected;
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(timers.pendingTimerCount).toBe(0);
   });
 
   it("stops a pending session when startup is cancelled", async () => {
