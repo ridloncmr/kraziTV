@@ -22,15 +22,24 @@ It should behave like a small broadcast automation system, not a playlist genera
 
 ## Authority And Documentation Lifecycle
 
-- Before implementation, specs, ADRs, and implementation plans describe intent,
-  constraints, and sequencing.
-- After implementation, source code and executable tests are canonical for
-  actual behavior. Completed specs and plans become historical design context;
-  they do not override working code.
-- When documentation conflicts with implemented behavior, inspect the code and
-  tests first. Do not change working behavior merely to match a stale document.
-- Change behavior through code and tests. Update only documentation that still
-  serves an active planning, user, operator, or architecture purpose.
+- Before implementation, specs and implementation plans describe intent,
+  acceptance targets, and sequencing.
+- After implementation, source code and executable tests are canonical for what
+  the system currently does. Completed specs and implementation plans become
+  historical design context; they do not override working code.
+- Accepted ADRs are canonical architectural decisions and constraints until
+  explicitly superseded or replaced by another accepted decision. Draft or
+  proposed ADRs are not binding policy.
+- When source or tests conflict with an accepted ADR, flag the conflict. Do not
+  silently change working behavior merely to match the ADR, and do not dismiss
+  the ADR as stale merely because the current implementation differs. Determine
+  whether the implementation violates the accepted architecture or the decision
+  must be superseded, then record and apply that resolution explicitly.
+- Change behavior through code and tests. Change accepted architectural policy
+  through the ADR lifecycle, and then align implementation and active
+  documentation with the resolved decision.
+- Update only documentation that still serves an active planning, user,
+  operator, or architecture purpose.
 - `README.md` is a high-level product and architecture overview.
 - `docs/specs/` records feature intent and acceptance targets before and during
   implementation.
@@ -134,6 +143,9 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Research and references belong in `docs/knowledge_base/`.
 - Completed specs and implementation plans are not canonical descriptions of
   the running system. Use code and tests to understand implemented behavior.
+- Accepted ADRs remain canonical architecture policy until explicitly
+  superseded. Treat implementation drift as a conflict requiring review, not as
+  automatic evidence that the ADR is obsolete.
 - Do not maintain completed specs as a second copy of the implementation unless
   the user explicitly asks for that documentation.
 - Keep README readable; do not turn it into an exhaustive implementation journal.
