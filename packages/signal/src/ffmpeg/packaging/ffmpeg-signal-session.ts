@@ -37,7 +37,7 @@ export class FfmpegSignalSession implements SignalSession {
     );
   }
 
-  /** Defers multi-item mechanics to SIG-008 without changing initial output. */
+  /** Defers FFmpeg multi-item mechanics to SIG-010 without changing initial output. */
   async prepare(_item: SignalPlayoutItem): Promise<SignalPreparation> {
     throw new SignalError(
       "packaging_failed",

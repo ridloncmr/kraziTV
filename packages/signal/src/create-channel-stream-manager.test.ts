@@ -8,6 +8,7 @@ import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.
 import type { CurrentPlayoutResult } from "./playout/contracts.js";
 import type { SignalLogger } from "./runtime/signal-logger.js";
 import { FakeClock } from "./testing/fake-clock.js";
+import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
 import { FakePlayoutProvider } from "./testing/fake-playout-provider.js";
 import { FakeProcess, FakeProcessSpawner } from "./testing/fake-process.js";
 
@@ -85,6 +86,8 @@ const createHarness = () => {
     }),
     clock,
     timers: clock,
+    transitionCoordinator: new InMemoryTransitionCoordinator(clock),
+    prepareLeadMs: 2_000,
     startupTimeoutMs: 5_000,
     subscriberBufferLimitBytes: 1_024,
     retentionLimitBytes: 1_024,

@@ -106,6 +106,12 @@ const workerOptions = (
   packager,
   clock,
   timers: clock,
+  transitionCoordinator: {
+    async commitPreparedTransition(): Promise<never> {
+      throw new Error("Transitions belong to channel-worker-transitions tests");
+    },
+  },
+  prepareLeadMs: 2_000,
   startupTimeoutMs: 5_000,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,

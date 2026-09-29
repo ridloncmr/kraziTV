@@ -45,7 +45,7 @@ export class FfmpegSignalPackager implements SignalPackager {
         scheduleEntryId: initialItem.scheduleEntryId,
         mediaItemId: initialItem.mediaItemId,
       },
-      // SIG-008 will derive this from the absolute transition boundary.
+      // SIG-010 owns item boundaries; until then any exit before stop fails.
       isSuccessfulExitExpected: () => false,
     });
 

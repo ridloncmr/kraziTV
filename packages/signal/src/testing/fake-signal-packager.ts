@@ -32,6 +32,8 @@ export class FakeSignalPreparation implements SignalPreparation {
 
   async discard(): Promise<void> {
     if (this.state !== "pending") return;
+    await this.owner.beforeDiscard();
+    if (this.state !== "pending") return;
     this.owner.discardPreparation(this);
     this.state = "discarded";
   }
@@ -48,6 +50,10 @@ export class FakeSignalSession implements SignalSession {
   private readonly readyState = new Deferred<void>();
   private readonly completionState = new Deferred<void>();
   private currentPreparation?: FakeSignalPreparation;
+  private nextPrepareFailure?: { reason: unknown };
+  private nextPrepareGate?: Deferred<void>;
+  private discardFailures: unknown[] = [];
+  private nextDiscardGate?: Deferred<void>;
   private stopped = false;
 
   constructor(initialItem: SignalPlayoutItem) {
@@ -69,9 +75,45 @@ export class FakeSignalSession implements SignalSession {
       throw new Error("Session already has an outstanding preparation");
     }
     this.prepareCalls.push(item);
+    const failure = this.nextPrepareFailure;
+    this.nextPrepareFailure = undefined;
+    if (failure) throw failure.reason;
+    const gate = this.nextPrepareGate;
+    this.nextPrepareGate = undefined;
+    if (gate) await gate.promise;
     const preparation = new FakeSignalPreparation(this, item);
     this.currentPreparation = preparation;
     return preparation;
+  }
+
+  /** Makes the next preparation reject, as an encoder that cannot prewarm. */
+  failNextPrepare(reason: unknown): void {
+    this.nextPrepareFailure = { reason };
+  }
+
+  /** Holds the next preparation open until the returned gate resolves. */
+  pauseNextPrepare(): Deferred<void> {
+    this.nextPrepareGate = new Deferred<void>();
+    return this.nextPrepareGate;
+  }
+
+  /** Makes the next discard attempts reject, one per queued reason. */
+  failDiscards(...reasons: unknown[]): void {
+    this.discardFailures.push(...reasons);
+  }
+
+  /** Holds the next discard open until the returned gate resolves. */
+  pauseNextDiscard(): Deferred<void> {
+    this.nextDiscardGate = new Deferred<void>();
+    return this.nextDiscardGate;
+  }
+
+  /** Applies any arranged discard failure or pause before releasing. */
+  async beforeDiscard(): Promise<void> {
+    if (this.discardFailures.length > 0) throw this.discardFailures.shift();
+    const gate = this.nextDiscardGate;
+    this.nextDiscardGate = undefined;
+    if (gate) await gate.promise;
   }
 
   resolveReady(): void {

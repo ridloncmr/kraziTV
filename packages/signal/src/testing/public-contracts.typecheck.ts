@@ -91,6 +91,8 @@ const manager = createChannelStreamManager({
   packager,
   clock: clockAdapter,
   timers: timerAdapter,
+  transitionCoordinator: transitionAdapter,
+  prepareLeadMs: 10_000,
   startupTimeoutMs: 5_000,
   idleGraceMs: 30_000,
   subscriberBufferLimitBytes: 1_024,

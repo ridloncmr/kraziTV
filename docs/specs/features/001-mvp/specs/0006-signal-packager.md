@@ -185,7 +185,8 @@ Responsibilities:
   for the first subscriber.
 - Maintain independent subscriber buffers.
 - Maintain the late-join initialization state required by the compatibility-spike results.
-- Prefetch future selected playout candidates when its queue becomes low.
+- Fetch the following selected playout candidate at a configured lead time
+  before each boundary.
 - Prepare future packaging resources without committing those candidates to the
   broadcast.
 - Submit exactly one prepared item to an injected `TransitionCoordinator` at
@@ -329,8 +330,10 @@ has been consumed, the item is irrevocably accepted as the next transmitted
 item, and later schedule regeneration treats it as the item already airing
 through its existing `endsAt`. The coordinator returns `"stale"` without
 invoking the callback when revalidation fails, and the worker discards that
-preparation and requests fresh selected playout. The callback must not perform
-asynchronous preparation or return before acceptance. A callback failure is a
+preparation and requests fresh selected playout. That stale-recovery path is a
+rare degraded case: it is exempt from the initial tune drift bound, and output
+may stall or run behind schedule until the fresh item commits. The callback
+must not perform asynchronous preparation or return before acceptance. A callback failure is a
 worker/session failure; the expired previous item must not be extended to
 conceal it.
 
