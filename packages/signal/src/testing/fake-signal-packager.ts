@@ -61,7 +61,7 @@ export class FakeSignalSession implements SignalSession {
     return this.readyState.promise;
   }
 
-  async prepare(item: SignalPlayoutItem): Promise<SignalPreparation> {
+  async prepare(item: SignalPlayoutItem): Promise<FakeSignalPreparation> {
     if (this.stopped) {
       throw new Error("Cannot prepare an item after the session has stopped");
     }
