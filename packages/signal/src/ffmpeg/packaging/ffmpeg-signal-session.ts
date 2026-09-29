@@ -13,6 +13,7 @@ import type { FfmpegProcess } from "../process/ffmpeg-process.js";
 export class FfmpegSignalSession implements SignalSession {
   readonly output: Readable;
   readonly ready: Promise<void>;
+  readonly completion: Promise<void>;
   private resolveReady!: () => void;
   private rejectReady!: (reason: unknown) => void;
   private readySettled = false;
@@ -25,6 +26,7 @@ export class FfmpegSignalSession implements SignalSession {
     private readonly markSuccessfulExitExpected: () => void,
   ) {
     this.output = process.output;
+    this.completion = process.completion;
     this.ready = new Promise<void>((resolve, reject) => {
       this.resolveReady = resolve;
       this.rejectReady = reject;

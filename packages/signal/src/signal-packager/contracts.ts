@@ -30,6 +30,8 @@ export interface SignalPreparation {
 export interface SignalSession {
   /** Resolves only after usable initialization and media output exists. */
   readonly ready: Promise<void>;
+  /** Settles when the owned packaging process terminates. */
+  readonly completion: Promise<void>;
   readonly output: Readable;
   prepare(item: SignalPlayoutItem): Promise<SignalPreparation>;
   stop(): Promise<void>;

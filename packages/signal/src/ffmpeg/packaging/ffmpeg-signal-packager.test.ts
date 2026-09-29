@@ -59,7 +59,6 @@ const createHarness = () => {
     spawner,
     timers,
     logger,
-    environment: {},
     createReadinessInspector: () => new MarkerInspector(),
   });
 
@@ -91,9 +90,27 @@ describe("FfmpegSignalPackager", () => {
     expect(spawner.spawnCalls).toHaveLength(1);
     expect(spawner.spawnCalls[0]).toMatchObject({
       shell: false,
-      env: {},
     });
+    expect(spawner.spawnCalls[0]).not.toHaveProperty("env");
     expect(spawner.spawnCalls[0]?.args).toContain("pipe:1");
+  });
+
+  it("passes a resolved FFmpeg executable without forwarding config as env", () => {
+    const child = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(child);
+    const packager = new FfmpegSignalPackager({
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      ffmpegPath: "C:/tools/ffmpeg.exe",
+      createReadinessInspector: () => new MarkerInspector(),
+    });
+
+    packager.start(initialItem());
+
+    expect(spawner.spawnCalls[0]?.command).toBe("C:/tools/ffmpeg.exe");
+    expect(spawner.spawnCalls[0]).not.toHaveProperty("env");
   });
 
   it("rejects invalid timing before creating a process", () => {

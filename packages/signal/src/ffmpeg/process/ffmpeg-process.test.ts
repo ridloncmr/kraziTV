@@ -50,7 +50,7 @@ const expectSignalError = async (
 
 const createHarness = (
   options: {
-    environment?: Readonly<Record<string, string | undefined>>;
+    ffmpegPath?: string;
     terminationGraceMs?: number;
     isSuccessfulExitExpected?: () => boolean;
   } = {},
@@ -66,7 +66,7 @@ const createHarness = (
     spawner,
     timers,
     logger,
-    environment: options.environment ?? {},
+    ffmpegPath: options.ffmpegPath,
     terminationGraceMs: options.terminationGraceMs,
     diagnosticContext: { channelId: "channel-1" },
     isSuccessfulExitExpected: options.isSuccessfulExitExpected ?? (() => true),
@@ -85,17 +85,17 @@ describe("FfmpegProcess", () => {
         command: "ffmpeg",
         args: ["-version"],
         shell: false,
-        env: {},
       },
     ]);
   });
 
-  it("uses FFMPEG_PATH when configured", () => {
+  it("uses the configured executable without adding app config to child env", () => {
     const { spawner } = createHarness({
-      environment: { FFMPEG_PATH: "C:/tools/ffmpeg.exe" },
+      ffmpegPath: "C:/tools/ffmpeg.exe",
     });
 
     expect(spawner.spawnCalls[0]?.command).toBe("C:/tools/ffmpeg.exe");
+    expect(spawner.spawnCalls[0]).not.toHaveProperty("env");
   });
 
   it("resolves completion for a normal zero-code exit", async () => {
@@ -120,7 +120,6 @@ describe("FfmpegProcess", () => {
         spawner,
         timers: new FakeClock(),
         logger: new RecordingLogger(),
-        environment: {},
         isSuccessfulExitExpected: () => true,
       }),
     ).toThrowError(

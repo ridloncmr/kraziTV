@@ -7,7 +7,7 @@ import type { SignalPackager } from "./signal-packager/contracts.js";
 export type CreateFfmpegSignalPackagerOptions = {
   logger: SignalLogger;
   timers: TimerScheduler;
-  environment?: Readonly<Record<string, string | undefined>>;
+  ffmpegPath?: string;
   terminationGraceMs?: number;
 };
 
@@ -19,7 +19,7 @@ export function createFfmpegSignalPackager(
     spawner: new NodeProcessSpawner(),
     timers: options.timers,
     logger: options.logger,
-    environment: options.environment,
+    ffmpegPath: options.ffmpegPath,
     terminationGraceMs: options.terminationGraceMs,
   });
 }

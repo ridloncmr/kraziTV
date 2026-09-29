@@ -177,6 +177,7 @@ describe("ChannelWorker startup", () => {
     const secondStop = worker.stop();
     expect(secondStop).toBe(firstStop);
     await firstStop;
+    await expect(worker.completion).resolves.toBeUndefined();
     expect(session?.stopCalls).toBe(1);
   });
 

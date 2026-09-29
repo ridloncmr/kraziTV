@@ -1,5 +1,6 @@
 import type { Readable } from "node:stream";
 
+import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import { SignalError } from "../errors.js";
 import type {
@@ -40,6 +41,7 @@ type JoinableOutputWaiter = {
 
 /** Owns one channel's active packaging session and retained broadcast output. */
 export class ChannelWorker {
+  readonly completion: Promise<void>;
   private stopPromise: Promise<void> | undefined;
 
   /** Performs late state resolution and publishes only retained usable output. */
@@ -130,7 +132,14 @@ export class ChannelWorker {
     readonly channelId: ChannelId,
     private readonly session: SignalSession,
     readonly broadcaster: ChannelBroadcaster,
-  ) {}
+  ) {
+    this.completion = session.completion;
+  }
+
+  /** Creates one viewer stream only while retained output remains joinable. */
+  trySubscribe(): ChannelBroadcastSubscription | undefined {
+    return this.broadcaster.trySubscribe();
+  }
 
   /** Stops the owned packaging session exactly once and shares cleanup. */
   stop(): Promise<void> {

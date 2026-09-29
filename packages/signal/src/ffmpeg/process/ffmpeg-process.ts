@@ -17,7 +17,7 @@ type FfmpegProcessOptions = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  environment?: Readonly<Record<string, string | undefined>>;
+  ffmpegPath?: string;
   cwd?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
@@ -55,8 +55,7 @@ export class FfmpegProcess {
       options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
     assertNonNegativeSafeInteger(terminationGraceMs, "terminationGraceMs");
 
-    const environment = options.environment ?? process.env;
-    const command = environment.FFMPEG_PATH || "ffmpeg";
+    const command = options.ffmpegPath || "ffmpeg";
     const context = options.diagnosticContext ?? {};
 
     try {
@@ -65,7 +64,6 @@ export class FfmpegProcess {
         args: options.args,
         shell: false,
         ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-        env: environment,
       });
       return new FfmpegProcess(
         child,

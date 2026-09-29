@@ -40,17 +40,21 @@ export class FakeSignalPreparation implements SignalPreparation {
 export class FakeSignalSession implements SignalSession {
   readonly output = new PassThrough();
   readonly committedItems: SignalPlayoutItem[];
+  readonly completion: Promise<void>;
   readonly discardedItems: SignalPlayoutItem[] = [];
   readonly prepareCalls: SignalPlayoutItem[] = [];
   stopCalls = 0;
 
   private readonly readyState = new Deferred<void>();
+  private readonly completionState = new Deferred<void>();
   private currentPreparation?: FakeSignalPreparation;
   private stopped = false;
 
   constructor(initialItem: SignalPlayoutItem) {
     this.committedItems = [initialItem];
+    this.completion = this.completionState.promise;
     void this.readyState.promise.catch(() => undefined);
+    void this.completion.catch(() => undefined);
   }
 
   get ready(): Promise<void> {
@@ -76,6 +80,7 @@ export class FakeSignalSession implements SignalSession {
 
   rejectReady(reason: unknown): void {
     this.readyState.reject(reason);
+    this.completionState.reject(reason);
   }
 
   pushOutput(chunk: string | Uint8Array): void {
@@ -103,6 +108,7 @@ export class FakeSignalSession implements SignalSession {
       new SignalError("packaging_stopped", "Signal session stopped"),
     );
     this.output.end();
+    this.completionState.resolve(undefined);
   }
 
   private assertCurrentPreparation(preparation: FakeSignalPreparation): void {

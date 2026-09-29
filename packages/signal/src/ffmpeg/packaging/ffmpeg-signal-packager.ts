@@ -18,7 +18,7 @@ export type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  environment?: Readonly<Record<string, string | undefined>>;
+  ffmpegPath?: string;
   terminationGraceMs?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
 };
@@ -39,7 +39,7 @@ export class FfmpegSignalPackager implements SignalPackager {
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,
-      environment: this.dependencies.environment,
+      ffmpegPath: this.dependencies.ffmpegPath,
       terminationGraceMs: this.dependencies.terminationGraceMs,
       diagnosticContext: {
         channelId: initialItem.channelId,
