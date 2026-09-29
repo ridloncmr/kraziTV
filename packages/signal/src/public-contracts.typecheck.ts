@@ -6,6 +6,7 @@ import type {
   TimerScheduler,
   TransitionCoordinator,
 } from "./index.js";
+import { createFfmpegSignalPackager } from "./index.js";
 
 // These fixtures import only the public entry point, proving server adapters do
 // not need signal internals.
@@ -74,6 +75,12 @@ const loggerAdapter = {
   error() {},
 } satisfies SignalLogger;
 
+const packager = createFfmpegSignalPackager({
+  logger: loggerAdapter,
+  timers: timerAdapter,
+  environment: { FFMPEG_PATH: "ffmpeg" },
+});
+
 void [
   authorizationAdapter,
   playoutAdapter,
@@ -81,4 +88,5 @@ void [
   clockAdapter,
   timerAdapter,
   loggerAdapter,
+  packager,
 ];
