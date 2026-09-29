@@ -20,13 +20,42 @@ It should behave like a small broadcast automation system, not a playlist genera
 - Initial provider: Plex
 - Future providers: Jellyfin, possibly Emby
 
-## Source Of Truth
+## Authority And Documentation Lifecycle
 
-- `README.md` contains the high-level product and architecture overview.
-- `docs/specs/` contains feature folders, feature goals, and feature-scoped product and technical specs.
-- `docs/adrs/` contains accepted architecture decisions.
-- `docs/implementation_plan/` contains milestone and task sequencing.
-- `docs/knowledge_base/` contains research notes and operational knowledge.
+- Before implementation, specs, ADRs, and implementation plans describe intent,
+  constraints, and sequencing.
+- After implementation, source code and executable tests are canonical for
+  actual behavior. Completed specs and plans become historical design context;
+  they do not override working code.
+- When documentation conflicts with implemented behavior, inspect the code and
+  tests first. Do not change working behavior merely to match a stale document.
+- Change behavior through code and tests. Update only documentation that still
+  serves an active planning, user, operator, or architecture purpose.
+- `README.md` is a high-level product and architecture overview.
+- `docs/specs/` records feature intent and acceptance targets before and during
+  implementation.
+- `docs/adrs/` records the reasoning behind architecture decisions.
+- `docs/implementation_plan/` records milestone and task sequencing.
+- `docs/knowledge_base/` records research notes and operational knowledge.
+
+## Governing Engineering Principles
+
+- KISS is the highest design priority. Choose the simplest design that clearly
+  satisfies the current requirement and preserves known extension seams.
+- SOLID and DRY are tools, not goals. Forgo them when they add indirection,
+  premature abstraction, more types, or harder-to-follow control flow.
+- Reuse stable capabilities through composition. Keep pipeline stages separable
+  where known follow-up work needs chaining, such as metadata lookup after
+  ffprobe, and keep provider-neutral behavior reusable by Plex and Jellyfin
+  adapters.
+- Do not add abstractions solely for hypothetical reuse. Extract a seam when a
+  current requirement or a known next integration needs it.
+- Keep files cohesive and easy to scan. Prefer one primary concrete class per
+  file; move independent classes or responsibilities into clearly named files.
+- Keep exports deliberate and minimal. Export only the package or module surface
+  that another file actually needs; do not use barrel exports as dumping grounds.
+- Give every method a concise comment that explains its purpose, policy, or
+  invariant. Explain why; let the code explain how.
 
 ## Core Architecture Boundaries
 
@@ -48,11 +77,13 @@ Do not make FFmpeg command construction part of kraziBrain.
 ## Development Approach
 
 - Prefer small vertical slices with working feedback loops.
+- Start with the simplest implementation and add structure only when the code
+  demonstrates the need.
 - Keep interfaces narrow and modules deep.
 - Use TypeScript types to model domain boundaries explicitly.
 - Prefer deterministic scheduling behavior over clever randomness.
 - Add tests around scheduling, timeline, guide, and media-selection logic as soon as code exists.
-- Keep docs updated when decisions, vocabulary, or scope changes.
+- Treat tests as executable behavioral contracts once behavior is implemented.
 
 ## AI Skill Conventions
 
@@ -90,11 +121,15 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 
 ## Documentation Rules
 
-- Product behavior belongs in feature-scoped specs under `docs/specs/features/`.
+- Planned product behavior belongs in feature-scoped specs under `docs/specs/features/`.
 - Architecture decisions belong in `docs/adrs/`.
 - Decisions about AI harnesses and agent infrastructure belong in `.agents/adr/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
 - Research and references belong in `docs/knowledge_base/`.
+- Completed specs and implementation plans are not canonical descriptions of
+  the running system. Use code and tests to understand implemented behavior.
+- Do not maintain completed specs as a second copy of the implementation unless
+  the user explicitly asks for that documentation.
 - Keep README readable; do not turn it into an exhaustive implementation journal.
 - Docs written for agents should explain when to use them, what must never happen, what vocabulary to use, what files are authoritative, and what verification is expected.
 - If a doc presents multiple choices, use a list or table instead of burying the branch in a paragraph.

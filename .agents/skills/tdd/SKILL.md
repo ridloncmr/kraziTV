@@ -18,6 +18,11 @@ Use a red-green-refactor loop for core behavior.
 4. Run the relevant test command.
 5. Refactor only with tests green.
 
+After implementation, tests and source code are the canonical description of
+behavior. Keep tests readable as behavioral contracts and prefer the simplest
+implementation that makes them pass. Do not add abstractions merely to satisfy
+SOLID or DRY terminology.
+
 ## kraziTV Test Priorities
 
 Prioritize tests around:
@@ -37,3 +42,4 @@ Prioritize tests around:
 - Tests coupled to implementation internals
 - Broad end-to-end tests before the core rules are covered
 - Mocking so much that the real behavior disappears
+- Test-only indirection that makes the production design harder to follow

@@ -16,7 +16,10 @@ Use this skill to break work into small vertical slices.
 - Each ticket should name dependencies/blockers.
 - Each ticket should include verification.
 - Prefer thin end-to-end slices over broad horizontal setup.
-- Keep architecture docs updated when a ticket changes boundaries.
+- Prefer the simplest implementation that closes the ticket; do not prescribe
+  abstractions solely for SOLID or DRY compliance.
+- Treat completed tickets and plans as sequencing history. Code and executable
+  tests become canonical after implementation.
 
 ## Output Location
 

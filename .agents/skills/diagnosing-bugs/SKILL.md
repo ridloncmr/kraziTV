@@ -10,6 +10,10 @@ Adapted from Matt Pocock's `diagnosing-bugs` skill: https://github.com/mattpococ
 
 Use a disciplined debugging loop.
 
+Inspect running code and executable tests before relying on completed specs or
+implementation plans. Those documents may explain intent, but implemented code
+is canonical for current behavior.
+
 ## Loop
 
 1. Reproduce the bug or identify why reproduction is not possible.

@@ -8,7 +8,10 @@ license: MIT
 
 Adapted from Matt Pocock's `to-spec` skill: https://github.com/mattpocock/skills
 
-Use this skill to convert a conversation into a durable spec.
+Use this skill to convert a conversation into an implementation-guiding spec.
+The spec is authoritative for intended behavior before implementation. Once the
+feature exists, source code and executable tests become canonical; the spec
+remains design history unless the user explicitly keeps it active.
 
 ## Output Location
 
