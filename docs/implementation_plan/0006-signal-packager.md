@@ -1,6 +1,6 @@
 # Spec 0006 Implementation Plan: Shared Channel Streaming
 
-Status: Ready to start
+Status: In Development
 
 Source: [`docs/specs/features/001-mvp/specs/0006-signal-packager.md`](../specs/features/001-mvp/specs/0006-signal-packager.md)
 
@@ -65,6 +65,24 @@ The public `@krazitv/signal` surface should remain smaller than its internal
 module graph. Export domain-facing contracts and construction entry points;
 keep FFmpeg argument builders, MPEG-TS inspection, lifecycle-state machinery,
 and test utilities internal.
+
+The source tree groups contracts and private implementations by capability
+rather than under one catch-all `internal` directory:
+
+```text
+packages/signal/src
+  channel-broadcast/    subscriber fan-out and buffering
+  channel-worker/       active channel worker lifecycle
+  ffmpeg/
+    packaging/          arguments, packager, and session
+    mpeg-ts/            MPEG-TS inspection
+    process/            FFmpeg-specific process lifecycle
+  playout/              selected playout projections and provider port
+  process/              provider-neutral process port and Node adapter
+  runtime/              clock, timer, and logging ports
+  signal-packager/      provider-neutral packaging contracts
+  testing/              reusable deterministic test doubles
+```
 
 ## Dependency and Decision Gates
 
@@ -191,7 +209,7 @@ termination in one reusable internal module.
   forced-termination failures with safe diagnostic context.
 - Make stop idempotent, wait for child closure, and escalate after a configurable
   grace period whose MVP provisional default is five seconds.
-- Support `FFMPEG_PATH`, defaulting to `ffmpeg`.
+- Accept a caller-resolved FFmpeg executable path, defaulting to `ffmpeg`.
 
 **Out of scope**
 
@@ -205,6 +223,10 @@ termination in one reusable internal module.
 
 - Treat successful signal delivery and actual process closure as different
   events.
+- Resolve the `FFMPEG_PATH` application setting at the server composition
+  boundary. Pass only the resolved executable path into `packages/signal`; do
+  not forward kraziTV configuration variables explicitly into the child
+  environment.
 - Receive a caller-owned successful-exit expectation so the process primitive
   can normalize a zero-code premature exit without owning readiness or playout
   timing policy.
@@ -332,18 +354,34 @@ after readiness succeeds.
 
 **Scope**
 
+- Define the public manager-facing `ChannelSubscription` contract with
+  `stream` and idempotent `close()` behavior. Let the existing broadcast
+  subscription satisfy that contract directly instead of adding a wrapper.
 - Implement per-channel lifecycle serialization.
 - Revalidate channel existence and enabled state inside every subscription
   transition, including reuse of an active worker.
 - Represent pending creation separately from an active joinable worker.
 - Deduplicate concurrent first subscriptions.
+- Expose worker completion or failure through a manager-facing signal that
+  settles on every terminal worker path.
+- Treat `AbortSignal` as cancellation of the pending `subscribe()` operation.
+  Remove its listener when that operation settles; after successful
+  subscription creation, the caller owns lifetime through `close()`.
 - Support per-waiter abort without cancelling other waiters; cancel creation
-  when the final waiter leaves before publication.
-- Serialize publication with cancellation, worker failure, and manager shutdown.
+  when the final waiter leaves before publication. Keep that lifecycle record
+  non-joinable until cancellation cleanup settles so a new subscriber cannot
+  start an overlapping worker.
+- Add the terminal manager gate required by the publication race: once shutdown
+  begins, reject new work, cancel and await pending creations, and stop and await
+  workers already published by this slice. SIG-007 completes resource
+  accounting, cleanup-failure retention, and retry behavior.
+- Serialize publication with waiter cancellation, channel authorization,
+  worker completion or failure, and manager shutdown.
 
 **Out of scope**
 
-- Idle grace, administrative stop retries, real HTTP, and SQLite adapters.
+- Idle grace, administrative stops and their retries, cleanup-failed record
+  recovery, real HTTP, and SQLite adapters.
 
 **Blocking dependencies**
 
@@ -352,6 +390,23 @@ after readiness succeeds.
 **Implementation notes**
 
 - A pending worker must not be discoverable through the active registry.
+- Do not hold the per-channel transition open while worker readiness is pending.
+  Register the shared pending creation inside the transition, await readiness
+  outside it, then re-enter the transition for publication.
+- Every caller must be authorized before it joins an active worker or pending
+  creation. Recheck authorization once inside the serialized publication
+  transition before attaching the surviving pending waiters.
+- Treat an authorization result for a different channel ID as an invalid
+  adapter result; it must never authorize the requested channel.
+- The worker completion signal must let the manager observe termination even
+  when no subscriber exists. Do not infer worker health solely from subscriber
+  close events.
+- Once a subscription is synchronously created in the serialized transition,
+  it has won against later abort delivery. The caller must close the returned
+  subscription normally.
+- If a ready worker cannot create a subscription at publication time, treat it
+  as a pre-publication worker failure: stop and await it, publish nothing, and
+  reject the remaining waiters. A later tune may create a fresh worker.
 - A losing creation must be stopped and awaited even if it became ready at the
   same instant that cancellation won.
 
@@ -361,7 +416,13 @@ after readiness succeeds.
 - No subscription returns before readiness and retained startup output.
 - Shared startup failure rejects every remaining waiter without publishing.
 - Cancelling one waiter preserves other waiters; cancelling all stops creation.
+- A subscriber arriving while all-waiter cancellation cleanup is still running
+  waits for cleanup and never overlaps the losing worker with a replacement.
+- Worker termination between readiness and publication rejects the waiters and
+  leaves no active worker.
 - Shutdown or authorization loss wins a publication race and leaves no worker.
+- Shutdown rejects later subscriptions and settles pending and active workers
+  created by this slice.
 
 **Docs impact**
 
@@ -376,13 +437,15 @@ complete.
 
 **Scope**
 
-- Add idempotent `ChannelSubscription.close()` and subscriber accounting.
+- Connect the already-idempotent `ChannelSubscription.close()` behavior to
+  manager-level subscriber accounting.
 - Start idle grace after the final close and cancel it when a viewer returns.
 - Prevent attachment to a stopping worker or overlap with a replacement.
 - Implement `stopChannel(channelId, reason)` as an immediate operational stop.
 - Retain cleanup-failed records and remaining handles for an idempotent retry.
-- Implement terminal manager shutdown that rejects new work and settles pending
-  creation, workers, sessions, preparations, subscribers, and child processes.
+- Complete terminal manager shutdown with exhaustive settlement of pending
+  creation, workers, sessions, preparations, subscribers, and child processes,
+  including cleanup-failure retention and retry-safe ownership.
 
 **Out of scope**
 

@@ -13,8 +13,10 @@ Prefer reliable compatibility over clever stream-copy optimization in the MVP.
 Apply KISS before SOLID or DRY. Keep ffprobe, metadata enrichment, packaging,
 and provider integration composable at their real boundaries so later metadata
 lookup and Jellyfin reuse do not require copying the pipeline. Avoid speculative
-frameworks, muddied multi-class files, and accidental exports. Give every method
-a concise why-comment.
+frameworks, muddied multi-class files, growing catch-all directories, and
+accidental exports. Group related media source and tests in named domain folders
+when a flat directory becomes difficult to scan. Give every method a concise
+why-comment.
 
 Implemented media behavior is defined by source and executable tests; specs and
 plans provide intent and history.

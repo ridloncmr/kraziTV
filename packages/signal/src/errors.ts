@@ -1,6 +1,7 @@
 export type SignalErrorCode =
   | "channel_not_found"
   | "channel_disabled"
+  | "invalid_channel_authorization"
   | "no_current_playout"
   | "media_unavailable"
   | "invalid_playout_item"

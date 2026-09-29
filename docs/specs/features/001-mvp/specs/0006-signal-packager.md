@@ -604,7 +604,10 @@ the current program.
 
 The number of FFmpeg encoders should scale with actively watched channels, not viewers.
 
-The FFmpeg executable defaults to `ffmpeg` on `PATH` and can be overridden with the `FFMPEG_PATH` environment variable.
+The FFmpeg executable defaults to `ffmpeg` on `PATH` and can be overridden with
+the `FFMPEG_PATH` kraziTV setting. `apps/server` resolves that setting and passes
+the executable path into `packages/signal`; it is not explicitly forwarded to
+the FFmpeg child environment.
 
 ## Data Model Impact
 

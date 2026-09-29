@@ -1,11 +1,16 @@
 import type {
   ChannelAuthorization,
+  ChannelSubscription,
   Clock,
   PlayoutProvider,
   SignalLogger,
   TimerScheduler,
   TransitionCoordinator,
-} from "./index.js";
+} from "../index.js";
+import {
+  createChannelStreamManager,
+  createFfmpegSignalPackager,
+} from "../index.js";
 
 // These fixtures import only the public entry point, proving server adapters do
 // not need signal internals.
@@ -74,6 +79,26 @@ const loggerAdapter = {
   error() {},
 } satisfies SignalLogger;
 
+const packager = createFfmpegSignalPackager({
+  logger: loggerAdapter,
+  timers: timerAdapter,
+  ffmpegPath: "ffmpeg",
+});
+
+const manager = createChannelStreamManager({
+  authorization: authorizationAdapter,
+  playoutProvider: playoutAdapter,
+  packager,
+  clock: clockAdapter,
+  timers: timerAdapter,
+  startupTimeoutMs: 5_000,
+  subscriberBufferLimitBytes: 1_024,
+  retentionLimitBytes: 1_024,
+  findJoinPoint: () => 0,
+});
+const subscribe: (channelId: string) => Promise<ChannelSubscription> =
+  manager.subscribe.bind(manager);
+
 void [
   authorizationAdapter,
   playoutAdapter,
@@ -81,4 +106,7 @@ void [
   clockAdapter,
   timerAdapter,
   loggerAdapter,
+  packager,
+  manager,
+  subscribe,
 ];

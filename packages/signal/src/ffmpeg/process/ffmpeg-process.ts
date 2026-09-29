@@ -1,8 +1,13 @@
 import type { Readable } from "node:stream";
 
-import type { LogContext, SignalLogger, TimerScheduler } from "../contracts.js";
-import { SignalError } from "../errors.js";
-import type { ProcessExit, ProcessSpawner, SpawnedProcess } from "./process.js";
+import { SignalError } from "../../errors.js";
+import type {
+  ProcessExit,
+  ProcessSpawner,
+  SpawnedProcess,
+} from "../../process/process-spawner.js";
+import type { TimerScheduler } from "../../runtime/clock.js";
+import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 5_000;
 const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
@@ -12,7 +17,7 @@ type FfmpegProcessOptions = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  environment?: Readonly<Record<string, string | undefined>>;
+  ffmpegPath?: string;
   cwd?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
@@ -50,8 +55,7 @@ export class FfmpegProcess {
       options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
     assertNonNegativeSafeInteger(terminationGraceMs, "terminationGraceMs");
 
-    const environment = options.environment ?? process.env;
-    const command = environment.FFMPEG_PATH || "ffmpeg";
+    const command = options.ffmpegPath || "ffmpeg";
     const context = options.diagnosticContext ?? {};
 
     try {
@@ -60,7 +64,6 @@ export class FfmpegProcess {
         args: options.args,
         shell: false,
         ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-        env: environment,
       });
       return new FfmpegProcess(
         child,

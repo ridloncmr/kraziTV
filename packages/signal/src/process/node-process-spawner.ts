@@ -5,7 +5,7 @@ import type {
   ProcessSpawner,
   ProcessSpawnRequest,
   SpawnedProcess,
-} from "./process.js";
+} from "./process-spawner.js";
 
 /** Adapts Node child-process events to the deterministic signal process port. */
 export class NodeProcessSpawner implements ProcessSpawner {
