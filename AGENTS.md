@@ -52,6 +52,12 @@ It should behave like a small broadcast automation system, not a playlist genera
   current requirement or a known next integration needs it.
 - Keep files cohesive and easy to scan. Prefer one primary concrete class per
   file; move independent classes or responsibilities into clearly named files.
+- Keep small source directories flat, but organize growing implementation trees
+  by domain or capability before they become hard to scan. Repeated filename
+  prefixes and clusters of related source-and-test files are signals to create a
+  named subdirectory. Do not accumulate unrelated code in catch-all folders such
+  as `internal`, `utils`, or `common`; keep public entry points at the package
+  root and place private implementations in domain folders with their tests.
 - Keep exports deliberate and minimal. Export only the package or module surface
   that another file actually needs; do not use barrel exports as dumping grounds.
 - Give every method a concise comment that explains its purpose, policy, or

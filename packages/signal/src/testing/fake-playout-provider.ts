@@ -4,7 +4,7 @@ import type {
   FollowingPlayoutResult,
   PlayoutProvider,
   ScheduleEntryId,
-} from "../contracts.js";
+} from "../playout/contracts.js";
 
 export class FakePlayoutProvider implements PlayoutProvider {
   readonly currentCalls: Array<{ channelId: ChannelId; atMs: number }> = [];

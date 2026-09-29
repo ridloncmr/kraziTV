@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { SignalLogger, SignalPlayoutItem } from "../contracts.js";
-import { SignalError } from "../errors.js";
-import { FakeClock } from "../testing/fake-clock.js";
-import { FakeProcess, FakeProcessSpawner } from "../testing/fake-process.js";
+import { SignalError } from "../../errors.js";
+import type { SignalLogger } from "../../runtime/signal-logger.js";
+import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
+import { FakeClock } from "../../testing/fake-clock.js";
+import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
-import type { OutputReadinessInspector } from "./mpeg-ts-readiness-inspector.js";
+import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 
 class RecordingLogger implements SignalLogger {
   readonly errors: Array<{

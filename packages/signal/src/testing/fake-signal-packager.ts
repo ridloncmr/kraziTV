@@ -5,7 +5,7 @@ import type {
   SignalPlayoutItem,
   SignalPreparation,
   SignalSession,
-} from "../contracts.js";
+} from "../signal-packager/contracts.js";
 import { SignalError } from "../errors.js";
 import { Deferred } from "./deferred.js";
 

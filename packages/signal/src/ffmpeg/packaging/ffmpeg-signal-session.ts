@@ -1,13 +1,13 @@
 import type { Readable } from "node:stream";
 
+import { SignalError } from "../../errors.js";
 import type {
   SignalPlayoutItem,
   SignalPreparation,
   SignalSession,
-} from "../contracts.js";
-import { SignalError } from "../errors.js";
-import type { FfmpegProcess } from "./ffmpeg-process.js";
-import type { OutputReadinessInspector } from "./mpeg-ts-readiness-inspector.js";
+} from "../../signal-packager/contracts.js";
+import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { FfmpegProcess } from "../process/ffmpeg-process.js";
 
 /** Owns readiness and stop semantics for a single FFmpeg playout item. */
 export class FfmpegSignalSession implements SignalSession {

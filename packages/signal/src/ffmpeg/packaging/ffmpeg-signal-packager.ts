@@ -1,18 +1,18 @@
-import type {
-  SignalLogger,
-  SignalPackager,
-  SignalPlayoutItem,
-  SignalSession,
-  TimerScheduler,
-} from "../contracts.js";
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
-import { FfmpegProcess } from "./ffmpeg-process.js";
+import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
 import {
   MpegTsReadinessInspector,
   type OutputReadinessInspector,
-} from "./mpeg-ts-readiness-inspector.js";
-import type { ProcessSpawner } from "./process.js";
+} from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { ProcessSpawner } from "../../process/process-spawner.js";
+import type { TimerScheduler } from "../../runtime/clock.js";
+import type { SignalLogger } from "../../runtime/signal-logger.js";
+import type {
+  SignalPackager,
+  SignalPlayoutItem,
+  SignalSession,
+} from "../../signal-packager/contracts.js";
 
 export type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;

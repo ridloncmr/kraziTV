@@ -1,8 +1,13 @@
 import type { Readable } from "node:stream";
 
-import type { LogContext, SignalLogger, TimerScheduler } from "../contracts.js";
-import { SignalError } from "../errors.js";
-import type { ProcessExit, ProcessSpawner, SpawnedProcess } from "./process.js";
+import { SignalError } from "../../errors.js";
+import type {
+  ProcessExit,
+  ProcessSpawner,
+  SpawnedProcess,
+} from "../../process/process-spawner.js";
+import type { TimerScheduler } from "../../runtime/clock.js";
+import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 5_000;
 const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;

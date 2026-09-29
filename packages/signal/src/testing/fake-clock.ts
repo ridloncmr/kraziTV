@@ -1,4 +1,4 @@
-import type { Clock, ScheduledTask, TimerScheduler } from "../contracts.js";
+import type { Clock, ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 
 type TimerRecord = {
   id: number;

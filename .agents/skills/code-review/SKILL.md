@@ -20,6 +20,8 @@ Look for:
 - Missing or weak tests
 - Overly shallow modules
 - Files with multiple independent classes or muddied responsibilities
+- Growing flat or catch-all directories whose repeated prefixes or source-and-test
+  clusters should be grouped by domain
 - Accidental, unused, or overly broad exports
 - Missing concise why-comments on methods
 - Unclear domain names

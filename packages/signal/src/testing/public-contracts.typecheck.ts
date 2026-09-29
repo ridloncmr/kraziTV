@@ -5,8 +5,8 @@ import type {
   SignalLogger,
   TimerScheduler,
   TransitionCoordinator,
-} from "./index.js";
-import { createFfmpegSignalPackager } from "./index.js";
+} from "../index.js";
+import { createFfmpegSignalPackager } from "../index.js";
 
 // These fixtures import only the public entry point, proving server adapters do
 // not need signal internals.

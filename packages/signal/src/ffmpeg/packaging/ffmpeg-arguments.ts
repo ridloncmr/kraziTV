@@ -1,5 +1,5 @@
-import type { SignalPlayoutItem } from "../contracts.js";
-import { SignalError } from "../errors.js";
+import { SignalError } from "../../errors.js";
+import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 
 const VIDEO_FILTER =
   "scale=1920:1080:force_original_aspect_ratio=decrease," +

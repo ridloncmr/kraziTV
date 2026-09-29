@@ -1,0 +1,64 @@
+import type { DurationMs, TimestampMs } from "../runtime/clock.js";
+
+export type ChannelId = string;
+export type ScheduleEntryId = string;
+export type MediaItemId = string;
+
+export type SelectedPlayoutItem = {
+  channelId: ChannelId;
+  scheduleEntryId: ScheduleEntryId;
+  scheduleRevision: number;
+  mediaItemId: MediaItemId;
+  mediaPath: string;
+  title: string;
+  startsAt: TimestampMs;
+  endsAt: TimestampMs;
+  durationMs: DurationMs;
+  startOffsetMs: DurationMs;
+};
+
+export type CurrentPlayoutResult =
+  | {
+      status: "current";
+      channelId: ChannelId;
+      scheduleRevision: number;
+      evaluatedAt: TimestampMs;
+      mediaOffsetMs: DurationMs;
+      item: SelectedPlayoutItem;
+    }
+  | {
+      status: "no_current";
+      channelId: ChannelId;
+      scheduleRevision: number;
+      evaluatedAt: TimestampMs;
+      reason: "schedule_gap" | "media_unavailable";
+      scheduleEntryId?: ScheduleEntryId;
+    };
+
+export type FollowingPlayoutResult =
+  | {
+      status: "selected";
+      channelId: ChannelId;
+      scheduleRevision: number;
+      items: readonly SelectedPlayoutItem[];
+    }
+  | {
+      status: "stale_cursor";
+      channelId: ChannelId;
+      scheduleRevision: number;
+      items: readonly [];
+    };
+
+/** Each operation returns one complete, atomic schedule projection. */
+export interface PlayoutProvider {
+  getCurrent(
+    channelId: ChannelId,
+    atMs: TimestampMs,
+  ): Promise<CurrentPlayoutResult>;
+  getFollowing(
+    channelId: ChannelId,
+    afterScheduleEntryId: ScheduleEntryId,
+    count: number,
+  ): Promise<FollowingPlayoutResult>;
+  getScheduleRevision(channelId: ChannelId): Promise<number>;
+}

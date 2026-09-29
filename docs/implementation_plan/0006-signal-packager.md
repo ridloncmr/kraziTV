@@ -66,6 +66,24 @@ module graph. Export domain-facing contracts and construction entry points;
 keep FFmpeg argument builders, MPEG-TS inspection, lifecycle-state machinery,
 and test utilities internal.
 
+The source tree groups contracts and private implementations by capability
+rather than under one catch-all `internal` directory:
+
+```text
+packages/signal/src
+  channel-broadcast/    subscriber fan-out and buffering
+  channel-worker/       active channel worker lifecycle
+  ffmpeg/
+    packaging/          arguments, packager, and session
+    mpeg-ts/            MPEG-TS inspection
+    process/            FFmpeg-specific process lifecycle
+  playout/              selected playout projections and provider port
+  process/              provider-neutral process port and Node adapter
+  runtime/              clock, timer, and logging ports
+  signal-packager/      provider-neutral packaging contracts
+  testing/              reusable deterministic test doubles
+```
+
 ## Dependency and Decision Gates
 
 | Gate                                   | Required before                                  | Exit condition                                                                                                                             |

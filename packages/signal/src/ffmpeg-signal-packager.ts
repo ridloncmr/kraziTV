@@ -1,10 +1,8 @@
-import type {
-  SignalLogger,
-  SignalPackager,
-  TimerScheduler,
-} from "./contracts.js";
-import { FfmpegSignalPackager } from "./internal/ffmpeg-signal-packager.js";
-import { NodeProcessSpawner } from "./internal/node-process-spawner.js";
+import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
+import { NodeProcessSpawner } from "./process/node-process-spawner.js";
+import type { TimerScheduler } from "./runtime/clock.js";
+import type { SignalLogger } from "./runtime/signal-logger.js";
+import type { SignalPackager } from "./signal-packager/contracts.js";
 
 export type CreateFfmpegSignalPackagerOptions = {
   logger: SignalLogger;
