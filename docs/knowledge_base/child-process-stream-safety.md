@@ -11,6 +11,15 @@ FFmpeg work?
   a shell. It supports cancellation, a millisecond timeout, and a kill signal.
 - Sending a kill signal does not itself prove that a child has exited. Callers
   still need to observe process closure and escalate termination when necessary.
+- Node's `close` event follows process exit or spawn failure and indicates that
+  the child stdio streams have also closed. It is the lifecycle completion
+  boundary used by `packages/signal`.
+- A child-process `error` can report either spawn failure or a later failure to
+  deliver a termination signal. An error after the `spawn` event is therefore
+  not proof that the process closed.
+- On Windows, Node handles `SIGTERM` and `SIGKILL` as abrupt termination rather
+  than distinct graceful and forced behaviors. Cleanup must still wait for the
+  child `close` event on every platform.
 - ffprobe can emit JSON selected with explicit output and entry options, which is
   preferable to parsing human-oriented text.
 - Node writable streams signal backpressure by returning `false` from `write()`.
@@ -32,6 +41,13 @@ FFmpeg work?
 - Limit concurrent probes with a worker pool.
 - Confirm child closure after cancellation and escalate when a process does not
   exit during the grace period.
+- Treat only an error before Node's `spawn` event as a startup failure. A later
+  process error leaves closure verification pending so escalation or cleanup
+  failure remains observable.
+- Retain bounded stderr for diagnosis, but keep its raw contents out of generic
+  structured errors and automatic lifecycle logs. FFmpeg can include media
+  paths in stderr, so the owning session must deliberately sanitize or classify
+  the tail before logging it.
 - Continuously drain FFmpeg stdout into the owning channel broadcaster so one
   HTTP client's backpressure cannot stall the shared channel signal.
 - Fan broadcast output out through independent, bounded subscriber buffers.
