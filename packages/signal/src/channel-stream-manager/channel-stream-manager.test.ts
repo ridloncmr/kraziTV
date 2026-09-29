@@ -130,6 +130,11 @@ class FakeManagedWorker implements ManagedChannelWorker {
     this.output.write("x".repeat(1_024));
   }
 
+  /** Retains a fresh initialization point so later viewers can join again. */
+  restoreJoinability(): void {
+    this.output.write("INIT");
+  }
+
   /** Settles owned stream state after any arranged cleanup delay. */
   private async finishStop(): Promise<void> {
     await this.stopGate?.promise;
@@ -483,6 +488,43 @@ describe("ChannelStreamManager", () => {
     await failure;
     expect(worker.stopCalls).toBe(1);
     expect(worker.broadcaster.subscriberCount).toBe(0);
+    await manager.shutdown();
+  });
+
+  it("rejects only the new viewer when an active worker is temporarily not joinable", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = new ChannelStreamManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+    });
+    const first = manager.subscribe("channel-1");
+    await settlePromises();
+    const worker = new FakeManagedWorker("channel-1");
+    workerFactory.calls[0]?.result.resolve(worker);
+    const firstSubscription = await first;
+    firstSubscription.stream.resume();
+    await settlePromises();
+
+    worker.loseJoinability();
+    const error = await expectSignalError(
+      manager.subscribe("channel-1"),
+      "packaging_failed",
+    );
+
+    expect(error.details).toMatchObject({ reason: "worker_not_joinable" });
+    expect(worker.stopCalls).toBe(0);
+    expect(worker.broadcaster.subscriberCount).toBe(1);
+    expect(firstSubscription.stream.closed).toBe(false);
+    expect(workerFactory.calls).toHaveLength(1);
+
+    await settlePromises();
+    worker.restoreJoinability();
+    const laterSubscription = await manager.subscribe("channel-1");
+    expect(worker.broadcaster.subscriberCount).toBe(2);
+    expect(workerFactory.calls).toHaveLength(1);
+
+    laterSubscription.close();
+    firstSubscription.close();
     await manager.shutdown();
   });
 

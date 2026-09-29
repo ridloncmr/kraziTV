@@ -215,9 +215,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
         return;
       }
 
-      lifecycle.stopping = true;
       this.rejectWaiter(waiter, workerUnavailable(channelId));
-      await this.stopActiveLifecycle(lifecycle);
       return;
     }
 
