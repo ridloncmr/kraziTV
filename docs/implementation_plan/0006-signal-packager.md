@@ -86,13 +86,13 @@ packages/signal/src
 
 ## Dependency and Decision Gates
 
-| Gate                                   | Required before                                  | Exit condition                                                                                                                             |
-| -------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1: deterministic runtime contracts    | lifecycle implementation                         | Injected authorization, playout, transition, clock/timer, process, and logging seams exist without SQLite, Kysely, Fastify, or Plex types. |
-| G2: automated runtime confidence       | manual Plex run                                  | Fake-driven tests cover startup, fan-out, transitions, cancellation, idle grace, administrative stop retry, and shutdown.                  |
-| G3: FFmpeg/Plex compatibility evidence | freezing runtime defaults or accepting spec 0006 | The spike records measurable results and passes the 2,000 ms initial-tune-drift ceiling plus the newly recorded thresholds.                |
-| G4: specs 0002-0005 persistence        | production playout integration                   | Catalog, channels, schedules, and current/following playout snapshots are implemented with their documented transaction guarantees.        |
-| G5: production coordination            | full stream route acceptance                     | SQLite transition races pass in both orderings and stale output is never committed.                                                        |
+| Gate                                   | Required before                                  | Exit condition                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1: deterministic runtime contracts    | lifecycle implementation                         | Injected authorization, playout, transition, clock/timer, process, and logging seams exist without SQLite, Kysely, Fastify, or Plex types.    |
+| G2: automated runtime confidence       | manual Plex run                                  | Complete (SIG-009). Fake-driven tests cover startup, fan-out, transitions, cancellation, idle grace, administrative stop retry, and shutdown. |
+| G3: FFmpeg/Plex compatibility evidence | freezing runtime defaults or accepting spec 0006 | The spike records measurable results and passes the 2,000 ms initial-tune-drift ceiling plus the newly recorded thresholds.                   |
+| G4: specs 0002-0005 persistence        | production playout integration                   | Catalog, channels, schedules, and current/following playout snapshots are implemented with their documented transaction guarantees.           |
+| G5: production coordination            | full stream route acceptance                     | SQLite transition races pass in both orderings and stale output is never committed.                                                           |
 
 Until G3 passes, pacing flags, readiness detection, late-join replay shape,
 preparation topology, and numeric defaults are provisional configuration rather
@@ -532,10 +532,11 @@ manual debugger.
 
 **Scope**
 
-- Add package-level integration scenarios using fake playout, fake process, and
-  in-memory transition coordination.
-- Exercise the real manager, worker, broadcaster, and session orchestration
-  together.
+- Add package-level integration scenarios using fake playout, a fake signal
+  packager, and in-memory transition coordination. The FFmpeg session cannot
+  cross a boundary until SIG-010, so process-handle cleanup is covered by a
+  smaller tier that composes the real FFmpeg packager over fake processes.
+- Exercise the real manager, worker, broadcaster, and transition loop together.
 - Add leak assertions for timers, subscribers, sessions, preparations, and
   process handles after every failure scenario.
 
@@ -554,9 +555,7 @@ manual debugger.
 - Bound every `TransitionLoop` await (`getFollowing`, `prepare`,
   `commitPreparedTransition`, `getCurrent`, `discard`) by a transition
   deadline, such as the boundary plus the recovery timeout, and fail the
-  worker when it expires. SIG-008 checks the recovery deadline only between
-  attempts, so a hung dependency currently leaves the channel silent while the
-  worker stays published, and `stop()` waits for it.
+  worker when it expires.
 
 **Verification**
 
@@ -624,6 +623,21 @@ through the smallest hard-coded Plex/HDHomeRun harness.
   silent media, so synthesize silence instead.
 - Individual item exits are internal to the session: `completion` settles only
   on stop or fatal failure, per the `SignalSession` contract.
+- Honor the `SignalSession.stop()` contract: stop ends an in-flight
+  `prepare()` or `discard()` before it settles, including any ffprobe
+  validation child. The worker stops the session concurrently with halting its
+  transition loop and relies on this for both ordinary stops and transition
+  deadline failures.
+- The worker's transition deadline ends at `commit()`. Give the session its own
+  per-item readiness timeout after a commit that rejects `completion` as fatal,
+  so a next encoder that never produces output cannot leave a published channel
+  idle.
+- Detach the old encoder's stdout before signalling it, because FFmpeg flushes
+  its muxer on SIGTERM and would otherwise append old-item bytes after the new
+  item.
+- Decide whether each splice sets the MPEG-TS discontinuity indicator or relies
+  on client resync for continuity-counter and PCR/PTS jumps, and whether a
+  commit that lands after its boundary seeks forward by its lateness.
 - Decide whether the harness reuses `InMemoryTransitionCoordinator` through a
   `./testing` package export or supplies its own fake; `src/testing` is not
   exported today.
@@ -656,6 +670,9 @@ Produce the evidence required to make spec 0006 acceptably precise.
 - Compare the simplest viable preparation/continuity and late-join strategies.
 - Choose measurable thresholds/defaults for pacing drift, subscriber buffer,
   startup timeout, late-join behavior, and idle-grace duration.
+- Measure how long Plex tolerates a live connection without MPEG-TS output, then
+  either confirm `startupTimeoutMs` as the transition deadline window or split
+  out a separate setting.
 - Measure the output gap at each item boundary, the tail truncated by late
   commits, and commit latency, then set `prepareLeadMs` and any boundary gap
   bound from the results.

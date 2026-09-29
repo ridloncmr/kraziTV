@@ -96,7 +96,7 @@ const createHarness = () => {
         ? undefined
         : retainedBytes.indexOf("INIT"),
   });
-  return { child, clock, manager };
+  return { child, clock, manager, playoutProvider, spawner };
 };
 
 const lifecycleStops: ReadonlyArray<{
@@ -161,5 +161,64 @@ describe("createChannelStreamManager", () => {
     expect(child.terminationSignals).toEqual(["SIGTERM", "SIGKILL", "SIGTERM"]);
     child.exit({ code: null, signal: "SIGKILL" });
     await retryShutdown;
+  });
+
+  it("spawns no second FFmpeg child until a cancelled startup's child has exited", async () => {
+    const { child, clock, manager, playoutProvider, spawner } = createHarness();
+    const controller = new AbortController();
+    const subscribing = manager.subscribe("channel-1", {
+      signal: controller.signal,
+    });
+    await settlePromises();
+
+    // Cancellation is caller-owned, so the viewer is released at once; the
+    // manager, not the waiter, keeps one encoder per channel.
+    controller.abort();
+    await expect(subscribing).rejects.toMatchObject({
+      code: "subscription_aborted",
+    });
+    expect(child.terminationSignals).toEqual(["SIGTERM"]);
+
+    const replacement = new FakeProcess();
+    spawner.enqueue(replacement);
+    playoutProvider.enqueueCurrent(currentItem(1_000));
+    playoutProvider.enqueueCurrent(currentItem(1_000));
+    const retrying = manager.subscribe("channel-1");
+    await settlePromises();
+    expect(spawner.spawnCalls).toHaveLength(1);
+
+    child.exit({ code: null, signal: "SIGTERM" });
+    await settlePromises();
+    expect(spawner.spawnCalls).toHaveLength(2);
+
+    replacement.writeStdout("INIT usable-output");
+    (await retrying).stream.resume();
+    const shutdown = manager.shutdown();
+    await settlePromises();
+    replacement.exit({ code: null, signal: "SIGTERM" });
+    await shutdown;
+    expect(clock.pendingTimerCount).toBe(0);
+  });
+
+  it("terminates the FFmpeg child when startup outlasts its timeout", async () => {
+    const { child, clock, manager } = createHarness();
+    const subscribing = manager.subscribe("channel-1");
+    let subscribeSettled = false;
+    void subscribing.catch(() => (subscribeSettled = true));
+    const rejected = expect(subscribing).rejects.toMatchObject({
+      code: "worker_startup_timeout",
+    });
+    await settlePromises();
+
+    clock.advanceBy(5_000);
+    await settlePromises();
+    expect(child.terminationSignals).toEqual(["SIGTERM"]);
+    expect(subscribeSettled).toBe(false);
+
+    child.exit({ code: null, signal: "SIGTERM" });
+    await rejected;
+    await settlePromises();
+    expect(clock.pendingTimerCount).toBe(0);
+    await manager.shutdown();
   });
 });

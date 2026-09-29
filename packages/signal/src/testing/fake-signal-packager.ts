@@ -13,11 +13,17 @@ type PreparationState = "pending" | "committed" | "discarded";
 
 export class FakeSignalPreparation implements SignalPreparation {
   private state: PreparationState = "pending";
+  private discardWasRequested = false;
 
   constructor(
     private readonly owner: FakeSignalSession,
     readonly item: SignalPlayoutItem,
   ) {}
+
+  /** Lets the session tell a worker release apart from its own stop cleanup. */
+  get discardRequested(): boolean {
+    return this.discardWasRequested;
+  }
 
   commit(): void {
     if (this.state === "committed") {
@@ -30,7 +36,13 @@ export class FakeSignalPreparation implements SignalPreparation {
     this.state = "committed";
   }
 
-  async discard(): Promise<void> {
+  /** Lets the session's stop observe every release still in flight. */
+  discard(): Promise<void> {
+    this.discardWasRequested = true;
+    return this.owner.trackDiscard(this.release());
+  }
+
+  private async release(): Promise<void> {
     if (this.state !== "pending") return;
     await this.owner.beforeDiscard();
     if (this.state !== "pending") return;
@@ -46,6 +58,11 @@ export class FakeSignalSession implements SignalSession {
   readonly discardedItems: SignalPlayoutItem[] = [];
   readonly prepareCalls: SignalPlayoutItem[] = [];
   stopCalls = 0;
+  /**
+   * Preparations that stop had to release because no caller had asked to. The
+   * session tolerates this, but it proves the worker never discarded them.
+   */
+  unreleasedAtStop = 0;
 
   private readonly readyState = new Deferred<void>();
   private readonly completionState = new Deferred<void>();
@@ -54,7 +71,13 @@ export class FakeSignalSession implements SignalSession {
   private nextPrepareGate?: Deferred<void>;
   private discardFailures: unknown[] = [];
   private nextDiscardGate?: Deferred<void>;
+  /** Set when stop begins; ends in-flight preparation and refuses new work. */
+  private stopping = false;
+  /** Set only once stop has released everything, so leak checks can trust it. */
   private stopped = false;
+  private readonly stopRequested = new Deferred<void>();
+  private preparing?: Promise<unknown>;
+  private readonly discarding = new Set<Promise<void>>();
 
   constructor(initialItem: SignalPlayoutItem) {
     this.committedItems = [initialItem];
@@ -67,10 +90,27 @@ export class FakeSignalSession implements SignalSession {
     return this.readyState.promise;
   }
 
-  async prepare(item: SignalPlayoutItem): Promise<FakeSignalPreparation> {
-    if (this.stopped) {
-      throw new Error("Cannot prepare an item after the session has stopped");
-    }
+  /** Lets leak assertions prove the session's encoder resources were released. */
+  get isStopped(): boolean {
+    return this.stopped;
+  }
+
+  /** Lets leak assertions prove no prepared item outlived its worker. */
+  get hasOutstandingPreparation(): boolean {
+    return this.currentPreparation !== undefined;
+  }
+
+  /** Honors the stop contract: stopping ends an in-flight preparation. */
+  prepare(item: SignalPlayoutItem): Promise<FakeSignalPreparation> {
+    const preparing = this.prepareUnlessStopped(item);
+    this.preparing = preparing;
+    return preparing;
+  }
+
+  private async prepareUnlessStopped(
+    item: SignalPlayoutItem,
+  ): Promise<FakeSignalPreparation> {
+    if (this.stopping) throw stoppedError();
     if (this.currentPreparation) {
       throw new Error("Session already has an outstanding preparation");
     }
@@ -80,7 +120,8 @@ export class FakeSignalSession implements SignalSession {
     if (failure) throw failure.reason;
     const gate = this.nextPrepareGate;
     this.nextPrepareGate = undefined;
-    if (gate) await gate.promise;
+    if (gate) await Promise.race([gate.promise, this.stopRequested.promise]);
+    if (this.stopping) throw stoppedError();
     const preparation = new FakeSignalPreparation(this, item);
     this.currentPreparation = preparation;
     return preparation;
@@ -108,12 +149,21 @@ export class FakeSignalSession implements SignalSession {
     return this.nextDiscardGate;
   }
 
-  /** Applies any arranged discard failure or pause before releasing. */
+  /** Applies any arranged discard failure or pause; stop ends the pause. */
   async beforeDiscard(): Promise<void> {
     if (this.discardFailures.length > 0) throw this.discardFailures.shift();
     const gate = this.nextDiscardGate;
     this.nextDiscardGate = undefined;
-    if (gate) await gate.promise;
+    if (gate) await Promise.race([gate.promise, this.stopRequested.promise]);
+  }
+
+  /** Records a release so stop can settle it before reporting success. */
+  trackDiscard(discard: Promise<void>): Promise<void> {
+    this.discarding.add(discard);
+    void discard
+      .finally(() => this.discarding.delete(discard))
+      .catch(() => undefined);
+    return discard;
   }
 
   resolveReady(): void {
@@ -130,6 +180,7 @@ export class FakeSignalSession implements SignalSession {
   }
 
   commitPreparation(preparation: FakeSignalPreparation): void {
+    if (this.stopping) throw stoppedError();
     this.assertCurrentPreparation(preparation);
     this.currentPreparation = undefined;
     this.committedItems.push(preparation.item);
@@ -141,16 +192,25 @@ export class FakeSignalSession implements SignalSession {
     this.discardedItems.push(preparation.item);
   }
 
+  /**
+   * Ends in-flight preparation and discards, then releases what remains. A
+   * failed release leaves the session unstopped so a later stop can retry it.
+   */
   async stop(): Promise<void> {
     if (this.stopped) return;
-    this.stopped = true;
+    this.stopping = true;
     this.stopCalls += 1;
+    this.stopRequested.resolve(undefined);
+    await this.preparing?.catch(() => undefined);
+    if (this.currentPreparation?.discardRequested === false) {
+      this.unreleasedAtStop += 1;
+    }
     await this.currentPreparation?.discard();
-    this.readyState.reject(
-      new SignalError("packaging_stopped", "Signal session stopped"),
-    );
+    await Promise.allSettled([...this.discarding]);
+    this.readyState.reject(stoppedError());
     this.output.end();
     this.completionState.resolve(undefined);
+    this.stopped = true;
   }
 
   private assertCurrentPreparation(preparation: FakeSignalPreparation): void {
@@ -158,6 +218,11 @@ export class FakeSignalSession implements SignalSession {
       throw new Error("Preparation is not owned by this session");
     }
   }
+}
+
+/** The typed failure every post-stop session operation reports. */
+function stoppedError(): SignalError {
+  return new SignalError("packaging_stopped", "Signal session stopped");
 }
 
 export class FakeSignalPackager implements SignalPackager {

@@ -52,6 +52,14 @@ type PlannedTransition = {
   endsAt: TimestampMs;
 };
 
+type TransitionStep =
+  | "following_lookup"
+  | "current_lookup"
+  | "prepare"
+  | "commit"
+  | "discard"
+  | "recovery";
+
 /** Unwinds the loop quietly once the worker has halted it. */
 class Halted extends Error {}
 
@@ -61,7 +69,8 @@ class Halted extends Error {}
  */
 export class TransitionLoop {
   private halted = false;
-  private wake: { task: ScheduledTask; resolve: () => void } | undefined;
+  /** Cancels the current interruptible wait and lets the loop observe a halt. */
+  private wake: (() => void) | undefined;
   private preparation: SignalPreparation | undefined;
   private discarding: Promise<void> | undefined;
 
@@ -71,17 +80,24 @@ export class TransitionLoop {
     private airing: AiringItem,
   ) {}
 
-  /** Runs until halted, rejecting only with a failure fatal to the worker. */
+  /**
+   * Runs until halted, rejecting only with a failure fatal to the worker. A
+   * failure is reported without waiting on the discard it starts, because the
+   * worker's stop awaits that discard and a stalled one must not extend the
+   * expired item. A halt retries the discard that halt itself could not finish.
+   */
   async run(): Promise<void> {
     try {
       while (true) {
         await this.transitionOnce();
       }
     } catch (error) {
-      if (this.halted) return;
+      if (this.halted) {
+        await this.releasePreparation().catch(() => undefined);
+        return;
+      }
+      void this.releasePreparation().catch(() => undefined);
       throw normalizeTransitionError(error, this.options.channelId);
-    } finally {
-      await this.releasePreparation().catch(() => undefined);
     }
   }
 
@@ -95,20 +111,30 @@ export class TransitionLoop {
     this.halted = true;
     const wake = this.wake;
     this.wake = undefined;
-    wake?.task.cancel();
-    wake?.resolve();
+    wake?.();
     await this.releasePreparation();
   }
 
-  /** Crosses one boundary, falling back to fresh selection when stale. */
+  /**
+   * Crosses one boundary, falling back to fresh selection when stale. Every
+   * dependency call shares one absolute deadline so a stalled lookup, encoder,
+   * or coordinator fails the worker instead of silencing a published channel.
+   */
   private async transitionOnce(): Promise<void> {
     const boundaryAt = this.airing.endsAt;
+    const deadlineAt = boundaryAt + this.options.recoveryTimeoutMs;
     await this.sleepUntil(boundaryAt - this.options.prepareLeadMs);
     const following = selectContiguousFollowing(
-      await this.options.playoutProvider.getFollowing(
-        this.options.channelId,
-        this.airing.scheduleEntryId,
-        1,
+      await this.bounded(
+        "following_lookup",
+        deadlineAt,
+        () =>
+          this.options.playoutProvider.getFollowing(
+            this.options.channelId,
+            this.airing.scheduleEntryId,
+            1,
+          ),
+        { interruptible: true },
       ),
       this.options.channelId,
       boundaryAt,
@@ -127,28 +153,35 @@ export class TransitionLoop {
           endsAt: following.endsAt,
         },
         boundaryAt,
+        deadlineAt,
       );
       if (committed) return;
     }
 
     await this.sleepUntil(boundaryAt);
-    await this.recover();
+    await this.recover(deadlineAt);
   }
 
-  /** Commits the playout airing now, bounded by attempts and wall time. */
-  private async recover(): Promise<void> {
-    const deadlineAt =
-      this.options.clock.now() + this.options.recoveryTimeoutMs;
+  /** Commits the playout airing now, bounded by attempts and the deadline. */
+  private async recover(deadlineAt: TimestampMs): Promise<void> {
     for (let attempt = 0; attempt < MAX_RECOVERY_ATTEMPTS; attempt += 1) {
       const current = requireCurrent(
-        await this.options.playoutProvider.getCurrent(
-          this.options.channelId,
-          this.options.clock.now(),
+        await this.bounded(
+          "current_lookup",
+          deadlineAt,
+          () =>
+            this.options.playoutProvider.getCurrent(
+              this.options.channelId,
+              this.options.clock.now(),
+            ),
+          { interruptible: true },
         ),
         this.options.channelId,
       );
       this.checkHalted();
-      if (this.options.clock.now() >= deadlineAt) break;
+      if (this.options.clock.now() >= deadlineAt) {
+        throw this.deadlineError("recovery");
+      }
 
       const committed = await this.prepareAndCommit(
         {
@@ -162,14 +195,20 @@ export class TransitionLoop {
         },
         // Already past; provider evaluatedAt is never trusted as a wait target.
         this.airing.endsAt,
+        deadlineAt,
       );
       if (committed) return;
-      if (this.options.clock.now() >= deadlineAt) break;
+      if (this.options.clock.now() >= deadlineAt) {
+        throw this.deadlineError("recovery");
+      }
     }
     throw new SignalError(
       "transition_failed",
       `Channel ${this.options.channelId} could not commit fresh playout`,
-      { channelId: this.options.channelId },
+      {
+        channelId: this.options.channelId,
+        reason: "recovery_attempts_exhausted",
+      },
     );
   }
 
@@ -180,10 +219,18 @@ export class TransitionLoop {
   private async prepareAndCommit(
     planned: PlannedTransition,
     boundaryAt: TimestampMs,
+    deadlineAt: TimestampMs,
   ): Promise<boolean> {
     let preparation: SignalPreparation;
     try {
-      preparation = await this.options.session.prepare(planned.item);
+      // Not interruptible: stopping the session ends an in-flight prepare
+      // (SignalSession.stop contract), so halting never abandons its result.
+      preparation = await this.bounded(
+        "prepare",
+        deadlineAt,
+        () => this.options.session.prepare(planned.item),
+        { interruptible: false },
+      );
     } catch (cause) {
       throw normalizePreparationError(cause, this.options.channelId);
     }
@@ -191,17 +238,29 @@ export class TransitionLoop {
     this.checkHalted();
 
     await this.sleepUntil(boundaryAt);
-    const outcome =
-      await this.options.transitionCoordinator.commitPreparedTransition(
-        planned.candidate,
-        () => {
-          if (this.halted) {
-            throw new Halted("Channel worker stopped before commit");
-          }
-          preparation.commit();
-          if (this.preparation === preparation) this.preparation = undefined;
-        },
-      );
+    const outcome = await this.bounded(
+      "commit",
+      deadlineAt,
+      () =>
+        this.options.transitionCoordinator.commitPreparedTransition(
+          planned.candidate,
+          () => {
+            // The clock, not loop bookkeeping, refuses a late callback: the
+            // loop may not have observed its own expiry yet.
+            if (this.halted) {
+              throw new Halted("Channel worker stopped before commit");
+            }
+            if (this.options.clock.now() >= deadlineAt) {
+              throw this.deadlineError("commit");
+            }
+            preparation.commit();
+            if (this.preparation === preparation) {
+              this.preparation = undefined;
+            }
+          },
+        ),
+      { interruptible: true },
+    );
     this.checkHalted();
 
     if (outcome === "committed") {
@@ -218,7 +277,7 @@ export class TransitionLoop {
       };
       return true;
     }
-    await this.releasePreparation();
+    await this.releasePreparation(deadlineAt);
     return false;
   }
 
@@ -231,9 +290,10 @@ export class TransitionLoop {
     while (this.options.clock.now() < atMs) {
       const delayMs = atMs - this.options.clock.now();
       await new Promise<void>((resolve) => {
-        this.wake = {
-          task: this.options.timers.setTimeout(resolve, delayMs),
-          resolve,
+        const task = this.options.timers.setTimeout(resolve, delayMs);
+        this.wake = () => {
+          task.cancel();
+          resolve();
         };
       });
       this.wake = undefined;
@@ -242,24 +302,94 @@ export class TransitionLoop {
   }
 
   /**
-   * Discards the held preparation through one shared attempt so halt and loop
-   * unwinding never overlap; a failed discard stays held for retry.
+   * Waits for one dependency call until an absolute deadline. Like sleeps, the
+   * clock rather than the timer decides expiry, so an early timer re-arms.
+   * Only an interruptible wait also ends when the loop halts.
    */
-  private releasePreparation(): Promise<void> {
-    if (this.discarding !== undefined) return this.discarding;
-    const preparation = this.preparation;
-    if (preparation === undefined) return Promise.resolve();
+  private async bounded<T>(
+    step: TransitionStep,
+    deadlineAt: TimestampMs,
+    operation: () => Promise<T>,
+    { interruptible }: { interruptible: boolean },
+  ): Promise<T> {
+    if (interruptible) this.checkHalted();
+    if (this.options.clock.now() >= deadlineAt) {
+      throw this.deadlineError(step);
+    }
 
-    const attempt = preparation.discard().then(() => {
-      if (this.preparation === preparation) this.preparation = undefined;
+    const pending = operation();
+    let task: ScheduledTask | undefined;
+    let settleEarly!: (reason: "expired" | "halted") => void;
+    const early = new Promise<"expired" | "halted">((resolve) => {
+      settleEarly = resolve;
     });
-    this.discarding = attempt;
-    void attempt
-      .finally(() => {
-        if (this.discarding === attempt) this.discarding = undefined;
-      })
-      .catch(() => undefined);
-    return attempt;
+    const arm = (): void => {
+      task = this.options.timers.setTimeout(() => {
+        if (this.options.clock.now() < deadlineAt) arm();
+        else settleEarly("expired");
+      }, deadlineAt - this.options.clock.now());
+    };
+    arm();
+    const wake = (): void => {
+      task?.cancel();
+      settleEarly("halted");
+    };
+    if (interruptible) this.wake = wake;
+
+    try {
+      const result = await Promise.race([
+        pending.then((value) => ({ value })),
+        early,
+      ]);
+      if (typeof result === "object") return result.value;
+      void pending.catch(() => undefined);
+      if (result === "halted") this.checkHalted();
+      throw this.deadlineError(step);
+    } finally {
+      task?.cancel();
+      if (this.wake === wake) this.wake = undefined;
+    }
+  }
+
+  /** Classifies an expired dependency call as a worker-fatal transition failure. */
+  private deadlineError(step: TransitionStep): SignalError {
+    return new SignalError(
+      "transition_failed",
+      `Channel ${this.options.channelId} did not finish ${step} before its transition deadline`,
+      {
+        channelId: this.options.channelId,
+        step,
+        reason: "deadline_exceeded",
+      },
+    );
+  }
+
+  /**
+   * Discards the held preparation through one shared attempt so halt and loop
+   * unwinding never overlap. A failed or expired discard stays held for retry,
+   * so a stalled encoder cannot keep stop waiting indefinitely. Inside a
+   * transition the discard shares that transition's deadline.
+   */
+  private releasePreparation(
+    deadlineAt = this.options.clock.now() + this.options.recoveryTimeoutMs,
+  ): Promise<void> {
+    const preparation = this.preparation;
+    if (this.discarding === undefined && preparation !== undefined) {
+      const attempt = preparation.discard().then(() => {
+        if (this.preparation === preparation) this.preparation = undefined;
+      });
+      this.discarding = attempt;
+      void attempt
+        .finally(() => {
+          if (this.discarding === attempt) this.discarding = undefined;
+        })
+        .catch(() => undefined);
+    }
+    const discarding = this.discarding;
+    if (discarding === undefined) return Promise.resolve();
+    return this.bounded("discard", deadlineAt, () => discarding, {
+      interruptible: false,
+    });
   }
 
   /** Converts a halt observed after any await into quiet unwinding. */

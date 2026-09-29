@@ -337,6 +337,15 @@ must not perform asynchronous preparation or return before acceptance. A callbac
 worker/session failure; the expired previous item must not be extended to
 conceal it.
 
+Every dependency call in a transition (following and current lookups,
+preparation, the coordinator commit, and discarding a stale preparation) shares
+one absolute deadline: the scheduled boundary plus the worker's configured
+recovery window, currently `startupTimeoutMs`. A call that has not finished by
+then fails the worker with `transition_failed` and a `deadline_exceeded` reason,
+and a commit callback arriving at or after the deadline is refused. Until the
+deadline, a published worker may be silent and still accepts viewers; after it,
+the worker is unpublished and the next tune request starts a fresh worker.
+
 Schedule regeneration uses its transaction's time after acquiring the same
 write authority. If regeneration acquires authority first, it commits its new
 revision before the worker can validate, so the worker discards the stale
@@ -391,6 +400,14 @@ exactly once and is the only operation that makes it authoritative for output.
 `discard()` releases an uncommitted preparation and is idempotent. Committing a
 preparation from another session, or committing one that was already committed
 or discarded, fails without changing output.
+
+The session alone guarantees release of what it prepares. Once `stop()` is
+called, an in-flight `prepare()` rejects with `packaging_stopped` and an
+in-flight `discard()` settles before `stop()` settles, and later `prepare()`
+calls reject. `stop()` resolves only after every encoder process it owns has
+exited and may be retried after a failure; afterward `discard()` is a no-op and
+`commit()` throws. The worker stops the session concurrently with its
+transition loop and relies on this rather than waiting on encoder work itself.
 
 Minimum selected playout item fields:
 

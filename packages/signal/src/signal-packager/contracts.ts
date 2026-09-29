@@ -47,5 +47,15 @@ export interface SignalSession {
   readonly completion: Promise<void>;
   readonly output: Readable;
   prepare(item: SignalPlayoutItem): Promise<SignalPreparation>;
+  /**
+   * The session alone owns release of what it prepares; the worker stops it
+   * concurrently with its transition loop and relies on stop to end any
+   * preparation that loop is still waiting for.
+   * Once called, an in-flight prepare() rejects with `packaging_stopped` and an
+   * in-flight discard() settles before stop settles, and later prepare() calls
+   * reject. Stop resolves only after every encoder process, including one
+   * still stopping after a commit, has exited; a failed stop may be retried.
+   * After stop, discard() is a no-op and commit() throws.
+   */
   stop(): Promise<void>;
 }

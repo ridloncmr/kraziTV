@@ -22,7 +22,10 @@ export type ChannelWorkerOptions = {
   transitionCoordinator: TransitionCoordinator;
   /** How long before each boundary the following item is selected and prepared. */
   prepareLeadMs: number;
-  /** Also bounds recovery when a prepared transition is stale. */
+  /**
+   * Also bounds each transition: every dependency call must finish by the
+   * scheduled boundary plus this window, or the worker fails.
+   */
   startupTimeoutMs: number;
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;

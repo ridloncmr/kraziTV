@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { SignalError } from "../errors.js";
 import type {
@@ -138,6 +138,22 @@ const startWorker = async (
 
 const committedEntries = (session: FakeSignalSession): string[] =>
   session.committedItems.map((item) => item.scheduleEntryId);
+
+/** A dependency call that never answers, as a stalled database or encoder. */
+const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
+
+/** Records whether a promise has settled without consuming its outcome. */
+const trackSettled = (promise: Promise<unknown>): (() => boolean) => {
+  let settled = false;
+  void promise.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  return () => settled;
+};
+
+/** Boundary of entry-1 plus the recovery timeout the harness configures. */
+const TRANSITION_DEADLINE_MS = 15_000;
 
 describe("ChannelWorker following-item transitions", () => {
   it("prepares the following item only once its lead time arrives", async () => {
@@ -403,7 +419,13 @@ describe("ChannelWorker following-item transitions", () => {
 
     await advanceTo(setup.clock, 10_000);
 
-    await expectSignalError(worker.completion, "transition_failed");
+    const error = await expectSignalError(
+      worker.completion,
+      "transition_failed",
+    );
+    expect(error.details).toMatchObject({
+      reason: "recovery_attempts_exhausted",
+    });
     expect(setup.coordinator.calls).toHaveLength(3);
     expect(session.discardedItems).toHaveLength(3);
     expect(session.stopCalls).toBe(1);
@@ -425,7 +447,11 @@ describe("ChannelWorker following-item transitions", () => {
 
     await advanceTo(setup.clock, 10_000);
 
-    await expectSignalError(worker.completion, "transition_failed");
+    const error = await expectSignalError(
+      worker.completion,
+      "transition_failed",
+    );
+    expect(error.details).toMatchObject({ reason: "deadline_exceeded" });
     expect(setup.provider.currentCalls).toHaveLength(3);
     expect(session.stopCalls).toBe(1);
   });
@@ -492,27 +518,22 @@ describe("ChannelWorker following-item transitions", () => {
     },
   );
 
-  it("stop waits for a late preparation and discards it", async () => {
+  it("stop settles once the session ends an in-flight preparation, not at the deadline", async () => {
     const setup = harness();
     setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
     const { worker, session } = await startWorker(setup);
-    const gate = session.pauseNextPrepare();
+    session.pauseNextPrepare();
     await advanceTo(setup.clock, 8_000);
     expect(session.prepareCalls).toHaveLength(1);
 
-    let stopped = false;
-    const stopping = worker.stop().then(() => {
-      stopped = true;
-    });
-    await settlePromises();
-    expect(stopped).toBe(false);
+    await worker.stop();
 
-    gate.resolve();
-    await stopping;
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(setup.clock.now()).toBe(8_000);
+    expect(session.hasOutstandingPreparation).toBe(false);
+    expect(session.unreleasedAtStop).toBe(0);
     expect(committedEntries(session)).toEqual(["entry-1"]);
+    await expect(worker.completion).resolves.toBeUndefined();
+    expect(setup.clock.pendingTimerCount).toBe(0);
   });
 
   it("discards a held preparation when the session ends on its own", async () => {
@@ -654,5 +675,183 @@ describe("ChannelWorker following-item transitions", () => {
 
     expect(committedEntries(session)).toEqual(["entry-1", "entry-2"]);
     await worker.stop();
+  });
+
+  it.each([
+    ["following", false],
+    ["current", true],
+  ])(
+    "fails the worker at its transition deadline when the %s lookup never answers",
+    async (label, followingSucceeds) => {
+      const setup = harness();
+      if (followingSucceeds) setup.provider.enqueueFollowing(following());
+      const { worker, session } = await startWorker(setup);
+      const lookup = label === "following" ? "getFollowing" : "getCurrent";
+      vi.spyOn(setup.provider, lookup).mockImplementation(never);
+      const settled = trackSettled(worker.completion);
+
+      await advanceTo(setup.clock, 8_000);
+      await advanceTo(setup.clock, 10_000);
+      await advanceTo(setup.clock, TRANSITION_DEADLINE_MS - 1);
+      expect(settled()).toBe(false);
+
+      await advanceTo(setup.clock, TRANSITION_DEADLINE_MS);
+      const error = await expectSignalError(
+        worker.completion,
+        "transition_failed",
+      );
+      expect(error.details).toMatchObject({ reason: "deadline_exceeded" });
+      expect(session.stopCalls).toBe(1);
+      expect(setup.clock.pendingTimerCount).toBe(0);
+    },
+  );
+
+  it("fails the worker when preparation outlasts its deadline and leaves no preparation behind", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const { worker, session } = await startWorker(setup);
+    const gate = session.pauseNextPrepare();
+    await advanceTo(setup.clock, 8_000);
+    expect(session.prepareCalls).toHaveLength(1);
+
+    await advanceTo(setup.clock, TRANSITION_DEADLINE_MS);
+    const error = await expectSignalError(
+      worker.completion,
+      "transition_failed",
+    );
+    expect(error.details).toMatchObject({
+      reason: "deadline_exceeded",
+      step: "prepare",
+    });
+    expect(session.isStopped).toBe(true);
+
+    gate.resolve();
+    await settlePromises();
+    expect(session.hasOutstandingPreparation).toBe(false);
+    expect(committedEntries(session)).toEqual(["entry-1"]);
+    expect(setup.clock.pendingTimerCount).toBe(0);
+  });
+
+  it("fails the worker when the coordinator never answers and refuses its late commit", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    let commit: (() => void) | undefined;
+    const coordinator: TransitionCoordinator = {
+      commitPreparedTransition(_candidate, callback) {
+        commit = callback;
+        return never();
+      },
+    };
+    const { worker, session } = await startWorker(setup, {
+      transitionCoordinator: coordinator,
+    });
+    await advanceTo(setup.clock, 8_000);
+    await advanceTo(setup.clock, 10_000);
+    expect(commit).toBeDefined();
+
+    await advanceTo(setup.clock, TRANSITION_DEADLINE_MS);
+    await expectSignalError(worker.completion, "transition_failed");
+
+    expect(() => commit?.()).toThrow();
+    expect(committedEntries(session)).toEqual(["entry-1"]);
+    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
+      "entry-2",
+    ]);
+    expect(setup.clock.pendingTimerCount).toBe(0);
+  });
+
+  it("fails the worker when a stale discard stalls, then lets session stop release it", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    setup.coordinator.setSchedule(CHANNEL, 8, [entry("entry-1", 0)]);
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 8_000);
+    session.pauseNextDiscard();
+    await advanceTo(setup.clock, 10_000);
+    expect(setup.coordinator.calls).toHaveLength(1);
+    const settled = trackSettled(worker.completion);
+
+    await advanceTo(setup.clock, TRANSITION_DEADLINE_MS - 1);
+    expect(settled()).toBe(false);
+    await advanceTo(setup.clock, TRANSITION_DEADLINE_MS);
+    const error = await expectSignalError(
+      worker.completion,
+      "transition_failed",
+    );
+    expect(error.details).toMatchObject({ step: "discard" });
+
+    await expect(worker.stop()).resolves.toBeUndefined();
+    expect(session.isStopped).toBe(true);
+    expect(session.hasOutstandingPreparation).toBe(false);
+    expect(setup.clock.pendingTimerCount).toBe(0);
+  });
+
+  it("refuses a commit callback that races the deadline before the worker halts", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const gate = new Deferred<void>();
+    let refusal: unknown;
+    const coordinator: TransitionCoordinator = {
+      async commitPreparedTransition(_candidate, callback) {
+        await gate.promise;
+        try {
+          callback();
+        } catch (error) {
+          refusal = error;
+          throw error;
+        }
+        return "committed";
+      },
+    };
+    const { worker, session } = await startWorker(setup, {
+      transitionCoordinator: coordinator,
+    });
+    await advanceTo(setup.clock, 8_000);
+    await advanceTo(setup.clock, 10_000);
+
+    setup.clock.advanceTo(TRANSITION_DEADLINE_MS);
+    gate.resolve();
+    await settlePromises();
+
+    expect(refusal).toMatchObject({
+      code: "transition_failed",
+      details: { reason: "deadline_exceeded", step: "commit" },
+    });
+    expect(committedEntries(session)).toEqual(["entry-1"]);
+    await expectSignalError(worker.completion, "transition_failed");
+  });
+
+  it("bounds a stale discard by the transition deadline, not by when it started", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const coordinator: TransitionCoordinator = {
+      async commitPreparedTransition() {
+        setup.clock.advanceBy(2_000);
+        return "stale";
+      },
+    };
+    const { worker, session } = await startWorker(setup, {
+      transitionCoordinator: coordinator,
+    });
+    await advanceTo(setup.clock, 8_000);
+    session.pauseNextDiscard();
+    await advanceTo(setup.clock, 10_000);
+    const settled = trackSettled(worker.completion);
+
+    await advanceTo(setup.clock, TRANSITION_DEADLINE_MS);
+    expect(settled()).toBe(true);
+    await expectSignalError(worker.completion, "transition_failed");
+  });
+
+  it("stops without waiting for a lookup that never answers", async () => {
+    const setup = harness();
+    const { worker } = await startWorker(setup);
+    vi.spyOn(setup.provider, "getFollowing").mockImplementation(never);
+    await advanceTo(setup.clock, 8_000);
+    expect(setup.provider.getFollowing).toHaveBeenCalledOnce();
+
+    await expect(worker.stop()).resolves.toBeUndefined();
+    await expect(worker.completion).resolves.toBeUndefined();
+    expect(setup.clock.pendingTimerCount).toBe(0);
   });
 });

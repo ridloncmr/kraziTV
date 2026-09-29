@@ -88,4 +88,61 @@ describe("FakeSignalPackager", () => {
     expect(session.stopCalls).toBe(1);
     expect(session.discardedItems).toEqual([item("entry-2")]);
   });
+
+  it("rejects an in-flight preparation before stop settles", async () => {
+    const session = new FakeSignalPackager().start(item("entry-1"));
+    session.pauseNextPrepare();
+    const preparing = session.prepare(item("entry-2"));
+    let prepareSettled = false;
+    void preparing.catch(() => (prepareSettled = true));
+
+    await session.stop();
+
+    expect(prepareSettled).toBe(true);
+    await expect(preparing).rejects.toMatchObject({
+      code: "packaging_stopped",
+    });
+    expect(session.hasOutstandingPreparation).toBe(false);
+  });
+
+  it("settles an in-flight discard before stop settles", async () => {
+    const session = new FakeSignalPackager().start(item("entry-1"));
+    const preparation = await session.prepare(item("entry-2"));
+    session.pauseNextDiscard();
+    const discarding = preparation.discard();
+    let discardSettled = false;
+    void discarding.then(() => (discardSettled = true));
+
+    await session.stop();
+
+    expect(discardSettled).toBe(true);
+    expect(session.hasOutstandingPreparation).toBe(false);
+  });
+
+  it("rejects preparation once stopped and makes stale preparations inert", async () => {
+    const session = new FakeSignalPackager().start(item("entry-1"));
+    const preparation = await session.prepare(item("entry-2"));
+    await session.stop();
+
+    await expect(session.prepare(item("entry-3"))).rejects.toMatchObject({
+      code: "packaging_stopped",
+    });
+    await expect(preparation.discard()).resolves.toBeUndefined();
+    expect(() => preparation.commit()).toThrow();
+    expect(session.committedItems).toEqual([item("entry-1")]);
+  });
+
+  it("reports stopped only after cleanup succeeds and permits a retry", async () => {
+    const session = new FakeSignalPackager().start(item("entry-1"));
+    await session.prepare(item("entry-2"));
+    const failure = new Error("encoder refused discard");
+    session.failDiscards(failure);
+
+    await expect(session.stop()).rejects.toBe(failure);
+    expect(session.isStopped).toBe(false);
+
+    await session.stop();
+    expect(session.isStopped).toBe(true);
+    expect(session.discardedItems).toEqual([item("entry-2")]);
+  });
 });
