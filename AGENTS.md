@@ -126,12 +126,14 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Keep OpenCode configuration in `opencode.json` and OpenCode agent adapters in `.opencode/agents/`.
 - Keep Codex project configuration in `.codex/config.toml` and Codex agent adapters in `.codex/agents/`.
 - Keep GitHub Copilot agent adapters in `.github/agents/`. Use the shared root `AGENTS.md` and `.agents/skills/` instead of duplicating Copilot-specific copies.
+- Keep Claude Code agent adapters in `.claude/agents/` and generated skill adapters in `.claude/skills/`. Keep `CLAUDE.md` as an `@AGENTS.md` import. Regenerate skill adapters with `npm run agents:sync`; never edit them by hand.
 - Keep AI infrastructure guidance in `.agents/README.md` and agent-infrastructure decisions in `.agents/adr/`.
 - Keep harness adapters small. Do not duplicate shared skill or role bodies in harness-specific directories.
 - Add harness-specific files only when the project is actively adopting that harness.
 - After editing OpenCode config, agents, or skills, restart OpenCode.
 - After editing Codex config, agents, or skills, start a new Codex session.
 - After editing Copilot agents or skills, start a new Copilot session.
+- After editing `CLAUDE.md` or Claude agents, start a new Claude Code session.
 - When adapting third-party AI assets, keep attribution and license notes in durable docs.
 
 ## Documentation Rules

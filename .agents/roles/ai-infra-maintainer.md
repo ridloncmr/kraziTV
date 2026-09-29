@@ -13,6 +13,7 @@ When adding or changing a skill:
 - Keep the folder name and frontmatter `name` identical.
 - Write a model-facing `description` with concrete trigger words.
 - Document whether the skill should be model-invoked or user-invoked.
+- Run `npm run agents:sync` to regenerate the Claude Code skill adapters.
 - Update `.agents/README.md` when support or conventions change.
 - Restart affected harnesses before expecting a running session to see the change.
 
