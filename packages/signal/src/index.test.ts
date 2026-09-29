@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { TransitionCandidate, TransitionCoordinator } from "./index.js";
+import {
+  SignalError,
+  type TransitionCandidate,
+  type TransitionCoordinator,
+} from "./index.js";
 
 class InMemoryTransitionCoordinator implements TransitionCoordinator {
   constructor(
@@ -49,5 +53,20 @@ describe("TransitionCoordinator contract", () => {
       coordinator.commitPreparedTransition(candidate, commit),
     ).resolves.toBe("stale");
     expect(commit).not.toHaveBeenCalled();
+  });
+});
+
+describe("SignalError", () => {
+  it("carries a provider-neutral failure code and safe details", () => {
+    const error = new SignalError(
+      "channel_disabled",
+      "Channel comedy is disabled",
+      { channelId: "comedy" },
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("SignalError");
+    expect(error.code).toBe("channel_disabled");
+    expect(error.details).toEqual({ channelId: "comedy" });
   });
 });
