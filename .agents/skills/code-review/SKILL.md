@@ -15,13 +15,17 @@ Review changes on two axes: standards and spec fit.
 Look for:
 
 - Bugs or behavioral regressions
+- Unnecessary complexity; KISS outranks SOLID and DRY purity
 - Architecture boundary violations
 - Missing or weak tests
 - Overly shallow modules
+- Files with multiple independent classes or muddied responsibilities
+- Accidental, unused, or overly broad exports
+- Missing concise why-comments on methods
 - Unclear domain names
 - Provider-specific leakage into core logic
 - FFmpeg/media details leaking into scheduling logic
-- Documentation drift
+- Incorrect active user, operator, or planning documentation
 
 ## Spec Review
 
@@ -32,6 +36,10 @@ Compare the change to:
 - `docs/specs/`
 - `docs/adrs/`
 - `AGENTS.md`
+
+For implemented behavior, treat source and executable tests as canonical. Use
+specs, plans, and ADRs as intent and historical context; report meaningful drift,
+but do not demand code changes solely to match stale documentation.
 
 ## Output
 

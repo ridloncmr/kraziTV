@@ -9,3 +9,12 @@ One active channel owns one broadcast signal. Viewers subscribe to the shared si
 Pace the shared broadcast against wall-clock time. Individual viewer backpressure must not control channel timing or stall other subscribers.
 
 Prefer reliable compatibility over clever stream-copy optimization in the MVP.
+
+Apply KISS before SOLID or DRY. Keep ffprobe, metadata enrichment, packaging,
+and provider integration composable at their real boundaries so later metadata
+lookup and Jellyfin reuse do not require copying the pipeline. Avoid speculative
+frameworks, muddied multi-class files, and accidental exports. Give every method
+a concise why-comment.
+
+Implemented media behavior is defined by source and executable tests; specs and
+plans provide intent and history.

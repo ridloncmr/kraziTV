@@ -64,3 +64,7 @@ Avoid first:
 - Architecture decisions belong in `docs/adrs/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
 - Research belongs in `docs/knowledge_base/`.
+
+Specs and plans guide work before and during implementation. After a behavior is
+implemented, its source and executable tests are canonical; completed documents
+remain historical context.

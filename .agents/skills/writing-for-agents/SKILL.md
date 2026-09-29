@@ -18,6 +18,10 @@ Write docs that make future agent work safer and faster.
 - Put AI harness and agent-infrastructure decisions in `.agents/adr/`.
 - Put build sequencing in `docs/implementation_plan/`.
 - Put researched facts in `docs/knowledge_base/`.
+- Treat specs and plans as pre-implementation guidance and historical context
+  after completion. Implemented source and tests are canonical for behavior.
+- Do not require completed specs to mirror implementation unless the user needs
+  them as an active product, user, or operator document.
 - Prefer imperative, concrete instructions over vague preferences.
 - Include trigger words in skill descriptions so agents know when to load them.
 - Keep README high-level and approachable.

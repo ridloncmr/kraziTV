@@ -11,5 +11,8 @@
     "build": "tsc -b",
     "test": "vitest run src",
     "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4"
   }
 }

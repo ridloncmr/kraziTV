@@ -21,6 +21,9 @@ Use this skill to preserve context for the next session.
 - Known blockers
 - Recommended next steps
 
+Describe current behavior from code and test evidence. Use completed specs and
+plans only as context, not as authority over the implementation.
+
 ## Keep It Useful
 
 Be concise. Do not narrate every minor step. Preserve the information another agent needs to continue safely.

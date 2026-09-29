@@ -205,6 +205,12 @@ termination in one reusable internal module.
 
 - Treat successful signal delivery and actual process closure as different
   events.
+- Receive a caller-owned successful-exit expectation so the process primitive
+  can normalize a zero-code premature exit without owning readiness or playout
+  timing policy.
+- Keep raw stderr available as bounded internal diagnostics, but do not place it
+  in structured errors or automatic logs before the owning session deliberately
+  classifies or sanitizes it.
 - Keep OS-specific descendant/process-group handling internal and cover the
   supported development platforms discovered during the spike.
 
@@ -252,6 +258,8 @@ retained SignalPackager contract.
 - The output must be consumable before callers await `ready`.
 - `ready` settles exactly once and stopping before readiness settles it without
   leaking the process.
+- Back the process lifecycle's successful-exit expectation with session state so
+  a clean exit before the expected lifecycle point is reported as premature.
 - Redact or deliberately classify media paths before placing them in logs.
 
 **Verification**

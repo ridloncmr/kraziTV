@@ -14,7 +14,7 @@ Use this guide to decide which skill to use during kraziTV work.
 | Diagnosing a bug, stream failure, test failure, or regression                         | `diagnosing-bugs`    |
 | Reviewing a diff or implementation                                                    | `code-review`        |
 | Writing or updating AI-facing docs, skills, agents, or prompts                        | `writing-for-agents` |
-| Turning a conversation or feature idea into a durable spec                            | `to-spec`            |
+| Turning a conversation or feature idea into an implementation-guiding spec            | `to-spec`            |
 | Breaking a spec or milestone into implementation tasks                                | `to-tickets`         |
 | Pausing or ending a long session                                                      | `handoff`            |
 

@@ -13,10 +13,12 @@ Use this skill to keep the project's language precise and consistent.
 ## Process
 
 1. Identify the domain terms involved in the change.
-2. Compare them to existing terms in `AGENTS.md`, `README.md`, and `docs/specs/`.
+2. Compare them first to implemented types, APIs, and tests, then use
+   `AGENTS.md`, `README.md`, and specs for intent and history.
 3. Challenge vague names like manager, handler, processor, data, item, and config.
 4. Prefer names that explain the product concept, not the implementation detail.
-5. Update docs when a term becomes part of the shared vocabulary.
+5. Update active guidance when a term becomes shared vocabulary; do not maintain
+   completed specs as a duplicate of implemented code.
 
 ## kraziTV Vocabulary Rules
 
