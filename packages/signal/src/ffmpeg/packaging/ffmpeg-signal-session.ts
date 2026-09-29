@@ -46,7 +46,7 @@ export class FfmpegSignalSession implements SignalSession {
     );
   }
 
-  /** Rejects pending readiness and shares verified process cleanup. */
+  /** Rejects readiness, shares active cleanup, and permits failed retries. */
   stop(): Promise<void> {
     if (this.stopPromise !== undefined) return this.stopPromise;
 
@@ -56,8 +56,12 @@ export class FfmpegSignalSession implements SignalSession {
         "Signal packaging stopped before readiness",
       ),
     );
-    this.stopPromise = this.process.stop();
-    return this.stopPromise;
+    const attempt = this.process.stop();
+    this.stopPromise = attempt;
+    void attempt.catch(() => {
+      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    });
+    return attempt;
   }
 
   /** Resolves readiness only when the configured output strategy accepts bytes. */

@@ -14,6 +14,7 @@ import type {
   SignalPlayoutItem,
   SignalSession,
 } from "../signal-packager/contracts.js";
+import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 export type ChannelWorkerOptions = {
   playoutProvider: PlayoutProvider;
@@ -92,14 +93,14 @@ export class ChannelWorker {
           throw normalizePackagingStartError(cause, channelId);
         }
 
-        const broadcaster = new ChannelBroadcaster(session.output, {
-          subscriberBufferLimitBytes: options.subscriberBufferLimitBytes,
-          retentionLimitBytes: options.retentionLimitBytes,
-          findJoinPoint: options.findJoinPoint,
-        });
-        const joinable = waitForJoinableOutput(session.output, broadcaster);
-
+        let joinable: JoinableOutputWaiter | undefined;
         try {
+          const broadcaster = new ChannelBroadcaster(session.output, {
+            subscriberBufferLimitBytes: options.subscriberBufferLimitBytes,
+            retentionLimitBytes: options.retentionLimitBytes,
+            findJoinPoint: options.findJoinPoint,
+          });
+          joinable = waitForJoinableOutput(session.output, broadcaster);
           const outcome = await waitForAttempt(
             session,
             joinable,
@@ -112,14 +113,15 @@ export class ChannelWorker {
             return new ChannelWorker(channelId, session, broadcaster);
           }
 
-          await session.stop();
+          await stopStartupSession(session, channelId);
           if (outcome === "expired") continue;
           throw interruptionError(outcome, channelId);
         } catch (cause) {
-          await session.stop();
+          if (cause instanceof WorkerCreationCleanupError) throw cause;
+          await stopStartupSession(session, channelId);
           throw normalizeStartupError(cause, channelId);
         } finally {
-          joinable.dispose();
+          joinable?.dispose();
         }
       }
     } finally {
@@ -141,10 +143,30 @@ export class ChannelWorker {
     return this.broadcaster.trySubscribe();
   }
 
-  /** Stops the owned packaging session exactly once and shares cleanup. */
+  /** Shares active cleanup, retains success, and releases failure for retry. */
   stop(): Promise<void> {
-    this.stopPromise ??= this.session.stop();
-    return this.stopPromise;
+    if (this.stopPromise !== undefined) return this.stopPromise;
+
+    const attempt = this.session.stop();
+    this.stopPromise = attempt;
+    void attempt.catch(() => {
+      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    });
+    return attempt;
+  }
+}
+
+/** Preserves a cleanup handle when a private session cannot be settled. */
+async function stopStartupSession(
+  session: SignalSession,
+  channelId: ChannelId,
+): Promise<void> {
+  try {
+    await session.stop();
+  } catch (cause) {
+    throw new WorkerCreationCleanupError(channelId, cause, () =>
+      session.stop(),
+    );
   }
 }
 

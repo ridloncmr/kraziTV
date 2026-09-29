@@ -135,7 +135,9 @@ publish the worker in its active registry, or let an HTTP handler commit a
 successful streaming response until worker readiness completes. Publication is
 serialized with cancellation, administrative stop, shutdown, and worker failure
 so a session that becomes ready while being stopped cannot escape into the
-active registry.
+active registry. Administrative stop and shutdown interrupt the authorization
+lookup of a pending publication instead of waiting for the provider, so a
+stalled lookup cannot delay them.
 
 `stopChannel()` is a per-channel operational stop, not terminal manager
 shutdown. It cancels pending creation, prevents publication of a worker created
@@ -151,8 +153,19 @@ or cleanup-failed state together with every resource handle still needed for a
 retry. A later call resumes cleanup of the remaining resources. It must not
 return success merely because the worker was removed from the active registry,
 and it removes the lifecycle record only after all owned resources settle.
-Subscription and worker-publication transitions continue to lose while this
-record exists.
+Worker publication continues to lose while this record exists, and a
+subscription never attaches to it or overlaps its resources with a replacement.
+
+Viewer-driven cleanup can fail too: after idle expiry, after a failed private
+startup, after a worker terminates on its own, or after an unpublished worker
+loses publication. The manager retains the same non-joinable record in those
+cases. No administrative request exists to retry it, so an authorized
+subscription retries the retained cleanup inside its serialized transition
+before it may join or create a worker. If the retry settles every resource, the
+subscription proceeds and may start a fresh worker. If the retry fails, the
+subscription is rejected with `runtime_cleanup_failed` and the record stays in
+place for the next attempt. An unauthorized subscription never triggers the
+retry.
 
 Manager shutdown is terminal and distinct from worker-local shutdown. Once manager shutdown begins, new subscriptions are rejected and no replacement workers may start. Pending worker creations must be cancelled when possible and awaited in all cases. If a pending creation starts a worker, SignalPackager session, or FFmpeg process before observing cancellation, it must stop those resources without publishing the worker. `shutdown()` resolves only after active workers, pending creations, SignalPackager sessions, subscriber streams, and child processes have settled.
 
@@ -798,6 +811,11 @@ contract.
 - Repeating `stopChannel()` retries only unsettled cleanup and succeeds
   idempotently after all worker, session, subscriber, preparation, and child
   process resources settle.
+- If viewer-driven cleanup fails, the next authorized subscription retries the
+  retained cleanup before creating a replacement, and is rejected with
+  `runtime_cleanup_failed` while that cleanup still fails.
+- A stalled channel authorization lookup cannot delay `stopChannel()` or
+  manager shutdown.
 - Re-enabling a channel permits a later subscription to create a fresh worker;
   it never reuses the administratively stopped worker.
 - Ordinary programming changes do not stop the active worker or interrupt the

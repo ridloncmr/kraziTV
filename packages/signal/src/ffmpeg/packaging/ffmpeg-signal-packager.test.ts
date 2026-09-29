@@ -80,6 +80,11 @@ const expectSignalError = async (
   throw new Error(`Expected ${code}`);
 };
 
+const flushPromises = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 describe("FfmpegSignalPackager", () => {
   it("returns a session synchronously with output available", () => {
     const { child, packager, spawner } = createHarness();
@@ -200,5 +205,30 @@ describe("FfmpegSignalPackager", () => {
     expect(second).toBe(first);
     child.exit({ code: null, signal: "SIGTERM" });
     await first;
+  });
+
+  it("retries process cleanup after a shared stop attempt fails", async () => {
+    const { child, packager, timers } = createHarness();
+    const session = packager.start(initialItem());
+    void session.ready.catch(() => undefined);
+
+    const first = session.stop();
+    const concurrent = session.stop();
+    expect(concurrent).toBe(first);
+    timers.advanceBy(5_000);
+    await flushPromises();
+    timers.advanceBy(5_000);
+    await expect(first).rejects.toMatchObject({
+      code: "runtime_cleanup_failed",
+    });
+
+    const retry = session.stop();
+    const concurrentRetry = session.stop();
+    expect(retry).not.toBe(first);
+    expect(concurrentRetry).toBe(retry);
+    child.exit({ code: null, signal: "SIGTERM" });
+    await expect(retry).resolves.toBeUndefined();
+    expect(session.stop()).toBe(retry);
+    expect(child.terminationSignals).toEqual(["SIGTERM", "SIGKILL", "SIGTERM"]);
   });
 });

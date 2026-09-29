@@ -6,6 +6,7 @@ import type { ChannelAuthorization } from "./channel-worker/contracts.js";
 
 export type CreateChannelStreamManagerOptions = ChannelWorkerOptions & {
   authorization: ChannelAuthorization;
+  idleGraceMs: number;
 };
 
 /** Creates the production manager while keeping worker construction internal. */
@@ -15,5 +16,7 @@ export function createChannelStreamManager(
   return new ChannelStreamManager({
     authorization: options.authorization,
     workerFactory: new DefaultChannelWorkerFactory(options),
+    timers: options.timers,
+    idleGraceMs: options.idleGraceMs,
   });
 }

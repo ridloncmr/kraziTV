@@ -291,6 +291,31 @@ describe("FfmpegProcess", () => {
     expect(logger.errors.at(-1)?.context).toEqual(error.details);
   });
 
+  it("retries termination after a shared stop attempt fails", async () => {
+    const { child, managed, timers } = createHarness({
+      terminationGraceMs: 20,
+    });
+
+    const first = managed.stop();
+    const concurrent = managed.stop();
+    expect(concurrent).toBe(first);
+    timers.advanceBy(20);
+    await flushPromises();
+    timers.advanceBy(20);
+    await expect(first).rejects.toMatchObject({
+      code: "runtime_cleanup_failed",
+    });
+
+    const retry = managed.stop();
+    const concurrentRetry = managed.stop();
+    expect(retry).not.toBe(first);
+    expect(concurrentRetry).toBe(retry);
+    child.exit({ code: null, signal: "SIGTERM" });
+    await expect(retry).resolves.toBeUndefined();
+    expect(managed.stop()).toBe(retry);
+    expect(child.terminationSignals).toEqual(["SIGTERM", "SIGKILL", "SIGTERM"]);
+  });
+
   it("settles stop when startup fails concurrently", async () => {
     const { child, managed, timers } = createHarness();
     const completion = expectSignalError(

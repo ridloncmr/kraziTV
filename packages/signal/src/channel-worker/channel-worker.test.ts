@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   ChannelId,
@@ -13,6 +13,7 @@ import { Deferred } from "../testing/deferred.js";
 import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
+import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 const currentItem = (
   evaluatedAt: number,
@@ -179,6 +180,45 @@ describe("ChannelWorker startup", () => {
     await firstStop;
     await expect(worker.completion).resolves.toBeUndefined();
     expect(session?.stopCalls).toBe(1);
+  });
+
+  it("retries session cleanup after a shared stop attempt fails", async () => {
+    const clock = new FakeClock(1_000);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(1_000),
+      currentItem(1_000),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      workerOptions(provider, packager, clock),
+    );
+    await settlePromises();
+    const session = packager.sessions[0];
+    expect(session).toBeDefined();
+    session?.pushOutput("INIT-retained");
+    session?.resolveReady();
+    const worker = await starting;
+    const cleanupFailure = new Error("cleanup failed");
+    const stopSession = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(cleanupFailure)
+      .mockResolvedValue(undefined);
+    if (session !== undefined) session.stop = stopSession;
+
+    const first = worker.stop();
+    const concurrent = worker.stop();
+    expect(concurrent).toBe(first);
+    await expect(first).rejects.toBe(cleanupFailure);
+
+    const retry = worker.stop();
+    const concurrentRetry = worker.stop();
+    expect(retry).not.toBe(first);
+    expect(concurrentRetry).toBe(retry);
+    await expect(retry).resolves.toBeUndefined();
+    expect(worker.stop()).toBe(retry);
+    expect(stopSession).toHaveBeenCalledTimes(2);
   });
 
   it("waits for joinable bytes to be retained after session readiness", async () => {
@@ -415,6 +455,67 @@ describe("ChannelWorker startup", () => {
     );
 
     await rejected;
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(clock.pendingTimerCount).toBe(0);
+  });
+
+  it("retains a retry handle when cleanup fails during worker startup", async () => {
+    const clock = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      workerOptions(provider, packager, clock),
+    );
+    await settlePromises();
+    const session = packager.sessions[0];
+    expect(session).toBeDefined();
+    const cleanupFailure = new SignalError(
+      "runtime_cleanup_failed",
+      "arranged startup cleanup failure",
+    );
+    const stop = vi
+      .spyOn(session!, "stop")
+      .mockRejectedValueOnce(cleanupFailure)
+      .mockResolvedValueOnce(undefined);
+
+    session!.rejectReady(
+      new SignalError("packaging_failed", "arranged readiness failure"),
+    );
+
+    let failure: unknown;
+    try {
+      await starting;
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(WorkerCreationCleanupError);
+    await (failure as WorkerCreationCleanupError).retryCleanup();
+    expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops the session when join-point initialization throws", async () => {
+    const clock = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+
+    await expectSignalError(
+      ChannelWorker.start("channel-1", new AbortController().signal, {
+        ...workerOptions(provider, packager, clock),
+        findJoinPoint: () => {
+          throw new Error("arranged join-point failure");
+        },
+      }),
+      "packaging_failed",
+    );
+
     expect(packager.sessions[0]?.stopCalls).toBe(1);
     expect(clock.pendingTimerCount).toBe(0);
   });
