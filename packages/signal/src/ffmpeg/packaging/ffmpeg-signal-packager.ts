@@ -33,7 +33,6 @@ export class FfmpegSignalPackager implements SignalPackager {
   /** Validates and starts one item synchronously so output can be drained at once. */
   start(initialItem: SignalPlayoutItem): SignalSession {
     const args = buildFfmpegArguments(initialItem);
-    let usableOutputObserved = false;
     const process = FfmpegProcess.start({
       args,
       spawner: this.dependencies.spawner,
@@ -46,16 +45,14 @@ export class FfmpegSignalPackager implements SignalPackager {
         scheduleEntryId: initialItem.scheduleEntryId,
         mediaItemId: initialItem.mediaItemId,
       },
-      isSuccessfulExitExpected: () => usableOutputObserved,
+      // SIG-008 will derive this from the absolute transition boundary.
+      isSuccessfulExitExpected: () => false,
     });
 
     return new FfmpegSignalSession(
       process,
       this.dependencies.createReadinessInspector?.() ??
         new MpegTsReadinessInspector(),
-      () => {
-        usableOutputObserved = true;
-      },
     );
   }
 }

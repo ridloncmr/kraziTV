@@ -159,6 +159,23 @@ describe("FfmpegSignalPackager", () => {
     expect(error.details).toMatchObject({ reason: "premature_exit" });
   });
 
+  it("reports a clean exit after readiness but before lifecycle completion as premature", async () => {
+    const { child, packager } = createHarness();
+    const session = packager.start(initialItem());
+
+    child.writeStdout("usable-output");
+    await expect(session.ready).resolves.toBeUndefined();
+
+    const completionFailure = expectSignalError(
+      session.completion,
+      "packaging_failed",
+    );
+    child.exit({ code: 0, signal: null });
+
+    const error = await completionFailure;
+    expect(error.details).toMatchObject({ reason: "premature_exit" });
+  });
+
   it("stops before readiness, settles ready, and verifies child closure", async () => {
     const { child, packager } = createHarness();
     const session = packager.start(initialItem());

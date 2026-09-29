@@ -23,7 +23,6 @@ export class FfmpegSignalSession implements SignalSession {
   constructor(
     private readonly process: FfmpegProcess,
     private readonly readinessInspector: OutputReadinessInspector,
-    private readonly markSuccessfulExitExpected: () => void,
   ) {
     this.output = process.output;
     this.completion = process.completion;
@@ -71,7 +70,6 @@ export class FfmpegSignalSession implements SignalSession {
 
     this.readySettled = true;
     this.output.off("data", this.inspectOutput);
-    this.markSuccessfulExitExpected();
     this.resolveReady();
   };
 
