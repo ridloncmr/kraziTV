@@ -7,7 +7,7 @@ Specs are organized by feature. A feature folder's `README.md` describes the fea
 - `Planned` - Known future feature or spec that has not been drafted yet.
 - `Draft` - Proposed behavior that has not been accepted or implemented.
 - `Accepted` - Agreed behavior that is ready to implement or already guides the project.
-- `In Development` - Implmentation plan exists, and the spec is in active development. 
+- `In Development` - Implmentation plan exists, and the spec is in active development.
 - `Implemented` - Behavior exists in the codebase and has passing verification.
 - `Superseded` - Kept for history but replaced by a newer spec or ADR.
 
