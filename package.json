@@ -9,6 +9,8 @@
     "packages/*"
   ],
   "scripts": {
+    "agents:check": "node .claude/sync-skills.mjs --check",
+    "agents:sync": "node .claude/sync-skills.mjs",
     "build": "tsc -b tsconfig.build.json && npm run build --workspace @krazitv/web",
     "build:node": "tsc -b tsconfig.build.json",
     "dev": "npm run dev --workspace @krazitv/server",

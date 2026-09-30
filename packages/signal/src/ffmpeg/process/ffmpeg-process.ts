@@ -90,13 +90,17 @@ export class FfmpegProcess {
     return Buffer.concat(this.stderrChunks, this.stderrByteCount);
   }
 
-  /** Requests termination once and shares verified cleanup with every caller. */
+  /** Shares active termination, retains success, and releases failure for retry. */
   stop(): Promise<void> {
     if (this.stopPromise !== undefined) return this.stopPromise;
 
     this.stopRequested = true;
-    this.stopPromise = this.stopAndVerify();
-    return this.stopPromise;
+    const attempt = this.stopAndVerify();
+    this.stopPromise = attempt;
+    void attempt.catch(() => {
+      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    });
+    return attempt;
   }
 
   /** Converts unexpected child closure into the package's provider-neutral errors. */

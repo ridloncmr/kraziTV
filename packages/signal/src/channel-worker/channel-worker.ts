@@ -3,23 +3,29 @@ import type { Readable } from "node:stream";
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import { SignalError } from "../errors.js";
-import type {
-  ChannelId,
-  CurrentPlayoutResult,
-  PlayoutProvider,
-} from "../playout/contracts.js";
+import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
 import type {
   SignalPackager,
-  SignalPlayoutItem,
   SignalSession,
 } from "../signal-packager/contracts.js";
+import type { TransitionCoordinator } from "./contracts.js";
+import { requireCurrent, toSignalItem } from "./playout-projection.js";
+import { type AiringItem, TransitionLoop } from "./transition-loop.js";
+import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 export type ChannelWorkerOptions = {
   playoutProvider: PlayoutProvider;
   packager: SignalPackager;
   clock: Clock;
   timers: TimerScheduler;
+  transitionCoordinator: TransitionCoordinator;
+  /** How long before each boundary the following item is selected and prepared. */
+  prepareLeadMs: number;
+  /**
+   * Also bounds each transition: every dependency call must finish by the
+   * scheduled boundary plus this window, or the worker fails.
+   */
   startupTimeoutMs: number;
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
@@ -30,7 +36,7 @@ type StartupInterruption = "aborted" | "timeout";
 
 type StartupGuard = {
   readonly interrupted: Promise<StartupInterruption>;
-  readonly outcome: StartupInterruption | undefined;
+  check(): StartupInterruption | undefined;
   dispose(): void;
 };
 
@@ -43,6 +49,9 @@ type JoinableOutputWaiter = {
 export class ChannelWorker {
   readonly completion: Promise<void>;
   private stopPromise: Promise<void> | undefined;
+  private readonly transitions: TransitionLoop;
+  private readonly transitionsDone: Promise<void>;
+  private failure: SignalError | undefined;
 
   /** Performs late state resolution and publishes only retained usable output. */
   static async start(
@@ -92,14 +101,14 @@ export class ChannelWorker {
           throw normalizePackagingStartError(cause, channelId);
         }
 
-        const broadcaster = new ChannelBroadcaster(session.output, {
-          subscriberBufferLimitBytes: options.subscriberBufferLimitBytes,
-          retentionLimitBytes: options.retentionLimitBytes,
-          findJoinPoint: options.findJoinPoint,
-        });
-        const joinable = waitForJoinableOutput(session.output, broadcaster);
-
+        let joinable: JoinableOutputWaiter | undefined;
         try {
+          const broadcaster = new ChannelBroadcaster(session.output, {
+            subscriberBufferLimitBytes: options.subscriberBufferLimitBytes,
+            retentionLimitBytes: options.retentionLimitBytes,
+            findJoinPoint: options.findJoinPoint,
+          });
+          joinable = waitForJoinableOutput(session.output, broadcaster);
           const outcome = await waitForAttempt(
             session,
             joinable,
@@ -109,17 +118,27 @@ export class ChannelWorker {
           );
           if (outcome === "ready") {
             guard.dispose();
-            return new ChannelWorker(channelId, session, broadcaster);
+            return new ChannelWorker(
+              channelId,
+              session,
+              broadcaster,
+              {
+                scheduleEntryId: current.item.scheduleEntryId,
+                endsAt: current.item.endsAt,
+              },
+              options,
+            );
           }
 
-          await session.stop();
+          await stopStartupSession(session, channelId);
           if (outcome === "expired") continue;
           throw interruptionError(outcome, channelId);
         } catch (cause) {
-          await session.stop();
+          if (cause instanceof WorkerCreationCleanupError) throw cause;
+          await stopStartupSession(session, channelId);
           throw normalizeStartupError(cause, channelId);
         } finally {
-          joinable.dispose();
+          joinable?.dispose();
         }
       }
     } finally {
@@ -127,13 +146,51 @@ export class ChannelWorker {
     }
   }
 
-  /** Retains the single session and broadcaster that make up this worker. */
+  /**
+   * Retains the single session and broadcaster, then starts crossing scheduled
+   * boundaries. A transition failure stops the session and rejects completion.
+   */
   private constructor(
     readonly channelId: ChannelId,
     private readonly session: SignalSession,
     readonly broadcaster: ChannelBroadcaster,
+    airing: AiringItem,
+    options: ChannelWorkerOptions,
   ) {
-    this.completion = session.completion;
+    this.transitions = new TransitionLoop(
+      {
+        channelId,
+        session,
+        playoutProvider: options.playoutProvider,
+        transitionCoordinator: options.transitionCoordinator,
+        clock: options.clock,
+        timers: options.timers,
+        prepareLeadMs: options.prepareLeadMs,
+        recoveryTimeoutMs: options.startupTimeoutMs,
+      },
+      airing,
+    );
+    const transitionsRun = this.transitions.run();
+    this.transitionsDone = transitionsRun.catch(() => undefined);
+    this.completion = new Promise<void>((resolve, reject) => {
+      // A transition failure outranks the session end its cleanup causes. A
+      // session that ends first is reported as-is; the loop is then halted.
+      void session.completion.then(
+        () => (this.failure === undefined ? resolve() : reject(this.failure)),
+        (error: unknown) => reject(this.failure ?? error),
+      );
+      void transitionsRun.catch((error: SignalError) => {
+        this.failure = error;
+        reject(error);
+        void this.stop().catch(() => undefined);
+      });
+    });
+    // Observers attach later; an unobserved worker failure must not crash Node.
+    void this.completion.catch(() => undefined);
+    void session.completion
+      .catch(() => undefined)
+      .then(() => this.transitions.halt())
+      .catch(() => undefined);
   }
 
   /** Creates one viewer stream only while retained output remains joinable. */
@@ -141,16 +198,53 @@ export class ChannelWorker {
     return this.broadcaster.trySubscribe();
   }
 
-  /** Stops the owned packaging session exactly once and shares cleanup. */
+  /**
+   * Shares active cleanup, retains success, and releases failure for retry.
+   * Halting and session stop run together so a slow discard cannot keep the
+   * encoder alive; resolving waits for the loop to discard any late preparation.
+   */
   stop(): Promise<void> {
-    this.stopPromise ??= this.session.stop();
-    return this.stopPromise;
+    if (this.stopPromise !== undefined) return this.stopPromise;
+
+    const attempt = (async () => {
+      const [halted, stopped] = await Promise.allSettled([
+        this.transitions.halt(),
+        this.session.stop(),
+      ]);
+      await this.transitionsDone;
+      if (stopped.status === "rejected") throw stopped.reason;
+      // The loop retries a failed discard while unwinding; report only a
+      // preparation that is still held.
+      if (halted.status === "rejected" && this.transitions.holdsPreparation) {
+        throw halted.reason;
+      }
+    })();
+    this.stopPromise = attempt;
+    void attempt.catch(() => {
+      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    });
+    return attempt;
+  }
+}
+
+/** Preserves a cleanup handle when a private session cannot be settled. */
+async function stopStartupSession(
+  session: SignalSession,
+  channelId: ChannelId,
+): Promise<void> {
+  try {
+    await session.stop();
+  } catch (cause) {
+    throw new WorkerCreationCleanupError(channelId, cause, () =>
+      session.stop(),
+    );
   }
 }
 
 /** Rejects invalid runtime limits before any provider or process side effect. */
 function validateOptions(options: ChannelWorkerOptions): void {
   assertPositiveSafeInteger(options.startupTimeoutMs, "startupTimeoutMs");
+  assertPositiveSafeInteger(options.prepareLeadMs, "prepareLeadMs");
   assertPositiveSafeInteger(
     options.subscriberBufferLimitBytes,
     "subscriberBufferLimitBytes",
@@ -162,69 +256,12 @@ function validateOptions(options: ChannelWorkerOptions): void {
   }
 }
 
-/** Converts one atomic current-state projection into route-safe failures. */
-function requireCurrent(
-  result: CurrentPlayoutResult,
-  channelId: ChannelId,
-): Extract<CurrentPlayoutResult, { status: "current" }> {
-  if (result.channelId !== channelId) {
-    throw invalidItem(channelId, "channel_mismatch");
-  }
-  if (result.status === "no_current") {
-    throw new SignalError(
-      result.reason === "media_unavailable"
-        ? "media_unavailable"
-        : "no_current_playout",
-      result.reason === "media_unavailable"
-        ? `Current media is unavailable for channel ${channelId}`
-        : `Channel ${channelId} has no current playout item`,
-      {
-        channelId,
-        reason: result.reason,
-        ...(result.scheduleEntryId === undefined
-          ? {}
-          : { scheduleEntryId: result.scheduleEntryId }),
-      },
-    );
-  }
-  if (result.item.channelId !== channelId) {
-    throw invalidItem(channelId, "item_channel_mismatch");
-  }
-  return result;
-}
-
-/** Preserves the absolute end while translating selected playout for packaging. */
-function toSignalItem(
-  current: Extract<CurrentPlayoutResult, { status: "current" }>,
-  channelId: ChannelId,
-): SignalPlayoutItem {
-  const playDurationMs = current.item.endsAt - current.evaluatedAt;
-  if (
-    !Number.isSafeInteger(current.evaluatedAt) ||
-    !Number.isSafeInteger(current.item.endsAt) ||
-    !Number.isSafeInteger(current.mediaOffsetMs) ||
-    current.mediaOffsetMs < 0 ||
-    !Number.isSafeInteger(playDurationMs) ||
-    playDurationMs <= 0
-  ) {
-    throw invalidItem(channelId, "invalid_current_timing");
-  }
-
-  return {
-    channelId,
-    scheduleEntryId: current.item.scheduleEntryId,
-    mediaItemId: current.item.mediaItemId,
-    mediaPath: current.item.mediaPath,
-    mediaOffsetMs: current.mediaOffsetMs,
-    playDurationMs,
-  };
-}
-
 /** Bounds every startup await with one overall timeout and caller cancellation. */
 function createStartupGuard(
   signal: AbortSignal,
   options: ChannelWorkerOptions,
 ): StartupGuard {
+  const deadlineAt = options.clock.now() + options.startupTimeoutMs;
   let resolve!: (outcome: StartupInterruption) => void;
   let outcome: StartupInterruption | undefined;
   const interrupted = new Promise<StartupInterruption>((settle) => {
@@ -245,7 +282,10 @@ function createStartupGuard(
 
   return {
     interrupted,
-    get outcome() {
+    check: () => {
+      if (outcome === undefined && options.clock.now() >= deadlineAt) {
+        interrupt("timeout");
+      }
       return outcome;
     },
     dispose: () => {
@@ -261,8 +301,9 @@ async function awaitControlled<T>(
   guard: StartupGuard,
   channelId: ChannelId,
 ): Promise<T> {
-  if (guard.outcome !== undefined) {
-    throw interruptionError(guard.outcome, channelId);
+  const existingInterruption = guard.check();
+  if (existingInterruption !== undefined) {
+    throw interruptionError(existingInterruption, channelId);
   }
   const operation = startOperation();
   const result = await Promise.race([
@@ -275,6 +316,10 @@ async function awaitControlled<T>(
       outcome,
     })),
   ]);
+  const interruption = guard.check();
+  if (interruption !== undefined) {
+    throw interruptionError(interruption, channelId);
+  }
   if (result.status === "value") return result.value;
   if (result.status === "error") throw result.error;
   throw interruptionError(result.outcome, channelId);
@@ -300,7 +345,13 @@ async function waitForAttempt(
     );
   });
   try {
-    return await Promise.race([readiness, expiry, guard.interrupted]);
+    const outcome = await Promise.race([readiness, expiry, guard.interrupted]);
+    const interruption = guard.check();
+    if (interruption !== undefined) return interruption;
+    if (outcome === "ready" && options.clock.now() >= endsAt) {
+      return "expired";
+    }
+    return outcome;
   } finally {
     expiryTask?.cancel();
   }
@@ -370,15 +421,6 @@ function interruptionError(
         `Channel ${channelId} did not become ready before its startup timeout`,
         { channelId },
       );
-}
-
-/** Creates a safe invalid-projection error without exposing a media path. */
-function invalidItem(channelId: ChannelId, reason: string): SignalError {
-  return new SignalError(
-    "invalid_playout_item",
-    `Channel ${channelId} returned an invalid current playout item`,
-    { channelId, reason },
-  );
 }
 
 /** Enforces deterministic byte and duration limits. */

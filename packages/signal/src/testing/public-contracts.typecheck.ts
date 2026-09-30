@@ -91,13 +91,20 @@ const manager = createChannelStreamManager({
   packager,
   clock: clockAdapter,
   timers: timerAdapter,
+  transitionCoordinator: transitionAdapter,
+  prepareLeadMs: 10_000,
   startupTimeoutMs: 5_000,
+  idleGraceMs: 30_000,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,
   findJoinPoint: () => 0,
 });
 const subscribe: (channelId: string) => Promise<ChannelSubscription> =
   manager.subscribe.bind(manager);
+const stopChannel: (
+  channelId: string,
+  reason: "disabled" | "deleted",
+) => Promise<void> = manager.stopChannel.bind(manager);
 
 void [
   authorizationAdapter,
@@ -109,4 +116,5 @@ void [
   packager,
   manager,
   subscribe,
+  stopChannel,
 ];

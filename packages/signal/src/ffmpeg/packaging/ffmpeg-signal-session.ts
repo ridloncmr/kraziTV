@@ -23,7 +23,6 @@ export class FfmpegSignalSession implements SignalSession {
   constructor(
     private readonly process: FfmpegProcess,
     private readonly readinessInspector: OutputReadinessInspector,
-    private readonly markSuccessfulExitExpected: () => void,
   ) {
     this.output = process.output;
     this.completion = process.completion;
@@ -38,7 +37,7 @@ export class FfmpegSignalSession implements SignalSession {
     );
   }
 
-  /** Defers multi-item mechanics to SIG-008 without changing initial output. */
+  /** Defers FFmpeg multi-item mechanics to SIG-010 without changing initial output. */
   async prepare(_item: SignalPlayoutItem): Promise<SignalPreparation> {
     throw new SignalError(
       "packaging_failed",
@@ -47,7 +46,7 @@ export class FfmpegSignalSession implements SignalSession {
     );
   }
 
-  /** Rejects pending readiness and shares verified process cleanup. */
+  /** Rejects readiness, shares active cleanup, and permits failed retries. */
   stop(): Promise<void> {
     if (this.stopPromise !== undefined) return this.stopPromise;
 
@@ -57,8 +56,12 @@ export class FfmpegSignalSession implements SignalSession {
         "Signal packaging stopped before readiness",
       ),
     );
-    this.stopPromise = this.process.stop();
-    return this.stopPromise;
+    const attempt = this.process.stop();
+    this.stopPromise = attempt;
+    void attempt.catch(() => {
+      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    });
+    return attempt;
   }
 
   /** Resolves readiness only when the configured output strategy accepts bytes. */
@@ -71,7 +74,6 @@ export class FfmpegSignalSession implements SignalSession {
 
     this.readySettled = true;
     this.output.off("data", this.inspectOutput);
-    this.markSuccessfulExitExpected();
     this.resolveReady();
   };
 

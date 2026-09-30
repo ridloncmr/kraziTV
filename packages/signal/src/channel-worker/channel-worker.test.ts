@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   ChannelId,
@@ -13,6 +13,7 @@ import { Deferred } from "../testing/deferred.js";
 import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
+import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 const currentItem = (
   evaluatedAt: number,
@@ -105,6 +106,12 @@ const workerOptions = (
   packager,
   clock,
   timers: clock,
+  transitionCoordinator: {
+    async commitPreparedTransition(): Promise<never> {
+      throw new Error("Transitions belong to channel-worker-transitions tests");
+    },
+  },
+  prepareLeadMs: 2_000,
   startupTimeoutMs: 5_000,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,
@@ -181,6 +188,45 @@ describe("ChannelWorker startup", () => {
     expect(session?.stopCalls).toBe(1);
   });
 
+  it("retries session cleanup after a shared stop attempt fails", async () => {
+    const clock = new FakeClock(1_000);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(1_000),
+      currentItem(1_000),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      workerOptions(provider, packager, clock),
+    );
+    await settlePromises();
+    const session = packager.sessions[0];
+    expect(session).toBeDefined();
+    session?.pushOutput("INIT-retained");
+    session?.resolveReady();
+    const worker = await starting;
+    const cleanupFailure = new Error("cleanup failed");
+    const stopSession = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(cleanupFailure)
+      .mockResolvedValue(undefined);
+    if (session !== undefined) session.stop = stopSession;
+
+    const first = worker.stop();
+    const concurrent = worker.stop();
+    expect(concurrent).toBe(first);
+    await expect(first).rejects.toBe(cleanupFailure);
+
+    const retry = worker.stop();
+    const concurrentRetry = worker.stop();
+    expect(retry).not.toBe(first);
+    expect(concurrentRetry).toBe(retry);
+    await expect(retry).resolves.toBeUndefined();
+    expect(worker.stop()).toBe(retry);
+    expect(stopSession).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for joinable bytes to be retained after session readiness", async () => {
     const clock = new FakeClock(1_000);
     const packager = new FakeSignalPackager();
@@ -253,6 +299,52 @@ describe("ChannelWorker startup", () => {
     await worker.stop();
   });
 
+  it("rechecks the absolute item deadline after readiness wins the race", async () => {
+    const clock = new FakeClock(0);
+    const timers = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const first = currentItem(0, {
+      mediaOffsetMs: 500,
+      item: {
+        ...currentItem(0).item,
+        endsAt: 100,
+      },
+    });
+    const second = currentItem(100, {
+      mediaOffsetMs: 600,
+      item: {
+        ...currentItem(100).item,
+        scheduleEntryId: "entry-2",
+        mediaItemId: "media-2",
+        endsAt: 1_000,
+      },
+    });
+    const provider = new SequencePlayoutProvider([first, first, second]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      { ...workerOptions(provider, packager, clock), timers },
+    );
+    await settlePromises();
+
+    packager.sessions[0]?.pushOutput("INIT-expiring");
+    packager.sessions[0]?.resolveReady();
+    clock.advanceTo(100);
+    await settlePromises();
+
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(packager.startCalls).toHaveLength(2);
+    expect(packager.startCalls[1]).toMatchObject({
+      scheduleEntryId: "entry-2",
+      playDurationMs: 900,
+    });
+
+    packager.sessions[1]?.pushOutput("INIT-next");
+    packager.sessions[1]?.resolveReady();
+    const worker = await starting;
+    await worker.stop();
+  });
+
   it("stops the session and rejects when the overall startup timeout wins", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
@@ -274,6 +366,35 @@ describe("ChannelWorker startup", () => {
     await rejected;
     expect(packager.sessions[0]?.stopCalls).toBe(1);
     expect(clock.pendingTimerCount).toBe(0);
+  });
+
+  it("rechecks the absolute startup deadline after readiness wins the race", async () => {
+    const clock = new FakeClock(0);
+    const timers = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      {
+        ...workerOptions(provider, packager, clock),
+        timers,
+        startupTimeoutMs: 250,
+      },
+    );
+    const rejected = expectSignalError(starting, "worker_startup_timeout");
+    await settlePromises();
+
+    packager.sessions[0]?.pushOutput("INIT-ready");
+    packager.sessions[0]?.resolveReady();
+    clock.advanceTo(250);
+
+    await rejected;
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(timers.pendingTimerCount).toBe(0);
   });
 
   it("stops a pending session when startup is cancelled", async () => {
@@ -340,6 +461,67 @@ describe("ChannelWorker startup", () => {
     );
 
     await rejected;
+    expect(packager.sessions[0]?.stopCalls).toBe(1);
+    expect(clock.pendingTimerCount).toBe(0);
+  });
+
+  it("retains a retry handle when cleanup fails during worker startup", async () => {
+    const clock = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+    const starting = ChannelWorker.start(
+      "channel-1",
+      new AbortController().signal,
+      workerOptions(provider, packager, clock),
+    );
+    await settlePromises();
+    const session = packager.sessions[0];
+    expect(session).toBeDefined();
+    const cleanupFailure = new SignalError(
+      "runtime_cleanup_failed",
+      "arranged startup cleanup failure",
+    );
+    const stop = vi
+      .spyOn(session!, "stop")
+      .mockRejectedValueOnce(cleanupFailure)
+      .mockResolvedValueOnce(undefined);
+
+    session!.rejectReady(
+      new SignalError("packaging_failed", "arranged readiness failure"),
+    );
+
+    let failure: unknown;
+    try {
+      await starting;
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(WorkerCreationCleanupError);
+    await (failure as WorkerCreationCleanupError).retryCleanup();
+    expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops the session when join-point initialization throws", async () => {
+    const clock = new FakeClock(0);
+    const packager = new FakeSignalPackager();
+    const provider = new SequencePlayoutProvider([
+      currentItem(0),
+      currentItem(0),
+    ]);
+
+    await expectSignalError(
+      ChannelWorker.start("channel-1", new AbortController().signal, {
+        ...workerOptions(provider, packager, clock),
+        findJoinPoint: () => {
+          throw new Error("arranged join-point failure");
+        },
+      }),
+      "packaging_failed",
+    );
+
     expect(packager.sessions[0]?.stopCalls).toBe(1);
     expect(clock.pendingTimerCount).toBe(0);
   });

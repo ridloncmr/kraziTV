@@ -35,6 +35,9 @@ jobs:
       - name: Check formatting
         run: npm run format
 
+      - name: Check Claude skill adapters
+        run: npm run agents:check
+
       - name: Typecheck
         run: npm run typecheck
 

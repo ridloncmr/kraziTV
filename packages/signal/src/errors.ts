@@ -9,6 +9,7 @@ export type SignalErrorCode =
   | "packaging_failed"
   | "packaging_stopped"
   | "worker_startup_timeout"
+  | "transition_failed"
   | "subscription_aborted"
   | "runtime_cleanup_failed"
   | "manager_shutdown";

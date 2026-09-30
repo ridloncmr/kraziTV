@@ -4,9 +4,9 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 
 ## Detailed Plans
 
-- [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - ready to
-  start; production-intent signal runtime, compatibility evidence, and
-  production integration
+- [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - in
+  development; runtime primitives and automated suite complete (G2), FFmpeg/Plex
+  evidence gate next
 
 ## Initial Milestones
 
@@ -19,8 +19,9 @@ This folder tracks build sequencing, milestones, and task breakdowns.
   readiness-gated publication, shared fan-out, slow-subscriber isolation,
   late-join initialization, idle grace, process shutdown, pacing, and multi-item
   continuity
-- Add automated lifecycle and fan-out tests using fake playout/process adapters,
-  including failed administrative cleanup and idempotent retry
+- Add automated lifecycle and fan-out tests using fake playout, packager, and
+  process adapters, including failed administrative cleanup and idempotent
+  retry - done
 - Run the Plex HDHomeRun compatibility spike through those retained primitives,
   including first-worker initial tune drift, real-time pacing and any required
   startup catch-up, late join, two viewers on one encoder, idle shutdown, and a
