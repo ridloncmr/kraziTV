@@ -3,10 +3,14 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 export type ApiErrorCode =
   | "invalid_request"
   | "internal_error"
+  | "media_root_disabled"
   | "media_root_duplicate"
   | "media_root_not_found"
   | "media_root_path_immutable"
-  | "not_found";
+  | "media_root_unavailable"
+  | "not_found"
+  | "scan_cancelled"
+  | "scan_in_progress";
 
 /** Sends the one error envelope every API client can rely on. */
 export function sendApiError(

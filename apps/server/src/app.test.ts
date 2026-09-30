@@ -6,14 +6,22 @@ import {
   type ServerDatabaseLifecycle,
 } from "./app.js";
 import type { MediaRootRepository } from "./media-catalog/media-root-repository.js";
+import type { CatalogScanner } from "./media-catalog/scan/catalog-scanner.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
 function createDependencies(
   database: ServerDatabaseLifecycle = { close: async () => undefined },
+  scanner: Pick<CatalogScanner, "shutdown"> = {
+    shutdown: async () => undefined,
+  },
 ): ServerDependencies {
-  // These tests never reach media-root routes, so an unused stand-in is enough.
-  return { database, mediaRoots: {} as MediaRootRepository };
+  // These tests never reach media-catalog routes, so unused stand-ins are enough.
+  return {
+    database,
+    mediaRoots: {} as MediaRootRepository,
+    scanner: scanner as CatalogScanner,
+  };
 }
 
 afterEach(async () => {
@@ -89,5 +97,20 @@ describe("buildServer", () => {
     await server.close();
 
     expect(closeCount).toBe(1);
+  });
+
+  it("stops catalog scans before closing the database on shutdown", async () => {
+    const events: string[] = [];
+    const server = buildServer(
+      createDependencies(
+        { close: async () => void events.push("database closed") },
+        { shutdown: async () => void events.push("scanner stopped") },
+      ),
+      { logger: false },
+    );
+
+    await server.close();
+
+    expect(events).toEqual(["scanner stopped", "database closed"]);
   });
 });

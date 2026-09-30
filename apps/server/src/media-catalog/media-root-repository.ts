@@ -78,6 +78,16 @@ export class MediaRootRepository {
     return rows.map(toMediaRoot);
   }
 
+  /** Loads one root for operations such as scanning that act on a single root. */
+  async findById(id: string): Promise<MediaRoot | undefined> {
+    const row = await this.#db
+      .selectFrom("media_roots")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
+    return row === undefined ? undefined : toMediaRoot(row);
+  }
+
   /** Toggles scan eligibility; returns undefined when the root does not exist. */
   async setEnabled(
     id: string,

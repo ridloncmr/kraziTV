@@ -8,6 +8,9 @@ import { buildServer } from "../app.js";
 import { openDatabase, type KraziDatabase } from "../database/database.js";
 import { FIXTURE_TIME } from "../database/test-fixtures.js";
 import { MediaRootRepository } from "./media-root-repository.js";
+import { CatalogScanWriter } from "./scan/catalog-scan-writer.js";
+import { CatalogScanner } from "./scan/catalog-scanner.js";
+import { ControlledProber } from "./scan/testing/controlled-prober.js";
 
 type Server = ReturnType<typeof buildServer>;
 
@@ -40,7 +43,16 @@ async function startServer(dataDirectory?: string): Promise<Server> {
     createId: () => `root-${String(++nextId).padStart(3, "0")}`,
     now: () => (now += 1_000),
   });
-  const server = buildServer({ database, mediaRoots }, { logger: false });
+  // These tests never scan, so an idle scanner completes the composition.
+  const scanner = new CatalogScanner({
+    roots: mediaRoots,
+    prober: new ControlledProber(),
+    writer: new CatalogScanWriter(database.db),
+  });
+  const server = buildServer(
+    { database, mediaRoots, scanner },
+    { logger: false },
+  );
   servers.push(server);
   return server;
 }

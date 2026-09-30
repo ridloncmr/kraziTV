@@ -5,7 +5,7 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 ## Detailed Plans
 
 - [Spec 0002: Local Media Catalog](0002-media-catalog.md) - in development;
-  CAT-001 through CAT-004 complete, atomic catalog scanning (CAT-005) next
+  CAT-001 through CAT-005 complete, catalog query APIs (CAT-006) next
 - [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - in
   development; runtime primitives and automated suite complete (G2), FFmpeg/Plex
   evidence gate next

@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: In development; CAT-001 through CAT-004 complete, CAT-005 next
+Status: In development; CAT-001 through CAT-005 complete, CAT-006 next
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -520,6 +520,17 @@ bounded child-process contract.
 
 ### CAT-005: Implement atomic catalog scanning
 
+**Status**
+
+Complete on 2026-09-30. `ConcurrencyLimitedProber`, `CatalogScanner`,
+`CatalogScanWriter`, the post-probe candidate/validation boundary, `FFPROBE_*`
+configuration, and `POST /media-roots/:id/scan` (with client-disconnect and
+`preClose` shutdown cancellation) are implemented and verified under
+`apps/server/src/media-catalog/scan/`. The summary's `missingCount` counts items
+that became `missing` in that scan; an inaccessible root answers `409
+media_root_unavailable` and a cancelled scan `503 scan_cancelled`. The
+real-ffprobe smoke gate remains with CAT-007.
+
 **Goal**
 
 Turn one enabled media root into a durable catalog generation while preserving
@@ -729,6 +740,64 @@ for spec 0003.
 - Update `docs/implementation_plan/README.md` status.
 - Do not maintain the completed plan as a second implementation reference; code
   and executable tests become canonical.
+
+### CAT-008: Typecheck server tests and test helpers
+
+**Goal**
+
+Make `npm run typecheck` cover every `apps/server` source file, including tests
+and test-only helpers, while keeping test code out of the production build.
+
+**Scope**
+
+- Split `apps/server` into two configs, mirroring `packages/signal`:
+  - `tsconfig.json`: `noEmit`, includes all of `src/**/*.ts`, and is what the
+    workspace `typecheck` script runs (`tsc -p tsconfig.json`).
+  - `tsconfig.build.json`: extends it with `composite`, `outDir`, and
+    `tsBuildInfoFile`, and excludes `src/**/*.test.ts` and
+    `src/**/testing/**/*.ts`.
+- Point the server's `build` and `predev` scripts and the root
+  `tsconfig.build.json` project reference at `apps/server/tsconfig.build.json`.
+- Add the server workspace to the root `typecheck` script.
+- Fix the 25 existing type errors in
+  `apps/server/src/media-catalog/media-root-routes.test.ts`. They are hidden
+  today because the only server config excludes tests. Most come from typing
+  the server as `ReturnType<typeof buildServer>` (a thenable Fastify instance)
+  and passing `unknown` as an inject payload.
+
+**Out of scope**
+
+- Behavior changes to server code, new tests, or typecheck changes to other
+  workspaces.
+
+**Blocking dependencies**
+
+- None. Land it before CAT-007 so that ticket's `npm run typecheck` gate covers
+  the tests it adds.
+
+**Implementation notes**
+
+- Vitest does not typecheck, so today test files and
+  `media-catalog/scan/testing/controlled-prober.ts` are compiled by nothing. The
+  helper is currently kept in the single build config so it stays typechecked,
+  which also ships it in `dist`; the split removes that tradeoff.
+- Fix test types at their source, such as a precise server type alias, rather
+  than suppressing errors with casts or `@ts-expect-error`.
+
+**Verification**
+
+- Introducing a deliberate type error in any `*.test.ts` or `testing/` file makes
+  `npm run typecheck` fail.
+- `apps/server/dist` contains no test files and no `testing/` helpers after
+  `npm run build`.
+- `npm run format`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+
+**Docs impact**
+
+- None beyond recording this ticket's status.
 
 ## Acceptance-Criteria Traceability
 
