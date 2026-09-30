@@ -85,11 +85,14 @@ If a file cannot be probed, the catalog should preserve enough error state for t
 - `packages/media` returns normalized media metadata to the server.
 - Callers should not depend on raw ffprobe JSON.
 - ffprobe failures should be captured as catalog errors instead of crashing the full scan.
-- The first slice requires duration as a positive integer number of milliseconds.
+- The first slice requires duration as a positive integer number of milliseconds
+  and `hasAudio` as a boolean derived from the probed stream list.
 - ffprobe's fractional-second duration is converted once to the nearest whole
   millisecond; subsequent catalog and scheduling code does not use floating-point
   seconds.
-- Optional metadata can include container format, video codec, audio codec, resolution, and frame rate when available.
+- Optional metadata can include container format, video codec, audio codec,
+  resolution, and frame rate when available. `hasAudio` is required even when
+  detailed audio codec metadata is not retained.
 
 ffprobe must be spawned directly with a structured argument array and
 `shell: false`. The executable defaults to `ffprobe` on `PATH` and can be
@@ -167,6 +170,7 @@ mediaRootId
 path
 title
 durationMs
+hasAudio
 status
 probeError
 createdAt
@@ -183,7 +187,8 @@ Initial media item statuses:
 
 Status invariants:
 
-- `available` requires a positive integer `durationMs` and a null `probeError`.
+- `available` requires a positive integer `durationMs`, a boolean `hasAudio`,
+  and a null `probeError`.
 - `probe_failed` requires a non-empty `probeError`; `durationMs` is null unless a complete usable duration was recovered.
 - `missing` preserves previously probed metadata for history, but the item is not schedulable.
 - `lastSeenAt` changes when a scan discovers the path. `lastProbedAt` changes only when ffprobe is invoked.
@@ -211,7 +216,7 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 - A completed scan returns discovery, probe, failure, and missing-item counts.
 - Each discovered playable file is probed with ffprobe through `packages/media`.
 - Successfully probed files are stored as media items with integer millisecond
-  durations.
+  durations and an explicit audio-presence flag.
 - Probe failures are stored without crashing the entire scan.
 - ffprobe uses structured arguments, honors `FFPROBE_PATH`, and never invokes a
   shell.

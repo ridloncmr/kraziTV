@@ -9,6 +9,7 @@ export type CreateFfmpegSignalPackagerOptions = {
   timers: TimerScheduler;
   ffmpegPath?: string;
   terminationGraceMs?: number;
+  itemReadinessTimeoutMs?: number;
 };
 
 /** Creates the production FFmpeg packager without exposing process internals. */
@@ -21,5 +22,6 @@ export function createFfmpegSignalPackager(
     logger: options.logger,
     ffmpegPath: options.ffmpegPath,
     terminationGraceMs: options.terminationGraceMs,
+    itemReadinessTimeoutMs: options.itemReadinessTimeoutMs,
   });
 }

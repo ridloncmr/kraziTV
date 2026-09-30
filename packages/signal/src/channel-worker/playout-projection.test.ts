@@ -16,6 +16,7 @@ const item = (scheduleRevision: number): SelectedPlayoutItem => ({
   scheduleRevision,
   mediaItemId: "media-1",
   mediaPath: "C:/media/movie.mkv",
+  hasAudio: true,
   title: "Movie",
   startsAt: 0,
   endsAt: 10_000,

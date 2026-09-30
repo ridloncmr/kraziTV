@@ -52,6 +52,7 @@ const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
     scheduleRevision: 1,
     mediaItemId: "media-1",
     mediaPath: "C:/media/movie.mkv",
+    hasAudio: true,
     title: "Movie",
     startsAt: 0,
     endsAt: 60_000,
@@ -62,6 +63,13 @@ const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
 
 const settlePromises = async (): Promise<void> => {
   await new Promise<void>((resolve) => setImmediate(resolve));
+};
+
+/** Supplies one retained transport packet carrying both test readiness markers. */
+const usableOutput = (): Buffer => {
+  const output = Buffer.alloc(188);
+  output.write("INIT usable-output");
+  return output;
 };
 
 /** Composes the production manager with only process and time boundaries faked. */
@@ -117,7 +125,7 @@ describe("createChannelStreamManager", () => {
       const { child, manager } = createHarness();
       const subscribing = manager.subscribe("channel-1");
       await settlePromises();
-      child.writeStdout("INIT usable-output");
+      child.writeStdout(usableOutput());
       const subscription = await subscribing;
       subscription.stream.resume();
 
@@ -141,7 +149,7 @@ describe("createChannelStreamManager", () => {
     const { child, clock, manager } = createHarness();
     const subscribing = manager.subscribe("channel-1");
     await settlePromises();
-    child.writeStdout("INIT usable-output");
+    child.writeStdout(usableOutput());
     const subscription = await subscribing;
     subscription.stream.resume();
 
@@ -191,7 +199,7 @@ describe("createChannelStreamManager", () => {
     await settlePromises();
     expect(spawner.spawnCalls).toHaveLength(2);
 
-    replacement.writeStdout("INIT usable-output");
+    replacement.writeStdout(usableOutput());
     (await retrying).stream.resume();
     const shutdown = manager.shutdown();
     await settlePromises();

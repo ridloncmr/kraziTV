@@ -20,39 +20,70 @@ export type FfmpegSignalPackagerDependencies = {
   logger: SignalLogger;
   ffmpegPath?: string;
   terminationGraceMs?: number;
+  itemReadinessTimeoutMs?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
 };
 
+const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
+
 /** Creates one retained FFmpeg session per active channel worker. */
 export class FfmpegSignalPackager implements SignalPackager {
+  private readonly itemReadinessTimeoutMs: number;
+
   /** Keeps process and inspection dependencies explicit for deterministic tests. */
-  constructor(
-    private readonly dependencies: FfmpegSignalPackagerDependencies,
-  ) {}
+  constructor(private readonly dependencies: FfmpegSignalPackagerDependencies) {
+    this.itemReadinessTimeoutMs =
+      dependencies.itemReadinessTimeoutMs ?? DEFAULT_ITEM_READINESS_TIMEOUT_MS;
+    if (
+      !Number.isSafeInteger(this.itemReadinessTimeoutMs) ||
+      this.itemReadinessTimeoutMs <= 0
+    ) {
+      throw new RangeError(
+        "itemReadinessTimeoutMs must be a positive safe integer",
+      );
+    }
+  }
 
   /** Validates and starts one item synchronously so output can be drained at once. */
   start(initialItem: SignalPlayoutItem): SignalSession {
-    const args = buildFfmpegArguments(initialItem);
+    const process = this.startProcess(initialItem);
+
+    return new FfmpegSignalSession(
+      process,
+      initialItem,
+      this.dependencies.createReadinessInspector ??
+        (() => new MpegTsReadinessInspector()),
+      (item) => {
+        buildFfmpegArguments(item);
+      },
+      (item) => this.startProcess(item),
+      this.dependencies.timers,
+      this.itemReadinessTimeoutMs,
+      this.dependencies.logger,
+    );
+  }
+
+  /** Starts one item encoder whose normal exit remains internal to its session. */
+  private startProcess(item: SignalPlayoutItem): FfmpegProcess {
     const process = FfmpegProcess.start({
-      args,
+      args: buildFfmpegArguments(item),
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,
       ffmpegPath: this.dependencies.ffmpegPath,
       terminationGraceMs: this.dependencies.terminationGraceMs,
       diagnosticContext: {
-        channelId: initialItem.channelId,
-        scheduleEntryId: initialItem.scheduleEntryId,
-        mediaItemId: initialItem.mediaItemId,
+        channelId: item.channelId,
+        scheduleEntryId: item.scheduleEntryId,
+        mediaItemId: item.mediaItemId,
       },
-      // SIG-010 owns item boundaries; until then any exit before stop fails.
-      isSuccessfulExitExpected: () => false,
+      isSuccessfulExitExpected: () => true,
     });
-
-    return new FfmpegSignalSession(
-      process,
-      this.dependencies.createReadinessInspector?.() ??
-        new MpegTsReadinessInspector(),
-    );
+    this.dependencies.logger.info("ffmpeg_process_started", {
+      channelId: item.channelId,
+      scheduleEntryId: item.scheduleEntryId,
+      mediaItemId: item.mediaItemId,
+    });
+    return process;
   }
 }

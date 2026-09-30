@@ -69,6 +69,7 @@ export function toSignalItem(
     scheduleEntryId: current.item.scheduleEntryId,
     mediaItemId: current.item.mediaItemId,
     mediaPath: current.item.mediaPath,
+    hasAudio: current.item.hasAudio,
     mediaOffsetMs: current.mediaOffsetMs,
     playDurationMs,
   };
@@ -111,6 +112,7 @@ export function toFollowingSignalItem(
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,
     mediaPath: item.mediaPath,
+    hasAudio: item.hasAudio,
     mediaOffsetMs: item.startOffsetMs,
     playDurationMs: item.endsAt - item.startsAt,
   };

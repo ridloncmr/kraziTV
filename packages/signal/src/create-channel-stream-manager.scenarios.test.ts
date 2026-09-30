@@ -40,6 +40,7 @@ const entry = (
   scheduleRevision: 7,
   mediaItemId: `media-${scheduleEntryId}`,
   mediaPath: `C:/media/${scheduleEntryId}.mkv`,
+  hasAudio: true,
   title: scheduleEntryId,
   startsAt,
   endsAt: startsAt + 10_000,

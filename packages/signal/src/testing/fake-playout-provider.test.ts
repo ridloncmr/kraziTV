@@ -15,6 +15,7 @@ const currentResult: CurrentPlayoutResult = {
     scheduleRevision: 4,
     mediaItemId: "media-1",
     mediaPath: "/media/1.mkv",
+    hasAudio: true,
     title: "Pilot",
     startsAt: 750,
     endsAt: 30_750,

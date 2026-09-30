@@ -610,10 +610,12 @@ through the smallest hard-coded Plex/HDHomeRun harness.
 - Real-FFmpeg tests may be explicitly classified as environment/integration
   tests rather than silently skipped in the spike workflow.
 - Record tool versions and test-asset identities with measurements.
-- Prefer a sequential-process session: `prepare()` validates the media and
-  resolves promptly; `commit()` synchronously detaches the old encoder, spawns
-  the next one, and stops the old one in the background, feeding its stop
-  failures into session `completion`. A second process prewarmed with real-time
+- Prefer a sequential-process session: `prepare()` validates the supplied
+  packaging inputs and resolves promptly without taking over ffprobe or source
+  inspection from `packages/media`; `commit()` synchronously detaches the old
+  encoder, spawns the next one, and stops the old one in the background,
+  feeding its stop failures into session `completion`. A second process
+  prewarmed with real-time
   pacing at the lead time either bursts or buffers about the lead time of
   output and finishes early, so it fits the worker's timing poorly.
 - Keep `session.output` a session-owned stream fed with `{ end: false }`, and
@@ -624,8 +626,8 @@ through the smallest hard-coded Plex/HDHomeRun harness.
 - Individual item exits are internal to the session: `completion` settles only
   on stop or fatal failure, per the `SignalSession` contract.
 - Honor the `SignalSession.stop()` contract: stop ends an in-flight
-  `prepare()` or `discard()` before it settles, including any ffprobe
-  validation child. The worker stops the session concurrently with halting its
+  `prepare()` or `discard()` before it settles, including any packaging-owned
+  validation work. The worker stops the session concurrently with halting its
   transition loop and relies on this for both ordinary stops and transition
   deadline failures.
 - The worker's transition deadline ends at `commit()`. Give the session its own
@@ -748,6 +750,8 @@ Feed workers real provider-neutral state from one consistent schedule snapshot.
   `channel-worker/playout-projection.ts` to `durationMs - mediaOffsetMs` as
   spec 0006 requires for the initial item; neither the current nor the
   following projection clamps today.
+- Carry the catalog's required `hasAudio` fact into every
+  `SelectedPlayoutItem`; `packages/signal` consumes it but does not probe media.
 - Keep this adapter in the server/persistence composition layer, not
   `packages/signal`.
 
