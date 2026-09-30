@@ -8,9 +8,9 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b tsconfig.build.json",
     "test": "vitest run src",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.20.4"

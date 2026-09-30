@@ -4,7 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/media" },
     { "path": "./packages/plex" },
-    { "path": "./packages/signal" },
+    { "path": "./packages/signal/tsconfig.build.json" },
     { "path": "./apps/server" }
   ]
 }
