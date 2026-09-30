@@ -105,7 +105,10 @@ The following policies close questions left open by the original spec:
 - Client disconnect and server shutdown cancel the scan, terminate and await
   active probes, and prevent the staged scan from committing.
 - A dot-prefixed path segment defines hidden content for the MVP. Native Windows
-  hidden attributes are deferred.
+  hidden attributes are deferred. The OS-managed volume folders
+  `System Volume Information` and `$RECYCLE.BIN` are skipped case-insensitively
+  so data-drive roots can scan. Windows system drive roots remain unsupported
+  because other restricted folders there still fail traversal.
 - Any directory traversal error, including an unreadable nested directory, fails
   the entire scan. It preserves prior catalog state and `lastScannedAt`.
 
@@ -356,6 +359,13 @@ the filesystem during server startup or root creation.
 
 ### CAT-003: Implement deterministic local-file discovery
 
+**Status**
+
+Complete on 2026-09-30. Path identity normalization now lives in
+`packages/media` and is shared by the server's media-root API. Discovery,
+its typed `MediaDiscoveryError`, and the media-package test/build configuration
+are implemented and verified.
+
 **Goal**
 
 Return a complete, deterministic set of supported media paths for an accessible
@@ -363,6 +373,10 @@ root without leaking traversal details into the server scanner.
 
 **Scope**
 
+- First, as a separate refactor, move lexical path normalization from
+  `apps/server/src/media-catalog/media-root-path.ts` into `packages/media` and
+  have the server import it, so roots and discovered files share one identity
+  implementation.
 - Add a narrow discovery entry point to `packages/media` that accepts an absolute
   root path and optional cancellation signal.
 - Recurse through directories, skip dot-prefixed files and subtrees, do not
@@ -391,8 +405,17 @@ root without leaking traversal details into the server scanner.
 
 - Use directory-entry metadata to avoid following directory symlinks. Keep all
   symlink policy inside discovery rather than making callers reimplement it.
+  Symlinked files with supported extensions are included; only directory links
+  (including Windows junctions) are not followed.
+- Skip entries whose names the shared normalization rejects as ambiguous on
+  Windows (trailing dot or space, or `:`), because they cannot receive a
+  trustworthy identity key. Ignore entries that are neither regular files nor
+  directories.
+- Order results by ordinal comparison of identity keys, not locale collation.
 - Treat any dot-prefixed segment below the configured root as hidden. The root
   itself may have a dot-prefixed basename because it was explicitly configured.
+- Skip `System Volume Information` and `$RECYCLE.BIN` by case-insensitive name
+  at any depth.
 - Preserve the normalized display path separately from the identity key.
 - Cancellation is cooperative between filesystem operations and returns a typed
   cancellation failure.
@@ -400,7 +423,8 @@ root without leaking traversal details into the server scanner.
 **Verification**
 
 - Temporary-directory tests cover nested supported files, unsupported files,
-  case-insensitive extensions, hidden files and subtrees, directory symlinks,
+  case-insensitive extensions, hidden files and subtrees, OS-managed volume
+  folders, directory symlinks,
   empty roots, deterministic order, title derivation, and cancellation.
 - Root-not-found, root-is-file, root-unreadable, and unreadable-nested-directory
   cases fail the discovery rather than returning partial success.

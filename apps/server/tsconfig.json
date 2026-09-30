@@ -10,7 +10,7 @@
   "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../../packages/core" },
-    { "path": "../../packages/media" },
+    { "path": "../../packages/media/tsconfig.build.json" },
     { "path": "../../packages/plex" }
   ]
 }

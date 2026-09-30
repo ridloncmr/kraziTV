@@ -85,7 +85,7 @@ If a file cannot be probed, the catalog should preserve enough error state for t
 ### File Discovery
 
 - Scans recurse through enabled media roots.
-- Scans skip hidden files and directories and only consider files with a supported extension. For the MVP, hidden means that a path segment's basename begins with `.`; platform-specific hidden attributes are deferred.
+- Scans skip hidden files and directories and only consider files with a supported extension. For the MVP, hidden means that a path segment's basename begins with `.`; platform-specific hidden attributes are deferred. Scans also skip the OS-managed volume folders `System Volume Information` and `$RECYCLE.BIN` (compared case-insensitively on every platform), so a data-drive root can complete a scan. A Windows system drive root is not supported, because other restricted folders there still fail the scan.
 - Scans do not follow directory symlinks in the first implementation.
 - Supported extensions should initially include common video containers such as `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and `.webm`.
 - File discovery should produce normalized absolute paths.

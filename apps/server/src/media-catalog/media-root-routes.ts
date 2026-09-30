@@ -1,11 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { z } from "zod";
 
 import { sendApiError } from "../api-error.js";
-import {
-  currentPathPlatform,
-  normalizeMediaRootPath,
-} from "./media-root-path.js";
 import type {
   MediaRoot,
   MediaRootRepository,
@@ -45,7 +42,7 @@ export function registerMediaRootRoutes(
       );
     }
 
-    const rootPath = normalizeMediaRootPath(body.data.path, platform);
+    const rootPath = normalizeMediaPath(body.data.path, platform);
     if (rootPath === undefined) {
       return sendApiError(
         reply,

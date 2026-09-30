@@ -2,10 +2,10 @@ import { posix, win32 } from "node:path";
 
 export type PathPlatform = "win32" | "posix";
 
-export interface NormalizedMediaRootPath {
+export interface NormalizedMediaPath {
   /** Normalized absolute path shown to users, preserving original casing. */
   path: string;
-  /** Platform-aware comparison key that decides whether two roots are the same. */
+  /** Platform-aware comparison key that decides whether two paths are the same. */
   pathKey: string;
 }
 
@@ -23,14 +23,14 @@ export function currentPathPlatform(): PathPlatform {
 }
 
 /**
- * Lexically normalizes an absolute root path without touching the filesystem, so
+ * Lexically normalizes an absolute media path without touching the filesystem, so
  * missing or offline roots can still be registered. Returns undefined for input
  * that is not a fully qualified absolute path on the given platform.
  */
-export function normalizeMediaRootPath(
+export function normalizeMediaPath(
   input: string,
   platform: PathPlatform,
-): NormalizedMediaRootPath | undefined {
+): NormalizedMediaPath | undefined {
   if (input.length === 0 || input.includes("\0")) {
     return undefined;
   }
@@ -41,9 +41,7 @@ export function normalizeMediaRootPath(
 }
 
 // Rejects driveless, device, and aliasing paths so one directory has one identity key.
-function normalizeWindowsPath(
-  input: string,
-): NormalizedMediaRootPath | undefined {
+function normalizeWindowsPath(input: string): NormalizedMediaPath | undefined {
   const normalized = win32.normalize(input);
   const { root } = win32.parse(normalized);
   if (!WINDOWS_ROOT.test(root)) {
@@ -60,9 +58,7 @@ function normalizeWindowsPath(
 }
 
 // POSIX identity stays case-sensitive because the filesystem usually is.
-function normalizePosixPath(
-  input: string,
-): NormalizedMediaRootPath | undefined {
+function normalizePosixPath(input: string): NormalizedMediaPath | undefined {
   if (!posix.isAbsolute(input)) {
     return undefined;
   }

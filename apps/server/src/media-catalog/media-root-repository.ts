@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Kysely, Selectable } from "kysely";
 
 import type { DatabaseSchema, MediaRootTable } from "../database/schema.js";
-import type { NormalizedMediaRootPath } from "./media-root-path.js";
+import type { NormalizedMediaPath } from "@krazitv/media";
 
 export interface MediaRoot {
   id: string;
@@ -40,7 +40,7 @@ export class MediaRootRepository {
 
   /** Inserts a root; the unique path_key constraint is the final duplicate guard. */
   async create(
-    rootPath: NormalizedMediaRootPath,
+    rootPath: NormalizedMediaPath,
     enabled: boolean,
   ): Promise<CreateMediaRootResult> {
     const now = this.#now();
