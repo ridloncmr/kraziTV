@@ -67,19 +67,28 @@ Keep public package exports narrow. `@krazitv/media` should expose discovery and
 probe construction/contracts needed by the server while keeping argument
 builders, raw ffprobe JSON, process state, and test doubles private.
 
-Organize the new implementation by capability before the server and media
-package become catch-all source directories:
+Organize the implementation by capability, following the source layout rules
+in `AGENTS.md`:
 
 ```text
 apps/server/src
+  config/          environment parsing (data directory, network, ffprobe)
+  http/            shared API error envelope
   database/        connection, schema types, migrations
-  media-catalog/   repositories, scanner, routes, API projections
+  media-roots/     media-root repository and routes
+  catalog-scan/    scanner, probe limit, candidates, writer, scan route
+  media-items/     catalog query APIs (CAT-006)
+  testing/         test doubles and deterministic fixtures
   app.ts           Fastify construction and route composition
   index.ts         process configuration and startup/shutdown
 
 packages/media/src
   discovery/       traversal and supported-file policy
-  probe/           ffprobe arguments, parsing, and process lifecycle
+  paths/           lexical path identity
+  probe/           ffprobe arguments, parsing, and probe lifecycle
+  process/         child-process spawning seam
+  testing/         process doubles
+  create-media-prober.ts  public prober construction
   index.ts         deliberate public exports
 ```
 
@@ -526,7 +535,7 @@ Complete on 2026-09-30. `ConcurrencyLimitedProber`, `CatalogScanner`,
 `CatalogScanWriter`, the post-probe candidate/validation boundary, `FFPROBE_*`
 configuration, and `POST /media-roots/:id/scan` (with client-disconnect and
 `preClose` shutdown cancellation) are implemented and verified under
-`apps/server/src/media-catalog/scan/`. The summary's `missingCount` counts items
+`apps/server/src/catalog-scan/`. The summary's `missingCount` counts items
 that became `missing` in that scan; an inaccessible root answers `409
 media_root_unavailable` and a cancelled scan `503 scan_cancelled`. The
 real-ffprobe smoke gate remains with CAT-007.
@@ -769,7 +778,7 @@ and test-only helpers, while keeping test code out of the production build.
   `tsconfig.build.json` project reference at `apps/server/tsconfig.build.json`.
 - Add the server workspace to the root `typecheck` script.
 - Fix the 25 existing type errors in
-  `apps/server/src/media-catalog/media-root-routes.test.ts`. They are hidden
+  `apps/server/src/media-roots/media-root-routes.test.ts`. They are hidden
   today because the only server config excludes tests. Most come from typing
   the server as `ReturnType<typeof buildServer>` (a thenable Fastify instance)
   and passing `unknown` as an inject payload.
@@ -787,7 +796,7 @@ and test-only helpers, while keeping test code out of the production build.
 **Implementation notes**
 
 - Vitest does not typecheck, so today test files and
-  `media-catalog/scan/testing/controlled-prober.ts` are compiled by nothing. The
+  `testing/controlled-prober.ts` are compiled by nothing. The
   helper is currently kept in the single build config so it stays typechecked,
   which also ships it in `dist`; the split removes that tradeoff.
 - Fix test types at their source, such as a precise server type alias, rather

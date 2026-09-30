@@ -12,7 +12,7 @@ import {
 import type {
   MediaRoot,
   MediaRootRepository,
-} from "../media-root-repository.js";
+} from "../media-roots/media-root-repository.js";
 import {
   createCatalogCandidate,
   validateCatalogCandidate,

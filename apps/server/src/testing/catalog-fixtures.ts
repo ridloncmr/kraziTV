@@ -1,7 +1,7 @@
 // Deterministic catalog rows for tests only; production code must never import this module.
 import type { Insertable } from "kysely";
 
-import type { MediaItemTable, MediaRootTable } from "./schema.js";
+import type { MediaItemTable, MediaRootTable } from "../database/schema.js";
 
 export const FIXTURE_TIME = 1_704_067_200_000;
 

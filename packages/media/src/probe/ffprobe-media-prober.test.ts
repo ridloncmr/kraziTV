@@ -6,7 +6,7 @@ import {
   type FfprobeMediaProberOptions,
 } from "./ffprobe-media-prober.js";
 import { MediaProbeError } from "./media-probe-error.js";
-import { FakeProcess, FakeProcessSpawner } from "./testing/fake-process.js";
+import { FakeProcess, FakeProcessSpawner } from "../testing/fake-process.js";
 
 const MEDIA_PATH = "/media/Show S01E01.mkv";
 const VALID_OUTPUT = JSON.stringify({

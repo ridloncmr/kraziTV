@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { z } from "zod";
 
-import { sendApiError } from "../api-error.js";
+import { sendApiError } from "../http/api-error.js";
 import type {
   MediaRoot,
   MediaRootRepository,

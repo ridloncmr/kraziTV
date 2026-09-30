@@ -11,17 +11,17 @@ import {
 } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../../database/database.js";
+import { openDatabase, type KraziDatabase } from "../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
-} from "../../database/test-fixtures.js";
-import { MediaRootRepository } from "../media-root-repository.js";
+} from "../testing/catalog-fixtures.js";
+import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
-import { ControlledProber } from "./testing/controlled-prober.js";
+import { ControlledProber } from "../testing/controlled-prober.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 const RESULT = { durationMs: 2_000, hasAudio: true };

@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import SqliteDatabase from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 
-import { resolveDatabasePath } from "../data-directory.js";
+import { resolveDatabasePath } from "../config/data-directory.js";
 import { migrateDatabase } from "./migrations.js";
 import type { DatabaseSchema } from "./schema.js";
 

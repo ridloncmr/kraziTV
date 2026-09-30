@@ -1,14 +1,14 @@
 import { createMediaProber } from "@krazitv/media";
 
 import { buildServer } from "./app.js";
-import { resolveDataDirectory } from "./data-directory.js";
+import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
-import { MediaRootRepository } from "./media-catalog/media-root-repository.js";
-import { CatalogScanWriter } from "./media-catalog/scan/catalog-scan-writer.js";
-import { CatalogScanner } from "./media-catalog/scan/catalog-scanner.js";
-import { ConcurrencyLimitedProber } from "./media-catalog/scan/concurrency-limited-prober.js";
-import { parseProbeConfig } from "./media-catalog/scan/probe-config.js";
-import { isLoopbackHost, parseCorsOrigins } from "./network.js";
+import { MediaRootRepository } from "./media-roots/media-root-repository.js";
+import { CatalogScanWriter } from "./catalog-scan/catalog-scan-writer.js";
+import { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
+import { ConcurrencyLimitedProber } from "./catalog-scan/concurrency-limited-prober.js";
+import { parseProbeConfig } from "./config/probe-config.js";
+import { isLoopbackHost, parseCorsOrigins } from "./config/network.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "127.0.0.1";

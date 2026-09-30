@@ -11,14 +11,14 @@ import {
 } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildServer } from "../../app.js";
-import { openDatabase } from "../../database/database.js";
-import { FIXTURE_TIME, rootFixture } from "../../database/test-fixtures.js";
-import { MediaRootRepository } from "../media-root-repository.js";
+import { buildServer } from "../app.js";
+import { openDatabase } from "../database/database.js";
+import { FIXTURE_TIME, rootFixture } from "../testing/catalog-fixtures.js";
+import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
-import { ControlledProber } from "./testing/controlled-prober.js";
+import { ControlledProber } from "../testing/controlled-prober.js";
 
 type Server = ReturnType<typeof buildServer>;
 type Discover = (

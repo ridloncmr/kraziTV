@@ -4,11 +4,11 @@ import Fastify, {
   type FastifyServerOptions,
 } from "fastify";
 
-import { registerApiErrorHandlers } from "./api-error.js";
-import type { MediaRootRepository } from "./media-catalog/media-root-repository.js";
-import { registerMediaRootRoutes } from "./media-catalog/media-root-routes.js";
-import type { CatalogScanner } from "./media-catalog/scan/catalog-scanner.js";
-import { registerCatalogScanRoutes } from "./media-catalog/scan/catalog-scan-routes.js";
+import { registerApiErrorHandlers } from "./http/api-error.js";
+import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
+import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
+import type { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
+import { registerCatalogScanRoutes } from "./catalog-scan/catalog-scan-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 

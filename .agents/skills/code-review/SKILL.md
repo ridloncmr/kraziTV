@@ -20,8 +20,9 @@ Look for:
 - Missing or weak tests
 - Overly shallow modules
 - Files with multiple independent classes or muddied responsibilities
-- Growing flat or catch-all directories whose repeated prefixes or source-and-test
-  clusters should be grouped by domain
+- Files placed against the source layout rules in `AGENTS.md`: implementation
+  at the `src/` root, nested `process/` or `testing/` folders, or catch-all
+  directories
 - Accidental, unused, or overly broad exports
 - Missing concise why-comments on methods
 - Unclear domain names

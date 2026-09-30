@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase, type KraziDatabase } from "./database.js";
 import { migrateDatabase } from "./migrations.js";
 import type { MediaItemTable } from "./schema.js";
-import { itemFixture, rootFixture } from "./test-fixtures.js";
+import { itemFixture, rootFixture } from "../testing/catalog-fixtures.js";
 
 const databases: KraziDatabase[] = [];
 const temporaryDirectories: string[] = [];

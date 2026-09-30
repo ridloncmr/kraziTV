@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendApiError } from "../../api-error.js";
+import { sendApiError } from "../http/api-error.js";
 import type {
   CatalogScanner,
   ScanResult,

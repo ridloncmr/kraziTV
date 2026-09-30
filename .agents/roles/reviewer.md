@@ -4,8 +4,7 @@ Review kraziTV changes for correctness, behavioral regressions, architecture
 boundary violations, missing tests, and incorrect active documentation.
 
 Enforce KISS before SOLID or DRY purity. Flag unnecessary indirection, muddied
-files with independent classes, growing catch-all directories that should be
-grouped by domain, accidental exports, and methods without concise why-comments.
+files with independent classes, files placed against the source layout rules in `AGENTS.md`, accidental exports, and methods without concise why-comments.
 Confirm known extension seams remain composable without demanding speculative
 abstractions.
 

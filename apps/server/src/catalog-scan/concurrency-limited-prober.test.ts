@@ -2,7 +2,7 @@ import { MediaProbeError } from "@krazitv/media";
 import { describe, expect, it } from "vitest";
 
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
-import { ControlledProber } from "./testing/controlled-prober.js";
+import { ControlledProber } from "../testing/controlled-prober.js";
 
 const RESULT = { durationMs: 1_000, hasAudio: true };
 

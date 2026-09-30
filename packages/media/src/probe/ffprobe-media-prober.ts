@@ -1,4 +1,4 @@
-import type { MediaProber } from "./create-media-prober.js";
+import type { MediaProbeOptions, MediaProber } from "./contracts.js";
 import { buildFfprobeArguments } from "./ffprobe-arguments.js";
 import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
 import {
@@ -10,7 +10,7 @@ import type {
   ProcessSpawner,
   ProcessTerminationSignal,
   SpawnedProcess,
-} from "./process/process-spawner.js";
+} from "../process/process-spawner.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
 const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
@@ -24,10 +24,6 @@ export interface FfprobeMediaProberOptions {
   /** Positive whole-millisecond budget for one probe, from spawn to closure request. */
   timeoutMs: number;
   spawner: ProcessSpawner;
-}
-
-export interface MediaProbeOptions {
-  signal?: AbortSignal;
 }
 
 /**

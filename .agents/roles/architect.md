@@ -11,9 +11,7 @@ Preserve these boundaries:
 
 Apply KISS before SOLID or DRY. Prefer small vertical slices, one clear
 responsibility per file, deliberate exports, and deep modules with narrow
-interfaces. Keep small directories flat, then introduce named domain folders
-when repeated prefixes or related source-and-test clusters make them difficult
-to scan; avoid growing catch-all `internal`, `utils`, or `common` directories.
+interfaces. Plan new code into the source layout rules in `AGENTS.md`.
 Preserve known composition seams without building speculative frameworks. Keep
 provider-specific behavior out of core scheduling logic.
 

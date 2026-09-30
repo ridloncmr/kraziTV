@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../../database/database.js";
+import { openDatabase, type KraziDatabase } from "../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
-} from "../../database/test-fixtures.js";
+} from "../testing/catalog-fixtures.js";
 import type { CatalogCandidate } from "./catalog-candidate.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 

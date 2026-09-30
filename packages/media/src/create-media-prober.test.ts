@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createMediaProber } from "./create-media-prober.js";
-import { MediaProbeError } from "./media-probe-error.js";
+import { MediaProbeError } from "./probe/media-probe-error.js";
 
 describe("createMediaProber", () => {
   it("reports a missing ffprobe executable as a spawn failure", async () => {

@@ -15,10 +15,9 @@ export {
 } from "./discovery/media-discovery-error.js";
 export {
   createMediaProber,
-  type MediaProber,
   type MediaProberConfig,
-} from "./probe/create-media-prober.js";
-export type { MediaProbeOptions } from "./probe/ffprobe-media-prober.js";
+} from "./create-media-prober.js";
+export type { MediaProbeOptions, MediaProber } from "./probe/contracts.js";
 export type { MediaProbeResult } from "./probe/parse-ffprobe-output.js";
 export {
   MediaProbeError,

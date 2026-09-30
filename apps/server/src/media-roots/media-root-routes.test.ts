@@ -7,11 +7,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { buildServer } from "../app.js";
 import { openDatabase, type KraziDatabase } from "../database/database.js";
-import { FIXTURE_TIME } from "../database/test-fixtures.js";
+import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { MediaRootRepository } from "./media-root-repository.js";
-import { CatalogScanWriter } from "./scan/catalog-scan-writer.js";
-import { CatalogScanner } from "./scan/catalog-scanner.js";
-import { ControlledProber } from "./scan/testing/controlled-prober.js";
+import { CatalogScanWriter } from "../catalog-scan/catalog-scan-writer.js";
+import { CatalogScanner } from "../catalog-scan/catalog-scanner.js";
+import { ControlledProber } from "../testing/controlled-prober.js";
 
 // Awaiting buildServer's thenable result yields the plain instance, so tests hold that type.
 type Server = FastifyInstance;

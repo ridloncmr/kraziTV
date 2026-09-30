@@ -5,8 +5,8 @@ import {
   type ServerDependencies,
   type ServerDatabaseLifecycle,
 } from "./app.js";
-import type { MediaRootRepository } from "./media-catalog/media-root-repository.js";
-import type { CatalogScanner } from "./media-catalog/scan/catalog-scanner.js";
+import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
+import type { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
