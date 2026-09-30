@@ -76,6 +76,12 @@ It should behave like a small broadcast automation system, not a playlist genera
     `contracts.ts`, so domain files never import from a root entry point.
   - All test doubles and fixtures live in one `src/testing/` folder. Build
     configs exclude it along with `*.test.ts`.
+  - Opt-in suites that need external binaries such as real FFmpeg or ffprobe
+    live in `<package>/integration/`, outside `src/`, so `npm test` and CI never
+    collect them. Run them through a dedicated npm script (for example
+    `test:ffprobe`); they fail rather than skip when the binary is missing. The
+    package's `tsconfig.json` typechecks `integration/`; its build config stays
+    limited to `src/`.
   - Never create catch-all folders such as `internal`, `utils`, `common`, or
     `helpers`.
 - Keep exports deliberate and minimal. Export only the package or module surface

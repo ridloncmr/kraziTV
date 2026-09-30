@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: In development; CAT-001 through CAT-006 and CAT-008 complete, CAT-007 next
+Status: Implemented on 2026-09-30; all tickets (CAT-001 through CAT-008) complete
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -696,6 +696,17 @@ work without exposing SQLite rows or raw ffprobe output.
 
 ### CAT-007: Close executable acceptance and hand off to channel configuration
 
+**Status**
+
+Complete on 2026-09-30. `catalog-scan/catalog-acceptance.test.ts` drives the
+composed server over HTTP against an on-disk SQLite file and a real media
+directory, and `npm run test:ffprobe` proves exact rounded `durationMs` and
+`hasAudio` against real ffprobe using MOV clips generated at test time. The
+same-root scan conflict and shutdown ordering stay covered by
+`catalog-scan-routes.test.ts`; a source scan proves production code never imports
+`testing/`, and the server no longer depends on `@krazitv/core` or
+`@krazitv/plex`. Normal CI does not run the real-ffprobe gate.
+
 **Goal**
 
 Prove spec 0002 as one working vertical slice and leave a stable catalog contract
@@ -712,7 +723,9 @@ for spec 0003.
 - Verify server shutdown cancels and awaits an active probe before database
   closure.
 - Confirm no core, signal, Plex, Jellyfin, schedule, playout, or streaming code is
-  required by the catalog slice.
+  required by the catalog slice. Remove the unused `@krazitv/core` and
+  `@krazitv/plex` dependencies from `apps/server/package.json`; no server source
+  imports them.
 - Review public exports, method purpose comments, directory cohesion, and active
   documentation before declaring the plan complete.
 
@@ -729,15 +742,36 @@ for spec 0003.
 
 - Keep the real-ffprobe test opt-in when the binary or fixture is unavailable;
   deterministic process-double tests remain mandatory in normal CI.
-- Generate or retain only a small redistributable fixture whose license and
-  provenance are recorded. Do not depend on a developer's personal media.
+- Generate the fixture at test time rather than committing media: use FFmpeg's
+  `lavfi` sources to write a short color-plus-tone clip with a fractional
+  duration into a temporary directory, following the `apps/plex-spike`
+  asset-generation precedent. Nothing is committed, so no license or provenance
+  record is needed. Do not depend on a developer's personal media.
+- Gate the test behind a dedicated npm script, following the
+  `spike:test:ffmpeg` precedent: a `test:ffprobe` script in `packages/media`
+  runs `vitest run integration/`, with the test outside `src/` so `npm test`
+  never collects it, and a root `test:ffprobe` script delegates to it. The test
+  requires `ffmpeg` and `ffprobe` on `PATH` (or `FFMPEG_PATH`/`FFPROBE_PATH`) and
+  fails loudly rather than skipping when they are missing, because running the
+  script is the explicit opt-in. Normal CI does not run it.
+- Widen `packages/media/tsconfig.json` to include `integration/**/*.ts` (and set
+  `rootDir` to the package root) so `npm run typecheck` covers the new test.
+  Keep `tsconfig.build.json` limited to `src/`, with its own `include` and
+  `rootDir: "src"`, so the build output layout in `dist` does not change.
+- There is no development fixture loader. Deterministic fixtures are test-only
+  objects in `apps/server/src/testing/catalog-fixtures.ts`, which the build
+  excludes. The "production migration does not load development fixtures" check
+  therefore means migrations never import `testing/` and a freshly migrated
+  database has empty catalog tables. Do not build a fixture loader to satisfy
+  it.
 - Treat the catalog service/API projection as the seam for the later ordered
   media-collection slice; do not move database or probe types into
   `packages/core` preemptively.
 
 **Verification**
 
-- Real ffprobe produces the expected rounded `durationMs` and `hasAudio` value.
+- Real ffprobe produces the expected rounded `durationMs` and `hasAudio` value
+  under `npm run test:ffprobe`.
 - End-to-end tests prove persistence across restart, missing reconciliation,
   retained failure metadata, duplicate root rejection, disabled scan rejection,
   same-root scan conflict, and failed-scan preservation.

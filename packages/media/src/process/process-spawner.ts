@@ -21,9 +21,11 @@ export interface SpawnedProcess {
   readonly stderr: Readable;
   /** Settles only once the child and its output streams have closed. */
   readonly exited: Promise<ProcessExit>;
+  /** Requests termination; returns false when the child has already exited. */
   terminate(signal: ProcessTerminationSignal): boolean;
 }
 
 export interface ProcessSpawner {
+  /** Starts one direct child process so arguments are never shell-interpreted. */
   spawn(request: ProcessSpawnRequest): SpawnedProcess;
 }

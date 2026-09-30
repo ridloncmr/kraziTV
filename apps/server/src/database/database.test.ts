@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { type Insertable, sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
@@ -266,5 +267,25 @@ describe("openDatabase", () => {
         })
         .execute(),
     ).resolves.toBeDefined();
+  });
+});
+
+describe("development fixtures", () => {
+  // There is no fixture loader: fixtures reach a database only when a test inserts
+  // them, so no migration or other production module may import from testing/.
+  it("are never imported by production source", async () => {
+    const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
+    const productionFiles = (await readdir(sourceRoot, { recursive: true }))
+      .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+      .filter((file) => !file.split(/[\\/]/).includes("testing"));
+
+    const offenders: string[] = [];
+    for (const file of productionFiles) {
+      const source = await readFile(join(sourceRoot, file), "utf8");
+      if (/["'`][^"'`]*\/testing\//.test(source)) offenders.push(file);
+    }
+
+    expect(productionFiles).toContain(join("database", "migrations.ts"));
+    expect(offenders).toEqual([]);
   });
 });

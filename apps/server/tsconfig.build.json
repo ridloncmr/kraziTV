@@ -7,9 +7,5 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "exclude": ["src/**/*.test.ts", "src/**/testing/**/*.ts"],
-  "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/media/tsconfig.build.json" },
-    { "path": "../../packages/plex" }
-  ]
+  "references": [{ "path": "../../packages/media/tsconfig.build.json" }]
 }

@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "test": "vitest run src",
+    "test:ffprobe": "vitest run integration/",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
