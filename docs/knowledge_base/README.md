@@ -15,5 +15,6 @@ This folder stores research notes, references, useful commands, and operational 
 
 - [Child process and stream safety](child-process-stream-safety.md)
 - [FFmpeg real-time startup](ffmpeg-real-time-startup.md)
+- [Plex signal compatibility spike](plex-signal-spike.md)
 - [Project licensing](licensing.md)
 - [SQLite immediate transactions with Kysely](sqlite-immediate-transactions.md)

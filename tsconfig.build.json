@@ -4,7 +4,8 @@
     { "path": "./packages/core" },
     { "path": "./packages/media" },
     { "path": "./packages/plex" },
-    { "path": "./packages/signal" },
-    { "path": "./apps/server" }
+    { "path": "./packages/signal/tsconfig.build.json" },
+    { "path": "./apps/server" },
+    { "path": "./apps/plex-spike" }
   ]
 }

@@ -11,6 +11,7 @@ const item = (
   scheduleEntryId: "entry-1",
   mediaItemId: "media-1",
   mediaPath: "C:/media/My Movie.mkv",
+  hasAudio: true,
   mediaOffsetMs: 12_345,
   playDurationMs: 67_890,
   ...overrides,
@@ -33,7 +34,7 @@ describe("buildFfmpegArguments", () => {
       "-map",
       "0:v:0",
       "-map",
-      "0:a:0?",
+      "0:a:0",
       "-c:v",
       "libx264",
       "-pix_fmt",
@@ -48,10 +49,36 @@ describe("buildFfmpegArguments", () => {
       "48000",
       "-ac",
       "2",
+      "-streamid",
+      "0:256",
+      "-streamid",
+      "1:257",
+      "-mpegts_start_pid",
+      "256",
+      "-mpegts_pmt_start_pid",
+      "4096",
       "-f",
       "mpegts",
       "pipe:1",
     ]);
+  });
+
+  it("synthesizes one stereo audio stream for silent media at the stable audio PID", () => {
+    const args = buildFfmpegArguments(item({ hasAudio: false }));
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-map",
+        "1:a:0",
+        "-streamid",
+        "1:257",
+      ]),
+    );
+    expect(args).not.toContain("0:a:0?");
   });
 
   it.each([NaN, Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
@@ -73,6 +100,22 @@ describe("buildFfmpegArguments", () => {
         expect.objectContaining<Partial<SignalError>>({
           code: "invalid_playout_item",
           details: { field: "playDurationMs" },
+        }),
+      );
+    },
+  );
+
+  it.each([undefined, null, 0, "yes"])(
+    "rejects invalid audio-presence metadata %s before process creation",
+    (hasAudio) => {
+      expect(() =>
+        buildFfmpegArguments(
+          item({ hasAudio } as unknown as Partial<SignalPlayoutItem>),
+        ),
+      ).toThrowError(
+        expect.objectContaining<Partial<SignalError>>({
+          code: "invalid_playout_item",
+          details: { field: "hasAudio" },
         }),
       );
     },

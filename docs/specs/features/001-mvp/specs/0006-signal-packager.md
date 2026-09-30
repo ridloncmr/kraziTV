@@ -417,9 +417,15 @@ channelId
 scheduleEntryId
 mediaItemId
 mediaPath
+hasAudio
 mediaOffsetMs
 playDurationMs
 ```
+
+`hasAudio` is provider-neutral source metadata determined before packaging.
+SignalPackager uses it to preserve real source audio when present or synthesize
+one silent stereo stream when absent, keeping the MVP audio PID stable across
+item boundaries. `packages/signal` does not invoke ffprobe to discover it.
 
 `mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration to emit from that position before transitioning to the next selected playout item.
 

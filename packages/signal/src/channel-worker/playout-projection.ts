@@ -41,6 +41,9 @@ export function requireCurrent(
   if (result.item.channelId !== channelId) {
     throw invalidItem(channelId, "item_channel_mismatch");
   }
+  if (result.scheduleRevision !== result.item.scheduleRevision) {
+    throw invalidItem(channelId, "schedule_revision_mismatch");
+  }
   return result;
 }
 
@@ -66,6 +69,7 @@ export function toSignalItem(
     scheduleEntryId: current.item.scheduleEntryId,
     mediaItemId: current.item.mediaItemId,
     mediaPath: current.item.mediaPath,
+    hasAudio: current.item.hasAudio,
     mediaOffsetMs: current.mediaOffsetMs,
     playDurationMs,
   };
@@ -87,6 +91,7 @@ export function selectContiguousFollowing(
   if (
     item === undefined ||
     item.channelId !== channelId ||
+    item.scheduleRevision !== result.scheduleRevision ||
     item.startsAt !== boundaryAt ||
     !Number.isSafeInteger(item.endsAt) ||
     item.endsAt <= item.startsAt ||
@@ -107,6 +112,7 @@ export function toFollowingSignalItem(
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,
     mediaPath: item.mediaPath,
+    hasAudio: item.hasAudio,
     mediaOffsetMs: item.startOffsetMs,
     playDurationMs: item.endsAt - item.startsAt,
   };

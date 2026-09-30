@@ -8,6 +8,7 @@ const item = (scheduleEntryId: string): SignalPlayoutItem => ({
   scheduleEntryId,
   mediaItemId: `media-${scheduleEntryId}`,
   mediaPath: `/media/${scheduleEntryId}.mkv`,
+  hasAudio: true,
   mediaOffsetMs: 0,
   playDurationMs: 30_000,
 });

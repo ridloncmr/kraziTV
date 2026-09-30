@@ -12,6 +12,8 @@ export type SignalPlayoutItem = {
   scheduleEntryId: ScheduleEntryId;
   mediaItemId: MediaItemId;
   mediaPath: string;
+  /** Precomputed source layout; packaging must not probe provider media. */
+  hasAudio: boolean;
   /** Absolute source-media position where this item starts emitting. */
   mediaOffsetMs: DurationMs;
   /**

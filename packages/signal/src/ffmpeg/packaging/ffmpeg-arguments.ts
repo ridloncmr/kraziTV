@@ -11,6 +11,12 @@ export function buildFfmpegArguments(
 ): readonly string[] {
   assertNonNegativeSafeInteger(item.mediaOffsetMs, "mediaOffsetMs");
   assertPositiveSafeInteger(item.playDurationMs, "playDurationMs");
+  if (typeof item.hasAudio !== "boolean") {
+    throw invalidPlayoutItem("hasAudio");
+  }
+  const audioInput = item.hasAudio
+    ? []
+    : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"];
 
   return [
     "-hide_banner",
@@ -22,12 +28,13 @@ export function buildFfmpegArguments(
     millisecondsToDecimalSeconds(item.mediaOffsetMs),
     "-i",
     item.mediaPath,
+    ...audioInput,
     "-t",
     millisecondsToDecimalSeconds(item.playDurationMs),
     "-map",
     "0:v:0",
     "-map",
-    "0:a:0?",
+    item.hasAudio ? "0:a:0" : "1:a:0",
     "-c:v",
     "libx264",
     "-pix_fmt",
@@ -42,6 +49,14 @@ export function buildFfmpegArguments(
     "48000",
     "-ac",
     "2",
+    "-streamid",
+    "0:256",
+    "-streamid",
+    "1:257",
+    "-mpegts_start_pid",
+    "256",
+    "-mpegts_pmt_start_pid",
+    "4096",
     "-f",
     "mpegts",
     "pipe:1",
@@ -77,7 +92,7 @@ function assertPositiveSafeInteger(
 
 /** Avoids echoing values or media paths into externally visible errors. */
 function invalidPlayoutItem(
-  field: "mediaOffsetMs" | "playDurationMs",
+  field: "hasAudio" | "mediaOffsetMs" | "playDurationMs",
 ): SignalError {
   return new SignalError(
     "invalid_playout_item",
