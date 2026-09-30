@@ -4,6 +4,8 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 
 ## Detailed Plans
 
+- [Spec 0002: Local Media Catalog](0002-media-catalog.md) - planned; SQLite
+  foundation and persistent media-root API first
 - [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - in
   development; runtime primitives and automated suite complete (G2), FFmpeg/Plex
   evidence gate next
