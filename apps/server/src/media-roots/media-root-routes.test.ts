@@ -12,6 +12,7 @@ import { MediaRootRepository } from "./media-root-repository.js";
 import { CatalogScanWriter } from "../catalog-scan/catalog-scan-writer.js";
 import { CatalogScanner } from "../catalog-scan/catalog-scanner.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { MediaItemRepository } from "../media-items/media-item-repository.js";
 
 // Awaiting buildServer's thenable result yields the plain instance, so tests hold that type.
 type Server = FastifyInstance;
@@ -52,7 +53,12 @@ async function startServer(dataDirectory?: string): Promise<Server> {
     writer: new CatalogScanWriter(database.db),
   });
   const server = buildServer(
-    { database, mediaRoots, scanner },
+    {
+      database,
+      mediaRoots,
+      scanner,
+      mediaItems: new MediaItemRepository(database.db),
+    },
     { logger: false },
   );
   servers.push(server);

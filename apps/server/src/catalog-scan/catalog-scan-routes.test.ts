@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import {
   MediaDiscoveryError,
+  MediaProbeError,
   type DiscoveredMediaFile,
   type DiscoverMediaFilesOptions,
 } from "@krazitv/media";
@@ -19,6 +20,7 @@ import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { MediaItemRepository } from "../media-items/media-item-repository.js";
 
 type Server = ReturnType<typeof buildServer>;
 type Discover = (
@@ -68,7 +70,12 @@ async function startServer(discover: Discover = async () => files("a", "b")) {
     now: () => (time += 1_000),
   });
   const server = buildServer(
-    { database, mediaRoots, scanner },
+    {
+      database,
+      mediaRoots,
+      scanner,
+      mediaItems: new MediaItemRepository(database.db),
+    },
     { logger: false },
   );
   servers.push(server);
@@ -98,6 +105,38 @@ describe("POST /media-roots/:id/scan", () => {
       probeFailedCount: 0,
       missingCount: 0,
     });
+  });
+
+  it("makes committed scan results readable through the media-item API", async () => {
+    const { server, prober } = await startServer();
+
+    const response = scan(server);
+    await prober.waitForStarted(2);
+    prober.get("/media/movies/a.mkv").resolve(RESULT);
+    prober
+      .get("/media/movies/b.mkv")
+      .reject(new MediaProbeError("timed_out", "ffprobe timed out"));
+    await response;
+
+    const items = await server.inject({ method: "GET", url: "/media-items" });
+    expect(items.json()).toEqual([
+      expect.objectContaining({
+        mediaRootId: rootFixture.id,
+        path: "/media/movies/a.mkv",
+        title: "a",
+        durationMs: 2_000,
+        hasAudio: true,
+        status: "available",
+        probeError: null,
+      }),
+      expect.objectContaining({
+        path: "/media/movies/b.mkv",
+        durationMs: null,
+        hasAudio: null,
+        status: "probe_failed",
+        probeError: "timed_out: ffprobe timed out",
+      }),
+    ]);
   });
 
   it("returns 404 for an unknown root", async () => {

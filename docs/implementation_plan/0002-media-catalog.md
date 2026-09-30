@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: In development; CAT-001 through CAT-005 and CAT-008 complete, CAT-006 next
+Status: In development; CAT-001 through CAT-006 and CAT-008 complete, CAT-007 next
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -637,6 +637,13 @@ failure.
   cancellation, or concurrency policy.
 
 ### CAT-006: Expose catalog query APIs
+
+**Status**
+
+Complete on 2026-09-30. `MediaItemRepository`, `GET /media-items`, and
+`GET /media-items/:id` return the spec's `MediaItem` projection with all four
+timestamps as ISO strings, ordered by root path identity, item path identity,
+then ID; unknown IDs return `media_item_not_found`.
 
 **Goal**
 

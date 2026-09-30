@@ -4,6 +4,7 @@ import { buildServer } from "./app.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
+import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { CatalogScanWriter } from "./catalog-scan/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/concurrency-limited-prober.js";
@@ -35,8 +36,10 @@ const scanner = new CatalogScanner({
   writer: new CatalogScanWriter(database.db),
 });
 
+const mediaItems = new MediaItemRepository(database.db);
+
 const server = buildServer(
-  { database, mediaRoots, scanner },
+  { database, mediaRoots, scanner, mediaItems },
   {
     logger: true,
     ...(corsOrigins ? { corsOrigins } : {}),

@@ -7,6 +7,7 @@ import {
 } from "./app.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
+import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -21,6 +22,7 @@ function createDependencies(
     database,
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
+    mediaItems: {} as MediaItemRepository,
   };
 }
 
