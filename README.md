@@ -84,7 +84,13 @@ npm run typecheck
 npm test
 npm run build
 npm run format
+npm run test:ffprobe
 ```
+
+`npm run test:ffprobe` is an opt-in check of media probing against real
+ffprobe. It needs `ffmpeg` and `ffprobe` on `PATH`, or `FFMPEG_PATH` and
+`FFPROBE_PATH` set to their executables, and it fails rather than skips when
+they are missing. `npm test` and CI do not run it.
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. The Web Admin runs separately during development.
 
@@ -94,10 +100,11 @@ allowed origins when the UI is served elsewhere. CORS is not authentication and
 does not make a network-exposed API safe.
 
 CI runs install, formatting, typecheck, test, and build checks on every pull
-request and on pushes to `main`. At present, automated tests cover the core
-channel description helper, server health and CORS behavior through request
-injection, and network/CORS configuration helpers. A passing test step still
-reflects limited bootstrap coverage rather than full MVP behavior coverage.
+request and on pushes to `main`. Automated tests cover the local media catalog
+end to end (media roots, discovery, probing through a controlled double, scans,
+and catalog queries against SQLite), the shared-signal runtime primitives, and
+server configuration. Scheduling, playout, and provider behavior are not built
+yet, so a passing test step does not reflect full MVP coverage.
 
 ## License
 

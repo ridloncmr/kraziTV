@@ -24,6 +24,8 @@ coverage/
 
 # Local runtime data
 data/
+krazitv.sqlite
+krazitv.sqlite-*
 
 # Python caches, if used later
 __pycache__/

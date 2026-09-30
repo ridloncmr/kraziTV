@@ -61,12 +61,29 @@ It should behave like a small broadcast automation system, not a playlist genera
   current requirement or a known next integration needs it.
 - Keep files cohesive and easy to scan. Prefer one primary concrete class per
   file; move independent classes or responsibilities into clearly named files.
-- Keep small source directories flat, but organize growing implementation trees
-  by domain or capability before they become hard to scan. Repeated filename
-  prefixes and clusters of related source-and-test files are signals to create a
-  named subdirectory. Do not accumulate unrelated code in catch-all folders such
-  as `internal`, `utils`, or `common`; keep public entry points at the package
-  root and place private implementations in domain folders with their tests.
+- Lay out every package or app `src/` the same way; `packages/signal` is the
+  reference:
+  - `src/` root holds only entry points: `index.ts`, `create-*.ts` factories,
+    package-wide `errors.ts`, and app composition such as `app.ts`.
+  - Each domain or capability gets one folder directly under `src/` (for
+    example `probe/`, `catalog-scan/`, `media-roots/`), with its tests beside
+    the code. Nest a subfolder only when a domain itself splits into distinct
+    capabilities, as `signal/src/ffmpeg/` does.
+  - A capability used across domains, such as `process/`, `runtime/`, `config/`,
+    or `http/`, gets its own top-level folder instead of nesting inside the
+    first domain that used it.
+  - Put interfaces shared across a domain's files in that folder's
+    `contracts.ts`, so domain files never import from a root entry point.
+  - All test doubles and fixtures live in one `src/testing/` folder. Build
+    configs exclude it along with `*.test.ts`.
+  - Opt-in suites that need external binaries such as real FFmpeg or ffprobe
+    live in `<package>/integration/`, outside `src/`, so `npm test` and CI never
+    collect them. Run them through a dedicated npm script (for example
+    `test:ffprobe`); they fail rather than skip when the binary is missing. The
+    package's `tsconfig.json` typechecks `integration/`; its build config stays
+    limited to `src/`.
+  - Never create catch-all folders such as `internal`, `utils`, `common`, or
+    `helpers`.
 - Keep exports deliberate and minimal. Export only the package or module surface
   that another file actually needs; do not use barrel exports as dumping grounds.
 - Give every method a concise comment that explains its purpose, policy, or
@@ -142,6 +159,12 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Architecture decisions belong in `docs/adrs/`.
 - Decisions about AI harnesses and agent infrastructure belong in `.agents/adr/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
+- When a plan ticket is complete, record it in the same change as the
+  implementation: add a `**Status**` block directly under the ticket heading
+  reading `Complete on YYYY-MM-DD.` plus one or two sentences on what was
+  delivered and any deferred follow-up. Also update the plan's top-level
+  `Status:` line and its entry in `docs/implementation_plan/README.md`. A ticket
+  is not done until its status is recorded.
 - Research and references belong in `docs/knowledge_base/`.
 - Completed specs and implementation plans are not canonical descriptions of
   the running system. Use code and tests to understand implemented behavior.
@@ -154,12 +177,10 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Docs written for agents should explain when to use them, what must never happen, what vocabulary to use, what files are authoritative, and what verification is expected.
 - If a doc presents multiple choices, use a list or table instead of burying the branch in a paragraph.
 
-## Terminology
+## Glossary
 
-- Schedule: What viewers see in the guide.
-- Playout timeline: Everything actually transmitted by a channel.
-- Channel state: The deterministic runtime state that lets viewers join a broadcast in progress.
-- Channel stream worker: The active runtime worker that owns one shared broadcast signal for a watched channel.
-- kraziBrain: The scheduling and playout decision engine.
-- SignalPackager: The streaming and media normalization layer.
-- Provider adapter: Plex/Jellyfin/Emby-specific integration layer.
+`GLOSSARY.md` is the canonical vocabulary for kraziTV architecture,
+programming, catalog, broadcast, and provider terms. Read it before naming
+types, writing specs or ADRs, or describing system behavior, and use its terms
+instead of the synonyms it lists under **Avoid**. Add or change a term there in
+the same change that introduces it.

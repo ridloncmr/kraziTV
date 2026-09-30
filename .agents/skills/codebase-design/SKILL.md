@@ -23,11 +23,9 @@ Design for simple, deep modules: clear behavior behind a small, stable interface
 - Prefer deterministic, testable core logic over runtime cleverness.
 - Prefer one primary concrete class per file. Split independent responsibilities
   instead of accumulating helper classes in a muddied module.
-- Keep small directories flat. When repeated filename prefixes or multiple
-  source-and-test clusters reveal distinct capabilities, group them into named
-  domain directories. Avoid growing catch-all `internal`, `utils`, or `common`
-  directories; keep public entry points at the package root and implementation
-  details with their owning domain.
+- Place files by the source layout rules in `AGENTS.md`: entry points at the
+  `src/` root, one folder per domain, cross-domain capabilities in their own
+  top-level folder, and every test double in `src/testing/`.
 - Keep exports minimal and intentional. Do not expose internals for convenience.
 - Give every method a concise why-comment about its purpose or invariant.
 - Preserve known composition seams, such as chaining metadata enrichment after
@@ -58,6 +56,5 @@ Bad seams:
 - Does the name describe a domain capability?
 - Does the module hide implementation complexity?
 - Does each file have one clear responsibility and a deliberate export surface?
-- Can a reader find related implementation and tests by domain without scanning
-  a large catch-all directory?
+- Does the layout follow the source layout rules in `AGENTS.md`?
 - Are provider/media/runtime details isolated from core scheduling?

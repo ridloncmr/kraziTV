@@ -9,13 +9,9 @@ Use this skill whenever work touches kraziTV's core product model.
 
 ## Core Model
 
-- Schedule: What viewers see in the guide.
-- Playout timeline: Everything actually transmitted by a channel.
-- Channel state: Deterministic runtime state that lets viewers join a broadcast in progress.
-- Channel stream worker: Active runtime worker that owns one shared broadcast signal for a watched channel.
-- kraziBrain: Scheduling and playout decision engine.
-- SignalPackager: Streaming and media normalization layer.
-- Provider adapter: Plex/Jellyfin/Emby-specific integration layer.
+Read `GLOSSARY.md` for the definitions of kraziBrain, SignalPackager, provider
+adapter, channel stream worker, schedule, playout timeline, channel state, and
+the other shared terms. Do not redefine them here.
 
 ## Boundaries
 

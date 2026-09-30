@@ -8,7 +8,12 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -b",
-    "typecheck": "tsc -b"
+    "build": "tsc -b tsconfig.build.json",
+    "test": "vitest run src",
+    "test:ffprobe": "vitest run integration/",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4"
   }
 }

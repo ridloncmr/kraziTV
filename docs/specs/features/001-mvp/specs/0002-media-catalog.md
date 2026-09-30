@@ -1,6 +1,6 @@
 # Local Media Catalog
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the vertical slice that lets kraziTV discover local media files, normalize basic metadata, and make that catalog available to later channel and scheduling work.
 
@@ -19,6 +19,10 @@ The catalog must describe media well enough for scheduling without leaking FFmpe
 - Expose API endpoints for listing media roots and cataloged media items.
 - Keep media probing separate from scheduling and provider adapters.
 - Make rescans deterministic enough that the same file maps to the same media record unless its identity changes.
+- Reproduce the same logical database schema from committed migrations in each
+  development environment without copying a generated database file.
+- Preserve an explicit post-probe composition seam for later metadata
+  enrichment and other normalized catalog processing.
 
 ## Non-Goals
 
@@ -30,6 +34,10 @@ The catalog must describe media well enough for scheduling without leaking FFmpe
 - Do not connect to Plex or Jellyfin.
 - Do not implement advanced tagging, theme rules, seasonal metadata, or AI classification.
 - Do not require perfect TV/movie episode parsing in the first pass.
+- Do not synchronize or source-control live SQLite database files between
+  environments. Cross-machine configuration or catalog transfer requires a
+  future explicit export/import contract because catalog paths are
+  environment-specific.
 
 ## User-Facing Behavior
 
@@ -77,7 +85,7 @@ If a file cannot be probed, the catalog should preserve enough error state for t
 ### File Discovery
 
 - Scans recurse through enabled media roots.
-- Scans skip hidden files and directories and only consider files with a supported extension. For the MVP, hidden means that a path segment's basename begins with `.`; platform-specific hidden attributes are deferred.
+- Scans skip hidden files and directories and only consider files with a supported extension. For the MVP, hidden means that a path segment's basename begins with `.`; platform-specific hidden attributes are deferred. Scans also skip the OS-managed volume folders `System Volume Information` and `$RECYCLE.BIN` (compared case-insensitively on every platform), so a data-drive root can complete a scan. A Windows system drive root is not supported, because other restricted folders there still fail the scan.
 - Scans do not follow directory symlinks in the first implementation.
 - Supported extensions should initially include common video containers such as `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and `.webm`.
 - File discovery should produce normalized absolute paths.
@@ -116,6 +124,31 @@ can continue.
 Probe capture is limited to 1 MiB of stdout and the latest 64 KiB of stderr.
 Exceeding the stdout limit terminates the probe and records a failure rather than
 allowing a child process to grow server memory without bound.
+
+### Catalog Processing Composition
+
+The server composes catalog processing as explicit operations in this order:
+
+```text
+discover -> probe -> future enrichment -> validate candidate -> persist
+```
+
+Discovery and probing return normalized, persistence-free values. After probing,
+the scanner constructs a normalized catalog candidate that can pass through one
+or more explicitly wired enrichment operations before final validation. The
+scanner owns this composition; neither `packages/media` capability nor an
+enrichment operation writes to SQLite. Raw ffprobe JSON is not a stage contract.
+
+This boundary must allow a later metadata-enrichment operation to consume
+normalized discovery and probe results before persistence without changing the
+discovery or probe contracts. The MVP does not implement metadata enrichment, a
+generic workflow engine, dynamic stage registration, or a plugin system.
+
+Cancellation propagates through each active operation. Concurrent work may
+complete out of order, but the scanner restores deterministic path-identity
+order before validation and persistence. A future enrichment feature must define
+whether each of its failures is item-level, optional, or fatal to the complete
+scan.
 
 ### Probe Concurrency
 
@@ -161,6 +194,15 @@ missing reconciliation.
 - SQLite stores media roots and media items.
 - The database lives under the local runtime data directory.
 - Catalog data should survive API restarts.
+- Committed, ordered migrations are the source of truth for the logical schema.
+  A clean environment uses the same migration entry point as production startup
+  and tests to construct that schema without copying an existing database file.
+- Migrations are independent of machine-specific paths, catalog contents, and
+  wall-clock state. Deterministic development/test fixtures use stable values
+  and remain separate from production migrations.
+- The generated SQLite file and scanned catalog are machine-local derived state.
+  Reproducibility means equivalent schema and fixture behavior, not
+  byte-identical database files.
 - Removing a file from disk should mark the media item `missing` on the next completed scan, not immediately delete its history.
 - Missing-state reconciliation happens only after the scanner completes traversal of an accessible root. A failed scan preserves existing item statuses and does not update `lastScannedAt`.
 - An unreadable nested directory or other traversal error fails the complete
@@ -228,7 +270,8 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 ## Architecture Boundaries
 
 - `packages/media` owns filesystem/media probing helpers and ffprobe normalization.
-- `apps/server` owns API routes, scan orchestration, and persistence wiring.
+- `apps/server` owns API routes, explicit scan-stage composition, final catalog
+  candidate validation, and persistence wiring.
 - `packages/core` may define shared media-facing domain types only if they are scheduling concepts, not raw probe results.
 - kraziBrain may later consume normalized catalog records, but it must not perform discovery or invoke ffprobe.
 - SignalPackager and provider adapters do not participate in catalog discovery or decide which files belong in the catalog.
@@ -240,10 +283,18 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 - A missing or inaccessible absolute path can be registered as a media root.
 - A media root can be enabled or disabled after creation.
 - Configured media roots can be listed after API restart.
+- A clean environment reproduces the same logical catalog schema from committed
+  migrations without copying a generated SQLite file.
+- Production migrations do not install development fixtures or depend on
+  machine-specific data.
 - A scan discovers supported media files under an enabled root.
 - A scan request for a disabled root is rejected without traversing it.
 - A completed scan returns discovery, probe, failure, and missing-item counts.
 - Each discovered playable file is probed with ffprobe through `packages/media`.
+- Discovery and probing remain persistence-free operations composed by the
+  scanner, which persists only final staged catalog candidates.
+- Probe results form a normalized boundary where later enrichment can be
+  inserted before persistence without exposing raw ffprobe JSON.
 - Successfully probed files are stored as media items with integer millisecond
   durations and an explicit audio-presence flag.
 - Probe failures are stored without crashing the entire scan.

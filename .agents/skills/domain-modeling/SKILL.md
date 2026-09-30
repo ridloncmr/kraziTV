@@ -13,21 +13,20 @@ Use this skill to keep the project's language precise and consistent.
 ## Process
 
 1. Identify the domain terms involved in the change.
-2. Compare them first to implemented types, APIs, and tests, then use
-   `AGENTS.md`, `README.md`, and specs for intent and history.
+2. Compare them first to `GLOSSARY.md` and implemented types, APIs, and tests,
+   then use specs and ADRs for intent and history.
 3. Challenge vague names like manager, handler, processor, data, item, and config.
 4. Prefer names that explain the product concept, not the implementation detail.
-5. Update active guidance when a term becomes shared vocabulary; do not maintain
-   completed specs as a duplicate of implemented code.
+5. When a term becomes shared vocabulary, add or update it in `GLOSSARY.md`,
+   including rejected synonyms under **Avoid**. Do not maintain completed specs
+   as a duplicate of implemented code.
 
 ## kraziTV Vocabulary Rules
 
-- Use schedule only for guide-visible programming.
-- Use playout timeline for the actual transmitted sequence.
-- Use channel state for join-in-progress runtime state.
-- Use provider adapter for Plex/Jellyfin/Emby integration.
-- Use SignalPackager only for media/stream packaging behavior.
-- Use kraziBrain only for scheduling and playout decisions.
+- `GLOSSARY.md` is the single source for kraziTV terms. Never keep a second
+  term list in a skill, role, or adapter.
+- Use a glossary term exactly as written; do not introduce a synonym it lists
+  under **Avoid**.
 
 ## Output
 

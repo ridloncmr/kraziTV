@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: Planned
+Status: Implemented on 2026-09-30; all tickets (CAT-001 through CAT-008) complete
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -26,6 +26,11 @@ use temporary directories, injected process doubles, and temporary SQLite
 databases. A real-ffprobe smoke test is an explicit acceptance gate rather than a
 prerequisite for the deterministic suite.
 
+Committed migrations and deterministic fixtures reproduce the logical database
+shape across development environments. Generated SQLite files and scanned media
+records remain machine-local runtime state rather than artifacts copied or
+synchronized between machines.
+
 ## Architecture and Ownership
 
 ```text
@@ -46,6 +51,9 @@ apps/server
 - `apps/server` owns environment configuration, the SQLite connection and
   migrations, database row types, catalog repositories, scan orchestration,
   transaction boundaries, request validation, and HTTP error mapping.
+- `CatalogScanner` composes explicit discovery, probe, future enrichment, and
+  final-candidate validation operations before persistence. This is a deliberate
+  post-probe extension seam, not a generic workflow or plugin framework.
 - `packages/core` receives no new catalog implementation in this slice. Later
   scheduling work consumes typed server projections instead of raw probe data or
   database rows.
@@ -59,19 +67,28 @@ Keep public package exports narrow. `@krazitv/media` should expose discovery and
 probe construction/contracts needed by the server while keeping argument
 builders, raw ffprobe JSON, process state, and test doubles private.
 
-Organize the new implementation by capability before the server and media
-package become catch-all source directories:
+Organize the implementation by capability, following the source layout rules
+in `AGENTS.md`:
 
 ```text
 apps/server/src
+  config/          environment parsing (data directory, network, ffprobe)
+  http/            shared API error envelope
   database/        connection, schema types, migrations
-  media-catalog/   repositories, scanner, routes, API projections
+  media-roots/     media-root repository and routes
+  catalog-scan/    scanner, probe limit, candidates, writer, scan route
+  media-items/     catalog query APIs (CAT-006)
+  testing/         test doubles and deterministic fixtures
   app.ts           Fastify construction and route composition
   index.ts         process configuration and startup/shutdown
 
 packages/media/src
   discovery/       traversal and supported-file policy
-  probe/           ffprobe arguments, parsing, and process lifecycle
+  paths/           lexical path identity
+  probe/           ffprobe arguments, parsing, and probe lifecycle
+  process/         child-process spawning seam
+  testing/         process doubles
+  create-media-prober.ts  public prober construction
   index.ts         deliberate public exports
 ```
 
@@ -97,7 +114,10 @@ The following policies close questions left open by the original spec:
 - Client disconnect and server shutdown cancel the scan, terminate and await
   active probes, and prevent the staged scan from committing.
 - A dot-prefixed path segment defines hidden content for the MVP. Native Windows
-  hidden attributes are deferred.
+  hidden attributes are deferred. The OS-managed volume folders
+  `System Volume Information` and `$RECYCLE.BIN` are skipped case-insensitively
+  so data-drive roots can scan. Windows system drive roots remain unsupported
+  because other restricted folders there still fail traversal.
 - Any directory traversal error, including an unreadable nested directory, fails
   the entire scan. It preserves prior catalog state and `lastScannedAt`.
 
@@ -109,6 +129,12 @@ Additional concrete defaults for this plan are:
   them as UTC ISO 8601 strings at the HTTP boundary.
 - Resolve `KRAZITV_DATA_DIR` against the process working directory, default it to
   `data`, and store the database as `krazitv.sqlite` within it.
+- Treat committed, ordered migrations as the reproducible schema source. Startup,
+  tests, and any later database CLI use one migration entry point; migrations do
+  not depend on machine paths, catalog data, or wall-clock state.
+- Keep deterministic development/test fixtures separate from production
+  migrations. Generated SQLite files and scanned catalogs are machine-local and
+  are not synchronized or source-controlled.
 - Reprobe every discovered supported file on every scan. File fingerprints and
   unchanged-file probe skipping are deferred.
 - Return media-root and media-item lists without pagination for the MVP, ordered
@@ -166,18 +192,36 @@ mutations. The implementation stages the complete discovered/probed result in
 memory for this MVP rather than holding a write transaction open while walking
 the filesystem or waiting on child processes.
 
+The staged result crosses an explicit normalized catalog-candidate boundary:
+
+```text
+discover -> probe -> future enrichment -> validate candidate -> persist
+```
+
+CAT-005 implements discovery, probing, validation, and persistence. Metadata
+enrichment remains deferred, but one or more named operations can later be
+chained over the normalized candidate after probing without changing discovery,
+probe process management, or the atomic final transaction. No discovery, probe,
+or future enrichment operation writes catalog rows directly.
+
 ## Dependency and Decision Gates
 
-| Gate                               | Required before                 | Exit condition                                                                                                          |
-| ---------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| G1: persistence foundation         | persistent root API             | Kysely, `better-sqlite3`, migration execution, connection shutdown, and temporary-database tests work in `apps/server`. |
-| G2: deterministic media inspection | scan orchestration              | Discovery and ffprobe behavior pass without a real ffprobe binary or database.                                          |
-| G3: atomic catalog scan            | public catalog reads            | A successful scan commits one coherent catalog generation; all failure and cancellation paths preserve prior state.     |
-| G4: executable acceptance          | declaring spec 0002 implemented | Workspace checks and an opt-in real-ffprobe smoke test pass against a controlled media fixture.                         |
+| Gate                               | Required before                 | Exit condition                                                                                                                                     |
+| ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1: persistence foundation         | persistent root API             | Kysely, `better-sqlite3`, reproducible migration execution, connection shutdown, and deterministic temporary-database tests work in `apps/server`. |
+| G2: deterministic media inspection | scan orchestration              | Discovery and ffprobe behavior pass without a real ffprobe binary or database.                                                                     |
+| G3: atomic catalog scan            | public catalog reads            | A successful scan commits one coherent catalog generation; all failure and cancellation paths preserve prior state.                                |
+| G4: executable acceptance          | declaring spec 0002 implemented | Workspace checks and an opt-in real-ffprobe smoke test pass against a controlled media fixture.                                                    |
 
 ## Phase 1: Persistence and Media Roots
 
 ### CAT-001: Establish the SQLite lifecycle and catalog schema
+
+**Status**
+
+Complete on 2026-09-30. The server-owned lifecycle, committed initial migration,
+schema constraints, deterministic database tests, Fastify shutdown wiring, and
+runtime data-directory configuration are implemented and verified.
 
 **Goal**
 
@@ -194,8 +238,13 @@ persistence package.
 - Create the data directory, open SQLite through Kysely's `SqliteDialect`, enable
   foreign keys, run Kysely migrations before listening, and close the database
   during Fastify shutdown.
+- Use one server-owned migration entry point for production startup, tests, and
+  later database tooling so a fresh environment constructs the same logical
+  schema from the committed migration history.
 - Add typed server-owned database row interfaces and the first explicit migration
   for `media_roots` and `media_items` using the schema invariants above.
+- Add deterministic database fixture helpers with stable IDs and timestamps for
+  tests; fixture loading must remain separate from production migrations.
 - Separate application composition from route construction so Fastify injection
   tests can supply temporary or fake dependencies without opening the production
   database.
@@ -206,6 +255,8 @@ persistence package.
 
 - Catalog repositories, media routes, filesystem traversal, ffprobe, and scan
   orchestration.
+- Live database synchronization, cross-machine catalog transfer, path remapping,
+  backup/restore tooling, and production seed data.
 - The schedule-specific immediate-transaction helper. ADR 0004 requires it when
   schedule mutation is implemented, but this slice needs only ordinary short
   Kysely transactions.
@@ -218,6 +269,10 @@ persistence package.
 
 - Migration files stay readable and explicit; do not hide schema creation behind
   a generalized entity framework.
+- Migrations must not inspect environment-specific media paths, depend on
+  existing catalog contents, or generate nondeterministic fixture data. Once a
+  migration is shared or applied outside a disposable author database, evolve
+  the schema with a new migration rather than editing that history.
 - Database row types remain inside `apps/server` and do not cross package
   boundaries.
 - Validate generated timestamps and durations as safe integers before writes.
@@ -230,6 +285,10 @@ persistence package.
 
 - A fresh temporary data directory is created and migrated successfully.
 - Re-running migrations is idempotent.
+- Production startup and test setup use the same migration entry point and
+  produce an equivalent logical schema from an empty database.
+- Deterministic fixtures reproduce stable IDs and timestamps without being
+  installed by production migrations.
 - Closing the server closes the SQLite connection.
 - Schema tests prove unique and check constraints reject invalid rows.
 - A reopened database retains inserted fixture rows.
@@ -243,6 +302,13 @@ persistence package.
   documentation only if it extends ADR 0004.
 
 ### CAT-002: Deliver the persistent media-root API
+
+**Status**
+
+Complete on 2026-09-30. Lexical root-path normalization, the media-root
+repository, `GET`/`POST`/`PATCH /media-roots`, and the shared structured API
+error envelope (`{ "error": { "code", "message" } }`) are implemented and
+verified.
 
 **Goal**
 
@@ -302,6 +368,13 @@ the filesystem during server startup or root creation.
 
 ### CAT-003: Implement deterministic local-file discovery
 
+**Status**
+
+Complete on 2026-09-30. Path identity normalization now lives in
+`packages/media` and is shared by the server's media-root API. Discovery,
+its typed `MediaDiscoveryError`, and the media-package test/build configuration
+are implemented and verified.
+
 **Goal**
 
 Return a complete, deterministic set of supported media paths for an accessible
@@ -309,6 +382,10 @@ root without leaking traversal details into the server scanner.
 
 **Scope**
 
+- First, as a separate refactor, move lexical path normalization from
+  `apps/server/src/media-catalog/media-root-path.ts` into `packages/media` and
+  have the server import it, so roots and discovered files share one identity
+  implementation.
 - Add a narrow discovery entry point to `packages/media` that accepts an absolute
   root path and optional cancellation signal.
 - Recurse through directories, skip dot-prefixed files and subtrees, do not
@@ -337,8 +414,17 @@ root without leaking traversal details into the server scanner.
 
 - Use directory-entry metadata to avoid following directory symlinks. Keep all
   symlink policy inside discovery rather than making callers reimplement it.
+  Symlinked files with supported extensions are included; only directory links
+  (including Windows junctions) are not followed.
+- Skip entries whose names the shared normalization rejects as ambiguous on
+  Windows (trailing dot or space, or `:`), because they cannot receive a
+  trustworthy identity key. Ignore entries that are neither regular files nor
+  directories.
+- Order results by ordinal comparison of identity keys, not locale collation.
 - Treat any dot-prefixed segment below the configured root as hidden. The root
   itself may have a dot-prefixed basename because it was explicitly configured.
+- Skip `System Volume Information` and `$RECYCLE.BIN` by case-insensitive name
+  at any depth.
 - Preserve the normalized display path separately from the identity key.
 - Cancellation is cooperative between filesystem operations and returns a typed
   cancellation failure.
@@ -346,7 +432,8 @@ root without leaking traversal details into the server scanner.
 **Verification**
 
 - Temporary-directory tests cover nested supported files, unsupported files,
-  case-insensitive extensions, hidden files and subtrees, directory symlinks,
+  case-insensitive extensions, hidden files and subtrees, OS-managed volume
+  folders, directory symlinks,
   empty roots, deterministic order, title derivation, and cancellation.
 - Root-not-found, root-is-file, root-unreadable, and unreadable-nested-directory
   cases fail the discovery rather than returning partial success.
@@ -359,6 +446,15 @@ root without leaking traversal details into the server scanner.
 
 ### CAT-004: Implement the bounded ffprobe adapter
 
+**Status**
+
+Complete on 2026-09-30. `createMediaProber`, the normalized `MediaProbeResult`
+parser, typed `MediaProbeError` codes, the bounded ffprobe process lifecycle
+with graceful-then-forced termination, and the internal process-spawner seam
+with deterministic fakes are implemented and verified. The server does not yet
+resolve `FFPROBE_*` configuration or construct a prober; CAT-005 is the first
+consumer.
+
 **Goal**
 
 Inspect one discovered media file and return normalized metadata through a safe,
@@ -368,6 +464,8 @@ bounded child-process contract.
 
 - Replace the current media-package type stub with a narrow probe interface and
   construction entry point.
+- Return a normalized, persistence-free probe result that can feed later
+  metadata enrichment before the server constructs a final catalog candidate.
 - Spawn the configured executable directly with a structured argument array,
   piped stdout/stderr, and `shell: false`.
 - Request ffprobe JSON with explicitly selected format and stream fields.
@@ -389,8 +487,8 @@ bounded child-process contract.
 
 **Out of scope**
 
-- Scan-level concurrency, persistence, FFmpeg packaging, transcoding, and a
-  general-purpose child-process framework shared with `packages/signal`.
+- Scan-level concurrency, persistence, metadata enrichment, FFmpeg packaging,
+  transcoding, and a general-purpose child-process or workflow framework.
 
 **Blocking dependencies**
 
@@ -419,6 +517,8 @@ bounded child-process contract.
   stderr, stdout overflow, timeout, caller cancellation, graceful termination,
   forced termination, repeated cancellation, and closure before settlement.
 - Normal unit tests do not require ffprobe on `PATH`.
+- Probe tests require no database and demonstrate that normalized results expose
+  no raw ffprobe JSON or persistence types.
 
 **Docs impact**
 
@@ -428,6 +528,17 @@ bounded child-process contract.
 ## Phase 3: Catalog Scan and Query API
 
 ### CAT-005: Implement atomic catalog scanning
+
+**Status**
+
+Complete on 2026-09-30. `ConcurrencyLimitedProber`, `CatalogScanner`,
+`CatalogScanWriter`, the post-probe candidate/validation boundary, `FFPROBE_*`
+configuration, and `POST /media-roots/:id/scan` (with client-disconnect and
+`preClose` shutdown cancellation) are implemented and verified under
+`apps/server/src/catalog-scan/`. The summary's `missingCount` counts items
+that became `missing` in that scan; an inaccessible root answers `409
+media_root_unavailable` and a cancelled scan `503 scan_cancelled`. The
+real-ffprobe smoke gate remains with CAT-007.
 
 **Goal**
 
@@ -439,9 +550,10 @@ failure.
 
 - Add `CatalogScanner` and a process-wide bounded probe scheduler in
   `apps/server`.
-- Parse `FFPROBE_TIMEOUT_MS` as a positive integer and
-  `FFPROBE_CONCURRENCY` as an integer from 1 through 32, using defaults of
-  30,000 milliseconds and 4.
+- Resolve `FFPROBE_PATH` (default `ffprobe`), parse `FFPROBE_TIMEOUT_MS` as a
+  positive integer and `FFPROBE_CONCURRENCY` as an integer from 1 through 32,
+  using defaults of 30,000 milliseconds and 4, and construct the prober through
+  `createMediaProber`.
 - Reject a disabled root before discovery and reject a second active scan of the
   same root with `scan_in_progress`.
 - Allow different roots to scan concurrently while every probe shares the one
@@ -450,6 +562,9 @@ failure.
   reconciliation.
 - Probe every discovered path, preserving individual probe failures as staged
   `probe_failed` results while allowing other files to continue.
+- Compose discovery and probing as separate persistence-free operations, then
+  build and validate normalized catalog candidates at an explicit post-probe
+  boundary where future enrichment can be inserted.
 - Keep a scheduler slot occupied through timeout/cancellation cleanup until the
   child has closed.
 - Stage the complete generation in memory, then apply item upserts, missing
@@ -468,7 +583,8 @@ failure.
 **Out of scope**
 
 - Persistent scan jobs, progress polling, file fingerprints, incremental scans,
-  automatic background scans, retries, and deletion of catalog history.
+  automatic background scans, retries, metadata enrichment, a generic workflow
+  or plugin system, and deletion of catalog history.
 
 **Blocking dependencies**
 
@@ -487,6 +603,10 @@ failure.
   its new probe result.
 - Missing reconciliation compares identity keys scoped to the root and never
   deduplicates across overlapping roots.
+- Preserve deterministic path-identity order when concurrent probes finish out
+  of order. Pass cancellation through each operation, and keep database writes
+  exclusively in finalization rather than discovery, probing, or future
+  enrichment.
 - Ensure request-abort listeners are removed when a request completes to avoid
   retaining requests or cancelling a finished scan.
 
@@ -498,6 +618,8 @@ failure.
 - A disabled root returns conflict without filesystem traversal.
 - Successful, failed, and mixed probes produce correct records and summary
   counts.
+- Scanner tests prove probe completion order does not change final candidate
+  ordering and that only finalization receives persistence access.
 - A later successful scan marks unseen items `missing` and preserves their
   metadata.
 - Inaccessible roots and unreadable nested directories preserve every prior item
@@ -515,6 +637,13 @@ failure.
   cancellation, or concurrency policy.
 
 ### CAT-006: Expose catalog query APIs
+
+**Status**
+
+Complete on 2026-09-30. `MediaItemRepository`, `GET /media-items`, and
+`GET /media-items/:id` return the spec's `MediaItem` projection with all four
+timestamps as ISO strings, ordered by root path identity, item path identity,
+then ID; unknown IDs return `media_item_not_found`.
 
 **Goal**
 
@@ -567,6 +696,17 @@ work without exposing SQLite rows or raw ffprobe output.
 
 ### CAT-007: Close executable acceptance and hand off to channel configuration
 
+**Status**
+
+Complete on 2026-09-30. `catalog-scan/catalog-acceptance.test.ts` drives the
+composed server over HTTP against an on-disk SQLite file and a real media
+directory, and `npm run test:ffprobe` proves exact rounded `durationMs` and
+`hasAudio` against real ffprobe using MOV clips generated at test time. The
+same-root scan conflict and shutdown ordering stay covered by
+`catalog-scan-routes.test.ts`; a source scan proves production code never imports
+`testing/`, and the server no longer depends on `@krazitv/core` or
+`@krazitv/plex`. Normal CI does not run the real-ffprobe gate.
+
 **Goal**
 
 Prove spec 0002 as one working vertical slice and leave a stable catalog contract
@@ -578,10 +718,14 @@ for spec 0003.
   fixture with known fractional duration and audio presence.
 - Exercise create root, scan, list, restart, rescan-after-removal, and failed-root
   flows against a temporary on-disk SQLite database.
+- Recreate the logical schema in a fresh temporary environment exclusively from
+  committed migrations, then load deterministic fixtures separately.
 - Verify server shutdown cancels and awaits an active probe before database
   closure.
 - Confirm no core, signal, Plex, Jellyfin, schedule, playout, or streaming code is
-  required by the catalog slice.
+  required by the catalog slice. Remove the unused `@krazitv/core` and
+  `@krazitv/plex` dependencies from `apps/server/package.json`; no server source
+  imports them.
 - Review public exports, method purpose comments, directory cohesion, and active
   documentation before declaring the plan complete.
 
@@ -598,18 +742,42 @@ for spec 0003.
 
 - Keep the real-ffprobe test opt-in when the binary or fixture is unavailable;
   deterministic process-double tests remain mandatory in normal CI.
-- Generate or retain only a small redistributable fixture whose license and
-  provenance are recorded. Do not depend on a developer's personal media.
+- Generate the fixture at test time rather than committing media: use FFmpeg's
+  `lavfi` sources to write a short color-plus-tone clip with a fractional
+  duration into a temporary directory, following the `apps/plex-spike`
+  asset-generation precedent. Nothing is committed, so no license or provenance
+  record is needed. Do not depend on a developer's personal media.
+- Gate the test behind a dedicated npm script, following the
+  `spike:test:ffmpeg` precedent: a `test:ffprobe` script in `packages/media`
+  runs `vitest run integration/`, with the test outside `src/` so `npm test`
+  never collects it, and a root `test:ffprobe` script delegates to it. The test
+  requires `ffmpeg` and `ffprobe` on `PATH` (or `FFMPEG_PATH`/`FFPROBE_PATH`) and
+  fails loudly rather than skipping when they are missing, because running the
+  script is the explicit opt-in. Normal CI does not run it.
+- Widen `packages/media/tsconfig.json` to include `integration/**/*.ts` (and set
+  `rootDir` to the package root) so `npm run typecheck` covers the new test.
+  Keep `tsconfig.build.json` limited to `src/`, with its own `include` and
+  `rootDir: "src"`, so the build output layout in `dist` does not change.
+- There is no development fixture loader. Deterministic fixtures are test-only
+  objects in `apps/server/src/testing/catalog-fixtures.ts`, which the build
+  excludes. The "production migration does not load development fixtures" check
+  therefore means migrations never import `testing/` and a freshly migrated
+  database has empty catalog tables. Do not build a fixture loader to satisfy
+  it.
 - Treat the catalog service/API projection as the seam for the later ordered
   media-collection slice; do not move database or probe types into
   `packages/core` preemptively.
 
 **Verification**
 
-- Real ffprobe produces the expected rounded `durationMs` and `hasAudio` value.
+- Real ffprobe produces the expected rounded `durationMs` and `hasAudio` value
+  under `npm run test:ffprobe`.
 - End-to-end tests prove persistence across restart, missing reconciliation,
   retained failure metadata, duplicate root rejection, disabled scan rejection,
   same-root scan conflict, and failed-scan preservation.
+- Clean-environment tests prove equivalent logical schema creation without
+  copying a generated database and prove production migration does not load
+  development fixtures.
 - `npm run format`
 - `npm run typecheck`
 - `npm test`
@@ -623,17 +791,86 @@ for spec 0003.
 - Do not maintain the completed plan as a second implementation reference; code
   and executable tests become canonical.
 
+### CAT-008: Typecheck server tests and test helpers
+
+**Status**
+
+Complete on 2026-09-30. `apps/server` now has a `noEmit` `tsconfig.json`
+covering all of `src` for typecheck and a `tsconfig.build.json` that excludes
+tests and `testing/` helpers; the root build reference and the root `typecheck`
+script include the server. The 25 hidden errors all traced to typing the awaited
+server as `ReturnType<typeof buildServer>` plus an `unknown` inject payload, and
+were fixed with `FastifyInstance` and `InjectOptions["payload"]`.
+
+**Goal**
+
+Make `npm run typecheck` cover every `apps/server` source file, including tests
+and test-only helpers, while keeping test code out of the production build.
+
+**Scope**
+
+- Split `apps/server` into two configs, mirroring `packages/signal`:
+  - `tsconfig.json`: `noEmit`, includes all of `src/**/*.ts`, and is what the
+    workspace `typecheck` script runs (`tsc -p tsconfig.json`).
+  - `tsconfig.build.json`: extends it with `composite`, `outDir`, and
+    `tsBuildInfoFile`, and excludes `src/**/*.test.ts` and
+    `src/**/testing/**/*.ts`.
+- Point the server's `build` and `predev` scripts and the root
+  `tsconfig.build.json` project reference at `apps/server/tsconfig.build.json`.
+- Add the server workspace to the root `typecheck` script.
+- Fix the 25 existing type errors in
+  `apps/server/src/media-roots/media-root-routes.test.ts`. They are hidden
+  today because the only server config excludes tests. Most come from typing
+  the server as `ReturnType<typeof buildServer>` (a thenable Fastify instance)
+  and passing `unknown` as an inject payload.
+
+**Out of scope**
+
+- Behavior changes to server code, new tests, or typecheck changes to other
+  workspaces.
+
+**Blocking dependencies**
+
+- None. Land it before CAT-007 so that ticket's `npm run typecheck` gate covers
+  the tests it adds.
+
+**Implementation notes**
+
+- Vitest does not typecheck, so today test files and
+  `testing/controlled-prober.ts` are compiled by nothing. The
+  helper is currently kept in the single build config so it stays typechecked,
+  which also ships it in `dist`; the split removes that tradeoff.
+- Fix test types at their source, such as a precise server type alias, rather
+  than suppressing errors with casts or `@ts-expect-error`.
+
+**Verification**
+
+- Introducing a deliberate type error in any `*.test.ts` or `testing/` file makes
+  `npm run typecheck` fail.
+- `apps/server/dist` contains no test files and no `testing/` helpers after
+  `npm run build`.
+- `npm run format`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+
+**Docs impact**
+
+- None beyond recording this ticket's status.
+
 ## Acceptance-Criteria Traceability
 
 | Spec behavior                                              | Primary tickets         |
 | ---------------------------------------------------------- | ----------------------- |
 | Persistent root creation/listing and enablement            | CAT-001, CAT-002        |
+| Reproducible logical schema across clean environments      | CAT-001, CAT-007        |
 | Offline or inaccessible root registration                  | CAT-002                 |
 | Duplicate normalized-root rejection                        | CAT-001, CAT-002        |
 | Startup with missing/inaccessible configured roots         | CAT-002, CAT-007        |
 | Recursive supported-file discovery                         | CAT-003, CAT-005        |
 | Hidden-path and symlink traversal policy                   | CAT-003                 |
 | ffprobe normalization and integer milliseconds             | CAT-004                 |
+| Post-probe enrichment composition seam                     | CAT-004, CAT-005        |
 | Structured spawn, timeout, cancellation, and output bounds | CAT-004                 |
 | Process-wide bounded probe concurrency                     | CAT-005                 |
 | Disabled and concurrent same-root scan conflicts           | CAT-005                 |

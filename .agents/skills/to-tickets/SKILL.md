@@ -30,6 +30,7 @@ Use `docs/implementation_plan/` for milestone breakdowns.
 Include:
 
 - Title
+- Status (added on completion per the plan-status rule in `AGENTS.md`)
 - Goal
 - Scope
 - Out of scope
