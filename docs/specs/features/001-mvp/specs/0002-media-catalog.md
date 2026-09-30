@@ -64,17 +64,24 @@ If a file cannot be probed, the catalog should preserve enough error state for t
 - A media root has a stable identifier, filesystem path, enabled flag, and timestamps.
 - Root paths are immutable after creation. Changing a path requires creating a new media root so catalog identity does not silently change.
 - Two media roots cannot use the same normalized absolute path.
+- Path identity uses lexical normalization rather than filesystem canonicalization.
+  It resolves and normalizes an absolute path without calling `realpath`, so a
+  missing, offline, or inaccessible root can still be registered. Identity is
+  case-insensitive on Windows and case-sensitive on POSIX platforms.
 - Disabled roots are ignored by scans but remain configured.
 - Missing or inaccessible roots should not prevent the API server from starting.
 - A root path must be absolute, but it may be outside the project directory when the server process can access it.
+- Creating a root does not require the path to exist or be readable. A scan is
+  the operation that reports whether the configured root is currently accessible.
 
 ### File Discovery
 
 - Scans recurse through enabled media roots.
-- Scans skip hidden files and directories and only consider files with a supported extension.
+- Scans skip hidden files and directories and only consider files with a supported extension. For the MVP, hidden means that a path segment's basename begins with `.`; platform-specific hidden attributes are deferred.
 - Scans do not follow directory symlinks in the first implementation.
 - Supported extensions should initially include common video containers such as `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and `.webm`.
 - File discovery should produce normalized absolute paths.
+- Discovery returns paths in deterministic normalized-path order.
 - A media item's initial identity is the pair `(mediaRootId, normalized absolute path)`. The same path rediscovered under the same root updates the existing record.
 - Overlapping roots may catalog the same file as separate media items. Deduplication across roots is deferred.
 - The first implementation derives the display title from the filename and defers show, season, and episode inference.
@@ -118,6 +125,11 @@ with the positive integer `FFPROBE_CONCURRENCY`. A worker slot remains occupied
 until its child has closed, including timeout cleanup. Configuration accepts only
 integer values from 1 through 32.
 
+The concurrency limit applies across all scans in the server process. Scans for
+different roots may run concurrently through that shared limit. A second scan
+for a root that is already being scanned is rejected with a conflict response
+and code `scan_in_progress`.
+
 ### API
 
 The API should expose endpoints equivalent to:
@@ -139,6 +151,11 @@ Requesting a scan for a disabled root returns a conflict response and does not t
 
 Scan triggering is synchronous for the first implementation. A successful response includes the root ID, start and completion times, and counts for files discovered, successfully probed, probe failures, and items marked missing. A persistent scan-job model can be added later if scans become slow.
 
+The server cancels a synchronous scan if its requesting client disconnects or
+the server begins shutdown. Cancellation terminates active probes, waits for
+their child processes to close, and does not commit staged catalog changes or
+missing reconciliation.
+
 ### Persistence
 
 - SQLite stores media roots and media items.
@@ -146,6 +163,13 @@ Scan triggering is synchronous for the first implementation. A successful respon
 - Catalog data should survive API restarts.
 - Removing a file from disk should mark the media item `missing` on the next completed scan, not immediately delete its history.
 - Missing-state reconciliation happens only after the scanner completes traversal of an accessible root. A failed scan preserves existing item statuses and does not update `lastScannedAt`.
+- An unreadable nested directory or other traversal error fails the complete
+  root scan. The scanner must not skip the failed subtree and then reconcile
+  unseen items as missing.
+- Discovery and probe results are staged before one final persistence
+  transaction applies item upserts, missing reconciliation, and
+  `lastScannedAt`. A cancelled or otherwise failed scan does not commit a
+  partial catalog update.
 
 ## Data Model Impact
 
@@ -189,7 +213,11 @@ Status invariants:
 
 - `available` requires a positive integer `durationMs`, a boolean `hasAudio`,
   and a null `probeError`.
-- `probe_failed` requires a non-empty `probeError`; `durationMs` is null unless a complete usable duration was recovered.
+- `probe_failed` requires a non-empty `probeError`. A newly discovered item
+  whose first probe fails has null probe metadata. If an item was successfully
+  probed previously, a later failure retains that last known metadata for
+  diagnostic history, but its status remains authoritative and it is not
+  schedulable.
 - `missing` preserves previously probed metadata for history, but the item is not schedulable.
 - `lastSeenAt` changes when a scan discovers the path. `lastProbedAt` changes only when ffprobe is invoked.
 
@@ -209,6 +237,7 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 
 - A media root can be created with a local filesystem path.
 - Duplicate normalized media-root paths are rejected.
+- A missing or inaccessible absolute path can be registered as a media root.
 - A media root can be enabled or disabled after creation.
 - Configured media roots can be listed after API restart.
 - A scan discovers supported media files under an enabled root.
@@ -223,8 +252,14 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 - Every probe has bounded runtime and output capture, and timed-out children are
   terminated before their worker slot is reused.
 - Scans enforce the configured probe concurrency limit.
+- The probe concurrency limit is enforced across concurrent scans, and a second
+  concurrent scan of the same root is rejected.
 - Missing files are marked `missing` on a later scan.
 - A failed or inaccessible-root scan does not mark previously cataloged items `missing`.
+- An unreadable nested directory fails the scan without committing partial
+  catalog changes or updating `lastScannedAt`.
+- Client-disconnected and server-shutdown cancellations terminate active probes
+  and do not commit staged scan results.
 - Cataloged media items can be listed through the API.
 - The API server can start even when a configured media root is missing or inaccessible.
 - No Plex, Jellyfin, schedule generation, playout timeline generation, or FFmpeg streaming is required for this slice.

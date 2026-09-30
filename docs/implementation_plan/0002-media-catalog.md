@@ -1,0 +1,645 @@
+# Spec 0002 Implementation Plan: Local Media Catalog
+
+Status: Planned
+
+Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
+
+This plan delivers the first persistence-backed product slice: configured local
+media roots, deterministic discovery, bounded ffprobe inspection, durable
+catalog records, and provider-neutral HTTP access. It also establishes the
+SQLite lifecycle and migration conventions that later channel, schedule, and
+playout slices reuse.
+
+## Delivery Strategy
+
+Work proceeds in three bands:
+
+1. Establish the server-owned SQLite lifecycle and ship persistent media-root
+   administration as the first end-to-end feedback loop.
+2. Build deterministic discovery and bounded ffprobe inspection in
+   `packages/media`, independently testable without Fastify or SQLite.
+3. Compose those capabilities into an atomic scan, expose catalog reads, and
+   close restart, cancellation, concurrency, and real-ffprobe acceptance gaps.
+
+Each ticket leaves the repository buildable and testable. Normal automated tests
+use temporary directories, injected process doubles, and temporary SQLite
+databases. A real-ffprobe smoke test is an explicit acceptance gate rather than a
+prerequisite for the deterministic suite.
+
+## Architecture and Ownership
+
+```text
+apps/server
+  runtime configuration and database lifecycle
+  Kysely migrations and catalog persistence
+  Fastify media-root and media-item routes
+  CatalogScanner and process-wide probe scheduler
+          |
+          +---- packages/media file discovery
+          |
+          `---- packages/media ffprobe adapter
+```
+
+- `packages/media` owns supported-file policy, filesystem discovery, ffprobe
+  argument construction and invocation, bounded output capture, child-process
+  termination, JSON parsing, and normalized probe results.
+- `apps/server` owns environment configuration, the SQLite connection and
+  migrations, database row types, catalog repositories, scan orchestration,
+  transaction boundaries, request validation, and HTTP error mapping.
+- `packages/core` receives no new catalog implementation in this slice. Later
+  scheduling work consumes typed server projections instead of raw probe data or
+  database rows.
+- `packages/signal` does not probe source media and is not a dependency of this
+  slice. The ffprobe lifecycle may follow its proven process-safety patterns,
+  but `packages/media` must not import SignalPackager internals.
+- Plex, Jellyfin, channel configuration, schedule generation, playout, streaming,
+  and Web Admin work remain outside this plan.
+
+Keep public package exports narrow. `@krazitv/media` should expose discovery and
+probe construction/contracts needed by the server while keeping argument
+builders, raw ffprobe JSON, process state, and test doubles private.
+
+Organize the new implementation by capability before the server and media
+package become catch-all source directories:
+
+```text
+apps/server/src
+  database/        connection, schema types, migrations
+  media-catalog/   repositories, scanner, routes, API projections
+  app.ts           Fastify construction and route composition
+  index.ts         process configuration and startup/shutdown
+
+packages/media/src
+  discovery/       traversal and supported-file policy
+  probe/           ffprobe arguments, parsing, and process lifecycle
+  index.ts         deliberate public exports
+```
+
+Exact filenames may follow the code as it develops, but independent database,
+discovery, probing, and HTTP responsibilities should not accumulate in
+`app.ts`, `index.ts`, or a generic `utils` directory.
+
+## Resolved Implementation Policies
+
+The following policies close questions left open by the original spec:
+
+- A root may be registered while missing, offline, or inaccessible. Creation
+  validates its path syntax; scanning validates current accessibility.
+- Root and item identity use lexical absolute-path normalization without
+  `realpath`. Identity comparison is case-insensitive on Windows and
+  case-sensitive on POSIX systems. Store a normalized display path separately
+  from its comparison key when casing must be preserved.
+- The server rejects a second scan of the same root with HTTP `409` and code
+  `scan_in_progress`. Different roots may scan concurrently through one shared,
+  process-wide probe concurrency limit.
+- A later probe failure retains the item's last successful metadata for
+  diagnostics, while `probe_failed` remains authoritative and unschedulable.
+- Client disconnect and server shutdown cancel the scan, terminate and await
+  active probes, and prevent the staged scan from committing.
+- A dot-prefixed path segment defines hidden content for the MVP. Native Windows
+  hidden attributes are deferred.
+- Any directory traversal error, including an unreadable nested directory, fails
+  the entire scan. It preserves prior catalog state and `lastScannedAt`.
+
+Additional concrete defaults for this plan are:
+
+- Use opaque text IDs generated with `crypto.randomUUID()` for media roots and
+  media items so API identity does not depend on SQLite row numbering.
+- Store all timestamps as safe integer UTC Unix epoch milliseconds and serialize
+  them as UTC ISO 8601 strings at the HTTP boundary.
+- Resolve `KRAZITV_DATA_DIR` against the process working directory, default it to
+  `data`, and store the database as `krazitv.sqlite` within it.
+- Reprobe every discovered supported file on every scan. File fingerprints and
+  unchanged-file probe skipping are deferred.
+- Return media-root and media-item lists without pagination for the MVP, ordered
+  deterministically by normalized path identity. Pagination and filters can be
+  added when catalog scale demonstrates the need.
+
+## Schema and Transaction Invariants
+
+The first migration creates `media_roots` and `media_items`.
+
+`media_roots` stores:
+
+- `id` as the text primary key.
+- `path` as the normalized absolute display path.
+- `path_key` as the platform-aware lexical identity key with a unique
+  constraint.
+- `enabled` as a checked SQLite integer boolean.
+- `created_at`, `updated_at`, and nullable `last_scanned_at` as integer epoch
+  milliseconds.
+
+`media_items` stores:
+
+- `id` as the text primary key.
+- `media_root_id` as a foreign key to `media_roots`.
+- `path` and `path_key`, unique together with `media_root_id` by identity key.
+- `title`.
+- Nullable `duration_ms` and `has_audio` so a first probe failure can be
+  represented.
+- `status`, constrained to `available`, `missing`, or `probe_failed`.
+- Nullable `probe_error`.
+- `created_at`, `updated_at`, `last_seen_at`, and nullable `last_probed_at` as
+  integer epoch milliseconds.
+
+Readable database constraints should enforce:
+
+- Root and root-relative catalog identities are unique.
+- Boolean columns contain only `0`, `1`, or `NULL` where null is permitted.
+- `available` rows have a positive safe-integer duration, non-null audio
+  presence, and null probe error.
+- `probe_failed` rows have a non-empty probe error.
+- `missing` rows may retain their last usable metadata and probe diagnostics.
+
+One successful scan uses one scan timestamp and one final database transaction
+to:
+
+1. Upsert every discovered item and its probe result.
+2. Set `lastSeenAt` for all discovered paths and `lastProbedAt` for every invoked
+   probe.
+3. Mark previously cataloged but unseen paths `missing` while retaining their
+   metadata.
+4. Update the root's `lastScannedAt`.
+
+Traversal, cancellation, orchestration, or commit failure performs none of those
+mutations. The implementation stages the complete discovered/probed result in
+memory for this MVP rather than holding a write transaction open while walking
+the filesystem or waiting on child processes.
+
+## Dependency and Decision Gates
+
+| Gate                               | Required before                 | Exit condition                                                                                                          |
+| ---------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| G1: persistence foundation         | persistent root API             | Kysely, `better-sqlite3`, migration execution, connection shutdown, and temporary-database tests work in `apps/server`. |
+| G2: deterministic media inspection | scan orchestration              | Discovery and ffprobe behavior pass without a real ffprobe binary or database.                                          |
+| G3: atomic catalog scan            | public catalog reads            | A successful scan commits one coherent catalog generation; all failure and cancellation paths preserve prior state.     |
+| G4: executable acceptance          | declaring spec 0002 implemented | Workspace checks and an opt-in real-ffprobe smoke test pass against a controlled media fixture.                         |
+
+## Phase 1: Persistence and Media Roots
+
+### CAT-001: Establish the SQLite lifecycle and catalog schema
+
+**Goal**
+
+Give `apps/server` a production-shaped local database lifecycle and migration
+path that later catalog tickets can use without introducing a premature shared
+persistence package.
+
+**Scope**
+
+- Add Kysely, `better-sqlite3`, and required TypeScript declarations to the
+  server workspace.
+- Add server configuration for `KRAZITV_DATA_DIR` and the fixed database
+  filename `krazitv.sqlite`.
+- Create the data directory, open SQLite through Kysely's `SqliteDialect`, enable
+  foreign keys, run Kysely migrations before listening, and close the database
+  during Fastify shutdown.
+- Add typed server-owned database row interfaces and the first explicit migration
+  for `media_roots` and `media_items` using the schema invariants above.
+- Separate application composition from route construction so Fastify injection
+  tests can supply temporary or fake dependencies without opening the production
+  database.
+- Keep the existing health endpoint independent of media-root accessibility and
+  ffprobe availability.
+
+**Out of scope**
+
+- Catalog repositories, media routes, filesystem traversal, ffprobe, and scan
+  orchestration.
+- The schedule-specific immediate-transaction helper. ADR 0004 requires it when
+  schedule mutation is implemented, but this slice needs only ordinary short
+  Kysely transactions.
+
+**Blocking dependencies**
+
+- None. This is the first implementation ticket.
+
+**Implementation notes**
+
+- Migration files stay readable and explicit; do not hide schema creation behind
+  a generalized entity framework.
+- Database row types remain inside `apps/server` and do not cross package
+  boundaries.
+- Validate generated timestamps and durations as safe integers before writes.
+- Tests use unique temporary directories and always close database handles before
+  cleanup, especially on Windows.
+- Startup may create the local database, but it must never stat configured media
+  roots or invoke ffprobe.
+
+**Verification**
+
+- A fresh temporary data directory is created and migrated successfully.
+- Re-running migrations is idempotent.
+- Closing the server closes the SQLite connection.
+- Schema tests prove unique and check constraints reject invalid rows.
+- A reopened database retains inserted fixture rows.
+- Existing `/health`, CORS, build, and type checks continue to pass.
+
+**Docs impact**
+
+- Add runtime data-directory configuration to `.env.example` or the active
+  operator-facing configuration document if one exists when implemented.
+- Record any durable database lifecycle convention in the active architecture
+  documentation only if it extends ADR 0004.
+
+### CAT-002: Deliver the persistent media-root API
+
+**Goal**
+
+Let a user create, list, enable, and disable durable media roots without touching
+the filesystem during server startup or root creation.
+
+**Scope**
+
+- Implement a cohesive media-root repository in `apps/server`.
+- Add lexical path normalization that produces a normalized absolute display path
+  and platform-aware identity key without calling `realpath`.
+- Implement `POST /media-roots`, `GET /media-roots`, and
+  `PATCH /media-roots/:id`.
+- Accept syntactically valid absolute paths even when missing or inaccessible.
+- Generate opaque text IDs and persist integer timestamps.
+- Allow `PATCH` to change only `enabled`; reject attempts to mutate `path`.
+- Map validation, duplicate identity, and not-found failures to stable structured
+  API errors.
+- Return API projections with booleans and ISO 8601 timestamps rather than raw
+  database representations.
+
+**Out of scope**
+
+- Root deletion, path changes, root accessibility checks, scanning, media items,
+  and Web Admin forms.
+
+**Blocking dependencies**
+
+- CAT-001.
+
+**Implementation notes**
+
+- Keep validation and HTTP status mapping at the route boundary. The repository
+  should expose typed persistence outcomes rather than Fastify replies.
+- SQLite's unique constraint is the final duplicate guard; prechecks may improve
+  error messages but must not be the only protection.
+- Deterministically order roots by `path_key`, then `id` as a stable tie-breaker.
+- `buildServer()` receives the root service as an injected dependency; process
+  startup supplies the real Kysely-backed implementation.
+
+**Verification**
+
+- Fastify injection tests cover create, list, enable, disable, invalid relative
+  path, immutable path, duplicate normalized identity, and unknown ID.
+- Windows-specific unit cases prove drive-letter/case variants share one identity;
+  POSIX cases preserve case-sensitive identity.
+- Creating a missing path succeeds and does not invoke discovery.
+- Roots survive closing and reopening the server/database.
+- A configured missing or inaccessible root does not prevent server startup.
+
+**Docs impact**
+
+- None beyond corrections discovered while implementing the accepted API
+  behavior.
+
+## Phase 2: Deterministic Media Inspection
+
+### CAT-003: Implement deterministic local-file discovery
+
+**Goal**
+
+Return a complete, deterministic set of supported media paths for an accessible
+root without leaking traversal details into the server scanner.
+
+**Scope**
+
+- Add a narrow discovery entry point to `packages/media` that accepts an absolute
+  root path and optional cancellation signal.
+- Recurse through directories, skip dot-prefixed files and subtrees, do not
+  follow symlinked directories, and consider supported extensions
+  case-insensitively.
+- Initially support `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and `.webm`.
+- Produce normalized absolute paths with identity keys and return them in
+  deterministic identity order.
+- Derive the MVP display title from the filename stem without show, season, or
+  episode inference.
+- Fail the complete discovery operation on root or nested traversal errors.
+- Add media-package test/build configuration so colocated Vitest tests run from
+  the workspace root without being emitted in the package build.
+
+**Out of scope**
+
+- ffprobe, persistence, missing reconciliation, file fingerprinting, metadata
+  inference, and filesystem watchers.
+
+**Blocking dependencies**
+
+- None after the current package scaffold. It may proceed in parallel with
+  CAT-001 and CAT-002, but CAT-005 consumes its final contract.
+
+**Implementation notes**
+
+- Use directory-entry metadata to avoid following directory symlinks. Keep all
+  symlink policy inside discovery rather than making callers reimplement it.
+- Treat any dot-prefixed segment below the configured root as hidden. The root
+  itself may have a dot-prefixed basename because it was explicitly configured.
+- Preserve the normalized display path separately from the identity key.
+- Cancellation is cooperative between filesystem operations and returns a typed
+  cancellation failure.
+
+**Verification**
+
+- Temporary-directory tests cover nested supported files, unsupported files,
+  case-insensitive extensions, hidden files and subtrees, directory symlinks,
+  empty roots, deterministic order, title derivation, and cancellation.
+- Root-not-found, root-is-file, root-unreadable, and unreadable-nested-directory
+  cases fail the discovery rather than returning partial success.
+- `npm test --workspace @krazitv/media`
+- `npm run typecheck --workspace @krazitv/media`
+
+**Docs impact**
+
+- Update the spec only if the supported-extension or hidden-path contract changes.
+
+### CAT-004: Implement the bounded ffprobe adapter
+
+**Goal**
+
+Inspect one discovered media file and return normalized metadata through a safe,
+bounded child-process contract.
+
+**Scope**
+
+- Replace the current media-package type stub with a narrow probe interface and
+  construction entry point.
+- Spawn the configured executable directly with a structured argument array,
+  piped stdout/stderr, and `shell: false`.
+- Request ffprobe JSON with explicitly selected format and stream fields.
+- Parse a finite positive duration, round it once to the nearest integer
+  millisecond, validate safe-integer range, and derive `hasAudio` from the stream
+  list.
+- Normalize optional container, video/audio codec, resolution, and frame-rate
+  fields only when the implementation elects to retain them.
+- Enforce the configured timeout, 1 MiB stdout limit, and latest 64 KiB stderr
+  tail.
+- On timeout, cancellation, or output overflow, request graceful termination,
+  escalate after five seconds when necessary, and wait for child closure before
+  settling.
+- Normalize spawn, timeout, cancellation, output-limit, non-zero-exit, signal,
+  invalid-JSON, and invalid-metadata failures into typed probe errors suitable
+  for catalog error storage.
+- Add an internal injectable process seam and deterministic fakes; do not expose
+  raw ffprobe JSON or process handles from the package.
+
+**Out of scope**
+
+- Scan-level concurrency, persistence, FFmpeg packaging, transcoding, and a
+  general-purpose child-process framework shared with `packages/signal`.
+
+**Blocking dependencies**
+
+- None after the current package scaffold. It may proceed in parallel with
+  CAT-001 through CAT-003, but CAT-005 consumes its final contract.
+
+**Implementation notes**
+
+- Resolve `FFPROBE_PATH` and numeric environment configuration in
+  `apps/server`; pass validated values into the media-package constructor.
+- The adapter owns process closure, while the process-wide scheduler owns when a
+  new probe may start.
+- Capture only a bounded diagnostic tail and produce a concise sanitized catalog
+  error. Do not automatically log or return unbounded raw stderr.
+- Borrow the established process-lifecycle shape from `packages/signal` without
+  importing its private modules or prematurely extracting a shared package.
+
+**Verification**
+
+- Argument tests prove JSON output, explicit selected fields, structured argv,
+  configured executable, and `shell: false`.
+- Parser tests cover fractional durations, nearest-millisecond rounding, audio
+  presence/absence, optional metadata, malformed JSON, missing duration,
+  non-positive values, non-finite values, and unsafe integers.
+- Fake-process tests cover spawn failure, non-zero and signal exits, bounded
+  stderr, stdout overflow, timeout, caller cancellation, graceful termination,
+  forced termination, repeated cancellation, and closure before settlement.
+- Normal unit tests do not require ffprobe on `PATH`.
+
+**Docs impact**
+
+- Record platform-specific process-termination limitations in the relevant
+  operational knowledge-base note if testing reveals any.
+
+## Phase 3: Catalog Scan and Query API
+
+### CAT-005: Implement atomic catalog scanning
+
+**Goal**
+
+Turn one enabled media root into a durable catalog generation while preserving
+the previous generation on traversal, cancellation, orchestration, or database
+failure.
+
+**Scope**
+
+- Add `CatalogScanner` and a process-wide bounded probe scheduler in
+  `apps/server`.
+- Parse `FFPROBE_TIMEOUT_MS` as a positive integer and
+  `FFPROBE_CONCURRENCY` as an integer from 1 through 32, using defaults of
+  30,000 milliseconds and 4.
+- Reject a disabled root before discovery and reject a second active scan of the
+  same root with `scan_in_progress`.
+- Allow different roots to scan concurrently while every probe shares the one
+  process-wide concurrency budget.
+- Complete discovery before probing so a traversal failure cannot cause missing
+  reconciliation.
+- Probe every discovered path, preserving individual probe failures as staged
+  `probe_failed` results while allowing other files to continue.
+- Keep a scheduler slot occupied through timeout/cancellation cleanup until the
+  child has closed.
+- Stage the complete generation in memory, then apply item upserts, missing
+  reconciliation, and the root's `lastScannedAt` in one short transaction.
+- Re-read the root inside finalization so a root disabled during a scan cannot
+  commit a late successful generation; return a typed conflict and preserve the
+  prior catalog.
+- Preserve prior successful metadata when an existing item later becomes
+  `probe_failed`; clear probe metadata for a first-time failed item.
+- Wire client disconnect and server shutdown to scan cancellation and await
+  scanner shutdown before closing the database.
+- Implement `POST /media-roots/:id/scan` and return root ID, started/completed
+  timestamps, discovered count, successful-probe count, probe-failure count, and
+  missing count.
+
+**Out of scope**
+
+- Persistent scan jobs, progress polling, file fingerprints, incremental scans,
+  automatic background scans, retries, and deletion of catalog history.
+
+**Blocking dependencies**
+
+- CAT-002, CAT-003, and CAT-004.
+
+**Implementation notes**
+
+- The same-root in-flight registry is process-local, matching the MVP's single
+  server process. The final transaction and uniqueness constraints remain the
+  persistence correctness boundary.
+- A scan's `startedAt` and final scan timestamp come from an injected clock in
+  deterministic tests.
+- `lastSeenAt` changes for every discovered item; `lastProbedAt` changes for
+  every invoked probe, including failures.
+- A rediscovered `missing` item becomes `available` or `probe_failed` based on
+  its new probe result.
+- Missing reconciliation compares identity keys scoped to the root and never
+  deduplicates across overlapping roots.
+- Ensure request-abort listeners are removed when a request completes to avoid
+  retaining requests or cancelling a finished scan.
+
+**Verification**
+
+- Service tests prove the process-wide maximum probe count is never exceeded
+  across concurrent roots, including while timed-out children are terminating.
+- A second same-root scan returns conflict without discovery or probing.
+- A disabled root returns conflict without filesystem traversal.
+- Successful, failed, and mixed probes produce correct records and summary
+  counts.
+- A later successful scan marks unseen items `missing` and preserves their
+  metadata.
+- Inaccessible roots and unreadable nested directories preserve every prior item
+  status and `lastScannedAt`.
+- Cancellation during discovery, queued probing, active probing, and pre-commit
+  finalization leaves the previous catalog unchanged and closes active children.
+- A root disabled before finalization cannot commit staged results.
+- Transaction failure rolls back item changes and `lastScannedAt` together.
+- Fastify injection tests cover success and structured `404`, disabled-root,
+  `scan_in_progress`, traversal-failure, and cancellation outcomes.
+
+**Docs impact**
+
+- Update spec 0002 only if implementation changes the resolved atomicity,
+  cancellation, or concurrency policy.
+
+### CAT-006: Expose catalog query APIs
+
+**Goal**
+
+Make durable catalog state available to users and later channel-configuration
+work without exposing SQLite rows or raw ffprobe output.
+
+**Scope**
+
+- Add cohesive media-item repository queries and public API projections.
+- Implement `GET /media-items` and `GET /media-items/:id`.
+- Return item ID, root ID, normalized path, title, duration, audio presence,
+  status, probe error, and timestamps.
+- Serialize timestamps as ISO 8601, preserve nullable first-failure metadata, and
+  expose retained last-known metadata for later failures while keeping status
+  authoritative.
+- Return deterministic list ordering by root identity, item path identity, then
+  item ID.
+- Map unknown IDs to a structured not-found response.
+
+**Out of scope**
+
+- Pagination, filtering, sorting options, root deletion, manual item edits,
+  collection membership, schedule eligibility endpoints, and the Web Admin UI.
+
+**Blocking dependencies**
+
+- CAT-005.
+
+**Implementation notes**
+
+- Keep public response types separate from database row interfaces.
+- Do not expose `path_key`, integer booleans, raw ffprobe JSON, or process
+  diagnostics beyond the normalized `probeError` intended for users.
+- Later scheduling code must select only `available` items; this slice exposes
+  status but does not put that rule in `packages/media`.
+
+**Verification**
+
+- Fastify injection tests cover empty lists, deterministic ordering, detail
+  lookup, unknown ID, and projections for `available`, `missing`, first-time
+  `probe_failed`, and previously successful then failed items.
+- API contract tests prove integer millisecond durations, boolean/null audio
+  presence, ISO timestamps, and absence of private database fields.
+- Data persists across server restart and is returned identically afterward.
+
+**Docs impact**
+
+- None unless the public projection needs a durable change to the accepted data
+  model.
+
+### CAT-007: Close executable acceptance and hand off to channel configuration
+
+**Goal**
+
+Prove spec 0002 as one working vertical slice and leave a stable catalog contract
+for spec 0003.
+
+**Scope**
+
+- Add an opt-in real-ffprobe integration test using a small controlled media
+  fixture with known fractional duration and audio presence.
+- Exercise create root, scan, list, restart, rescan-after-removal, and failed-root
+  flows against a temporary on-disk SQLite database.
+- Verify server shutdown cancels and awaits an active probe before database
+  closure.
+- Confirm no core, signal, Plex, Jellyfin, schedule, playout, or streaming code is
+  required by the catalog slice.
+- Review public exports, method purpose comments, directory cohesion, and active
+  documentation before declaring the plan complete.
+
+**Out of scope**
+
+- UI automation, media collections, background scan scheduling, production media
+  performance benchmarking, and provider integration.
+
+**Blocking dependencies**
+
+- CAT-006.
+
+**Implementation notes**
+
+- Keep the real-ffprobe test opt-in when the binary or fixture is unavailable;
+  deterministic process-double tests remain mandatory in normal CI.
+- Generate or retain only a small redistributable fixture whose license and
+  provenance are recorded. Do not depend on a developer's personal media.
+- Treat the catalog service/API projection as the seam for the later ordered
+  media-collection slice; do not move database or probe types into
+  `packages/core` preemptively.
+
+**Verification**
+
+- Real ffprobe produces the expected rounded `durationMs` and `hasAudio` value.
+- End-to-end tests prove persistence across restart, missing reconciliation,
+  retained failure metadata, duplicate root rejection, disabled scan rejection,
+  same-root scan conflict, and failed-scan preservation.
+- `npm run format`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+
+**Docs impact**
+
+- Mark this plan implemented only after every acceptance criterion is covered by
+  executable tests or the documented real-ffprobe gate.
+- Update `docs/implementation_plan/README.md` status.
+- Do not maintain the completed plan as a second implementation reference; code
+  and executable tests become canonical.
+
+## Acceptance-Criteria Traceability
+
+| Spec behavior                                              | Primary tickets         |
+| ---------------------------------------------------------- | ----------------------- |
+| Persistent root creation/listing and enablement            | CAT-001, CAT-002        |
+| Offline or inaccessible root registration                  | CAT-002                 |
+| Duplicate normalized-root rejection                        | CAT-001, CAT-002        |
+| Startup with missing/inaccessible configured roots         | CAT-002, CAT-007        |
+| Recursive supported-file discovery                         | CAT-003, CAT-005        |
+| Hidden-path and symlink traversal policy                   | CAT-003                 |
+| ffprobe normalization and integer milliseconds             | CAT-004                 |
+| Structured spawn, timeout, cancellation, and output bounds | CAT-004                 |
+| Process-wide bounded probe concurrency                     | CAT-005                 |
+| Disabled and concurrent same-root scan conflicts           | CAT-005                 |
+| Probe failures preserved without aborting the scan         | CAT-005                 |
+| Atomic successful generation and missing reconciliation    | CAT-005                 |
+| Failed/cancelled scan preserves prior state                | CAT-005                 |
+| Media item list and detail APIs                            | CAT-006                 |
+| Restart persistence and real-ffprobe evidence              | CAT-007                 |
+| No provider, scheduling, playout, or streaming coupling    | CAT-001 through CAT-007 |
