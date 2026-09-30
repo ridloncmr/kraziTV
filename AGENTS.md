@@ -177,12 +177,10 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Docs written for agents should explain when to use them, what must never happen, what vocabulary to use, what files are authoritative, and what verification is expected.
 - If a doc presents multiple choices, use a list or table instead of burying the branch in a paragraph.
 
-## Terminology
+## Glossary
 
-- Schedule: What viewers see in the guide.
-- Playout timeline: Everything actually transmitted by a channel.
-- Channel state: The deterministic runtime state that lets viewers join a broadcast in progress.
-- Channel stream worker: The active runtime worker that owns one shared broadcast signal for a watched channel.
-- kraziBrain: The scheduling and playout decision engine.
-- SignalPackager: The streaming and media normalization layer.
-- Provider adapter: Plex/Jellyfin/Emby-specific integration layer.
+`GLOSSARY.md` is the canonical vocabulary for kraziTV architecture,
+programming, catalog, broadcast, and provider terms. Read it before naming
+types, writing specs or ADRs, or describing system behavior, and use its terms
+instead of the synonyms it lists under **Avoid**. Add or change a term there in
+the same change that introduces it.
