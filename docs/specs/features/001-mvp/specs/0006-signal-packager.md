@@ -520,6 +520,7 @@ Video: H.264, yuv420p, 1920x1080, 30 fps
 Audio: AAC, 48 kHz, stereo
 Container: MPEG-TS
 Content type: video/MP2T
+Random access: fixed 30-frame GOP at 30 fps with scene-cut keyframes disabled
 ```
 
 Video preserves source aspect ratio and is scaled and padded to the target frame without cropping.
@@ -557,7 +558,10 @@ Do not configure FFmpeg with one output per viewer. FFmpeg's output topology mus
 
 Each subscriber has independent buffering. If a subscriber exceeds its buffer limit, that subscriber is disconnected while the shared broadcast continues. A slow subscriber must never apply backpressure to FFmpeg or stall other subscribers.
 
-Late joiners must be able to join an already-running MPEG-TS signal. The compatibility spike must determine the initialization strategy, including whether periodic PAT/PMT and keyframe behavior are sufficient or whether the worker needs a bounded rolling buffer from a recent safe point. Any buffer must have an explicit byte or duration limit. This is not DVR, pause, or rewind behavior.
+Late joiners start from the newest PAT-aligned point in a rolling MPEG-TS buffer.
+The fixed one-second GOP bounds the wait for the next H.264 random-access point.
+Both retention and each subscriber queue are capped at 4 MiB. This buffer is
+initialization data, not DVR, pause, or rewind behavior.
 
 ### Stream Endpoint
 
@@ -748,6 +752,25 @@ defaults or pass thresholds for ongoing pacing drift, subscriber buffer limits,
 late-join startup behavior, and idle-grace duration. Those empirical values may
 refine the fixed profile without changing the provider-neutral packaging
 contract.
+
+The 2026-09-29 Linux/Plex run selected these MVP defaults and thresholds:
+
+| Setting or threshold                            | Selected value                                  |
+| ----------------------------------------------- | ----------------------------------------------- |
+| Input pacing                                    | FFmpeg `-re`, with no startup burst or catch-up |
+| Startup timeout and absolute initial tune drift | 2,000 ms maximum                                |
+| Video random-access interval                    | 30 frames / 1 second                            |
+| Preparation lead                                | 2,000 ms                                        |
+| Boundary usable-output gap                      | 2,000 ms maximum                                |
+| Retained late-join bytes                        | 4 MiB maximum, replayed from the newest PAT     |
+| Per-subscriber queued bytes                     | 4 MiB maximum                                   |
+| Final-subscriber idle grace                     | 5,000 ms                                        |
+| Process termination grace                       | 5,000 ms                                        |
+
+On Ubuntu 24.04 with FFmpeg 6.1.1, five cold starts reached usable output in
+1,697-1,730 ms. Sequential item commits occurred at the boundary and reached
+usable output in 1,701-1,715 ms. Plex remained visibly playing across repeated
+boundaries, so the boundary gap remains below the selected 2,000 ms ceiling.
 
 ## Deferred Work
 

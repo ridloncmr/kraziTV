@@ -240,19 +240,19 @@ export function createSpikeManager(
     transitionCoordinator: new FixedTransitionCoordinator(provider, runtime),
     idleGraceMs: 5_000,
     prepareLeadMs: 2_000,
-    startupTimeoutMs: 15_000,
+    startupTimeoutMs: 2_000,
     subscriberBufferLimitBytes: 4 * 1024 * 1024,
     retentionLimitBytes: 4 * 1024 * 1024,
     findJoinPoint: findMpegTsJoinPoint,
   });
 }
 
-/** Finds a PAT-aligned late-join point followed by two complete TS packets. */
+/** Finds the newest PAT-aligned late-join point backed by complete TS packets. */
 export function findMpegTsJoinPoint(retained: Buffer): number | undefined {
   for (
-    let offset = 0;
-    offset + MPEG_TS_PACKET_BYTES * 3 <= retained.byteLength;
-    offset += 1
+    let offset = retained.byteLength - MPEG_TS_PACKET_BYTES * 3;
+    offset >= 0;
+    offset -= 1
   ) {
     if (
       retained[offset] === 0x47 &&

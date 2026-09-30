@@ -137,4 +137,24 @@ describe("findMpegTsJoinPoint", () => {
 
     expect(findMpegTsJoinPoint(retained)).toBe(190);
   });
+
+  it("returns the newest valid PAT so late joins do not replay stale output", () => {
+    const packet = (pid: number) => {
+      const value = Buffer.alloc(188);
+      value[0] = 0x47;
+      value[1] = (pid >> 8) & 0x1f;
+      value[2] = pid & 0xff;
+      return value;
+    };
+    const retained = Buffer.concat([
+      packet(0),
+      packet(256),
+      packet(256),
+      packet(0),
+      packet(256),
+      packet(256),
+    ]);
+
+    expect(findMpegTsJoinPoint(retained)).toBe(188 * 3);
+  });
 });

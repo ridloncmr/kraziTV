@@ -90,7 +90,7 @@ packages/signal/src
 | -------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | G1: deterministic runtime contracts    | lifecycle implementation                         | Injected authorization, playout, transition, clock/timer, process, and logging seams exist without SQLite, Kysely, Fastify, or Plex types.    |
 | G2: automated runtime confidence       | manual Plex run                                  | Complete (SIG-009). Fake-driven tests cover startup, fan-out, transitions, cancellation, idle grace, administrative stop retry, and shutdown. |
-| G3: FFmpeg/Plex compatibility evidence | freezing runtime defaults or accepting spec 0006 | The spike records measurable results and passes the 2,000 ms initial-tune-drift ceiling plus the newly recorded thresholds.                   |
+| G3: FFmpeg/Plex compatibility evidence | freezing runtime defaults or accepting spec 0006 | Complete (SIG-011). The Linux/Plex matrix passed the 2,000 ms tune-drift ceiling and selected the recorded runtime defaults.                  |
 | G4: specs 0002-0005 persistence        | production playout integration                   | Catalog, channels, schedules, and current/following playout snapshots are implemented with their documented transaction guarantees.           |
 | G5: production coordination            | full stream route acceptance                     | SQLite transition races pass in both orderings and stale output is never committed.                                                           |
 
@@ -656,6 +656,11 @@ through the smallest hard-coded Plex/HDHomeRun harness.
 - Add repeatable spike setup and invocation instructions to the knowledge base.
 
 ### SIG-011: Run the compatibility matrix and choose empirical defaults
+
+**Status**
+
+Complete on 2026-09-29. The retained results and selected defaults are recorded
+in the source specs and `docs/knowledge_base/plex-signal-spike.md`.
 
 **Goal**
 

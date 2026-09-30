@@ -117,5 +117,43 @@ isolation, the VIDEO A/B boundary, idle shutdown, and process sharing. Record
 the observed FFmpeg version, asset hashes, startup wait, tune drift, pacing
 drift, boundary gap, late-join result, buffer behavior, and encoder count.
 
-Plex compatibility has not been established until that matrix is performed and
-recorded.
+## Retained Plex Result
+
+The SIG-011 matrix passed on 2026-09-29 with:
+
+- Ubuntu 24.04.4 LTS host;
+- Plex Media Server 1.43.4.10903 in the host-networked
+  `linuxserver/plex` container;
+- FFmpeg 6.1.1-3ubuntu5;
+- VIDEO A SHA-256
+  `07aa537abc566ec89ec055b745478c1e81950221492469294875fa386330ba68`;
+- VIDEO B SHA-256
+  `166f16a5ff351cef6b4dfcaa29e6ccf2759500d26d317a6f4047ec25d5201cb3`.
+
+| Measurement                | Result                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| Manual tuner setup         | Plex discovered the tuner and listed Channel 69                                 |
+| Corrected cold-start waits | 1,719 ms, 1,705 ms, 1,708 ms, 1,697 ms, and 1,730 ms                            |
+| Initial tune drift         | Approximately 1.7 seconds behind schedule; below the 2,000 ms ceiling           |
+| Pacing                     | `-re` remained approximately 1x through repeated 30-second items                |
+| Boundary commit latency    | Within 9 ms of the scheduled boundary                                           |
+| Boundary usable-output gap | 1,701-1,715 ms; Plex showed no playback interruption                            |
+| Boundary strategy          | Sequential encoders spliced on 188-byte packet boundaries                       |
+| Shared process count       | One kraziTV worker and encoder while two Plex clients played                    |
+| Plex late client           | Buffered still initially, then about one second behind Viewer A                 |
+| Direct late subscriber     | Attached in 5 ms and decoded a 165,064-byte, three-second capture               |
+| Slow subscriber            | A 1 KiB/s client ran for 110 seconds without affecting Plex playback            |
+| Idle shutdown              | Session stopped 5,261 ms after the final disconnect; no FFmpeg process remained |
+| Active shutdown            | Stopping the harness settled the active worker and encoder                      |
+
+The first run exposed that replaying from the oldest retained PAT burst 4.3 MiB
+to a late subscriber and produced missing-PPS decoder warnings. The retained fix
+uses the newest valid PAT and a fixed one-second H.264 GOP (`-g 30`,
+`-keyint_min 30`, `-sc_threshold 0`). The corrected direct late join delivered
+165,064 bytes over three seconds and decoded successfully. Decoders can still
+report transient missing-PPS warnings before the next random-access point; the
+one-second GOP bounds that interval.
+
+Selected defaults are a 2,000 ms startup timeout, 2,000 ms preparation lead,
+4 MiB retention and per-subscriber limits, 5,000 ms idle grace, and 5,000 ms
+process-termination grace. No startup burst or catch-up mode is required.
