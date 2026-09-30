@@ -26,6 +26,11 @@ use temporary directories, injected process doubles, and temporary SQLite
 databases. A real-ffprobe smoke test is an explicit acceptance gate rather than a
 prerequisite for the deterministic suite.
 
+Committed migrations and deterministic fixtures reproduce the logical database
+shape across development environments. Generated SQLite files and scanned media
+records remain machine-local runtime state rather than artifacts copied or
+synchronized between machines.
+
 ## Architecture and Ownership
 
 ```text
@@ -46,6 +51,9 @@ apps/server
 - `apps/server` owns environment configuration, the SQLite connection and
   migrations, database row types, catalog repositories, scan orchestration,
   transaction boundaries, request validation, and HTTP error mapping.
+- `CatalogScanner` composes explicit discovery, probe, future enrichment, and
+  final-candidate validation operations before persistence. This is a deliberate
+  post-probe extension seam, not a generic workflow or plugin framework.
 - `packages/core` receives no new catalog implementation in this slice. Later
   scheduling work consumes typed server projections instead of raw probe data or
   database rows.
@@ -109,6 +117,12 @@ Additional concrete defaults for this plan are:
   them as UTC ISO 8601 strings at the HTTP boundary.
 - Resolve `KRAZITV_DATA_DIR` against the process working directory, default it to
   `data`, and store the database as `krazitv.sqlite` within it.
+- Treat committed, ordered migrations as the reproducible schema source. Startup,
+  tests, and any later database CLI use one migration entry point; migrations do
+  not depend on machine paths, catalog data, or wall-clock state.
+- Keep deterministic development/test fixtures separate from production
+  migrations. Generated SQLite files and scanned catalogs are machine-local and
+  are not synchronized or source-controlled.
 - Reprobe every discovered supported file on every scan. File fingerprints and
   unchanged-file probe skipping are deferred.
 - Return media-root and media-item lists without pagination for the MVP, ordered
@@ -166,18 +180,36 @@ mutations. The implementation stages the complete discovered/probed result in
 memory for this MVP rather than holding a write transaction open while walking
 the filesystem or waiting on child processes.
 
+The staged result crosses an explicit normalized catalog-candidate boundary:
+
+```text
+discover -> probe -> future enrichment -> validate candidate -> persist
+```
+
+CAT-005 implements discovery, probing, validation, and persistence. Metadata
+enrichment remains deferred, but one or more named operations can later be
+chained over the normalized candidate after probing without changing discovery,
+probe process management, or the atomic final transaction. No discovery, probe,
+or future enrichment operation writes catalog rows directly.
+
 ## Dependency and Decision Gates
 
-| Gate                               | Required before                 | Exit condition                                                                                                          |
-| ---------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| G1: persistence foundation         | persistent root API             | Kysely, `better-sqlite3`, migration execution, connection shutdown, and temporary-database tests work in `apps/server`. |
-| G2: deterministic media inspection | scan orchestration              | Discovery and ffprobe behavior pass without a real ffprobe binary or database.                                          |
-| G3: atomic catalog scan            | public catalog reads            | A successful scan commits one coherent catalog generation; all failure and cancellation paths preserve prior state.     |
-| G4: executable acceptance          | declaring spec 0002 implemented | Workspace checks and an opt-in real-ffprobe smoke test pass against a controlled media fixture.                         |
+| Gate                               | Required before                 | Exit condition                                                                                                                                     |
+| ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1: persistence foundation         | persistent root API             | Kysely, `better-sqlite3`, reproducible migration execution, connection shutdown, and deterministic temporary-database tests work in `apps/server`. |
+| G2: deterministic media inspection | scan orchestration              | Discovery and ffprobe behavior pass without a real ffprobe binary or database.                                                                     |
+| G3: atomic catalog scan            | public catalog reads            | A successful scan commits one coherent catalog generation; all failure and cancellation paths preserve prior state.                                |
+| G4: executable acceptance          | declaring spec 0002 implemented | Workspace checks and an opt-in real-ffprobe smoke test pass against a controlled media fixture.                                                    |
 
 ## Phase 1: Persistence and Media Roots
 
 ### CAT-001: Establish the SQLite lifecycle and catalog schema
+
+**Status**
+
+Complete on 2026-09-30. The server-owned lifecycle, committed initial migration,
+schema constraints, deterministic database tests, Fastify shutdown wiring, and
+runtime data-directory configuration are implemented and verified.
 
 **Goal**
 
@@ -194,8 +226,13 @@ persistence package.
 - Create the data directory, open SQLite through Kysely's `SqliteDialect`, enable
   foreign keys, run Kysely migrations before listening, and close the database
   during Fastify shutdown.
+- Use one server-owned migration entry point for production startup, tests, and
+  later database tooling so a fresh environment constructs the same logical
+  schema from the committed migration history.
 - Add typed server-owned database row interfaces and the first explicit migration
   for `media_roots` and `media_items` using the schema invariants above.
+- Add deterministic database fixture helpers with stable IDs and timestamps for
+  tests; fixture loading must remain separate from production migrations.
 - Separate application composition from route construction so Fastify injection
   tests can supply temporary or fake dependencies without opening the production
   database.
@@ -206,6 +243,8 @@ persistence package.
 
 - Catalog repositories, media routes, filesystem traversal, ffprobe, and scan
   orchestration.
+- Live database synchronization, cross-machine catalog transfer, path remapping,
+  backup/restore tooling, and production seed data.
 - The schedule-specific immediate-transaction helper. ADR 0004 requires it when
   schedule mutation is implemented, but this slice needs only ordinary short
   Kysely transactions.
@@ -218,6 +257,10 @@ persistence package.
 
 - Migration files stay readable and explicit; do not hide schema creation behind
   a generalized entity framework.
+- Migrations must not inspect environment-specific media paths, depend on
+  existing catalog contents, or generate nondeterministic fixture data. Once a
+  migration is shared or applied outside a disposable author database, evolve
+  the schema with a new migration rather than editing that history.
 - Database row types remain inside `apps/server` and do not cross package
   boundaries.
 - Validate generated timestamps and durations as safe integers before writes.
@@ -230,6 +273,10 @@ persistence package.
 
 - A fresh temporary data directory is created and migrated successfully.
 - Re-running migrations is idempotent.
+- Production startup and test setup use the same migration entry point and
+  produce an equivalent logical schema from an empty database.
+- Deterministic fixtures reproduce stable IDs and timestamps without being
+  installed by production migrations.
 - Closing the server closes the SQLite connection.
 - Schema tests prove unique and check constraints reject invalid rows.
 - A reopened database retains inserted fixture rows.
@@ -368,6 +415,8 @@ bounded child-process contract.
 
 - Replace the current media-package type stub with a narrow probe interface and
   construction entry point.
+- Return a normalized, persistence-free probe result that can feed later
+  metadata enrichment before the server constructs a final catalog candidate.
 - Spawn the configured executable directly with a structured argument array,
   piped stdout/stderr, and `shell: false`.
 - Request ffprobe JSON with explicitly selected format and stream fields.
@@ -389,8 +438,8 @@ bounded child-process contract.
 
 **Out of scope**
 
-- Scan-level concurrency, persistence, FFmpeg packaging, transcoding, and a
-  general-purpose child-process framework shared with `packages/signal`.
+- Scan-level concurrency, persistence, metadata enrichment, FFmpeg packaging,
+  transcoding, and a general-purpose child-process or workflow framework.
 
 **Blocking dependencies**
 
@@ -419,6 +468,8 @@ bounded child-process contract.
   stderr, stdout overflow, timeout, caller cancellation, graceful termination,
   forced termination, repeated cancellation, and closure before settlement.
 - Normal unit tests do not require ffprobe on `PATH`.
+- Probe tests require no database and demonstrate that normalized results expose
+  no raw ffprobe JSON or persistence types.
 
 **Docs impact**
 
@@ -450,6 +501,9 @@ failure.
   reconciliation.
 - Probe every discovered path, preserving individual probe failures as staged
   `probe_failed` results while allowing other files to continue.
+- Compose discovery and probing as separate persistence-free operations, then
+  build and validate normalized catalog candidates at an explicit post-probe
+  boundary where future enrichment can be inserted.
 - Keep a scheduler slot occupied through timeout/cancellation cleanup until the
   child has closed.
 - Stage the complete generation in memory, then apply item upserts, missing
@@ -468,7 +522,8 @@ failure.
 **Out of scope**
 
 - Persistent scan jobs, progress polling, file fingerprints, incremental scans,
-  automatic background scans, retries, and deletion of catalog history.
+  automatic background scans, retries, metadata enrichment, a generic workflow
+  or plugin system, and deletion of catalog history.
 
 **Blocking dependencies**
 
@@ -487,6 +542,10 @@ failure.
   its new probe result.
 - Missing reconciliation compares identity keys scoped to the root and never
   deduplicates across overlapping roots.
+- Preserve deterministic path-identity order when concurrent probes finish out
+  of order. Pass cancellation through each operation, and keep database writes
+  exclusively in finalization rather than discovery, probing, or future
+  enrichment.
 - Ensure request-abort listeners are removed when a request completes to avoid
   retaining requests or cancelling a finished scan.
 
@@ -498,6 +557,8 @@ failure.
 - A disabled root returns conflict without filesystem traversal.
 - Successful, failed, and mixed probes produce correct records and summary
   counts.
+- Scanner tests prove probe completion order does not change final candidate
+  ordering and that only finalization receives persistence access.
 - A later successful scan marks unseen items `missing` and preserves their
   metadata.
 - Inaccessible roots and unreadable nested directories preserve every prior item
@@ -578,6 +639,8 @@ for spec 0003.
   fixture with known fractional duration and audio presence.
 - Exercise create root, scan, list, restart, rescan-after-removal, and failed-root
   flows against a temporary on-disk SQLite database.
+- Recreate the logical schema in a fresh temporary environment exclusively from
+  committed migrations, then load deterministic fixtures separately.
 - Verify server shutdown cancels and awaits an active probe before database
   closure.
 - Confirm no core, signal, Plex, Jellyfin, schedule, playout, or streaming code is
@@ -610,6 +673,9 @@ for spec 0003.
 - End-to-end tests prove persistence across restart, missing reconciliation,
   retained failure metadata, duplicate root rejection, disabled scan rejection,
   same-root scan conflict, and failed-scan preservation.
+- Clean-environment tests prove equivalent logical schema creation without
+  copying a generated database and prove production migration does not load
+  development fixtures.
 - `npm run format`
 - `npm run typecheck`
 - `npm test`
@@ -628,12 +694,14 @@ for spec 0003.
 | Spec behavior                                              | Primary tickets         |
 | ---------------------------------------------------------- | ----------------------- |
 | Persistent root creation/listing and enablement            | CAT-001, CAT-002        |
+| Reproducible logical schema across clean environments      | CAT-001, CAT-007        |
 | Offline or inaccessible root registration                  | CAT-002                 |
 | Duplicate normalized-root rejection                        | CAT-001, CAT-002        |
 | Startup with missing/inaccessible configured roots         | CAT-002, CAT-007        |
 | Recursive supported-file discovery                         | CAT-003, CAT-005        |
 | Hidden-path and symlink traversal policy                   | CAT-003                 |
 | ffprobe normalization and integer milliseconds             | CAT-004                 |
+| Post-probe enrichment composition seam                     | CAT-004, CAT-005        |
 | Structured spawn, timeout, cancellation, and output bounds | CAT-004                 |
 | Process-wide bounded probe concurrency                     | CAT-005                 |
 | Disabled and concurrent same-root scan conflicts           | CAT-005                 |

@@ -19,6 +19,22 @@ with Kysely's `SqliteDialect` backed by `better-sqlite3`.
 
 Use Kysely migrations for schema changes. Keep migration files readable and explicit, and avoid hiding the schema behind broad repository abstractions before the persistence model stabilizes.
 
+Committed migrations are the canonical, ordered schema history. A clean
+environment must be able to create the same logical schema by running that
+history through the same migration entry point used by production startup and
+tests. Migrations must not depend on machine-specific paths, local catalog
+contents, wall-clock values, or other ambient developer state. Once a migration
+has been shared or applied outside its author's disposable working database,
+later schema changes use a new migration instead of rewriting that history.
+
+Deterministic test or development fixtures remain separate from production
+migrations and use stable IDs and timestamps when their exact values matter.
+Generated SQLite files and scanned catalog contents are machine-local runtime
+state, not reproducibility artifacts: do not source-control or synchronize a
+live database between environments. Portable configuration or catalog transfer,
+if required later, uses an explicit export/import design rather than database
+file synchronization.
+
 Kysely's built-in `SqliteDriver` currently starts transactions with plain
 `BEGIN`, which SQLite treats as deferred. Ordinary `db.transaction()` therefore
 does not satisfy a requirement to acquire write authority before the first
@@ -48,6 +64,11 @@ same concurrency tests and `BEGIN IMMEDIATE` semantics.
 - Persistence-heavy MVP work can proceed without agents choosing between Drizzle and Kysely per slice.
 - All SQLite-backed slices use the same dialect and driver rather than selecting
   a persistence stack independently.
+- A fresh checkout can reproduce the current logical schema from committed
+  migrations without copying another machine's database file.
+- Production migrations do not seed environment-specific or development data;
+  deterministic fixtures can evolve independently without changing schema
+  history.
 - Specs can continue to define tables and relationships in provider-neutral terms without using Kysely syntax.
 - `apps/server` should own database connection and migration wiring unless a later package boundary becomes necessary.
 - `apps/server` owns the `better-sqlite3` connection lifecycle and passes that

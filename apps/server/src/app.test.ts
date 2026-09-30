@@ -1,8 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildServer } from "./app.js";
+import {
+  buildServer,
+  type ServerDependencies,
+  type ServerDatabaseLifecycle,
+} from "./app.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
+
+function createDependencies(
+  database: ServerDatabaseLifecycle = { close: async () => undefined },
+): ServerDependencies {
+  return { database };
+}
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
@@ -10,7 +20,7 @@ afterEach(async () => {
 
 describe("buildServer", () => {
   it("serves the health endpoint through request injection", async () => {
-    const server = buildServer({ logger: false });
+    const server = buildServer(createDependencies(), { logger: false });
     servers.push(server);
 
     const response = await server.inject({
@@ -23,7 +33,7 @@ describe("buildServer", () => {
   });
 
   it("allows the local Web UI origin", async () => {
-    const server = buildServer({ logger: false });
+    const server = buildServer(createDependencies(), { logger: false });
     servers.push(server);
 
     const response = await server.inject({
@@ -38,7 +48,7 @@ describe("buildServer", () => {
   });
 
   it("does not allow an unconfigured browser origin", async () => {
-    const server = buildServer({ logger: false });
+    const server = buildServer(createDependencies(), { logger: false });
     servers.push(server);
 
     const response = await server.inject({
@@ -48,5 +58,19 @@ describe("buildServer", () => {
     });
 
     expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("closes the database lifecycle when Fastify shuts down", async () => {
+    let closeCount = 0;
+    const database: ServerDatabaseLifecycle = {
+      close: async () => {
+        closeCount += 1;
+      },
+    };
+    const server = buildServer(createDependencies(database), { logger: false });
+
+    await server.close();
+
+    expect(closeCount).toBe(1);
   });
 });
