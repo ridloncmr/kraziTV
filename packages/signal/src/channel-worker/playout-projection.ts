@@ -41,6 +41,9 @@ export function requireCurrent(
   if (result.item.channelId !== channelId) {
     throw invalidItem(channelId, "item_channel_mismatch");
   }
+  if (result.scheduleRevision !== result.item.scheduleRevision) {
+    throw invalidItem(channelId, "schedule_revision_mismatch");
+  }
   return result;
 }
 
@@ -87,6 +90,7 @@ export function selectContiguousFollowing(
   if (
     item === undefined ||
     item.channelId !== channelId ||
+    item.scheduleRevision !== result.scheduleRevision ||
     item.startsAt !== boundaryAt ||
     !Number.isSafeInteger(item.endsAt) ||
     item.endsAt <= item.startsAt ||
