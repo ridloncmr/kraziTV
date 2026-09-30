@@ -14,7 +14,7 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | `specs/0004-schedule-generation.md` | Accepted       | Deterministic guide schedule generation from cataloged media           |
 | `specs/0005-playout-timeline.md`    | Accepted       | Runtime timeline and current broadcast position                        |
 | `specs/0006-signal-packager.md`     | In Development | Shared active-channel streaming and FFmpeg MPEG-TS packaging           |
-| `specs/0007-plex-adapter.md`        | Draft          | Plex-compatible tuner, guide, and stream exposure                      |
+| `specs/0007-plex-adapter.md`        | Accepted       | Plex-compatible tuner, guide, and stream exposure                      |
 | `specs/0008-web-admin.md`           | Accepted       | Minimal browser flow for configuring and observing the MVP             |
 
 The first release should intentionally be small and focused on proving the core loop.

@@ -1,6 +1,6 @@
 # Plex Adapter MVP
 
-Status: Draft
+Status: Accepted
 
 This spec defines the MVP Plex adapter behavior: exposing kraziTV channels, guide data, and stream URLs in Plex-compatible forms without moving scheduling or media packaging decisions into the adapter.
 
@@ -249,6 +249,20 @@ Plex behavior when joining an already-running MPEG-TS stream in this spec. Then
 change the spec status to `Accepted`. The hard-coded provider harness may be
 discarded or refactored into the formal MVP adapter; the exercised
 `packages/signal` primitives are retained.
+
+The 2026-09-29 compatibility run verified manual tuner setup against Plex Media
+Server 1.43.4.10903 in a host-networked LinuxServer Docker container. Plex
+accepted `discover.json`, `lineup_status.json`, `lineup.json`, and `device.xml`,
+listed Channel 69, and played its MPEG-TS URL. Two Plex clients shared one Plex
+Live TV session and one kraziTV encoder. A late second client initially displayed
+a buffered still, then converged to about one second behind the first client and
+continued across repeated A/B boundaries. Plex did not open a second upstream
+stream for that client.
+
+The verified discovery response fields are `FriendlyName`, `Manufacturer`,
+`ModelNumber`, `FirmwareName`, `FirmwareVersion`, `DeviceID`, `DeviceAuth`,
+`BaseURL`, `LineupURL`, and `TunerCount`. A lineup entry requires `GuideNumber`,
+`GuideName`, and `URL`.
 
 ## Decisions Required From The Spike
 
