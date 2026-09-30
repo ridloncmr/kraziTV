@@ -142,6 +142,12 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Architecture decisions belong in `docs/adrs/`.
 - Decisions about AI harnesses and agent infrastructure belong in `.agents/adr/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
+- When a plan ticket is complete, record it in the same change as the
+  implementation: add a `**Status**` block directly under the ticket heading
+  reading `Complete on YYYY-MM-DD.` plus one or two sentences on what was
+  delivered and any deferred follow-up. Also update the plan's top-level
+  `Status:` line and its entry in `docs/implementation_plan/README.md`. A ticket
+  is not done until its status is recorded.
 - Research and references belong in `docs/knowledge_base/`.
 - Completed specs and implementation plans are not canonical descriptions of
   the running system. Use code and tests to understand implemented behavior.

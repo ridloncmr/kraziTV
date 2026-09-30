@@ -28,6 +28,8 @@ Look for:
 - Provider-specific leakage into core logic
 - FFmpeg/media details leaking into scheduling logic
 - Incorrect active user, operator, or planning documentation
+- A completed implementation-plan ticket without a recorded status (see the
+  plan-status rule in `AGENTS.md`)
 
 ## Spec Review
 

@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: Planned
+Status: In development; CAT-001 through CAT-004 complete, CAT-005 next
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -437,6 +437,15 @@ root without leaking traversal details into the server scanner.
 
 ### CAT-004: Implement the bounded ffprobe adapter
 
+**Status**
+
+Complete on 2026-09-30. `createMediaProber`, the normalized `MediaProbeResult`
+parser, typed `MediaProbeError` codes, the bounded ffprobe process lifecycle
+with graceful-then-forced termination, and the internal process-spawner seam
+with deterministic fakes are implemented and verified. The server does not yet
+resolve `FFPROBE_*` configuration or construct a prober; CAT-005 is the first
+consumer.
+
 **Goal**
 
 Inspect one discovered media file and return normalized metadata through a safe,
@@ -521,9 +530,10 @@ failure.
 
 - Add `CatalogScanner` and a process-wide bounded probe scheduler in
   `apps/server`.
-- Parse `FFPROBE_TIMEOUT_MS` as a positive integer and
-  `FFPROBE_CONCURRENCY` as an integer from 1 through 32, using defaults of
-  30,000 milliseconds and 4.
+- Resolve `FFPROBE_PATH` (default `ffprobe`), parse `FFPROBE_TIMEOUT_MS` as a
+  positive integer and `FFPROBE_CONCURRENCY` as an integer from 1 through 32,
+  using defaults of 30,000 milliseconds and 4, and construct the prober through
+  `createMediaProber`.
 - Reject a disabled root before discovery and reject a second active scan of the
   same root with `scan_in_progress`.
 - Allow different roots to scan concurrently while every probe shares the one

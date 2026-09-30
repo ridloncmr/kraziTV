@@ -20,3 +20,6 @@ why-comment.
 
 Implemented media behavior is defined by source and executable tests; specs and
 plans provide intent and history.
+
+When your change completes an implementation-plan ticket, record its status in
+the same change, following the plan-status rule in `AGENTS.md`.

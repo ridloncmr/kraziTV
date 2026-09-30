@@ -13,3 +13,6 @@ Do not put FFmpeg command construction into kraziBrain.
 After implementation, source and executable tests are canonical. Update active
 docs when they still serve planning, user, operator, or architecture needs; do
 not maintain completed specs as a parallel implementation description.
+
+When your change completes an implementation-plan ticket, record its status in
+the same change, following the plan-status rule in `AGENTS.md`.
