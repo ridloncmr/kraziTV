@@ -1,6 +1,6 @@
 # Spec 0002 Implementation Plan: Local Media Catalog
 
-Status: In development; CAT-001 through CAT-005 complete, CAT-006 next
+Status: In development; CAT-001 through CAT-005 and CAT-008 complete, CAT-006 next
 
 Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
 
@@ -742,6 +742,15 @@ for spec 0003.
   and executable tests become canonical.
 
 ### CAT-008: Typecheck server tests and test helpers
+
+**Status**
+
+Complete on 2026-09-30. `apps/server` now has a `noEmit` `tsconfig.json`
+covering all of `src` for typecheck and a `tsconfig.build.json` that excludes
+tests and `testing/` helpers; the root build reference and the root `typecheck`
+script include the server. The 25 hidden errors all traced to typing the awaited
+server as `ReturnType<typeof buildServer>` plus an `unknown` inject payload, and
+were fixed with `FastifyInstance` and `InjectOptions["payload"]`.
 
 **Goal**
 

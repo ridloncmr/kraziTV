@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
+import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildServer } from "../app.js";
@@ -12,7 +13,8 @@ import { CatalogScanWriter } from "./scan/catalog-scan-writer.js";
 import { CatalogScanner } from "./scan/catalog-scanner.js";
 import { ControlledProber } from "./scan/testing/controlled-prober.js";
 
-type Server = ReturnType<typeof buildServer>;
+// Awaiting buildServer's thenable result yields the plain instance, so tests hold that type.
+type Server = FastifyInstance;
 
 const servers: Server[] = [];
 const temporaryDirectories: string[] = [];
@@ -62,7 +64,7 @@ function missingPath(...segments: string[]): string {
   return join(tmpdir(), "krazitv-never-created", ...segments);
 }
 
-async function createRoot(server: Server, payload: unknown) {
+async function createRoot(server: Server, payload: InjectOptions["payload"]) {
   return server.inject({ method: "POST", url: "/media-roots", payload });
 }
 
