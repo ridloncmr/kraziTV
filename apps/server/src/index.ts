@@ -1,6 +1,7 @@
 import { buildServer } from "./app.js";
 import { resolveDataDirectory } from "./data-directory.js";
 import { openDatabase } from "./database/database.js";
+import { MediaRootRepository } from "./media-catalog/media-root-repository.js";
 import { isLoopbackHost, parseCorsOrigins } from "./network.js";
 
 const port = Number(process.env.PORT ?? 3000);
@@ -12,8 +13,10 @@ const dataDirectory = resolveDataDirectory(
 );
 const database = await openDatabase({ dataDirectory });
 
+const mediaRoots = new MediaRootRepository(database.db);
+
 const server = buildServer(
-  { database },
+  { database, mediaRoots },
   {
     logger: true,
     ...(corsOrigins ? { corsOrigins } : {}),

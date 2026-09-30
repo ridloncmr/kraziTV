@@ -5,13 +5,15 @@ import {
   type ServerDependencies,
   type ServerDatabaseLifecycle,
 } from "./app.js";
+import type { MediaRootRepository } from "./media-catalog/media-root-repository.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
 function createDependencies(
   database: ServerDatabaseLifecycle = { close: async () => undefined },
 ): ServerDependencies {
-  return { database };
+  // These tests never reach media-root routes, so an unused stand-in is enough.
+  return { database, mediaRoots: {} as MediaRootRepository };
 }
 
 afterEach(async () => {
@@ -30,6 +32,21 @@ describe("buildServer", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("answers unknown routes with the structured error envelope", async () => {
+    const server = buildServer(createDependencies(), { logger: false });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: "DELETE",
+      url: "/media-roots/root-001",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      error: { code: "not_found", message: expect.any(String) },
+    });
   });
 
   it("allows the local Web UI origin", async () => {

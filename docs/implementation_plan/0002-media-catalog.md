@@ -291,6 +291,13 @@ persistence package.
 
 ### CAT-002: Deliver the persistent media-root API
 
+**Status**
+
+Complete on 2026-09-30. Lexical root-path normalization, the media-root
+repository, `GET`/`POST`/`PATCH /media-roots`, and the shared structured API
+error envelope (`{ "error": { "code", "message" } }`) are implemented and
+verified.
+
 **Goal**
 
 Let a user create, list, enable, and disable durable media roots without touching
