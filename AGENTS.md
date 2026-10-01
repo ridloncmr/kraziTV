@@ -85,7 +85,7 @@ It should behave like a small broadcast automation system, not a playlist genera
       database.ts                 coordinates the domain
       migrations/                 migrate-database.ts, 001-initial-catalog.ts, ...
       schema/                     database-schema.ts, one file per table
-      types/                      sqlite-boolean.ts
+      columns/                    sqlite-boolean.ts
 
     catalog-scan/                 before: routes, pipeline, and writer mixed
       catalog-scan-routes.ts, catalog-scanner.ts, catalog-scan-writer.ts,

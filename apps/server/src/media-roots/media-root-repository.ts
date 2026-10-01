@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely, Selectable } from "kysely";
 
+import {
+  fromSqliteBoolean,
+  toSqliteBoolean,
+} from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { NormalizedMediaPath } from "@krazitv/media";
@@ -40,7 +44,7 @@ export class MediaRootRepository {
           id: this.#createId(),
           path: rootPath.path,
           path_key: rootPath.pathKey,
-          enabled: enabled ? 1 : 0,
+          enabled: toSqliteBoolean(enabled),
           created_at: now,
           updated_at: now,
           last_scanned_at: null,
@@ -84,7 +88,7 @@ export class MediaRootRepository {
   ): Promise<MediaRoot | undefined> {
     const row = await this.#db
       .updateTable("media_roots")
-      .set({ enabled: enabled ? 1 : 0, updated_at: this.#now() })
+      .set({ enabled: toSqliteBoolean(enabled), updated_at: this.#now() })
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirst();
@@ -97,7 +101,7 @@ function toMediaRoot(row: Selectable<MediaRootTable>): MediaRoot {
   return {
     id: row.id,
     path: row.path,
-    enabled: row.enabled === 1,
+    enabled: fromSqliteBoolean(row.enabled),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastScannedAt: row.last_scanned_at,

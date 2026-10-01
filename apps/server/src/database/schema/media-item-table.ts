@@ -1,4 +1,4 @@
-import type { SqliteBoolean } from "../types/sqlite-boolean.js";
+import type { SqliteBoolean } from "../columns/sqlite-boolean.js";
 
 export type MediaItemStatus = "available" | "missing" | "probe_failed";
 

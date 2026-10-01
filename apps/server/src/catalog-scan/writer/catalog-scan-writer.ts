@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely, Transaction } from "kysely";
 
+import {
+  fromSqliteBoolean,
+  toSqliteBoolean,
+} from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
 
@@ -64,7 +68,7 @@ export class CatalogScanWriter {
       if (root === undefined) {
         return { kind: "root_not_found" };
       }
-      if (root.enabled !== 1) {
+      if (!fromSqliteBoolean(root.enabled)) {
         return { kind: "root_disabled" };
       }
 
@@ -174,9 +178,4 @@ async function update(
     })
     .where("id", "=", id)
     .execute();
-}
-
-// SQLite stores booleans as 0/1 under the schema's check constraints.
-function toSqliteBoolean(value: boolean): number {
-  return value ? 1 : 0;
 }
