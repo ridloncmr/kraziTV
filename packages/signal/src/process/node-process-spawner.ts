@@ -33,8 +33,8 @@ export class NodeProcessSpawner implements ProcessSpawner {
         spawned = true;
       });
       child.on("error", (error) => {
-        if (spawned) return;
-        if (settled) return;
+        // After spawn, errors (e.g. failed kill delivery) do not mean closure.
+        if (spawned || settled) return;
         settled = true;
         reject(error);
       });

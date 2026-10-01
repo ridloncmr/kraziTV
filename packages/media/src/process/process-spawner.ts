@@ -1,7 +1,10 @@
 import type { Readable } from "node:stream";
 
-// Mirrors the process port proven in packages/signal. It is duplicated rather
-// than shared until a second real consumer justifies extracting a package.
+// Mirrors the process port in packages/signal/src/process. It is duplicated
+// rather than shared until a third consumer justifies extracting a package.
+// Keep both copies' NodeProcessSpawner settle logic identical and mirror any
+// fix. The only intended difference: signal's request also carries
+// `shell: false`, `cwd`, and `env`, which ffprobe does not need.
 
 export type ProcessTerminationSignal = "SIGTERM" | "SIGKILL";
 
