@@ -1095,6 +1095,36 @@ describe("ChannelStreamManager", () => {
     await manager.shutdown();
   });
 
+  it("names the worker_stop phase and keeps the cause when a worker stop fails", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+    const worker = new FakeManagedWorker("channel-1");
+    const cause = new SignalError("packaging_failed", "FFmpeg did not exit", {
+      pid: 4242,
+    });
+    worker.failNextStop(cause);
+    workerFactory.calls[0]?.result.resolve(worker);
+    (await subscribing).close();
+
+    const failure = await manager
+      .stopChannel("channel-1", "disabled")
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SignalError);
+    expect(failure).toMatchObject({
+      code: "runtime_cleanup_failed",
+      details: { channelId: "channel-1", phase: "worker_stop" },
+    });
+    expect((failure as Error).cause).toBe(cause);
+    await manager.stopChannel("channel-1", "disabled");
+    await manager.shutdown();
+  });
+
   it("retries failed private startup cleanup from later viewers and administrative stops", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({

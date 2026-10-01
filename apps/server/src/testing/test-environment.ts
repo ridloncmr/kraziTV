@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import type { Kysely } from "kysely";
 
 import { buildServer, type ServerDependencies } from "../app.js";
@@ -11,6 +11,7 @@ import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js
 import { openDatabase, type KraziDatabase } from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/channel-repository.js";
+import { noOpChannelRuntime } from "../channels/no-op-channel-runtime.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -29,6 +30,10 @@ export interface StartTestServerOptions {
     db: Kysely<DatabaseSchema>,
     defaults: TestServerDependencies,
   ) => Partial<TestServerDependencies>;
+  /** Overrides the channel routes' runtime stop deadline, for hung-stop tests. */
+  channelStopTimeoutMs?: number | undefined;
+  /** Fastify logger options; defaults to silent so test output stays clean. */
+  logger?: FastifyServerOptions["logger"];
 }
 
 export interface TestServer {
@@ -77,12 +82,19 @@ export async function startTestServer(
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
+    channelRuntime: noOpChannelRuntime,
   };
   const dependencies = {
     ...defaults,
     ...options.overrides?.(database.db, defaults),
   };
-  const server = buildServer({ database, ...dependencies }, { logger: false });
+  const server = buildServer(
+    { database, ...dependencies },
+    {
+      logger: options.logger ?? false,
+      channelStopTimeoutMs: options.channelStopTimeoutMs,
+    },
+  );
   servers.push(server);
   return { server, db: database.db, dependencies };
 }

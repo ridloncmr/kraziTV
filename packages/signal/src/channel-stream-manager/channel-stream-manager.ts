@@ -86,6 +86,9 @@ type ActiveLifecycle = {
 
 type ChannelLifecycle = PendingLifecycle | ActiveLifecycle;
 
+/** Which cleanup step left a channel's runtime unsettled; logged by callers. */
+type CleanupPhase = "worker_startup" | "worker_stop";
+
 /** Serializes channel broadcast creation, publication, and terminal cleanup. */
 export class ChannelStreamManager implements ChannelStreamManagerContract {
   private readonly lifecycles = new Map<ChannelId, ChannelLifecycle>();
@@ -591,7 +594,11 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
         this.lifecycles.delete(pending.channelId);
       }
     } catch (error) {
-      const failure = normalizeCleanupFailure(pending.channelId, error);
+      const failure = normalizeCleanupFailure(
+        pending.channelId,
+        error,
+        "worker_startup",
+      );
       pending.cleanupError = failure;
       throw failure;
     }
@@ -609,7 +616,11 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
         this.lifecycles.delete(pending.channelId);
       }
     } catch (error) {
-      const failure = normalizeCleanupFailure(pending.channelId, error);
+      const failure = normalizeCleanupFailure(
+        pending.channelId,
+        error,
+        "worker_stop",
+      );
       pending.cleanupError = failure;
       throw failure;
     }
@@ -625,7 +636,11 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
         this.lifecycles.delete(lifecycle.channelId);
       }
     } catch (error) {
-      const failure = normalizeCleanupFailure(lifecycle.channelId, error);
+      const failure = normalizeCleanupFailure(
+        lifecycle.channelId,
+        error,
+        "worker_stop",
+      );
       lifecycle.cleanupError = failure;
       throw failure;
     }
@@ -948,18 +963,27 @@ function administrativeStop(
       );
 }
 
-/** Keeps cleanup failures typed while preserving the original diagnostic cause. */
+/**
+ * Keeps cleanup failures typed and names the cleanup phase that failed, so
+ * operators can tell startup cleanup from a worker stop. A failure that already
+ * names its phase passes through; anything else is wrapped with its cause.
+ */
 function normalizeCleanupFailure(
   channelId: ChannelId,
   cause: unknown,
+  phase: CleanupPhase,
 ): SignalError {
-  if (cause instanceof SignalError && cause.code === "runtime_cleanup_failed") {
+  if (
+    cause instanceof SignalError &&
+    cause.code === "runtime_cleanup_failed" &&
+    cause.details.phase !== undefined
+  ) {
     return cause;
   }
   return new SignalError(
     "runtime_cleanup_failed",
     `Channel ${channelId} runtime cleanup did not settle`,
-    { channelId },
+    { channelId, phase },
     { cause },
   );
 }

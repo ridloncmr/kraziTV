@@ -7,6 +7,7 @@ import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { ChannelRepository } from "./channels/channel-repository.js";
+import { noOpChannelRuntime } from "./channels/no-op-channel-runtime.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
@@ -46,7 +47,16 @@ const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
 
 const server = buildServer(
-  { database, mediaRoots, scanner, mediaItems, mediaCollections, channels },
+  {
+    database,
+    mediaRoots,
+    scanner,
+    mediaItems,
+    mediaCollections,
+    channels,
+    // Plan 0006 replaces this with the composed channel stream manager.
+    channelRuntime: noOpChannelRuntime,
+  },
   {
     logger: true,
     ...(corsOrigins ? { corsOrigins } : {}),

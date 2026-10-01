@@ -203,7 +203,10 @@ Re-enabling a disabled channel while its manager lifecycle record is still
 unsettled must first retry and complete the prior operational stop. The server
 must not commit `enabled: true` while old runtime resources remain. If cleanup
 still fails, the channel stays disabled and the re-enable request returns the
-same retryable cleanup error.
+same retryable cleanup error with `operation: "disable"` (the stop being
+retried) and `persistenceCommitted: false`, because nothing in that request was
+saved. Disable, delete, and re-enable of one channel are serialized, so a
+concurrent request cannot commit between a re-enable's stop and its commit.
 
 Re-enabling a disabled channel permits the next subscription to create a fresh
 worker; it does not resurrect the old process or subscriber streams. Changes to

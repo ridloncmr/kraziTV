@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: In Development; CH-001 through CH-004 complete, CH-005 next
+Status: In Development; CH-001 through CH-005 complete, CH-006 next
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -338,6 +338,23 @@ Let a client create, list, fetch, update, enable, disable, and delete channels.
 ## Phase 3: Lifecycle and Acceptance
 
 ### CH-005: Coordinate disable, delete, and re-enable with the channel runtime
+
+**Status**
+
+Complete on 2026-10-01. The channel routes take a `ChannelRuntime`
+(`Pick<ChannelStreamManagerContract, "stopChannel">`); production injects
+`noOpChannelRuntime`. Disable and delete commit, then await the stop, and a
+failure returns the structured `503` with the change kept. Re-enable always
+retries the `disabled` stop first, because no cleanup-pending state is
+persisted, and a failure also refuses any other change in that request. An
+in-process `ChannelLifecycleLock` serializes `PATCH` and `DELETE` per channel
+so no change lands between a re-enable's stop and commit; each stop has a
+deadline (30 s by default, `channelStopTimeoutMs` in `buildServer` options)
+after which the request gets the retryable `503` and the lock is freed, so a
+hung stop cannot block the channel's later requests. The manager now tags
+cleanup failures with `phase` (`worker_startup` or `worker_stop`), and the
+failure log records the channel ID, operation, stop reason, phase, and each
+cause's code and details, which carry FFmpeg process information.
 
 **Goal**
 

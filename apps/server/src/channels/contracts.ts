@@ -1,4 +1,5 @@
 import type { Channel, ChannelNumber } from "@krazitv/krazi-brain";
+import type { ChannelStreamManagerContract } from "@krazitv/signal";
 
 /** A persisted channel: kraziBrain's identity plus its storage timestamps. */
 export type StoredChannel = Channel & {
@@ -33,3 +34,9 @@ export interface ChannelRepositoryOptions {
   createId?: () => string;
   now?: () => number;
 }
+
+/**
+ * The slice of the channel stream manager the channel routes need: an
+ * administrative stop that settles a channel's runtime after disable or delete.
+ */
+export type ChannelRuntime = Pick<ChannelStreamManagerContract, "stopChannel">;

@@ -27,6 +27,7 @@ function createDependencies(
     mediaItems: {} as MediaItemRepository,
     mediaCollections: {} as MediaCollectionRepository,
     channels: {} as ChannelRepository,
+    channelRuntime: { stopChannel: async () => undefined },
   };
 }
 

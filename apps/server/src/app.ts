@@ -14,12 +14,15 @@ import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
 import type { ChannelRepository } from "./channels/channel-repository.js";
+import type { ChannelRuntime } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/channel-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
 export type BuildServerOptions = FastifyServerOptions & {
   corsOrigins?: string[];
+  /** How long a channel disable, delete, or re-enable waits for its runtime stop. */
+  channelStopTimeoutMs?: number | undefined;
 };
 
 export type ServerDatabaseLifecycle = {
@@ -33,6 +36,7 @@ export type ServerDependencies = {
   mediaItems: MediaItemRepository;
   mediaCollections: MediaCollectionRepository;
   channels: ChannelRepository;
+  channelRuntime: ChannelRuntime;
 };
 
 /** Registers HTTP behavior without opening production infrastructure. */
@@ -40,6 +44,7 @@ function registerRoutes(
   server: FastifyInstance,
   dependencies: ServerDependencies,
   corsOrigins: string[],
+  channelStopTimeoutMs: number | undefined,
 ): void {
   registerApiErrorHandlers(server);
   void server.register(cors, {
@@ -51,7 +56,12 @@ function registerRoutes(
   registerCatalogScanRoutes(server, dependencies.scanner);
   registerMediaItemRoutes(server, dependencies.mediaItems);
   registerMediaCollectionRoutes(server, dependencies.mediaCollections);
-  registerChannelRoutes(server, dependencies.channels);
+  registerChannelRoutes(
+    server,
+    dependencies.channels,
+    dependencies.channelRuntime,
+    channelStopTimeoutMs,
+  );
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */
@@ -59,7 +69,11 @@ export function buildServer(
   dependencies: ServerDependencies,
   options: BuildServerOptions = {},
 ) {
-  const { corsOrigins = DEFAULT_CORS_ORIGINS, ...fastifyOptions } = options;
+  const {
+    corsOrigins = DEFAULT_CORS_ORIGINS,
+    channelStopTimeoutMs,
+    ...fastifyOptions
+  } = options;
   const server = Fastify(fastifyOptions);
 
   // Scans are cancelled first so in-flight requests can answer and every ffprobe
@@ -72,7 +86,7 @@ export function buildServer(
     await dependencies.database.close();
   });
 
-  registerRoutes(server, dependencies, corsOrigins);
+  registerRoutes(server, dependencies, corsOrigins, channelStopTimeoutMs);
 
   return server;
 }
