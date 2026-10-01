@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: In Development; CH-001 and CH-002 complete, CH-003 next
+Status: In Development; CH-001 through CH-003 complete, CH-004 next
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -237,6 +237,17 @@ Let a client create, list, fetch, rename, delete, and reorder collections.
 ## Phase 2: Channel Identity
 
 ### CH-003: Add canonical channel numbers to `packages/krazi-brain`
+
+**Status**
+
+Complete on 2026-10-01. `packages/krazi-brain/src/channels/` holds `Channel`
+(now with `enabled`), `describeChannel`, `parseChannelNumber` (returns the
+canonical number or `undefined`), and `compareChannelNumbers`, which compares
+digit strings so oversized major numbers still order exactly. `ChannelNumber`
+is a branded string, so the CH-004 repository must produce it through
+`parseChannelNumber` when reading rows. `apps/server` now depends on and
+references the package; the ID tiebreak for channel lists is left to the CH-004
+repository.
 
 **Goal**
 
