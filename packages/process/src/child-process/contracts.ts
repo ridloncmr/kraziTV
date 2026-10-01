@@ -22,6 +22,16 @@ export interface SpawnedProcess {
   terminate(signal: ProcessTerminationSignal): boolean;
 }
 
+/** A pending one-shot timer that can be cancelled before it fires. */
+export interface ProcessTimer {
+  cancel(): void;
+}
+
+/** Schedules termination deadlines; injectable so callers keep deterministic clocks. */
+export interface ProcessTimerScheduler {
+  setTimeout(callback: () => void, delayMs: number): ProcessTimer;
+}
+
 export interface ProcessSpawner {
   /** Starts one direct child process so arguments are never shell-interpreted. */
   spawn(request: ProcessSpawnRequest): SpawnedProcess;

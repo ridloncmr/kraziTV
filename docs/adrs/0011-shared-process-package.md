@@ -22,7 +22,10 @@ someone remembering to apply both.
 
 - Create `packages/process` (`@krazitv/process`) holding the child-process
   port (`ProcessSpawner`, `SpawnedProcess`, and their types) and its Node
-  implementation, `NodeProcessSpawner`.
+  implementation, `NodeProcessSpawner`. It also holds tool-neutral child
+  lifecycle helpers both consumers need: `terminateProcess` (SIGTERM, then
+  one SIGKILL escalation, with injectable timers) and `OutputTail` (bounded
+  retention of the newest output bytes).
 - `packages/media` and `packages/signal` depend on `@krazitv/process`. Neither
   depends on the other.
 - `packages/process` knows nothing about FFmpeg, ffprobe, media, or signals.
