@@ -13,6 +13,7 @@
     "agents:sync": "node .claude/sync-skills.mjs",
     "build": "tsc -b tsconfig.build.json && npm run build --workspace @krazitv/web",
     "build:node": "tsc -b tsconfig.build.json",
+    "clean": "node -e \"const fs = require('node:fs'); for (const group of ['apps', 'packages']) for (const workspace of fs.readdirSync(group)) fs.rmSync(`${group}/${workspace}/dist`, { recursive: true, force: true })\"",
     "dev": "npm run dev --workspace @krazitv/server",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
