@@ -8,7 +8,7 @@ import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
-import { parseProbeConfig } from "./config/probe-config.js";
+import { parseProbeConfig } from "./config/probe.js";
 import { isLoopbackHost, parseCorsOrigins } from "./config/network.js";
 
 const port = Number(process.env.PORT ?? 3000);

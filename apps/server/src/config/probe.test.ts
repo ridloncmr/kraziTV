@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProbeConfig } from "./probe-config.js";
+import { parseProbeConfig } from "./probe.js";
 
 describe("parseProbeConfig", () => {
   it("defaults to ffprobe on PATH, a 30 second timeout, and 4 concurrent probes", () => {
