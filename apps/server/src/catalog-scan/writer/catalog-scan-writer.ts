@@ -7,7 +7,8 @@ import {
   toSqliteBoolean,
 } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
+import type { RecordSources } from "../../database/writes/record-sources.js";
+import type { CatalogCandidate } from "../contracts.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
 export interface CatalogGeneration {
@@ -24,10 +25,6 @@ export type CommitGenerationResult =
   | { kind: "root_disabled" }
   | { kind: "cancelled" };
 
-export interface CatalogScanWriterOptions {
-  createId?: () => string;
-}
-
 /**
  * The only scan component with database access. It applies a whole staged
  * generation in one short transaction so a scan either replaces the root's
@@ -40,7 +37,7 @@ export class CatalogScanWriter {
   // The ID source is injectable so tests can assert exact inserted rows.
   constructor(
     db: Kysely<DatabaseSchema>,
-    options: CatalogScanWriterOptions = {},
+    options: Pick<RecordSources, "createId"> = {},
   ) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;

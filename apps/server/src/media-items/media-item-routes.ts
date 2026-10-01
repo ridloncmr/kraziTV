@@ -1,11 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 
 import { sendApiError } from "../http/api-error.js";
+import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
+import { idParams } from "../http/request-schemas.js";
 import type { MediaItem } from "./contracts.js";
 import type { MediaItemRepository } from "./media-item-repository.js";
-
-const idParams = z.object({ id: z.string() });
 
 /** Registers read-only catalog routes; status mapping and projection live only here. */
 export function registerMediaItemRoutes(
@@ -43,12 +42,9 @@ function toApiMediaItem(item: MediaItem) {
     hasAudio: item.hasAudio,
     status: item.status,
     probeError: item.probeError,
-    createdAt: new Date(item.createdAt).toISOString(),
-    updatedAt: new Date(item.updatedAt).toISOString(),
-    lastSeenAt: new Date(item.lastSeenAt).toISOString(),
-    lastProbedAt:
-      item.lastProbedAt === null
-        ? null
-        : new Date(item.lastProbedAt).toISOString(),
+    createdAt: toApiTimestamp(item.createdAt),
+    updatedAt: toApiTimestamp(item.updatedAt),
+    lastSeenAt: toApiTimestamp(item.lastSeenAt),
+    lastProbedAt: toApiTimestampOrNull(item.lastProbedAt),
   };
 }

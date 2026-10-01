@@ -8,12 +8,10 @@ import {
 } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
+import type { RecordSources } from "../database/writes/record-sources.js";
+import { isUniqueViolation } from "../database/writes/unique-violation.js";
 import type { NormalizedMediaPath } from "@krazitv/media";
-import type {
-  CreateMediaRootResult,
-  MediaRoot,
-  MediaRootRepositoryOptions,
-} from "./contracts.js";
+import type { CreateMediaRootResult, MediaRoot } from "./contracts.js";
 
 /** Persists media roots and translates SQLite rows into typed domain records. */
 export class MediaRootRepository {
@@ -22,10 +20,7 @@ export class MediaRootRepository {
   readonly #now: () => number;
 
   // Clock and ID sources are injectable so tests can assert exact timestamps and IDs.
-  constructor(
-    db: Kysely<DatabaseSchema>,
-    options: MediaRootRepositoryOptions = {},
-  ) {
+  constructor(db: Kysely<DatabaseSchema>, options: RecordSources = {}) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;
     this.#now = options.now ?? Date.now;
@@ -53,7 +48,7 @@ export class MediaRootRepository {
         .executeTakeFirstOrThrow();
       return { kind: "created", root: toMediaRoot(row) };
     } catch (error) {
-      if (isDuplicatePathKey(error)) {
+      if (isUniqueViolation(error, "media_roots.path_key")) {
         return { kind: "duplicate" };
       }
       throw error;
@@ -106,14 +101,4 @@ function toMediaRoot(row: Selectable<MediaRootTable>): MediaRoot {
     updatedAt: row.updated_at,
     lastScannedAt: row.last_scanned_at,
   };
-}
-
-// Distinguishes identity collisions from every other failure, which must propagate.
-function isDuplicatePathKey(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    error.code === "SQLITE_CONSTRAINT_UNIQUE" &&
-    error.message.includes("media_roots.path_key")
-  );
 }

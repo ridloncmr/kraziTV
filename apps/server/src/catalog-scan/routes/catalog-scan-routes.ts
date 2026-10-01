@@ -1,14 +1,10 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { z } from "zod";
 
 import { sendApiError } from "../../http/api-error.js";
-import type {
-  CatalogScanner,
-  ScanResult,
-  ScanSummary,
-} from "../scanner/catalog-scanner.js";
-
-const idParams = z.object({ id: z.string() });
+import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { idParams } from "../../http/request-schemas.js";
+import type { ScanResult, ScanSummary } from "../contracts.js";
+import type { CatalogScanner } from "../scanner/catalog-scanner.js";
 
 /** Registers the synchronous scan trigger; status mapping lives only here. */
 export function registerCatalogScanRoutes(
@@ -91,8 +87,8 @@ function sendScanResult(
 function toApiScanSummary(summary: ScanSummary) {
   return {
     rootId: summary.rootId,
-    startedAt: new Date(summary.startedAt).toISOString(),
-    completedAt: new Date(summary.completedAt).toISOString(),
+    startedAt: toApiTimestamp(summary.startedAt),
+    completedAt: toApiTimestamp(summary.completedAt),
     discoveredCount: summary.discoveredCount,
     probedCount: summary.probedCount,
     probeFailedCount: summary.probeFailedCount,

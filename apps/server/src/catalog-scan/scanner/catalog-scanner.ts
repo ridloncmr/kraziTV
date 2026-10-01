@@ -17,25 +17,7 @@ import {
   type ProbeOutcome,
 } from "./catalog-candidate.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
-
-export interface ScanSummary {
-  rootId: string;
-  startedAt: number;
-  completedAt: number;
-  discoveredCount: number;
-  probedCount: number;
-  probeFailedCount: number;
-  /** Items that became `missing` in this scan. */
-  missingCount: number;
-}
-
-export type ScanResult =
-  | { kind: "completed"; summary: ScanSummary }
-  | { kind: "root_not_found" }
-  | { kind: "root_disabled" }
-  | { kind: "scan_in_progress" }
-  | { kind: "root_unavailable"; error: MediaDiscoveryError }
-  | { kind: "cancelled" };
+import type { ScanResult } from "../contracts.js";
 
 export interface ScanOptions {
   /** Aborts the scan, e.g. when the requesting client disconnects. */

@@ -9,8 +9,3 @@ export interface MediaRoot {
 
 export type CreateMediaRootResult =
   { kind: "created"; root: MediaRoot } | { kind: "duplicate" };
-
-export interface MediaRootRepositoryOptions {
-  createId?: () => string;
-  now?: () => number;
-}

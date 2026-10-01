@@ -4,28 +4,12 @@ import type {
   MediaProbeResult,
 } from "@krazitv/media";
 
+import type { CatalogCandidate } from "../contracts.js";
+
 /** How one discovered file's probe ended, captured before any persistence. */
 export type ProbeOutcome =
   | { kind: "probed"; probedAt: number; result: MediaProbeResult }
   | { kind: "failed"; probedAt: number; error: MediaProbeError };
-
-interface CandidateIdentity {
-  path: string;
-  pathKey: string;
-  title: string;
-  /** When this file's probe settled during the scan; becomes `lastProbedAt`. */
-  probedAt: number;
-}
-
-/**
- * The persistence-free record a scan stages for one discovered file. Future
- * metadata enrichment transforms candidates between creation and validation.
- */
-export type CatalogCandidate = CandidateIdentity &
-  (
-    | { status: "available"; durationMs: number; hasAudio: boolean }
-    | { status: "probe_failed"; probeError: string }
-  );
 
 /** Joins discovery and probe results into the scan's normalized candidate shape. */
 export function createCatalogCandidate(

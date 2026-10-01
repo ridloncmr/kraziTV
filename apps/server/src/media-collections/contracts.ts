@@ -28,8 +28,3 @@ export type ReplaceMediaCollectionMembersResult =
   | { kind: "replaced"; members: MediaCollectionMember[] }
   | { kind: "not_found" }
   | UnknownMediaItemsResult;
-
-export interface MediaCollectionRepositoryOptions {
-  createId?: () => string;
-  now?: () => number;
-}

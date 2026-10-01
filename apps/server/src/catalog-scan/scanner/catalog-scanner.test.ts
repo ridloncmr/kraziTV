@@ -24,6 +24,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 const RESULT = { durationMs: 2_000, hasAudio: true };
@@ -79,7 +80,6 @@ async function setup(options: SetupOptions = {}) {
   const prober = new ControlledProber();
   // Each read advances one second, so timestamps reveal the order of clock reads.
   let time = FIXTURE_TIME;
-  let nextId = 0;
   const discover = vi.fn<Discover>(
     options.discover === "real"
       ? discoverMediaFiles
@@ -89,7 +89,7 @@ async function setup(options: SetupOptions = {}) {
     roots: new MediaRootRepository(database.db),
     prober: new ConcurrencyLimitedProber(prober, options.concurrency ?? 4),
     writer: new CatalogScanWriter(database.db, {
-      createId: () => `item-${String(++nextId).padStart(3, "0")}`,
+      createId: sequentialIds("item"),
     }),
     discover,
     now: () => (time += 1_000),

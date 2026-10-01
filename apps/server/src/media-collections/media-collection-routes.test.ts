@@ -13,6 +13,7 @@ import {
   startTestServer,
 } from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
+import { scriptedClock } from "../testing/record-sources.js";
 
 type Server = FastifyInstance;
 
@@ -43,7 +44,7 @@ async function startServer(
 ): Promise<Server> {
   // Deterministic sources so responses can be asserted exactly.
   const ids = [...(options.ids ?? ["collection-001", "collection-002"])];
-  const times = [...(options.times ?? [FIXTURE_TIME])];
+  const now = scriptedClock(options.times ?? [FIXTURE_TIME]);
   const { server } = await startTestServer({
     seed: async (db) => {
       await db.insertInto("media_roots").values(rootFixture).execute();
@@ -55,7 +56,7 @@ async function startServer(
     overrides: (db) => ({
       mediaCollections: new MediaCollectionRepository(db, {
         createId: () => ids.shift() ?? "collection-extra",
-        now: () => (times.length > 1 ? times.shift()! : times[0]),
+        now,
       }),
     }),
   });

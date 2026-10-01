@@ -6,6 +6,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../testing/test-environment.js";
+import { sequentialIds } from "../testing/record-sources.js";
 
 const LATER = FIXTURE_TIME + 60_000;
 
@@ -18,9 +19,8 @@ afterEach(cleanUpTestEnvironment);
 async function setup() {
   const database = await openTestDatabase();
   const clock = { now: FIXTURE_TIME };
-  let nextId = 0;
   const repository = new MediaRootRepository(database.db, {
-    createId: () => `root-${String(++nextId).padStart(3, "0")}`,
+    createId: sequentialIds("root"),
     now: () => clock.now,
   });
   return { repository, clock };

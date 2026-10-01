@@ -11,6 +11,7 @@ import {
   startTestServer,
 } from "../testing/test-environment.js";
 import { MediaRootRepository } from "./media-root-repository.js";
+import { sequentialIds } from "../testing/record-sources.js";
 
 type Server = FastifyInstance;
 
@@ -18,13 +19,12 @@ afterEach(cleanUpTestEnvironment);
 
 // Boots the real composition with a deterministic clock and ID sequence.
 async function startServer(dataDirectory?: string): Promise<Server> {
-  let nextId = 0;
   let now = FIXTURE_TIME;
   const { server } = await startTestServer({
     dataDirectory,
     overrides: (db) => {
       const mediaRoots = new MediaRootRepository(db, {
-        createId: () => `root-${String(++nextId).padStart(3, "0")}`,
+        createId: sequentialIds("root"),
         now: () => (now += 1_000),
       });
       return { mediaRoots };

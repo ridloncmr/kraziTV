@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendApiError } from "../http/api-error.js";
+import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import { toApiTimestamp } from "../http/api-timestamp.js";
+import { idParams, nameField } from "../http/request-schemas.js";
 import type { MediaCollection, MediaCollectionMember } from "./contracts.js";
 import type { MediaCollectionRepository } from "./media-collection-repository.js";
-
-const name = z.string().trim().min(1, "name must not be empty");
 
 // Duplicates are a caller error the repository never sees.
 const mediaItemIds = z
@@ -15,15 +15,13 @@ const mediaItemIds = z
   });
 
 const createBody = z.strictObject({
-  name,
+  name: nameField,
   mediaItemIds: mediaItemIds.optional(),
 });
 
-const renameBody = z.strictObject({ name });
+const renameBody = z.strictObject({ name: nameField });
 
 const replaceMembersBody = z.strictObject({ mediaItemIds });
-
-const idParams = z.object({ id: z.string() });
 
 /** Registers media-collection HTTP routes; validation and status mapping live only here. */
 export function registerMediaCollectionRoutes(
@@ -113,11 +111,6 @@ export function registerMediaCollectionRoutes(
   });
 }
 
-// Every body failure shares one code; the message carries Zod's field detail.
-function sendInvalidRequest(reply: FastifyReply, error: z.ZodError) {
-  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
-}
-
 // One 404 shape for every collection route.
 function sendCollectionNotFound(reply: FastifyReply, id: string) {
   return sendApiError(
@@ -143,8 +136,8 @@ function toApiMediaCollection(collection: MediaCollection) {
   return {
     id: collection.id,
     name: collection.name,
-    createdAt: new Date(collection.createdAt).toISOString(),
-    updatedAt: new Date(collection.updatedAt).toISOString(),
+    createdAt: toApiTimestamp(collection.createdAt),
+    updatedAt: toApiTimestamp(collection.updatedAt),
   };
 }
 

@@ -4,11 +4,11 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
+import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
   CreateMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
-  MediaCollectionRepositoryOptions,
   ReplaceMediaCollectionMembersResult,
 } from "./contracts.js";
 
@@ -30,10 +30,7 @@ export class MediaCollectionRepository {
   readonly #now: () => number;
 
   // Clock and ID sources are injectable so tests can assert exact timestamps and IDs.
-  constructor(
-    db: Kysely<DatabaseSchema>,
-    options: MediaCollectionRepositoryOptions = {},
-  ) {
+  constructor(db: Kysely<DatabaseSchema>, options: RecordSources = {}) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;
     this.#now = options.now ?? Date.now;

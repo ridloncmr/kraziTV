@@ -12,6 +12,7 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
+import { sequentialIds } from "../testing/record-sources.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -51,9 +52,8 @@ async function seedCatalog(database: KraziDatabase): Promise<void> {
 // Creates a repository with a controllable clock and sequential IDs over a seeded database.
 function createRepository(database: KraziDatabase) {
   const clock = { now: FIXTURE_TIME };
-  let nextId = 0;
   const repository = new MediaCollectionRepository(database.db, {
-    createId: () => `collection-${String(++nextId).padStart(3, "0")}`,
+    createId: sequentialIds("collection"),
     now: () => clock.now,
   });
   return { repository, clock };

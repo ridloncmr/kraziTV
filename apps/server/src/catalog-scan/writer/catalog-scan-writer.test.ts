@@ -6,12 +6,13 @@ import {
   itemFixture,
   rootFixture,
 } from "../../testing/catalog-fixtures.js";
-import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
+import type { CatalogCandidate } from "../contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;
 const PROBED_AT = FIXTURE_TIME + 30_000;
@@ -23,10 +24,8 @@ async function setup() {
   const database = await openTestDatabase();
   await database.db.insertInto("media_roots").values(rootFixture).execute();
   await database.db.insertInto("media_items").values(itemFixture).execute();
-
-  let nextId = 0;
   const writer = new CatalogScanWriter(database.db, {
-    createId: () => `item-${String(++nextId).padStart(3, "0")}`,
+    createId: sequentialIds("item"),
   });
   return { db: database.db, writer };
 }

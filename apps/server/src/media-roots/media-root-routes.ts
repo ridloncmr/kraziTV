@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { z } from "zod";
 
-import { sendApiError } from "../http/api-error.js";
+import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
+import { idParams } from "../http/request-schemas.js";
 import type { MediaRoot } from "./contracts.js";
 import type { MediaRootRepository } from "./media-root-repository.js";
 
@@ -14,8 +16,6 @@ const createBody = z.strictObject({
 const updateBody = z.strictObject({
   enabled: z.boolean(),
 });
-
-const idParams = z.object({ id: z.string() });
 
 /** Registers media-root HTTP routes; validation and status mapping live only here. */
 export function registerMediaRootRoutes(
@@ -32,12 +32,7 @@ export function registerMediaRootRoutes(
   server.post("/media-roots", async (request, reply) => {
     const body = createBody.safeParse(request.body);
     if (!body.success) {
-      return sendApiError(
-        reply,
-        400,
-        "invalid_request",
-        z.prettifyError(body.error),
-      );
+      return sendInvalidRequest(reply, body.error);
     }
 
     const rootPath = normalizeMediaPath(body.data.path, platform);
@@ -76,12 +71,7 @@ export function registerMediaRootRoutes(
 
     const body = updateBody.safeParse(request.body);
     if (!body.success) {
-      return sendApiError(
-        reply,
-        400,
-        "invalid_request",
-        z.prettifyError(body.error),
-      );
+      return sendInvalidRequest(reply, body.error);
     }
 
     const root = await mediaRoots.setEnabled(id, body.data.enabled);
@@ -109,11 +99,8 @@ function toApiMediaRoot(root: MediaRoot) {
     id: root.id,
     path: root.path,
     enabled: root.enabled,
-    createdAt: new Date(root.createdAt).toISOString(),
-    updatedAt: new Date(root.updatedAt).toISOString(),
-    lastScannedAt:
-      root.lastScannedAt === null
-        ? null
-        : new Date(root.lastScannedAt).toISOString(),
+    createdAt: toApiTimestamp(root.createdAt),
+    updatedAt: toApiTimestamp(root.updatedAt),
+    lastScannedAt: toApiTimestampOrNull(root.lastScannedAt),
   };
 }

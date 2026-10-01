@@ -1,10 +1,10 @@
 import { MediaProbeError } from "@krazitv/media";
 import { describe, expect, it } from "vitest";
 
+import type { CatalogCandidate } from "../contracts.js";
 import {
   createCatalogCandidate,
   validateCatalogCandidate,
-  type CatalogCandidate,
 } from "./catalog-candidate.js";
 
 const FILE = {

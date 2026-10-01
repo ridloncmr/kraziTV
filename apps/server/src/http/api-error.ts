@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { z } from "zod";
 
 export type ApiErrorCode =
   | "channel_not_found"
@@ -31,6 +32,14 @@ export function sendApiError(
   return reply
     .status(statusCode)
     .send({ error: { ...details, code, message } });
+}
+
+/** Every body failure shares one code; the message carries Zod's field detail. */
+export function sendInvalidRequest(
+  reply: FastifyReply,
+  error: z.ZodError,
+): FastifyReply {
+  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
 }
 
 /**
