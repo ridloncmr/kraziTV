@@ -12,6 +12,8 @@ import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 import {
+  cancelIdleStop,
+  closeSubscriptions,
   hasRetainedCleanup,
   rejectAbortedWaiters,
   rejectPendingWaiters,
@@ -251,7 +253,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       }
       if (subscription !== undefined) {
         this.trackSubscription(lifecycle, subscription);
-        this.cancelIdleStop(lifecycle);
+        cancelIdleStop(lifecycle);
         resolveWaiter(waiter, subscription);
         return;
       }
@@ -541,8 +543,8 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
   /** Stops one published worker while retaining failed cleanup ownership. */
   private async stopActiveLifecycle(lifecycle: ActiveLifecycle): Promise<void> {
-    this.cancelIdleStop(lifecycle);
-    this.closeSubscriptions(lifecycle);
+    cancelIdleStop(lifecycle);
+    closeSubscriptions(lifecycle);
     await this.settleCleanup(lifecycle, "worker_stop", () =>
       lifecycle.worker.stop(),
     );
@@ -635,19 +637,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     if (lifecycle.subscriptions.size > 0 || lifecycle.stopping) return;
     lifecycle.stopping = true;
     await this.stopActiveLifecycle(lifecycle);
-  }
-
-  /** Cancels one pending idle transition before another lifecycle event wins. */
-  private cancelIdleStop(lifecycle: ActiveLifecycle): void {
-    lifecycle.idleTask?.cancel();
-    lifecycle.idleTask = undefined;
-  }
-
-  /** Ends viewer streams synchronously before process cleanup can block or fail. */
-  private closeSubscriptions(lifecycle: ActiveLifecycle): void {
-    const subscriptions = [...lifecycle.subscriptions];
-    lifecycle.subscriptions.clear();
-    for (const subscription of subscriptions) subscription.close();
   }
 
   /** Tracks a resource-free lookup so stop and shutdown can reject it promptly. */

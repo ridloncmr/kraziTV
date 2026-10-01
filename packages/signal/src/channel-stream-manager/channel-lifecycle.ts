@@ -61,6 +61,19 @@ export function hasRetainedCleanup(lifecycle: ChannelLifecycle): boolean {
     : lifecycle.cancelling;
 }
 
+/** Cancels one pending idle transition before another lifecycle event wins. */
+export function cancelIdleStop(lifecycle: ActiveLifecycle): void {
+  lifecycle.idleTask?.cancel();
+  lifecycle.idleTask = undefined;
+}
+
+/** Ends viewer streams synchronously before process cleanup can block or fail. */
+export function closeSubscriptions(lifecycle: ActiveLifecycle): void {
+  const subscriptions = [...lifecycle.subscriptions];
+  lifecycle.subscriptions.clear();
+  for (const subscription of subscriptions) subscription.close();
+}
+
 /** Rejects and removes every waiter still owned by one pending creation. */
 export function rejectPendingWaiters(
   pending: PendingLifecycle,
