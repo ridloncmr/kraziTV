@@ -45,6 +45,7 @@ apps/
 packages/
   krazi-brain/ kraziBrain: scheduling, channel rules, and playout decisions
   media/       discovery, ffprobe, and source metadata
+  process/     child-process spawning shared by media and signal
   signal/      active channel workers, FFmpeg lifecycle, and stream packaging
   plex/        HDHomeRun-compatible and XMLTV formatting
 docs/

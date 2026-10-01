@@ -121,9 +121,6 @@ describe("FfmpegSignalPackager", () => {
 
     expect(session.output).not.toBe(child.stdout);
     expect(spawner.spawnCalls).toHaveLength(1);
-    expect(spawner.spawnCalls[0]).toMatchObject({
-      shell: false,
-    });
     expect(spawner.spawnCalls[0]).not.toHaveProperty("env");
     expect(spawner.spawnCalls[0]?.args).toContain("pipe:1");
   });

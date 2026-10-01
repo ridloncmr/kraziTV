@@ -22,7 +22,7 @@
     "spike:test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/plex-spike",
     "test": "npm run test --workspaces --if-present",
     "test:ffprobe": "npm run test:ffprobe --workspace @krazitv/media",
-    "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspace @krazitv/server && npm run typecheck --workspace @krazitv/media && npm run typecheck --workspace @krazitv/signal && npm run typecheck --workspace @krazitv/plex-spike && npm run typecheck --workspace @krazitv/web"
+    "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspace @krazitv/server && npm run typecheck --workspace @krazitv/process && npm run typecheck --workspace @krazitv/media && npm run typecheck --workspace @krazitv/signal && npm run typecheck --workspace @krazitv/plex-spike && npm run typecheck --workspace @krazitv/web"
   },
   "engines": {
     "node": ">=22.0.0",

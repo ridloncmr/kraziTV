@@ -1,3 +1,5 @@
+import type { ProcessSpawner } from "@krazitv/process";
+
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
@@ -5,7 +7,6 @@ import {
   MpegTsReadinessInspector,
   type OutputReadinessInspector,
 } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
-import type { ProcessSpawner } from "../../process/process-spawner.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type {

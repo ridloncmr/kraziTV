@@ -103,9 +103,12 @@ It should behave like a small broadcast automation system, not a playlist genera
     Nest further only when a capability itself meets the grouping rule above.
   - When adding a file makes a folder meet the grouping rule, regroup it in the
     same change. Do not leave the reorganization for later.
-  - A capability used across domains, such as `process/`, `runtime/`, `config/`,
-    or `http/`, gets its own top-level folder instead of nesting inside the
+  - A capability used across domains, such as `runtime/`, `config/`, or
+    `http/`, gets its own top-level folder instead of nesting inside the
     first domain that used it.
+  - Code needed by more than one package moves into a package they both depend
+    on, as `packages/process` does ([ADR 0011](docs/adrs/0011-shared-process-package.md)).
+    Never copy code between packages.
   - Put interfaces shared across a domain's files in that domain's
     `contracts.ts`, so domain files never import from a root entry point.
   - All test doubles and fixtures live in one `src/testing/` folder. Build

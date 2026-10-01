@@ -1,13 +1,5 @@
 import { PassThrough } from "node:stream";
 
-import type {
-  ProcessExit,
-  ProcessSpawner,
-  ProcessSpawnRequest,
-  ProcessTerminationSignal,
-  SpawnedProcess,
-} from "../process/process-spawner.js";
-
 /** A child process whose output and closure are driven explicitly by tests. */
 export class FakeProcess implements SpawnedProcess {
   readonly stdout = new PassThrough();
@@ -70,3 +62,10 @@ export class FakeProcessSpawner implements ProcessSpawner {
     return process;
   }
 }
+import type {
+  ProcessExit,
+  ProcessSpawner,
+  ProcessSpawnRequest,
+  ProcessTerminationSignal,
+  SpawnedProcess,
+} from "@krazitv/process";

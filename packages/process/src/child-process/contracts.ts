@@ -1,8 +1,5 @@
 import type { Readable } from "node:stream";
 
-// Duplicated in packages/media/src/process; see the note there before changing
-// either copy.
-
 export type ProcessTerminationSignal = "SIGTERM" | "SIGKILL";
 
 export type ProcessExit = {
@@ -14,9 +11,6 @@ export type ProcessExit = {
 export type ProcessSpawnRequest = {
   command: string;
   args: readonly string[];
-  shell: false;
-  cwd?: string;
-  env?: Readonly<Record<string, string | undefined>>;
 };
 
 export interface SpawnedProcess {

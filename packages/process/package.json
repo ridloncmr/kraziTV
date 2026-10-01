@@ -1,5 +1,5 @@
 {
-  "name": "@krazitv/media",
+  "name": "@krazitv/process",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "test": "vitest run src",
-    "test:ffprobe": "vitest run integration/",
     "typecheck": "tsc -p tsconfig.json"
-  },
-  "dependencies": {
-    "@krazitv/process": "file:../process"
   },
   "devDependencies": {
     "@types/node": "^22.20.4"

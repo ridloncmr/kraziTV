@@ -1,11 +1,12 @@
 import type { Readable } from "node:stream";
 
-import { SignalError } from "../../errors.js";
 import type {
   ProcessExit,
   ProcessSpawner,
   SpawnedProcess,
-} from "../../process/process-spawner.js";
+} from "@krazitv/process";
+
+import { SignalError } from "../../errors.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
@@ -18,7 +19,6 @@ type FfmpegProcessOptions = {
   timers: TimerScheduler;
   logger: SignalLogger;
   ffmpegPath?: string;
-  cwd?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
   isSuccessfulExitExpected(): boolean;
@@ -59,12 +59,7 @@ export class FfmpegProcess {
     const context = options.diagnosticContext ?? {};
 
     try {
-      const child = options.spawner.spawn({
-        command,
-        args: options.args,
-        shell: false,
-        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-      });
+      const child = options.spawner.spawn({ command, args: options.args });
       return new FfmpegProcess(
         child,
         options.timers,

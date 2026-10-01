@@ -5,21 +5,19 @@ import type {
   ProcessSpawner,
   ProcessSpawnRequest,
   SpawnedProcess,
-} from "./process-spawner.js";
+} from "./contracts.js";
 
-/** Adapts Node child-process events to the deterministic signal process port. */
+/** Adapts Node child-process events to the process port. */
 export class NodeProcessSpawner implements ProcessSpawner {
   /** Allows deterministic adapter tests while using Node spawn in production. */
   constructor(private readonly spawnChild: typeof spawn = spawn) {}
 
-  /** Spawns directly and treats stdio closure as verified process completion. */
+  /** Spawns without a shell and treats stdio closure as verified completion. */
   spawn(request: ProcessSpawnRequest): SpawnedProcess {
     const child = this.spawnChild(request.command, [...request.args], {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-      ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
-      ...(request.env === undefined ? {} : { env: { ...request.env } }),
     });
 
     if (child.stdout === null || child.stderr === null) {

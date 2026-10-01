@@ -7,5 +7,10 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "exclude": ["src/**/*.test.ts", "src/testing/**/*.ts"]
+  "exclude": ["src/**/*.test.ts", "src/testing/**/*.ts"],
+  "references": [
+    {
+      "path": "../process/tsconfig.build.json"
+    }
+  ]
 }

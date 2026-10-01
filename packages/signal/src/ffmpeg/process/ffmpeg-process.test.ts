@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { ProcessSpawner } from "@krazitv/process";
 
 import { SignalError } from "../../errors.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import { FakeClock } from "../../testing/fake-clock.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegProcess } from "./ffmpeg-process.js";
-import type { ProcessSpawner } from "../../process/process-spawner.js";
 
 class RecordingLogger implements SignalLogger {
   readonly errors: Array<{
@@ -84,7 +84,6 @@ describe("FfmpegProcess", () => {
       {
         command: "ffmpeg",
         args: ["-version"],
-        shell: false,
       },
     ]);
   });
