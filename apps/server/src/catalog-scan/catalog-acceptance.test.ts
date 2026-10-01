@@ -9,10 +9,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ControlledProber } from "../testing/controlled-prober.js";
 import {
-  closeTestServers,
+  cleanUpTestEnvironment,
   createTemporaryDirectory,
   startTestServer,
-} from "../testing/test-server.js";
+} from "../testing/test-environment.js";
 import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./scanner/concurrency-limited-prober.js";
@@ -32,7 +32,7 @@ afterEach(async () => {
   for (const probe of probers.splice(0).flatMap((prober) => prober.started)) {
     probe.reject(new MediaProbeError("cancelled", "ffprobe was cancelled"));
   }
-  await closeTestServers();
+  await cleanUpTestEnvironment();
 });
 
 // Composes the server the way index.ts does, swapping only ffprobe for a controlled double.

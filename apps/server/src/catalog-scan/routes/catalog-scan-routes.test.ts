@@ -13,9 +13,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import {
-  closeTestServers,
+  cleanUpTestEnvironment,
   startTestServer,
-} from "../../testing/test-server.js";
+} from "../../testing/test-environment.js";
 import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
@@ -29,7 +29,7 @@ type Discover = (
 const RESULT = { durationMs: 2_000, hasAudio: true };
 const SCAN_URL = `/media-roots/${rootFixture.id}/scan`;
 
-afterEach(closeTestServers);
+afterEach(cleanUpTestEnvironment);
 
 function files(...names: string[]): DiscoveredMediaFile[] {
   return names.map((name) => ({

@@ -1,28 +1,19 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../database/database.js";
+import type { KraziDatabase } from "../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
+import {
+  cleanUpTestEnvironment,
+  createTemporaryDirectory,
+  openTestDatabase,
+} from "../testing/test-environment.js";
 
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(cleanUpTestEnvironment);
 
 // Seeds one available, one missing, and one probe-failed item so membership can mix statuses.
 async function seedCatalog(database: KraziDatabase): Promise<void> {
@@ -70,10 +61,8 @@ function createRepository(database: KraziDatabase) {
 
 // Opens a fresh migrated database with the seeded catalog and a deterministic repository.
 async function setup() {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "krazitv-collections-"));
-  temporaryDirectories.push(dataDirectory);
-  const database = await openDatabase({ dataDirectory });
-  databases.push(database);
+  const dataDirectory = await createTemporaryDirectory();
+  const database = await openTestDatabase(dataDirectory);
   await seedCatalog(database);
   return { database, dataDirectory, ...createRepository(database) };
 }
@@ -332,8 +321,7 @@ describe("MediaCollectionRepository", () => {
     await repository.create("Persistent", ["item-c", "item-a"]);
     await database.close();
 
-    const reopened = await openDatabase({ dataDirectory });
-    databases.push(reopened);
+    const reopened = await openTestDatabase(dataDirectory);
     const { repository: reopenedRepository } = createRepository(reopened);
 
     await expect(reopenedRepository.list()).resolves.toMatchObject([

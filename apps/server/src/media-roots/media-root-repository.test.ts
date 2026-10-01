@@ -1,36 +1,22 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../database/database.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { MediaRootRepository } from "./media-root-repository.js";
-
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
+import {
+  cleanUpTestEnvironment,
+  openTestDatabase,
+} from "../testing/test-environment.js";
 
 const LATER = FIXTURE_TIME + 60_000;
 
 const movies = { path: "/media/Movies", pathKey: "/media/movies" };
 const anime = { path: "/media/Anime", pathKey: "/media/anime" };
 
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(cleanUpTestEnvironment);
 
 // Opens a fresh migrated database with a repository on a controllable clock and sequential IDs.
 async function setup() {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "krazitv-roots-"));
-  temporaryDirectories.push(dataDirectory);
-  const database = await openDatabase({ dataDirectory });
-  databases.push(database);
+  const database = await openTestDatabase();
   const clock = { now: FIXTURE_TIME };
   let nextId = 0;
   const repository = new MediaRootRepository(database.db, {

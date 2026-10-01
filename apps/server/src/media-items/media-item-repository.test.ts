@@ -1,11 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../database/database.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   FIXTURE_TIME,
@@ -13,9 +8,10 @@ import {
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import { MediaItemRepository } from "./media-item-repository.js";
-
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
+import {
+  cleanUpTestEnvironment,
+  openTestDatabase,
+} from "../testing/test-environment.js";
 
 // A second root whose path key sorts before the fixture root's even though its ID sorts after.
 const animeRoot = {
@@ -25,14 +21,7 @@ const animeRoot = {
   path_key: "/media/anime",
 };
 
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(cleanUpTestEnvironment);
 
 function item(
   id: string,
@@ -52,10 +41,7 @@ function item(
 
 // Opens a fresh migrated database seeded with both roots and the given items.
 async function setup(items: Insertable<MediaItemTable>[]) {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "krazitv-items-"));
-  temporaryDirectories.push(dataDirectory);
-  const database = await openDatabase({ dataDirectory });
-  databases.push(database);
+  const database = await openTestDatabase();
   await database.db
     .insertInto("media_roots")
     .values([rootFixture, animeRoot])

@@ -9,10 +9,10 @@ import {
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import {
-  closeTestServers,
+  cleanUpTestEnvironment,
   createTemporaryDirectory,
   startTestServer,
-} from "../testing/test-server.js";
+} from "../testing/test-environment.js";
 
 type Server = FastifyInstance;
 
@@ -26,7 +26,7 @@ const animeRoot = {
 
 const LATER = FIXTURE_TIME + 60_000;
 
-afterEach(closeTestServers);
+afterEach(cleanUpTestEnvironment);
 
 // Boots the real composition over a fresh database seeded with both roots and the given items.
 async function startServer(

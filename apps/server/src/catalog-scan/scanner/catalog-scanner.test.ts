@@ -1,4 +1,3 @@
-import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,7 +10,6 @@ import {
 } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
@@ -22,6 +20,10 @@ import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
+import {
+  cleanUpTestEnvironment,
+  openTestDatabase,
+} from "../../testing/test-environment.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 const RESULT = { durationMs: 2_000, hasAudio: true };
@@ -31,17 +33,7 @@ type Discover = (
   options?: DiscoverMediaFilesOptions,
 ) => Promise<DiscoveredMediaFile[]>;
 
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(cleanUpTestEnvironment);
 
 // Builds discovery output for files directly under the fixture root, in identity order.
 function files(...names: string[]): DiscoveredMediaFile[] {
@@ -69,10 +61,7 @@ interface SetupOptions {
 
 // Wires the real writer and repository against a seeded temporary database.
 async function setup(options: SetupOptions = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-scanner-"));
-  temporaryDirectories.push(directory);
-  const database = await openDatabase({ dataDirectory: directory });
-  databases.push(database);
+  const database = await openTestDatabase();
   await database.db
     .insertInto("media_roots")
     .values([

@@ -1,11 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
@@ -13,28 +8,19 @@ import {
 } from "../../testing/catalog-fixtures.js";
 import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
+import {
+  cleanUpTestEnvironment,
+  openTestDatabase,
+} from "../../testing/test-environment.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;
 const PROBED_AT = FIXTURE_TIME + 30_000;
 
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(cleanUpTestEnvironment);
 
 // Opens a migrated database seeded with the fixture root and one available item.
 async function setup() {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-scan-writer-"));
-  temporaryDirectories.push(directory);
-  const database = await openDatabase({ dataDirectory: directory });
-  databases.push(database);
+  const database = await openTestDatabase();
   await database.db.insertInto("media_roots").values(rootFixture).execute();
   await database.db.insertInto("media_items").values(itemFixture).execute();
 

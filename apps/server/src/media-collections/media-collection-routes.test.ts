@@ -8,14 +8,17 @@ import {
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
-import { closeTestServers, startTestServer } from "../testing/test-server.js";
+import {
+  cleanUpTestEnvironment,
+  startTestServer,
+} from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 
 type Server = FastifyInstance;
 
 const LATER = FIXTURE_TIME + 60_000;
 
-afterEach(closeTestServers);
+afterEach(cleanUpTestEnvironment);
 
 function item(
   id: string,

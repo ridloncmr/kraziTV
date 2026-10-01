@@ -1,12 +1,11 @@
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type Insertable, sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "./database.js";
+import type { KraziDatabase } from "./database.js";
 import { migrateDatabase } from "./migrations/migrate-database.js";
 import type { MediaCollectionItemTable } from "./schema/media-collection-item-table.js";
 import type { MediaCollectionTable } from "./schema/media-collection-table.js";
@@ -17,41 +16,21 @@ import {
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
+import {
+  cleanUpTestEnvironment,
+  createTemporaryDirectory,
+  openTestDatabase,
+} from "../testing/test-environment.js";
 
-const databases: KraziDatabase[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
-
-async function createTemporaryDataDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-database-"));
-  temporaryDirectories.push(directory);
-  return directory;
-}
-
-async function openTemporaryDatabase(): Promise<KraziDatabase> {
-  const database = await openDatabase({
-    dataDirectory: await createTemporaryDataDirectory(),
-  });
-  databases.push(database);
-  return database;
-}
+afterEach(cleanUpTestEnvironment);
 
 describe("openDatabase", () => {
   it("creates and migrates a fresh database reproducibly", async () => {
     const dataDirectory = join(
-      await createTemporaryDataDirectory(),
+      await createTemporaryDirectory(),
       "nested-data-directory",
     );
-    const database = await openDatabase({ dataDirectory });
-    databases.push(database);
+    const database = await openTestDatabase(dataDirectory);
 
     const tables = await sql<{ name: string }>`
       select name
@@ -86,8 +65,8 @@ describe("openDatabase", () => {
   });
 
   it("reproduces the same logical schema in independent clean environments", async () => {
-    const first = await openTemporaryDatabase();
-    const second = await openTemporaryDatabase();
+    const first = await openTestDatabase();
+    const second = await openTestDatabase();
 
     const readSchema = async (database: KraziDatabase) => {
       const definitions = await sql<{
@@ -116,7 +95,7 @@ describe("openDatabase", () => {
   });
 
   it("enables foreign-key enforcement", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
 
     const pragma = await sql<{
       foreign_keys: number;
@@ -132,21 +111,19 @@ describe("openDatabase", () => {
   });
 
   it("preserves data after closing and reopening the database", async () => {
-    const dataDirectory = await createTemporaryDataDirectory();
-    const first = await openDatabase({ dataDirectory });
-    databases.push(first);
+    const dataDirectory = await createTemporaryDirectory();
+    const first = await openTestDatabase(dataDirectory);
     await first.db.insertInto("media_roots").values(rootFixture).execute();
     await first.close();
 
-    const reopened = await openDatabase({ dataDirectory });
-    databases.push(reopened);
+    const reopened = await openTestDatabase(dataDirectory);
     await expect(
       reopened.db.selectFrom("media_roots").selectAll().execute(),
     ).resolves.toEqual([rootFixture]);
   });
 
   it("closes the Kysely connection and tolerates duplicate closes", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
 
     await database.close();
     await database.close();
@@ -157,7 +134,7 @@ describe("openDatabase", () => {
   });
 
   it("enforces root identity, boolean, and timestamp constraints", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
     await database.db.insertInto("media_roots").values(rootFixture).execute();
 
     await expect(
@@ -187,7 +164,7 @@ describe("openDatabase", () => {
   });
 
   it("enforces item identity and metadata constraints", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
     await database.db.insertInto("media_roots").values(rootFixture).execute();
     await database.db.insertInto("media_items").values(itemFixture).execute();
 
@@ -268,7 +245,7 @@ describe("openDatabase", () => {
   });
 
   it("allows missing items to retain successful metadata and diagnostics", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
     await database.db.insertInto("media_roots").values(rootFixture).execute();
 
     await expect(
@@ -284,7 +261,7 @@ describe("openDatabase", () => {
   });
 
   it("enforces collection name and timestamp constraints", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
 
     const invalidCollections: Insertable<MediaCollectionTable>[] = [
       { ...collectionFixture, id: "collection-empty-name", name: "" },
@@ -308,7 +285,7 @@ describe("openDatabase", () => {
   });
 
   it("enforces collection membership identity, order, and references", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
     await database.db.insertInto("media_roots").values(rootFixture).execute();
     await database.db
       .insertInto("media_items")
@@ -364,7 +341,7 @@ describe("openDatabase", () => {
   });
 
   it("indexes membership by media item so item-side lookups avoid a table scan", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
 
     const plan = await sql<{ detail: string }>`
       explain query plan
@@ -377,7 +354,7 @@ describe("openDatabase", () => {
   });
 
   it("deletes a collection's membership with the collection but keeps its items", async () => {
-    const database = await openTemporaryDatabase();
+    const database = await openTestDatabase();
     await database.db.insertInto("media_roots").values(rootFixture).execute();
     await database.db.insertInto("media_items").values(itemFixture).execute();
     await database.db

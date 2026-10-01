@@ -6,15 +6,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import {
-  closeTestServers,
+  cleanUpTestEnvironment,
   createTemporaryDirectory,
   startTestServer,
-} from "../testing/test-server.js";
+} from "../testing/test-environment.js";
 import { MediaRootRepository } from "./media-root-repository.js";
 
 type Server = FastifyInstance;
 
-afterEach(closeTestServers);
+afterEach(cleanUpTestEnvironment);
 
 // Boots the real composition with a deterministic clock and ID sequence.
 async function startServer(dataDirectory?: string): Promise<Server> {
