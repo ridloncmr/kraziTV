@@ -43,7 +43,7 @@ apps/
   server/      Fastify API and route wiring
   web/         React administration UI
 packages/
-  core/        scheduling, channel rules, and playout decisions
+  krazi-brain/ kraziBrain: scheduling, channel rules, and playout decisions
   media/       discovery, ffprobe, and source metadata
   signal/      active channel workers, FFmpeg lifecycle, and stream packaging
   plex/        HDHomeRun-compatible and XMLTV formatting

@@ -391,7 +391,7 @@ Important boundaries:
 - Schedule generation must not construct FFmpeg commands.
 - Schedule generation must not emit Plex-specific XMLTV or M3U fields.
 - Schedule entries must remain guide-visible programming, not complete transmission timelines.
-- `packages/core` should own deterministic schedule algorithms and types.
+- `packages/krazi-brain` should own deterministic schedule algorithms and types.
 - `apps/server` should own API routing, persistence wiring, and request validation.
 - `packages/media` provides catalog data but does not decide programming order.
 - Provider adapters map schedule entries later; they do not decide what plays.

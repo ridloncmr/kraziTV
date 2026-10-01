@@ -120,7 +120,7 @@ Important boundaries:
 
 - `apps/server` owns HTTP process startup and route registration.
 - `apps/web` owns browser UI startup.
-- `packages/core` remains free of HTTP, FFmpeg, SQLite, Plex, and Web UI concerns.
+- `packages/krazi-brain` remains free of HTTP, FFmpeg, SQLite, Plex, and Web UI concerns.
 - `packages/media` should not be invoked by the health endpoint.
 - `packages/plex` should not be invoked by the health endpoint.
 

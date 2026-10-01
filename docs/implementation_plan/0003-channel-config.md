@@ -16,7 +16,7 @@ Work proceeds in three bands:
 
 1. Persist ordered media collections and expose them over HTTP. This is the
    first feedback loop and depends only on the implemented catalog.
-2. Add canonical channel numbers in `packages/core`, then persist channels and
+2. Add canonical channel numbers in `packages/krazi-brain`, then persist channels and
    expose channel CRUD.
 3. Coordinate committed disable and delete mutations with the channel runtime
    through the existing `ChannelStreamManagerContract`, then close acceptance.
@@ -32,12 +32,12 @@ apps/server
   channels/            channel repository, routes, runtime stop coordination
   database/            migrations and row types
         |
-        +---- packages/core   channel number parsing and channel types
+        +---- packages/krazi-brain   channel number parsing and channel types
         |
         `---- packages/signal ChannelStreamManagerContract (type only)
 ```
 
-- `packages/core` owns provider-neutral channel types and canonical channel
+- `packages/krazi-brain` owns provider-neutral channel types and canonical channel
   number parsing. Move the existing `Channel` type and `describeChannel` out of
   `src/index.ts` into `src/channels/` so the package follows the `AGENTS.md`
   source layout.
@@ -207,7 +207,7 @@ Let a client create, list, fetch, rename, delete, and reorder collections.
 
 ## Phase 2: Channel Identity
 
-### CH-003: Add canonical channel numbers to `packages/core`
+### CH-003: Add canonical channel numbers to `packages/krazi-brain`
 
 **Goal**
 
@@ -215,11 +215,11 @@ Give every layer one definition of a valid channel number and one channel type.
 
 **Scope**
 
-- Move `Channel` and `describeChannel` into `packages/core/src/channels/` and
+- Move `Channel` and `describeChannel` into `packages/krazi-brain/src/channels/` and
   add `enabled` to `Channel`.
 - Add `parseChannelNumber()` accepting `[1-9][0-9]*(\.[1-9][0-9]*)?` and a
   comparator for list ordering.
-- Add `@krazitv/core` as an `apps/server` dependency and build reference.
+- Add `@krazitv/krazi-brain` as an `apps/server` dependency and build reference.
 
 **Out of scope**
 

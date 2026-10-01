@@ -267,7 +267,7 @@ Important boundaries:
 - `apps/server` coordinates committed channel disable/delete mutations with the
   per-channel runtime stop, returns a structured retryable `503` when cleanup
   fails after commit, and does not return success before cleanup settles.
-- `packages/core` may define provider-neutral channel types and validation rules.
+- `packages/krazi-brain` may define provider-neutral channel types and validation rules.
 - `packages/media` owns media catalog/probe concepts, not channel scheduling decisions.
 - Provider adapters may later map channel config into provider-specific outputs without modifying core channel identity.
 

@@ -208,7 +208,7 @@ Important boundaries:
 
 - `apps/web` owns browser UI, form state, and API presentation.
 - `apps/server` remains the API authority for persisted configuration and computed state.
-- `packages/core` owns domain behavior and deterministic decisions.
+- `packages/krazi-brain` owns domain behavior and deterministic decisions.
 - `packages/media` owns probing/catalog behavior exposed through API responses.
 - `packages/plex` owns Plex-specific formatting exposed through API URLs.
 - The Web Admin must not duplicate scheduling algorithms, playout lookup, HDHomeRun formatting, XMLTV generation, or FFmpeg command construction.
