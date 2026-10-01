@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: Planned; no tickets started
+Status: In Development; CH-001 complete, CH-002 next
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -101,7 +101,10 @@ Migration `002_media_collections`:
   `media_collections` with `ON DELETE CASCADE`; `media_item_id` references
   `media_items`; `position` is a non-negative integer; `created_at`.
   `(media_collection_id, position)` and `(media_collection_id, media_item_id)`
-  are unique.
+  are unique. `media_item_id` has its own index for item-side lookups.
+- Follow migration `001_initial_catalog`: every timestamp is checked as a safe
+  non-negative integer, `name` is checked non-empty after trimming, and
+  `position` is checked as a non-negative integer.
 
 Migration `003_channels`:
 
@@ -124,6 +127,12 @@ transaction and writes contiguous positions in request order.
 ## Phase 1: Media Collections
 
 ### CH-001: Persist media collections and ordered membership
+
+**Status**
+
+Complete on 2026-10-01. Migration `002_media_collections` and
+`MediaCollectionRepository` persist collections and ordered membership with
+schema, repository, chunked-write, and reopen tests; HTTP exposure is CH-002.
 
 **Goal**
 
@@ -153,6 +162,19 @@ something to draw from.
   change cannot leave a dangling member; the foreign key is the final guard.
 - Media items are never deleted by the catalog, so membership stays valid when
   an item goes `missing`.
+- Duplicate media item IDs are a caller error, not a typed outcome. CH-002
+  rejects them before the repository runs; if one slips through, the unique
+  `(media_collection_id, media_item_id)` constraint throws and the transaction
+  rolls back.
+- Listing members returns, in position order, each member's position plus the
+  media item summary CH-002 serves (ID, title, status, duration), joined in one
+  query so the route does not reshape rows.
+- Sort collections by name case-folded in JS with a fixed-locale
+  `Intl.Collator("en", { sensitivity: "base" })`, then by ID, so the order
+  does not depend on the host locale. SQLite `lower()` folds only ASCII.
+- The repository stores names as given. Trimming and the non-empty rule belong
+  to CH-002 route validation, as with media roots; the check constraint is the
+  final guard.
 
 **Verification**
 

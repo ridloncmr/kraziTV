@@ -1,10 +1,10 @@
 import type { Kysely, Selectable } from "kysely";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type {
-  DatabaseSchema,
   MediaItemStatus,
   MediaItemTable,
-} from "../database/schema.js";
+} from "../database/schema/media-item-table.js";
 
 export interface MediaItem {
   id: string;

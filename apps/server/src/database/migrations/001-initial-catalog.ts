@@ -1,15 +1,11 @@
 import { type Kysely, sql } from "kysely";
-import {
-  type Migration,
-  type MigrationProvider,
-  Migrator,
-} from "kysely/migration";
+import type { Migration } from "kysely/migration";
 
-import type { DatabaseSchema } from "./schema.js";
-
+// Inlined as SQL text because SQLite DDL cannot take bound parameters. Each
+// migration keeps its own copy so committed history never shifts under a shared edit.
 const MAX_SAFE_INTEGER = sql.raw(String(Number.MAX_SAFE_INTEGER));
 
-const initialCatalogMigration: Migration = {
+export const initialCatalogMigration: Migration = {
   // Creates the complete initial catalog schema without ambient data or time.
   async up(db: Kysely<unknown>): Promise<void> {
     await db.schema
@@ -106,28 +102,3 @@ const initialCatalogMigration: Migration = {
     await db.schema.dropTable("media_roots").execute();
   },
 };
-
-const migrations: Readonly<Record<string, Migration>> = Object.freeze({
-  "001_initial_catalog": initialCatalogMigration,
-});
-
-class CommittedMigrationProvider implements MigrationProvider {
-  // Returns the fixed committed history so every environment sees the same order.
-  async getMigrations(): Promise<Record<string, Migration>> {
-    return { ...migrations };
-  }
-}
-
-// Applies the committed migration history and surfaces the original migration error.
-export async function migrateDatabase(
-  db: Kysely<DatabaseSchema>,
-): Promise<void> {
-  const { error } = await new Migrator({
-    db,
-    provider: new CommittedMigrationProvider(),
-  }).migrateToLatest();
-
-  if (error !== undefined) {
-    throw error;
-  }
-}

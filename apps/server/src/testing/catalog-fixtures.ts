@@ -1,7 +1,10 @@
 // Deterministic catalog rows for tests only; production code must never import this module.
 import type { Insertable } from "kysely";
 
-import type { MediaItemTable, MediaRootTable } from "../database/schema.js";
+import type { MediaCollectionItemTable } from "../database/schema/media-collection-item-table.js";
+import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
+import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import type { MediaRootTable } from "../database/schema/media-root-table.js";
 
 export const FIXTURE_TIME = 1_704_067_200_000;
 
@@ -29,4 +32,18 @@ export const itemFixture: Insertable<MediaItemTable> = {
   updated_at: FIXTURE_TIME,
   last_seen_at: FIXTURE_TIME,
   last_probed_at: FIXTURE_TIME,
+};
+
+export const collectionFixture: Insertable<MediaCollectionTable> = {
+  id: "collection-fixture-001",
+  name: "Example Collection",
+  created_at: FIXTURE_TIME,
+  updated_at: FIXTURE_TIME,
+};
+
+export const collectionItemFixture: Insertable<MediaCollectionItemTable> = {
+  media_collection_id: collectionFixture.id,
+  media_item_id: itemFixture.id,
+  position: 0,
+  created_at: FIXTURE_TIME,
 };

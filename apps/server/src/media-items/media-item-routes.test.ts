@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { buildServer } from "../app.js";
 import { openDatabase } from "../database/database.js";
-import type { DatabaseSchema, MediaItemTable } from "../database/schema.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   FIXTURE_TIME,
   itemFixture,

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely, Selectable } from "kysely";
 
-import type { DatabaseSchema, MediaRootTable } from "../database/schema.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { NormalizedMediaPath } from "@krazitv/media";
 
 export interface MediaRoot {
