@@ -55,7 +55,7 @@ async function startServer(
     overrides: (db) => ({
       mediaCollections: new MediaCollectionRepository(db, {
         createId: () => ids.shift() ?? "collection-extra",
-        now: () => (times.length > 1 ? times.shift()! : times[0]!),
+        now: () => (times.length > 1 ? times.shift()! : times[0]),
       }),
     }),
   });

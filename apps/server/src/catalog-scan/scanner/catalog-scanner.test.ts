@@ -269,7 +269,7 @@ describe("CatalogScanner", () => {
 
     // The media adapter settles a timed-out probe only after its child closes,
     // so until then the probe is pending here and must keep holding its slot.
-    const terminating = prober.started[0]!;
+    const terminating = prober.started[0];
     await flush();
     expect(prober.started).toHaveLength(2);
     terminating.reject(new MediaProbeError("timed_out", "ffprobe timed out"));

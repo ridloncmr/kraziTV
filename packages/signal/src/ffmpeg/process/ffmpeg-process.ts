@@ -21,7 +21,7 @@ type FfmpegProcessOptions = {
   ffmpegPath?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
-  isSuccessfulExitExpected(): boolean;
+  isSuccessfulExitExpected: () => boolean;
 };
 
 /** Owns one FFmpeg child until normal closure or verified termination. */

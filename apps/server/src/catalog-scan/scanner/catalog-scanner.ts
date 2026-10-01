@@ -154,7 +154,7 @@ export class CatalogScanner {
 
     // Outcomes are indexed like `files`, so identity order survives out-of-order probes.
     const candidates = files.map((file, index) =>
-      createCatalogCandidate(file, outcomes[index]!),
+      createCatalogCandidate(file, outcomes[index]),
     );
     // Future metadata enrichment transforms `candidates` here, before validation.
     candidates.forEach(validateCatalogCandidate);

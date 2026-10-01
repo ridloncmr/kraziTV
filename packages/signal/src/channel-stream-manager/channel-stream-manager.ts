@@ -665,8 +665,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
   /** Arms one identity-guarded deadline for a viewerless active worker. */
   private scheduleIdleStop(lifecycle: ActiveLifecycle): void {
     if (lifecycle.idleTask !== undefined) return;
-    let task!: ScheduledTask;
-    task = this.options.timers.setTimeout(() => {
+    const task: ScheduledTask = this.options.timers.setTimeout(() => {
       void this.serialize(lifecycle.channelId, () =>
         this.expireIdleStop(lifecycle, task),
       ).catch(() => undefined);

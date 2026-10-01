@@ -54,12 +54,14 @@ function parseDurationMs(duration: unknown): number {
 
   const [, wholeSeconds = "", fraction = ""] = match;
   const fractionDigits = fraction.padEnd(4, "0");
-  const roundUp = fractionDigits[3]! >= "5" ? 1 : 0;
+  const roundUp = fractionDigits[3] >= "5" ? 1 : 0;
   const durationMs =
     Number(wholeSeconds) * 1000 + Number(fractionDigits.slice(0, 3)) + roundUp;
 
   if (!Number.isSafeInteger(durationMs) || durationMs <= 0) {
-    throw invalidMetadata(`ffprobe reported an unusable duration: ${duration}`);
+    throw invalidMetadata(
+      `ffprobe reported an unusable duration: ${String(duration)}`,
+    );
   }
   return durationMs;
 }

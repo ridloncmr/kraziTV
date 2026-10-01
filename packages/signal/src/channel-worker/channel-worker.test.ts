@@ -487,11 +487,11 @@ describe("ChannelWorker startup", () => {
       "arranged startup cleanup failure",
     );
     const stop = vi
-      .spyOn(session!, "stop")
+      .spyOn(session, "stop")
       .mockRejectedValueOnce(cleanupFailure)
       .mockResolvedValueOnce(undefined);
 
-    session!.rejectReady(
+    session.rejectReady(
       new SignalError("packaging_failed", "arranged readiness failure"),
     );
 

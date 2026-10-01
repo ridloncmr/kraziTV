@@ -242,7 +242,7 @@ describe("POST /media-roots/:id/scan", () => {
     clientRequest.end();
 
     await vi.waitFor(() => expect(scanSpy).toHaveBeenCalled());
-    const result = scanSpy.mock.results[0]!.value as Promise<unknown>;
+    const result = scanSpy.mock.results[0].value as Promise<unknown>;
     // Unblocks a wrongly started scan so a regression fails fast instead of hanging.
     const unblock = setInterval(() => prober.resolveAll(RESULT), 5);
     try {

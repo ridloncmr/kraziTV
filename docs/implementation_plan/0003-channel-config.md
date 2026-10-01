@@ -389,7 +389,8 @@ and hand off to spec 0004 and plan 0006.
 
 **Verification**
 
-- `npm test`, `npm run typecheck`, `npm run build`, and Prettier pass.
+- `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
+  Prettier pass.
 - The traceability table below has a passing test for every row.
 
 **Docs impact**

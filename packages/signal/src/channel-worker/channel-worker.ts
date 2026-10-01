@@ -29,7 +29,7 @@ export type ChannelWorkerOptions = {
   startupTimeoutMs: number;
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
-  findJoinPoint(retainedBytes: Buffer): number | undefined;
+  findJoinPoint: (retainedBytes: Buffer) => number | undefined;
 };
 
 type StartupInterruption = "aborted" | "timeout";

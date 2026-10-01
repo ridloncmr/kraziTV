@@ -38,6 +38,9 @@ jobs:
       - name: Check Claude skill adapters
         run: npm run agents:check
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
 

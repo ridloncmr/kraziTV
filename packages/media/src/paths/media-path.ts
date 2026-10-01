@@ -82,5 +82,5 @@ function stripTrailingSeparators(
 
 // Displays drive letters consistently regardless of how the user typed them.
 function uppercaseDrive(path: string): string {
-  return /^[a-z]:/.test(path) ? path[0]!.toUpperCase() + path.slice(1) : path;
+  return /^[a-z]:/.test(path) ? path[0].toUpperCase() + path.slice(1) : path;
 }

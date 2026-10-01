@@ -6,7 +6,7 @@ type ChannelBroadcasterOptions = {
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
   /** Isolates format-specific initialization rules from viewer lifecycle. */
-  findJoinPoint(retainedBytes: Buffer): number | undefined;
+  findJoinPoint: (retainedBytes: Buffer) => number | undefined;
 };
 
 /**
