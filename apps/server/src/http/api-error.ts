@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 export type ApiErrorCode =
   | "invalid_request"
   | "internal_error"
+  | "media_collection_not_found"
   | "media_item_not_found"
   | "media_root_disabled"
   | "media_root_duplicate"

@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: In Development; CH-001 complete, CH-002 next
+Status: In Development; CH-001 and CH-002 complete, CH-003 next
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -189,6 +189,13 @@ something to draw from.
 - None.
 
 ### CH-002: Expose the media collection API
+
+**Status**
+
+Complete on 2026-10-01. `registerMediaCollectionRoutes` serves all seven
+collection routes with strict Zod validation and the planned error codes;
+`POST` returns `201`, `DELETE` returns `204`, `GET /:id` returns the collection
+without members, and `PUT /:id/items` returns the replaced membership.
 
 **Goal**
 

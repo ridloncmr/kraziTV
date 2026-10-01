@@ -11,6 +11,8 @@ import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { registerCatalogScanRoutes } from "./catalog-scan/routes/catalog-scan-routes.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
+import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
@@ -27,6 +29,7 @@ export type ServerDependencies = {
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
+  mediaCollections: MediaCollectionRepository;
 };
 
 /** Registers HTTP behavior without opening production infrastructure. */
@@ -44,6 +47,7 @@ function registerRoutes(
   registerMediaRootRoutes(server, dependencies.mediaRoots);
   registerCatalogScanRoutes(server, dependencies.scanner);
   registerMediaItemRoutes(server, dependencies.mediaItems);
+  registerMediaCollectionRoutes(server, dependencies.mediaCollections);
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */

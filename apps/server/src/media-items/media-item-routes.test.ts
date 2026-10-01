@@ -20,6 +20,7 @@ import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-item-repository.js";
+import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 
 type Server = FastifyInstance;
 
@@ -91,6 +92,7 @@ async function openServer(
       mediaRoots,
       scanner,
       mediaItems: new MediaItemRepository(database.db),
+      mediaCollections: new MediaCollectionRepository(database.db),
     },
     { logger: false },
   );

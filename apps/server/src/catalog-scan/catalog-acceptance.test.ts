@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildServer } from "../app.js";
 import { openDatabase } from "../database/database.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
+import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
 import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
@@ -58,6 +59,7 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
       mediaRoots,
       scanner,
       mediaItems: new MediaItemRepository(database.db),
+      mediaCollections: new MediaCollectionRepository(database.db),
     },
     { logger: false },
   );

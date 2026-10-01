@@ -21,6 +21,7 @@ import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import { MediaItemRepository } from "../../media-items/media-item-repository.js";
+import { MediaCollectionRepository } from "../../media-collections/media-collection-repository.js";
 
 type Server = ReturnType<typeof buildServer>;
 type Discover = (
@@ -75,6 +76,7 @@ async function startServer(discover: Discover = async () => files("a", "b")) {
       mediaRoots,
       scanner,
       mediaItems: new MediaItemRepository(database.db),
+      mediaCollections: new MediaCollectionRepository(database.db),
     },
     { logger: false },
   );

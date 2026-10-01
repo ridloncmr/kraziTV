@@ -7,8 +7,9 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 - [Spec 0002: Local Media Catalog](0002-media-catalog.md) - implemented; all
   tickets complete, real-ffprobe gate via `npm run test:ffprobe`
 - [Spec 0003: Channel Configuration](0003-channel-config.md) - in
-  development; collection persistence complete (CH-001), collection API next,
-  then channel identity and administrative runtime stop (through CH-006)
+  development; media collections persisted and exposed over HTTP (CH-001,
+  CH-002), channel identity next, then administrative runtime stop (through
+  CH-006)
 - [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - in
   development; runtime primitives and automated suite complete (G2), FFmpeg/Plex
   evidence gate next

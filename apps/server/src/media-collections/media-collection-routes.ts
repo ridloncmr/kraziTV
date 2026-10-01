@@ -1,0 +1,163 @@
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { z } from "zod";
+
+import { sendApiError } from "../http/api-error.js";
+import type {
+  MediaCollection,
+  MediaCollectionMember,
+  MediaCollectionRepository,
+} from "./media-collection-repository.js";
+
+const name = z.string().trim().min(1, "name must not be empty");
+
+// Duplicates are a caller error the repository never sees.
+const mediaItemIds = z
+  .array(z.string())
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "mediaItemIds must not contain duplicates",
+  });
+
+const createBody = z.strictObject({
+  name,
+  mediaItemIds: mediaItemIds.optional(),
+});
+
+const renameBody = z.strictObject({ name });
+
+const replaceMembersBody = z.strictObject({ mediaItemIds });
+
+const idParams = z.object({ id: z.string() });
+
+/** Registers media-collection HTTP routes; validation and status mapping live only here. */
+export function registerMediaCollectionRoutes(
+  server: FastifyInstance,
+  mediaCollections: MediaCollectionRepository,
+): void {
+  server.get("/media-collections", async () => {
+    const collections = await mediaCollections.list();
+    return collections.map(toApiMediaCollection);
+  });
+
+  server.post("/media-collections", async (request, reply) => {
+    const body = createBody.safeParse(request.body);
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+
+    const result = await mediaCollections.create(
+      body.data.name,
+      body.data.mediaItemIds,
+    );
+    if (result.kind === "unknown_media_items") {
+      return sendUnknownMediaItems(reply, result.mediaItemIds);
+    }
+
+    return reply.status(201).send(toApiMediaCollection(result.collection));
+  });
+
+  server.get("/media-collections/:id", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const collection = await mediaCollections.findById(id);
+    if (collection === undefined) {
+      return sendCollectionNotFound(reply, id);
+    }
+    return toApiMediaCollection(collection);
+  });
+
+  server.patch("/media-collections/:id", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const body = renameBody.safeParse(request.body);
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+
+    const collection = await mediaCollections.rename(id, body.data.name);
+    if (collection === undefined) {
+      return sendCollectionNotFound(reply, id);
+    }
+    return toApiMediaCollection(collection);
+  });
+
+  server.delete("/media-collections/:id", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    if (!(await mediaCollections.delete(id))) {
+      return sendCollectionNotFound(reply, id);
+    }
+    return reply.status(204).send();
+  });
+
+  server.get("/media-collections/:id/items", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const members = await mediaCollections.listMembers(id);
+    if (members === undefined) {
+      return sendCollectionNotFound(reply, id);
+    }
+    return members.map(toApiMediaCollectionMember);
+  });
+
+  server.put("/media-collections/:id/items", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const body = replaceMembersBody.safeParse(request.body);
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+
+    const result = await mediaCollections.replaceMembers(
+      id,
+      body.data.mediaItemIds,
+    );
+    if (result.kind === "not_found") {
+      return sendCollectionNotFound(reply, id);
+    }
+    if (result.kind === "unknown_media_items") {
+      return sendUnknownMediaItems(reply, result.mediaItemIds);
+    }
+    return result.members.map(toApiMediaCollectionMember);
+  });
+}
+
+// Every body failure shares one code; the message carries Zod's field detail.
+function sendInvalidRequest(reply: FastifyReply, error: z.ZodError) {
+  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
+}
+
+// One 404 shape for every collection route.
+function sendCollectionNotFound(reply: FastifyReply, id: string) {
+  return sendApiError(
+    reply,
+    404,
+    "media_collection_not_found",
+    `Media collection ${id} does not exist`,
+  );
+}
+
+// Lists every unknown ID so the client can point at exactly what to fix.
+function sendUnknownMediaItems(reply: FastifyReply, ids: readonly string[]) {
+  return sendApiError(
+    reply,
+    400,
+    "media_item_not_found",
+    `Unknown media items: ${ids.join(", ")}`,
+  );
+}
+
+// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
+function toApiMediaCollection(collection: MediaCollection) {
+  return {
+    id: collection.id,
+    name: collection.name,
+    createdAt: new Date(collection.createdAt).toISOString(),
+    updatedAt: new Date(collection.updatedAt).toISOString(),
+  };
+}
+
+// Uses the media item API's field names so clients read one vocabulary.
+function toApiMediaCollectionMember(member: MediaCollectionMember) {
+  return {
+    position: member.position,
+    mediaItemId: member.mediaItemId,
+    title: member.title,
+    status: member.status,
+    durationMs: member.durationMs,
+  };
+}
