@@ -12,13 +12,13 @@ import {
 import type {
   MediaRoot,
   MediaRootRepository,
-} from "../media-roots/media-root-repository.js";
+} from "../../media-roots/media-root-repository.js";
 import {
   createCatalogCandidate,
   validateCatalogCandidate,
   type ProbeOutcome,
 } from "./catalog-candidate.js";
-import type { CatalogScanWriter } from "./catalog-scan-writer.js";
+import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 
 export interface ScanSummary {
   rootId: string;

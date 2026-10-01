@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openDatabase, type KraziDatabase } from "../database/database.js";
+import { openDatabase, type KraziDatabase } from "../../database/database.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
-} from "../testing/catalog-fixtures.js";
-import type { CatalogCandidate } from "./catalog-candidate.js";
+} from "../../testing/catalog-fixtures.js";
+import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;

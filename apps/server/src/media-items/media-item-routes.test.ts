@@ -16,8 +16,8 @@ import {
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
-import { CatalogScanWriter } from "../catalog-scan/catalog-scan-writer.js";
-import { CatalogScanner } from "../catalog-scan/catalog-scanner.js";
+import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
+import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-item-repository.js";
 

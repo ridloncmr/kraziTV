@@ -13,9 +13,9 @@ import { openDatabase } from "../database/database.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
-import { CatalogScanWriter } from "./catalog-scan-writer.js";
-import { CatalogScanner } from "./catalog-scanner.js";
-import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
+import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
+import { CatalogScanner } from "./scanner/catalog-scanner.js";
+import { ConcurrencyLimitedProber } from "./scanner/concurrency-limited-prober.js";
 
 interface RunningServer {
   server: FastifyInstance;

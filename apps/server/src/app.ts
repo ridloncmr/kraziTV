@@ -7,8 +7,8 @@ import Fastify, {
 import { registerApiErrorHandlers } from "./http/api-error.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
-import type { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
-import { registerCatalogScanRoutes } from "./catalog-scan/catalog-scan-routes.js";
+import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
+import { registerCatalogScanRoutes } from "./catalog-scan/routes/catalog-scan-routes.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 

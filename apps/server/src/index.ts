@@ -5,9 +5,9 @@ import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
-import { CatalogScanWriter } from "./catalog-scan/catalog-scan-writer.js";
-import { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
-import { ConcurrencyLimitedProber } from "./catalog-scan/concurrency-limited-prober.js";
+import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
+import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
+import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { parseProbeConfig } from "./config/probe-config.js";
 import { isLoopbackHost, parseCorsOrigins } from "./config/network.js";
 

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely, Transaction } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { CatalogCandidate } from "./catalog-candidate.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { CatalogCandidate } from "../scanner/catalog-candidate.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
 export interface CatalogGeneration {
