@@ -1,6 +1,6 @@
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
-import type { ManagedChannelWorker } from "../channel-worker/worker-factory.js";
-import type { WorkerCreationCleanupError } from "../channel-worker/worker-creation-cleanup-error.js";
+import type { ManagedChannelWorker } from "../channel-worker/contracts.js";
+import type { WorkerCreationCleanupError } from "../channel-worker/channel-worker-errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask } from "../runtime/clock.js";
 import { subscriptionAborted } from "./channel-stream-errors.js";

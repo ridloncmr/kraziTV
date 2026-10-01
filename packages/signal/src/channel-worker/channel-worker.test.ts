@@ -13,7 +13,7 @@ import { Deferred } from "../testing/deferred.js";
 import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
-import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
+import { WorkerCreationCleanupError } from "./channel-worker-errors.js";
 
 const currentItem = (
   evaluatedAt: number,

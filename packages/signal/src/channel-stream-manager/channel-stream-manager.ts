@@ -2,12 +2,10 @@ import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-
 import type {
   ChannelAuthorization,
   ChannelAuthorizationResult,
-} from "../channel-worker/contracts.js";
-import type {
   ChannelWorkerFactory,
   ManagedChannelWorker,
-} from "../channel-worker/worker-factory.js";
-import { WorkerCreationCleanupError } from "../channel-worker/worker-creation-cleanup-error.js";
+} from "../channel-worker/contracts.js";
+import { WorkerCreationCleanupError } from "../channel-worker/channel-worker-errors.js";
 import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
@@ -31,8 +29,6 @@ import {
   normalizeCleanupFailure,
   normalizeWorkerFailure,
   subscriptionAborted,
-  validateAuthorization,
-  workerChannelMismatch,
   workerUnavailable,
 } from "./channel-stream-errors.js";
 import { ChannelTransitionQueue } from "./channel-transition-queue.js";
@@ -42,6 +38,13 @@ import type {
   ChannelSubscribeOptions,
   ChannelSubscription,
 } from "./contracts.js";
+import {
+  findAuthorizationFailure,
+  findPublicationBlock,
+  joinPendingWaiters,
+  type AuthorizationOutcome,
+  type PublicationBlock,
+} from "./subscription-guards.js";
 import {
   createInterruption,
   createWaiter,
@@ -57,23 +60,6 @@ type ChannelStreamManagerOptions = {
   workerFactory: ChannelWorkerFactory<ManagedChannelWorker>;
   timers: TimerScheduler;
   idleGraceMs: number;
-};
-
-type AuthorizationOutcome =
-  | { status: "resolved"; authorization: ChannelAuthorizationResult }
-  | { status: "failed"; error: unknown }
-  | { status: "interrupted"; error: SignalError };
-
-/** Why a ready worker will not be published: an error for its waiters, or no waiters left. */
-type PublicationBlock =
-  { kind: "failed"; error: unknown } | { kind: "unwatched" };
-
-type JoinedWaiters = {
-  kind: "joined";
-  created: Array<{
-    waiter: SubscriptionWaiter;
-    subscription: ChannelBroadcastSubscription;
-  }>;
 };
 
 /** Serializes channel broadcast creation, publication, and terminal cleanup. */
@@ -186,12 +172,9 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     waiter: SubscriptionWaiter,
   ): Promise<void> {
     if (waiter.settled) return;
-    if (this.shuttingDown) {
-      rejectWaiter(waiter, managerShutdown(channelId));
-      return;
-    }
-    if (waiter.aborted) {
-      rejectWaiter(waiter, subscriptionAborted(channelId));
+    const gateError = this.findWaiterBlock(channelId, waiter);
+    if (gateError !== undefined) {
+      rejectWaiter(waiter, gateError);
       return;
     }
 
@@ -200,17 +183,14 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       waiter.interruption,
     );
     this.removeAuthorizingWaiter(channelId, waiter);
+    // An interruption settles the waiter through its own path.
     if (authorizationOutcome.status === "interrupted" || waiter.settled) return;
-    if (authorizationOutcome.status === "failed") {
-      rejectWaiter(waiter, authorizationOutcome.error);
-      return;
-    }
-    const authorizationError = validateAuthorization(
+    const authorizationFailure = findAuthorizationFailure(
       channelId,
-      authorizationOutcome.authorization,
+      authorizationOutcome,
     );
-    if (authorizationError !== undefined) {
-      rejectWaiter(waiter, authorizationError);
+    if (authorizationFailure !== undefined) {
+      rejectWaiter(waiter, authorizationFailure.error);
       return;
     }
 
@@ -222,12 +202,9 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
         rejectWaiter(waiter, cleanupFailed(channelId));
         return;
       }
-      if (this.shuttingDown) {
-        rejectWaiter(waiter, managerShutdown(channelId));
-        return;
-      }
-      if (waiter.aborted) {
-        rejectWaiter(waiter, subscriptionAborted(channelId));
+      const retryGateError = this.findWaiterBlock(channelId, waiter);
+      if (retryGateError !== undefined) {
+        rejectWaiter(waiter, retryGateError);
         return;
       }
       lifecycle = this.lifecycles.get(channelId);
@@ -235,7 +212,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
     if (lifecycle?.kind === "active") {
       if (lifecycle.observation.terminated) {
-        lifecycle.stopping = true;
         rejectWaiter(
           waiter,
           normalizeWorkerFailure(channelId, lifecycle.observation.failure),
@@ -247,7 +223,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       try {
         subscription = lifecycle.worker.trySubscribe();
       } catch (error) {
-        lifecycle.stopping = true;
         rejectWaiter(waiter, normalizeWorkerFailure(channelId, error));
         await this.stopActiveLifecycle(lifecycle);
         return;
@@ -270,6 +245,16 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
     const pending = this.startPendingLifecycle(channelId, waiter);
     this.lifecycles.set(channelId, pending);
+  }
+
+  /** Returns why a waiter may no longer join, checked again after every await. */
+  private findWaiterBlock(
+    channelId: ChannelId,
+    waiter: SubscriptionWaiter,
+  ): SignalError | undefined {
+    if (this.shuttingDown) return managerShutdown(channelId);
+    if (waiter.aborted) return subscriptionAborted(channelId);
+    return undefined;
   }
 
   /** Races one provider lookup against a gate that must not wait behind the provider. */
@@ -359,11 +344,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     }
     if (this.shuttingDown) {
       rejectPendingWaiters(pending, managerShutdown(pending.channelId));
-      if (outcome.status === "ready") {
-        await this.stopPendingWorker(pending, outcome.worker);
-      } else {
-        await this.stopFailedPendingCreation(pending, outcome);
-      }
+      await this.stopCreationOutcome(pending, outcome);
       return;
     }
     if (outcome.status === "failed") {
@@ -473,7 +454,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       return;
     }
     if (lifecycle?.kind === "active" && lifecycle.worker === worker) {
-      lifecycle.stopping = true;
       await this.stopActiveLifecycle(lifecycle);
     }
   }
@@ -489,7 +469,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     const lifecycle = this.lifecycles.get(channelId);
     if (lifecycle === undefined) return;
     if (lifecycle.kind === "active") {
-      lifecycle.stopping = true;
       await this.stopActiveLifecycle(lifecycle);
       return;
     }
@@ -502,7 +481,14 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
   private async stopPendingLifecycle(pending: PendingLifecycle): Promise<void> {
     pending.cancelling = true;
     pending.controller.abort();
-    const outcome = await pending.creation;
+    await this.stopCreationOutcome(pending, await pending.creation);
+  }
+
+  /** Settles what one finished creation left: a ready worker or a failed startup. */
+  private async stopCreationOutcome(
+    pending: PendingLifecycle,
+    outcome: WorkerOutcome,
+  ): Promise<void> {
     if (outcome.status === "ready") {
       await this.stopPendingWorker(pending, outcome.worker);
     } else {
@@ -542,8 +528,12 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     await this.settleCleanup(pending, "worker_stop", () => worker.stop());
   }
 
-  /** Stops one published worker while retaining failed cleanup ownership. */
+  /**
+   * Marks one published worker as stopping, so idle grace and close handling
+   * stand down, then stops it while retaining failed cleanup ownership.
+   */
   private async stopActiveLifecycle(lifecycle: ActiveLifecycle): Promise<void> {
+    lifecycle.stopping = true;
     cancelIdleStop(lifecycle);
     closeSubscriptions(lifecycle);
     await this.settleCleanup(lifecycle, "worker_stop", () =>
@@ -636,7 +626,6 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     }
     lifecycle.idleTask = undefined;
     if (lifecycle.subscriptions.size > 0 || lifecycle.stopping) return;
-    lifecycle.stopping = true;
     await this.stopActiveLifecycle(lifecycle);
   }
 
@@ -671,77 +660,4 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     this.authorizingWaiters.delete(channelId);
     for (const waiter of waiters) interruptWaiter(waiter, error);
   }
-}
-
-/**
- * Returns the first publication guard a ready worker fails, or undefined when
- * it may publish. Guards run in precedence order: administrative interruption,
- * authorization, worker health, remaining viewers, then worker identity.
- */
-function findPublicationBlock(
-  pending: PendingLifecycle,
-  worker: ManagedChannelWorker,
-  authorizationOutcome: AuthorizationOutcome,
-): PublicationBlock | undefined {
-  const interruptionError = pending.publicationInterruption.error;
-  if (interruptionError !== undefined) {
-    return { kind: "failed", error: interruptionError };
-  }
-  if (authorizationOutcome.status !== "resolved") {
-    return { kind: "failed", error: authorizationOutcome.error };
-  }
-  if (pending.observation.terminated) {
-    return {
-      kind: "failed",
-      error: normalizeWorkerFailure(
-        pending.channelId,
-        pending.observation.failure,
-      ),
-    };
-  }
-  const authorizationError = validateAuthorization(
-    pending.channelId,
-    authorizationOutcome.authorization,
-  );
-  if (authorizationError !== undefined) {
-    return { kind: "failed", error: authorizationError };
-  }
-  if (pending.waiters.size === 0) return { kind: "unwatched" };
-  if (worker.channelId !== pending.channelId) {
-    return { kind: "failed", error: workerChannelMismatch(pending.channelId) };
-  }
-  return undefined;
-}
-
-/**
- * Subscribes every still-live waiter to a ready worker as one unit: if any
- * subscription fails, the ones already opened are closed so none leak.
- */
-function joinPendingWaiters(
-  pending: PendingLifecycle,
-  worker: ManagedChannelWorker,
-): JoinedWaiters | PublicationBlock {
-  const created: JoinedWaiters["created"] = [];
-  try {
-    for (const waiter of pending.waiters) {
-      if (waiter.aborted) {
-        rejectWaiter(waiter, subscriptionAborted(pending.channelId));
-        continue;
-      }
-      const subscription = worker.trySubscribe();
-      if (subscription === undefined) {
-        throw workerUnavailable(pending.channelId);
-      }
-      created.push({ waiter, subscription });
-    }
-  } catch (error) {
-    for (const { subscription } of created) subscription.close();
-    return {
-      kind: "failed",
-      error: normalizeWorkerFailure(pending.channelId, error),
-    };
-  }
-  return created.length === 0
-    ? { kind: "unwatched" }
-    : { kind: "joined", created };
 }

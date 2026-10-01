@@ -1,13 +1,9 @@
 import { PassThrough, type Readable } from "node:stream";
 
-export type BroadcastSubscriptionCloseReason =
-  "closed" | "buffer_limit_exceeded" | "source_ended" | "source_failed";
-
-export interface ChannelSubscription {
-  readonly stream: Readable;
-  /** Releases this viewer without affecting the shared channel signal. */
-  close(): void;
-}
+import type {
+  BroadcastSubscriptionCloseReason,
+  ChannelSubscription,
+} from "./contracts.js";
 
 /** Owns one viewer's bounded queue without influencing the shared source. */
 export class ChannelBroadcastSubscription implements ChannelSubscription {

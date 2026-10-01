@@ -10,9 +10,9 @@ import { FakeClock } from "../testing/fake-clock.js";
 import type {
   ChannelAuthorization,
   ChannelAuthorizationResult,
+  ManagedChannelWorker,
 } from "../channel-worker/contracts.js";
-import type { ManagedChannelWorker } from "../channel-worker/worker-factory.js";
-import { WorkerCreationCleanupError } from "../channel-worker/worker-creation-cleanup-error.js";
+import { WorkerCreationCleanupError } from "../channel-worker/channel-worker-errors.js";
 import { ChannelStreamManager } from "./channel-stream-manager.js";
 
 class MutableAuthorization implements ChannelAuthorization {

@@ -1,6 +1,6 @@
-import { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
+import { interruptionError } from "./channel-worker-errors.js";
 
 export type StartupInterruption = "aborted" | "timeout";
 
@@ -84,22 +84,4 @@ export async function awaitControlled<T>(
   if (result.status === "value") return result.value;
   if (result.status === "error") throw result.error;
   throw interruptionError(result.outcome, channelId);
-}
-
-/** Creates the provider-neutral error for cancellation or exhausted startup time. */
-export function interruptionError(
-  outcome: StartupInterruption,
-  channelId: ChannelId,
-): SignalError {
-  return outcome === "aborted"
-    ? new SignalError(
-        "subscription_aborted",
-        `Channel ${channelId} startup was cancelled`,
-        { channelId },
-      )
-    : new SignalError(
-        "worker_startup_timeout",
-        `Channel ${channelId} did not become ready before its startup timeout`,
-        { channelId },
-      );
 }

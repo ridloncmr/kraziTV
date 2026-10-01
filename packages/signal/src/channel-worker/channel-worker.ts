@@ -3,24 +3,28 @@ import type { Readable } from "node:stream";
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
-import { SignalError } from "../errors.js";
+import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
 import type {
   SignalPackager,
   SignalSession,
 } from "../signal-packager/contracts.js";
+import {
+  interruptionError,
+  normalizePackagingStartError,
+  normalizeStartupError,
+  WorkerCreationCleanupError,
+} from "./channel-worker-errors.js";
 import type { TransitionCoordinator } from "./contracts.js";
 import { requireCurrent, toSignalItem } from "./playout-projection.js";
 import {
   awaitControlled,
   createStartupGuard,
-  interruptionError,
   type StartupGuard,
   type StartupInterruption,
 } from "./startup-guard.js";
 import { type AiringItem, TransitionLoop } from "./transition-loop.js";
-import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 export type ChannelWorkerOptions = {
   playoutProvider: PlayoutProvider;
@@ -294,32 +298,4 @@ function waitForJoinableOutput(
     promise,
     dispose: () => output.off("data", inspect),
   };
-}
-
-/** Preserves typed packaging failures and classifies unknown start exceptions. */
-function normalizePackagingStartError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "packaging_start_failed",
-    `Signal packaging could not start for channel ${channelId}`,
-    { channelId },
-    { cause },
-  );
-}
-
-/** Keeps deliberate worker interruptions distinct from packaging failures. */
-function normalizeStartupError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "packaging_failed",
-    `Signal packaging failed while channel ${channelId} was starting`,
-    { channelId },
-    { cause },
-  );
 }

@@ -1,6 +1,6 @@
 import type { ChannelId } from "../playout/contracts.js";
 import { ChannelWorker, type ChannelWorkerOptions } from "./channel-worker.js";
-import type { ChannelWorkerFactory } from "./worker-factory.js";
+import type { ChannelWorkerFactory } from "./contracts.js";
 
 /** Creates production channel workers behind the manager's narrow factory port. */
 export class DefaultChannelWorkerFactory implements ChannelWorkerFactory<ChannelWorker> {

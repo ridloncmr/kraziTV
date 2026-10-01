@@ -16,6 +16,11 @@ import type {
   SignalPreparation,
   SignalSession,
 } from "../signal-packager/contracts.js";
+import {
+  normalizePreparationError,
+  normalizeTransitionError,
+  TransitionLoopHalted,
+} from "./channel-worker-errors.js";
 import type {
   TransitionCandidate,
   TransitionCoordinator,
@@ -59,9 +64,6 @@ type TransitionStep =
   | "commit"
   | "discard"
   | "recovery";
-
-/** Unwinds the loop quietly once the worker has halted it. */
-class Halted extends Error {}
 
 /**
  * Replaces the airing item at each scheduled boundary with selected playout.
@@ -179,9 +181,7 @@ export class TransitionLoop {
         this.options.channelId,
       );
       this.checkHalted();
-      if (this.options.clock.now() >= deadlineAt) {
-        throw this.deadlineError("recovery");
-      }
+      this.checkDeadline("recovery", deadlineAt);
 
       const committed = await this.prepareAndCommit(
         {
@@ -198,9 +198,7 @@ export class TransitionLoop {
         deadlineAt,
       );
       if (committed) return;
-      if (this.options.clock.now() >= deadlineAt) {
-        throw this.deadlineError("recovery");
-      }
+      this.checkDeadline("recovery", deadlineAt);
     }
     throw new SignalError(
       "transition_failed",
@@ -248,11 +246,11 @@ export class TransitionLoop {
             // The clock, not loop bookkeeping, refuses a late callback: the
             // loop may not have observed its own expiry yet.
             if (this.halted) {
-              throw new Halted("Channel worker stopped before commit");
+              throw new TransitionLoopHalted(
+                "Channel worker stopped before commit",
+              );
             }
-            if (this.options.clock.now() >= deadlineAt) {
-              throw this.deadlineError("commit");
-            }
+            this.checkDeadline("commit", deadlineAt);
             preparation.commit();
             if (this.preparation === preparation) {
               this.preparation = undefined;
@@ -313,9 +311,7 @@ export class TransitionLoop {
     { interruptible }: { interruptible: boolean },
   ): Promise<T> {
     if (interruptible) this.checkHalted();
-    if (this.options.clock.now() >= deadlineAt) {
-      throw this.deadlineError(step);
-    }
+    this.checkDeadline(step, deadlineAt);
 
     const pending = operation();
     let task: ScheduledTask | undefined;
@@ -349,6 +345,11 @@ export class TransitionLoop {
       task?.cancel();
       if (this.wake === wake) this.wake = undefined;
     }
+  }
+
+  /** Fails the transition once wall time reaches its shared deadline. */
+  private checkDeadline(step: TransitionStep, deadlineAt: TimestampMs): void {
+    if (this.options.clock.now() >= deadlineAt) throw this.deadlineError(step);
   }
 
   /** Classifies an expired dependency call as a worker-fatal transition failure. */
@@ -394,34 +395,6 @@ export class TransitionLoop {
 
   /** Converts a halt observed after any await into quiet unwinding. */
   private checkHalted(): void {
-    if (this.halted) throw new Halted("Channel worker stopped");
+    if (this.halted) throw new TransitionLoopHalted("Channel worker stopped");
   }
-}
-
-/** Keeps typed packaging failures and classifies unknown preparation errors. */
-function normalizePreparationError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "packaging_failed",
-    `Signal packaging could not prepare the next item for channel ${channelId}`,
-    { channelId },
-    { cause },
-  );
-}
-
-/** Keeps typed failures and classifies coordinator or provider errors. */
-function normalizeTransitionError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "transition_failed",
-    `Channel ${channelId} could not transition to its next playout item`,
-    { channelId },
-    { cause },
-  );
 }

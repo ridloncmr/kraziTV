@@ -1,5 +1,5 @@
 import type { ChannelAuthorizationResult } from "../channel-worker/contracts.js";
-import { SignalError } from "../errors.js";
+import { SignalError, toSignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ChannelStopReason } from "./contracts.js";
 
@@ -40,12 +40,11 @@ export function normalizeWorkerFailure(
   channelId: ChannelId,
   cause: unknown,
 ): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
+  return toSignalError(
+    cause,
     "packaging_failed",
     `Channel ${channelId} worker failed before publication`,
     { channelId },
-    cause === undefined ? undefined : { cause },
   );
 }
 
