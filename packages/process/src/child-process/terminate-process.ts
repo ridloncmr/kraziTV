@@ -1,6 +1,6 @@
 import type { ProcessTimerScheduler, SpawnedProcess } from "./contracts.js";
 
-export type TerminationOptions = {
+type TerminationOptions = {
   /** How long each signal gets to close the child before the next step. */
   graceMs: number;
   /** Defaults to Node's global timers. */
@@ -8,8 +8,7 @@ export type TerminationOptions = {
 };
 
 /** Whether closure was observed; when not, the last error a signal request threw. */
-export type TerminationResult =
-  { closed: true } | { closed: false; cause: unknown };
+type TerminationResult = { closed: true } | { closed: false; cause: unknown };
 
 const nodeTimers: ProcessTimerScheduler = {
   /** Wraps the global timer so fake timers installed by tests still apply. */

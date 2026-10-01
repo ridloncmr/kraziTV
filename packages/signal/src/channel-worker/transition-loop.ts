@@ -35,7 +35,7 @@ import {
 /** Stale fresh-selection commits in a row before the worker stops retrying. */
 const MAX_RECOVERY_ATTEMPTS = 3;
 
-export type TransitionLoopOptions = {
+type TransitionLoopOptions = {
   channelId: ChannelId;
   session: SignalSession;
   playoutProvider: PlayoutProvider;

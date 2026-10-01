@@ -4,7 +4,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { sendApiError } from "../../http/api-error.js";
 import type { ChannelRuntime } from "../contracts.js";
 
-export type RuntimeStop = {
+type RuntimeStop = {
   channelId: string;
   operation: "disable" | "delete";
   /** Whether the configuration change was saved before this stop ran. */

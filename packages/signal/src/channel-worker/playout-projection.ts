@@ -12,10 +12,7 @@ import type {
 import type { TimestampMs } from "../runtime/clock.js";
 import type { SignalPlayoutItem } from "../signal-packager/contracts.js";
 
-export type CurrentPlayout = Extract<
-  CurrentPlayoutResult,
-  { status: "current" }
->;
+type CurrentPlayout = Extract<CurrentPlayoutResult, { status: "current" }>;
 
 /** Converts one atomic current-state projection into route-safe failures. */
 export function requireCurrent(

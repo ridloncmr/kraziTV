@@ -7,7 +7,7 @@ import { resolveDatabasePath } from "../config/data-directory.js";
 import { migrateDatabase } from "./migrations/migrate-database.js";
 import type { DatabaseSchema } from "./schema/database-schema.js";
 
-export interface OpenDatabaseOptions {
+interface OpenDatabaseOptions {
   dataDirectory: string;
 }
 

@@ -1,4 +1,4 @@
-export interface ProbeConfig {
+interface ProbeConfig {
   ffprobePath: string;
   timeoutMs: number;
   /** Maximum ffprobe children alive at once across every scan in the process. */

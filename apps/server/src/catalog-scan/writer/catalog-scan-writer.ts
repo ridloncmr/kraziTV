@@ -11,7 +11,7 @@ import type { RecordSources } from "../../database/writes/record-sources.js";
 import type { CatalogCandidate } from "../contracts.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
-export interface CatalogGeneration {
+interface CatalogGeneration {
   rootId: string;
   /** Final scan timestamp: `lastSeenAt` for every item and the root's `lastScannedAt`. */
   scannedAt: number;
@@ -19,7 +19,7 @@ export interface CatalogGeneration {
   candidates: readonly CatalogCandidate[];
 }
 
-export type CommitGenerationResult =
+type CommitGenerationResult =
   | { kind: "committed"; missingCount: number }
   | { kind: "root_not_found" }
   | { kind: "root_disabled" }

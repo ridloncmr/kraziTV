@@ -20,7 +20,7 @@ export type WorkerOutcome =
     };
 
 /** Worker termination observed outside the serialized transition queue. */
-export type WorkerObservation = {
+type WorkerObservation = {
   terminated: boolean;
   failure?: unknown;
 };

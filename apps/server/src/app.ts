@@ -19,7 +19,7 @@ import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
-export type BuildServerOptions = FastifyServerOptions & {
+type BuildServerOptions = FastifyServerOptions & {
   corsOrigins?: string[];
   /** How long a channel disable, delete, or re-enable waits for its runtime stop. */
   channelStopTimeoutMs?: number | undefined;

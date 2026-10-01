@@ -19,12 +19,12 @@ import {
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import type { ScanResult } from "../contracts.js";
 
-export interface ScanOptions {
+interface ScanOptions {
   /** Aborts the scan, e.g. when the requesting client disconnects. */
   signal?: AbortSignal;
 }
 
-export interface CatalogScannerOptions {
+interface CatalogScannerOptions {
   roots: Pick<MediaRootRepository, "findById">;
   /** Must be the process-wide concurrency-limited prober. */
   prober: MediaProber;

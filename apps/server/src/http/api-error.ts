@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-export type ApiErrorCode =
+type ApiErrorCode =
   | "channel_not_found"
   | "channel_number_duplicate"
   | "channel_runtime_cleanup_failed"

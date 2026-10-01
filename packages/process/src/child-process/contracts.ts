@@ -23,7 +23,7 @@ export interface SpawnedProcess {
 }
 
 /** A pending one-shot timer that can be cancelled before it fires. */
-export interface ProcessTimer {
+interface ProcessTimer {
   cancel(): void;
 }
 
