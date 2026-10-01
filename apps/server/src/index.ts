@@ -10,10 +10,13 @@ import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js"
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { parseProbeConfig } from "./config/probe.js";
-import { isLoopbackHost, parseCorsOrigins } from "./config/network.js";
+import {
+  isLoopbackHost,
+  parseCorsOrigins,
+  parseListenConfig,
+} from "./config/network.js";
 
-const port = Number(process.env.PORT ?? 3000);
-const host = process.env.HOST ?? "127.0.0.1";
+const { host, port } = parseListenConfig(process.env);
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
 const dataDirectory = resolveDataDirectory(
   process.env.KRAZITV_DATA_DIR,
