@@ -9,10 +9,8 @@ import {
   type MediaProber,
 } from "@krazitv/media";
 
-import type {
-  MediaRoot,
-  MediaRootRepository,
-} from "../../media-roots/media-root-repository.js";
+import type { MediaRoot } from "../../media-roots/contracts.js";
+import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import {
   createCatalogCandidate,
   validateCatalogCandidate,

@@ -2,11 +2,8 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { sendApiError } from "../http/api-error.js";
-import type {
-  MediaCollection,
-  MediaCollectionMember,
-  MediaCollectionRepository,
-} from "./media-collection-repository.js";
+import type { MediaCollection, MediaCollectionMember } from "./contracts.js";
+import type { MediaCollectionRepository } from "./media-collection-repository.js";
 
 const name = z.string().trim().min(1, "name must not be empty");
 

@@ -2,10 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { sendApiError } from "../http/api-error.js";
-import type {
-  MediaItem,
-  MediaItemRepository,
-} from "./media-item-repository.js";
+import type { MediaItem } from "./contracts.js";
+import type { MediaItemRepository } from "./media-item-repository.js";
 
 const idParams = z.object({ id: z.string() });
 

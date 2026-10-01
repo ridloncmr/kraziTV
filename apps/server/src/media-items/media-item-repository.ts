@@ -1,25 +1,8 @@
 import type { Kysely, Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type {
-  MediaItemStatus,
-  MediaItemTable,
-} from "../database/schema/media-item-table.js";
-
-export interface MediaItem {
-  id: string;
-  mediaRootId: string;
-  path: string;
-  title: string;
-  durationMs: number | null;
-  hasAudio: boolean | null;
-  status: MediaItemStatus;
-  probeError: string | null;
-  createdAt: number;
-  updatedAt: number;
-  lastSeenAt: number;
-  lastProbedAt: number | null;
-}
+import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import type { MediaItem } from "./contracts.js";
 
 /** Reads committed catalog items; scans remain the only writer. */
 export class MediaItemRepository {

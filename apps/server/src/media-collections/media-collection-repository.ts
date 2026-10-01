@@ -4,47 +4,19 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
-import type { MediaItemStatus } from "../database/schema/media-item-table.js";
+import type {
+  CreateMediaCollectionResult,
+  MediaCollection,
+  MediaCollectionMember,
+  MediaCollectionRepositoryOptions,
+  ReplaceMediaCollectionMembersResult,
+} from "./contracts.js";
 
 // Keeps every statement well under SQLite's 32,766 bound-parameter limit.
 const CHUNK_SIZE = 1_000;
 
 // Fixed locale so list order never depends on the host's locale settings.
 const NAME_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
-
-export interface MediaCollection {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-/** One membership with the item summary needed to judge whether it is schedulable. */
-export interface MediaCollectionMember {
-  position: number;
-  mediaItemId: string;
-  title: string;
-  status: MediaItemStatus;
-  durationMs: number | null;
-}
-
-type UnknownMediaItemsResult = {
-  kind: "unknown_media_items";
-  mediaItemIds: string[];
-};
-
-export type CreateMediaCollectionResult =
-  { kind: "created"; collection: MediaCollection } | UnknownMediaItemsResult;
-
-export type ReplaceMediaCollectionMembersResult =
-  | { kind: "replaced"; members: MediaCollectionMember[] }
-  | { kind: "not_found" }
-  | UnknownMediaItemsResult;
-
-export interface MediaCollectionRepositoryOptions {
-  createId?: () => string;
-  now?: () => number;
-}
 
 type Executor = Kysely<DatabaseSchema> | Transaction<DatabaseSchema>;
 

@@ -3,10 +3,8 @@ import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { z } from "zod";
 
 import { sendApiError } from "../http/api-error.js";
-import type {
-  MediaRoot,
-  MediaRootRepository,
-} from "./media-root-repository.js";
+import type { MediaRoot } from "./contracts.js";
+import type { MediaRootRepository } from "./media-root-repository.js";
 
 const createBody = z.strictObject({
   path: z.string(),

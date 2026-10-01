@@ -5,23 +5,11 @@ import type { Kysely, Selectable } from "kysely";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { NormalizedMediaPath } from "@krazitv/media";
-
-export interface MediaRoot {
-  id: string;
-  path: string;
-  enabled: boolean;
-  createdAt: number;
-  updatedAt: number;
-  lastScannedAt: number | null;
-}
-
-export type CreateMediaRootResult =
-  { kind: "created"; root: MediaRoot } | { kind: "duplicate" };
-
-export interface MediaRootRepositoryOptions {
-  createId?: () => string;
-  now?: () => number;
-}
+import type {
+  CreateMediaRootResult,
+  MediaRoot,
+  MediaRootRepositoryOptions,
+} from "./contracts.js";
 
 /** Persists media roots and translates SQLite rows into typed domain records. */
 export class MediaRootRepository {
