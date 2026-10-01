@@ -867,12 +867,11 @@ Coordinate persisted channel mutations with reliable runtime cleanup.
 
 **Scope**
 
-- After disable/delete commits, invoke and await `stopChannel()` before
-  returning success.
-- Map cleanup failure to retryable `channel_runtime_cleanup_failed` with
-  `persistenceCommitted: true`.
-- Retry cleanup for already-disabled or already-deleted channels.
-- Prevent re-enable from committing until retained prior cleanup succeeds.
+- Replace the no-op channel runtime from plan 0003 CH-005 with the composed
+  `ChannelStreamManager`. CH-005 already implements and tests the route
+  coordination (commit-then-stop, the retryable
+  `channel_runtime_cleanup_failed` response, idempotent retries, and re-enable
+  gating) against the contract; this ticket verifies it with real workers.
 - On server shutdown, reject new subscriptions, settle manager resources, then
   finish persistence/server teardown in the documented order.
 
@@ -882,8 +881,7 @@ Coordinate persisted channel mutations with reliable runtime cleanup.
 
 **Blocking dependencies**
 
-- SIG-007, channel mutation endpoints from spec 0003, and SIG-014 composition
-  wiring.
+- SIG-007, plan 0003 CH-005, and SIG-014 composition wiring.
 
 **Implementation notes**
 
@@ -902,7 +900,7 @@ Coordinate persisted channel mutations with reliable runtime cleanup.
 
 **Docs impact**
 
-- Document the operational partial-success response in the channel API spec.
+- None. Spec 0003 documents the operational partial-success response.
 
 ### SIG-016: Close the full spec 0006 acceptance loop
 

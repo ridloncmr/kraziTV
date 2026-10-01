@@ -4,7 +4,8 @@ Feature folders group a product goal with the vertical-slice specs needed to del
 
 ## Current Features
 
-| Feature             | Status          | Description                                             |
-| ------------------- | --------------- | ------------------------------------------------------- |
-| `000-architecture/` | Accepted        | System architecture, responsibilities, and request flow |
-| `001-mvp/`          | In Develeopment | First usable Plex-focused kraziTV release               |
+| Feature             | Status          | Description                                                        |
+| ------------------- | --------------- | ------------------------------------------------------------------ |
+| `000-architecture/` | Accepted        | System architecture, responsibilities, and request flow            |
+| `001-mvp/`          | In Develeopment | First usable Plex-focused kraziTV release                          |
+| `002-programming/`  | Planned         | TV programming scheduler built on programming blocks and kraziPlan |
