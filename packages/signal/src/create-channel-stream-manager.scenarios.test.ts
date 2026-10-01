@@ -20,6 +20,7 @@ import {
   type FakeSignalSession,
 } from "./testing/fake-signal-packager.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
+import { expectSignalError } from "./testing/expect-signal-error.js";
 
 // Package-level scenarios: the real manager, worker, broadcaster, and
 // transition loop run together. Only playout, packaging, coordination, and
@@ -213,19 +214,6 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
 };
 
 /** Asserts a typed runtime failure and returns it for further checks. */
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  const error = await promise.then(
-    () => undefined,
-    (reason: unknown) => reason,
-  );
-  expect(error).toBeInstanceOf(SignalError);
-  expect(error).toMatchObject({ code });
-  return error as SignalError;
-};
-
 describe("createChannelStreamManager scenarios", () => {
   describe("startup and fan-out", () => {
     it.each([

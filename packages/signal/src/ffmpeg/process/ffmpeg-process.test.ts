@@ -1,51 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { ProcessSpawner } from "@krazitv/process";
 
-import { SignalError } from "../../errors.js";
-import type { SignalLogger } from "../../runtime/signal-logger.js";
 import { FakeClock } from "../../testing/fake-clock.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegProcess } from "./ffmpeg-process.js";
-
-class RecordingLogger implements SignalLogger {
-  readonly errors: Array<{
-    message: string;
-    context?: Readonly<Record<string, unknown>>;
-  }> = [];
-
-  /** Ignores debug output that is irrelevant to lifecycle assertions. */
-  debug(): void {}
-
-  /** Ignores informational output that is irrelevant to lifecycle assertions. */
-  info(): void {}
-
-  /** Ignores warnings that are irrelevant to lifecycle assertions. */
-  warn(): void {}
-
-  /** Retains normalized failure diagnostics for assertions. */
-  error(message: string, context?: Readonly<Record<string, unknown>>): void {
-    this.errors.push({ message, context });
-  }
-}
+import { expectSignalError } from "../../testing/expect-signal-error.js";
+import { RecordingLogger } from "../../testing/recording-logger.js";
 
 const flushPromises = async (): Promise<void> => {
   await Promise.resolve();
   await Promise.resolve();
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-
-  throw new Error(`Expected ${code}`);
 };
 
 const createHarness = (

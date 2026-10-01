@@ -1,39 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { SignalError } from "../../errors.js";
-import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 import { FakeClock } from "../../testing/fake-clock.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
-import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
-
-class RecordingLogger implements SignalLogger {
-  readonly infos: Array<{
-    message: string;
-    context?: Readonly<Record<string, unknown>>;
-  }> = [];
-  readonly errors: Array<{
-    message: string;
-    context?: Readonly<Record<string, unknown>>;
-  }> = [];
-
-  /** Ignores debug output outside these lifecycle assertions. */
-  debug(): void {}
-
-  /** Retains lifecycle measurements for stable event assertions. */
-  info(message: string, context?: Readonly<Record<string, unknown>>): void {
-    this.infos.push({ message, context });
-  }
-
-  /** Ignores warning output outside these lifecycle assertions. */
-  warn(): void {}
-
-  /** Retains safe normalized failures for assertions. */
-  error(message: string, context?: Readonly<Record<string, unknown>>): void {
-    this.errors.push({ message, context });
-  }
-}
+import type { OutputReadinessInspector } from "../contracts.js";
+import { expectSignalError } from "../../testing/expect-signal-error.js";
+import { RecordingLogger } from "../../testing/recording-logger.js";
 
 class MarkerInspector implements OutputReadinessInspector {
   /** Treats an explicit test marker as usable media output. */
@@ -70,21 +43,6 @@ const createHarness = () => {
   });
 
   return { child, spawner, timers, logger, packager };
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-
-  throw new Error(`Expected ${code}`);
 };
 
 const flushPromises = async (): Promise<void> => {

@@ -14,6 +14,7 @@ import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
 import { WorkerCreationCleanupError } from "./channel-worker-errors.js";
+import { expectSignalError } from "../testing/expect-signal-error.js";
 
 const currentItem = (
   evaluatedAt: number,
@@ -124,20 +125,6 @@ const workerOptions = (
 
 const settlePromises = async (): Promise<void> => {
   await new Promise<void>((resolve) => setImmediate(resolve));
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-  throw new Error(`Expected ${code}`);
 };
 
 describe("ChannelWorker startup", () => {

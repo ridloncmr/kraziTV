@@ -17,6 +17,7 @@ import { InMemoryTransitionCoordinator } from "../testing/in-memory-transition-c
 import type { TimerScheduler } from "../runtime/clock.js";
 import { ChannelWorker, type ChannelWorkerOptions } from "./channel-worker.js";
 import type { TransitionCoordinator } from "./contracts.js";
+import { expectSignalError } from "../testing/expect-signal-error.js";
 
 const CHANNEL = "channel-1";
 const PREPARE_LEAD_MS = 2_000;
@@ -72,20 +73,6 @@ const settlePromises = async (): Promise<void> => {
 const advanceTo = async (clock: FakeClock, atMs: number): Promise<void> => {
   clock.advanceTo(atMs);
   await settlePromises();
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-  throw new Error(`Expected ${code}`);
 };
 
 type Harness = {

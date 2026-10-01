@@ -9,7 +9,7 @@ import type {
 import type { ScheduledTask, TimerScheduler } from "../../runtime/clock.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
-import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { OutputReadinessInspector } from "../contracts.js";
 import type { FfmpegProcess } from "../process/ffmpeg-process.js";
 import {
   FfmpegSignalPreparation,

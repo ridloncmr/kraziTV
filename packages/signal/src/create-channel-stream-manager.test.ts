@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ChannelAuthorization } from "./channel-worker/contracts.js";
 import type { ChannelStreamManagerContract } from "./channel-stream-manager/contracts.js";
 import { createChannelStreamManager } from "./create-channel-stream-manager.js";
-import type { OutputReadinessInspector } from "./ffmpeg/mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { OutputReadinessInspector } from "./ffmpeg/contracts.js";
 import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
 import type { CurrentPlayoutResult } from "./playout/contracts.js";
 import type { SignalLogger } from "./runtime/signal-logger.js";

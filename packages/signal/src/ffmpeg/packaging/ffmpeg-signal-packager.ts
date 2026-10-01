@@ -3,10 +3,8 @@ import type { ProcessSpawner } from "@krazitv/process";
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
-import {
-  MpegTsReadinessInspector,
-  type OutputReadinessInspector,
-} from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { OutputReadinessInspector } from "../contracts.js";
+import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { assertPositiveSafeInteger } from "../../options/safe-integer-option.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
@@ -16,7 +14,7 @@ import type {
   SignalSession,
 } from "../../signal-packager/contracts.js";
 
-export type FfmpegSignalPackagerDependencies = {
+type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
