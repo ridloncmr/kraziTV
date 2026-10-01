@@ -21,11 +21,13 @@ Design for simple, deep modules: clear behavior behind a small, stable interface
 - Avoid shallow wrappers that only rename another API.
 - Avoid cross-package imports that blur architecture boundaries.
 - Prefer deterministic, testable core logic over runtime cleverness.
-- Prefer one primary concrete class per file. Split independent responsibilities
-  instead of accumulating helper classes in a muddied module.
+- Put one primary thing in each file: a class, a table, a migration, a route
+  group. Split independent responsibilities instead of accumulating helpers in
+  a muddied module.
 - Place files by the source layout rules in `AGENTS.md`: entry points at the
-  `src/` root, one folder per domain, cross-domain capabilities in their own
-  top-level folder, and every test double in `src/testing/`.
+  `src/` root, one folder per domain, capability subfolders once a domain meets
+  the grouping rule, cross-domain capabilities in their own top-level folder,
+  and every test double in `src/testing/`.
 - Keep exports minimal and intentional. Do not expose internals for convenience.
 - Give every method a concise why-comment about its purpose or invariant.
 - Preserve known composition seams, such as chaining metadata enrichment after
