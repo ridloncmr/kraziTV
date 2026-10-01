@@ -13,9 +13,9 @@ import type { MediaItemRepository } from "./media-items/media-item-repository.js
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
-import type { ChannelRepository } from "./channels/channel-repository.js";
+import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime } from "./channels/contracts.js";
-import { registerChannelRoutes } from "./channels/channel-routes.js";
+import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 

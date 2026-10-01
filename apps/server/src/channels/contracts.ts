@@ -30,11 +30,6 @@ export type UpdateChannelResult =
   | { kind: "not_found" }
   | DuplicateNumberResult;
 
-export interface ChannelRepositoryOptions {
-  createId?: () => string;
-  now?: () => number;
-}
-
 /**
  * The slice of the channel stream manager the channel routes need: an
  * administrative stop that settles a channel's runtime after disable or delete.

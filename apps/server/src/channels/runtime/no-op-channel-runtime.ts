@@ -1,4 +1,4 @@
-import type { ChannelRuntime } from "./contracts.js";
+import type { ChannelRuntime } from "../contracts.js";
 
 /**
  * The production channel runtime until the server composes a real channel

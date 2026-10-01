@@ -3,12 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SignalError } from "@krazitv/signal";
 
-import { RecordingChannelRuntime } from "../testing/recording-channel-runtime.js";
+import { RecordingChannelRuntime } from "../../testing/recording-channel-runtime.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
-} from "../testing/test-environment.js";
-import { ChannelRepository } from "./channel-repository.js";
+} from "../../testing/test-environment.js";
+import { ChannelRepository } from "../repository/channel-repository.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 
 type Server = FastifyInstance;
 
@@ -17,7 +18,6 @@ afterEach(cleanUpTestEnvironment);
 // Boots the real composition with deterministic IDs, a recording runtime, and
 // error logs captured as parsed JSON lines.
 async function startServer(options: { channelStopTimeoutMs?: number } = {}) {
-  let nextId = 0;
   const runtime = new RecordingChannelRuntime();
   const logs: Record<string, unknown>[] = [];
   const { server, dependencies } = await startTestServer({
@@ -31,7 +31,7 @@ async function startServer(options: { channelStopTimeoutMs?: number } = {}) {
     },
     overrides: (db) => ({
       channels: new ChannelRepository(db, {
-        createId: () => `channel-${String(++nextId).padStart(3, "0")}`,
+        createId: sequentialIds("channel"),
       }),
       channelRuntime: runtime,
     }),

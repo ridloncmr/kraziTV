@@ -1,13 +1,14 @@
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
   startTestServer,
-} from "../testing/test-environment.js";
-import { ChannelRepository } from "./channel-repository.js";
+} from "../../testing/test-environment.js";
+import { ChannelRepository } from "../repository/channel-repository.js";
+import { scriptedClock, sequentialIds } from "../../testing/record-sources.js";
 
 type Server = FastifyInstance;
 
@@ -19,14 +20,13 @@ afterEach(cleanUpTestEnvironment);
 async function startServer(
   options: { times?: number[]; dataDirectory?: string } = {},
 ): Promise<Server> {
-  let nextId = 0;
-  const times = [...(options.times ?? [FIXTURE_TIME])];
+  const now = scriptedClock(options.times ?? [FIXTURE_TIME]);
   const { server } = await startTestServer({
     dataDirectory: options.dataDirectory,
     overrides: (db) => ({
       channels: new ChannelRepository(db, {
-        createId: () => `channel-${String(++nextId).padStart(3, "0")}`,
-        now: () => (times.length > 1 ? times.shift()! : times[0]),
+        createId: sequentialIds("channel"),
+        now,
       }),
     }),
   });

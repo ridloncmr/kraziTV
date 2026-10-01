@@ -1,12 +1,14 @@
 import { parseChannelNumber, type ChannelNumber } from "@krazitv/krazi-brain";
-import { SignalError } from "@krazitv/signal";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendApiError } from "../http/api-error.js";
+import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
+import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { idParams, nameField } from "../../http/request-schemas.js";
 import { ChannelLifecycleLock } from "./channel-lifecycle-lock.js";
-import type { ChannelRepository } from "./channel-repository.js";
-import type { ChannelRuntime, StoredChannel } from "./contracts.js";
+import type { ChannelRepository } from "../repository/channel-repository.js";
+import { stopRuntime } from "./channel-runtime-stop.js";
+import type { ChannelRuntime, StoredChannel } from "../contracts.js";
 
 // Rejects rather than normalizes, so clients learn the one canonical spelling.
 const channelNumber = z.string().transform((input, context) => {
@@ -21,25 +23,21 @@ const channelNumber = z.string().transform((input, context) => {
   return parsed;
 });
 
-const name = z.string().trim().min(1, "name must not be empty");
-
 const createBody = z.strictObject({
   number: channelNumber,
-  name,
+  name: nameField,
   enabled: z.boolean().optional(),
 });
 
 const updateBody = z
   .strictObject({
     number: channelNumber.optional(),
-    name: name.optional(),
+    name: nameField.optional(),
     enabled: z.boolean().optional(),
   })
   .refine((changes) => Object.keys(changes).length > 0, {
     message: "body must change at least one of number, name, or enabled",
   });
-
-const idParams = z.object({ id: z.string() });
 
 // Well above the manager's FFmpeg termination grace plus one escalation, so
 // only a stop that truly hangs is cut off.
@@ -174,112 +172,6 @@ export function registerChannelRoutes(
   });
 }
 
-type RuntimeStop = {
-  channelId: string;
-  operation: "disable" | "delete";
-  /** Whether the configuration change was saved before this stop ran. */
-  persistenceCommitted: boolean;
-};
-
-/**
- * Awaits the runtime stop an administrative change requires and reports
- * whether it settled. A failure, or a stop still running at the deadline, is
- * logged and answered with the retryable cleanup error, so the route must end
- * without sending; persistence is never rolled back. The deadline frees the
- * channel's lifecycle lock; a late success is ignored, so a re-enable still
- * commits only after a stop that settled within its own request. Returns a
- * boolean because FastifyReply is thenable and would be swallowed by await.
- */
-async function stopRuntime(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  runtime: ChannelRuntime,
-  timeoutMs: number,
-  stop: RuntimeStop,
-): Promise<boolean> {
-  const reason = stop.operation === "disable" ? "disabled" : "deleted";
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `Channel ${stop.channelId} runtime stop did not settle within ${timeoutMs} ms`,
-          ),
-        ),
-      timeoutMs,
-    );
-  });
-  const stopping = runtime.stopChannel(stop.channelId, reason);
-  // A stop that fails after the deadline has already been answered.
-  stopping.catch(() => undefined);
-  try {
-    await Promise.race([stopping, deadline]);
-    return true;
-  } catch (error) {
-    request.log.error(
-      { err: error, ...stop, stopReason: reason, ...describeFailure(error) },
-      "Channel runtime cleanup failed",
-    );
-    sendApiError(
-      reply,
-      503,
-      "channel_runtime_cleanup_failed",
-      cleanupFailedMessage(stop),
-      { ...stop, retryable: true },
-    );
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Flattens a runtime failure's cause chain into loggable entries. The default
- * error serializer keeps only cause messages, but operators need each cause's
- * typed details, such as the cleanup phase and FFmpeg process information.
- */
-function describeFailure(error: unknown): {
-  cleanupPhase: unknown;
-  causes: Array<{ code?: string; message: string; details?: unknown }>;
-} {
-  const causes = [];
-  let cleanupPhase: unknown;
-  // Bounded so a cyclic cause chain cannot hang the error path.
-  for (
-    let current: unknown = error;
-    current instanceof Error && causes.length < 8;
-    current = current.cause
-  ) {
-    if (current instanceof SignalError) {
-      cleanupPhase ??= current.details.phase;
-      causes.push({
-        code: current.code,
-        message: current.message,
-        details: current.details,
-      });
-    } else {
-      causes.push({ message: current.message });
-    }
-  }
-  return { cleanupPhase, causes };
-}
-
-// Tells the client whether the change already saved, so a retry is understood
-// as finishing cleanup rather than repeating or reversing the change.
-function cleanupFailedMessage(stop: RuntimeStop): string {
-  if (!stop.persistenceCommitted) {
-    return `Channel ${stop.channelId} stays disabled because its earlier runtime cleanup did not finish; retry to finish cleanup before enabling`;
-  }
-  const change = stop.operation === "disable" ? "disabled" : "deleted";
-  return `Channel ${stop.channelId} was ${change}, but its runtime cleanup did not finish; retry the ${stop.operation} to finish cleanup`;
-}
-
-// Every body failure shares one code; the message carries Zod's field detail.
-function sendInvalidRequest(reply: FastifyReply, error: z.ZodError) {
-  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
-}
-
 // One 404 shape for every channel route.
 function sendChannelNotFound(reply: FastifyReply, id: string) {
   return sendApiError(
@@ -307,7 +199,7 @@ function toApiChannel(channel: StoredChannel) {
     number: channel.number,
     name: channel.name,
     enabled: channel.enabled,
-    createdAt: new Date(channel.createdAt).toISOString(),
-    updatedAt: new Date(channel.updatedAt).toISOString(),
+    createdAt: toApiTimestamp(channel.createdAt),
+    updatedAt: toApiTimestamp(channel.updatedAt),
   };
 }

@@ -9,17 +9,18 @@ import type { Kysely, Selectable } from "kysely";
 import {
   fromSqliteBoolean,
   toSqliteBoolean,
-} from "../database/columns/sqlite-boolean.js";
-import type { ChannelTable } from "../database/schema/channel-table.js";
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+} from "../../database/columns/sqlite-boolean.js";
+import type { ChannelTable } from "../../database/schema/channel-table.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { RecordSources } from "../../database/writes/record-sources.js";
+import { isUniqueViolation } from "../../database/writes/unique-violation.js";
 import type {
   ChannelChanges,
-  ChannelRepositoryOptions,
   CreateChannelInput,
   CreateChannelResult,
   StoredChannel,
   UpdateChannelResult,
-} from "./contracts.js";
+} from "../contracts.js";
 
 /**
  * Persists channel identity. The unique number constraint is the only duplicate
@@ -31,10 +32,7 @@ export class ChannelRepository {
   readonly #now: () => number;
 
   // Clock and ID sources are injectable so tests can assert exact timestamps and IDs.
-  constructor(
-    db: Kysely<DatabaseSchema>,
-    options: ChannelRepositoryOptions = {},
-  ) {
+  constructor(db: Kysely<DatabaseSchema>, options: RecordSources = {}) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;
     this.#now = options.now ?? Date.now;
@@ -58,7 +56,7 @@ export class ChannelRepository {
         .executeTakeFirstOrThrow();
       return { kind: "created", channel: toStoredChannel(row) };
     } catch (error) {
-      if (isDuplicateNumber(error)) {
+      if (isUniqueViolation(error, "channels.number")) {
         return { kind: "duplicate_number", number: input.number };
       }
       throw error;
@@ -131,7 +129,10 @@ export class ChannelRepository {
       });
     } catch (error) {
       // Only a number change can collide, so the contested number is always known here.
-      if (isDuplicateNumber(error) && changes.number !== undefined) {
+      if (
+        isUniqueViolation(error, "channels.number") &&
+        changes.number !== undefined
+      ) {
         return { kind: "duplicate_number", number: changes.number };
       }
       throw error;
@@ -164,14 +165,4 @@ function toStoredChannel(row: Selectable<ChannelTable>): StoredChannel {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-// Distinguishes number collisions from every other failure, which must propagate.
-function isDuplicateNumber(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    error.code === "SQLITE_CONSTRAINT_UNIQUE" &&
-    error.message.includes("channels.number")
-  );
 }

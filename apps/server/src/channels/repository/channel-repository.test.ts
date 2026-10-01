@@ -2,14 +2,15 @@ import { parseChannelNumber, type ChannelNumber } from "@krazitv/krazi-brain";
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { KraziDatabase } from "../database/database.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import type { KraziDatabase } from "../../database/database.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
   openTestDatabase,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import { ChannelRepository } from "./channel-repository.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -23,9 +24,8 @@ function channelNumber(input: string): ChannelNumber {
 // Creates a repository with a controllable clock and sequential IDs.
 function createRepository(database: KraziDatabase) {
   const clock = { now: FIXTURE_TIME };
-  let nextId = 0;
   const repository = new ChannelRepository(database.db, {
-    createId: () => `channel-${String(++nextId).padStart(3, "0")}`,
+    createId: sequentialIds("channel"),
     now: () => clock.now,
   });
   return { repository, clock };

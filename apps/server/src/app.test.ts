@@ -9,7 +9,7 @@ import type { MediaRootRepository } from "./media-roots/media-root-repository.js
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
-import type { ChannelRepository } from "./channels/channel-repository.js";
+import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
