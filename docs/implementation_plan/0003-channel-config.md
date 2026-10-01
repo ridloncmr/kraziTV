@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: In Development; CH-001 through CH-003 complete, CH-004 next
+Status: In Development; CH-001 through CH-004 complete, CH-005 next
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -285,6 +285,15 @@ Give every layer one definition of a valid channel number and one channel type.
 - None.
 
 ### CH-004: Persist channels and expose channel CRUD
+
+**Status**
+
+Complete on 2026-10-01. Migration `003_channels` (canonical numbers enforced
+with `GLOB` checks) and `ChannelRepository` back all five `/channels` routes;
+`POST` defaults `enabled` to `true`, an empty `PATCH` body is rejected, and
+an update that changes no value leaves `updatedAt` alone. Unique numbers make
+the planned ID tie-breaker in list order unnecessary, so it was dropped.
+Disable and delete change persistence only until CH-005 adds the runtime stop.
 
 **Goal**
 

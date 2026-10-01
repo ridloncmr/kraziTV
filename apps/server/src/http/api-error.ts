@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 
 export type ApiErrorCode =
+  | "channel_not_found"
+  | "channel_number_duplicate"
   | "invalid_request"
   | "internal_error"
   | "media_collection_not_found"

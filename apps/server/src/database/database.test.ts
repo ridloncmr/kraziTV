@@ -41,6 +41,7 @@ describe("openDatabase", () => {
 
     expect(tables.rows.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
+        "channels",
         "kysely_migration",
         "kysely_migration_lock",
         "media_collection_items",
@@ -61,7 +62,7 @@ describe("openDatabase", () => {
     const migrations = await sql<{ count: number }>`
       select count(*) as count from kysely_migration
     `.execute(database.db);
-    expect(migrations.rows[0]?.count).toBe(2);
+    expect(migrations.rows[0]?.count).toBe(3);
   });
 
   it("reproduces the same logical schema in independent clean environments", async () => {
@@ -77,6 +78,7 @@ describe("openDatabase", () => {
         from sqlite_master
         where type = 'table'
           and name in (
+            'channels',
             'media_collection_items',
             'media_collections',
             'media_items',

@@ -1,3 +1,4 @@
+import type { ChannelTable } from "./channel-table.js";
 import type { MediaCollectionItemTable } from "./media-collection-item-table.js";
 import type { MediaCollectionTable } from "./media-collection-table.js";
 import type { MediaItemTable } from "./media-item-table.js";
@@ -9,4 +10,5 @@ export interface DatabaseSchema {
   media_items: MediaItemTable;
   media_collections: MediaCollectionTable;
   media_collection_items: MediaCollectionItemTable;
+  channels: ChannelTable;
 }

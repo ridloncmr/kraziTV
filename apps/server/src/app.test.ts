@@ -9,6 +9,7 @@ import type { MediaRootRepository } from "./media-roots/media-root-repository.js
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import type { ChannelRepository } from "./channels/channel-repository.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -18,13 +19,14 @@ function createDependencies(
     shutdown: async () => undefined,
   },
 ): ServerDependencies {
-  // These tests never reach media-catalog routes, so unused stand-ins are enough.
+  // These tests never reach catalog or channel routes, so unused stand-ins are enough.
   return {
     database,
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,
     mediaCollections: {} as MediaCollectionRepository,
+    channels: {} as ChannelRepository,
   };
 }
 

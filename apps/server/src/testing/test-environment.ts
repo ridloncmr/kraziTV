@@ -10,6 +10,7 @@ import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { openDatabase, type KraziDatabase } from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { ChannelRepository } from "../channels/channel-repository.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -75,6 +76,7 @@ export async function startTestServer(
     }),
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
+    channels: new ChannelRepository(database.db),
   };
   const dependencies = {
     ...defaults,
