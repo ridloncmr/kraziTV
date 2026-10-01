@@ -7,6 +7,7 @@ import {
   MpegTsReadinessInspector,
   type OutputReadinessInspector,
 } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import { assertPositiveSafeInteger } from "../../options/safe-integer-option.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type {
@@ -35,14 +36,10 @@ export class FfmpegSignalPackager implements SignalPackager {
   constructor(private readonly dependencies: FfmpegSignalPackagerDependencies) {
     this.itemReadinessTimeoutMs =
       dependencies.itemReadinessTimeoutMs ?? DEFAULT_ITEM_READINESS_TIMEOUT_MS;
-    if (
-      !Number.isSafeInteger(this.itemReadinessTimeoutMs) ||
-      this.itemReadinessTimeoutMs <= 0
-    ) {
-      throw new RangeError(
-        "itemReadinessTimeoutMs must be a positive safe integer",
-      );
-    }
+    assertPositiveSafeInteger(
+      this.itemReadinessTimeoutMs,
+      "itemReadinessTimeoutMs",
+    );
   }
 
   /** Validates and starts one item synchronously so output can be drained at once. */

@@ -1,6 +1,16 @@
+/** Whether a value is a positive integer count, such as a byte or duration limit. */
+export function isPositiveSafeInteger(value: number): boolean {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
+/** Whether a value is a zero-or-greater integer, such as a delay or offset. */
+export function isNonNegativeSafeInteger(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
 /** Rejects a byte or duration limit that cannot be a positive integer count. */
 export function assertPositiveSafeInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
+  if (!isPositiveSafeInteger(value)) {
     throw new RangeError(`${name} must be a positive safe integer`);
   }
 }
@@ -10,7 +20,7 @@ export function assertNonNegativeSafeInteger(
   value: number,
   name: string,
 ): void {
-  if (!Number.isSafeInteger(value) || value < 0) {
+  if (!isNonNegativeSafeInteger(value)) {
     throw new RangeError(`${name} must be a non-negative safe integer`);
   }
 }

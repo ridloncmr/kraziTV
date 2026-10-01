@@ -1,6 +1,9 @@
 import type { Readable } from "node:stream";
 
-import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
+import {
+  assertPositiveSafeInteger,
+  isNonNegativeSafeInteger,
+} from "../options/safe-integer-option.js";
 import { ChannelBroadcastSubscription } from "./channel-broadcast-subscription.js";
 
 type ChannelBroadcasterOptions = {
@@ -123,11 +126,7 @@ export class ChannelBroadcaster {
     const retained = Buffer.concat(this.retainedChunks, this.retainedBytes);
     const offset = this.options.findJoinPoint(retained);
     if (offset === undefined) return undefined;
-    if (
-      !Number.isSafeInteger(offset) ||
-      offset < 0 ||
-      offset > retained.byteLength
-    ) {
+    if (!isNonNegativeSafeInteger(offset) || offset > retained.byteLength) {
       throw new RangeError(
         "findJoinPoint returned an offset outside the retained byte window",
       );
