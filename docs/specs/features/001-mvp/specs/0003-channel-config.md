@@ -2,13 +2,19 @@
 
 Status: Accepted
 
-This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, selecting a media collection as channel input, and storing enough configuration for later schedule generation.
+This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, and managing the channel lifecycle, including administrative runtime shutdown.
+
+A channel is a broadcast identity only. What a channel plays, and how, lives in
+its programming blocks, which spec 0004 defines
+([ADR 0009](../../../../adrs/0009-programming-blocks.md)).
 
 ## Problem
 
 kraziTV needs user-defined channels before it can generate schedules, playout timelines, guide data, or provider-facing channel lists. A channel is the viewer-facing broadcast identity, but its configuration must stay provider-neutral so Plex, Jellyfin, and future adapters can expose the same channel without changing core scheduling rules.
 
-The MVP needs channel configuration that is useful enough to drive basic scheduling while avoiding premature support for advanced programming blocks, commercials, seasonal rules, or provider-specific options.
+Programming blocks also need media collections to draw from. The MVP needs
+explicit, ordered collections without premature support for automatic
+collections, commercials, seasonal rules, or provider-specific options.
 
 ## Goals
 
@@ -17,14 +23,14 @@ The MVP needs channel configuration that is useful enough to drive basic schedul
 - Let users create, list, update, and delete media collections backed by explicit media item membership.
 - Assign each channel a stable internal identifier.
 - Require a channel number and display name.
-- Allow a channel to select a media collection as its programming source.
-- Support chronological and random playback modes.
-- Persist channel configuration in SQLite.
+- Persist channel and media collection configuration in SQLite.
 - Keep channel configuration provider-neutral.
-- Provide enough channel data for later schedule generation, playout timeline generation, and Plex exposure.
+- Provide enough channel data for later programming blocks, schedule generation, playout timeline generation, and Plex exposure.
 
 ## Non-Goals
 
+- Do not define programming blocks, playback modes, or playback progress; spec
+  0004 owns them.
 - Do not generate schedules.
 - Do not generate playout timelines.
 - Do not stream media.
@@ -41,20 +47,21 @@ A user can create a channel with:
 - Channel number
 - Channel name
 - Enabled state
-- Playback mode
-- Media collection selection
 
 Example channel:
 
 ```text
 Channel 69
 Name: Krazi Comedy
-Playback mode: Chronological
-Collection: Comedy Shows
 Enabled: true
 ```
 
-The user can list configured channels and see whether each channel is enabled, what collection it uses, and what playback mode it will use when schedules are generated.
+The user can list configured channels and see each channel's number, name, and
+enabled state. The channel's programming is configured separately as a
+programming block (spec 0004).
+
+A user can create a media collection, such as "The Office" or "Halloween
+Movies", from an explicit ordered list of cataloged media items.
 
 Disabling a channel keeps its configuration but excludes it from future guide,
 provider, and playout behavior. If the channel has an active or idle-grace
@@ -62,8 +69,8 @@ stream worker, disabling it is also an operational shutdown: new subscriptions
 are rejected, current subscriber streams are closed, pending worker creation is
 cancelled, and the worker is stopped without waiting for idle grace.
 
-Deleting a channel permanently removes its configuration, schedule entries, and
-schedule state. It applies the same immediate runtime shutdown policy as
+Deleting a channel permanently removes its configuration, programming blocks,
+playback progress, schedule entries, and schedule state. It applies the same immediate runtime shutdown policy as
 disabling. It does not delete media collections or catalog items. Soft deletion
 and historical playback retention are deferred.
 
@@ -78,30 +85,21 @@ and historical playback retention are deferred.
 - Channel numbers are stored as canonical strings containing a positive integer major number and an optional positive integer subchannel, such as `69` or `69.1`.
 - Channel numbers must match `[1-9][0-9]*(\.[1-9][0-9]*)?`; whitespace, signs, leading zeroes, and multiple decimal separators are rejected.
 - Channel IDs must not encode provider names or provider-specific identifiers.
+- A channel carries no programming fields such as a media collection or
+  playback mode.
 
-### Programming Collection Selection
+### Media Collections
 
-- A channel programming source points at a media collection.
-- A media collection is a logical set of cataloged media items that are eligible for programming on a channel.
-- A media root represents filesystem scope and must not be used directly as channel programming intent.
+- A media collection is an ordered set of cataloged media items that programming blocks can draw from.
+- A media root represents filesystem scope and must not be used directly as programming intent.
 - The first implementation supports ordered collections backed by explicit media item IDs.
 - Each membership has a zero-based `position` that is unique within its collection.
 - Collection replacement requests define the complete item order. The server stores contiguous positions in request order.
-- Disabled or unavailable media items should not make channel configuration invalid by themselves.
-- A channel with an empty collection can be saved, but later scheduling should report that it has no schedulable media.
-
-### Playback Mode
-
-MVP playback modes:
-
-- `chronological`
-- `random`
-
-Chronological means schedule generation follows the media collection's explicit item order and loops to the first item after the last. The catalog does not need to infer season or episode metadata to honor this mode.
-
-Random means schedule generation should later use deterministic seeded selection, not process-global randomness.
-
-This spec stores the chosen playback mode but does not define the full schedule-generation algorithm.
+- Collection order is the order chronological playback follows. The catalog does not need to infer season or episode metadata.
+- Missing or `probe_failed` media items may be collection members; they do not make the collection invalid by themselves.
+- An empty collection can be saved.
+- How a collection was built is invisible to its consumers. Automatic
+  collections are deferred and will populate the same ordered membership.
 
 ### API
 
@@ -131,16 +129,16 @@ Exact route names can change during implementation, but the capabilities should 
 
 Collection creation should require a non-empty name. Collection membership updates replace the full explicit ordered item set for the MVP. Duplicate media item IDs in one collection are rejected.
 
-API validation should reject invalid channel numbers, empty names, duplicate channel numbers, unsupported playback modes, unknown media collection IDs, and unknown media item IDs in collection membership.
+API validation should reject invalid channel numbers, empty channel or collection names, duplicate channel numbers, and unknown media item IDs in collection membership.
 
 ### Persistence
 
-- SQLite stores channel configuration.
-- Channel configuration survives API restarts.
-- Channel rows should use timestamps for creation and updates.
-- Collection selection should be persisted in a way that can evolve beyond the first collection type.
-- Media collection membership should be persisted separately from media roots and media catalog rows.
-- Deleting a media collection that is assigned to a channel should be rejected unless the channel is updated first.
+- SQLite stores channel and media collection configuration.
+- Channel and collection configuration survives API restarts.
+- Channel and collection rows use timestamps for creation and updates.
+- Media collection membership is persisted separately from media roots and media catalog rows.
+- Once spec 0004 adds programming blocks, deleting a media collection that a
+  programming block references is rejected until the block changes source.
 
 ### Active Worker Lifecycle
 
@@ -209,8 +207,8 @@ same retryable cleanup error.
 
 Re-enabling a disabled channel permits the next subscription to create a fresh
 worker; it does not resurrect the old process or subscriber streams. Changes to
-name, number, collection, playback mode, or other ordinary programming inputs do
-not force an operational shutdown. Schedule regeneration and revision
+name or number, programming blocks, collection membership, or other ordinary
+programming inputs do not force an operational shutdown. Schedule regeneration and revision
 revalidation preserve the current broadcast under their existing policy.
 
 ## Data Model Impact
@@ -223,16 +221,9 @@ id
 number
 name
 enabled
-playbackMode
-mediaCollectionId
 createdAt
 updatedAt
 ```
-
-Initial playback mode values:
-
-- `chronological`
-- `random`
 
 Minimum media collection fields:
 
@@ -254,13 +245,14 @@ position
 createdAt
 ```
 
-Schedule entries and playout timeline items belong to later specs.
+Programming blocks, playback progress, schedule entries, and playout timeline
+items belong to later specs.
 
 ## Architecture Boundaries
 
 This slice affects:
 
-- Schedule: indirectly, by providing channel configuration used by later schedule generation.
+- Schedule: indirectly, by providing the channels and media collections that later programming blocks and schedule generation use.
 - Playout timeline: indirectly, by providing channel identity used by later timelines.
 - Channel state: indirectly, by defining configured channels that can later have runtime state.
 - kraziBrain: owns provider-neutral channel configuration concepts and future scheduling interpretation.
@@ -282,18 +274,21 @@ Important boundaries:
 Media roots and media collections are separate concepts:
 
 - Media roots answer where kraziTV can discover media.
-- Media collections answer what media a channel or programming rule can select.
-- Channels should reference media collections, not filesystem roots, for programming eligibility.
+- Media collections answer what media a programming block can select.
+- Programming blocks reference media collections or single media items, never
+  filesystem roots.
 
 ## Deferred Work
 
 - Channel logos are deferred until Plex guide polish.
-- Saved catalog filters and query-backed collections are deferred until explicit ordered collections prove insufficient.
+- Automatic, rule-based, and query-backed collections are deferred to the
+  programming feature set (ADR 0009 extension path).
 - Historical playback retention and soft deletion are deferred.
 
 ## Acceptance Criteria
 
-- A channel can be created with number, name, enabled state, playback mode, and media collection selection.
+- A channel can be created with number, name, and enabled state, and carries no
+  programming fields.
 - Media collections can be created from an explicit ordered list of cataloged media item IDs.
 - Media collections can be listed, fetched, updated, and deleted through the API.
 - Media collection membership can be replaced through the API using an explicit order without duplicate media item IDs.
@@ -318,11 +313,9 @@ Media roots and media collections are separate concepts:
 - Re-enabling cannot commit while a prior administrative stop still owns
   unsettled runtime resources.
 - Re-enabling a channel allows a later subscription to create a fresh worker.
-- Channel configuration persists across API restarts.
+- Channel and media collection configuration persists across API restarts.
 - Duplicate channel numbers are rejected, including numbers assigned to disabled channels.
 - Integer and subchannel numbers are accepted in canonical string form; malformed or non-canonical numbers are rejected.
-- Unsupported playback modes are rejected.
-- Channel programming eligibility is based on media collections, not direct filesystem roots.
 - Channel configuration remains provider-neutral and does not construct FFmpeg,
   schedule, or playout behavior; active disable/delete operations coordinate
   with the separately owned streaming runtime lifecycle.

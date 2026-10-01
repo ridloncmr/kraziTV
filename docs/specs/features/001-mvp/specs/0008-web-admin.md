@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, playback mode, and observing generated programming and current channel state.
+This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, programming blocks, and observing generated programming and current channel state.
 
 ## Problem
 
@@ -17,7 +17,8 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 - Let users trigger or observe media scans.
 - Let users create simple media collections from cataloged media.
 - Let users create and edit channels.
-- Let users choose chronological or random playback mode.
+- Let users assign each channel its programming block: a media collection with
+  chronological or random playback mode, or a single media item.
 - Let users view generated schedule entries.
 - Let users view current channel state and playback offset.
 - Expose Plex tuner and XMLTV setup URLs after the Plex adapter contract is verified and accepted.
@@ -29,7 +30,8 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 - Do not implement user accounts or authentication.
 - Do not implement multi-user permissions.
 - Do not implement manual schedule editing.
-- Do not implement drag-and-drop programming blocks.
+- Do not implement multiple programming blocks per channel, kraziPlan, or
+  drag-and-drop block editing.
 - Do not implement commercial, bumper, station ID, or filler configuration.
 - Do not implement Jellyfin or Emby setup screens.
 - Do not run FFmpeg directly from the browser.
@@ -43,8 +45,9 @@ The Web Admin should support a basic setup flow:
 2. Add a local media root.
 3. Scan the media root.
 4. Create a media collection from cataloged items.
-5. Create a channel.
-6. Select channel number, name, media collection, and playback mode.
+5. Create a channel with a number and name.
+6. Assign the channel's programming block: a media collection and playback
+   mode, or a single media item.
 7. View upcoming schedule entries.
 8. View what is currently playing.
 9. After the Plex adapter is accepted, copy Plex tuner and guide URLs.
@@ -57,6 +60,7 @@ The UI should make empty states clear, especially when:
 - A scan found no schedulable media.
 - No media collections exist.
 - No channels exist.
+- A channel has no programming block.
 - A channel has no generated schedule.
 - A channel has no current playout item.
 
@@ -111,11 +115,11 @@ The user can:
 - Create a channel.
 - Edit channel number and name.
 - Enable or disable a channel.
-- Select playback mode.
-- Select a media collection.
 - Delete a channel when the API supports it.
 
-The UI must not implement scheduling rules locally. It submits channel configuration to the API and renders API responses.
+The channel form holds identity only. The UI must not implement scheduling
+rules locally. It submits channel configuration to the API and renders API
+responses.
 
 If a disable or delete response reports
 `channel_runtime_cleanup_failed`, the UI must state that the configuration
@@ -123,6 +127,21 @@ change was saved but runtime cleanup did not finish. It offers a retry action fo
 the same operation and must not present the failure as though the channel were
 still enabled or undeleted. A successful retry confirms that cleanup settled;
 it does not recreate deleted configuration.
+
+### Programming Block UI
+
+For a selected channel, the user can:
+
+- See the channel's programming block, or an empty state when it has none.
+- Choose the block's source: a media collection or a single media item.
+- Choose chronological or random playback mode for a collection source. The
+  mode control is hidden or disabled for a single-item source.
+- Change or remove the block.
+
+The UI submits block changes to the API and shows the regenerated schedule from
+API responses. It must not compute playback order or progress locally. The MVP
+shows one block per channel; the layout should not assume that limit is
+permanent.
 
 ### Schedule And Current State UI
 
@@ -157,6 +176,7 @@ Expected API areas:
 - Media items
 - Media collections
 - Channels
+- Programming blocks
 - Schedule
 - Current channel state
 - Plex endpoints, when the Plex adapter is accepted
@@ -210,7 +230,9 @@ Important boundaries:
 - A user can create and edit channels through the UI.
 - A user can distinguish a validation/persistence failure from a committed
   disable/delete whose runtime cleanup needs retry, and can retry that cleanup.
-- A user can select chronological or random playback mode through the UI.
+- A user can assign a channel's programming block through the UI, choosing a
+  media collection with chronological or random playback mode, or a single
+  media item.
 - A user can view upcoming schedule entries for a channel.
 - A user can view current channel state and offset when available.
 - After the Plex adapter spec is accepted, a user can view or copy Plex tuner and XMLTV URLs.

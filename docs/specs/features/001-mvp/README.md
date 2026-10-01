@@ -10,8 +10,8 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 | ----------------------------------- | -------------- | ---------------------------------------------------------------------- |
 | `specs/0001-bootstrap.md`           | Implemented    | Local startup, health checks, and workspace verification               |
 | `specs/0002-media-catalog.md`       | Implemented    | Local media roots, scanning, ffprobe metadata, and catalog persistence |
-| `specs/0003-channel-config.md`      | Accepted       | Channel creation, configuration, and media collection selection        |
-| `specs/0004-schedule-generation.md` | Accepted       | Deterministic guide schedule generation from cataloged media           |
+| `specs/0003-channel-config.md`      | Accepted       | Channel identity, lifecycle, and media collections                     |
+| `specs/0004-schedule-generation.md` | Accepted       | Programming blocks and deterministic guide schedule generation         |
 | `specs/0005-playout-timeline.md`    | Accepted       | Runtime timeline and current broadcast position                        |
 | `specs/0006-signal-packager.md`     | In Development | Shared active-channel streaming and FFmpeg MPEG-TS packaging           |
 | `specs/0007-plex-adapter.md`        | Accepted       | Plex-compatible tuner, guide, and stream exposure                      |

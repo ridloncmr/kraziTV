@@ -2,7 +2,12 @@
 
 Status: Accepted
 
-This spec defines MVP guide schedule generation: producing deterministic, provider-neutral schedule entries for configured channels from cataloged local media.
+This spec defines MVP programming blocks and guide schedule generation: configuring what each channel plays and how, and producing deterministic, provider-neutral schedule entries from those programming blocks and cataloged local media.
+
+Programming blocks sit between channels and schedule entries
+([ADR 0009](../../../../adrs/0009-programming-blocks.md)). The MVP allows one
+programming block per channel; the data model and progress tracking are shaped
+so multiple blocks and kraziPlan can be added later without rewriting them.
 
 ## Problem
 
@@ -12,9 +17,12 @@ The schedule must be deterministic so repeated generation for the same channel, 
 
 ## Goals
 
+- Let users assign one programming block to each channel whose source is a
+  media collection with a playback mode, or a single media item.
 - Generate schedule entries for enabled channels.
-- Use channel configuration and cataloged media as inputs.
+- Use programming blocks and cataloged media as inputs.
 - Support chronological and random playback modes.
+- Track playback progress per channel and media collection.
 - Produce deterministic output for a requested time window.
 - Keep schedule entries provider-neutral.
 - Keep schedule generation separate from playout timeline generation.
@@ -30,12 +38,23 @@ The schedule must be deterministic so repeated generation for the same channel, 
 - Do not run FFmpeg or ffprobe.
 - Do not expose Plex XMLTV, M3U, or stream endpoints.
 - Do not insert commercials, bumpers, station IDs, or filler.
-- Do not implement daypart schedules, seasonal rules, theme blocks, or manual overrides.
+- Do not implement multiple programming blocks per channel, kraziPlan,
+  clock-anchored or daypart blocks, seasonal rules, or manual overrides. ADR
+  0009 sequences these as deferred work.
 - Do not require perfect TV season/episode metadata.
 
 ## User-Facing Behavior
 
-A user with a configured channel and cataloged media can request upcoming programming for that channel.
+A user assigns a channel its programming block by choosing one source:
+
+- A media collection plus a playback mode, such as "The Office, chronological".
+- A single media item, such as one movie, without creating a one-item
+  collection.
+
+In the MVP the block covers all time and loops its source. Changing the block
+regenerates future programming under the regeneration policy below.
+
+A user with a configured channel, programming block, and cataloged media can request upcoming programming for that channel.
 
 Example guide-facing schedule:
 
@@ -50,19 +69,40 @@ Channel 69 - Krazi Comedy
 
 The user should see stable schedule output when requesting the same channel and time window multiple times, assuming channel configuration and media catalog inputs have not changed.
 
-If a channel has no schedulable media, the API should report that the channel cannot generate a schedule instead of producing fake entries.
+If a channel has no programming block, or its block's source has no schedulable media, the API should report that the channel cannot generate a schedule instead of producing fake entries.
 
 Overlapping schedule requests must agree on overlapping time ranges. For example, if a request for 12:00-18:00 returns `15:00 Psych`, a later request for 15:00-21:00 must return the same 15:00 entry unless an explicit regeneration policy has replaced that future period.
 
 ## Technical Behavior
+
+### Programming Blocks
+
+- A programming block belongs to one channel. The MVP enforces at most one
+  block per channel.
+- A block has exactly one source: a media collection or a single media item.
+  The source is persisted as an explicit either/or so later source kinds do not
+  reshape existing rows.
+- A collection-sourced block requires a playback mode. A single-item block has
+  no playback mode and no playback progress.
+- A block may reference an empty collection or an unavailable media item; the
+  channel is then unschedulable rather than invalid.
+- In the MVP a block covers all time from the schedule anchor onward and loops
+  its source. Clock-anchored start and end times are deferred.
+- Creating, changing, or deleting a block is a scheduling-input change and
+  triggers regeneration. It never forces an operational stream shutdown.
+- Deleting a channel deletes its programming blocks. Deleting a media
+  collection that a programming block references is rejected until the block
+  changes source.
 
 ### Inputs
 
 Schedule generation uses:
 
 - Enabled channel configuration
-- Channel playback mode
-- Channel media collection selection
+- The channel's programming block: its source and, for a collection, its
+  playback mode
+- The source collection's explicit membership order
+- Persisted playback progress for the channel and collection
 - Available media catalog items
 - Requested schedule window start
 - Requested schedule window end
@@ -83,20 +123,58 @@ Minimum schedule entry fields:
 - End time
 - Duration milliseconds
 - Monotonically increasing sequence number within the channel timeline
+- The programming block that produced the entry
+- The source collection and playback index consumed, for collection-sourced
+  entries
 
 Schedule entries must not represent commercials, bumpers, station IDs, FFmpeg segments, transcode decisions, or stream URLs.
+
+### Playback Progress
+
+Playback progress is tracked per channel and media collection, not per channel
+or per block. It advances only when that collection airs on that channel, so
+separate blocks of the same collection continue from each other once multiple
+blocks exist. Two channels playing the same collection keep independent
+progress.
+
+Progress holds a chronological position and a random selection index. Each
+collection-sourced schedule entry records the playback index it consumed. The
+persisted progress always equals the value after the last materialized entry
+for that channel and collection, and it commits atomically with the entries
+that advance it.
+
+When regeneration deletes future entries, progress for each affected collection
+is restored to the playback index recorded on that collection's earliest deleted
+entry. Regeneration therefore never replays history from the anchor, and does
+not depend on retaining past entries.
 
 ### Chronological Playback
 
 Chronological playback uses the media collection's explicit membership order. It must not substitute title or path sorting for that order.
 
-When the end of the selected media set is reached, chronological playback may loop back to the first item for the MVP.
+The playback index is a membership position. Each chronological entry consumes
+the current position and advances it by one; reaching the end of the collection
+loops back to the first item. Unschedulable members are skipped and still
+consume their position. If collection membership changes, regeneration
+continues from the restored position, taken modulo the new collection length.
 
 ### Random Playback
 
-Random playback must be deterministic for the same inputs. Each channel stores a random seed in `ChannelScheduleState`. The initial seed is derived from the stable channel ID and schedule anchor. Selection is derived from that seed plus each entry's channel-wide sequence number, so regeneration can reproduce an entry without replaying mutable process state. It must not rely on process-global randomness or a request-window-specific seed.
+Random playback must be deterministic for the same inputs. Each channel stores a random seed in `ChannelScheduleState`. The initial seed is derived from the stable channel ID and schedule anchor. A collection's seed is derived from the channel seed and the collection ID, so collections on one channel shuffle independently.
+
+The playback index is a random selection index. Each random selection is
+derived from the collection seed plus that index, and consumes one index. An
+entry can therefore be reproduced without replaying mutable process state, and
+one collection's selections never depend on what another collection aired. It
+must not rely on process-global randomness or a request-window-specific seed.
 
 The MVP may allow repeats. Repeat prevention can be added later once playback history exists.
+
+### Single Media Item Playback
+
+A single-item block schedules its media item back to back, looping. It records
+no playback index and has no playback progress. An unavailable item makes the
+channel unschedulable.
 
 ### Schedule Windows
 
@@ -113,9 +191,20 @@ kraziBrain maintains a schedule through at least 72 hours beyond the current tim
 The API should expose endpoints equivalent to:
 
 ```text
+GET /channels/:id/programming-blocks
+POST /channels/:id/programming-blocks
+PATCH /channels/:id/programming-blocks/:blockId
+DELETE /channels/:id/programming-blocks/:blockId
 GET /channels/:id/schedule?start=...&end=...
 POST /channels/:id/schedule/generate
 ```
+
+Programming blocks are exposed as a per-channel collection resource so multiple
+blocks do not change the API shape. In the MVP, creating a second block for a
+channel is rejected. Block validation rejects unknown channels, unknown media
+collection or media item IDs, a missing or doubled source, a missing playback
+mode on a collection source, a playback mode on a single-item source, and
+unsupported playback modes.
 
 Exact route names can change during implementation, but the capabilities should remain equivalent.
 
@@ -137,8 +226,8 @@ one SQLite write transaction. The mutation must acquire database write authority
 before reading the current entries and `ChannelScheduleState`, obtain its
 effective current time after acquiring that authority, then re-evaluate the
 required work inside that transaction. Entry inserts or deletes and updates
-to `lastGeneratedThrough`, `nextSequenceNumber`, `scheduleRevision`, and other
-schedule state commit together or roll back together.
+to `lastGeneratedThrough`, `nextSequenceNumber`, `scheduleRevision`, playback
+progress, and other schedule state commit together or roll back together.
 
 `ChannelScheduleState.scheduleRevision` is a monotonically increasing safe
 integer that identifies the committed materialized schedule revision for a
@@ -189,9 +278,9 @@ authority must retry the entire mutation from freshly read persisted state or
 return a retryable error; it must not commit entries calculated from stale
 state.
 
-When a channel first becomes enabled with schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the current UTC Unix epoch millisecond and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
+When a channel first becomes enabled with a programming block whose source has schedulable media, the server creates `ChannelScheduleState`. Its `anchorTime` is the current UTC Unix epoch millisecond and remains stable across restarts. Generation starts at that anchor and advances continuously from persisted state.
 
-If channel configuration or media collection order changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current UTC Unix epoch millisecond; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
+If a programming block or its source collection's membership changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current UTC Unix epoch millisecond; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
 
 Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current UTC Unix epoch millisecond when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
 
@@ -211,9 +300,49 @@ startsAt
 endsAt
 durationMs
 sequenceNumber
+programmingBlockId
+mediaCollectionId
+playbackIndex
 createdAt
 updatedAt
 ```
+
+`mediaCollectionId` and `playbackIndex` are null for single-item entries.
+`programmingBlockId` becomes null if the block is deleted while its entry is
+retained, such as the entry currently airing.
+
+Minimum programming block fields:
+
+```text
+ProgrammingBlock
+id
+channelId
+sourceKind
+mediaCollectionId
+mediaItemId
+playbackMode
+createdAt
+updatedAt
+```
+
+`sourceKind` is `collection` or `media_item`. The schema enforces that exactly
+the matching source column is set, that `playbackMode` is `chronological` or
+`random` for collection sources and null for item sources, and, for the MVP,
+one block per channel. Lifting that uniqueness constraint is the first step of
+multi-block programming.
+
+Minimum playback progress fields:
+
+```text
+ChannelCollectionProgress
+channelId
+mediaCollectionId
+nextChronologicalPosition
+nextRandomSelectionIndex
+updatedAt
+```
+
+The schema enforces one progress row per channel and collection.
 
 Required schedule state fields:
 
@@ -290,10 +419,21 @@ Important boundaries:
 - Generated entries include channel ID, media item ID, title, start time, end time, and duration.
 - Schedule durations and persisted instants use integer milliseconds.
 - The same inputs produce the same schedule entries for the same requested window.
+- A channel can be assigned one programming block whose source is a media
+  collection with a playback mode or a single media item; a second block is
+  rejected in the MVP.
+- Invalid block sources and playback-mode combinations are rejected.
 - Chronological mode follows explicit media-collection order.
-- Random mode derives each selection from the persisted seed and channel-wide sequence number.
-- Configuration changes do not silently change the currently airing program.
-- Configuration changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Random mode derives each selection from a seed scoped to the channel and
+  collection plus that collection's selection index.
+- A single-item block loops its media item and records no playback progress.
+- Every collection-sourced entry records its programming block, collection, and
+  playback index; playback progress commits atomically with those entries.
+- Regeneration restores playback progress from the earliest deleted entry for
+  each collection without replaying history from the anchor.
+- Programming block changes do not silently change the currently airing program.
+- Programming block and collection membership changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Deleting a media collection referenced by a programming block is rejected.
 - Every committed change to a channel's materialized schedule increments its
   `scheduleRevision` atomically with the entry changes; no-op coverage checks do
   not increment it.
@@ -301,6 +441,6 @@ Important boundaries:
   row from one connection-pinned read transaction; integration coverage proves a
   concurrent regeneration cannot produce a torn revision/entry result.
 - Enabled schedulable channels maintain at least 72 hours of future schedule data.
-- Channels with no schedulable media return a clear scheduling error or empty-state response.
+- Channels with no programming block or no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.
 - Schedule entries represent guide-visible programs, not commercials, bumpers, stream segments, or provider-specific output.
