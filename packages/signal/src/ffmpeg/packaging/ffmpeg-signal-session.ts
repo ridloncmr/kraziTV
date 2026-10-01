@@ -11,6 +11,10 @@ import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
 import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import type { FfmpegProcess } from "../process/ffmpeg-process.js";
+import {
+  FfmpegSignalPreparation,
+  type PreparationOwner,
+} from "./ffmpeg-signal-preparation.js";
 
 type EncoderBinding = {
   process: FfmpegProcess;
@@ -19,39 +23,8 @@ type EncoderBinding = {
   cancelReadiness(): void;
 };
 
-type PreparationState = "pending" | "committed" | "discarded";
-
-/** Holds a validated future item without starting an encoder before commit. */
-class FfmpegSignalPreparation implements SignalPreparation {
-  private state: PreparationState = "pending";
-
-  constructor(
-    private readonly owner: FfmpegSignalSession,
-    readonly item: SignalPlayoutItem,
-  ) {}
-
-  /** Irrevocably hands the validated item to its owning session. */
-  commit(): void {
-    if (this.state === "committed") {
-      throw new Error("Preparation was already committed");
-    }
-    if (this.state === "discarded") {
-      throw new Error("Preparation was already discarded");
-    }
-    this.state = "committed";
-    this.owner.commitPreparation(this);
-  }
-
-  /** Releases this preparation without allocating an encoder. */
-  async discard(): Promise<void> {
-    if (this.state !== "pending") return;
-    this.owner.discardPreparation(this);
-    this.state = "discarded";
-  }
-}
-
 /** Owns one stable output while sequential FFmpeg encoders serve its items. */
-export class FfmpegSignalSession implements SignalSession {
+export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly output: Readable;
   readonly ready: Promise<void>;
   readonly completion: Promise<void>;
