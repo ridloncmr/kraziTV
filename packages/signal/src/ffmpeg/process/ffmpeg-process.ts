@@ -6,6 +6,7 @@ import type {
   SpawnedProcess,
 } from "@krazitv/process";
 
+import { assertNonNegativeSafeInteger } from "../../options/safe-integer-option.js";
 import { SignalError } from "../../errors.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
@@ -237,11 +238,4 @@ export class FfmpegProcess {
 const toBuffer = (chunk: Buffer | Uint8Array | string): Buffer => {
   if (Buffer.isBuffer(chunk)) return chunk;
   return Buffer.from(chunk);
-};
-
-/** Rejects timer values that cannot form deterministic millisecond deadlines. */
-const assertNonNegativeSafeInteger = (value: number, name: string): void => {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new RangeError(`${name} must be a non-negative safe integer`);
-  }
 };

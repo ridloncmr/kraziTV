@@ -2,6 +2,7 @@ import type { Readable } from "node:stream";
 
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
+import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
 import { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
@@ -321,11 +322,4 @@ function normalizeStartupError(
     { channelId },
     { cause },
   );
-}
-
-/** Enforces deterministic byte and duration limits. */
-function assertPositiveSafeInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`${name} must be a positive safe integer`);
-  }
 }

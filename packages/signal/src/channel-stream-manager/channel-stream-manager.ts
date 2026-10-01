@@ -8,6 +8,7 @@ import type {
   ManagedChannelWorker,
 } from "../channel-worker/worker-factory.js";
 import { WorkerCreationCleanupError } from "../channel-worker/worker-creation-cleanup-error.js";
+import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";
@@ -743,11 +744,4 @@ function joinPendingWaiters(
   return created.length === 0
     ? { kind: "unwatched" }
     : { kind: "joined", created };
-}
-
-/** Rejects unsafe idle configuration before any channel resources can start. */
-function assertNonNegativeSafeInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new RangeError(`${name} must be a non-negative safe integer`);
-  }
 }

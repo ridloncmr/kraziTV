@@ -1,5 +1,6 @@
 import type { Readable } from "node:stream";
 
+import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
 import { ChannelBroadcastSubscription } from "./channel-broadcast-subscription.js";
 
 type ChannelBroadcasterOptions = {
@@ -151,13 +152,6 @@ export class ChannelBroadcaster {
     }
   }
 }
-
-/** Rejects unsafe limits before source listeners create runtime side effects. */
-const assertPositiveSafeInteger = (value: number, name: string): void => {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`${name} must be a positive safe integer`);
-  }
-};
 
 /** Normalizes Node stream chunk shapes at the broadcaster boundary. */
 const toBuffer = (chunk: Buffer | Uint8Array | string): Buffer => {
