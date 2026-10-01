@@ -11,6 +11,13 @@ import type {
 } from "../signal-packager/contracts.js";
 import type { TransitionCoordinator } from "./contracts.js";
 import { requireCurrent, toSignalItem } from "./playout-projection.js";
+import {
+  awaitControlled,
+  createStartupGuard,
+  interruptionError,
+  type StartupGuard,
+  type StartupInterruption,
+} from "./startup-guard.js";
 import { type AiringItem, TransitionLoop } from "./transition-loop.js";
 import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
@@ -30,14 +37,6 @@ export type ChannelWorkerOptions = {
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
   findJoinPoint: (retainedBytes: Buffer) => number | undefined;
-};
-
-type StartupInterruption = "aborted" | "timeout";
-
-type StartupGuard = {
-  readonly interrupted: Promise<StartupInterruption>;
-  check(): StartupInterruption | undefined;
-  dispose(): void;
 };
 
 type JoinableOutputWaiter = {
@@ -61,37 +60,25 @@ export class ChannelWorker {
   ): Promise<ChannelWorker> {
     validateOptions(options);
     const guard = createStartupGuard(signal, options);
-
-    try {
-      toSignalItem(
-        requireCurrent(
-          await awaitControlled(
-            () =>
-              options.playoutProvider.getCurrent(
-                channelId,
-                options.clock.now(),
-              ),
-            guard,
-            channelId,
-          ),
+    const lookupCurrent = async () =>
+      requireCurrent(
+        await awaitControlled(
+          () =>
+            options.playoutProvider.getCurrent(channelId, options.clock.now()),
+          guard,
           channelId,
         ),
         channelId,
       );
 
+    try {
+      // Preliminary validation only (ADR 0008): its offset is discarded,
+      // because setup consumes wall time and the session must start from a
+      // lookup made immediately before the packager starts.
+      toSignalItem(await lookupCurrent(), channelId);
+
       while (true) {
-        const current = requireCurrent(
-          await awaitControlled(
-            () =>
-              options.playoutProvider.getCurrent(
-                channelId,
-                options.clock.now(),
-              ),
-            guard,
-            channelId,
-          ),
-          channelId,
-        );
+        const current = await lookupCurrent();
         const item = toSignalItem(current, channelId);
 
         let session: SignalSession;
@@ -256,75 +243,6 @@ function validateOptions(options: ChannelWorkerOptions): void {
   }
 }
 
-/** Bounds every startup await with one overall timeout and caller cancellation. */
-function createStartupGuard(
-  signal: AbortSignal,
-  options: ChannelWorkerOptions,
-): StartupGuard {
-  const deadlineAt = options.clock.now() + options.startupTimeoutMs;
-  let resolve!: (outcome: StartupInterruption) => void;
-  let outcome: StartupInterruption | undefined;
-  const interrupted = new Promise<StartupInterruption>((settle) => {
-    resolve = settle;
-  });
-  const interrupt = (nextOutcome: StartupInterruption): void => {
-    if (outcome !== undefined) return;
-    outcome = nextOutcome;
-    resolve(nextOutcome);
-  };
-  const timeout = options.timers.setTimeout(
-    () => interrupt("timeout"),
-    options.startupTimeoutMs,
-  );
-  const abort = (): void => interrupt("aborted");
-  signal.addEventListener("abort", abort, { once: true });
-  if (signal.aborted) abort();
-
-  return {
-    interrupted,
-    check: () => {
-      if (outcome === undefined && options.clock.now() >= deadlineAt) {
-        interrupt("timeout");
-      }
-      return outcome;
-    },
-    dispose: () => {
-      timeout.cancel();
-      signal.removeEventListener("abort", abort);
-    },
-  };
-}
-
-/** Races provider work without allowing its late failure to become unhandled. */
-async function awaitControlled<T>(
-  startOperation: () => Promise<T>,
-  guard: StartupGuard,
-  channelId: ChannelId,
-): Promise<T> {
-  const existingInterruption = guard.check();
-  if (existingInterruption !== undefined) {
-    throw interruptionError(existingInterruption, channelId);
-  }
-  const operation = startOperation();
-  const result = await Promise.race([
-    operation.then(
-      (value) => ({ status: "value" as const, value }),
-      (error: unknown) => ({ status: "error" as const, error }),
-    ),
-    guard.interrupted.then((outcome) => ({
-      status: "interrupted" as const,
-      outcome,
-    })),
-  ]);
-  const interruption = guard.check();
-  if (interruption !== undefined) {
-    throw interruptionError(interruption, channelId);
-  }
-  if (result.status === "value") return result.value;
-  if (result.status === "error") throw result.error;
-  throw interruptionError(result.outcome, channelId);
-}
-
 /** Waits for both packager readiness and retained bytes, or an earlier bound. */
 async function waitForAttempt(
   session: SignalSession,
@@ -403,24 +321,6 @@ function normalizeStartupError(
     { channelId },
     { cause },
   );
-}
-
-/** Creates the provider-neutral error for cancellation or exhausted startup time. */
-function interruptionError(
-  outcome: StartupInterruption,
-  channelId: ChannelId,
-): SignalError {
-  return outcome === "aborted"
-    ? new SignalError(
-        "subscription_aborted",
-        `Channel ${channelId} startup was cancelled`,
-        { channelId },
-      )
-    : new SignalError(
-        "worker_startup_timeout",
-        `Channel ${channelId} did not become ready before its startup timeout`,
-        { channelId },
-      );
 }
 
 /** Enforces deterministic byte and duration limits. */
