@@ -1,41 +1,21 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import type { FastifyInstance, InjectOptions } from "fastify";
 import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildServer } from "../app.js";
-import { openDatabase } from "../database/database.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
-import { ControlledProber } from "../testing/controlled-prober.js";
-import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
-import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
-import { MediaItemRepository } from "../media-items/media-item-repository.js";
-import { MediaRootRepository } from "../media-roots/media-root-repository.js";
+import { closeTestServers, startTestServer } from "../testing/test-server.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 
 type Server = FastifyInstance;
 
-const servers: Server[] = [];
-const temporaryDirectories: string[] = [];
-
 const LATER = FIXTURE_TIME + 60_000;
 
-afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(closeTestServers);
 
 function item(
   id: string,
@@ -58,43 +38,24 @@ const broken = item("broken", {
 async function startServer(
   options: { ids?: string[]; times?: number[] } = {},
 ): Promise<Server> {
-  const dataDirectory = await mkdtemp(
-    join(tmpdir(), "krazitv-media-collections-"),
-  );
-  temporaryDirectories.push(dataDirectory);
-  const database = await openDatabase({ dataDirectory });
-  await database.db.insertInto("media_roots").values(rootFixture).execute();
-  await database.db
-    .insertInto("media_items")
-    .values([pilot, finale, broken])
-    .execute();
-
   // Deterministic sources so responses can be asserted exactly.
   const ids = [...(options.ids ?? ["collection-001", "collection-002"])];
   const times = [...(options.times ?? [FIXTURE_TIME])];
-  const mediaCollections = new MediaCollectionRepository(database.db, {
-    createId: () => ids.shift() ?? "collection-extra",
-    now: () => (times.length > 1 ? times.shift()! : times[0]!),
-  });
-
-  const mediaRoots = new MediaRootRepository(database.db);
-  // These tests never scan, so an idle scanner completes the composition.
-  const scanner = new CatalogScanner({
-    roots: mediaRoots,
-    prober: new ControlledProber(),
-    writer: new CatalogScanWriter(database.db),
-  });
-  const server = buildServer(
-    {
-      database,
-      mediaRoots,
-      scanner,
-      mediaItems: new MediaItemRepository(database.db),
-      mediaCollections,
+  const { server } = await startTestServer({
+    seed: async (db) => {
+      await db.insertInto("media_roots").values(rootFixture).execute();
+      await db
+        .insertInto("media_items")
+        .values([pilot, finale, broken])
+        .execute();
     },
-    { logger: false },
-  );
-  servers.push(server);
+    overrides: (db) => ({
+      mediaCollections: new MediaCollectionRepository(db, {
+        createId: () => ids.shift() ?? "collection-extra",
+        now: () => (times.length > 1 ? times.shift()! : times[0]!),
+      }),
+    }),
+  });
   return server;
 }
 

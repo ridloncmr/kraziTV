@@ -1,8 +1,5 @@
 import { request as httpRequest } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import {
   MediaDiscoveryError,
@@ -10,20 +7,20 @@ import {
   type DiscoveredMediaFile,
   type DiscoverMediaFilesOptions,
 } from "@krazitv/media";
+import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildServer } from "../../app.js";
-import { openDatabase } from "../../database/database.js";
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
-import { MediaRootRepository } from "../../media-roots/media-root-repository.js";
+import { ControlledProber } from "../../testing/controlled-prober.js";
+import {
+  closeTestServers,
+  startTestServer,
+} from "../../testing/test-server.js";
 import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
-import { ControlledProber } from "../../testing/controlled-prober.js";
-import { MediaItemRepository } from "../../media-items/media-item-repository.js";
-import { MediaCollectionRepository } from "../../media-collections/media-collection-repository.js";
 
-type Server = ReturnType<typeof buildServer>;
+type Server = FastifyInstance;
 type Discover = (
   rootPath: string,
   options?: DiscoverMediaFilesOptions,
@@ -32,17 +29,7 @@ type Discover = (
 const RESULT = { durationMs: 2_000, hasAudio: true };
 const SCAN_URL = `/media-roots/${rootFixture.id}/scan`;
 
-const servers: Server[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
+afterEach(closeTestServers);
 
 function files(...names: string[]): DiscoveredMediaFile[] {
   return names.map((name) => ({
@@ -54,34 +41,25 @@ function files(...names: string[]): DiscoveredMediaFile[] {
 
 // Boots the real composition with a seeded root, fake discovery, and a controlled prober.
 async function startServer(discover: Discover = async () => files("a", "b")) {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-scan-routes-"));
-  temporaryDirectories.push(directory);
-  const database = await openDatabase({ dataDirectory: directory });
-  await database.db.insertInto("media_roots").values(rootFixture).execute();
-
   const prober = new ControlledProber();
-  const mediaRoots = new MediaRootRepository(database.db);
-  let time = FIXTURE_TIME;
   const discoverSpy = vi.fn<Discover>(discover);
-  const scanner = new CatalogScanner({
-    roots: mediaRoots,
-    prober: new ConcurrencyLimitedProber(prober, 4),
-    writer: new CatalogScanWriter(database.db),
-    discover: discoverSpy,
-    now: () => (time += 1_000),
-  });
-  const server = buildServer(
-    {
-      database,
-      mediaRoots,
-      scanner,
-      mediaItems: new MediaItemRepository(database.db),
-      mediaCollections: new MediaCollectionRepository(database.db),
+  let time = FIXTURE_TIME;
+  const { server, db, dependencies } = await startTestServer({
+    seed: async (db) => {
+      await db.insertInto("media_roots").values(rootFixture).execute();
     },
-    { logger: false },
-  );
-  servers.push(server);
-  return { server, prober, scanner, db: database.db, discover: discoverSpy };
+    overrides: (db, { mediaRoots }) => ({
+      scanner: new CatalogScanner({
+        roots: mediaRoots,
+        prober: new ConcurrencyLimitedProber(prober, 4),
+        writer: new CatalogScanWriter(db),
+        discover: discoverSpy,
+        now: () => (time += 1_000),
+      }),
+    }),
+  });
+  const { scanner } = dependencies;
+  return { server, prober, scanner, db, discover: discoverSpy };
 }
 
 function scan(server: Server) {

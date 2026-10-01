@@ -1,31 +1,20 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import type { FastifyInstance } from "fastify";
-import type { Insertable, Kysely } from "kysely";
+import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildServer } from "../app.js";
-import { openDatabase } from "../database/database.js";
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
-import { ControlledProber } from "../testing/controlled-prober.js";
-import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
-import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
-import { MediaRootRepository } from "../media-roots/media-root-repository.js";
-import { MediaItemRepository } from "./media-item-repository.js";
-import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
+import {
+  closeTestServers,
+  createTemporaryDirectory,
+  startTestServer,
+} from "../testing/test-server.js";
 
 type Server = FastifyInstance;
-
-const servers: Server[] = [];
-const temporaryDirectories: string[] = [];
 
 // A second root whose path sorts before the fixture root even though its ID sorts after.
 const animeRoot = {
@@ -37,29 +26,16 @@ const animeRoot = {
 
 const LATER = FIXTURE_TIME + 60_000;
 
-afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
-
-async function createDataDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-media-items-"));
-  temporaryDirectories.push(directory);
-  return directory;
-}
+afterEach(closeTestServers);
 
 // Boots the real composition over a fresh database seeded with both roots and the given items.
 async function startServer(
   items: Insertable<MediaItemTable>[] = [],
   dataDirectory?: string,
 ): Promise<Server> {
-  return openServer(
-    dataDirectory ?? (await createDataDirectory()),
-    async (db) => {
+  const { server } = await startTestServer({
+    dataDirectory,
+    seed: async (db) => {
       await db
         .insertInto("media_roots")
         .values([rootFixture, animeRoot])
@@ -68,35 +44,7 @@ async function startServer(
         await db.insertInto("media_items").values(items).execute();
       }
     },
-  );
-}
-
-// Boots the real composition over an existing data directory, optionally seeding it first.
-async function openServer(
-  dataDirectory: string,
-  seed?: (db: Kysely<DatabaseSchema>) => Promise<void>,
-): Promise<Server> {
-  const database = await openDatabase({ dataDirectory });
-  await seed?.(database.db);
-
-  const mediaRoots = new MediaRootRepository(database.db);
-  // These tests never scan, so an idle scanner completes the composition.
-  const scanner = new CatalogScanner({
-    roots: mediaRoots,
-    prober: new ControlledProber(),
-    writer: new CatalogScanWriter(database.db),
   });
-  const server = buildServer(
-    {
-      database,
-      mediaRoots,
-      scanner,
-      mediaItems: new MediaItemRepository(database.db),
-      mediaCollections: new MediaCollectionRepository(database.db),
-    },
-    { logger: false },
-  );
-  servers.push(server);
   return server;
 }
 
@@ -245,7 +193,7 @@ describe("GET /media-items/:id", () => {
 
 describe("media item persistence", () => {
   it("returns identical items after a server and database restart", async () => {
-    const dataDirectory = await createDataDirectory();
+    const dataDirectory = await createTemporaryDirectory();
     const first = await startServer(
       [itemFixture, missing, firstFailure, laterFailure],
       dataDirectory,
@@ -253,7 +201,7 @@ describe("media item persistence", () => {
     const before = await list(first);
     await first.close();
 
-    const second = await openServer(dataDirectory);
+    const { server: second } = await startTestServer({ dataDirectory });
     const after = await list(second);
 
     expect(after.json()).toHaveLength(4);
