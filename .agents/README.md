@@ -103,6 +103,7 @@ Official Claude Code references:
 Project-specific:
 
 - `krazitv-domain`
+- `codebase-audit` (user-invoked; runs `npm run audit`, then the judgment checklist)
 
 Adapted from Matt Pocock's public skills repository:
 

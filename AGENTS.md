@@ -129,6 +129,10 @@ It should behave like a small broadcast automation system, not a playlist genera
     `test:ffprobe`); they fail rather than skip when the binary is missing. The
     package's `tsconfig.json` typechecks `integration/`; its build config stays
     limited to `src/`.
+  - `npm run audit` checks these layout rules, the file-composition rules
+    above, and cross-package copies mechanically. Record an accepted
+    deviation in `scripts/codebase-audit/audit-exceptions.json` with its
+    reason and source, never by weakening a rule.
   - Name every folder so a reader can tell exactly what belongs in it. Folders
     named for a specific kind of file are encouraged: `migrations/`,
     `schema/`, `routes/`, and `types/` for type-only declarations. Never

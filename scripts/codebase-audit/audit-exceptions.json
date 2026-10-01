@@ -1,0 +1,26 @@
+{
+  "excludedPaths": ["apps/plex-spike/"],
+  "exceptions": [
+    {
+      "rule": "cross-package-copy",
+      "files": [
+        "packages/media/src/testing/fake-process.ts",
+        "packages/signal/src/testing/fake-process.ts"
+      ],
+      "reason": "Each consumer keeps its own fake process because test doubles are not part of any package's build.",
+      "source": "docs/adrs/0011-shared-process-package.md"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/signal/src/channel-worker/"],
+      "reason": "Every file serves the worker, so the domain stays flat.",
+      "source": "AGENTS.md (source layout: \"signal/src/channel-worker/ stays flat\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/database/schema/"],
+      "reason": "schema/ is a kind folder holding one file per table.",
+      "source": "AGENTS.md (source layout reference tree for database/)"
+    }
+  ]
+}
