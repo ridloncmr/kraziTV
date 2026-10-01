@@ -6,11 +6,8 @@ This folder tracks build sequencing, milestones, and task breakdowns.
 
 - [Spec 0002: Local Media Catalog](0002-media-catalog.md) - implemented; all
   tickets complete, real-ffprobe gate via `npm run test:ffprobe`
-- [Spec 0003: Channel Configuration](0003-channel-config.md) - in
-  development; media collections persisted and exposed over HTTP (CH-001,
-  CH-002), canonical channel numbers in kraziBrain (CH-003), channel
-  persistence and CRUD (CH-004), and the administrative runtime stop on
-  disable, delete, and re-enable (CH-005); executable acceptance next (CH-006)
+- [Spec 0003: Channel Configuration](0003-channel-config.md) - implemented;
+  all tickets complete, re-enable fresh-worker check deferred to SIG-015
 - [Spec 0006: Shared Channel Streaming](0006-signal-packager.md) - in
   development; runtime primitives and automated suite complete (G2), FFmpeg/Plex
   evidence gate next

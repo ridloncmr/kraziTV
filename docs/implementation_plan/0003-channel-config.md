@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: In Development; CH-001 through CH-005 complete, CH-006 next
+Status: Implemented on 2026-10-01; all tickets (CH-001 through CH-006) complete
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -403,6 +403,14 @@ commit-then-stop contract.
 
 ### CH-006: Close executable acceptance and hand off
 
+**Status**
+
+Complete on 2026-10-01. `channels/channel-acceptance.test.ts` drives
+collections and channels through the HTTP API, restarts on the same data
+directory, and confirms persistence, the disable and delete runtime stops, and
+that channel rows and responses hold only identity fields. The re-enable
+fresh-worker row stays with SIG-015.
+
 **Goal**
 
 Prove every spec 0003 acceptance criterion against the real server composition
@@ -428,7 +436,8 @@ and hand off to spec 0004 and plan 0006.
 
 - `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
   Prettier pass.
-- The traceability table below has a passing test for every row.
+- The traceability table below has a passing test for every row, except the
+  rows assigned to SIG-015, which plan 0006 verifies.
 
 **Docs impact**
 

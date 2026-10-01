@@ -1,6 +1,6 @@
 # Channel Configuration
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, and managing the channel lifecycle, including administrative runtime shutdown.
 
