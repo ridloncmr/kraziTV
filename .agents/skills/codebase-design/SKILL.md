@@ -58,5 +58,7 @@ Bad seams:
 - Does the name describe a domain capability?
 - Does the module hide implementation complexity?
 - Does each file have one clear responsibility and a deliberate export surface?
+- Does every private method of a stateful class read or write its state? If
+  not, move it beside the class (see the stateful-class rule in `AGENTS.md`).
 - Does the layout follow the source layout rules in `AGENTS.md`?
 - Are provider/media/runtime details isolated from core scheduling?

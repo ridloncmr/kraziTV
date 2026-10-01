@@ -63,6 +63,16 @@ It should behave like a small broadcast automation system, not a playlist genera
   concrete class, one table definition, one migration, one route group, or one
   tight set of related types. When a file collects entries that could each
   stand alone, such as every table in one schema file, split it.
+- Keep a stateful class to the code that reads or writes its state. A private
+  method that never reads `this` belongs beside the class, not in it. Move
+  error factories, record types, pure checks, and argument-only helpers into
+  cohesive files in the same domain folder. Inside the class, give any
+  sequence repeated three or more times one named helper, and write a chain of
+  early-exit checks as one function that returns the first failure, followed
+  by one handling path. Do not split transitions that share mutable state
+  across classes. Judge the result by whether the class reads as its
+  transitions, not by line count. Apply this check whenever a file nears 500
+  lines. `packages/signal/src/channel-stream-manager/` is the reference.
 - Lay out every package or app `src/` the same way. `packages/signal/src` and
   `apps/server/src/database/` are the references
   ([ADR 0010](docs/adrs/0010-source-layout.md)):
