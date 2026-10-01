@@ -90,7 +90,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
     const ordinal = parseOrdinal(afterScheduleEntryId);
     if (channelId !== CHANNEL_ID || ordinal === undefined) {
       return {
-        status: "stale_cursor",
+        status: "stale_entry",
         channelId,
         scheduleRevision: SCHEDULE_REVISION,
         items: [],

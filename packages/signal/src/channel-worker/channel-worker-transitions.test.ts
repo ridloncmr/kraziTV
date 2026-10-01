@@ -270,9 +270,9 @@ describe("ChannelWorker following-item transitions", () => {
 
   it.each([
     [
-      "a stale cursor",
+      "a stale entry",
       {
-        status: "stale_cursor",
+        status: "stale_entry",
         channelId: CHANNEL,
         scheduleRevision: 8,
         items: [],

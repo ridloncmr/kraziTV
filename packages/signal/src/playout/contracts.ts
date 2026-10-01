@@ -44,8 +44,9 @@ export type FollowingPlayoutResult =
       scheduleRevision: number;
       items: readonly SelectedPlayoutItem[];
     }
+  // The afterScheduleEntryId the caller passed is no longer on the schedule.
   | {
-      status: "stale_cursor";
+      status: "stale_entry";
       channelId: ChannelId;
       scheduleRevision: number;
       items: readonly [];
