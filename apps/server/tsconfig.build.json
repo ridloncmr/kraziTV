@@ -6,7 +6,7 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "exclude": ["src/**/*.test.ts", "src/**/testing/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/testing/**/*.ts"],
   "references": [
     { "path": "../../packages/krazi-brain/tsconfig.build.json" },
     { "path": "../../packages/media/tsconfig.build.json" },
