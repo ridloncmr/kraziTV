@@ -21,7 +21,8 @@ function createDependencies(
     shutdown: async () => undefined,
   },
 ): ServerDependencies {
-  // These tests never reach catalog or channel routes, so unused stand-ins are enough.
+  // These tests never reach catalog or channel routes, so unused stand-ins are
+  // enough; schedules still answers the startup ensure.
   return {
     database,
     mediaRoots: {} as MediaRootRepository,
@@ -31,7 +32,9 @@ function createDependencies(
     channels: {} as ChannelRepository,
     channelRuntime: { stopChannel: async () => undefined },
     programmingBlocks: {} as ProgrammingBlockRepository,
-    schedules: {} as ScheduleService,
+    schedules: {
+      ensureAllEnabled: async () => undefined,
+    } as Partial<ScheduleService> as ScheduleService,
   };
 }
 

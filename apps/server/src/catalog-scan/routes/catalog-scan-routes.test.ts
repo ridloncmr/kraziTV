@@ -11,7 +11,12 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
+import {
+  readScheduleEntries,
+  seedScheduleScenario,
+} from "../../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
@@ -288,5 +293,60 @@ describe("POST /media-roots/:id/scan", () => {
       .select("last_scanned_at")
       .executeTakeFirstOrThrow();
     expect(root.last_scanned_at).toBeNull();
+  });
+});
+
+describe("POST /media-roots/:id/scan schedule maintenance", () => {
+  // Boots with an enabled channel whose only item is missing, so it
+  // cannot be scheduled until a scan makes the item available.
+  async function startWithUnschedulableChannel() {
+    const prober = new ControlledProber();
+    const { server, db, dependencies } = await startTestServer({
+      seed: async (db) => {
+        await seedScheduleScenario(db, {
+          items: [{ durationMs: 22 * 60_000, status: "missing" }],
+          source: "chronological",
+        });
+      },
+      overrides: (db, { mediaRoots }) => ({
+        scanner: new CatalogScanner({
+          roots: mediaRoots,
+          prober,
+          writer: new CatalogScanWriter(db),
+          discover: async () => files("item-001"),
+        }),
+      }),
+    });
+    return { server, db, prober, schedules: dependencies.schedules };
+  }
+
+  it("schedules a channel in the same request once a scan makes it schedulable", async () => {
+    const { server, db, prober } = await startWithUnschedulableChannel();
+
+    const response = scan(server);
+    await prober.waitForStarted(1);
+    prober.resolveAll({ durationMs: 22 * 60_000, hasAudio: true });
+
+    expect((await response).statusCode).toBe(200);
+    await expect(
+      db.selectFrom("channel_schedule_states").selectAll().execute(),
+    ).resolves.toHaveLength(1);
+    expect(await readScheduleEntries(db, channelFixture.id)).not.toHaveLength(
+      0,
+    );
+  });
+
+  it("does not ensure schedules when the scan did not complete", async () => {
+    const { server, schedules } = await startWithUnschedulableChannel();
+    await server.ready();
+    const ensureAllEnabled = vi.spyOn(schedules, "ensureAllEnabled");
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-roots/missing-root/scan",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(ensureAllEnabled).not.toHaveBeenCalled();
   });
 });

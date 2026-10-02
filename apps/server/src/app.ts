@@ -59,7 +59,11 @@ function registerRoutes(
 
   server.get("/health", async () => ({ status: "ok" }));
   registerMediaRootRoutes(server, dependencies.mediaRoots);
-  registerCatalogScanRoutes(server, dependencies.scanner);
+  registerCatalogScanRoutes(
+    server,
+    dependencies.scanner,
+    dependencies.schedules,
+  );
   registerMediaItemRoutes(server, dependencies.mediaItems);
   registerMediaCollectionRoutes(
     server,
@@ -98,6 +102,12 @@ export function buildServer(
   // child closes before onClose releases the database they would commit to.
   server.addHook("preClose", async () => {
     await dependencies.scanner.shutdown();
+  });
+
+  // Repairs schedules that lapsed while the server was down before it serves
+  // traffic; ensureAllEnabled logs failures instead of blocking startup.
+  server.addHook("onReady", async () => {
+    await dependencies.schedules.ensureAllEnabled(server.log);
   });
 
   server.addHook("onClose", async () => {

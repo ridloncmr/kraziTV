@@ -58,6 +58,14 @@ async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
   return { server, db, clock, dataDirectory };
 }
 
+// Reads the one channel's schedule state row.
+function readState(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("channel_schedule_states")
+    .selectAll()
+    .executeTakeFirstOrThrow();
+}
+
 // Formats an epoch millisecond as the UTC instant the API accepts.
 function iso(epochMs: number): string {
   return new Date(epochMs).toISOString();
@@ -175,14 +183,15 @@ describe("GET /channels/:id/schedule", () => {
     ["a missing end", `${SCHEDULE_URL}?start=${iso(T0)}`],
   ])("rejects %s", async (_, url) => {
     const { server, db } = await startServer();
+    // Startup ensures coverage, so compare against what it wrote.
+    await server.ready();
+    const before = await readScheduleEntries(db, CHANNEL_ID);
 
     const { status, body } = await send(server, "GET", url);
 
     expect(status).toBe(400);
     expect(body.error.code).toBe("invalid_request");
-    await expect(
-      db.selectFrom("schedule_entries").selectAll().execute(),
-    ).resolves.toEqual([]);
+    await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
   });
 
   it("accepts a range of exactly 7 days", async () => {
@@ -368,14 +377,15 @@ describe("POST /channels/:id/schedule/generate", () => {
     ["a regenerate flag that is not a boolean", { regenerate: "yes" }],
   ])("rejects %s without writing", async (_, payload) => {
     const { server, db } = await startServer();
+    // Startup ensures coverage, so compare against what it wrote.
+    await server.ready();
+    const before = await readState(db);
 
     const { status, body } = await send(server, "POST", GENERATE_URL, payload);
 
     expect(status).toBe(400);
     expect(body.error.code).toBe("invalid_request");
-    await expect(
-      db.selectFrom("channel_schedule_states").selectAll().execute(),
-    ).resolves.toEqual([]);
+    await expect(readState(db)).resolves.toEqual(before);
   });
 
   it("rejects a disabled channel", async () => {
@@ -523,14 +533,6 @@ describe("POST /channels/:id/schedule/generate", () => {
 describe("PATCH /channels/:id schedule maintenance", () => {
   const CHANNEL_URL = `/channels/${CHANNEL_ID}`;
 
-  // Reads the one channel's schedule state row.
-  function readState(db: Kysely<DatabaseSchema>) {
-    return db
-      .selectFrom("channel_schedule_states")
-      .selectAll()
-      .executeTakeFirstOrThrow();
-  }
-
   it("keeps the anchor and seed and repairs from now when re-enabled after a lapse", async () => {
     const { server, db, clock } = await startServer();
     await send(server, "POST", GENERATE_URL, {});
@@ -631,5 +633,61 @@ describe("PATCH /channels/:id schedule maintenance", () => {
         msg: expect.stringMatching(/schedule coverage failed/i) as unknown,
       }),
     );
+  });
+});
+
+describe("server startup schedule maintenance", () => {
+  const DAY = 24 * HOUR;
+
+  // Reopens the same data directory, as a process restart would, on the given clock.
+  async function restartServer(dataDirectory: string, now: () => number) {
+    return startTestServer({
+      dataDirectory,
+      overrides: (db) => ({
+        schedules: new ScheduleService(db, {
+          now,
+          createId: sequentialIds("restart-entry"),
+        }),
+      }),
+    });
+  }
+
+  it("repairs a gap on ready after downtime, keeping the anchor and seed", async () => {
+    const first = await startServer();
+    await send(first.server, "POST", GENERATE_URL, {});
+    const before = await readState(first.db);
+    await first.server.close();
+    const later = T0 + 4 * DAY;
+
+    const second = await restartServer(first.dataDirectory, () => later);
+    await second.server.ready();
+
+    const after = await readState(second.db);
+    expect(after).toMatchObject({
+      anchor_time: before.anchor_time,
+      seed: before.seed,
+      schedule_revision: before.schedule_revision + 1,
+    });
+    expect(after.last_generated_through).toBeGreaterThanOrEqual(
+      later + SCHEDULE_HORIZON_MS,
+    );
+    const entries = await readScheduleEntries(second.db, CHANNEL_ID);
+    expect(
+      entries.some(
+        (entry) => entry.starts_at <= later && entry.ends_at > later,
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves the revision unchanged when coverage still reaches a full horizon", async () => {
+    const first = await startServer();
+    await send(first.server, "POST", GENERATE_URL, {});
+    const before = await readState(first.db);
+    await first.server.close();
+
+    const second = await restartServer(first.dataDirectory, first.clock.now);
+    await second.server.ready();
+
+    expect(await readState(second.db)).toEqual(before);
   });
 });

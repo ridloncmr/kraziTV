@@ -40,6 +40,17 @@ export async function findChannelEnabled(
   return row === undefined ? undefined : row.enabled === 1;
 }
 
+/** Lists every enabled channel's ID in ID order, so maintenance runs in a stable order. */
+export async function listEnabledChannelIds(trx: Executor): Promise<string[]> {
+  const rows = await trx
+    .selectFrom("channels")
+    .select("id")
+    .where("enabled", "=", 1)
+    .orderBy("id")
+    .execute();
+  return rows.map((row) => row.id);
+}
+
 /** Loads a channel's schedule state, or undefined before its first generation. */
 export async function loadScheduleState(
   trx: Executor,

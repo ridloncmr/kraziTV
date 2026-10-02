@@ -39,6 +39,7 @@ import {
   findEntryAiringAt,
   findLatestScheduleMutation,
   insertEntries,
+  listEnabledChannelIds,
   listEntriesInWindow,
   loadProgress,
   loadScheduleSource,
@@ -115,6 +116,32 @@ export class ScheduleService {
       );
       warnIfGapRepaired(chunk, log);
       if (chunk.result.kind !== "extended") return chunk.result;
+    }
+  }
+
+  /**
+   * Ensures coverage for every enabled channel, at startup and after catalog
+   * scans, so the horizon heals without a timer. Never throws: each failure
+   * is logged and the next trigger retries, so one broken channel cannot
+   * block the others or the caller.
+   */
+  async ensureAllEnabled(log: ScheduleLog): Promise<void> {
+    let channelIds: string[];
+    try {
+      channelIds = await listEnabledChannelIds(this.#db);
+    } catch (err) {
+      log.warn(
+        { err },
+        "Listing enabled channels for schedule coverage failed",
+      );
+      return;
+    }
+    for (const channelId of channelIds) {
+      try {
+        await this.ensureCoverage(channelId, log);
+      } catch (err) {
+        log.warn({ channelId, err }, "Ensuring schedule coverage failed");
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 import { deriveChannelSeed, SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { type Kysely, type Selectable, sql } from "kysely";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
@@ -24,7 +24,10 @@ import {
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { membershipChange } from "../media-collections/replace-collection-members.js";
 import type { ProgrammingBlockSource } from "../programming-blocks/contracts.js";
-import { programmingBlockFixture } from "../testing/channel-fixtures.js";
+import {
+  channelFixture,
+  programmingBlockFixture,
+} from "../testing/channel-fixtures.js";
 import { blockChange } from "../programming-blocks/block-change.js";
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
@@ -1369,5 +1372,76 @@ describe("ScheduleService.readWindow", () => {
     await expect(service.readWindow(channelId, T0, T0 + HOUR)).resolves.toEqual(
       { scheduleRevision: null, entries: [] },
     );
+  });
+});
+
+describe("ScheduleService.ensureAllEnabled", () => {
+  // Adds another channel with a block over the scenario's collection.
+  async function addChannel(
+    db: Kysely<DatabaseSchema>,
+    id: string,
+    number: string,
+    enabled: boolean,
+  ) {
+    await db
+      .insertInto("channels")
+      .values({ ...channelFixture, id, number, enabled: enabled ? 1 : 0 })
+      .execute();
+    await db
+      .insertInto("programming_blocks")
+      .values({ ...programmingBlockFixture, id: `block-${id}`, channel_id: id })
+      .execute();
+  }
+
+  it("covers the horizon for every enabled channel and skips disabled ones", async () => {
+    const { db, channelId, service, log } = await setup();
+    await addChannel(db, "channel-enabled", "70", true);
+    await addChannel(db, "channel-disabled", "71", false);
+
+    await service.ensureAllEnabled(log);
+
+    for (const id of [channelId, "channel-enabled"]) {
+      const state = await readState(db, id);
+      expect(state?.last_generated_through).toBeGreaterThanOrEqual(
+        T0 + SCHEDULE_HORIZON_MS,
+      );
+    }
+    expect(await readState(db, "channel-disabled")).toBeUndefined();
+    expect(await readScheduleEntries(db, "channel-disabled")).toEqual([]);
+  });
+
+  it("logs a channel's failure and still covers the rest", async () => {
+    const { db, channelId, service, log } = await setup();
+    await addChannel(db, "channel-enabled", "70", true);
+    const failure = new Error("boom");
+    const ensure = service.ensureCoverage.bind(service);
+    vi.spyOn(service, "ensureCoverage").mockImplementation((id, ...rest) =>
+      id === channelId ? Promise.reject(failure) : ensure(id, ...rest),
+    );
+
+    await expect(service.ensureAllEnabled(log)).resolves.toBeUndefined();
+
+    expect(await readState(db, "channel-enabled")).toBeDefined();
+    expect(log.lines).toContainEqual({
+      level: "warn",
+      fields: { channelId, err: failure },
+      message: "Ensuring schedule coverage failed",
+    });
+  });
+
+  it("logs, rather than throws, when listing enabled channels fails", async () => {
+    const { db, service, log } = await setup();
+    const failure = new Error("database unavailable");
+    vi.spyOn(db, "selectFrom").mockImplementationOnce(() => {
+      throw failure;
+    });
+
+    await expect(service.ensureAllEnabled(log)).resolves.toBeUndefined();
+
+    expect(log.lines).toContainEqual({
+      level: "warn",
+      fields: { err: failure },
+      message: "Listing enabled channels for schedule coverage failed",
+    });
   });
 });
