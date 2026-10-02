@@ -1,5 +1,6 @@
 // File-composition rules from AGENTS.md ("Keep files cohesive", the
-// stateful-class rule, `contracts.ts` placement, and test-double placement),
+// stateful-class rule, method comments, `contracts.ts` placement, and
+// test-double placement),
 // checked by parsing each file with the TypeScript compiler.
 
 import { posix } from "node:path";
@@ -12,6 +13,7 @@ import {
   isTestFile,
   isTestingFile,
 } from "./file-kinds.mjs";
+import { parseSource } from "./parse-source.mjs";
 
 const FILE_LINE_REVIEW_LIMIT = 500;
 const TEST_DOUBLE_NAME =
@@ -21,27 +23,20 @@ const TYPE_DECLARATION_FOLDERS = new Set(["schema", "types"]);
 
 /** Runs every composition rule over one inventory. */
 export function checkModules(inventory) {
-  const parsed = inventory.files.map((file) => ({ file, source: parse(file) }));
+  const parsed = inventory.files.map((file) => ({
+    file,
+    source: parseSource(file),
+  }));
   const byPath = new Map(parsed.map((entry) => [entry.file.path, entry]));
   return parsed.flatMap(({ file, source }) => [
     ...checkClassCount(file, source),
     ...checkPrivateMethods(file, source),
+    ...checkMethodComments(file, source),
     ...checkFileSize(file),
     ...checkTestDoublePlacement(file, source),
     ...checkRootEntryImports(file, source),
     ...checkSharedTypeImports(file, source, byPath),
   ]);
-}
-
-/** Parses one file without type information; every rule here is syntactic. */
-function parse(file) {
-  return ts.createSourceFile(
-    file.path,
-    file.content,
-    ts.ScriptTarget.Latest,
-    true,
-    file.path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  );
 }
 
 /** Top-level class declarations in a file. */
@@ -119,6 +114,55 @@ function readsThis(node) {
     return true;
   }
   return ts.forEachChild(node, readsThis) ?? false;
+}
+
+/**
+ * Every production function, method, constructor, and accessor with a body has
+ * a leading comment. Whether the comment explains why stays a judgment call.
+ */
+export function checkMethodComments(file, source) {
+  if (!isProductionFile(file)) return [];
+  const findings = [];
+  const visit = (node) => {
+    if (isCommentableCallable(node) && !hasLeadingComment(source, node)) {
+      findings.push({
+        rule: "missing-method-comment",
+        severity: "error",
+        files: [file.path],
+        line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+        message: `${callableName(node)} has no comment; add a concise why-comment`,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return findings;
+}
+
+/** Named callables with a body; overload signatures and arrow functions are not counted. */
+function isCommentableCallable(node) {
+  return (
+    (ts.isFunctionDeclaration(node) ||
+      ts.isMethodDeclaration(node) ||
+      ts.isConstructorDeclaration(node) ||
+      ts.isGetAccessorDeclaration(node) ||
+      ts.isSetAccessorDeclaration(node)) &&
+    node.body !== undefined
+  );
+}
+
+/** Whether any comment sits directly before a node, above its modifiers. */
+function hasLeadingComment(source, node) {
+  return (
+    (ts.getLeadingCommentRanges(source.text, node.getFullStart()) ?? [])
+      .length > 0
+  );
+}
+
+/** A readable name for a callable in a finding. */
+function callableName(node) {
+  if (ts.isConstructorDeclaration(node)) return "constructor";
+  return node.name?.getText() ?? "function";
 }
 
 /** Large production files get the stateful-class check, not a hard limit. */

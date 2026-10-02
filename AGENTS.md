@@ -129,10 +129,11 @@ It should behave like a small broadcast automation system, not a playlist genera
     `test:ffprobe`); they fail rather than skip when the binary is missing. The
     package's `tsconfig.json` typechecks `integration/`; its build config stays
     limited to `src/`.
-  - `npm run audit` checks these layout rules, the file-composition rules
-    above, and cross-package copies mechanically. Record an accepted
-    deviation in `scripts/codebase-audit/audit-exceptions.json` with its
-    reason and source, never by weakening a rule.
+  - `npm run audit:strict` checks these layout rules, the file-composition
+    rules above, and cross-package copies mechanically, and CI fails on any
+    error. Record an accepted deviation in
+    `scripts/codebase-audit/audit-exceptions.json` with its reason and
+    source, never by weakening a rule.
   - Name every folder so a reader can tell exactly what belongs in it. Folders
     named for a specific kind of file are encouraged: `migrations/`,
     `schema/`, `routes/`, and `types/` for type-only declarations. Never
@@ -147,6 +148,8 @@ It should behave like a small broadcast automation system, not a playlist genera
 
 - kraziBrain decides what plays, when it plays, and why.
 - One active channel owns one broadcast signal.
+- Channel stream workers own each active broadcast's lifecycle and subscriber
+  fan-out.
 - Viewers subscribe to the shared channel signal.
 - The shared channel signal advances at wall-clock speed independently of viewer backpressure.
 - SignalPackager decides how selected media becomes a continuous stream.
@@ -171,6 +174,44 @@ Do not make FFmpeg command construction part of kraziBrain.
 - Prefer deterministic scheduling behavior over clever randomness.
 - Add tests around scheduling, timeline, guide, and media-selection logic as soon as code exists.
 - Treat tests as executable behavioral contracts once behavior is implemented.
+
+## Before You Finish
+
+Use this section as the exit gate for any code change, whatever role you are
+working in. Do not report work as done until all of these hold.
+
+1. Search before you write. Before adding a helper, predicate, error factory,
+   option check, or test double, search the repository for one that already
+   does the job. Look in the package's `src/testing/` and its cross-domain
+   folders such as `options/`, `runtime/`, `config/`, and `http/`. Reuse it,
+   or move it to where both callers can reach it. Never write a second copy.
+2. Write code in its final shape. Put test doubles in `src/testing/` from the
+   start, export only what another file imports today, and give each new
+   method its why-comment as you write it.
+3. Run the checks. CI runs the same ones and fails on any of them.
+
+   ```sh
+   npm run format:write
+   npm run typecheck
+   npm run lint
+   npm test
+   npm run audit:strict
+   ```
+
+   Also run `npm run test:ffprobe` when you change ffprobe integration.
+
+4. Resolve every audit `review` item in a file you touched, or say why it
+   stands.
+5. Record plan-ticket status when the change completes a ticket (see
+   Documentation Rules).
+6. Report any check you skipped or that failed, with its output.
+
+The audit decides layout, one class per file, private methods that never read
+`this`, missing method comments, exports no other file imports, test-double
+placement, root-entry imports, and cross-package copies. These rules need your
+judgment because no tool checks them: small copied helpers, what a package's
+`index.ts` exposes, why-comment quality, KISS, and whether a stateful class
+reads as its transitions.
 
 ## AI Skill Conventions
 
@@ -201,6 +242,10 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Keep Claude Code agent adapters in `.claude/agents/` and generated skill adapters in `.claude/skills/`. Keep `CLAUDE.md` as an `@AGENTS.md` import. Regenerate skill adapters with `npm run agents:sync`; never edit them by hand.
 - Keep AI infrastructure guidance in `.agents/README.md` and agent-infrastructure decisions in `.agents/adr/`.
 - Keep harness adapters small. Do not duplicate shared skill or role bodies in harness-specific directories.
+- State each project rule once, in this file. Roles and skills name the
+  section that holds a rule instead of restating it, because paraphrased
+  copies drift apart. A role says only what is specific to that role: its
+  scope, the skills it uses, and what it must never do.
 - Add harness-specific files only when the project is actively adopting that harness.
 - After editing OpenCode config, agents, or skills, restart OpenCode.
 - After editing Codex config, agents, or skills, start a new Codex session.

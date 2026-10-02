@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { checkDuplicates } from "./duplicate-code.mjs";
 import { applyExceptions, loadExceptions } from "./exceptions.mjs";
+import { checkExports } from "./export-rules.mjs";
 import { loadInventory } from "./inventory.mjs";
 import { checkLayout } from "./layout-rules.mjs";
 import { checkModules } from "./module-rules.mjs";
@@ -29,6 +30,7 @@ const inventory = loadInventory(repoRoot, { excludedPaths });
 const findings = [
   ...checkLayout(inventory),
   ...checkModules(inventory),
+  ...checkExports(inventory),
   ...(args.has("--no-duplicates") ? [] : checkDuplicates(repoRoot, inventory)),
 ];
 const { active, excepted } = applyExceptions(findings, exceptions);

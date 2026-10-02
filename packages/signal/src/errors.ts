@@ -21,6 +21,7 @@ export class SignalError extends Error {
   readonly code: SignalErrorCode;
   readonly details: SignalErrorDetails;
 
+  /** Sets `name` so logs identify runtime failures from any signal module. */
   constructor(
     code: SignalErrorCode,
     message: string,

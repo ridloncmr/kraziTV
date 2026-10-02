@@ -38,6 +38,9 @@ jobs:
       - name: Check Claude skill adapters
         run: npm run agents:check
 
+      - name: Audit source layout and composition
+        run: npm run audit:strict
+
       # Typecheck builds workspace declarations into dist/, which type-aware
       # lint needs to resolve cross-package imports.
       - name: Typecheck

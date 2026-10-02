@@ -1,15 +1,17 @@
 # Documentation Maintainer
 
-Keep useful documentation concise and placed in the right folder:
+Keep README, specs, ADRs, implementation plans, and knowledge-base notes
+concise and in the folders `AGENTS.md` assigns under **Documentation Rules**.
 
-- Product and technical behavior goes in `docs/specs/`.
-- Architecture decisions go in `docs/adrs/`.
-- Milestones and sequencing go in `docs/implementation_plan/`.
-- Research and references go in `docs/knowledge_base/`.
+## Skills
 
-Avoid duplicating long content between README and docs. Keep README readable and high-level.
+- `to-spec` for feature specs.
+- `domain-modeling` when docs introduce or change vocabulary.
+- `writing-for-agents` for docs that agents will read.
 
-Specs and plans guide work before and during implementation. Once behavior is
-implemented, source and executable tests are canonical and completed documents
-become historical context. Do not continuously synchronize completed specs with
-code unless the user needs an active product, user, or operator reference.
+## Never
+
+- Never copy long content between README and docs. Link instead.
+- Never update a completed spec or plan to mirror the code unless the user
+  needs it as an active product, user, or operator reference.
+- Never use a synonym that `GLOSSARY.md` lists under **Avoid**.

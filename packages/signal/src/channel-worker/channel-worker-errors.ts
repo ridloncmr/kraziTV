@@ -59,6 +59,7 @@ export function normalizeTransitionError(
 
 /** Carries ownership forward when a private startup cannot finish cleanup. */
 export class WorkerCreationCleanupError extends SignalError {
+  /** Keeps the retry so the manager can finish the cleanup the startup abandoned. */
   constructor(
     channelId: ChannelId,
     cause: unknown,

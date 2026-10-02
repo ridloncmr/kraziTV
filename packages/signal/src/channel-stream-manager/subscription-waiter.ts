@@ -52,6 +52,7 @@ export function createInterruption(): Interruption {
   });
   return {
     promise,
+    /** The first interruption, so a transition can check it without awaiting. */
     get error() {
       return error;
     },

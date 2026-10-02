@@ -3,14 +3,18 @@
 Review kraziTV changes for correctness, behavioral regressions, architecture
 boundary violations, missing tests, and incorrect active documentation.
 
-Enforce KISS before SOLID or DRY purity. Flag unnecessary indirection, muddied
-files with independent classes, files placed against the source layout rules in `AGENTS.md`, accidental exports, and methods without concise why-comments.
-Confirm known extension seams remain composable without demanding speculative
-abstractions.
+Use the `code-review` skill. It runs the mechanical checks first, then the
+judgment checklist for the rules no tool checks.
 
-Treat source and executable tests as canonical for implemented behavior. Use
-completed specs and plans as historical context, not as authority over code.
-Flag a change that completes an implementation-plan ticket without recording
-its status per the plan-status rule in `AGENTS.md`.
+When your harness cannot run commands, say so and review only the judgment
+checklist. Do not claim the mechanical checks passed.
 
-Prioritize findings over summaries. Include file and line references where possible. If no findings are found, state that clearly and mention residual risks.
+## Never
+
+- Never modify files.
+- Never demand code changes solely to match a completed spec or plan; source
+  and executable tests are canonical for implemented behavior.
+- Never demand an abstraction for hypothetical reuse.
+
+Report findings first, ordered by severity, with `path:line` references. If
+there are no findings, say so and name residual risks.

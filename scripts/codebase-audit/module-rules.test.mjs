@@ -12,10 +12,11 @@ function file(srcPath, content) {
   };
 }
 
-const rules = (files) =>
-  checkModules({ workspaces: [], files }).map(
-    (f) => `${f.severity}:${f.rule}:${f.files[0]}`,
-  );
+// Findings as severity:rule:file, optionally limited to the rule under test.
+const rules = (files, only) =>
+  checkModules({ workspaces: [], files })
+    .filter((f) => only === undefined || f.rule === only)
+    .map((f) => `${f.severity}:${f.rule}:${f.files[0]}`);
 
 describe("one-class-per-file", () => {
   it("flags two concrete classes but lets error classes share a file", () => {
@@ -43,7 +44,9 @@ export class Worker {
   private arrowReads(): () => number { return () => this.count; }
 }
 `;
-    expect(rules([file("a/worker.ts", source)])).toEqual([
+    expect(
+      rules([file("a/worker.ts", source)], "private-without-this"),
+    ).toEqual([
       "error:private-without-this:packages/demo/src/a/worker.ts",
       "error:private-without-this:packages/demo/src/a/worker.ts",
     ]);
@@ -130,5 +133,36 @@ describe("shared-type-placement", () => {
         ),
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("missing-method-comment", () => {
+  it("flags uncommented callables with bodies in production code only", () => {
+    const source = `
+/** Commented. */
+export function documented(): void {}
+export function bare(): void {}
+export function overload(value: string): void;
+/** Commented implementation. */
+export function overload(value: unknown): void {}
+export class Clock {
+  /** Commented. */
+  constructor() {}
+  private tick(): void { this.now(); }
+  /** Commented. */
+  now(): number { return 0; }
+}
+export const arrow = (): void => {};
+`;
+    expect(
+      rules([
+        file("a/clock.ts", source),
+        file("a/clock.test.ts", "function helper(): void {}\n"),
+        file("testing/fake.ts", "export function fake(): void {}\n"),
+      ]),
+    ).toEqual([
+      "error:missing-method-comment:packages/demo/src/a/clock.ts",
+      "error:missing-method-comment:packages/demo/src/a/clock.ts",
+    ]);
   });
 });

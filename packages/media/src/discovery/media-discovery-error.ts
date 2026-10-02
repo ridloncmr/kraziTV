@@ -14,6 +14,7 @@ export class MediaDiscoveryError extends Error {
   /** The path whose access failed, or the root for root-level failures. */
   readonly path: string;
 
+  /** Sets `name` so logs and serialized errors identify discovery failures. */
   constructor(
     code: MediaDiscoveryErrorCode,
     message: string,

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 
+/** Placeholder shell until the Web UI milestone adds real screens. */
 function App() {
   return (
     <main>
