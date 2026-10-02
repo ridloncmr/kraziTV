@@ -6,8 +6,9 @@ import type {
   ScheduleMedia,
   ScheduleSource,
 } from "./contracts.js";
-import { selectChronological } from "./playback-selection.js";
+import { selectChronological, selectRandom } from "./playback-selection.js";
 import { findUnschedulableReason } from "./schedule-policy.js";
+import { deriveCollectionSeed } from "./seeded-hash.js";
 
 interface GenerateScheduleEntriesOptions {
   /** The channel's persisted seed; random playback derives from it. */
@@ -35,11 +36,13 @@ interface NextAiring {
 /**
  * Chooses what airs next from a source and advances progress past it. A
  * single item repeats and leaves progress untouched, because only collections
- * carry playback progress.
+ * carry playback progress. Each mode advances only its own progress field, so
+ * a random stretch never moves the chronological position or vice versa.
  */
 function nextAiring(
   source: ScheduleSource,
   progress: PlaybackProgress,
+  channelSeed: number,
 ): NextAiring {
   if (source.kind === "media_item") {
     return {
@@ -51,7 +54,18 @@ function nextAiring(
     };
   }
   if (source.playbackMode === "random") {
-    throw new Error("random playback is not implemented yet");
+    const selection = selectRandom(
+      source.members,
+      deriveCollectionSeed(channelSeed, source.mediaCollectionId),
+      progress.nextRandomSelectionIndex,
+    );
+    return {
+      media: selection.media,
+      mediaCollectionId: source.mediaCollectionId,
+      playbackMode: "random",
+      playbackIndex: selection.playbackIndex,
+      progress: { ...progress, nextRandomSelectionIndex: selection.nextIndex },
+    };
   }
   const selection = selectChronological(
     source.members,
@@ -87,7 +101,7 @@ export function generateScheduleEntries(
   let progress = options.progress;
   let sequenceNumber = options.nextSequenceNumber;
   while (cursor < through && entries.length < maxEntries) {
-    const airing = nextAiring(source, progress);
+    const airing = nextAiring(source, progress, options.channelSeed);
     // The schedulability check guarantees an integer duration at the floor.
     const durationMs = airing.media.durationMs ?? 0;
     entries.push({

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type {
@@ -25,6 +25,19 @@ function chronological(members: ScheduleMedia[]): ScheduleSource {
     programmingBlockId: "block-1",
     mediaCollectionId: "collection-1",
     playbackMode: "chronological",
+    members,
+  };
+}
+
+function random(
+  members: ScheduleMedia[],
+  mediaCollectionId = "collection-1",
+): ScheduleSource {
+  return {
+    kind: "collection",
+    programmingBlockId: "block-1",
+    mediaCollectionId,
+    playbackMode: "random",
     members,
   };
 }
@@ -200,6 +213,150 @@ describe("generateScheduleEntries: chronological collections", () => {
 
     expect(mediaIds(result.entries)).toEqual(["only", "only", "only"]);
     expect(result.progress.nextChronologicalPosition).toBe(601);
+  });
+});
+
+describe("generateScheduleEntries: random collections", () => {
+  // Four schedulable members around one that random selection must never pick.
+  const members = [
+    scheduleMedia("a"),
+    scheduleMedia("b"),
+    scheduleMedia("gone", { status: "missing" }),
+    scheduleMedia("d"),
+    scheduleMedia("e"),
+  ];
+  const twentyEntries = { through: STARTS_AT + 20 * 60_000 };
+
+  it("pins the first 20 selections for a fixed channel seed and collection", () => {
+    const result = generated(generate(random(members), twentyEntries));
+
+    expect(
+      result.entries.map((entry) => [entry.mediaItemId, entry.playbackIndex]),
+    ).toEqual([
+      ["e", 0],
+      ["e", 1],
+      ["d", 2],
+      ["e", 3],
+      ["e", 4],
+      ["b", 5],
+      ["d", 6],
+      ["e", 7],
+      ["d", 8],
+      ["d", 9],
+      ["b", 10],
+      ["a", 11],
+      ["a", 12],
+      ["a", 13],
+      ["a", 14],
+      ["a", 15],
+      ["d", 16],
+      ["e", 17],
+      ["e", 18],
+      ["a", 19],
+    ]);
+  });
+
+  it("records the random mode and advances only the selection index", () => {
+    const result = generated(
+      generate(random(members), {
+        progress: { nextChronologicalPosition: 3, nextRandomSelectionIndex: 5 },
+        through: STARTS_AT + 2 * 60_000,
+      }),
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      mediaCollectionId: "collection-1",
+      playbackMode: "random",
+      playbackIndex: 5,
+    });
+    expect(result.progress).toEqual({
+      nextChronologicalPosition: 3,
+      nextRandomSelectionIndex: 7,
+    });
+  });
+
+  it.each([0, 7, 19])(
+    "generates selection index %i alone exactly as the long run does",
+    (index) => {
+      const longRun = generated(generate(random(members), twentyEntries));
+
+      const alone = generated(
+        generate(random(members), {
+          progress: {
+            nextChronologicalPosition: 0,
+            nextRandomSelectionIndex: index,
+          },
+          through: STARTS_AT + 60_000,
+        }),
+      );
+
+      expect(alone.entries[0]?.mediaItemId).toBe(
+        longRun.entries[index]?.mediaItemId,
+      );
+      expect(alone.entries[0]?.playbackIndex).toBe(index);
+    },
+  );
+
+  it("selects at a very large index without replaying earlier ones", () => {
+    const index = Number.MAX_SAFE_INTEGER - 1;
+
+    const result = generated(
+      generate(random(members), {
+        progress: {
+          nextChronologicalPosition: 0,
+          nextRandomSelectionIndex: index,
+        },
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]?.playbackIndex).toBe(index);
+    expect(result.progress.nextRandomSelectionIndex).toBe(index + 1);
+  });
+
+  it("gives two collections on one channel independent sequences", () => {
+    const first = generated(
+      generate(random(members, "collection-1"), twentyEntries),
+    );
+    const second = generated(
+      generate(random(members, "collection-2"), twentyEntries),
+    );
+
+    expect(mediaIds(second.entries)).toEqual(
+      "e e a b d d e b a e b a e e a a e d b b".split(" "),
+    );
+    expect(mediaIds(second.entries)).not.toEqual(mediaIds(first.entries));
+  });
+
+  it("resumes exactly across chunks", () => {
+    const through = STARTS_AT + 2 * HOUR_MS;
+
+    const first = generated(
+      generate(random(members), { through, maxEntries: 7 }),
+    );
+    const second = generated(
+      generate(random(members), {
+        progress: first.progress,
+        startsAt: first.generatedThrough,
+        nextSequenceNumber: first.nextSequenceNumber,
+        through,
+      }),
+    );
+    const whole = generated(generate(random(members), { through }));
+
+    expect([...first.entries, ...second.entries]).toEqual(whole.entries);
+    expect(second.progress).toEqual(whole.progress);
+  });
+
+  it("never calls Math.random", () => {
+    const spy = vi.spyOn(Math, "random");
+    try {
+      generate(random(members), { through: STARTS_AT + 24 * HOUR_MS });
+
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

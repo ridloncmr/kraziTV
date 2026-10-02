@@ -1,5 +1,6 @@
 import type { ScheduleMedia } from "./contracts.js";
 import { isSchedulableMedia } from "./schedule-policy.js";
+import { hash32 } from "./seeded-hash.js";
 
 /** One member chosen to air, the playback index it consumed, and the next one. */
 interface PlaybackSelection {
@@ -28,4 +29,30 @@ export function selectChronological(
     }
     index = nextIndex;
   }
+}
+
+/**
+ * Chooses the random member for `selectionIndex` from the collection seed and
+ * that index alone, so any index is reproducible without replaying earlier
+ * ones. Picks among schedulable members in membership order, so every index
+ * airs something; modulo bias is accepted. The caller must pass members with
+ * at least one schedulable item.
+ */
+export function selectRandom(
+  members: readonly ScheduleMedia[],
+  collectionSeed: number,
+  selectionIndex: number,
+): PlaybackSelection {
+  const schedulable = members.filter(isSchedulableMedia);
+  const pick =
+    hash32(`select:${collectionSeed}:${selectionIndex}`) % schedulable.length;
+  const media = schedulable[pick];
+  if (media === undefined) {
+    throw new Error("random selection needs a schedulable member");
+  }
+  return {
+    media,
+    playbackIndex: selectionIndex,
+    nextIndex: selectionIndex + 1,
+  };
 }
