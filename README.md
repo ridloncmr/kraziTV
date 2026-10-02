@@ -57,7 +57,7 @@ docs/
 
 ## Current MVP
 
-The accepted MVP goal and its vertical-slice status table live in [`docs/specs/features/001-mvp/`](docs/specs/features/001-mvp/README.md). Detailed behavior belongs to the numbered specs in that feature folder; those specs are authoritative when this overview and a feature detail differ.
+The MVP goal and its vertical-slice specs live in [`docs/specs/features/001-mvp/`](docs/specs/features/001-mvp/README.md). Detailed behavior belongs to the numbered specs in that feature folder; those specs are authoritative when this overview and a feature detail differ.
 
 The MVP proves one complete Plex loop: configure local media and a channel, materialize deterministic guide data, join the channel in progress, and keep Plex playing across a real two-file boundary.
 

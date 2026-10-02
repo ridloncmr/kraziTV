@@ -7,7 +7,7 @@ Specs are organized by feature. A feature folder's `README.md` describes the fea
 - `Planned` - Known future feature or spec that has not been drafted yet.
 - `Draft` - Proposed behavior that has not been accepted or implemented.
 - `Accepted` - Agreed behavior that is ready to implement or already guides the project.
-- `In Development` - Implmentation plan exists, and the spec is in active development.
+- `In Development` - Implementation plan exists, and the spec is in active development.
 - `Implemented` - Behavior exists in the codebase and has passing verification.
 - `Superseded` - Kept for history but replaced by a newer spec or ADR.
 
@@ -16,11 +16,11 @@ Specs are organized by feature. A feature folder's `README.md` describes the fea
 ```text
 features/
   001-example/
-    README.md       feature goal and spec status table
+    README.md       feature goal and spec index
     specs/
       0001-*.md     detailed behavior specs
 ```
 
 ## Feature Index
 
-See [`features/README.md`](features/README.md) for the canonical feature list and current statuses.
+See [`features/README.md`](features/README.md) for the canonical feature list. Each status lives in the `Status:` line of its feature README or spec.

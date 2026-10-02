@@ -1,21 +1,23 @@
 # MVP Feature
 
-Status: Accepted
+Status: In Development
 
 This feature folder contains the goal and vertical-slice specs for the first usable kraziTV release.
 
 ## Related Specs
 
-| Spec                                | Status         | Description                                                            |
-| ----------------------------------- | -------------- | ---------------------------------------------------------------------- |
-| `specs/0001-bootstrap.md`           | Implemented    | Local startup, health checks, and workspace verification               |
-| `specs/0002-media-catalog.md`       | Implemented    | Local media roots, scanning, ffprobe metadata, and catalog persistence |
-| `specs/0003-channel-config.md`      | Implemented    | Channel identity, lifecycle, and media collections                     |
-| `specs/0004-schedule-generation.md` | Accepted       | Programming blocks and deterministic guide schedule generation         |
-| `specs/0005-playout-timeline.md`    | Accepted       | Runtime timeline and current broadcast position                        |
-| `specs/0006-signal-packager.md`     | In Development | Shared active-channel streaming and FFmpeg MPEG-TS packaging           |
-| `specs/0007-plex-adapter.md`        | Accepted       | Plex-compatible tuner, guide, and stream exposure                      |
-| `specs/0008-web-admin.md`           | Accepted       | Minimal browser flow for configuring and observing the MVP             |
+Each spec's status is the `Status:` line at the top of the spec.
+
+| Spec                                                          | Description                                                            |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [0001-bootstrap](specs/0001-bootstrap.md)                     | Local startup, health checks, and workspace verification               |
+| [0002-media-catalog](specs/0002-media-catalog.md)             | Local media roots, scanning, ffprobe metadata, and catalog persistence |
+| [0003-channel-config](specs/0003-channel-config.md)           | Channel identity, lifecycle, and media collections                     |
+| [0004-schedule-generation](specs/0004-schedule-generation.md) | Programming blocks and deterministic guide schedule generation         |
+| [0005-playout-timeline](specs/0005-playout-timeline.md)       | Runtime timeline and current broadcast position                        |
+| [0006-signal-packager](specs/0006-signal-packager.md)         | Shared active-channel streaming and FFmpeg MPEG-TS packaging           |
+| [0007-plex-adapter](specs/0007-plex-adapter.md)               | Plex-compatible tuner, guide, and stream exposure                      |
+| [0008-web-admin](specs/0008-web-admin.md)                     | Minimal browser flow for configuring and observing the MVP             |
 
 The first release should intentionally be small and focused on proving the core loop.
 

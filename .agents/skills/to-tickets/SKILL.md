@@ -29,7 +29,8 @@ Use `docs/implementation_plan/` for milestone breakdowns.
 
 Include:
 
-- Title
+- Title, as a `### <PREFIX>-NNN: <title>` heading such as `### SIG-012: ...`;
+  `npm run plan:status` finds tickets by this heading shape
 - Status (added on completion per the plan-status rule in `AGENTS.md`)
 - Goal
 - Scope
