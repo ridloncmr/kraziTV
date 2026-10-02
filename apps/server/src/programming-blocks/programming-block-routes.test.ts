@@ -1,9 +1,9 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
-import type { FastifyInstance, InjectOptions } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { send } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import {
@@ -62,17 +62,6 @@ async function startServer(
     }),
   });
   return { server, db, clock };
-}
-
-// Sends one JSON request and returns the status with the parsed body.
-async function send(
-  server: FastifyInstance,
-  method: InjectOptions["method"],
-  url: string,
-  payload?: InjectOptions["payload"],
-) {
-  const response = await server.inject({ method, url, payload });
-  return { status: response.statusCode, body: response.json() };
 }
 
 describe("programming block routes", () => {

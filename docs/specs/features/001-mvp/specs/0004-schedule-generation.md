@@ -1,6 +1,6 @@
 # Schedule Generation
 
-Status: In Development
+Status: Implemented
 
 This spec defines MVP programming blocks and guide schedule generation: configuring what each channel plays and how, and producing deterministic, provider-neutral schedule entries from those programming blocks and cataloged local media.
 

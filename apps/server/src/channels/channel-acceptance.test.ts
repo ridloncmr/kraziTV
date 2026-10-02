@@ -1,11 +1,11 @@
 // Spec 0003 acceptance: collections and channels configured over HTTP against
 // the real composition and a real temporary SQLite file, then read back after a
 // restart. Only the channel runtime is replaced, so stops can be observed.
-import type { FastifyInstance, InjectOptions } from "fastify";
 import { sql, type Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import { send } from "../testing/api-requests.js";
 import { itemFixture, rootFixture } from "../testing/catalog-fixtures.js";
 import { RecordingChannelRuntime } from "../testing/recording-channel-runtime.js";
 import {
@@ -61,20 +61,6 @@ async function startServer(
     overrides: () => ({ channelRuntime: runtime }),
   });
   return { server, db, runtime };
-}
-
-// Sends one JSON request and returns the status with the parsed body, if any.
-async function send(
-  server: FastifyInstance,
-  method: InjectOptions["method"],
-  url: string,
-  payload?: InjectOptions["payload"],
-) {
-  const response = await server.inject({ method, url, payload });
-  return {
-    status: response.statusCode,
-    body: response.body === "" ? undefined : response.json(),
-  };
 }
 
 describe("channel configuration acceptance", () => {

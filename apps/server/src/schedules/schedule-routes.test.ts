@@ -1,9 +1,9 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
-import type { FastifyInstance, InjectOptions } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { send, iso } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
@@ -66,25 +66,9 @@ function readState(db: Kysely<DatabaseSchema>) {
     .executeTakeFirstOrThrow();
 }
 
-// Formats an epoch millisecond as the UTC instant the API accepts.
-function iso(epochMs: number): string {
-  return new Date(epochMs).toISOString();
-}
-
 // Builds a window query from epoch milliseconds.
 function windowUrl(start: number, end: number, url = SCHEDULE_URL): string {
   return `${url}?start=${iso(start)}&end=${iso(end)}`;
-}
-
-// Sends one JSON request and returns the status with the parsed body.
-async function send(
-  server: FastifyInstance,
-  method: InjectOptions["method"],
-  url: string,
-  payload?: InjectOptions["payload"],
-) {
-  const response = await server.inject({ method, url, payload });
-  return { status: response.statusCode, body: response.json() };
 }
 
 describe("GET /channels/:id/schedule", () => {
