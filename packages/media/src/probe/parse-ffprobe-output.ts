@@ -1,11 +1,5 @@
+import type { MediaProbeResult } from "./contracts.js";
 import { MediaProbeError } from "./media-probe-error.js";
-
-/** The normalized facts one probe contributes before any metadata enrichment. */
-export interface MediaProbeResult {
-  /** Positive whole milliseconds, rounded once from ffprobe's seconds. */
-  durationMs: number;
-  hasAudio: boolean;
-}
 
 /**
  * Normalizes ffprobe JSON output. Only duration and audio presence cross this

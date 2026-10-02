@@ -17,8 +17,11 @@ export {
   createMediaProber,
   type MediaProberConfig,
 } from "./create-media-prober.js";
-export type { MediaProbeOptions, MediaProber } from "./probe/contracts.js";
-export type { MediaProbeResult } from "./probe/parse-ffprobe-output.js";
+export type {
+  MediaProbeOptions,
+  MediaProbeResult,
+  MediaProber,
+} from "./probe/contracts.js";
 export {
   MediaProbeError,
   type MediaProbeErrorCode,

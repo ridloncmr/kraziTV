@@ -6,13 +6,14 @@ import {
   type SpawnedProcess,
 } from "@krazitv/process";
 
-import type { MediaProbeOptions, MediaProber } from "./contracts.js";
+import type {
+  MediaProbeOptions,
+  MediaProbeResult,
+  MediaProber,
+} from "./contracts.js";
 import { buildFfprobeArguments } from "./ffprobe-arguments.js";
 import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
-import {
-  parseFfprobeOutput,
-  type MediaProbeResult,
-} from "./parse-ffprobe-output.js";
+import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
 const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
