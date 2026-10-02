@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ChannelNumber } from "./channel.js";
-import { compareChannelNumbers, parseChannelNumber } from "./channel-number.js";
+import {
+  compareChannelNumbers,
+  parseChannelNumber,
+  type ChannelNumber,
+} from "./channel-number.js";
 
 /** Parses test inputs that must be canonical, failing loudly if one is not. */
 function channelNumber(input: string): ChannelNumber {

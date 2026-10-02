@@ -1,8 +1,13 @@
-import type { Channel, ChannelNumber } from "@krazitv/krazi-brain";
 import type { ChannelStreamManagerContract } from "@krazitv/signal";
 
-/** A persisted channel: kraziBrain's identity plus its storage timestamps. */
-export type StoredChannel = Channel & {
+import type { ChannelNumber } from "./channel-number.js";
+
+/** A persisted channel: its lineup identity plus storage timestamps. */
+export type StoredChannel = {
+  id: string;
+  number: ChannelNumber;
+  name: string;
+  enabled: boolean;
   createdAt: number;
   updatedAt: number;
 };

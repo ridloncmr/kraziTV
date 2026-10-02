@@ -618,7 +618,8 @@ keep 72 hours of entries in bounded, atomic chunks.
 
 - Migration `005_schedules` and its three table files.
 - Export `deriveChannelSeed` from kraziBrain's `src/index.ts`; the server
-  stores the seed.
+  stores the seed. Add `@krazitv/krazi-brain` as an `apps/server` dependency
+  and build reference, since the server does not import it before this ticket.
 - `schedule-repository.ts`: executor-bound functions that load inputs
   (channel; block; ordered members joined to `media_items`, or the single
   item; state; progress defaulting to zero), insert entries, upsert progress,

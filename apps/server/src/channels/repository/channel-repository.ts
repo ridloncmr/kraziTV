@@ -1,9 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  compareChannelNumbers,
-  parseChannelNumber,
-} from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
 import {
@@ -14,6 +10,10 @@ import type { ChannelTable } from "../../database/schema/channel-table.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import { isUniqueViolation } from "../../database/writes/unique-violation.js";
+import {
+  compareChannelNumbers,
+  parseChannelNumber,
+} from "../channel-number.js";
 import type {
   ChannelChanges,
   CreateChannelInput,

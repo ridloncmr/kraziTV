@@ -1,5 +1,3 @@
-import type { ChannelId } from "../channels/channel.js";
-
 const FNV_OFFSET_BASIS = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
 
@@ -47,7 +45,7 @@ export function hash32(text: string): number {
  * sequence while one that keeps its anchor replays the same one.
  */
 export function deriveChannelSeed(
-  channelId: ChannelId,
+  channelId: string,
   anchorTime: number,
 ): number {
   return hash32(`channel:${channelId}:${anchorTime}`);

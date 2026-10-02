@@ -1,4 +1,12 @@
-import type { ChannelNumber } from "./channel.js";
+declare const canonicalChannelNumber: unique symbol;
+
+/**
+ * A canonical channel number, such as `69` or `69.1`. Branded so the compiler
+ * only accepts values that came through `parseChannelNumber`.
+ */
+export type ChannelNumber = string & {
+  readonly [canonicalChannelNumber]: true;
+};
 
 const CANONICAL_CHANNEL_NUMBER = /^[1-9][0-9]*(\.[1-9][0-9]*)?$/;
 

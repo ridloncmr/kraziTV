@@ -1,9 +1,9 @@
-import { parseChannelNumber, type ChannelNumber } from "@krazitv/krazi-brain";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
 import { idParams, nameField } from "../../http/request-schemas.js";
 import { ChannelLifecycleLock } from "./channel-lifecycle-lock.js";
 import type { ChannelRepository } from "../repository/channel-repository.js";

@@ -1,8 +1,8 @@
-import { parseChannelNumber, type ChannelNumber } from "@krazitv/krazi-brain";
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { KraziDatabase } from "../../database/database.js";
+import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import {
   cleanUpTestEnvironment,

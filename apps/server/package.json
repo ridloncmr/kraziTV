@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
-    "@krazitv/krazi-brain": "file:../../packages/krazi-brain",
     "@krazitv/media": "file:../../packages/media",
     "@krazitv/signal": "file:../../packages/signal",
     "better-sqlite3": "^11.10.0",
