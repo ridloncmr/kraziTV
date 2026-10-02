@@ -10,6 +10,7 @@ import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js"
 import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";
+import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import {
   cancelIdleStop,
   closeSubscriptions,
@@ -71,7 +72,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     Set<SubscriptionWaiter>
   >();
   private shuttingDown = false;
-  private shutdownPromise: Promise<void> | undefined;
+  private readonly shutdownAttempt = new RetryableAttempt();
 
   /** Retains provider-neutral ports without starting any channel resources. */
   constructor(private readonly options: ChannelStreamManagerOptions) {
@@ -120,8 +121,11 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
   /** Permanently rejects new work and settles every worker known to this manager. */
   shutdown(): Promise<void> {
-    if (this.shutdownPromise !== undefined) return this.shutdownPromise;
+    return this.shutdownAttempt.run(() => this.shutDownChannels());
+  }
 
+  /** Closes the gate, then settles every channel's runtime in one attempt. */
+  private async shutDownChannels(): Promise<void> {
     this.shuttingDown = true;
     for (const channelId of [...this.authorizingWaiters.keys()]) {
       this.rejectAuthorizingWaiters(channelId, managerShutdown(channelId));
@@ -133,25 +137,17 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       ...this.lifecycles.keys(),
       ...this.transitions.channelIds(),
     ]);
-    const attempt = Promise.allSettled(
+    const results = await Promise.allSettled(
       [...channelIds].map((channelId) =>
         this.transitions.run(channelId, () =>
           this.stopChannelRuntime(channelId, managerShutdown(channelId)),
         ),
       ),
-    ).then((results) => {
-      const failure = results.find(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      );
-      if (failure !== undefined) throw failure.reason;
-    });
-    // A successful attempt stays memoized; a failed one is released for retry.
-    this.shutdownPromise = attempt;
-    void attempt.catch(() => {
-      if (this.shutdownPromise === attempt) this.shutdownPromise = undefined;
-    });
-    return attempt;
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure !== undefined) throw failure.reason;
   }
 
   /**

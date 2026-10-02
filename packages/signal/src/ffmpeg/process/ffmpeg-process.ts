@@ -11,6 +11,7 @@ import {
 import { assertNonNegativeSafeInteger } from "../../options/safe-integer-option.js";
 import { SignalError } from "../../errors.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
+import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 5_000;
@@ -33,7 +34,7 @@ export class FfmpegProcess {
   readonly completion: Promise<void>;
   private readonly stderr = new OutputTail(STDERR_TAIL_LIMIT_BYTES);
   private stopRequested = false;
-  private stopPromise: Promise<void> | undefined;
+  private readonly stopAttempt = new RetryableAttempt();
 
   /** Attaches diagnostics before any child output can be left undrained. */
   private constructor(
@@ -90,15 +91,10 @@ export class FfmpegProcess {
 
   /** Shares active termination, retains success, and releases failure for retry. */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-
-    this.stopRequested = true;
-    const attempt = this.stopAndVerify();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    return this.stopAttempt.run(() => {
+      this.stopRequested = true;
+      return this.stopAndVerify();
     });
-    return attempt;
   }
 
   /** Converts unexpected child closure into the package's provider-neutral errors. */

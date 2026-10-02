@@ -3,6 +3,7 @@ import { PassThrough } from "node:stream";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import type { ManagedChannelWorker } from "../channel-worker/contracts.js";
 import type { ChannelId } from "../playout/contracts.js";
+import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import { Deferred } from "./deferred.js";
 
 /** Stands in for a published worker with a real broadcaster and scriptable stop and failure. */
@@ -16,7 +17,7 @@ export class FakeManagedWorker implements ManagedChannelWorker {
   private stopGate: Deferred<void> | undefined;
   private stopFailure: unknown;
   private nextStopFailure: unknown;
-  private stopPromise: Promise<void> | undefined;
+  private readonly stopAttempt = new RetryableAttempt();
 
   constructor(readonly channelId: ChannelId) {
     this.completion = this.completionState.promise;
@@ -37,14 +38,10 @@ export class FakeManagedWorker implements ManagedChannelWorker {
 
   /** Settles this fake worker once while preserving stop idempotence. */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-    this.stopCalls += 1;
-    const attempt = this.finishStop();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    return this.stopAttempt.run(() => {
+      this.stopCalls += 1;
+      return this.finishStop();
     });
-    return attempt;
   }
 
   /** Holds cleanup open so tests can prove replacement cannot overlap it. */

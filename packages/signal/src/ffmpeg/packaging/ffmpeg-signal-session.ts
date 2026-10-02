@@ -7,6 +7,7 @@ import type {
   SignalSession,
 } from "../../signal-packager/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../../runtime/clock.js";
+import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
 import type { OutputReadinessInspector } from "../contracts.js";
@@ -16,21 +17,21 @@ import {
   type PreparationOwner,
 } from "./ffmpeg-signal-preparation.js";
 
-type EncoderBinding = {
+type ProcessBinding = {
   process: FfmpegProcess;
   forwarder: MpegTsPacketForwarder;
   context: LogContext;
   cancelReadiness(): void;
 };
 
-/** Owns one stable output while sequential FFmpeg encoders serve its items. */
+/** Owns one stable output while sequential FFmpeg processes serve its items. */
 export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly output: Readable;
   readonly ready: Promise<void>;
   readonly completion: Promise<void>;
   private readonly sessionOutput = new PassThrough();
   private readonly processes = new Set<FfmpegProcess>();
-  private readonly bindings = new Map<FfmpegProcess, EncoderBinding>();
+  private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
   private resolveReady!: () => void;
   private rejectReady!: (reason: unknown) => void;
   private resolveCompletion!: () => void;
@@ -39,11 +40,11 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   private completionSettled = false;
   private stopping = false;
   private stopped = false;
-  private stopPromise: Promise<void> | undefined;
-  private active: EncoderBinding;
+  private readonly stopAttempt = new RetryableAttempt();
+  private active: ProcessBinding;
   private preparation: FfmpegSignalPreparation | undefined;
 
-  /** Attaches the initial encoder before exposing the session-owned stream. */
+  /** Attaches the initial FFmpeg process before exposing the session-owned stream. */
   constructor(
     process: FfmpegProcess,
     initialItem: SignalPlayoutItem,
@@ -81,28 +82,22 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     return preparation;
   }
 
-  /** Stops every encoder and ends the stable output only after verified closure. */
+  /** Stops every FFmpeg process and ends the stable output only after verified closure. */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-    if (this.stopped) return Promise.resolve();
-
-    this.stopping = true;
-    this.settleReadyWithError(stoppedError());
-    if (this.preparation !== undefined) {
-      void this.preparation.discard();
-    }
-    for (const binding of this.bindings.values()) {
-      binding.cancelReadiness();
-    }
-    const attempt = this.stopAllProcesses();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    return this.stopAttempt.run(() => {
+      this.stopping = true;
+      this.settleReadyWithError(stoppedError());
+      if (this.preparation !== undefined) {
+        void this.preparation.discard();
+      }
+      for (const binding of this.bindings.values()) {
+        binding.cancelReadiness();
+      }
+      return this.stopAllProcesses();
     });
-    return attempt;
   }
 
-  /** Atomically replaces the encoder feeding the stable output. */
+  /** Atomically replaces the FFmpeg process feeding the stable output. */
   commitPreparation(preparation: FfmpegSignalPreparation): void {
     this.assertRunning();
     this.assertCurrentPreparation(preparation);
@@ -131,12 +126,12 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.preparation = undefined;
   }
 
-  /** Attaches packet forwarding and observes one encoder as session-internal. */
+  /** Attaches packet forwarding and observes one FFmpeg process as session-internal. */
   private attach(
     process: FfmpegProcess,
     item: SignalPlayoutItem,
     readinessKind: "initial" | "committed",
-  ): EncoderBinding {
+  ): ProcessBinding {
     const forwarder = new MpegTsPacketForwarder(
       process.output,
       this.sessionOutput,
@@ -163,7 +158,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       readinessTimer = undefined;
     };
     const context = itemContext(item);
-    const binding: EncoderBinding = {
+    const binding: ProcessBinding = {
       process,
       forwarder,
       context,
@@ -228,7 +223,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     }
   }
 
-  /** Converts any encoder or commit failure into the session's terminal result. */
+  /** Converts any FFmpeg process or commit failure into the session's terminal result. */
   private fail(error: unknown): void {
     if (this.completionSettled || this.stopping) return;
     this.settleReadyWithError(error);

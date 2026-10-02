@@ -6,6 +6,7 @@ import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
+import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import type {
   SignalPackager,
   SignalSession,
@@ -52,7 +53,7 @@ type JoinableOutputWaiter = {
 /** Owns one channel's active packaging session and retained broadcast output. */
 export class ChannelWorker {
   readonly completion: Promise<void>;
-  private stopPromise: Promise<void> | undefined;
+  private readonly stopAttempt = new RetryableAttempt();
   private readonly transitions: TransitionLoop;
   private readonly transitionsDone: Promise<void>;
   private failure: SignalError | undefined;
@@ -193,12 +194,11 @@ export class ChannelWorker {
   /**
    * Shares active cleanup, retains success, and releases failure for retry.
    * Halting and session stop run together so a slow discard cannot keep the
-   * encoder alive; resolving waits for the loop to discard any late preparation.
+   * FFmpeg process alive; resolving waits for the loop to discard any late
+   * preparation.
    */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-
-    const attempt = (async () => {
+    return this.stopAttempt.run(async () => {
       const [halted, stopped] = await Promise.allSettled([
         this.transitions.halt(),
         this.session.stop(),
@@ -210,12 +210,7 @@ export class ChannelWorker {
       if (halted.status === "rejected" && this.transitions.holdsPreparation) {
         throw halted.reason;
       }
-    })();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
     });
-    return attempt;
   }
 }
 
