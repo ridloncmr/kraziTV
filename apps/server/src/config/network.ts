@@ -1,3 +1,5 @@
+import { parseIntegerSetting } from "./integer-setting.js";
+
 interface ListenConfig {
   host: string;
   port: number;
@@ -16,24 +18,9 @@ export function parseListenConfig(
 ): ListenConfig {
   return {
     host: env.HOST?.trim() || DEFAULT_HOST,
-    port: parsePort(env.PORT),
+    // The 1 minimum rejects 0, so the server never binds a random port.
+    port: parseIntegerSetting("PORT", env.PORT, DEFAULT_PORT, MAX_PORT),
   };
-}
-
-// Accepts only plain decimal digits, and rejects 0 so the server never binds a random port.
-function parsePort(value: string | undefined): number {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return DEFAULT_PORT;
-  }
-
-  const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_PORT) {
-    throw new Error(
-      `PORT must be an integer from 1 through ${MAX_PORT}; received "${value}"`,
-    );
-  }
-  return parsed;
 }
 
 /** Decides whether the bind address stays on this machine, which gates the no-auth warning. */
