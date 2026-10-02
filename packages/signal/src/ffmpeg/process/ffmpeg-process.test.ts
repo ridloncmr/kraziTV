@@ -6,11 +6,7 @@ import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegProcess } from "./ffmpeg-process.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
-
-const flushPromises = async (): Promise<void> => {
-  await Promise.resolve();
-  await Promise.resolve();
-};
+import { flushMicrotasks } from "../../testing/settle-promises.js";
 
 const createHarness = (
   options: {
@@ -214,7 +210,7 @@ describe("FfmpegProcess", () => {
 
     const stopped = managed.stop();
     timers.advanceBy(20);
-    await flushPromises();
+    await flushMicrotasks(2);
 
     expect(child.terminationSignals).toEqual(["SIGTERM", "SIGKILL"]);
     child.exit({ code: null, signal: "SIGKILL" });
@@ -228,11 +224,11 @@ describe("FfmpegProcess", () => {
     const stopped = managed.stop();
 
     timers.advanceBy(4_999);
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(child.terminationSignals).toEqual(["SIGTERM"]);
 
     timers.advanceBy(1);
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(child.terminationSignals).toEqual(["SIGTERM", "SIGKILL"]);
 
     child.exit({ code: null, signal: "SIGKILL" });
@@ -246,7 +242,7 @@ describe("FfmpegProcess", () => {
 
     const stopped = managed.stop();
     timers.advanceBy(20);
-    await flushPromises();
+    await flushMicrotasks(2);
     timers.advanceBy(20);
 
     const error = await expectSignalError(stopped, "runtime_cleanup_failed");
@@ -263,7 +259,7 @@ describe("FfmpegProcess", () => {
     const concurrent = managed.stop();
     expect(concurrent).toBe(first);
     timers.advanceBy(20);
-    await flushPromises();
+    await flushMicrotasks(2);
     timers.advanceBy(20);
     await expect(first).rejects.toMatchObject({
       code: "runtime_cleanup_failed",

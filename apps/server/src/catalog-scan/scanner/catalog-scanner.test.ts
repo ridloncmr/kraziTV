@@ -25,6 +25,7 @@ import {
   openTestDatabase,
 } from "../../testing/test-environment.js";
 import { sequentialIds } from "../../testing/record-sources.js";
+import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 const RESULT = { durationMs: 2_000, hasAudio: true };
@@ -50,10 +51,6 @@ function path(name: string): string {
 }
 
 // Lets queued promise continuations run so assertions see settled scheduling.
-async function flush(): Promise<void> {
-  for (let i = 0; i < 10; i += 1) await Promise.resolve();
-}
-
 interface SetupOptions {
   /** A fake discovery function, or "real" to walk the actual filesystem. */
   discover?: Discover | "real";
@@ -199,7 +196,7 @@ describe("CatalogScanner", () => {
     await prober.waitForStarted(3);
     prober.get(path("a")).resolve(RESULT);
     prober.get(path("b")).resolve(RESULT);
-    await flush();
+    await flushMicrotasks(10);
 
     expect(await catalogSnapshot(db)).toEqual(before);
     prober.get(path("c")).resolve(RESULT);
@@ -264,19 +261,19 @@ describe("CatalogScanner", () => {
     const movies = scanner.scan(rootFixture.id);
     const tv = scanner.scan(OTHER_ROOT_ID);
     await prober.waitForStarted(2);
-    await flush();
+    await flushMicrotasks(10);
     expect(prober.active).toBe(2);
 
     // The media adapter settles a timed-out probe only after its child closes,
     // so until then the probe is pending here and must keep holding its slot.
     const terminating = prober.started[0];
-    await flush();
+    await flushMicrotasks(10);
     expect(prober.started).toHaveLength(2);
     terminating.reject(new MediaProbeError("timed_out", "ffprobe timed out"));
 
     while (prober.active > 0) {
       prober.resolveAll(RESULT);
-      await flush();
+      await flushMicrotasks(10);
     }
 
     await expect(movies).resolves.toMatchObject({ kind: "completed" });
@@ -412,7 +409,7 @@ describe("CatalogScanner", () => {
     });
 
     controller.abort();
-    await flush();
+    await flushMicrotasks(10);
     expect(prober.get(path("a")).signal?.aborted).toBe(true);
     // The active child has not closed yet, so the scan must not settle.
     expect(settled).toBe(false);
@@ -467,7 +464,7 @@ describe("CatalogScanner", () => {
     });
 
     prober.get(path("a")).reject(new TypeError("adapter bug"));
-    await flush();
+    await flushMicrotasks(10);
     expect(prober.get(path("b")).signal?.aborted).toBe(true);
     expect(settled).toBe(false);
 
@@ -487,7 +484,7 @@ describe("CatalogScanner", () => {
     const shutdown = scanner.shutdown().then(() => {
       shutDown = true;
     });
-    await flush();
+    await flushMicrotasks(10);
     expect(prober.started.every((probe) => probe.signal?.aborted)).toBe(true);
     expect(shutDown).toBe(false);
 

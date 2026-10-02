@@ -13,6 +13,7 @@ import { ChannelStreamManager } from "./channel-stream-manager.js";
 import { ControlledWorkerFactory } from "../testing/controlled-worker-factory.js";
 import { expectSignalError } from "../testing/expect-signal-error.js";
 import { FakeManagedWorker } from "../testing/fake-managed-worker.js";
+import { settlePromises } from "../testing/settle-promises.js";
 
 class MutableAuthorization implements ChannelAuthorization {
   readonly calls: ChannelId[] = [];
@@ -68,10 +69,6 @@ class SequencedAuthorization implements ChannelAuthorization {
     return result;
   }
 }
-
-const settlePromises = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-};
 
 /** Supplies deterministic lifecycle defaults while individual tests override policy. */
 const createManager = (options: {

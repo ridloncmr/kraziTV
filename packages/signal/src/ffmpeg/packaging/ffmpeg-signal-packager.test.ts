@@ -7,6 +7,7 @@ import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
 import type { OutputReadinessInspector } from "../contracts.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
+import { flushMicrotasks } from "../../testing/settle-promises.js";
 
 class MarkerInspector implements OutputReadinessInspector {
   /** Treats an explicit test marker as usable media output. */
@@ -43,11 +44,6 @@ const createHarness = () => {
   });
 
   return { child, spawner, timers, logger, packager };
-};
-
-const flushPromises = async (): Promise<void> => {
-  await Promise.resolve();
-  await Promise.resolve();
 };
 
 const packet = (fill: number): Buffer => {
@@ -159,13 +155,13 @@ describe("FfmpegSignalPackager", () => {
       completed = true;
     });
     child.exit({ code: 0, signal: null });
-    await flushPromises();
+    await flushMicrotasks(2);
 
     expect(completed).toBe(false);
     expect(session.output.readableEnded).toBe(false);
   });
 
-  it("prepares without spawning, then synchronously starts the next encoder on commit", async () => {
+  it("prepares without spawning, then synchronously starts the next FFmpeg process on commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -196,7 +192,7 @@ describe("FfmpegSignalPackager", () => {
     expect(spawner.spawnCalls[1]?.args).toContain("C:/private/media/next.mkv");
     expect(first.terminationSignals).toEqual(["SIGTERM"]);
     first.exit({ code: null, signal: "SIGTERM" });
-    await flushPromises();
+    await flushMicrotasks(2);
   });
 
   it("logs structured lifecycle measurements without exposing media paths", async () => {
@@ -246,7 +242,7 @@ describe("FfmpegSignalPackager", () => {
     expect(JSON.stringify(logger.infos)).not.toContain("movie.mkv");
   });
 
-  it("splices only complete 188-byte packets and drops the detached encoder's partial tail", async () => {
+  it("splices only complete 188-byte packets and drops the detached FFmpeg process's partial tail", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -271,7 +267,7 @@ describe("FfmpegSignalPackager", () => {
     preparation.commit();
     second.writeStdout(secondPacket.subarray(0, 50));
     second.writeStdout(secondPacket.subarray(50));
-    await flushPromises();
+    await flushMicrotasks(2);
 
     expect(Buffer.concat(output)).toEqual(
       Buffer.concat([firstPacket, secondPacket]),
@@ -299,7 +295,7 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
-  it("consumes a preparation when its synchronous encoder start fails", async () => {
+  it("consumes a preparation when its synchronous FFmpeg process start fails", async () => {
     const { packager, child } = createHarness();
     const session = packager.start(initialItem());
     const completion = expectSignalError(
@@ -340,7 +336,7 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
-  it("stops every encoder retained across a committed transition before settling", async () => {
+  it("stops every FFmpeg process retained across a committed transition before settling", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -370,7 +366,7 @@ describe("FfmpegSignalPackager", () => {
     expect(first.terminationSignals).toEqual(["SIGTERM"]);
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
     second.exit({ code: null, signal: "SIGTERM" });
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(settled).toBe(false);
 
     first.exit({ code: null, signal: "SIGTERM" });
@@ -380,7 +376,7 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(true);
   });
 
-  it("rejects completion when a later encoder fails", async () => {
+  it("rejects completion when a later FFmpeg process fails", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -420,7 +416,7 @@ describe("FfmpegSignalPackager", () => {
     first.exit({ code: null, signal: "SIGTERM" });
   });
 
-  it("fails the session when a committed encoder produces no usable output", async () => {
+  it("fails the session when a committed FFmpeg process produces no usable output", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -452,7 +448,7 @@ describe("FfmpegSignalPackager", () => {
     );
 
     timers.advanceBy(24);
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(second.terminationSignals).toEqual([]);
     timers.advanceBy(1);
 
@@ -462,13 +458,13 @@ describe("FfmpegSignalPackager", () => {
     expect(second.stdout.listenerCount("data")).toBe(0);
     const bytesAtFailure = Buffer.concat(forwarded);
     second.writeStdout(packet(7));
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(Buffer.concat(forwarded)).toEqual(bytesAtFailure);
     expect(outputError).not.toHaveBeenCalled();
     second.exit({ code: null, signal: "SIGTERM" });
   });
 
-  it("cancels each committed encoder readiness timeout on usable output", async () => {
+  it("cancels each committed FFmpeg process readiness timeout on usable output", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -493,12 +489,12 @@ describe("FfmpegSignalPackager", () => {
 
     second.writeStdout("usable-output");
     timers.advanceBy(25);
-    await flushPromises();
+    await flushMicrotasks(2);
     let completed = false;
     void session.completion.finally(() => {
       completed = true;
     });
-    await flushPromises();
+    await flushMicrotasks(2);
     expect(completed).toBe(false);
 
     const stopped = session.stop();
@@ -507,7 +503,7 @@ describe("FfmpegSignalPackager", () => {
     expect(timers.pendingTimerCount).toBe(0);
   });
 
-  it("feeds an old encoder stop failure into session completion", async () => {
+  it("feeds an old FFmpeg process stop failure into session completion", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -536,7 +532,7 @@ describe("FfmpegSignalPackager", () => {
     );
 
     timers.advanceBy(10);
-    await flushPromises();
+    await flushMicrotasks(2);
     timers.advanceBy(10);
 
     await completion;
@@ -580,7 +576,7 @@ describe("FfmpegSignalPackager", () => {
     const concurrent = session.stop();
     expect(concurrent).toBe(first);
     timers.advanceBy(5_000);
-    await flushPromises();
+    await flushMicrotasks(2);
     timers.advanceBy(5_000);
     await expect(first).rejects.toMatchObject({
       code: "runtime_cleanup_failed",

@@ -15,6 +15,7 @@ import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
 import { WorkerCreationCleanupError } from "./channel-worker-errors.js";
 import { expectSignalError } from "../testing/expect-signal-error.js";
+import { settlePromises } from "../testing/settle-promises.js";
 
 const currentItem = (
   evaluatedAt: number,
@@ -122,10 +123,6 @@ const workerOptions = (
       ? undefined
       : retainedBytes.indexOf("INIT"),
 });
-
-const settlePromises = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-};
 
 describe("ChannelWorker startup", () => {
   it("starts from the final wall-clock snapshot without shifting the scheduled end", async () => {
