@@ -7,6 +7,7 @@ type ApiErrorCode =
   | "channel_runtime_cleanup_failed"
   | "invalid_request"
   | "internal_error"
+  | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_not_found"
   | "media_root_disabled"

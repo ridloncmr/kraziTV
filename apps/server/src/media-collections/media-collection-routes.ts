@@ -75,8 +75,18 @@ export function registerMediaCollectionRoutes(
 
   server.delete("/media-collections/:id", async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    if (!(await mediaCollections.delete(id))) {
+    const result = await mediaCollections.delete(id);
+    if (result.kind === "not_found") {
       return sendCollectionNotFound(reply, id);
+    }
+    if (result.kind === "in_use") {
+      return sendApiError(
+        reply,
+        409,
+        "media_collection_in_use",
+        `Media collection ${id} is used by programming blocks on channels: ${result.channelIds.join(", ")}`,
+        { channelIds: result.channelIds },
+      );
     }
     return reply.status(204).send();
   });

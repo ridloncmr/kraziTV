@@ -6,6 +6,10 @@ import {
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
+import {
+  channelFixture,
+  programmingBlockFixture,
+} from "../testing/channel-fixtures.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 import {
   cleanUpTestEnvironment,
@@ -175,8 +179,12 @@ describe("MediaCollectionRepository", () => {
     const { repository, database } = await setup();
     await repository.create("Doomed", ["item-a", "item-b"]);
 
-    await expect(repository.delete("collection-001")).resolves.toBe(true);
-    await expect(repository.delete("collection-001")).resolves.toBe(false);
+    await expect(repository.delete("collection-001")).resolves.toEqual({
+      kind: "deleted",
+    });
+    await expect(repository.delete("collection-001")).resolves.toEqual({
+      kind: "not_found",
+    });
 
     await expect(
       repository.findById("collection-001"),
@@ -187,6 +195,38 @@ describe("MediaCollectionRepository", () => {
     await expect(
       database.db.selectFrom("media_items").selectAll().execute(),
     ).resolves.toHaveLength(3);
+  });
+
+  it("refuses to delete a collection a programming block uses and names its channels", async () => {
+    const { repository, database } = await setup();
+    await repository.create("In Use", ["item-a"]);
+    await database.db
+      .insertInto("channels")
+      .values([
+        channelFixture,
+        { ...channelFixture, id: "channel-second", number: "70" },
+      ])
+      .execute();
+    await database.db
+      .insertInto("programming_blocks")
+      .values([
+        { ...programmingBlockFixture, media_collection_id: "collection-001" },
+        {
+          ...programmingBlockFixture,
+          id: "block-second",
+          channel_id: "channel-second",
+          media_collection_id: "collection-001",
+        },
+      ])
+      .execute();
+
+    await expect(repository.delete("collection-001")).resolves.toEqual({
+      kind: "in_use",
+      channelIds: [channelFixture.id, "channel-second"],
+    });
+    await expect(repository.listMembers("collection-001")).resolves.toEqual([
+      expect.objectContaining({ mediaItemId: "item-a" }),
+    ]);
   });
 
   it("returns undefined members for an unknown collection", async () => {

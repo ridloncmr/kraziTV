@@ -4,10 +4,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
+  collectionFixture,
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
+import {
+  channelFixture,
+  programmingBlockFixture,
+} from "../testing/channel-fixtures.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
@@ -301,6 +306,44 @@ describe("DELETE /media-collections/:id", () => {
     expect(
       (await server.inject({ method: "GET", url: "/media-items/pilot" }))
         .statusCode,
+    ).toBe(200);
+  });
+
+  it("returns media_collection_in_use with the channels whose blocks use it", async () => {
+    const { server } = await startTestServer({
+      seed: async (db) => {
+        await db
+          .insertInto("media_collections")
+          .values(collectionFixture)
+          .execute();
+        await db.insertInto("channels").values(channelFixture).execute();
+        await db
+          .insertInto("programming_blocks")
+          .values(programmingBlockFixture)
+          .execute();
+      },
+    });
+
+    const response = await server.inject({
+      method: "DELETE",
+      url: `/media-collections/${collectionFixture.id}`,
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: {
+        code: "media_collection_in_use",
+        message: expect.stringContaining(collectionFixture.id),
+        channelIds: [channelFixture.id],
+      },
+    });
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: `/media-collections/${collectionFixture.id}`,
+        })
+      ).statusCode,
     ).toBe(200);
   });
 

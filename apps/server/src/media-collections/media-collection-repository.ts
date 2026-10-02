@@ -5,8 +5,10 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
+import { findChannelsUsingCollection } from "../programming-blocks/channels-using-collection.js";
 import type {
   CreateMediaCollectionResult,
+  DeleteMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
   ReplaceMediaCollectionMembersResult,
@@ -99,13 +101,26 @@ export class MediaCollectionRepository {
     return row === undefined ? undefined : toMediaCollection(row);
   }
 
-  /** Deletes a collection; its membership cascades and its media items remain. */
-  async delete(id: string): Promise<boolean> {
-    const result = await this.#db
-      .deleteFrom("media_collections")
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return result.numDeletedRows > 0n;
+  /**
+   * Deletes a collection no programming block uses; its membership cascades
+   * and its media items remain. The block check shares the delete's
+   * transaction, so its snapshot is the one the delete writes against. If
+   * another connection commits a block in between, SQLite refuses the stale
+   * write with `SQLITE_BUSY`, which propagates; the foreign key still
+   * guarantees no block is ever left dangling.
+   */
+  async delete(id: string): Promise<DeleteMediaCollectionResult> {
+    return this.#db.transaction().execute(async (trx) => {
+      if (!(await collectionExists(trx, id))) {
+        return { kind: "not_found" };
+      }
+      const channelIds = await findChannelsUsingCollection(trx, id);
+      if (channelIds.length > 0) {
+        return { kind: "in_use", channelIds };
+      }
+      await trx.deleteFrom("media_collections").where("id", "=", id).execute();
+      return { kind: "deleted" };
+    });
   }
 
   /** Lists members in position order; undefined distinguishes an unknown collection from an empty one. */
@@ -153,7 +168,7 @@ export class MediaCollectionRepository {
 }
 
 // Answers existence without loading the row.
-async function collectionExists(
+export async function collectionExists(
   executor: Executor,
   id: string,
 ): Promise<boolean> {
@@ -166,7 +181,7 @@ async function collectionExists(
 }
 
 // Returns requested IDs absent from the catalog, in request order without repeats.
-async function findUnknownMediaItemIds(
+export async function findUnknownMediaItemIds(
   executor: Executor,
   mediaItemIds: readonly string[],
 ): Promise<string[]> {

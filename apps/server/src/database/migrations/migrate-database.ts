@@ -8,12 +8,14 @@ import {
 import { initialCatalogMigration } from "./001-initial-catalog.js";
 import { mediaCollectionsMigration } from "./002-media-collections.js";
 import { channelsMigration } from "./003-channels.js";
+import { programmingBlocksMigration } from "./004-programming-blocks.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "001_initial_catalog": initialCatalogMigration,
   "002_media_collections": mediaCollectionsMigration,
   "003_channels": channelsMigration,
+  "004_programming_blocks": programmingBlocksMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {
