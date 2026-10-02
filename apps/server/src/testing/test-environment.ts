@@ -16,6 +16,8 @@ import {
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "../channels/runtime/no-op-channel-runtime.js";
+import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
+import { ScheduleService } from "../schedules/schedule-service.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -89,6 +91,8 @@ export async function startTestServer(
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
     channelRuntime: noOpChannelRuntime,
+    programmingBlocks: new ProgrammingBlockRepository(database.db),
+    schedules: new ScheduleService(database.db),
   };
   const dependencies = {
     ...defaults,

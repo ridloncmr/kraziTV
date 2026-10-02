@@ -49,6 +49,17 @@ export async function loadScheduleState(
   return row === undefined ? undefined : toScheduleState(row);
 }
 
+/** Returns the latest schedule mutation time across all channels, or undefined before any. */
+export async function findLatestScheduleMutation(
+  trx: Executor,
+): Promise<number | undefined> {
+  const row = await trx
+    .selectFrom("channel_schedule_states")
+    .select((eb) => eb.fn.max("updated_at").as("latest"))
+    .executeTakeFirst();
+  return row?.latest ?? undefined;
+}
+
 /**
  * Resolves the channel's block into the source kraziBrain generates from:
  * collection members in membership order, or the single item. Returns

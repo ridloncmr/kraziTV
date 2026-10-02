@@ -8,6 +8,8 @@ import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "./channels/runtime/no-op-channel-runtime.js";
+import { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
+import { ScheduleService } from "./schedules/schedule-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
@@ -45,6 +47,8 @@ const scanner = new CatalogScanner({
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
+const programmingBlocks = new ProgrammingBlockRepository(database.db);
+const schedules = new ScheduleService(database.db);
 
 const server = buildServer(
   {
@@ -56,6 +60,8 @@ const server = buildServer(
     channels,
     // Plan 0006 replaces this with the composed channel stream manager.
     channelRuntime: noOpChannelRuntime,
+    programmingBlocks,
+    schedules,
   },
   {
     logger: true,

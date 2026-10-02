@@ -16,6 +16,7 @@ type ApiErrorCode =
   | "media_root_path_immutable"
   | "media_root_unavailable"
   | "not_found"
+  | "programming_block_limit_reached"
   | "scan_cancelled"
   | "scan_in_progress";
 

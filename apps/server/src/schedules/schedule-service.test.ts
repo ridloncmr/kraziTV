@@ -19,6 +19,7 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
+import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { ScheduleService } from "./schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -432,5 +433,170 @@ describe("ScheduleService.ensureCoverage", () => {
     await expect(readState(db, channelId)).resolves.toBeUndefined();
     await expect(readEntries(db, channelId)).resolves.toEqual([]);
     await expect(readProgress(db)).resolves.toEqual([]);
+  });
+});
+
+describe("ScheduleService.applyInputChange", () => {
+  // Creates the scenario's collection block through the repository, as the block route does.
+  function createBlock(
+    db: Kysely<DatabaseSchema>,
+    channelId: string,
+    collectionId: string,
+  ) {
+    const blocks = new ProgrammingBlockRepository(db, {
+      createId: () => "block-001",
+    });
+    return async (trx: Kysely<DatabaseSchema>, effectiveNow: number) => {
+      const result = await blocks.create(
+        trx,
+        channelId,
+        {
+          kind: "collection",
+          mediaCollectionId: collectionId,
+          playbackMode: "chronological",
+        },
+        effectiveNow,
+      );
+      return { value: result, affectedChannelIds: [channelId] };
+    };
+  }
+
+  it("commits the change with the first chunk, then completes coverage", async () => {
+    const { db, channelId, collectionId, service, log } = await setup(
+      { source: null, items: [{ durationMs: 10 * HOUR }] },
+      3,
+    );
+
+    const value = await service.applyInputChange(
+      log,
+      "block_created",
+      createBlock(db, channelId, collectionId),
+    );
+
+    expect(value).toMatchObject({ kind: "created", block: { createdAt: T0 } });
+    const entries = await readEntries(db, channelId);
+    expect(entries).toHaveLength(8);
+    expect(entries[0]?.starts_at).toBe(T0);
+    expectContiguous(entries);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      anchor_time: T0,
+      schedule_revision: 3,
+    });
+    expect(log.lines).toEqual([
+      {
+        level: "info",
+        fields: {
+          channelId,
+          reason: "block_created",
+          result: { kind: "covered", scheduleRevision: 3 },
+        },
+        message: expect.any(String),
+      },
+    ]);
+  });
+
+  it("rolls back the change when its first chunk fails", async () => {
+    const { db, channelId, collectionId, service, log } = await setup({
+      source: null,
+    });
+    await sql`
+      create trigger fail_state_write before insert on channel_schedule_states
+      begin select raise(abort, 'injected failure'); end
+    `.execute(db);
+
+    await expect(
+      service.applyInputChange(
+        log,
+        "block_created",
+        createBlock(db, channelId, collectionId),
+      ),
+    ).rejects.toThrow(/injected failure/);
+
+    await expect(
+      db.selectFrom("programming_blocks").selectAll().execute(),
+    ).resolves.toEqual([]);
+    await expect(readEntries(db, channelId)).resolves.toEqual([]);
+  });
+
+  it("keeps the committed change when completing coverage later fails", async () => {
+    const { db, channelId, collectionId, service, log } = await setup(
+      { source: null, items: [{ durationMs: 10 * HOUR }] },
+      3,
+    );
+    // The first chunk creates state; only the follow-up chunks update it.
+    await sql`
+      create trigger fail_state_update before update on channel_schedule_states
+      begin select raise(abort, 'injected failure'); end
+    `.execute(db);
+
+    const value = await service.applyInputChange(
+      log,
+      "block_created",
+      createBlock(db, channelId, collectionId),
+    );
+
+    expect(value).toMatchObject({ kind: "created" });
+    await expect(readEntries(db, channelId)).resolves.toHaveLength(3);
+    expect(log.lines).toEqual([
+      {
+        level: "warn",
+        fields: {
+          channelId,
+          reason: "block_created",
+          err: expect.objectContaining({
+            message: expect.stringMatching(/injected failure/),
+          }),
+        },
+        message: expect.any(String),
+      },
+    ]);
+  });
+
+  it.each([
+    ["a disabled channel", { enabled: false }],
+    ["a source with no schedulable media", { items: [] }],
+  ])(
+    "commits the change without schedule state for %s",
+    async (_, scenario) => {
+      const { db, channelId, collectionId, service, log } = await setup({
+        source: null,
+        ...scenario,
+      });
+
+      const value = await service.applyInputChange(
+        log,
+        "block_created",
+        createBlock(db, channelId, collectionId),
+      );
+
+      expect(value).toMatchObject({ kind: "created" });
+      await expect(
+        db.selectFrom("programming_blocks").select("id").execute(),
+      ).resolves.toEqual([{ id: "block-001" }]);
+      await expect(readState(db, channelId)).resolves.toBeUndefined();
+      await expect(readEntries(db, channelId)).resolves.toEqual([]);
+    },
+  );
+
+  it("never gives the change a time before the latest schedule mutation", async () => {
+    const { channelId, clock, service, log } = await setup();
+    clock.set(T0 + 2 * HOUR);
+    await service.ensureCoverage(channelId, log);
+    clock.set(T0 + HOUR);
+    const seen: number[] = [];
+
+    await service.applyInputChange(log, "block_created", async (_, now) => {
+      seen.push(now);
+      return { value: undefined, affectedChannelIds: [] };
+    });
+
+    expect(seen).toEqual([T0 + 2 * HOUR]);
+    expect(log.lines).toEqual([
+      {
+        level: "warn",
+        fields: { now: T0 + HOUR, effectiveNow: T0 + 2 * HOUR },
+        message: expect.stringMatching(/clock/i),
+      },
+    ]);
   });
 });

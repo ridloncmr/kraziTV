@@ -132,7 +132,10 @@ function sendCollectionNotFound(reply: FastifyReply, id: string) {
 }
 
 // Lists every unknown ID so the client can point at exactly what to fix.
-function sendUnknownMediaItems(reply: FastifyReply, ids: readonly string[]) {
+export function sendUnknownMediaItems(
+  reply: FastifyReply,
+  ids: readonly string[],
+) {
   return sendApiError(
     reply,
     400,

@@ -173,7 +173,7 @@ export function registerChannelRoutes(
 }
 
 // One 404 shape for every channel route.
-function sendChannelNotFound(reply: FastifyReply, id: string) {
+export function sendChannelNotFound(reply: FastifyReply, id: string) {
   return sendApiError(
     reply,
     404,

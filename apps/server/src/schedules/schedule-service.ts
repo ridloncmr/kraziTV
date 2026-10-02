@@ -15,12 +15,15 @@ import {
 import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
   EnsureCoverageResult,
+  ScheduleChangeReason,
+  ScheduleInputChange,
   ScheduleLog,
   ScheduleState,
 } from "./contracts.js";
 import {
   createScheduleState,
   findChannelEnabled,
+  findLatestScheduleMutation,
   insertEntries,
   loadProgress,
   loadScheduleSource,
@@ -101,21 +104,107 @@ export class ScheduleService {
   }
 
   /**
+   * Commits a scheduling input write together with each affected channel's
+   * first chunk in one immediate transaction, because no later check could
+   * detect a schedule generated from stale programming. Completes coverage
+   * after the commit. Returns the change's value.
+   */
+  async applyInputChange<T>(
+    log: ScheduleLog,
+    reason: ScheduleChangeReason,
+    change: ScheduleInputChange<T>,
+  ): Promise<T> {
+    const { value, chunks } = await runImmediateTransaction(
+      this.#db,
+      async (trx) => {
+        const effectiveNow = await this.#effectiveInputTime(trx, log);
+        const changed = await change(trx, effectiveNow);
+        const chunks: { channelId: string; result: ChunkResult }[] = [];
+        for (const channelId of new Set(changed.affectedChannelIds)) {
+          const result = await this.#extendChunk(
+            trx,
+            channelId,
+            log,
+            undefined,
+            effectiveNow,
+          );
+          chunks.push({ channelId, result });
+        }
+        return { value: changed.value, chunks };
+      },
+      { hooks: this.#transactionHooks },
+    );
+
+    for (const { channelId, result } of chunks) {
+      await this.#completeCoverage(channelId, result, reason, log);
+    }
+    return value;
+  }
+
+  /**
+   * Finishes a channel's coverage after its input change committed, and logs
+   * the outcome. A failure is logged, not thrown: the change already stands,
+   * and the next ensure resumes from the committed chunk.
+   */
+  async #completeCoverage(
+    channelId: string,
+    firstChunk: ChunkResult,
+    reason: ScheduleChangeReason,
+    log: ScheduleLog,
+  ): Promise<void> {
+    try {
+      const result =
+        firstChunk.kind === "extended"
+          ? await this.ensureCoverage(channelId, log)
+          : firstChunk;
+      log.info({ channelId, reason, result }, "Applied schedule input change");
+    } catch (err) {
+      log.warn(
+        { channelId, reason, err },
+        "Schedule input change committed but completing coverage failed",
+      );
+    }
+  }
+
+  /**
+   * Returns one effective time for an input change: the later of the clock
+   * and the latest schedule mutation on any channel. Computed before the
+   * change runs, when its affected channels are still unknown, so it can
+   * never fall behind any of their schedules. Logs when it clamps.
+   */
+  async #effectiveInputTime(
+    trx: Kysely<DatabaseSchema>,
+    log: ScheduleLog,
+  ): Promise<number> {
+    const now = this.#now();
+    const latest = await findLatestScheduleMutation(trx);
+    if (latest === undefined || now >= latest) return now;
+    log.warn(
+      { now, effectiveNow: latest },
+      "Clock is behind the latest schedule mutation; using the mutation's time",
+    );
+    return latest;
+  }
+
+  /**
    * Generates and commits at most one chunk from where coverage ends. The
    * first chunk creates the channel's state, anchored at the effective time.
+   * An input change passes its own effective time, which already accounts
+   * for every channel's last mutation.
    */
   async #extendChunk(
     trx: Kysely<DatabaseSchema>,
     channelId: string,
     log: ScheduleLog,
     through: number | undefined,
+    inputTime?: number,
   ): Promise<ChunkResult> {
     const enabled = await findChannelEnabled(trx, channelId);
     if (enabled === undefined) return { kind: "channel_not_found" };
     if (!enabled) return { kind: "disabled" };
 
     const state = await loadScheduleState(trx, channelId);
-    const effectiveNow = this.#effectiveNow(channelId, state, log);
+    const effectiveNow = inputTime ?? this.#effectiveNow(channelId, state, log);
     // A floor, never a cap: the target always lies past now, so every
     // generated chunk inserts at least one entry.
     const target = Math.max(through ?? 0, effectiveNow + SCHEDULE_HORIZON_MS);
