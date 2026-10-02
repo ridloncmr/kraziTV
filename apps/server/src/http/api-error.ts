@@ -22,8 +22,7 @@ type ApiErrorCode =
   | "programming_block_not_found"
   | "scan_cancelled"
   | "scan_in_progress"
-  | "schedule_busy"
-  | "schedule_gap";
+  | "schedule_busy";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

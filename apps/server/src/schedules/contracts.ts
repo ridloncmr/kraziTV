@@ -49,8 +49,6 @@ export type EnsureCoverageResult =
   | { kind: "disabled" }
   | { kind: "unschedulable"; reason: ChannelUnschedulableReason }
   | { kind: "covered"; scheduleRevision: number; generatedThrough: number }
-  /** Coverage ended at or before now; nothing is backfilled. */
-  | { kind: "schedule_gap" }
   /** The requested instant lies past the request limit; nothing is written. */
   | { kind: "through_out_of_range"; latestThrough: number };
 

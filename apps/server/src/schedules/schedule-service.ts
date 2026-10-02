@@ -30,6 +30,7 @@ import {
   checkCoverage,
   coverageAfterChunk,
   resolveTarget,
+  warnIfGapRepaired,
 } from "./schedule-coverage.js";
 import {
   createScheduleState,
@@ -98,7 +99,8 @@ export class ScheduleService {
    * the effective current time, or through `through` when that is later. Extends in chunks, each its
    * own transaction that re-reads state, so concurrent callers never
    * duplicate or overlap entries and no transaction holds write authority
-   * long. Never backfills: coverage that already ended reports a gap.
+   * long. Never backfills: coverage that already ended is repaired from the
+   * effective current time, leaving the uncovered interval empty.
    */
   async ensureCoverage(
     channelId: string,
@@ -106,12 +108,13 @@ export class ScheduleService {
     through?: number,
   ): Promise<EnsureCoverageResult> {
     for (;;) {
-      const result = await runImmediateTransaction(
+      const chunk = await runImmediateTransaction(
         this.#db,
         (trx) => this.#extendChunk(trx, channelId, log, through),
         { hooks: this.#transactionHooks },
       );
-      if (result.kind !== "extended") return result;
+      warnIfGapRepaired(chunk, log);
+      if (chunk.result.kind !== "extended") return chunk.result;
     }
   }
 
@@ -137,8 +140,7 @@ export class ScheduleService {
         if (!enabled) return { channelId, result: { kind: "disabled" } };
         const state = await loadScheduleState(trx, channelId);
         if (state === undefined) {
-          const result = await this.#extendChunk(trx, channelId, log, through);
-          return { channelId, result };
+          return this.#extendChunk(trx, channelId, log, through);
         }
         const effectiveNow = this.#effectiveNow(channelId, state, log);
         const target = resolveTarget(effectiveNow, through);
@@ -228,14 +230,7 @@ export class ScheduleService {
   ): Promise<ChannelChunk> {
     const state = await loadScheduleState(trx, channelId);
     if (state === undefined) {
-      const result = await this.#extendChunk(
-        trx,
-        channelId,
-        log,
-        undefined,
-        effectiveNow,
-      );
-      return { channelId, result };
+      return this.#extendChunk(trx, channelId, log, undefined, effectiveNow);
     }
     return this.#regenerateChunk(
       trx,
@@ -258,17 +253,7 @@ export class ScheduleService {
     through?: number,
   ): Promise<EnsureCoverageResult> {
     const { channelId, regeneration } = chunk;
-    if (regeneration?.uncoveredFrom !== undefined) {
-      log.warn(
-        {
-          channelId,
-          uncoveredFrom: regeneration.uncoveredFrom,
-          uncoveredUntil: regeneration.boundary,
-          deletedEntryCount: regeneration.deletedEntryCount,
-        },
-        "Repaired a schedule gap; the uncovered interval stays empty",
-      );
-    }
+    warnIfGapRepaired(chunk, log);
     const result =
       chunk.result.kind === "extended"
         ? await this.ensureCoverage(channelId, log, through)
@@ -307,8 +292,8 @@ export class ScheduleService {
    * Rebuilds a scheduled channel from the regeneration boundary in the
    * caller's transaction. The airing entry is never touched; entries from
    * the boundary are deleted and their progress restored, then one chunk is
-   * generated if the channel is enabled and schedulable. The revision
-   * advances once, and only if an entry was deleted or inserted.
+   * generated if the channel is enabled and schedulable. State is written,
+   * and the revision advances once, only if an entry was deleted or inserted.
    */
   async #regenerateChunk(
     trx: Kysely<DatabaseSchema>,
@@ -337,16 +322,18 @@ export class ScheduleService {
       : undefined;
     const chunk = written?.kind === "written" ? written : undefined;
     const insertedEntryCount = chunk?.insertedEntryCount ?? 0;
+    const changed = deleted.length > 0 || insertedEntryCount > 0;
     const next: ScheduleState = {
       ...state,
       lastGeneratedThrough: chunk?.lastGeneratedThrough ?? boundary,
       nextSequenceNumber: chunk?.nextSequenceNumber ?? state.nextSequenceNumber,
-      scheduleRevision:
-        state.scheduleRevision +
-        (deleted.length > 0 || insertedEntryCount > 0 ? 1 : 0),
+      scheduleRevision: state.scheduleRevision + (changed ? 1 : 0),
       updatedAt: effectiveNow,
     };
-    await updateScheduleState(trx, next);
+    // With nothing deleted, coverage already ends at or before the boundary,
+    // so an untouched schedule keeps its state: a lapsed channel that cannot
+    // be scheduled must keep where its coverage truly ended.
+    if (changed) await updateScheduleState(trx, next);
 
     return {
       channelId,
@@ -371,8 +358,10 @@ export class ScheduleService {
   /**
    * Generates and commits at most one chunk from where coverage ends. The
    * first chunk creates the channel's state, anchored at the effective time.
-   * An input change passes its own effective time, which already accounts
-   * for every channel's last mutation.
+   * Coverage that already ended is repaired instead: regenerated from the
+   * effective time, so a lapse of any length costs one fresh horizon. An
+   * input change passes its own effective time, which already accounts for
+   * every channel's last mutation.
    */
   async #extendChunk(
     trx: Kysely<DatabaseSchema>,
@@ -380,17 +369,24 @@ export class ScheduleService {
     log: ScheduleLog,
     through: number | undefined,
     inputTime?: number,
-  ): Promise<ChunkResult> {
+  ): Promise<ChannelChunk> {
+    const settled = (result: ChunkResult): ChannelChunk => ({
+      channelId,
+      result,
+    });
     const enabled = await findChannelEnabled(trx, channelId);
-    if (enabled === undefined) return { kind: "channel_not_found" };
-    if (!enabled) return { kind: "disabled" };
+    if (enabled === undefined) return settled({ kind: "channel_not_found" });
+    if (!enabled) return settled({ kind: "disabled" });
 
     const state = await loadScheduleState(trx, channelId);
     const effectiveNow = inputTime ?? this.#effectiveNow(channelId, state, log);
     const target = resolveTarget(effectiveNow, through);
-    if (typeof target !== "number") return target;
-    const coverage = checkCoverage(state, effectiveNow, target);
-    if (coverage !== undefined) return coverage;
+    if (typeof target !== "number") return settled(target);
+    if (state !== undefined && state.lastGeneratedThrough <= effectiveNow) {
+      return this.#regenerateChunk(trx, state, effectiveNow, target);
+    }
+    const coverage = checkCoverage(state, target);
+    if (coverage !== undefined) return settled(coverage);
 
     const anchorTime = state?.anchorTime ?? effectiveNow;
     const seed = state?.seed ?? deriveChannelSeed(channelId, anchorTime);
@@ -405,7 +401,7 @@ export class ScheduleService {
       target,
       effectiveNow,
     );
-    if (written.kind === "unschedulable") return written;
+    if (written.kind === "unschedulable") return settled(written);
 
     const next: ScheduleState = {
       channelId,
@@ -419,7 +415,7 @@ export class ScheduleService {
     await (state === undefined
       ? createScheduleState(trx, next)
       : updateScheduleState(trx, next));
-    return coverageAfterChunk(next, target);
+    return settled(coverageAfterChunk(next, target));
   }
 
   /**

@@ -70,6 +70,7 @@ function registerRoutes(
     server,
     dependencies.channels,
     dependencies.channelRuntime,
+    dependencies.schedules,
     channelStopTimeoutMs,
   );
   registerProgrammingBlockRoutes(

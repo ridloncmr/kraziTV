@@ -7,6 +7,7 @@ import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
+import { countQueries } from "../testing/query-counter.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
@@ -375,18 +376,6 @@ describe("ScheduleService.ensureCoverage", () => {
     ]);
   });
 
-  it("reports a gap without writing once coverage falls behind now", async () => {
-    const { db, channelId, clock, service, log } = await setup();
-    await service.ensureCoverage(channelId, log);
-    const state = await readState(db, channelId);
-    clock.advance(SCHEDULE_HORIZON_MS + 24 * HOUR);
-
-    const result = await service.ensureCoverage(channelId, log);
-
-    expect(result).toEqual({ kind: "schedule_gap" });
-    await expect(readState(db, channelId)).resolves.toEqual(state);
-  });
-
   it("reports where coverage ends, whether or not it wrote", async () => {
     const { db, channelId, clock, service, log } = await setup();
 
@@ -468,6 +457,178 @@ describe("ScheduleService.ensureCoverage", () => {
     await expect(readState(db, channelId)).resolves.toBeUndefined();
     await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     await expect(readProgress(db)).resolves.toEqual([]);
+  });
+});
+
+describe("ScheduleService gap repair", () => {
+  // Hour-long items cover a fresh horizon with exactly 72 entries, and random
+  // progress advances by one per entry, so counts compare directly.
+  const HOURLY_RANDOM = {
+    items: [{ durationMs: HOUR }, { durationMs: HOUR }, { durationMs: HOUR }],
+    source: "random" as const,
+  };
+  const FRESH_HORIZON_ENTRIES = SCHEDULE_HORIZON_MS / HOUR;
+  const WEEK = 7 * 24 * HOUR;
+
+  // Covers the horizon at T0 on a statement-counting database.
+  async function coveredSetup(scenario: Partial<ScheduleScenarioOptions>) {
+    const context = await setup(scenario);
+    const counter = countQueries(context.db);
+    const service = new ScheduleService(counter.db, {
+      now: context.clock.now,
+      createId: sequentialIds("entry"),
+    });
+    await service.ensureCoverage(context.channelId, context.log);
+    const before = await readScheduleEntries(context.db, context.channelId);
+    const stateBefore = (await readState(context.db, context.channelId))!;
+    return { ...context, service, counter, before, stateBefore };
+  }
+
+  it("resumes a six-week lapse at the effective current time with a fresh horizon's work", async () => {
+    const { db, channelId, clock, service, log, before, stateBefore } =
+      await coveredSetup(HOURLY_RANDOM);
+    const coveredUntil = stateBefore.last_generated_through;
+    const later = T0 + 6 * WEEK + 30 * MINUTE;
+    clock.set(later);
+
+    const result = await service.ensureCoverage(channelId, log);
+
+    expect(result).toEqual(covered(2));
+    const after = await readScheduleEntries(db, channelId);
+    const repaired = after.slice(before.length);
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(repaired[0]).toMatchObject({
+      starts_at: later,
+      sequence_number: stateBefore.next_sequence_number,
+    });
+    expect(
+      after.filter(
+        (entry) => entry.starts_at >= coveredUntil && entry.starts_at < later,
+      ),
+    ).toEqual([]);
+    expect(repaired).toHaveLength(FRESH_HORIZON_ENTRIES);
+    expectContiguous(repaired);
+    await expect(readProgress(db)).resolves.toMatchObject([
+      { next_random_selection_index: 2 * FRESH_HORIZON_ENTRIES },
+    ]);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      anchor_time: T0,
+      seed: stateBefore.seed,
+      schedule_revision: 2,
+      last_generated_through: later + SCHEDULE_HORIZON_MS,
+      updated_at: later,
+    });
+    expect(log.lines).toEqual([
+      {
+        level: "warn",
+        fields: {
+          channelId,
+          uncoveredFrom: coveredUntil,
+          uncoveredUntil: later,
+          deletedEntryCount: 0,
+        },
+        message: expect.stringMatching(/gap/i),
+      },
+    ]);
+  });
+
+  it("runs the same number of statements however long the lapse", async () => {
+    // Measures one repair after a lapse of the given length.
+    async function repairStatements(lapseMs: number) {
+      const { channelId, clock, service, log, counter } =
+        await coveredSetup(HOURLY_RANDOM);
+      clock.set(T0 + SCHEDULE_HORIZON_MS + lapseMs);
+      const start = counter.count();
+      await service.ensureCoverage(channelId, log);
+      return counter.count() - start;
+    }
+
+    const short = await repairStatements(4 * 24 * HOUR);
+    const long = await repairStatements(6 * WEEK);
+
+    expect(long).toBe(short);
+  });
+
+  it("repairs coverage that ends exactly at the effective current time", async () => {
+    const { db, channelId, clock, service, log, stateBefore } =
+      await coveredSetup(HOURLY_RANDOM);
+    clock.set(stateBefore.last_generated_through);
+
+    await expect(service.ensureCoverage(channelId, log)).resolves.toEqual(
+      covered(2),
+    );
+
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      last_generated_through:
+        stateBefore.last_generated_through + SCHEDULE_HORIZON_MS,
+    });
+  });
+
+  it("writes nothing for a lapsed channel that cannot be scheduled, then reports the true gap", async () => {
+    const { db, channelId, clock, service, log, stateBefore } =
+      await coveredSetup(HOURLY_RANDOM);
+    const blocks = await db
+      .selectFrom("programming_blocks")
+      .selectAll()
+      .execute();
+    await db.deleteFrom("programming_blocks").execute();
+    clock.set(T0 + 2 * WEEK);
+
+    const result = await service.ensureCoverage(channelId, log);
+
+    expect(result).toEqual({
+      kind: "unschedulable",
+      reason: "no_programming_block",
+    });
+    await expect(readState(db, channelId)).resolves.toEqual(stateBefore);
+
+    await db.insertInto("programming_blocks").values(blocks).execute();
+    clock.set(T0 + 3 * WEEK);
+    await service.ensureCoverage(channelId, log);
+
+    expect(log.lines).toEqual([
+      expect.objectContaining({
+        level: "warn",
+        fields: expect.objectContaining({
+          uncoveredFrom: stateBefore.last_generated_through,
+          uncoveredUntil: T0 + 3 * WEEK,
+        }) as unknown,
+      }),
+    ]);
+  });
+
+  it("extends a channel whose coverage has not lapsed without repairing it", async () => {
+    const { channelId, clock, service, log } =
+      await coveredSetup(HOURLY_RANDOM);
+    clock.advance(SCHEDULE_HORIZON_MS - HOUR);
+
+    await expect(service.ensureCoverage(channelId, log)).resolves.toEqual(
+      covered(2),
+    );
+
+    expect(log.lines).toEqual([]);
+  });
+
+  it("keeps a disabled channel's block, state, progress, and entries and stops extending", async () => {
+    const { db, channelId, clock, service, log, before, stateBefore } =
+      await coveredSetup(HOURLY_RANDOM);
+    const progress = await readProgress(db);
+    await db.updateTable("channels").set({ enabled: 0 }).execute();
+    clock.advance(SCHEDULE_HORIZON_MS - HOUR);
+
+    const extending = await service.ensureCoverage(channelId, log);
+    clock.set(T0 + 6 * WEEK);
+    const lapsed = await service.ensureCoverage(channelId, log);
+
+    expect(extending).toEqual({ kind: "disabled" });
+    expect(lapsed).toEqual({ kind: "disabled" });
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual(before);
+    await expect(readState(db, channelId)).resolves.toEqual(stateBefore);
+    await expect(readProgress(db)).resolves.toEqual(progress);
+    await expect(
+      db.selectFrom("programming_blocks").select("id").execute(),
+    ).resolves.toEqual([{ id: programmingBlockFixture.id }]);
+    expect(log.lines).toEqual([]);
   });
 });
 

@@ -9,6 +9,7 @@ import { ChannelLifecycleLock } from "./channel-lifecycle-lock.js";
 import type { ChannelRepository } from "../repository/channel-repository.js";
 import { stopRuntime } from "./channel-runtime-stop.js";
 import type { ChannelRuntime, StoredChannel } from "../contracts.js";
+import type { ScheduleService } from "../../schedules/schedule-service.js";
 
 // Rejects rather than normalizes, so clients learn the one canonical spelling.
 const channelNumber = z.string().transform((input, context) => {
@@ -48,6 +49,7 @@ export function registerChannelRoutes(
   server: FastifyInstance,
   channels: ChannelRepository,
   runtime: ChannelRuntime,
+  schedules: ScheduleService,
   stopTimeoutMs = DEFAULT_STOP_TIMEOUT_MS,
 ): void {
   // Every PATCH and DELETE takes it, so a rename cannot slip between a
@@ -139,6 +141,20 @@ export function registerChannelRoutes(
           },
         );
         if (!settled) return reply;
+      }
+
+      // Repairs a schedule that lapsed while disabled, or extends one that
+      // did not. Logged, not returned: the enable is already committed, and
+      // the next ensure retries.
+      if (body.data.enabled === true) {
+        try {
+          await schedules.ensureCoverage(id, request.log);
+        } catch (err) {
+          request.log.warn(
+            { channelId: id, err },
+            "Channel enabled but ensuring schedule coverage failed",
+          );
+        }
       }
       return toApiChannel(result.channel);
     } finally {

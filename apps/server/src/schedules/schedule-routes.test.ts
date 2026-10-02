@@ -1,7 +1,9 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import type { FastifyInstance, InjectOptions } from "fastify";
+import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
@@ -250,19 +252,36 @@ describe("GET /channels/:id/schedule", () => {
     expect(uncovered.body.error.reason).toBe("no_programming_block");
   });
 
-  it("reports a gap once coverage has lapsed", async () => {
+  it("repairs lapsed coverage from now and still serves the old window", async () => {
     const { server, clock } = await startServer();
-    await send(server, "GET", windowUrl(T0, T0 + HOUR));
-    clock.advance(SCHEDULE_HORIZON_MS + 24 * HOUR);
+    const old = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const later = T0 + SCHEDULE_HORIZON_MS + 24 * HOUR;
+    clock.set(later);
 
-    const { status, body } = await send(
+    const repaired = await send(server, "GET", windowUrl(later, later + HOUR));
+    const oldAgain = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+
+    expect(repaired.status).toBe(200);
+    expect(repaired.body.scheduleRevision).toBe(2);
+    expect(repaired.body.entries[0].startsAt).toBe(iso(later));
+    expect(oldAgain.body.entries).toEqual(old.body.entries);
+  });
+
+  it("never deletes or replaces entries when reading a covered window", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+    clock.advance(6 * HOUR);
+
+    const { status } = await send(
       server,
       "GET",
-      windowUrl(T0, T0 + HOUR),
+      windowUrl(T0 + 6 * HOUR, T0 + 7 * HOUR),
     );
 
-    expect(status).toBe(409);
-    expect(body.error.code).toBe("schedule_gap");
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(status).toBe(200);
+    expect(after.slice(0, before.length)).toEqual(before);
   });
 
   it("reports an unknown channel", async () => {
@@ -444,15 +463,26 @@ describe("POST /channels/:id/schedule/generate", () => {
     },
   );
 
-  it("reports a gap once coverage has lapsed", async () => {
-    const { server, clock } = await startServer();
+  it("repairs lapsed coverage from now", async () => {
+    const { server, db, clock } = await startServer();
     await send(server, "POST", GENERATE_URL, {});
-    clock.advance(SCHEDULE_HORIZON_MS + 24 * HOUR);
+    const later = T0 + SCHEDULE_HORIZON_MS + 24 * HOUR;
+    clock.set(later);
 
     const { status, body } = await send(server, "POST", GENERATE_URL, {});
 
-    expect(status).toBe(409);
-    expect(body.error.code).toBe("schedule_gap");
+    const state = await db
+      .selectFrom("channel_schedule_states")
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(status).toBe(200);
+    expect(body).toEqual({
+      scheduleRevision: 2,
+      generatedThrough: iso(state.last_generated_through),
+    });
+    expect(state.last_generated_through).toBeGreaterThanOrEqual(
+      later + SCHEDULE_HORIZON_MS,
+    );
   });
 
   it("reports an unknown channel", async () => {
@@ -487,5 +517,119 @@ describe("POST /channels/:id/schedule/generate", () => {
     } finally {
       await holder.release();
     }
+  });
+});
+
+describe("PATCH /channels/:id schedule maintenance", () => {
+  const CHANNEL_URL = `/channels/${CHANNEL_ID}`;
+
+  // Reads the one channel's schedule state row.
+  function readState(db: Kysely<DatabaseSchema>) {
+    return db
+      .selectFrom("channel_schedule_states")
+      .selectAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  it("keeps the anchor and seed and repairs from now when re-enabled after a lapse", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    const before = await readState(db);
+    await send(server, "PATCH", CHANNEL_URL, { enabled: false });
+    const later = T0 + 6 * 7 * 24 * HOUR;
+    clock.set(later);
+
+    const { status, body } = await send(server, "PATCH", CHANNEL_URL, {
+      enabled: true,
+    });
+
+    expect(status).toBe(200);
+    expect(body.enabled).toBe(true);
+    const after = await readState(db);
+    expect(after).toMatchObject({
+      anchor_time: before.anchor_time,
+      seed: before.seed,
+      schedule_revision: before.schedule_revision + 1,
+    });
+    expect(after.last_generated_through).toBeGreaterThanOrEqual(
+      later + SCHEDULE_HORIZON_MS,
+    );
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    expect(entries[before.next_sequence_number]?.starts_at).toBe(later);
+  });
+
+  it("simply extends coverage when re-enabled before a lapse", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+    const stateBefore = await readState(db);
+    await send(server, "PATCH", CHANNEL_URL, { enabled: false });
+    clock.advance(6 * HOUR);
+
+    await send(server, "PATCH", CHANNEL_URL, { enabled: true });
+
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(after[before.length]?.starts_at).toBe(
+      stateBefore.last_generated_through,
+    );
+    await expect(readState(db)).resolves.toMatchObject({
+      schedule_revision: stateBefore.schedule_revision + 1,
+    });
+  });
+
+  it("leaves a disabled channel's schedule untouched", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+    const stateBefore = await readState(db);
+    clock.advance(6 * HOUR);
+
+    await send(server, "PATCH", CHANNEL_URL, { enabled: false });
+    await send(server, "PATCH", CHANNEL_URL, { name: "Renamed" });
+
+    await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
+    await expect(readState(db)).resolves.toEqual(stateBefore);
+  });
+
+  it("logs, rather than returns, a coverage failure after the enable commits", async () => {
+    const lines: string[] = [];
+    const { server, db } = await startTestServer({
+      seed: async (db) => {
+        await seedScheduleScenario(db, {
+          items: EPISODES,
+          source: "chronological",
+          enabled: false,
+        });
+      },
+      overrides: (db) => ({
+        schedules: new ScheduleService(db, {
+          now: manualClock(T0).now,
+          transactionHooks: {
+            afterBegin: () => {
+              throw new Error("coverage failed");
+            },
+          },
+        }),
+      }),
+      logger: { level: "warn", stream: { write: (line) => lines.push(line) } },
+    });
+
+    const { status, body } = await send(server, "PATCH", CHANNEL_URL, {
+      enabled: true,
+    });
+
+    expect(status).toBe(200);
+    expect(body.enabled).toBe(true);
+    await expect(
+      db.selectFrom("channels").select("enabled").executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ enabled: 1 });
+    // The logger records only warn and above, so any line here is a warning.
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toContainEqual(
+      expect.objectContaining({
+        channelId: CHANNEL_ID,
+        msg: expect.stringMatching(/schedule coverage failed/i) as unknown,
+      }),
+    );
   });
 });

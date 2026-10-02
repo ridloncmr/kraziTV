@@ -1,8 +1,10 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 
 import type {
+  ChannelChunk,
   ChunkResult,
   EnsureCoverageResult,
+  ScheduleLog,
   ScheduleState,
 } from "./contracts.js";
 
@@ -29,19 +31,15 @@ export function resolveTarget(
 }
 
 /**
- * Settles a channel whose existing coverage needs no write: a gap when it
- * already ended, covered when it reaches the target. Returns undefined when
- * a chunk must be generated.
+ * Settles a channel whose existing coverage needs no write because it
+ * already reaches the target. Returns undefined when a chunk must be
+ * generated.
  */
 export function checkCoverage(
   state: ScheduleState | undefined,
-  effectiveNow: number,
   target: number,
 ): EnsureCoverageResult | undefined {
   if (state === undefined) return undefined;
-  if (state.lastGeneratedThrough <= effectiveNow) {
-    return { kind: "schedule_gap" };
-  }
   if (state.lastGeneratedThrough >= target) {
     return {
       kind: "covered",
@@ -64,4 +62,22 @@ export function coverageAfterChunk(
         generatedThrough: next.lastGeneratedThrough,
       }
     : { kind: "extended" };
+}
+
+/**
+ * Warns once a committed chunk repaired a gap, with its uncovered interval,
+ * so the repair is recorded even if completing coverage then fails.
+ */
+export function warnIfGapRepaired(chunk: ChannelChunk, log: ScheduleLog): void {
+  const { channelId, regeneration } = chunk;
+  if (regeneration?.uncoveredFrom === undefined) return;
+  log.warn(
+    {
+      channelId,
+      uncoveredFrom: regeneration.uncoveredFrom,
+      uncoveredUntil: regeneration.boundary,
+      deletedEntryCount: regeneration.deletedEntryCount,
+    },
+    "Repaired a schedule gap; the uncovered interval stays empty",
+  );
 }

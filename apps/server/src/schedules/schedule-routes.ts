@@ -129,13 +129,6 @@ function sendCoverageFailure(
         `Channel ${channelId} cannot generate a schedule`,
         { reason: failure.reason },
       );
-    case "schedule_gap":
-      return sendApiError(
-        reply,
-        409,
-        "schedule_gap",
-        `Channel ${channelId}'s schedule coverage has lapsed`,
-      );
     case "through_out_of_range":
       return sendApiError(
         reply,
