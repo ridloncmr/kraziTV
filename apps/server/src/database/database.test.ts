@@ -112,6 +112,29 @@ describe("openDatabase", () => {
     ).rejects.toThrow(/foreign key constraint/i);
   });
 
+  it("uses WAL and fails lock waits immediately by default", async () => {
+    const database = await openTestDatabase();
+
+    const journal = await sql<{
+      journal_mode: string;
+    }>`pragma journal_mode`.execute(database.db);
+    const busy = await sql<{ timeout: number }>`pragma busy_timeout`.execute(
+      database.db,
+    );
+
+    expect(journal.rows[0]?.journal_mode).toBe("wal");
+    expect(busy.rows[0]?.timeout).toBe(0);
+  });
+
+  it("applies a configured busy timeout", async () => {
+    const database = await openTestDatabase(undefined, { busyTimeoutMs: 25 });
+
+    const busy = await sql<{ timeout: number }>`pragma busy_timeout`.execute(
+      database.db,
+    );
+    expect(busy.rows[0]?.timeout).toBe(25);
+  });
+
   it("preserves data after closing and reopening the database", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const first = await openTestDatabase(dataDirectory);

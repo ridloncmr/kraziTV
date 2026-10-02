@@ -8,7 +8,11 @@ import type { Kysely } from "kysely";
 import { buildServer, type ServerDependencies } from "../app.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
-import { openDatabase, type KraziDatabase } from "../database/database.js";
+import {
+  openDatabase,
+  type KraziDatabase,
+  type OpenDatabaseOptions,
+} from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "../channels/runtime/no-op-channel-runtime.js";
@@ -53,8 +57,10 @@ const temporaryDirectories: string[] = [];
  */
 export async function openTestDatabase(
   dataDirectory?: string,
+  options: Omit<OpenDatabaseOptions, "dataDirectory"> = {},
 ): Promise<KraziDatabase> {
   const database = await openDatabase({
+    ...options,
     dataDirectory: dataDirectory ?? (await createTemporaryDirectory()),
   });
   databases.push(database);

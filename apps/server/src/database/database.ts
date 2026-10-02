@@ -7,8 +7,14 @@ import { resolveDatabasePath } from "../config/data-directory.js";
 import { migrateDatabase } from "./migrations/migrate-database.js";
 import type { DatabaseSchema } from "./schema/database-schema.js";
 
-interface OpenDatabaseOptions {
+export interface OpenDatabaseOptions {
   dataDirectory: string;
+  /**
+   * How long SQLite blocks waiting for another connection's lock. Defaults to
+   * 0 because better-sqlite3 waits synchronously, freezing the event loop;
+   * callers retry asynchronously instead.
+   */
+  busyTimeoutMs?: number | undefined;
 }
 
 export interface KraziDatabase {
@@ -23,13 +29,17 @@ export interface KraziDatabase {
 export async function openDatabase(
   options: OpenDatabaseOptions,
 ): Promise<KraziDatabase> {
-  const { dataDirectory } = options;
+  const { dataDirectory, busyTimeoutMs = 0 } = options;
   await mkdir(dataDirectory, { recursive: true });
 
   const databasePath = resolveDatabasePath(dataDirectory);
-  const sqlite = new SqliteDatabase(databasePath);
+  const sqlite = new SqliteDatabase(databasePath, {
+    timeout: busyTimeoutMs,
+  });
   try {
     sqlite.pragma("foreign_keys = ON");
+    // WAL lets readers proceed while a writer holds BEGIN IMMEDIATE.
+    sqlite.pragma("journal_mode = WAL");
   } catch (error) {
     sqlite.close();
     throw error;
