@@ -8,7 +8,7 @@ import { type Kysely, sql } from "kysely";
  * one from `work`. `onBusy` and `afterRelease` only observe: a throw from
  * either is reported as a process warning and never changes the outcome.
  */
-interface ImmediateTransactionHooks {
+export interface ImmediateTransactionHooks {
   /** Runs once write authority is held, before `work`; a test pause point. */
   afterBegin?: () => void | Promise<void>;
   /** Runs after each attempt that found another connection holding the lock. */

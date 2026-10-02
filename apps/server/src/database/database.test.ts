@@ -46,6 +46,8 @@ describe("openDatabase", () => {
 
     expect(tables.rows.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
+        "channel_collection_progress",
+        "channel_schedule_states",
         "channels",
         "kysely_migration",
         "kysely_migration_lock",
@@ -54,6 +56,7 @@ describe("openDatabase", () => {
         "media_items",
         "media_roots",
         "programming_blocks",
+        "schedule_entries",
       ]),
     );
     await expect(
@@ -68,7 +71,7 @@ describe("openDatabase", () => {
     const migrations = await sql<{ count: number }>`
       select count(*) as count from kysely_migration
     `.execute(database.db);
-    expect(migrations.rows[0]?.count).toBe(4);
+    expect(migrations.rows[0]?.count).toBe(5);
   });
 
   it("reproduces the same logical schema in independent clean environments", async () => {
