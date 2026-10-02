@@ -104,7 +104,11 @@ export class ProgrammingBlockRepository {
     }
   }
 
-  /** Swaps a block's source; a block owned by another channel is not found. */
+  /**
+   * Swaps a block's source; a block owned by another channel is not found.
+   * An identical source writes nothing and reports `unchanged`, so callers
+   * can skip regeneration.
+   */
   async replaceSource(
     trx: Kysely<DatabaseSchema>,
     channelId: string,
@@ -112,8 +116,18 @@ export class ProgrammingBlockRepository {
     source: ProgrammingBlockSource,
     now: number,
   ): Promise<ReplaceProgrammingBlockSourceResult> {
-    if (!(await blockExists(trx, channelId, blockId))) {
+    const existing = await trx
+      .selectFrom("programming_blocks")
+      .selectAll()
+      .where("id", "=", blockId)
+      .where("channel_id", "=", channelId)
+      .executeTakeFirst();
+    if (existing === undefined) {
       return { kind: "not_found" };
+    }
+    const block = toProgrammingBlock(existing);
+    if (isSameSource(block.source, source)) {
+      return { kind: "unchanged", block };
     }
     const unknown = await findUnknownSource(trx, source);
     if (unknown !== undefined) {
@@ -146,19 +160,19 @@ export class ProgrammingBlockRepository {
   }
 }
 
-// Answers whether the channel owns the block, without loading it.
-async function blockExists(
-  executor: Kysely<DatabaseSchema>,
-  channelId: string,
-  blockId: string,
-): Promise<boolean> {
-  const row = await executor
-    .selectFrom("programming_blocks")
-    .select("id")
-    .where("id", "=", blockId)
-    .where("channel_id", "=", channelId)
-    .executeTakeFirst();
-  return row !== undefined;
+// Compares sources by the columns they persist to, so field order never matters.
+function isSameSource(
+  a: ProgrammingBlockSource,
+  b: ProgrammingBlockSource,
+): boolean {
+  const left = toSourceColumns(a);
+  const right = toSourceColumns(b);
+  return (
+    left.source_kind === right.source_kind &&
+    left.media_collection_id === right.media_collection_id &&
+    left.media_item_id === right.media_item_id &&
+    left.playback_mode === right.playback_mode
+  );
 }
 
 // Reports a source the catalog does not hold; the foreign keys remain the final guard.

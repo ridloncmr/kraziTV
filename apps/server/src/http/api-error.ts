@@ -19,6 +19,7 @@ type ApiErrorCode =
   | "media_root_unavailable"
   | "not_found"
   | "programming_block_limit_reached"
+  | "programming_block_not_found"
   | "scan_cancelled"
   | "scan_in_progress"
   | "schedule_busy"

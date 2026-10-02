@@ -11,6 +11,7 @@ import { sequentialIds } from "../testing/record-sources.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
   seedScheduleScenario,
+  readScheduleEntries,
   type ScheduleScenarioOptions,
 } from "../testing/schedule-fixtures.js";
 import { createBarrier } from "../testing/test-barrier.js";
@@ -19,11 +20,14 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
+import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
+import { membershipChange } from "../media-collections/replace-collection-members.js";
+import type { ProgrammingBlockSource } from "../programming-blocks/contracts.js";
+import { programmingBlockFixture } from "../testing/channel-fixtures.js";
+import { blockChange } from "../programming-blocks/block-change.js";
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
-import {
-  SCHEDULE_REQUEST_LIMIT_MS,
-  ScheduleService,
-} from "./schedule-service.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
+import { ScheduleService } from "./schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -63,16 +67,6 @@ function readState(db: Kysely<DatabaseSchema>, channelId: string) {
     .executeTakeFirst();
 }
 
-// Reads a channel's entries in sequence order.
-function readEntries(db: Kysely<DatabaseSchema>, channelId: string) {
-  return db
-    .selectFrom("schedule_entries")
-    .selectAll()
-    .where("channel_id", "=", channelId)
-    .orderBy("sequence_number")
-    .execute();
-}
-
 // Reads every progress row, so tests also see rows that should not exist.
 function readProgress(db: Kysely<DatabaseSchema>) {
   return db.selectFrom("channel_collection_progress").selectAll().execute();
@@ -104,7 +98,7 @@ describe("ScheduleService.ensureCoverage", () => {
     const result = await service.ensureCoverage(channelId, log);
 
     expect(result).toEqual(covered(1));
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     const last = entries.at(-1)!;
     expect(entries[0]).toMatchObject({
       starts_at: T0,
@@ -143,7 +137,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     await service.ensureCoverage(channelId, log);
 
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     expect(entries.map((entry) => entry.playback_index)).toEqual(
       entries.map((_, index) => index),
     );
@@ -161,7 +155,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     await service.ensureCoverage(channelId, log);
 
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     expect(new Set(entries.map((entry) => entry.media_item_id))).toEqual(
       new Set(["item-001"]),
     );
@@ -221,27 +215,27 @@ describe("ScheduleService.ensureCoverage", () => {
   it("writes nothing when coverage already reaches the target", async () => {
     const { db, channelId, clock, service, log } = await setup();
     await service.ensureCoverage(channelId, log);
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     const state = await readState(db, channelId);
     clock.advance(MINUTE);
 
     const result = await service.ensureCoverage(channelId, log);
 
     expect(result).toEqual(covered(1));
-    await expect(readEntries(db, channelId)).resolves.toEqual(entries);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual(entries);
     await expect(readState(db, channelId)).resolves.toEqual(state);
   });
 
   it("extends coverage as time advances without changing existing entries", async () => {
     const { db, channelId, clock, service, log } = await setup();
     await service.ensureCoverage(channelId, log);
-    const before = await readEntries(db, channelId);
+    const before = await readScheduleEntries(db, channelId);
     clock.advance(6 * HOUR);
 
     const result = await service.ensureCoverage(channelId, log);
 
     expect(result).toEqual(covered(2));
-    const after = await readEntries(db, channelId);
+    const after = await readScheduleEntries(db, channelId);
     expect(after.slice(0, before.length)).toEqual(before);
     expect(after.length).toBeGreaterThan(before.length);
     expectContiguous(after);
@@ -271,7 +265,7 @@ describe("ScheduleService.ensureCoverage", () => {
     const result = await service.ensureCoverage(channelId, log);
 
     expect(result).toEqual(covered(3));
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     expect(entries).toHaveLength(8);
     expectContiguous(entries);
     expect(entries.map((entry) => entry.id)).toEqual(
@@ -291,7 +285,7 @@ describe("ScheduleService.ensureCoverage", () => {
       /injected failure/,
     );
 
-    await expect(readEntries(db, channelId)).resolves.toEqual([]);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     await expect(readProgress(db)).resolves.toEqual([]);
     await expect(readState(db, channelId)).resolves.toBeUndefined();
   });
@@ -307,7 +301,7 @@ describe("ScheduleService.ensureCoverage", () => {
     expect(results).toEqual([covered(1), covered(1)]);
     const state = await readState(db, channelId);
     expect(state?.next_sequence_number).toBe(
-      (await readEntries(db, channelId)).length,
+      (await readScheduleEntries(db, channelId)).length,
     );
   });
 
@@ -345,7 +339,7 @@ describe("ScheduleService.ensureCoverage", () => {
     } else {
       expect(second).toEqual(covered(1));
     }
-    const entries = await readEntries(a, channelId);
+    const entries = await readScheduleEntries(a, channelId);
     expect(entries.every((entry) => entry.id.startsWith("a-"))).toBe(true);
     expectContiguous(entries);
   });
@@ -355,7 +349,7 @@ describe("ScheduleService.ensureCoverage", () => {
     await service.ensureCoverage(channelId, log);
     clock.set(T0 + 2 * HOUR);
     await service.ensureCoverage(channelId, log);
-    const before = await readEntries(db, channelId);
+    const before = await readScheduleEntries(db, channelId);
     clock.set(T0 + HOUR);
 
     // Requests more coverage, so the stepped-back call must write.
@@ -366,7 +360,7 @@ describe("ScheduleService.ensureCoverage", () => {
     );
 
     expect(result).toEqual(covered(3));
-    const after = await readEntries(db, channelId);
+    const after = await readScheduleEntries(db, channelId);
     expect(after.slice(0, before.length)).toEqual(before);
     expect(after[before.length]?.created_at).toBe(T0 + 2 * HOUR);
     await expect(readState(db, channelId)).resolves.toMatchObject({
@@ -472,7 +466,7 @@ describe("ScheduleService.ensureCoverage", () => {
     );
 
     await expect(readState(db, channelId)).resolves.toBeUndefined();
-    await expect(readEntries(db, channelId)).resolves.toEqual([]);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     await expect(readProgress(db)).resolves.toEqual([]);
   });
 });
@@ -487,8 +481,8 @@ describe("ScheduleService.applyInputChange", () => {
     const blocks = new ProgrammingBlockRepository(db, {
       createId: () => "block-001",
     });
-    return async (trx: Kysely<DatabaseSchema>, effectiveNow: number) => {
-      const result = await blocks.create(
+    return blockChange(channelId, "created", (trx, effectiveNow) =>
+      blocks.create(
         trx,
         channelId,
         {
@@ -497,9 +491,8 @@ describe("ScheduleService.applyInputChange", () => {
           playbackMode: "chronological",
         },
         effectiveNow,
-      );
-      return { value: result, affectedChannelIds: [channelId] };
-    };
+      ),
+    );
   }
 
   it("commits the change with the first chunk, then completes coverage", async () => {
@@ -515,7 +508,7 @@ describe("ScheduleService.applyInputChange", () => {
     );
 
     expect(value).toMatchObject({ kind: "created", block: { createdAt: T0 } });
-    const entries = await readEntries(db, channelId);
+    const entries = await readScheduleEntries(db, channelId);
     expect(entries).toHaveLength(8);
     expect(entries[0]?.starts_at).toBe(T0);
     expectContiguous(entries);
@@ -556,7 +549,7 @@ describe("ScheduleService.applyInputChange", () => {
     await expect(
       db.selectFrom("programming_blocks").selectAll().execute(),
     ).resolves.toEqual([]);
-    await expect(readEntries(db, channelId)).resolves.toEqual([]);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
   });
 
   it("keeps the committed change when completing coverage later fails", async () => {
@@ -577,7 +570,7 @@ describe("ScheduleService.applyInputChange", () => {
     );
 
     expect(value).toMatchObject({ kind: "created" });
-    await expect(readEntries(db, channelId)).resolves.toHaveLength(3);
+    await expect(readScheduleEntries(db, channelId)).resolves.toHaveLength(3);
     expect(log.lines).toEqual([
       {
         level: "warn",
@@ -615,7 +608,7 @@ describe("ScheduleService.applyInputChange", () => {
         db.selectFrom("programming_blocks").select("id").execute(),
       ).resolves.toEqual([{ id: "block-001" }]);
       await expect(readState(db, channelId)).resolves.toBeUndefined();
-      await expect(readEntries(db, channelId)).resolves.toEqual([]);
+      await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     },
   );
 
@@ -642,11 +635,529 @@ describe("ScheduleService.applyInputChange", () => {
   });
 });
 
+describe("ScheduleService regeneration", () => {
+  const BLOCK_ID = programmingBlockFixture.id;
+
+  // Swaps the scenario block's source through the repository, as the PATCH route does.
+  function changeSource(channelId: string, source: ProgrammingBlockSource) {
+    return blockChange(channelId, "replaced", (trx, now) =>
+      new ProgrammingBlockRepository(trx).replaceSource(
+        trx,
+        channelId,
+        BLOCK_ID,
+        source,
+        now,
+      ),
+    );
+  }
+
+  // Deletes the scenario block through the repository, as the DELETE route does.
+  function deleteBlock(channelId: string) {
+    return blockChange(channelId, "deleted", (trx) =>
+      new ProgrammingBlockRepository(trx).delete(trx, channelId, BLOCK_ID),
+    );
+  }
+
+  // The scenario collection played in a mode.
+  function playCollection(
+    mediaCollectionId: string,
+    playbackMode: "chronological" | "random",
+  ): ProgrammingBlockSource {
+    return { kind: "collection", mediaCollectionId, playbackMode };
+  }
+
+  // Covers the horizon at T0, then moves the clock to `airingAt`.
+  async function generatedSetup(
+    airingAt: number,
+    scenario: Partial<ScheduleScenarioOptions> = {},
+  ) {
+    const context = await setup(scenario);
+    await context.service.ensureCoverage(context.channelId, context.log);
+    const before = await readScheduleEntries(context.db, context.channelId);
+    const stateBefore = (await readState(context.db, context.channelId))!;
+    context.clock.set(airingAt);
+    return { ...context, before, stateBefore };
+  }
+
+  // The info line one regeneration logs after its commit.
+  function regenerationLine(fields: unknown) {
+    return { level: "info", fields, message: expect.any(String) };
+  }
+
+  it("keeps the airing entry byte-for-byte and rebuilds from its end", async () => {
+    // Episodes air 0–22, 22–45, and 45–69 minutes past T0.
+    const { db, channelId, collectionId, service, log, before, stateBefore } =
+      await generatedSetup(T0 + 30 * MINUTE);
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    expect(after[2]).toMatchObject({
+      starts_at: T0 + 45 * MINUTE,
+      sequence_number: stateBefore.next_sequence_number,
+      playback_mode: "random",
+      playback_index: 0,
+    });
+    expectContiguous(after);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      anchor_time: T0,
+      seed: stateBefore.seed,
+      schedule_revision: 2,
+      updated_at: T0 + 30 * MINUTE,
+    });
+    expect(log.lines).toEqual([
+      regenerationLine({
+        channelId,
+        reason: "block_changed",
+        boundary: T0 + 45 * MINUTE,
+        deletedEntryCount: before.length - 2,
+        insertedEntryCount: after.length - 2,
+        result: covered(2),
+      }),
+    ]);
+  });
+
+  it("starts at the effective current time when no entry covers it", async () => {
+    const later = T0 + SCHEDULE_HORIZON_MS + 10 * HOUR;
+    const { db, channelId, collectionId, service, log, before } =
+      await generatedSetup(later);
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(after[before.length]).toMatchObject({
+      starts_at: later,
+      playback_mode: "random",
+    });
+    const coveredUntil = before.at(-1)?.ends_at;
+    expect(log.lines).toEqual([
+      {
+        level: "warn",
+        fields: {
+          channelId,
+          uncoveredFrom: coveredUntil,
+          uncoveredUntil: later,
+          deletedEntryCount: 0,
+        },
+        message: expect.stringMatching(/gap/i),
+      },
+      regenerationLine(
+        expect.objectContaining({ boundary: later, deletedEntryCount: 0 }),
+      ),
+    ]);
+  });
+
+  it("reports no gap repair on a disabled channel whose coverage lapsed", async () => {
+    const later = T0 + SCHEDULE_HORIZON_MS + 10 * HOUR;
+    const { db, channelId, collectionId, service, log } =
+      await generatedSetup(later);
+    await db.updateTable("channels").set({ enabled: 0 }).execute();
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+
+    expect(log.lines.map((line) => line.level)).toEqual(["info"]);
+  });
+
+  it("restores progress from the earliest deleted entry, never replaying from the anchor", async () => {
+    // Four hourly items: the horizon ends after position 3, leaving progress
+    // at 0, while at 2.5 hours the first deleted entry is position 3.
+    const { db, channelId, collectionId, service, log } = await generatedSetup(
+      T0 + 2.5 * HOUR,
+      { items: Array.from({ length: 4 }, () => ({ durationMs: HOUR })) },
+    );
+    await expect(readProgress(db)).resolves.toEqual([
+      expect.objectContaining({ next_chronological_position: 0 }),
+    ]);
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+
+    await expect(readProgress(db)).resolves.toEqual([
+      expect.objectContaining({ next_chronological_position: 3 }),
+    ]);
+  });
+
+  it("resumes chronological playback untouched by a random stretch", async () => {
+    const { db, channelId, collectionId, clock, service, log } =
+      await generatedSetup(T0 + 30 * MINUTE);
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+    // The first random entry airs from 45 minutes for at least 22 minutes.
+    clock.set(T0 + 50 * MINUTE);
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "chronological")),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.slice(0, 4).map((entry) => entry.playback_mode)).toEqual([
+      "chronological",
+      "chronological",
+      "random",
+      "chronological",
+    ]);
+    expect(after[3]).toMatchObject({
+      starts_at: after[2]?.ends_at,
+      playback_index: 2,
+      title: "Item 3",
+    });
+    // The deleted random stretch rewinds to its first deleted selection.
+    await expect(readProgress(db)).resolves.toEqual([
+      expect.objectContaining({ next_random_selection_index: 1 }),
+    ]);
+  });
+
+  describe("membership modulo at restored position 3", () => {
+    const HOURLY = Array.from({ length: 6 }, () => ({ durationMs: HOUR }));
+
+    // Plays [A, B, C, D] hourly; at 2.5 hours C airs and D is the first deleted entry.
+    async function fourMemberSetup() {
+      const context = await setup({ items: HOURLY });
+      await context.db
+        .deleteFrom("media_collection_items")
+        .where("position", ">=", 4)
+        .execute();
+      await context.service.ensureCoverage(context.channelId, context.log);
+      context.clock.set(T0 + 2.5 * HOUR);
+      return context;
+    }
+
+    it("replays B when [A, B, C, D] shrinks to [A, B] (3 mod 2 = 1)", async () => {
+      const { db, channelId, collectionId, service, log } =
+        await fourMemberSetup();
+
+      await service.applyInputChange(
+        log,
+        "membership_changed",
+        membershipChange(collectionId, ["item-001", "item-002"]),
+      );
+
+      const after = await readScheduleEntries(db, channelId);
+      expect(after[3]).toMatchObject({
+        starts_at: T0 + 3 * HOUR,
+        playback_index: 1,
+        media_item_id: "item-002",
+      });
+    });
+
+    it("continues at D, skipping nothing, when [A, B, C, D] grows to [A, B, C, D, E, F]", async () => {
+      const { db, channelId, collectionId, service, log } =
+        await fourMemberSetup();
+
+      await service.applyInputChange(
+        log,
+        "membership_changed",
+        membershipChange(collectionId, [
+          "item-001",
+          "item-002",
+          "item-003",
+          "item-004",
+          "item-005",
+          "item-006",
+        ]),
+      );
+
+      const after = await readScheduleEntries(db, channelId);
+      expect(after.slice(3, 6).map((entry) => entry.media_item_id)).toEqual([
+        "item-004",
+        "item-005",
+        "item-006",
+      ]);
+    });
+  });
+
+  it("keeps the airing entry without its block when the block is deleted", async () => {
+    const { db, channelId, service, log } = await generatedSetup(
+      T0 + 30 * MINUTE,
+    );
+
+    await service.applyInputChange(
+      log,
+      "block_deleted",
+      deleteBlock(channelId),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.map((entry) => entry.programming_block_id)).toEqual([
+      null,
+      null,
+    ]);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      last_generated_through: T0 + 45 * MINUTE,
+      schedule_revision: 2,
+    });
+    await expect(service.ensureCoverage(channelId, log)).resolves.toEqual({
+      kind: "unschedulable",
+      reason: "no_programming_block",
+    });
+  });
+
+  it("resumes after the airing entry when a block is created again", async () => {
+    const { db, channelId, collectionId, service, log } = await generatedSetup(
+      T0 + 30 * MINUTE,
+    );
+    await service.applyInputChange(
+      log,
+      "block_deleted",
+      deleteBlock(channelId),
+    );
+
+    await service.applyInputChange(
+      log,
+      "block_created",
+      blockChange(channelId, "created", (trx, now) =>
+        new ProgrammingBlockRepository(trx).create(
+          trx,
+          channelId,
+          playCollection(collectionId, "chronological"),
+          now,
+        ),
+      ),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after[2]).toMatchObject({
+      starts_at: T0 + 45 * MINUTE,
+      playback_index: 2,
+    });
+    expectContiguous(after);
+  });
+
+  it("lets a collection be deleted after its block switched source", async () => {
+    const { db, channelId, collectionId, service, log } = await generatedSetup(
+      T0 + 30 * MINUTE,
+    );
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, { kind: "media_item", mediaItemId: "item-001" }),
+    );
+
+    await expect(
+      new MediaCollectionRepository(db).delete(collectionId),
+    ).resolves.toEqual({ kind: "deleted" });
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.every((entry) => entry.media_collection_id === null)).toBe(
+      true,
+    );
+    // The playback index stays behind as history.
+    expect(after[1]?.playback_index).toBe(1);
+  });
+
+  it("deletes future entries and restores progress without generating on a disabled channel", async () => {
+    const { db, channelId, collectionId, service, log } = await generatedSetup(
+      T0 + 30 * MINUTE,
+    );
+    await db.updateTable("channels").set({ enabled: 0 }).execute();
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "random")),
+    );
+
+    await expect(readScheduleEntries(db, channelId)).resolves.toHaveLength(2);
+    await expect(readProgress(db)).resolves.toEqual([
+      expect.objectContaining({ next_chronological_position: 2 }),
+    ]);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      last_generated_through: T0 + 45 * MINUTE,
+      schedule_revision: 2,
+    });
+    expect(log.lines).toEqual([
+      regenerationLine(
+        expect.objectContaining({
+          insertedEntryCount: 0,
+          result: { kind: "disabled" },
+        }),
+      ),
+    ]);
+  });
+
+  it("rolls back the input change when regeneration fails", async () => {
+    const { db, channelId, collectionId, service, log, before } =
+      await generatedSetup(T0 + 30 * MINUTE);
+    await sql`
+      create trigger fail_entry_delete before delete on schedule_entries
+      begin select raise(abort, 'injected failure'); end
+    `.execute(db);
+
+    await expect(
+      service.applyInputChange(
+        log,
+        "block_changed",
+        changeSource(channelId, playCollection(collectionId, "random")),
+      ),
+    ).rejects.toThrow(/injected failure/);
+
+    await expect(
+      db.selectFrom("programming_blocks").select("playback_mode").execute(),
+    ).resolves.toEqual([{ playback_mode: "chronological" }]);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual(before);
+  });
+
+  it.each(["regeneration", "extension"] as const)(
+    "never overlaps or duplicates sequence numbers when %s takes write authority first",
+    async (first) => {
+      const dataDirectory = await createTemporaryDirectory();
+      const a = (await openTestDatabase(dataDirectory)).db;
+      const b = (await openTestDatabase(dataDirectory)).db;
+      const { channelId, collectionId } = await seedScheduleScenario(a, {
+        items: EPISODES,
+        source: "chronological",
+      });
+      await new ScheduleService(a, { now: () => T0 }).ensureCoverage(
+        channelId,
+        recordingLog(),
+      );
+      const barrier = createBarrier();
+      // A day later, so extension has work to do too.
+      const now = () => T0 + 24 * HOUR + 30 * MINUTE;
+      const serviceA = new ScheduleService(a, {
+        now,
+        createId: sequentialIds("a"),
+        transactionHooks: { afterBegin: () => barrier.wait() },
+      });
+      // B releases A on its first busy attempt, so A commits while B retries.
+      const serviceB = new ScheduleService(b, {
+        now,
+        createId: sequentialIds("b"),
+        transactionHooks: { onBusy: () => barrier.release() },
+      });
+      const regenerate = (service: ScheduleService) =>
+        service.applyInputChange(
+          recordingLog(),
+          "block_changed",
+          changeSource(channelId, playCollection(collectionId, "random")),
+        );
+      const extend = (service: ScheduleService) =>
+        service.ensureCoverage(channelId, recordingLog());
+      const [runA, runB] =
+        first === "regeneration" ? [regenerate, extend] : [extend, regenerate];
+
+      const running = runA(serviceA);
+      await barrier.reached;
+      await Promise.resolve(runB(serviceB)).catch((error: unknown) => {
+        if (!(error instanceof WriteAuthorityBusyError)) throw error;
+      });
+      barrier.release();
+      await running;
+
+      const entries = await readScheduleEntries(a, channelId);
+      expectContiguous(entries);
+      expect(new Set(entries.map((entry) => entry.sequence_number)).size).toBe(
+        entries.length,
+      );
+    },
+  );
+});
+
+describe("ScheduleService.regenerate", () => {
+  it("rebuilds future entries from the boundary and reports coverage", async () => {
+    const { db, channelId, clock, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+    const before = await readScheduleEntries(db, channelId);
+    clock.set(T0 + 30 * MINUTE);
+
+    const result = await service.regenerate(channelId, log);
+
+    expect(result).toEqual(covered(2));
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    // Restored progress rebuilds identical programming; only the rows are new.
+    const programming = (entries: typeof before) =>
+      entries.map(({ media_item_id, starts_at, ends_at }) => ({
+        media_item_id,
+        starts_at,
+        ends_at,
+      }));
+    expect(programming(after.slice(0, before.length))).toEqual(
+      programming(before),
+    );
+    expect(after[2]?.sequence_number).toBe(before.length);
+    expect(log.lines).toEqual([
+      {
+        level: "info",
+        fields: expect.objectContaining({
+          channelId,
+          reason: "manual",
+          boundary: T0 + 45 * MINUTE,
+          result: covered(2),
+        }),
+        message: expect.any(String),
+      },
+    ]);
+  });
+
+  it("generates the first schedule for a channel without state", async () => {
+    const { channelId, service, log } = await setup();
+
+    await expect(service.regenerate(channelId, log)).resolves.toEqual(
+      covered(1),
+    );
+  });
+
+  it.each([
+    ["a missing channel", "missing", { kind: "channel_not_found" }],
+    ["a disabled channel", "disabled", { kind: "disabled" }],
+  ] as const)("writes nothing for %s", async (_, variant, expected) => {
+    const { db, channelId, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+    const before = await readScheduleEntries(db, channelId);
+    if (variant === "disabled") {
+      await db.updateTable("channels").set({ enabled: 0 }).execute();
+    }
+
+    await expect(
+      service.regenerate(variant === "missing" ? "missing" : channelId, log),
+    ).resolves.toEqual(expected);
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual(before);
+    expect(log.lines).toEqual([]);
+  });
+
+  it("rejects a requested instant beyond the request limit without writing", async () => {
+    const { db, channelId, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+    const before = await readScheduleEntries(db, channelId);
+
+    await expect(
+      service.regenerate(channelId, log, T0 + SCHEDULE_REQUEST_LIMIT_MS + 1),
+    ).resolves.toEqual({
+      kind: "through_out_of_range",
+      latestThrough: T0 + SCHEDULE_REQUEST_LIMIT_MS,
+    });
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual(before);
+  });
+});
+
 describe("ScheduleService.readWindow", () => {
   it("returns every entry overlapping the window in start order, with the revision", async () => {
     const { db, channelId, service, log } = await setup();
     await service.ensureCoverage(channelId, log);
-    const [, second, third] = await readEntries(db, channelId);
+    const [, second, third] = await readScheduleEntries(db, channelId);
 
     // Episodes run 0–22, 22–45, and 45–69 minutes past the anchor.
     const window = await service.readWindow(

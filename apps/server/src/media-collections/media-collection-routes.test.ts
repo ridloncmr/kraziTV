@@ -19,6 +19,7 @@ import {
 } from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 import { scriptedClock } from "../testing/record-sources.js";
+import { ScheduleService } from "../schedules/schedule-service.js";
 
 type Server = FastifyInstance;
 
@@ -63,6 +64,8 @@ async function startServer(
         createId: () => ids.shift() ?? "collection-extra",
         now,
       }),
+      // Membership changes take the schedule transaction's effective time.
+      schedules: new ScheduleService(db, { now }),
     }),
   });
   return server;

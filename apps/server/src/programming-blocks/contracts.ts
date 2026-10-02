@@ -18,7 +18,7 @@ export interface ProgrammingBlock {
 }
 
 /** A source naming a collection or item the catalog does not hold. */
-type UnknownSourceResult =
+export type UnknownSourceResult =
   | { kind: "unknown_collection"; mediaCollectionId: string }
   | { kind: "unknown_media_item"; mediaItemId: string };
 
@@ -30,6 +30,7 @@ export type CreateProgrammingBlockResult =
 
 export type ReplaceProgrammingBlockSourceResult =
   | { kind: "replaced"; block: ProgrammingBlock }
+  | { kind: "unchanged"; block: ProgrammingBlock }
   | { kind: "not_found" }
   | UnknownSourceResult;
 

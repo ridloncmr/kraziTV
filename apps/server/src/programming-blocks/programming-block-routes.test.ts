@@ -1,10 +1,14 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import type { FastifyInstance, InjectOptions } from "fastify";
+import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { manualClock } from "../testing/manual-clock.js";
 import {
   seedScheduleScenario,
+  readScheduleEntries,
   type ScheduleScenarioOptions,
 } from "../testing/schedule-fixtures.js";
 import {
@@ -39,6 +43,7 @@ async function startServer(
   scenario: Partial<ScheduleScenarioOptions> | null = {},
   dataDirectory?: string,
 ) {
+  const clock = manualClock(T0);
   const { server, db } = await startTestServer({
     dataDirectory,
     seed: async (db) => {
@@ -53,10 +58,10 @@ async function startServer(
       programmingBlocks: new ProgrammingBlockRepository(db, {
         createId: () => "block-001",
       }),
-      schedules: new ScheduleService(db, { now: () => T0 }),
+      schedules: new ScheduleService(db, { now: clock.now }),
     }),
   });
-  return { server, db };
+  return { server, db, clock };
 }
 
 // Sends one JSON request and returns the status with the parsed body.
@@ -256,6 +261,144 @@ describe("programming block routes", () => {
     await expect(send(second.server, "GET", BLOCKS_URL)).resolves.toEqual({
       status: 200,
       body: [created.body],
+    });
+  });
+});
+
+describe("changing and deleting a programming block", () => {
+  const BLOCK_URL = `${BLOCKS_URL}/block-001`;
+  const randomSource = { ...collectionSource, playbackMode: "random" };
+
+  // Creates the collection block at T0, then moves the clock into the second episode (22–45 minutes).
+  async function startScheduled() {
+    const context = await startServer();
+    await send(context.server, "POST", BLOCKS_URL, {
+      source: collectionSource,
+    });
+    context.clock.set(T0 + 30 * 60_000);
+    return context;
+  }
+
+  // Reads the channel's entries in sequence order and its revision.
+  async function readSchedule(db: Kysely<DatabaseSchema>) {
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    const state = await db
+      .selectFrom("channel_schedule_states")
+      .select("schedule_revision")
+      .executeTakeFirstOrThrow();
+    return { entries, revision: state.schedule_revision };
+  }
+
+  it("replaces the source and regenerates after the airing entry", async () => {
+    const { server, db } = await startScheduled();
+    const before = await readSchedule(db);
+
+    const response = await send(server, "PATCH", BLOCK_URL, {
+      source: randomSource,
+    });
+
+    expect(response).toEqual({
+      status: 200,
+      body: {
+        id: "block-001",
+        channelId: CHANNEL_ID,
+        source: randomSource,
+        createdAt: new Date(T0).toISOString(),
+        updatedAt: new Date(T0 + 30 * 60_000).toISOString(),
+      },
+    });
+    const after = await readSchedule(db);
+    expect(after.revision).toBe(2);
+    expect(after.entries.slice(0, 2)).toEqual(before.entries.slice(0, 2));
+    expect(after.entries[2]).toMatchObject({
+      starts_at: T0 + 45 * 60_000,
+      playback_mode: "random",
+    });
+  });
+
+  it("writes nothing for an identical source", async () => {
+    const { server, db } = await startScheduled();
+    const before = await readSchedule(db);
+
+    const response = await send(server, "PATCH", BLOCK_URL, {
+      source: collectionSource,
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: { updatedAt: new Date(T0).toISOString() },
+    });
+    await expect(readSchedule(db)).resolves.toEqual(before);
+  });
+
+  it("deletes the block, keeping the airing entry without it", async () => {
+    const { server, db } = await startScheduled();
+
+    const response = await server.inject({ method: "DELETE", url: BLOCK_URL });
+
+    expect(response.statusCode).toBe(204);
+    await expect(send(server, "GET", BLOCKS_URL)).resolves.toEqual({
+      status: 200,
+      body: [],
+    });
+    const after = await readSchedule(db);
+    expect(after.revision).toBe(2);
+    expect(
+      after.entries.map((entry) => [
+        entry.starts_at,
+        entry.programming_block_id,
+      ]),
+    ).toEqual([
+      [T0, null],
+      [T0 + 22 * 60_000, null],
+    ]);
+  });
+
+  it.each([
+    ["an unknown block", `${BLOCKS_URL}/missing`],
+    [
+      "another channel's block",
+      "/channels/missing/programming-blocks/block-001",
+    ],
+  ])("reports %s as not found", async (_, url) => {
+    const { server } = await startScheduled();
+
+    const patched = await send(server, "PATCH", url, { source: randomSource });
+    const deleted = await send(server, "DELETE", url);
+
+    for (const response of [patched, deleted]) {
+      expect(response).toMatchObject({
+        status: 404,
+        body: { error: { code: "programming_block_not_found" } },
+      });
+    }
+  });
+
+  it("rejects an unknown collection and keeps the old source", async () => {
+    const { server, db } = await startScheduled();
+    const before = await readSchedule(db);
+
+    const response = await send(server, "PATCH", BLOCK_URL, {
+      source: { ...collectionSource, mediaCollectionId: "missing" },
+    });
+
+    expect(response).toMatchObject({
+      status: 400,
+      body: { error: { code: "media_collection_not_found" } },
+    });
+    await expect(readSchedule(db)).resolves.toEqual(before);
+  });
+
+  it("rejects an invalid body", async () => {
+    const { server } = await startScheduled();
+
+    const response = await send(server, "PATCH", BLOCK_URL, {
+      source: { ...collectionSource, playbackMode: "shuffle" },
+    });
+
+    expect(response).toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_request" } },
     });
   });
 });

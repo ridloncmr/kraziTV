@@ -235,95 +235,14 @@ describe("MediaCollectionRepository", () => {
     await expect(repository.listMembers("unknown")).resolves.toBeUndefined();
   });
 
-  it("replaces membership with contiguous positions in request order", async () => {
-    const { repository, clock, database } = await setup();
-    await repository.create("Shows", ["item-a", "item-b", "item-c"]);
-    clock.now = FIXTURE_TIME + 5_000;
-
-    const result = await repository.replaceMembers("collection-001", [
-      "item-b",
-      "item-a",
-    ]);
-
-    expect(result).toEqual({
-      kind: "replaced",
-      members: [
-        expect.objectContaining({ position: 0, mediaItemId: "item-b" }),
-        expect.objectContaining({ position: 1, mediaItemId: "item-a" }),
-      ],
-    });
-    await expect(repository.findById("collection-001")).resolves.toMatchObject({
-      createdAt: FIXTURE_TIME,
-      updatedAt: FIXTURE_TIME + 5_000,
-    });
-    const rows = await database.db
-      .selectFrom("media_collection_items")
-      .select(["media_item_id", "position", "created_at"])
-      .orderBy("position")
-      .execute();
-    expect(rows).toEqual([
-      {
-        media_item_id: "item-b",
-        position: 0,
-        created_at: FIXTURE_TIME + 5_000,
-      },
-      {
-        media_item_id: "item-a",
-        position: 1,
-        created_at: FIXTURE_TIME + 5_000,
-      },
-    ]);
-  });
-
-  it("replaces membership with an empty set", async () => {
-    const { repository } = await setup();
-    await repository.create("Shows", ["item-a"]);
-
-    await expect(
-      repository.replaceMembers("collection-001", []),
-    ).resolves.toEqual({ kind: "replaced", members: [] });
-  });
-
-  it("reports an unknown collection when replacing membership", async () => {
+  it("throws on duplicate members at creation and stores nothing", async () => {
     const { repository } = await setup();
 
-    await expect(
-      repository.replaceMembers("unknown", ["item-a"]),
-    ).resolves.toEqual({ kind: "not_found" });
-  });
-
-  it("rejects replacement naming unknown items and keeps prior membership", async () => {
-    const { repository } = await setup();
-    await repository.create("Shows", ["item-a", "item-b"]);
-
-    await expect(
-      repository.replaceMembers("collection-001", ["item-c", "ghost"]),
-    ).resolves.toEqual({
-      kind: "unknown_media_items",
-      mediaItemIds: ["ghost"],
-    });
-
-    const members = await repository.listMembers("collection-001");
-    expect(members?.map(({ mediaItemId }) => mediaItemId)).toEqual([
-      "item-a",
-      "item-b",
-    ]);
-  });
-
-  it("throws on duplicate members and keeps prior membership", async () => {
-    const { repository } = await setup();
-    await repository.create("Shows", ["item-a"]);
-
-    await expect(
-      repository.replaceMembers("collection-001", ["item-b", "item-b"]),
-    ).rejects.toThrow(/unique constraint/i);
     await expect(
       repository.create("Dupes", ["item-a", "item-a"]),
     ).rejects.toThrow(/unique constraint/i);
 
-    const members = await repository.listMembers("collection-001");
-    expect(members?.map(({ mediaItemId }) => mediaItemId)).toEqual(["item-a"]);
-    await expect(repository.list()).resolves.toHaveLength(1);
+    await expect(repository.list()).resolves.toEqual([]);
   });
 
   it("stores large memberships beyond SQLite's bound-parameter limit", async () => {

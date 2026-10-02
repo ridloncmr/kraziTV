@@ -8,6 +8,7 @@ import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
   seedScheduleScenario,
+  readScheduleEntries,
   type ScheduleScenarioOptions,
 } from "../testing/schedule-fixtures.js";
 import {
@@ -16,10 +17,8 @@ import {
   openTestDatabase,
   startTestServer,
 } from "../testing/test-environment.js";
-import {
-  SCHEDULE_REQUEST_LIMIT_MS,
-  ScheduleService,
-} from "./schedule-service.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
+import { ScheduleService } from "./schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -346,7 +345,8 @@ describe("POST /channels/:id/schedule/generate", () => {
       { through: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS + 1) },
     ],
     ["a through with an offset", { through: "2024-01-02T02:00:00+02:00" }],
-    ["an unknown field", { regenerate: true }],
+    ["an unknown field", { rebuild: true }],
+    ["a regenerate flag that is not a boolean", { regenerate: "yes" }],
   ])("rejects %s without writing", async (_, payload) => {
     const { server, db } = await startServer();
 
@@ -366,6 +366,64 @@ describe("POST /channels/:id/schedule/generate", () => {
 
     expect(status).toBe(409);
     expect(body.error.code).toBe("channel_disabled");
+  });
+
+  it("regenerates future entries after the airing entry when asked", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+    clock.set(T0 + 30 * MINUTE);
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {
+      regenerate: true,
+    });
+
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(status).toBe(200);
+    expect(body.scheduleRevision).toBe(2);
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    expect(after[2]).toMatchObject({
+      starts_at: T0 + 45 * MINUTE,
+      sequence_number: before.length,
+    });
+  });
+
+  it("rejects regenerating a disabled channel without writing", async () => {
+    const { server, db } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    await db.updateTable("channels").set({ enabled: 0 }).execute();
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {
+      regenerate: true,
+    });
+
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("channel_disabled");
+    await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
+  });
+
+  it("regenerates channels drawing from a collection when its membership changes", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    clock.set(T0 + 30 * MINUTE);
+
+    const { status } = await send(
+      server,
+      "PUT",
+      "/media-collections/collection-fixture-001/items",
+      { mediaItemIds: ["item-001"] },
+    );
+
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(status).toBe(200);
+    expect(
+      after.slice(2, 5).map((entry) => [entry.starts_at, entry.media_item_id]),
+    ).toEqual([
+      [T0 + 45 * MINUTE, "item-001"],
+      [T0 + 67 * MINUTE, "item-001"],
+      [T0 + 89 * MINUTE, "item-001"],
+    ]);
   });
 
   it.each([

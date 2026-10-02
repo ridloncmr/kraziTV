@@ -1,8 +1,10 @@
-import type {
-  GeneratedScheduleEntry,
-  PlaybackProgress,
-  ScheduleMedia,
-  ScheduleSource,
+import {
+  type GeneratedScheduleEntry,
+  type PlaybackProgress,
+  type RestorableEntry,
+  restorePlaybackProgress,
+  type ScheduleMedia,
+  type ScheduleSource,
 } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
@@ -173,6 +175,75 @@ export async function insertEntries(
       })),
     )
     .execute();
+}
+
+/** Finds the entry airing at `at`: started at or before it and not yet ended. */
+export async function findEntryAiringAt(
+  trx: Executor,
+  channelId: string,
+  at: number,
+): Promise<{ endsAt: number } | undefined> {
+  const row = await trx
+    .selectFrom("schedule_entries")
+    .select("ends_at")
+    .where("channel_id", "=", channelId)
+    .where("starts_at", "<=", at)
+    .where("ends_at", ">", at)
+    .executeTakeFirst();
+  return row === undefined ? undefined : { endsAt: row.ends_at };
+}
+
+/**
+ * Deletes the channel's entries starting at or after `boundary` and returns
+ * their collection bookkeeping, so regeneration can restore progress from
+ * exactly what it removed.
+ */
+export async function deleteEntriesFrom(
+  trx: Executor,
+  channelId: string,
+  boundary: number,
+): Promise<RestorableEntry[]> {
+  const rows = await trx
+    .deleteFrom("schedule_entries")
+    .where("channel_id", "=", channelId)
+    .where("starts_at", ">=", boundary)
+    .returning([
+      "sequence_number",
+      "media_collection_id",
+      "playback_mode",
+      "playback_index",
+    ])
+    .execute();
+  return rows.map((row) => ({
+    sequenceNumber: row.sequence_number,
+    mediaCollectionId: row.media_collection_id,
+    playbackMode: row.playback_mode,
+    playbackIndex: row.playback_index,
+  }));
+}
+
+/**
+ * Rewinds the channel's progress through each collection the deleted entries
+ * drew from, so regenerated entries continue where the kept schedule ends.
+ */
+export async function restoreDeletedProgress(
+  trx: Executor,
+  channelId: string,
+  deletedEntries: readonly RestorableEntry[],
+  now: number,
+): Promise<void> {
+  const current = new Map<string, PlaybackProgress>();
+  for (const { mediaCollectionId } of deletedEntries) {
+    if (mediaCollectionId === null || current.has(mediaCollectionId)) continue;
+    current.set(
+      mediaCollectionId,
+      await loadProgress(trx, channelId, mediaCollectionId),
+    );
+  }
+  const restored = restorePlaybackProgress(current, deletedEntries);
+  for (const [mediaCollectionId, progress] of restored) {
+    await upsertProgress(trx, channelId, mediaCollectionId, progress, now);
+  }
 }
 
 /** Records the channel's progress through a collection, creating the row on first use. */

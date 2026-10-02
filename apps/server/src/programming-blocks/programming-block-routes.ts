@@ -8,9 +8,11 @@ import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
 import { sendUnknownMediaItems } from "../media-collections/media-collection-routes.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
+import { blockChange } from "./block-change.js";
 import type {
   CreateProgrammingBlockResult,
   ProgrammingBlock,
+  UnknownSourceResult,
 } from "./contracts.js";
 import type { ProgrammingBlockRepository } from "./programming-block-repository.js";
 
@@ -27,7 +29,10 @@ const source = z.discriminatedUnion("kind", [
   }),
 ]);
 
+// Create and PATCH share one body: PATCH replaces the whole source.
 const createBody = z.strictObject({ source });
+
+const blockParams = z.object({ id: z.string(), blockId: z.string() });
 
 /** Registers programming-block HTTP routes; validation and status mapping live only here. */
 export function registerProgrammingBlockRoutes(
@@ -56,27 +61,98 @@ export function registerProgrammingBlockRoutes(
     const result = await schedules.applyInputChange(
       request.log,
       "block_created",
-      async (trx, now) => {
-        const created = await programmingBlocks.create(
-          trx,
-          id,
-          body.data.source,
-          now,
-        );
-        return {
-          value: created,
-          affectedChannelIds: created.kind === "created" ? [id] : [],
-        };
-      },
+      blockChange(id, "created", (trx, now) =>
+        programmingBlocks.create(trx, id, body.data.source, now),
+      ),
     );
     if (result.kind !== "created") {
       return sendCreateFailure(reply, id, result);
     }
     return reply.status(201).send(toApiProgrammingBlock(result.block));
   });
+
+  server.patch(
+    "/channels/:id/programming-blocks/:blockId",
+    async (request, reply) => {
+      const { id, blockId } = blockParams.parse(request.params);
+      const body = createBody.safeParse(request.body);
+      if (!body.success) {
+        return sendInvalidRequest(reply, body.error);
+      }
+
+      // An unchanged source affects no channel, so nothing regenerates.
+      const result = await schedules.applyInputChange(
+        request.log,
+        "block_changed",
+        blockChange(id, "replaced", (trx, now) =>
+          programmingBlocks.replaceSource(
+            trx,
+            id,
+            blockId,
+            body.data.source,
+            now,
+          ),
+        ),
+      );
+      switch (result.kind) {
+        case "replaced":
+        case "unchanged":
+          return toApiProgrammingBlock(result.block);
+        case "not_found":
+          return sendBlockNotFound(reply, id, blockId);
+        default:
+          return sendUnknownSource(reply, result);
+      }
+    },
+  );
+
+  server.delete(
+    "/channels/:id/programming-blocks/:blockId",
+    async (request, reply) => {
+      const { id, blockId } = blockParams.parse(request.params);
+      const result = await schedules.applyInputChange(
+        request.log,
+        "block_deleted",
+        blockChange(id, "deleted", (trx) =>
+          programmingBlocks.delete(trx, id, blockId),
+        ),
+      );
+      if (result.kind === "not_found") {
+        return sendBlockNotFound(reply, id, blockId);
+      }
+      return reply.status(204).send();
+    },
+  );
 }
 
-// Maps each rejected create to its status; a body's unknown reference is a 400, not a 404.
+// A block owned by another channel is reported the same as a missing one.
+function sendBlockNotFound(
+  reply: FastifyReply,
+  channelId: string,
+  blockId: string,
+) {
+  return sendApiError(
+    reply,
+    404,
+    "programming_block_not_found",
+    `Channel ${channelId} has no programming block ${blockId}`,
+  );
+}
+
+// A body's unknown reference is a 400, not a 404: the resource itself exists.
+function sendUnknownSource(reply: FastifyReply, result: UnknownSourceResult) {
+  if (result.kind === "unknown_collection") {
+    return sendApiError(
+      reply,
+      400,
+      "media_collection_not_found",
+      `Media collection ${result.mediaCollectionId} does not exist`,
+    );
+  }
+  return sendUnknownMediaItems(reply, [result.mediaItemId]);
+}
+
+// Maps each rejected create to its status.
 function sendCreateFailure(
   reply: FastifyReply,
   channelId: string,
@@ -92,15 +168,8 @@ function sendCreateFailure(
         "programming_block_limit_reached",
         `Channel ${channelId} already has a programming block`,
       );
-    case "unknown_collection":
-      return sendApiError(
-        reply,
-        400,
-        "media_collection_not_found",
-        `Media collection ${result.mediaCollectionId} does not exist`,
-      );
-    case "unknown_media_item":
-      return sendUnknownMediaItems(reply, [result.mediaItemId]);
+    default:
+      return sendUnknownSource(reply, result);
   }
 }
 

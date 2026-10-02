@@ -11,7 +11,6 @@ import type {
   DeleteMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
-  ReplaceMediaCollectionMembersResult,
 } from "./contracts.js";
 
 // Keeps every statement well under SQLite's 32,766 bound-parameter limit.
@@ -131,40 +130,6 @@ export class MediaCollectionRepository {
         (await collectionExists(trx, id)) ? selectMembers(trx, id) : undefined,
       );
   }
-
-  /**
-   * Replaces the full membership in request order. Item existence is checked
-   * inside the same transaction so a concurrent change cannot leave a dangling
-   * member; the foreign key remains the final guard.
-   */
-  async replaceMembers(
-    id: string,
-    mediaItemIds: readonly string[],
-  ): Promise<ReplaceMediaCollectionMembersResult> {
-    return this.#db.transaction().execute(async (trx) => {
-      if (!(await collectionExists(trx, id))) {
-        return { kind: "not_found" };
-      }
-
-      const unknown = await findUnknownMediaItemIds(trx, mediaItemIds);
-      if (unknown.length > 0) {
-        return { kind: "unknown_media_items", mediaItemIds: unknown };
-      }
-
-      const now = this.#now();
-      await trx
-        .updateTable("media_collections")
-        .set({ updated_at: now })
-        .where("id", "=", id)
-        .execute();
-      await trx
-        .deleteFrom("media_collection_items")
-        .where("media_collection_id", "=", id)
-        .execute();
-      await insertMembers(trx, id, mediaItemIds, now);
-      return { kind: "replaced", members: await selectMembers(trx, id) };
-    });
-  }
 }
 
 // Answers existence without loading the row.
@@ -199,7 +164,7 @@ export async function findUnknownMediaItemIds(
 }
 
 // Writes contiguous zero-based positions in request order.
-async function insertMembers(
+export async function insertMembers(
   executor: Executor,
   mediaCollectionId: string,
   mediaItemIds: readonly string[],
@@ -217,7 +182,7 @@ async function insertMembers(
 }
 
 // Joins each membership to its item summary in one query, ordered by position.
-async function selectMembers(
+export async function selectMembers(
   executor: Executor,
   mediaCollectionId: string,
 ): Promise<MediaCollectionMember[]> {

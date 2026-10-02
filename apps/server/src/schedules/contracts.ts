@@ -11,8 +11,13 @@ import type { PlaybackMode } from "../database/schema/programming-block-table.js
  */
 export type ScheduleLog = Pick<FastifyBaseLogger, "info" | "warn">;
 
-/** Why a schedule input changed; logged with each affected channel's outcome. */
-export type ScheduleChangeReason = "block_created";
+/** Why a schedule input changed or a channel regenerated; logged with each affected channel's outcome. */
+export type ScheduleChangeReason =
+  | "block_created"
+  | "block_changed"
+  | "block_deleted"
+  | "membership_changed"
+  | "manual";
 
 /**
  * Writes a scheduling input inside the schedule transaction at its effective
@@ -48,6 +53,42 @@ export type EnsureCoverageResult =
   | { kind: "schedule_gap" }
   /** The requested instant lies past the request limit; nothing is written. */
   | { kind: "through_out_of_range"; latestThrough: number };
+
+/** One chunk committed entries but coverage still falls short of the target. */
+export type ChunkResult = EnsureCoverageResult | { kind: "extended" };
+
+/** Where one chunk of generation starts. */
+export interface ChunkStart {
+  seed: number;
+  startsAt: number;
+  nextSequenceNumber: number;
+}
+
+/** Entries and progress one chunk wrote, before the caller records state. */
+export type WrittenChunk =
+  | {
+      kind: "written";
+      lastGeneratedThrough: number;
+      nextSequenceNumber: number;
+      insertedEntryCount: number;
+    }
+  | Extract<EnsureCoverageResult, { kind: "unschedulable" }>;
+
+/** What one regeneration removed and rebuilt; logged once it commits. */
+interface Regeneration {
+  boundary: number;
+  deletedEntryCount: number;
+  insertedEntryCount: number;
+  /** Where coverage had already ended, when the regeneration repaired a gap. */
+  uncoveredFrom?: number | undefined;
+}
+
+/** A channel's first chunk inside a transaction, with its regeneration when one ran. */
+export interface ChannelChunk {
+  channelId: string;
+  result: ChunkResult;
+  regeneration?: Regeneration | undefined;
+}
 
 /** One persisted schedule entry, in epoch milliseconds. */
 export interface ScheduleEntry {

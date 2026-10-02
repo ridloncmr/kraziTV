@@ -98,3 +98,16 @@ export async function seedScheduleScenario(
 
   return { channelId, collectionId, itemIds };
 }
+
+/** Reads a channel's schedule entry rows in sequence order, as tests assert them. */
+export function readScheduleEntries(
+  db: Kysely<DatabaseSchema>,
+  channelId: string,
+) {
+  return db
+    .selectFrom("schedule_entries")
+    .selectAll()
+    .where("channel_id", "=", channelId)
+    .orderBy("sequence_number")
+    .execute();
+}

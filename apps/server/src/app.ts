@@ -61,7 +61,11 @@ function registerRoutes(
   registerMediaRootRoutes(server, dependencies.mediaRoots);
   registerCatalogScanRoutes(server, dependencies.scanner);
   registerMediaItemRoutes(server, dependencies.mediaItems);
-  registerMediaCollectionRoutes(server, dependencies.mediaCollections);
+  registerMediaCollectionRoutes(
+    server,
+    dependencies.mediaCollections,
+    dependencies.schedules,
+  );
   registerChannelRoutes(
     server,
     dependencies.channels,

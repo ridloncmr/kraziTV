@@ -51,6 +51,12 @@ export interface GeneratedScheduleEntry {
   playbackIndex: number | null;
 }
 
+/** The collection bookkeeping of an entry regeneration deleted. */
+export type RestorableEntry = Pick<
+  GeneratedScheduleEntry,
+  "sequenceNumber" | "mediaCollectionId" | "playbackMode" | "playbackIndex"
+>;
+
 export type GenerationResult =
   | { kind: "unschedulable"; reason: UnschedulableReason }
   | {

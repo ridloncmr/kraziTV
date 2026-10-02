@@ -187,6 +187,35 @@ describe("ProgrammingBlockRepository", () => {
     );
   });
 
+  it.each([
+    ["collection", chronological],
+    ["single-item", singleItem],
+  ])(
+    "reports an identical %s source as unchanged without writing",
+    async (_, source) => {
+      const { db, repository } = await setup();
+      const created = await write(db, (trx) =>
+        repository.create(trx, channelFixture.id, source, FIXTURE_TIME),
+      );
+
+      const result = await write(db, (trx) =>
+        repository.replaceSource(
+          trx,
+          channelFixture.id,
+          "block-001",
+          { ...source },
+          LATER,
+        ),
+      );
+
+      const block = created.kind === "created" ? created.block : undefined;
+      expect(result).toEqual({ kind: "unchanged", block });
+      await expect(
+        repository.listForChannel(channelFixture.id),
+      ).resolves.toEqual([block]);
+    },
+  );
+
   it("reports not_found when replacing an unknown block or another channel's block", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>

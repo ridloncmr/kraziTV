@@ -9,13 +9,10 @@ import { idParams, isoInstantField } from "../http/request-schemas.js";
 import type {
   EnsureCoverageResult,
   ScheduleEntry,
-  ScheduleLog,
   ScheduleWindow,
 } from "./contracts.js";
-import {
-  SCHEDULE_REQUEST_LIMIT_MS,
-  type ScheduleService,
-} from "./schedule-service.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
+import type { ScheduleService } from "./schedule-service.js";
 
 const windowQuery = z
   .strictObject({ start: isoInstantField, end: isoInstantField })
@@ -28,8 +25,11 @@ const windowQuery = z
     path: ["end"],
   });
 
-// Strict so the regeneration flag cannot be sent before it is supported.
-const generateBody = z.strictObject({ through: isoInstantField.optional() });
+// `regenerate` rebuilds from the boundary instead of only extending.
+const generateBody = z.strictObject({
+  through: isoInstantField.optional(),
+  regenerate: z.boolean().optional(),
+});
 
 /** Every ensure outcome except success, plus a writer that stayed busy. */
 type CoverageFailure =
@@ -47,7 +47,9 @@ export function registerScheduleRoutes(
       return sendInvalidRequest(reply, query.error);
     }
 
-    const coverage = await ensureCoverage(schedules, id, request.log);
+    const coverage = await reportBusy(() =>
+      schedules.ensureCoverage(id, request.log),
+    );
     // A disabled or unschedulable channel still serves what it already has.
     if (
       coverage.kind !== "covered" &&
@@ -75,11 +77,11 @@ export function registerScheduleRoutes(
       return sendInvalidRequest(reply, body.error);
     }
 
-    const coverage = await ensureCoverage(
-      schedules,
-      id,
-      request.log,
-      body.data.through,
+    const { through, regenerate } = body.data;
+    const coverage = await reportBusy(() =>
+      regenerate === true
+        ? schedules.regenerate(id, request.log, through)
+        : schedules.ensureCoverage(id, request.log, through),
     );
     if (coverage.kind !== "covered") {
       return sendCoverageFailure(reply, id, coverage);
@@ -92,14 +94,11 @@ export function registerScheduleRoutes(
 }
 
 // Reports a writer that stayed busy as an outcome, so routes answer it as retryable instead of a 500.
-async function ensureCoverage(
-  schedules: ScheduleService,
-  channelId: string,
-  log: ScheduleLog,
-  through?: number,
+async function reportBusy(
+  write: () => Promise<EnsureCoverageResult>,
 ): Promise<EnsureCoverageResult | { kind: "busy" }> {
   try {
-    return await schedules.ensureCoverage(channelId, log, through);
+    return await write();
   } catch (error) {
     if (error instanceof WriteAuthorityBusyError) return { kind: "busy" };
     throw error;

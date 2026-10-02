@@ -472,7 +472,7 @@ Important boundaries:
 - Regeneration restores playback progress from the earliest deleted entry for
   each collection without replaying history from the anchor.
 - Programming block changes do not silently change the currently airing program.
-- Programming block and collection membership changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Programming block and collection membership changes regenerate entries beginning at the current program end, or at the current time when nothing is airing.
 - Deleting a media collection referenced by a programming block is rejected.
 - Every committed change to a channel's materialized schedule increments its
   `scheduleRevision` atomically with the entry changes; no-op coverage checks do

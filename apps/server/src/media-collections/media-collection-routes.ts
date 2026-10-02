@@ -4,8 +4,10 @@ import { z } from "zod";
 import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams, nameField } from "../http/request-schemas.js";
+import type { ScheduleService } from "../schedules/schedule-service.js";
 import type { MediaCollection, MediaCollectionMember } from "./contracts.js";
 import type { MediaCollectionRepository } from "./media-collection-repository.js";
+import { membershipChange } from "./replace-collection-members.js";
 
 // Duplicates are a caller error the repository never sees.
 const mediaItemIds = z
@@ -27,6 +29,7 @@ const replaceMembersBody = z.strictObject({ mediaItemIds });
 export function registerMediaCollectionRoutes(
   server: FastifyInstance,
   mediaCollections: MediaCollectionRepository,
+  schedules: ScheduleService,
 ): void {
   server.get("/media-collections", async () => {
     const collections = await mediaCollections.list();
@@ -107,9 +110,10 @@ export function registerMediaCollectionRoutes(
       return sendInvalidRequest(reply, body.error);
     }
 
-    const result = await mediaCollections.replaceMembers(
-      id,
-      body.data.mediaItemIds,
+    const result = await schedules.applyInputChange(
+      request.log,
+      "membership_changed",
+      membershipChange(id, body.data.mediaItemIds),
     );
     if (result.kind === "not_found") {
       return sendCollectionNotFound(reply, id);
