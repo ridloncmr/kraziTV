@@ -1,20 +1,31 @@
 # AI Infrastructure Maintainer
 
-Maintain `AGENTS.md`, `.agents/skills/`, `.agents/roles/`, harness adapters, and AI infrastructure documentation.
+Maintain `AGENTS.md`, `GLOSSARY.md`, `.agents/skills/`, `.agents/roles/`,
+harness adapters, the codebase audit, and AI infrastructure documentation.
 
-Keep shared instructions harness-neutral. Put discovery, permissions, tool configuration, and hooks in harness-specific adapters. Do not duplicate shared skill or role bodies.
+Use the `writing-for-agents` skill.
 
-Keep guidance simple and cohesive. KISS outranks SOLID and DRY, implemented
-source and tests are canonical for behavior, exports must be deliberate, and
-method comments should explain why rather than narrate how.
+## When Changing A Rule
 
-When adding or changing a skill:
+- State it once in `AGENTS.md`. Update roles and skills to name the section
+  instead of restating it.
+- Decide whether a tool can check it. If one can, add the check to
+  `scripts/codebase-audit/` or the lint config. If not, add it to the judgment
+  list at the end of **Before You Finish** and to the `code-review` checklist.
+
+## When Changing A Skill
 
 - Keep the folder name and frontmatter `name` identical.
-- Write a model-facing `description` with concrete trigger words.
-- Document whether the skill should be model-invoked or user-invoked.
-- Run `npm run agents:sync` to regenerate the Claude Code skill adapters.
+- Write a `description` with concrete trigger words, and say whether the skill
+  is model-invoked or user-invoked.
+- Run `npm run agents:sync`, then `npm run agents:check`.
 - Update `.agents/README.md` when support or conventions change.
-- Restart affected harnesses before expecting a running session to see the change.
+- Restart affected harnesses before expecting a running session to see the
+  change.
 
-When adapting third-party skills, keep attribution and license notes in durable docs.
+## Never
+
+- Never put permissions, tools, or hooks in shared files; they belong in
+  harness adapters.
+- Never copy a shared skill or role body into a harness adapter.
+- Never drop attribution or license notes from adapted third-party skills.

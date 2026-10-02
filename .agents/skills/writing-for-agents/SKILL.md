@@ -12,17 +12,15 @@ Write docs that make future agent work safer and faster.
 
 ## Rules
 
-- Put durable project rules in `AGENTS.md`.
-- Put product behavior in feature-scoped specs under `docs/specs/features/`.
-- Put product and system decisions in `docs/adrs/`.
-- Put AI harness and agent-infrastructure decisions in `.agents/adr/`.
-- Put build sequencing in `docs/implementation_plan/`.
-- Put researched facts in `docs/knowledge_base/`.
-- Treat specs and plans as pre-implementation guidance and historical context
-  after completion. Implemented source and tests are canonical for behavior.
-- Do not require completed specs to mirror implementation unless the user needs
-  them as an active product, user, or operator document.
-- Prefer imperative, concrete instructions over vague preferences.
+- Put durable project rules in `AGENTS.md`, and put each other kind of doc
+  where **Documentation Rules** in `AGENTS.md` says.
+- State a rule once. In a role, skill, or adapter, name the `AGENTS.md`
+  section that holds the rule instead of paraphrasing it; paraphrased copies
+  drift apart.
+- When a rule can be checked by a tool, prefer adding the check to
+  `scripts/codebase-audit/` or the lint config over adding more prose.
+- Prefer imperative, concrete instructions over vague preferences. "Search
+  `src/testing/` before writing a fake" beats "prefer reuse".
 - Include trigger words in skill descriptions so agents know when to load them.
 - Keep README high-level and approachable.
 

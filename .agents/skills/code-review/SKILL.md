@@ -8,55 +8,62 @@ license: MIT
 
 Adapted from Matt Pocock's `code-review` skill: https://github.com/mattpocock/skills
 
-Review changes on two axes: standards and spec fit.
+Review in three passes: mechanical checks, judgment, then spec fit. Use
+`codebase-audit` instead for a repo-wide sweep.
 
-## Standards Review
+## 1. Mechanical Checks
 
-Look for:
+Run these and report every failure as a finding:
 
-- Bugs or behavioral regressions
-- Unnecessary complexity; KISS outranks SOLID and DRY purity
-- Architecture boundary violations
-- Missing or weak tests
-- Overly shallow modules
-- Files holding more than one primary thing (independent classes, several
-  tables or migrations) or muddied responsibilities
-- Files placed against the source layout rules in `AGENTS.md`: implementation
-  at the `src/` root, nested `process/` or `testing/` folders, vague folders
-  such as `utils/`, or a domain folder that meets the grouping rule but mixes
-  capabilities flat. Capability subfolders and specific kind folders such as
-  `schema/` or `types/` are correct, not findings.
-- Stateful classes carrying stateless code: private methods that never read
-  `this`, inline error factories, repeated multi-step sequences, or check
-  chains that repeat the same failure handling (see the stateful-class rule in
-  `AGENTS.md`). A long class whose transitions share state is not a finding.
-- Accidental, unused, or overly broad exports
-- Missing concise why-comments on methods
-- Unclear domain names
-- Provider-specific leakage into core logic
-- FFmpeg/media details leaking into scheduling logic
-- Incorrect active user, operator, or planning documentation
-- A completed implementation-plan ticket without a recorded status (see the
-  plan-status rule in `AGENTS.md`)
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run audit:strict
+```
 
-## Spec Review
+- Do not hand-check what the audit decides: layout, one class per file,
+  private methods that never read `this`, test-double placement, root-entry
+  imports, and cross-package copies.
+- Resolve each audit `review` item in a touched file by reading the code.
+- If you cannot run commands, say so and continue with pass 2. Never claim the
+  checks passed.
 
-Compare the change to:
+## 2. Judgment Checklist
 
-- User request
-- README
-- `docs/specs/`
-- `docs/adrs/`
-- `AGENTS.md`
+No tool checks these. Check each one against the changed files:
 
-For implemented behavior, treat source and executable tests as canonical. Use
-specs, plans, and ADRs as intent and historical context; report meaningful drift,
-but do not demand code changes solely to match stale documentation.
+- **Copied helpers.** For each new function, predicate, error factory, option
+  check, or test double, search the repository for an existing one. A second
+  copy is a finding even when jscpd misses it.
+- **Inline test doubles.** A fake, stub, or fixture written inside a test file
+  that another test could use belongs in `src/testing/`.
+- **Export surface.** Each new export has an importer today.
+- **Why-comments.** Each new method has one, and it explains purpose, policy,
+  or invariant rather than narrating the code.
+- **KISS.** Flag indirection, layers, or types with one user. Do not demand
+  abstractions for hypothetical reuse.
+- **Stateful classes.** A sequence repeated three or more times without a named
+  helper, or early-exit checks that repeat their failure handling (see the
+  stateful-class rule in `AGENTS.md`). A long class whose transitions share
+  state is not a finding.
+- **Boundaries.** Anything that breaks **Core Architecture Boundaries** in
+  `AGENTS.md`, plus database row shapes leaking past their repository.
+- **Tests.** Missing or weak tests for changed behavior, or tests coupled to
+  internals.
+- **Vocabulary.** Names that use a synonym `GLOSSARY.md` lists under **Avoid**.
+- **Docs.** Incorrect active documentation, or a completed plan ticket without
+  a recorded status (see **Documentation Rules** in `AGENTS.md`).
+
+## 3. Spec Fit
+
+Compare the change to the user request, `docs/specs/`, `docs/adrs/`, and
+`AGENTS.md`. Source and executable tests are canonical for implemented
+behavior. Report meaningful drift from specs and plans, but do not demand code
+changes solely to match a completed document.
 
 ## Output
 
-Prioritize findings first, ordered by severity.
-
-Use file and line references where possible.
-
-If there are no findings, say so and mention residual risks or missing verification.
+List findings first, ordered by severity, with `path:line` references. Then
+state which mechanical checks ran and their results. If there are no findings,
+say so and name residual risks or missing verification.

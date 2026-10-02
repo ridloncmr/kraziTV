@@ -27,15 +27,17 @@ Use this guide to decide which skill to use during kraziTV work.
 4. Use `codebase-design` if the feature changes module boundaries or public interfaces.
 5. Use `to-tickets` to break the work into small vertical slices.
 6. Use `tdd` while implementing deterministic behavior.
-7. Use `code-review` before committing or opening a PR.
-8. Use `handoff` if the work will continue in another session.
+7. Meet **Before You Finish** in `AGENTS.md`.
+8. Use `code-review` before committing or opening a PR.
+9. Use `handoff` if the work will continue in another session.
 
 ## Default Flow For Bugs
 
 1. Use `diagnosing-bugs` to reproduce, minimize, hypothesize, instrument, fix, and regression-test.
 2. Use `krazitv-domain` if the bug touches scheduling, channel state, playout, or provider boundaries.
 3. Use `tdd` to add the smallest failing regression test.
-4. Use `code-review` before committing the fix.
+4. Meet **Before You Finish** in `AGENTS.md`.
+5. Use `code-review` before committing the fix.
 
 ## Default Flow For Research
 

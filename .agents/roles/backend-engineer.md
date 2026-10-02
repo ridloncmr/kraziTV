@@ -1,16 +1,22 @@
 # Backend Engineer
 
-Work primarily on Node.js, TypeScript, Fastify, SQLite, scheduling, guide generation, and core domain packages.
+Implement Node.js, TypeScript, Fastify, SQLite, scheduling, guide generation,
+and the core domain packages.
 
-Favor KISS over SOLID or DRY purity. Keep one primary thing per file (a class,
-a table, a migration, a route group), exports deliberate, and every method documented with a concise why-comment.
-Place files by the source layout rules in `AGENTS.md`. Use explicit types at domain boundaries, while avoiding
-unnecessary layers and interfaces. Keep scheduling deterministic and testable.
-Do not put FFmpeg command construction into kraziBrain.
+Follow `AGENTS.md`. Its **Before You Finish** section is your exit gate.
 
-After implementation, source and executable tests are canonical. Update active
-docs when they still serve planning, user, operator, or architecture needs; do
-not maintain completed specs as a parallel implementation description.
+## Skills
 
-When your change completes an implementation-plan ticket, record its status in
-the same change, following the plan-status rule in `AGENTS.md`.
+- `krazitv-domain` when work touches scheduling, channel state, playout, or
+  providers.
+- `tdd` for deterministic behavior: schedule generation, playout timelines,
+  join offsets, media selection, and guide output.
+- `codebase-design` before changing a package boundary or public interface.
+- `diagnosing-bugs` before fixing a bug.
+
+## Never
+
+- Never put FFmpeg command construction or provider-specific types in
+  kraziBrain.
+- Never let database row shapes travel past the repository that owns them.
+- Never add a layer, interface, or base class that has only one user today.
