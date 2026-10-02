@@ -19,12 +19,14 @@ import type {
   ScheduleInputChange,
   ScheduleLog,
   ScheduleState,
+  ScheduleWindow,
 } from "./contracts.js";
 import {
   createScheduleState,
   findChannelEnabled,
   findLatestScheduleMutation,
   insertEntries,
+  listEntriesInWindow,
   loadProgress,
   loadScheduleSource,
   loadScheduleState,
@@ -46,6 +48,12 @@ type ChunkResult = EnsureCoverageResult | { kind: "extended" };
 // Keeps one transaction's write authority short and one multi-row insert
 // under SQLite's bound-variable limit.
 const ENTRIES_PER_TRANSACTION = 500;
+
+/**
+ * Bounds one synchronous schedule request: a read window's length, and how
+ * far past the effective current time a requested instant may reach.
+ */
+export const SCHEDULE_REQUEST_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * The only writer of schedule entries, schedule state, and collection
@@ -101,6 +109,26 @@ export class ScheduleService {
       );
       if (result.kind !== "extended") return result;
     }
+  }
+
+  /**
+   * Reads the channel's entries overlapping `[start, end)` in one deferred
+   * snapshot that reads the revision first, so a reader never pairs new
+   * programming with an old revision. Never writes; callers ensure coverage
+   * first.
+   */
+  async readWindow(
+    channelId: string,
+    start: number,
+    end: number,
+  ): Promise<ScheduleWindow> {
+    return this.#db.transaction().execute(async (trx) => {
+      const state = await loadScheduleState(trx, channelId);
+      return {
+        scheduleRevision: state?.scheduleRevision ?? null,
+        entries: await listEntriesInWindow(trx, channelId, start, end),
+      };
+    });
   }
 
   /**
@@ -205,6 +233,10 @@ export class ScheduleService {
 
     const state = await loadScheduleState(trx, channelId);
     const effectiveNow = inputTime ?? this.#effectiveNow(channelId, state, log);
+    const latestThrough = effectiveNow + SCHEDULE_REQUEST_LIMIT_MS;
+    if (through !== undefined && through > latestThrough) {
+      return { kind: "through_out_of_range", latestThrough };
+    }
     // A floor, never a cap: the target always lies past now, so every
     // generated chunk inserts at least one entry.
     const target = Math.max(through ?? 0, effectiveNow + SCHEDULE_HORIZON_MS);
@@ -263,7 +295,11 @@ export class ScheduleService {
       : updateScheduleState(trx, next));
 
     return next.lastGeneratedThrough >= target
-      ? { kind: "covered", scheduleRevision: next.scheduleRevision }
+      ? {
+          kind: "covered",
+          scheduleRevision: next.scheduleRevision,
+          generatedThrough: next.lastGeneratedThrough,
+        }
       : { kind: "extended" };
   }
 
@@ -302,7 +338,11 @@ function checkCoverage(
     return { kind: "schedule_gap" };
   }
   if (state.lastGeneratedThrough >= target) {
-    return { kind: "covered", scheduleRevision: state.scheduleRevision };
+    return {
+      kind: "covered",
+      scheduleRevision: state.scheduleRevision,
+      generatedThrough: state.lastGeneratedThrough,
+    };
   }
   return undefined;
 }

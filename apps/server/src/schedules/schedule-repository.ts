@@ -9,11 +9,13 @@ import type { Kysely, Selectable } from "kysely";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
-import type { ScheduleState } from "./contracts.js";
+import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
+import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 
-// Every function here takes the caller's pinned executor: schedule reads and
-// writes run only inside ScheduleService's immediate transactions, so each
-// read-modify-write sees and commits one consistent state.
+// Every function here takes the caller's executor: schedule mutations run
+// only inside ScheduleService's immediate transactions, so each
+// read-modify-write sees and commits one consistent state, and window reads
+// run inside its deferred read snapshot.
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -224,6 +226,27 @@ export async function updateScheduleState(
     .execute();
 }
 
+/**
+ * Lists the channel's entries overlapping `[start, end)` in start order. An
+ * entry that only touches an edge does not overlap.
+ */
+export async function listEntriesInWindow(
+  trx: Executor,
+  channelId: string,
+  start: number,
+  end: number,
+): Promise<ScheduleEntry[]> {
+  const rows = await trx
+    .selectFrom("schedule_entries")
+    .selectAll()
+    .where("channel_id", "=", channelId)
+    .where("starts_at", "<", end)
+    .where("ends_at", ">", start)
+    .orderBy("starts_at")
+    .execute();
+  return rows.map(toScheduleEntry);
+}
+
 // Maps the domain state onto every column except `created_at`, which never changes.
 function toStateColumns(state: ScheduleState) {
   return {
@@ -248,6 +271,26 @@ function toScheduleState(
     lastGeneratedThrough: row.last_generated_through,
     nextSequenceNumber: row.next_sequence_number,
     scheduleRevision: row.schedule_revision,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Keeps the entry row shape inside this module.
+function toScheduleEntry(row: Selectable<ScheduleEntryTable>): ScheduleEntry {
+  return {
+    id: row.id,
+    channelId: row.channel_id,
+    mediaItemId: row.media_item_id,
+    title: row.title,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    durationMs: row.duration_ms,
+    sequenceNumber: row.sequence_number,
+    programmingBlockId: row.programming_block_id,
+    mediaCollectionId: row.media_collection_id,
+    playbackMode: row.playback_mode,
+    playbackIndex: row.playback_index,
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }

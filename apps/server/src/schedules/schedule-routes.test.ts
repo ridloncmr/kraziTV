@@ -1,0 +1,433 @@
+import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
+import type { FastifyInstance, InjectOptions } from "fastify";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { holdWriteAuthority } from "../testing/hold-write-authority.js";
+import { manualClock } from "../testing/manual-clock.js";
+import { sequentialIds } from "../testing/record-sources.js";
+import {
+  seedScheduleScenario,
+  type ScheduleScenarioOptions,
+} from "../testing/schedule-fixtures.js";
+import {
+  cleanUpTestEnvironment,
+  createTemporaryDirectory,
+  openTestDatabase,
+  startTestServer,
+} from "../testing/test-environment.js";
+import {
+  SCHEDULE_REQUEST_LIMIT_MS,
+  ScheduleService,
+} from "./schedule-service.js";
+
+afterEach(cleanUpTestEnvironment);
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const T0 = FIXTURE_TIME;
+const EPISODES = [22, 23, 24].map((minutes) => ({
+  durationMs: minutes * MINUTE,
+}));
+// The channel seedScheduleScenario writes.
+const CHANNEL_ID = "channel-fixture-001";
+const SCHEDULE_URL = `/channels/${CHANNEL_ID}/schedule`;
+const GENERATE_URL = `${SCHEDULE_URL}/generate`;
+
+// Boots the real composition over three chronological episodes on a manual clock.
+async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
+  const dataDirectory = await createTemporaryDirectory();
+  const clock = manualClock(T0);
+  const { server, db } = await startTestServer({
+    dataDirectory,
+    seed: async (db) => {
+      await seedScheduleScenario(db, {
+        items: EPISODES,
+        source: "chronological",
+        ...scenario,
+      });
+    },
+    overrides: (db) => ({
+      schedules: new ScheduleService(db, {
+        now: clock.now,
+        createId: sequentialIds("entry"),
+      }),
+    }),
+  });
+  return { server, db, clock, dataDirectory };
+}
+
+// Formats an epoch millisecond as the UTC instant the API accepts.
+function iso(epochMs: number): string {
+  return new Date(epochMs).toISOString();
+}
+
+// Builds a window query from epoch milliseconds.
+function windowUrl(start: number, end: number, url = SCHEDULE_URL): string {
+  return `${url}?start=${iso(start)}&end=${iso(end)}`;
+}
+
+// Sends one JSON request and returns the status with the parsed body.
+async function send(
+  server: FastifyInstance,
+  method: InjectOptions["method"],
+  url: string,
+  payload?: InjectOptions["payload"],
+) {
+  const response = await server.inject({ method, url, payload });
+  return { status: response.statusCode, body: response.json() };
+}
+
+describe("GET /channels/:id/schedule", () => {
+  it("generates coverage and returns the window's entries with API timestamps", async () => {
+    const { server } = await startServer();
+
+    const { status, body } = await send(
+      server,
+      "GET",
+      windowUrl(T0, T0 + 30 * MINUTE),
+    );
+
+    expect(status).toBe(200);
+    expect(body).toEqual({
+      scheduleRevision: 1,
+      entries: [
+        {
+          id: "entry-001",
+          channelId: CHANNEL_ID,
+          mediaItemId: "item-001",
+          title: "Item 1",
+          startsAt: iso(T0),
+          endsAt: iso(T0 + 22 * MINUTE),
+          durationMs: 22 * MINUTE,
+          sequenceNumber: 0,
+          programmingBlockId: "block-fixture-001",
+          mediaCollectionId: "collection-fixture-001",
+          playbackMode: "chronological",
+          playbackIndex: 0,
+          createdAt: iso(T0),
+          updatedAt: iso(T0),
+        },
+        expect.objectContaining({
+          startsAt: iso(T0 + 22 * MINUTE),
+          endsAt: iso(T0 + 45 * MINUTE),
+        }),
+      ],
+    });
+  });
+
+  it("returns identical entries where overlapping windows meet, including entries crossing an edge", async () => {
+    // A 71-minute cycle, so an entry straddles every window edge below.
+    const { server } = await startServer({
+      items: [22, 23, 26].map((minutes) => ({ durationMs: minutes * MINUTE })),
+    });
+
+    type Entry = { startsAt: string; endsAt: string };
+    // ISO instants in one zone and precision compare correctly as strings.
+    const read = async (start: number, end: number) => {
+      const { body } = await send(server, "GET", windowUrl(start, end));
+      const entries = (body as { entries: Entry[] }).entries;
+      expect(entries[0].startsAt < iso(start)).toBe(true);
+      expect(entries[entries.length - 1].endsAt > iso(end)).toBe(true);
+      return entries;
+    };
+    const overlapping = (entries: Entry[]) =>
+      entries.filter(
+        (entry) =>
+          entry.startsAt < iso(T0 + 18 * HOUR) &&
+          entry.endsAt > iso(T0 + 15 * HOUR),
+      );
+
+    const early = await read(T0 + 12 * HOUR, T0 + 18 * HOUR);
+    const late = await read(T0 + 15 * HOUR, T0 + 21 * HOUR);
+
+    expect(overlapping(early).length).toBeGreaterThan(0);
+    expect(overlapping(early)).toEqual(overlapping(late));
+  });
+
+  it("leaves the revision unchanged across repeated reads", async () => {
+    const { server, clock } = await startServer();
+    const url = windowUrl(T0, T0 + HOUR);
+
+    const first = await send(server, "GET", url);
+    clock.advance(MINUTE);
+    const second = await send(server, "GET", url);
+
+    expect(second).toEqual(first);
+  });
+
+  it.each([
+    ["a reversed range", windowUrl(T0 + HOUR, T0)],
+    ["an empty range", windowUrl(T0, T0)],
+    [
+      "a range longer than 7 days",
+      windowUrl(T0, T0 + SCHEDULE_REQUEST_LIMIT_MS + 1),
+    ],
+    [
+      "an instant with an offset",
+      `${SCHEDULE_URL}?start=2024-01-01T02:00:00%2B02:00&end=${iso(T0 + HOUR)}`,
+    ],
+    [
+      "an instant without a zone",
+      `${SCHEDULE_URL}?start=2024-01-01T00:00:00&end=${iso(T0 + HOUR)}`,
+    ],
+    ["a missing end", `${SCHEDULE_URL}?start=${iso(T0)}`],
+  ])("rejects %s", async (_, url) => {
+    const { server, db } = await startServer();
+
+    const { status, body } = await send(server, "GET", url);
+
+    expect(status).toBe(400);
+    expect(body.error.code).toBe("invalid_request");
+    await expect(
+      db.selectFrom("schedule_entries").selectAll().execute(),
+    ).resolves.toEqual([]);
+  });
+
+  it("accepts a range of exactly 7 days", async () => {
+    const { server } = await startServer();
+
+    const { status } = await send(
+      server,
+      "GET",
+      windowUrl(T0, T0 + SCHEDULE_REQUEST_LIMIT_MS),
+    );
+
+    expect(status).toBe(200);
+  });
+
+  it("serves a disabled channel's existing entries without generating", async () => {
+    const { server } = await startServer({ enabled: false });
+
+    await expect(
+      send(server, "GET", windowUrl(T0, T0 + HOUR)),
+    ).resolves.toEqual({
+      status: 200,
+      body: { scheduleRevision: null, entries: [] },
+    });
+  });
+
+  it.each([
+    ["no programming block", { source: null }, "no_programming_block"],
+    ["no schedulable media", { items: [] }, "no_schedulable_media"],
+  ])(
+    "reports a channel with %s as unschedulable",
+    async (_, scenario, reason) => {
+      const { server } = await startServer(scenario);
+
+      const { status, body } = await send(
+        server,
+        "GET",
+        windowUrl(T0, T0 + HOUR),
+      );
+
+      expect(status).toBe(409);
+      expect(body.error).toMatchObject({
+        code: "channel_unschedulable",
+        reason,
+      });
+    },
+  );
+
+  it("still serves entries already in a window once the channel becomes unschedulable", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    await db.deleteFrom("programming_blocks").execute();
+    clock.advance(HOUR);
+
+    const covered = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const uncovered = await send(
+      server,
+      "GET",
+      windowUrl(
+        T0 + SCHEDULE_HORIZON_MS + 2 * HOUR,
+        T0 + SCHEDULE_HORIZON_MS + 3 * HOUR,
+      ),
+    );
+
+    expect(covered.status).toBe(200);
+    expect(covered.body.entries.length).toBeGreaterThan(0);
+    expect(uncovered.status).toBe(409);
+    expect(uncovered.body.error.reason).toBe("no_programming_block");
+  });
+
+  it("reports a gap once coverage has lapsed", async () => {
+    const { server, clock } = await startServer();
+    await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    clock.advance(SCHEDULE_HORIZON_MS + 24 * HOUR);
+
+    const { status, body } = await send(
+      server,
+      "GET",
+      windowUrl(T0, T0 + HOUR),
+    );
+
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("schedule_gap");
+  });
+
+  it("reports an unknown channel", async () => {
+    const { server } = await startServer();
+
+    const { status, body } = await send(
+      server,
+      "GET",
+      windowUrl(T0, T0 + HOUR, "/channels/missing/schedule"),
+    );
+
+    expect(status).toBe(404);
+    expect(body.error.code).toBe("channel_not_found");
+  });
+});
+
+describe("POST /channels/:id/schedule/generate", () => {
+  it("covers the horizon and reports the revision and coverage end", async () => {
+    const { server, db } = await startServer();
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {});
+
+    const state = await db
+      .selectFrom("channel_schedule_states")
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(status).toBe(200);
+    expect(body).toEqual({
+      scheduleRevision: 1,
+      generatedThrough: iso(state.last_generated_through),
+    });
+    expect(state.last_generated_through).toBeGreaterThanOrEqual(
+      T0 + SCHEDULE_HORIZON_MS,
+    );
+  });
+
+  it("extends coverage through a later instant without rewriting existing entries", async () => {
+    const { server, db } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    const before = await db
+      .selectFrom("schedule_entries")
+      .selectAll()
+      .execute();
+    const through = T0 + SCHEDULE_HORIZON_MS + 24 * HOUR;
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {
+      through: iso(through),
+    });
+
+    const after = await db
+      .selectFrom("schedule_entries")
+      .selectAll()
+      .orderBy("sequence_number")
+      .execute();
+    expect(status).toBe(200);
+    expect(body.scheduleRevision).toBeGreaterThan(1);
+    expect(
+      Date.parse((body as { generatedThrough: string }).generatedThrough),
+    ).toBeGreaterThanOrEqual(through);
+    expect(after.slice(0, before.length)).toEqual(before);
+  });
+
+  it("leaves the revision unchanged when coverage already reaches the request", async () => {
+    const { server, clock } = await startServer();
+    const first = await send(server, "POST", GENERATE_URL, {});
+    clock.advance(MINUTE);
+
+    const repeated = await send(server, "POST", GENERATE_URL, {});
+    const past = await send(server, "POST", GENERATE_URL, {
+      through: iso(T0 - HOUR),
+    });
+
+    expect(repeated).toEqual(first);
+    expect(past).toEqual(first);
+  });
+
+  it.each([
+    [
+      "a through past the request limit",
+      { through: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS + 1) },
+    ],
+    ["a through with an offset", { through: "2024-01-02T02:00:00+02:00" }],
+    ["an unknown field", { regenerate: true }],
+  ])("rejects %s without writing", async (_, payload) => {
+    const { server, db } = await startServer();
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, payload);
+
+    expect(status).toBe(400);
+    expect(body.error.code).toBe("invalid_request");
+    await expect(
+      db.selectFrom("channel_schedule_states").selectAll().execute(),
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects a disabled channel", async () => {
+    const { server } = await startServer({ enabled: false });
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {});
+
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("channel_disabled");
+  });
+
+  it.each([
+    ["no programming block", { source: null }, "no_programming_block"],
+    ["no schedulable media", { items: [] }, "no_schedulable_media"],
+  ])(
+    "reports a channel with %s as unschedulable",
+    async (_, scenario, reason) => {
+      const { server } = await startServer(scenario);
+
+      const { status, body } = await send(server, "POST", GENERATE_URL, {});
+
+      expect(status).toBe(409);
+      expect(body.error).toMatchObject({
+        code: "channel_unschedulable",
+        reason,
+      });
+    },
+  );
+
+  it("reports a gap once coverage has lapsed", async () => {
+    const { server, clock } = await startServer();
+    await send(server, "POST", GENERATE_URL, {});
+    clock.advance(SCHEDULE_HORIZON_MS + 24 * HOUR);
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {});
+
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("schedule_gap");
+  });
+
+  it("reports an unknown channel", async () => {
+    const { server } = await startServer();
+
+    const { status, body } = await send(
+      server,
+      "POST",
+      "/channels/missing/schedule/generate",
+      {},
+    );
+
+    expect(status).toBe(404);
+    expect(body.error.code).toBe("channel_not_found");
+  });
+
+  it("answers 503 retryable while another connection holds write authority", async () => {
+    const { server, dataDirectory } = await startServer();
+    const other = await openTestDatabase(dataDirectory);
+    const holder = await holdWriteAuthority(other.db);
+    try {
+      const generate = await send(server, "POST", GENERATE_URL, {});
+      const read = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+
+      for (const { status, body } of [generate, read]) {
+        expect(status).toBe(503);
+        expect(body.error).toMatchObject({
+          code: "schedule_busy",
+          retryable: true,
+        });
+      }
+    } finally {
+      await holder.release();
+    }
+  });
+});

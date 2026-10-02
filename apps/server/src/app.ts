@@ -18,6 +18,7 @@ import type { ChannelRuntime } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
+import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
@@ -73,6 +74,7 @@ function registerRoutes(
     dependencies.channels,
     dependencies.schedules,
   );
+  registerScheduleRoutes(server, dependencies.schedules);
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */

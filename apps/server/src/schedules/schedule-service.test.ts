@@ -20,7 +20,10 @@ import {
   openTestDatabase,
 } from "../testing/test-environment.js";
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
-import { ScheduleService } from "./schedule-service.js";
+import {
+  SCHEDULE_REQUEST_LIMIT_MS,
+  ScheduleService,
+} from "./schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -75,6 +78,15 @@ function readProgress(db: Kysely<DatabaseSchema>) {
   return db.selectFrom("channel_collection_progress").selectAll().execute();
 }
 
+// A covered result at a revision; tests that care about the exact end read the state row.
+function covered(scheduleRevision: number) {
+  return {
+    kind: "covered",
+    scheduleRevision,
+    generatedThrough: expect.any(Number) as number,
+  };
+}
+
 /** Asserts the transactional invariants: unique, increasing sequence numbers and contiguous, non-overlapping times. */
 function expectContiguous(entries: Selectable<ScheduleEntryTable>[]): void {
   entries.forEach((entry, index) => {
@@ -91,7 +103,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     const result = await service.ensureCoverage(channelId, log);
 
-    expect(result).toEqual({ kind: "covered", scheduleRevision: 1 });
+    expect(result).toEqual(covered(1));
     const entries = await readEntries(db, channelId);
     const last = entries.at(-1)!;
     expect(entries[0]).toMatchObject({
@@ -182,17 +194,16 @@ describe("ScheduleService.ensureCoverage", () => {
 
       await expect(
         service.ensureCoverage(channelId, log, through),
-      ).resolves.toEqual({ kind: "covered", scheduleRevision: 1 });
+      ).resolves.toEqual(covered(1));
 
       const state = await readState(db, channelId);
       expect(state?.last_generated_through).toBeGreaterThanOrEqual(
         T0 + SCHEDULE_HORIZON_MS,
       );
       clock.advance(MINUTE);
-      await expect(service.ensureCoverage(channelId, log)).resolves.toEqual({
-        kind: "covered",
-        scheduleRevision: 1,
-      });
+      await expect(service.ensureCoverage(channelId, log)).resolves.toEqual(
+        covered(1),
+      );
     },
   );
 
@@ -216,7 +227,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     const result = await service.ensureCoverage(channelId, log);
 
-    expect(result).toEqual({ kind: "covered", scheduleRevision: 1 });
+    expect(result).toEqual(covered(1));
     await expect(readEntries(db, channelId)).resolves.toEqual(entries);
     await expect(readState(db, channelId)).resolves.toEqual(state);
   });
@@ -229,7 +240,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     const result = await service.ensureCoverage(channelId, log);
 
-    expect(result).toEqual({ kind: "covered", scheduleRevision: 2 });
+    expect(result).toEqual(covered(2));
     const after = await readEntries(db, channelId);
     expect(after.slice(0, before.length)).toEqual(before);
     expect(after.length).toBeGreaterThan(before.length);
@@ -259,7 +270,7 @@ describe("ScheduleService.ensureCoverage", () => {
 
     const result = await service.ensureCoverage(channelId, log);
 
-    expect(result).toEqual({ kind: "covered", scheduleRevision: 3 });
+    expect(result).toEqual(covered(3));
     const entries = await readEntries(db, channelId);
     expect(entries).toHaveLength(8);
     expectContiguous(entries);
@@ -293,10 +304,7 @@ describe("ScheduleService.ensureCoverage", () => {
       service.ensureCoverage(channelId, log),
     ]);
 
-    expect(results).toEqual([
-      { kind: "covered", scheduleRevision: 1 },
-      { kind: "covered", scheduleRevision: 1 },
-    ]);
+    expect(results).toEqual([covered(1), covered(1)]);
     const state = await readState(db, channelId);
     expect(state?.next_sequence_number).toBe(
       (await readEntries(db, channelId)).length,
@@ -331,14 +339,11 @@ describe("ScheduleService.ensureCoverage", () => {
       .catch((error: unknown) => error);
     barrier.release();
 
-    await expect(first).resolves.toEqual({
-      kind: "covered",
-      scheduleRevision: 1,
-    });
+    await expect(first).resolves.toEqual(covered(1));
     if (second instanceof WriteAuthorityBusyError) {
       expect(second.retryable).toBe(true);
     } else {
-      expect(second).toEqual({ kind: "covered", scheduleRevision: 1 });
+      expect(second).toEqual(covered(1));
     }
     const entries = await readEntries(a, channelId);
     expect(entries.every((entry) => entry.id.startsWith("a-"))).toBe(true);
@@ -360,7 +365,7 @@ describe("ScheduleService.ensureCoverage", () => {
       T0 + 2 * HOUR + SCHEDULE_HORIZON_MS + 24 * HOUR,
     );
 
-    expect(result).toEqual({ kind: "covered", scheduleRevision: 3 });
+    expect(result).toEqual(covered(3));
     const after = await readEntries(db, channelId);
     expect(after.slice(0, before.length)).toEqual(before);
     expect(after[before.length]?.created_at).toBe(T0 + 2 * HOUR);
@@ -386,6 +391,42 @@ describe("ScheduleService.ensureCoverage", () => {
 
     expect(result).toEqual({ kind: "schedule_gap" });
     await expect(readState(db, channelId)).resolves.toEqual(state);
+  });
+
+  it("reports where coverage ends, whether or not it wrote", async () => {
+    const { db, channelId, clock, service, log } = await setup();
+
+    const first = await service.ensureCoverage(channelId, log);
+    clock.advance(MINUTE);
+    const second = await service.ensureCoverage(channelId, log);
+
+    const state = await readState(db, channelId);
+    expect(first).toEqual({
+      kind: "covered",
+      scheduleRevision: 1,
+      generatedThrough: state?.last_generated_through,
+    });
+    expect(second).toEqual(first);
+  });
+
+  it("rejects a requested instant beyond the request limit without writing", async () => {
+    const { db, channelId, service, log } = await setup();
+
+    await expect(
+      service.ensureCoverage(
+        channelId,
+        log,
+        T0 + SCHEDULE_REQUEST_LIMIT_MS + 1,
+      ),
+    ).resolves.toEqual({
+      kind: "through_out_of_range",
+      latestThrough: T0 + SCHEDULE_REQUEST_LIMIT_MS,
+    });
+    await expect(readState(db, channelId)).resolves.toBeUndefined();
+
+    await expect(
+      service.ensureCoverage(channelId, log, T0 + SCHEDULE_REQUEST_LIMIT_MS),
+    ).resolves.toEqual(covered(1));
   });
 
   it("reports a missing channel", async () => {
@@ -488,7 +529,7 @@ describe("ScheduleService.applyInputChange", () => {
         fields: {
           channelId,
           reason: "block_created",
-          result: { kind: "covered", scheduleRevision: 3 },
+          result: covered(3),
         },
         message: expect.any(String),
       },
@@ -598,5 +639,63 @@ describe("ScheduleService.applyInputChange", () => {
         message: expect.stringMatching(/clock/i),
       },
     ]);
+  });
+});
+
+describe("ScheduleService.readWindow", () => {
+  it("returns every entry overlapping the window in start order, with the revision", async () => {
+    const { db, channelId, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+    const [, second, third] = await readEntries(db, channelId);
+
+    // Episodes run 0–22, 22–45, and 45–69 minutes past the anchor.
+    const window = await service.readWindow(
+      channelId,
+      T0 + 30 * MINUTE,
+      T0 + 50 * MINUTE,
+    );
+
+    expect(window).toEqual({
+      scheduleRevision: 1,
+      entries: [second, third].map((row) => ({
+        id: row.id,
+        channelId,
+        mediaItemId: row.media_item_id,
+        title: row.title,
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+        durationMs: row.duration_ms,
+        sequenceNumber: row.sequence_number,
+        programmingBlockId: row.programming_block_id,
+        mediaCollectionId: row.media_collection_id,
+        playbackMode: row.playback_mode,
+        playbackIndex: row.playback_index,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+    });
+  });
+
+  it("excludes entries that only touch the window's edges", async () => {
+    const { channelId, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+
+    const window = await service.readWindow(
+      channelId,
+      T0 + 22 * MINUTE,
+      T0 + 45 * MINUTE,
+    );
+
+    expect(window.entries.map((entry) => entry.startsAt)).toEqual([
+      T0 + 22 * MINUTE,
+    ]);
+  });
+
+  it("reads no revision and no entries before the first generation", async () => {
+    const { channelId, service } = await setup();
+
+    await expect(service.readWindow(channelId, T0, T0 + HOUR)).resolves.toEqual(
+      { scheduleRevision: null, entries: [] },
+    );
   });
 });
