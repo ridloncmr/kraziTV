@@ -1,6 +1,6 @@
 import type { OutputReadinessInspector } from "../contracts.js";
+import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-forwarder.js";
 
-const MPEG_TS_PACKET_BYTES = 188;
 const REQUIRED_ALIGNED_PACKETS = 3;
 const INSPECTION_WINDOW_BYTES =
   MPEG_TS_PACKET_BYTES * REQUIRED_ALIGNED_PACKETS + MPEG_TS_PACKET_BYTES - 1;

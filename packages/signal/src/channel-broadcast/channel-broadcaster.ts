@@ -1,5 +1,7 @@
 import type { Readable } from "node:stream";
 
+import { OutputTail } from "@krazitv/process";
+
 import {
   assertPositiveSafeInteger,
   isNonNegativeSafeInteger,
@@ -19,8 +21,8 @@ type ChannelBroadcasterOptions = {
  */
 export class ChannelBroadcaster {
   private readonly subscribers = new Set<ChannelBroadcastSubscription>();
-  private readonly retainedChunks: Buffer[] = [];
-  private retainedBytes = 0;
+  /** Bounds the memory reserved for startup and late joins. */
+  private readonly retained: OutputTail;
   private sourceFinished = false;
 
   /** Attaches immediately so startup output cannot block or disappear. */
@@ -36,6 +38,7 @@ export class ChannelBroadcaster {
       options.retentionLimitBytes,
       "retentionLimitBytes",
     );
+    this.retained = new OutputTail(options.retentionLimitBytes);
 
     source.on("data", (chunk: Buffer | Uint8Array | string) => {
       this.acceptChunk(toBuffer(chunk));
@@ -54,7 +57,7 @@ export class ChannelBroadcaster {
 
   /** Exposes retained usage so configured memory bounds are observable. */
   get retainedByteCount(): number {
-    return this.retainedBytes;
+    return this.retained.byteLength;
   }
 
   /** Reports when the retained window can initialize a new viewer. */
@@ -84,46 +87,15 @@ export class ChannelBroadcaster {
   private acceptChunk(chunk: Buffer): void {
     if (this.sourceFinished || chunk.byteLength === 0) return;
 
-    this.retain(chunk);
+    this.retained.append(chunk);
     for (const subscriber of [...this.subscribers]) {
       subscriber.enqueue(chunk);
     }
   }
 
-  /** Bounds the memory reserved for startup and late joins. */
-  private retain(chunk: Buffer): void {
-    const limit = this.options.retentionLimitBytes;
-
-    if (chunk.byteLength >= limit) {
-      this.retainedChunks.length = 0;
-      this.retainedChunks.push(
-        Buffer.from(chunk.subarray(chunk.byteLength - limit)),
-      );
-      this.retainedBytes = limit;
-      return;
-    }
-
-    this.retainedChunks.push(chunk);
-    this.retainedBytes += chunk.byteLength;
-
-    while (this.retainedBytes > limit) {
-      const first = this.retainedChunks[0];
-      if (first === undefined) break;
-
-      const overflow = this.retainedBytes - limit;
-      if (overflow >= first.byteLength) {
-        this.retainedChunks.shift();
-        this.retainedBytes -= first.byteLength;
-      } else {
-        this.retainedChunks[0] = Buffer.from(first.subarray(overflow));
-        this.retainedBytes -= overflow;
-      }
-    }
-  }
-
   /** Keeps stream-format knowledge behind the injected compatibility strategy. */
   private findJoinableReplay(): Buffer | undefined {
-    const retained = Buffer.concat(this.retainedChunks, this.retainedBytes);
+    const retained = this.retained.bytes();
     const offset = this.options.findJoinPoint(retained);
     if (offset === undefined) return undefined;
     if (!isNonNegativeSafeInteger(offset) || offset > retained.byteLength) {

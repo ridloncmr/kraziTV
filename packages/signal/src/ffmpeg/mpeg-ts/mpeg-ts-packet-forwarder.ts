@@ -1,12 +1,13 @@
 import type { PassThrough, Readable } from "node:stream";
 
-const MPEG_TS_PACKET_BYTES = 188;
+/** Every MPEG-TS transport packet is exactly this many bytes. */
+export const MPEG_TS_PACKET_BYTES = 188;
 
-/** Buffers one encoder's partial tail so only whole transport packets escape. */
+/** Buffers one FFmpeg process's partial tail so only whole transport packets escape. */
 export class MpegTsPacketForwarder {
   private remainder = Buffer.alloc(0);
 
-  /** Starts forwarding immediately so no early encoder bytes are missed. */
+  /** Starts forwarding immediately so no early FFmpeg bytes are missed. */
   constructor(
     private readonly source: Readable,
     private readonly destination: PassThrough,
@@ -14,7 +15,7 @@ export class MpegTsPacketForwarder {
     source.on("data", this.forward);
   }
 
-  /** Detaches synchronously and drops an incomplete old-encoder packet. */
+  /** Detaches synchronously and drops an incomplete packet from the old FFmpeg process. */
   detach(): void {
     this.source.off("data", this.forward);
     this.remainder = Buffer.alloc(0);
