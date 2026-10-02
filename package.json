@@ -26,7 +26,9 @@
     "test:ffprobe": "npm run test:ffprobe --workspace @krazitv/media",
     "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
-    "test:audit": "vitest run scripts"
+    "test:audit": "vitest run scripts",
+    "plan:status": "node scripts/plan-status/sync-plan-status.mjs",
+    "plan:status:check": "node scripts/plan-status/sync-plan-status.mjs --check"
   },
   "engines": {
     "node": ">=22.0.0",

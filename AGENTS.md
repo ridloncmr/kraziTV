@@ -191,6 +191,7 @@ working in. Do not report work as done until all of these hold.
 3. Run the checks. CI runs the same ones and fails on any of them.
 
    ```sh
+   npm run plan:status
    npm run format:write
    npm run typecheck
    npm run lint
@@ -255,16 +256,33 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 
 ## Documentation Rules
 
+- Before creating a new doc, answer: does an existing doc already own this
+  information? If yes, do not create the new doc; update the owning doc
+  instead. Create a new doc only when no existing doc owns the information.
 - Planned product behavior belongs in feature-scoped specs under `docs/specs/features/`.
 - Architecture decisions belong in `docs/adrs/`.
 - Decisions about AI harnesses and agent infrastructure belong in `.agents/adr/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
+- Write each project status fact in exactly one place; everything else links to
+  it or is generated from it. Hand-written indexes, summaries, gate tables, and
+  the glossary never restate a status.
+
+  | Fact               | The one place it is written                         |
+  | ------------------ | --------------------------------------------------- |
+  | Plan ticket status | The ticket's `**Status**` block                     |
+  | Spec status        | The `Status:` line at the top of the spec           |
+  | Feature status     | The `Status:` line at the top of the feature README |
+  | ADR status         | The `## Status` section of the ADR                  |
+
 - When a plan ticket is complete, record it in the same change as the
   implementation: add a `**Status**` block directly under the ticket heading
   reading `Complete on YYYY-MM-DD.` plus one or two sentences on what was
-  delivered and any deferred follow-up. Also update the plan's top-level
-  `Status:` line and its entry in `docs/implementation_plan/README.md`. A ticket
-  is not done until its status is recorded.
+  delivered and any deferred follow-up. A ticket is not done until its status
+  is recorded. Then run `npm run plan:status`, which regenerates the progress
+  table at the top of each plan and the plan list in
+  `docs/implementation_plan/README.md` from ticket Status blocks; never edit
+  those generated blocks by hand. When the change also completes a spec, update
+  that spec's `Status:` line.
 - Research and references belong in `docs/knowledge_base/`.
 - Completed specs and implementation plans are not canonical descriptions of
   the running system. Use code and tests to understand implemented behavior.

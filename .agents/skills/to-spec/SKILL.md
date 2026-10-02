@@ -17,7 +17,7 @@ remains design history unless the user explicitly keeps it active.
 
 Save feature-scoped specs under `docs/specs/features/<feature>/specs/`.
 
-Use the feature folder `README.md` for the feature goal and status table.
+Use the feature folder `README.md` for the feature goal and a linked spec index. Record each spec's status only in its own `Status:` line.
 
 Use `docs/specs/README.md` and `docs/specs/features/README.md` as indexes.
 
