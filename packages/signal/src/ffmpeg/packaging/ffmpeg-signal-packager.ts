@@ -59,7 +59,7 @@ export class FfmpegSignalPackager implements SignalPackager {
     );
   }
 
-  /** Starts one item encoder whose normal exit remains internal to its session. */
+  /** Starts one item's FFmpeg process, whose normal exit remains internal to its session. */
   private startProcess(item: SignalPlayoutItem): FfmpegProcess {
     const process = FfmpegProcess.start({
       args: buildFfmpegArguments(item),

@@ -119,7 +119,7 @@ export class TransitionLoop {
 
   /**
    * Crosses one boundary, falling back to fresh selection when stale. Every
-   * dependency call shares one absolute deadline so a stalled lookup, encoder,
+   * dependency call shares one absolute deadline so a stalled lookup, FFmpeg process,
    * or coordinator fails the worker instead of silencing a published channel.
    */
   private async transitionOnce(): Promise<void> {
@@ -368,7 +368,7 @@ export class TransitionLoop {
   /**
    * Discards the held preparation through one shared attempt so halt and loop
    * unwinding never overlap. A failed or expired discard stays held for retry,
-   * so a stalled encoder cannot keep stop waiting indefinitely. Inside a
+   * so a stalled FFmpeg process cannot keep stop waiting indefinitely. Inside a
    * transition the discard shares that transition's deadline.
    */
   private releasePreparation(

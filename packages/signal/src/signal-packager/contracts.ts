@@ -43,7 +43,7 @@ export interface SignalSession {
   readonly ready: Promise<void>;
   /**
    * Settles only when the whole session ends through stop or fatal failure.
-   * Ending an individual item, or any encoder process that served it, is
+   * Ending an individual item, or any FFmpeg process that served it, is
    * internal to the session and must not settle completion.
    */
   readonly completion: Promise<void>;
@@ -55,7 +55,7 @@ export interface SignalSession {
    * preparation that loop is still waiting for.
    * Once called, an in-flight prepare() rejects with `packaging_stopped` and an
    * in-flight discard() settles before stop settles, and later prepare() calls
-   * reject. Stop resolves only after every encoder process, including one
+   * reject. Stop resolves only after every FFmpeg process, including one
    * still stopping after a commit, has exited; a failed stop may be retried.
    * After stop, discard() is a no-op and commit() throws.
    */

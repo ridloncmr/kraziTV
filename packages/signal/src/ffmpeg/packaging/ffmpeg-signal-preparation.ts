@@ -11,7 +11,7 @@ export interface PreparationOwner {
 
 type PreparationState = "pending" | "committed" | "discarded";
 
-/** Holds a validated future item without starting an encoder before commit. */
+/** Holds a validated future item without starting an FFmpeg process before commit. */
 export class FfmpegSignalPreparation implements SignalPreparation {
   private state: PreparationState = "pending";
 
@@ -33,7 +33,7 @@ export class FfmpegSignalPreparation implements SignalPreparation {
     this.owner.commitPreparation(this);
   }
 
-  /** Releases this preparation without allocating an encoder. */
+  /** Releases this preparation without starting an FFmpeg process. */
   async discard(): Promise<void> {
     if (this.state !== "pending") return;
     this.owner.discardPreparation(this);
