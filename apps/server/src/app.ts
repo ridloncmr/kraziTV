@@ -16,6 +16,10 @@ import { registerMediaCollectionRoutes } from "./media-collections/media-collect
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
+import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
+import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
+import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
+import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
@@ -37,6 +41,8 @@ export type ServerDependencies = {
   mediaCollections: MediaCollectionRepository;
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
+  programmingBlocks: ProgrammingBlockRepository;
+  schedules: ScheduleService;
 };
 
 /** Registers HTTP behavior without opening production infrastructure. */
@@ -53,15 +59,31 @@ function registerRoutes(
 
   server.get("/health", async () => ({ status: "ok" }));
   registerMediaRootRoutes(server, dependencies.mediaRoots);
-  registerCatalogScanRoutes(server, dependencies.scanner);
+  registerCatalogScanRoutes(
+    server,
+    dependencies.scanner,
+    dependencies.schedules,
+  );
   registerMediaItemRoutes(server, dependencies.mediaItems);
-  registerMediaCollectionRoutes(server, dependencies.mediaCollections);
+  registerMediaCollectionRoutes(
+    server,
+    dependencies.mediaCollections,
+    dependencies.schedules,
+  );
   registerChannelRoutes(
     server,
     dependencies.channels,
     dependencies.channelRuntime,
+    dependencies.schedules,
     channelStopTimeoutMs,
   );
+  registerProgrammingBlockRoutes(
+    server,
+    dependencies.programmingBlocks,
+    dependencies.channels,
+    dependencies.schedules,
+  );
+  registerScheduleRoutes(server, dependencies.schedules);
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */
@@ -80,6 +102,12 @@ export function buildServer(
   // child closes before onClose releases the database they would commit to.
   server.addHook("preClose", async () => {
     await dependencies.scanner.shutdown();
+  });
+
+  // Repairs schedules that lapsed while the server was down before it serves
+  // traffic; ensureAllEnabled logs failures instead of blocking startup.
+  server.addHook("onReady", async () => {
+    await dependencies.schedules.ensureAllEnabled(server.log);
   });
 
   server.addHook("onClose", async () => {

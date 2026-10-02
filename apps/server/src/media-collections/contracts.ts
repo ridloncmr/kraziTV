@@ -28,3 +28,9 @@ export type ReplaceMediaCollectionMembersResult =
   | { kind: "replaced"; members: MediaCollectionMember[] }
   | { kind: "not_found" }
   | UnknownMediaItemsResult;
+
+/** `in_use` names every channel whose programming block still draws from the collection. */
+export type DeleteMediaCollectionResult =
+  | { kind: "deleted" }
+  | { kind: "not_found" }
+  | { kind: "in_use"; channelIds: string[] };

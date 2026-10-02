@@ -1,6 +1,6 @@
 # Schedule Generation
 
-Status: Accepted
+Status: Implemented
 
 This spec defines MVP programming blocks and guide schedule generation: configuring what each channel plays and how, and producing deterministic, provider-neutral schedule entries from those programming blocks and cataloged local media.
 
@@ -108,7 +108,10 @@ Schedule generation uses:
 - Requested schedule window end
 - Persisted channel schedule state
 
-Only media items with status `available` and valid positive durations are schedulable.
+Only media items with status `available` and a valid duration are schedulable.
+A valid duration is an integer number of milliseconds of at least 1,000. The
+floor bounds how many entries one malformed or very short file can generate
+across the horizon.
 
 ### Schedule Entries
 
@@ -124,8 +127,8 @@ Minimum schedule entry fields:
 - Duration milliseconds
 - Monotonically increasing sequence number within the channel timeline
 - The programming block that produced the entry
-- The source collection and playback index consumed, for collection-sourced
-  entries
+- The source collection, playback mode, and playback index consumed, for
+  collection-sourced entries
 
 Schedule entries must not represent commercials, bumpers, station IDs, FFmpeg segments, transcode decisions, or stream URLs.
 
@@ -272,6 +275,15 @@ the resulting revision. If transition commit occurs first, regeneration obtains
 its effective time afterward and preserves that now-current entry through
 `endsAt`.
 
+SQLite has one writer per database, so the transition holds write authority for
+every channel, not just its own. The coordinator therefore keeps that window
+bounded: it does all preparation, probing, and validation of packaging inputs
+before acquiring authority, and inside the transaction it runs only the
+revalidation reads and the synchronous commit. The commit may start the next
+FFmpeg process, but it must not await, wait for process output or exit, or
+perform other blocking I/O. Stopping the previous process happens after the
+commit returns, outside write authority.
+
 The helper must not be nested or mixed with Kysely-managed transactions or
 `better-sqlite3` transaction wrappers. A request that cannot acquire write
 authority must retry the entire mutation from freshly read persisted state or
@@ -282,7 +294,24 @@ When a channel first becomes enabled with a programming block whose source has s
 
 If a programming block or its source collection's membership changes while an entry is airing, that entry remains authoritative through its existing `endsAt`. Entries starting at or after that boundary are deleted and regenerated from the new inputs. If no entry is airing, the regeneration boundary is the current UTC Unix epoch millisecond; future entries at or after that boundary are deleted and regenerated. Initial generation starts at the anchor persisted when `ChannelScheduleState` is created.
 
-Gap repair is separate from ordinary horizon extension. If an enabled, schedulable channel has no entry covering the current time, the server must explicitly repair and log the gap before extending the future horizon. Repair starts at the end of the latest entry before the gap, or at the current UTC Unix epoch millisecond when no prior entry exists, and regenerates subsequent entries so schedule coverage is contiguous. Routine schedule reads must not silently use gap repair to rewrite a covered window.
+Gap repair is separate from ordinary horizon extension. If an enabled,
+schedulable channel has no entry covering the current time, the server must
+explicitly repair and log the gap before extending the future horizon. Repair
+starts at the current UTC Unix epoch millisecond, obtained after acquiring write
+authority. It deletes any entries starting at or after that boundary, restores
+playback progress under the regeneration rules, and generates contiguous
+coverage forward from the boundary. The time between the latest prior entry and
+the boundary stays uncovered: nothing aired then, so repair never backfills the
+past, never consumes playback progress for it, and stays bounded no matter how
+long the gap lasted. The log records the channel, the uncovered interval, and
+the number of entries deleted. Routine schedule reads must not silently use gap
+repair to rewrite a covered window.
+
+Disabling a channel keeps its programming block, `ChannelScheduleState`,
+playback progress, and schedule entries, and stops horizon maintenance for it.
+Re-enabling it keeps the original anchor and seed. If the materialized schedule
+no longer covers the current time, the channel goes through gap repair before
+its horizon is extended.
 
 Catalog availability changes do not rewrite already-materialized entries. Missing-media behavior is handled by channel-state lookup so the guide does not silently change after publication.
 
@@ -302,12 +331,16 @@ durationMs
 sequenceNumber
 programmingBlockId
 mediaCollectionId
+playbackMode
 playbackIndex
 createdAt
 updatedAt
 ```
 
-`mediaCollectionId` and `playbackIndex` are null for single-item entries.
+`mediaCollectionId`, `playbackMode`, and `playbackIndex` are null for
+single-item entries. `playbackMode` records which counter `playbackIndex`
+belongs to (chronological position or random selection index), so progress
+restore stays correct after a block changes playback mode.
 `programmingBlockId` becomes null if the block is deleted while its entry is
 retained, such as the entry currently airing.
 
@@ -352,13 +385,20 @@ channelId
 seed
 anchorTime
 lastGeneratedThrough
-regenerationAllowedAfter
 nextSequenceNumber
-algorithmVersion
 scheduleRevision
 createdAt
 updatedAt
 ```
+
+The state holds no regeneration-boundary field because the boundary is derived
+inside the mutation transaction: it is the `endsAt` of the entry covering the
+effective current time, or that time itself. It holds no algorithm version
+because materialized entries are never rewritten when the generation algorithm
+changes. After an upgrade, a changed algorithm applies only to entries generated
+afterward, so no stored version is needed to keep published programming
+stable. A change that alters the meaning of persisted playback progress or
+`playbackIndex` must ship with a migration that converts those values.
 
 Schedule data should reference media catalog items but should not duplicate raw ffprobe output.
 
@@ -432,7 +472,7 @@ Important boundaries:
 - Regeneration restores playback progress from the earliest deleted entry for
   each collection without replaying history from the anchor.
 - Programming block changes do not silently change the currently airing program.
-- Programming block and collection membership changes regenerate entries beginning at the current program end or the next future entry when nothing is airing.
+- Programming block and collection membership changes regenerate entries beginning at the current program end, or at the current time when nothing is airing.
 - Deleting a media collection referenced by a programming block is rejected.
 - Every committed change to a channel's materialized schedule increments its
   `scheduleRevision` atomically with the entry changes; no-op coverage checks do
@@ -441,6 +481,14 @@ Important boundaries:
   row from one connection-pinned read transaction; integration coverage proves a
   concurrent regeneration cannot produce a torn revision/entry result.
 - Enabled schedulable channels maintain at least 72 hours of future schedule data.
+- Gap repair starts at the current time, generates no entries before it, does
+  not advance playback progress for the uncovered interval, and logs that
+  interval; its work does not grow with the length of the gap.
+- Re-enabling a channel whose schedule has lapsed keeps its anchor and seed and
+  repairs the gap from the current time.
+- The following-item transition coordinator performs no awaited work while it
+  holds write authority; preparation and stopping the previous FFmpeg process
+  happen outside it.
 - Channels with no programming block or no schedulable media return a clear scheduling error or empty-state response.
 - Schedule generation does not require Plex, Jellyfin, FFmpeg, stream packaging, playout timeline generation, or channel runtime state.
 - Schedule entries represent guide-visible programs, not commercials, bumpers, stream segments, or provider-specific output.

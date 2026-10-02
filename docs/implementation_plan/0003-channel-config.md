@@ -262,6 +262,12 @@ is a branded string, so the CH-004 repository must produce it through
 references the package; the ID tiebreak for channel lists is left to the CH-004
 repository.
 
+Superseded on 2026-10-02: channel identity and numbering are lineup
+configuration, not decisions about what plays, so they moved out of kraziBrain.
+`ChannelNumber`, `parseChannelNumber`, and `compareChannelNumbers` now live in
+`apps/server/src/channels/channel-number.ts`; `Channel` folded into
+`StoredChannel`, and the unused `describeChannel` was dropped.
+
 **Goal**
 
 Give every layer one definition of a valid channel number and one channel type.

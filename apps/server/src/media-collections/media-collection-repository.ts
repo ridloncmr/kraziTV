@@ -5,11 +5,12 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
+import { findChannelsUsingCollection } from "../programming-blocks/channels-using-collection.js";
 import type {
   CreateMediaCollectionResult,
+  DeleteMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
-  ReplaceMediaCollectionMembersResult,
 } from "./contracts.js";
 
 // Keeps every statement well under SQLite's 32,766 bound-parameter limit.
@@ -99,13 +100,26 @@ export class MediaCollectionRepository {
     return row === undefined ? undefined : toMediaCollection(row);
   }
 
-  /** Deletes a collection; its membership cascades and its media items remain. */
-  async delete(id: string): Promise<boolean> {
-    const result = await this.#db
-      .deleteFrom("media_collections")
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return result.numDeletedRows > 0n;
+  /**
+   * Deletes a collection no programming block uses; its membership cascades
+   * and its media items remain. The block check shares the delete's
+   * transaction, so its snapshot is the one the delete writes against. If
+   * another connection commits a block in between, SQLite refuses the stale
+   * write with `SQLITE_BUSY`, which propagates; the foreign key still
+   * guarantees no block is ever left dangling.
+   */
+  async delete(id: string): Promise<DeleteMediaCollectionResult> {
+    return this.#db.transaction().execute(async (trx) => {
+      if (!(await collectionExists(trx, id))) {
+        return { kind: "not_found" };
+      }
+      const channelIds = await findChannelsUsingCollection(trx, id);
+      if (channelIds.length > 0) {
+        return { kind: "in_use", channelIds };
+      }
+      await trx.deleteFrom("media_collections").where("id", "=", id).execute();
+      return { kind: "deleted" };
+    });
   }
 
   /** Lists members in position order; undefined distinguishes an unknown collection from an empty one. */
@@ -116,44 +130,10 @@ export class MediaCollectionRepository {
         (await collectionExists(trx, id)) ? selectMembers(trx, id) : undefined,
       );
   }
-
-  /**
-   * Replaces the full membership in request order. Item existence is checked
-   * inside the same transaction so a concurrent change cannot leave a dangling
-   * member; the foreign key remains the final guard.
-   */
-  async replaceMembers(
-    id: string,
-    mediaItemIds: readonly string[],
-  ): Promise<ReplaceMediaCollectionMembersResult> {
-    return this.#db.transaction().execute(async (trx) => {
-      if (!(await collectionExists(trx, id))) {
-        return { kind: "not_found" };
-      }
-
-      const unknown = await findUnknownMediaItemIds(trx, mediaItemIds);
-      if (unknown.length > 0) {
-        return { kind: "unknown_media_items", mediaItemIds: unknown };
-      }
-
-      const now = this.#now();
-      await trx
-        .updateTable("media_collections")
-        .set({ updated_at: now })
-        .where("id", "=", id)
-        .execute();
-      await trx
-        .deleteFrom("media_collection_items")
-        .where("media_collection_id", "=", id)
-        .execute();
-      await insertMembers(trx, id, mediaItemIds, now);
-      return { kind: "replaced", members: await selectMembers(trx, id) };
-    });
-  }
 }
 
 // Answers existence without loading the row.
-async function collectionExists(
+export async function collectionExists(
   executor: Executor,
   id: string,
 ): Promise<boolean> {
@@ -166,7 +146,7 @@ async function collectionExists(
 }
 
 // Returns requested IDs absent from the catalog, in request order without repeats.
-async function findUnknownMediaItemIds(
+export async function findUnknownMediaItemIds(
   executor: Executor,
   mediaItemIds: readonly string[],
 ): Promise<string[]> {
@@ -184,7 +164,7 @@ async function findUnknownMediaItemIds(
 }
 
 // Writes contiguous zero-based positions in request order.
-async function insertMembers(
+export async function insertMembers(
   executor: Executor,
   mediaCollectionId: string,
   mediaItemIds: readonly string[],
@@ -202,7 +182,7 @@ async function insertMembers(
 }
 
 // Joins each membership to its item summary in one query, ordered by position.
-async function selectMembers(
+export async function selectMembers(
   executor: Executor,
   mediaCollectionId: string,
 ): Promise<MediaCollectionMember[]> {

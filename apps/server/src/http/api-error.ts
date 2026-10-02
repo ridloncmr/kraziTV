@@ -2,11 +2,14 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 type ApiErrorCode =
+  | "channel_disabled"
   | "channel_not_found"
   | "channel_number_duplicate"
   | "channel_runtime_cleanup_failed"
+  | "channel_unschedulable"
   | "invalid_request"
   | "internal_error"
+  | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_not_found"
   | "media_root_disabled"
@@ -15,8 +18,11 @@ type ApiErrorCode =
   | "media_root_path_immutable"
   | "media_root_unavailable"
   | "not_found"
+  | "programming_block_limit_reached"
+  | "programming_block_not_found"
   | "scan_cancelled"
-  | "scan_in_progress";
+  | "scan_in_progress"
+  | "schedule_busy";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

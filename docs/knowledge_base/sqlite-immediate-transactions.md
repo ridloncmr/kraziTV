@@ -68,13 +68,29 @@ while using Kysely's `SqliteDialect` with `better-sqlite3`?
   Kysely transaction for consistent multi-query reads. They read the schedule
   revision first, keep every source read on that transaction object, and return
   only the completed typed projection.
-- Read-snapshot integration tests may enable WAL mode so a writer can commit
-  regeneration while the reader's transaction remains open. The reader must
-  still return the complete earlier snapshot, never the earlier revision paired
-  with regenerated entries.
+- Every connection runs in WAL mode, so a writer can commit regeneration while
+  a reader's transaction remains open. The reader must still return the
+  complete earlier snapshot, never the earlier revision paired with regenerated
+  entries.
+- The helper is `runImmediateTransaction` in
+  `apps/server/src/database/writes/immediate-transaction.ts`.
+
+## Resolved Decisions
+
+- **Busy timeout:** `0`. `better-sqlite3` waits for locks synchronously, so any
+  positive timeout freezes the event loop. `openDatabase` takes an optional
+  `busyTimeoutMs` for tests. This replaces `better-sqlite3`'s 5000 ms default
+  for every write, so ordinary `db.transaction()` writes and startup
+  migrations now fail at once with `SQLITE_BUSY` while another process (a
+  second server, a CLI, a SQLite browser) holds the write lock. Within one
+  process, Kysely's connection mutex prevents that contention.
+- **Retry and backoff:** the helper retries only a busy `BEGIN IMMEDIATE`, up
+  to 5 attempts with 10, 20, 40, and 80 ms delays, releasing the connection
+  between attempts. It then throws `WriteAuthorityBusyError`
+  (`retryable: true`).
+- **Journal mode:** WAL, set by `openDatabase` on every connection.
 
 ## Open Questions
 
-- The exact busy timeout and retry/backoff defaults for the MVP.
 - Whether a future Kysely release adds a supported SQLite transaction-mode API
   that can replace the project-owned helper without weakening the tests.

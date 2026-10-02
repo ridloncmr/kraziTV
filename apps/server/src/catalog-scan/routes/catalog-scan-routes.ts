@@ -4,12 +4,18 @@ import { sendApiError } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { ScanResult, ScanSummary } from "../contracts.js";
+import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type { CatalogScanner } from "../scanner/catalog-scanner.js";
 
-/** Registers the synchronous scan trigger; status mapping lives only here. */
+/**
+ * Registers the synchronous scan trigger; status mapping lives only here. A
+ * completed scan ensures every enabled channel's schedule before replying,
+ * because it may have made a channel schedulable.
+ */
 export function registerCatalogScanRoutes(
   server: FastifyInstance,
   scanner: CatalogScanner,
+  schedules: ScheduleService,
 ): void {
   server.post("/media-roots/:id/scan", async (request, reply) => {
     const { id } = idParams.parse(request.params);
@@ -31,6 +37,10 @@ export function registerCatalogScanRoutes(
     } finally {
       // Detach before replying so a finished scan can never be cancelled late.
       reply.raw.off("close", onClose);
+    }
+    // Logs its own failures, so the scan response never depends on it.
+    if (result.kind === "completed") {
+      await schedules.ensureAllEnabled(request.log);
     }
     return sendScanResult(reply, id, result);
   });

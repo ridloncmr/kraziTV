@@ -10,6 +10,8 @@ import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
+import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
+import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -19,7 +21,8 @@ function createDependencies(
     shutdown: async () => undefined,
   },
 ): ServerDependencies {
-  // These tests never reach catalog or channel routes, so unused stand-ins are enough.
+  // These tests never reach catalog or channel routes, so unused stand-ins are
+  // enough; schedules still answers the startup ensure.
   return {
     database,
     mediaRoots: {} as MediaRootRepository,
@@ -28,6 +31,10 @@ function createDependencies(
     mediaCollections: {} as MediaCollectionRepository,
     channels: {} as ChannelRepository,
     channelRuntime: { stopChannel: async () => undefined },
+    programmingBlocks: {} as ProgrammingBlockRepository,
+    schedules: {
+      ensureAllEnabled: async () => undefined,
+    } as Partial<ScheduleService> as ScheduleService,
   };
 }
 

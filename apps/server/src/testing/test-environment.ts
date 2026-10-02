@@ -8,10 +8,16 @@ import type { Kysely } from "kysely";
 import { buildServer, type ServerDependencies } from "../app.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
-import { openDatabase, type KraziDatabase } from "../database/database.js";
+import {
+  openDatabase,
+  type KraziDatabase,
+  type OpenDatabaseOptions,
+} from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "../channels/runtime/no-op-channel-runtime.js";
+import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
+import { ScheduleService } from "../schedules/schedule-service.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -53,8 +59,10 @@ const temporaryDirectories: string[] = [];
  */
 export async function openTestDatabase(
   dataDirectory?: string,
+  options: Omit<OpenDatabaseOptions, "dataDirectory"> = {},
 ): Promise<KraziDatabase> {
   const database = await openDatabase({
+    ...options,
     dataDirectory: dataDirectory ?? (await createTemporaryDirectory()),
   });
   databases.push(database);
@@ -83,6 +91,8 @@ export async function startTestServer(
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
     channelRuntime: noOpChannelRuntime,
+    programmingBlocks: new ProgrammingBlockRepository(database.db),
+    schedules: new ScheduleService(database.db),
   };
   const dependencies = {
     ...defaults,
