@@ -23,8 +23,9 @@ npm run audit:strict
 ```
 
 - Do not hand-check what the audit decides: layout, one class per file,
-  private methods that never read `this`, test-double placement, root-entry
-  imports, and cross-package copies.
+  private methods that never read `this`, missing method comments, exports no
+  other file imports, test-double placement, root-entry imports, and
+  cross-package copies.
 - Resolve each audit `review` item in a touched file by reading the code.
 - If you cannot run commands, say so and continue with pass 2. Never claim the
   checks passed.
@@ -38,9 +39,10 @@ No tool checks these. Check each one against the changed files:
   copy is a finding even when jscpd misses it.
 - **Inline test doubles.** A fake, stub, or fixture written inside a test file
   that another test could use belongs in `src/testing/`.
-- **Export surface.** Each new export has an importer today.
-- **Why-comments.** Each new method has one, and it explains purpose, policy,
-  or invariant rather than narrating the code.
+- **Package surface.** Each new `index.ts` export is needed by another
+  package. The audit skips entry points, so this is yours to check.
+- **Why-comments.** Each new comment explains purpose, policy, or invariant
+  rather than narrating the code. The audit only checks that one exists.
 - **KISS.** Flag indirection, layers, or types with one user. Do not demand
   abstractions for hypothetical reuse.
 - **Stateful classes.** A sequence repeated three or more times without a named

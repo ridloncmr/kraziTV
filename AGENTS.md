@@ -207,10 +207,11 @@ working in. Do not report work as done until all of these hold.
 6. Report any check you skipped or that failed, with its output.
 
 The audit decides layout, one class per file, private methods that never read
-`this`, test-double placement, root-entry imports, and cross-package copies.
-These rules need your judgment because no tool checks them: small copied
-helpers, export surface, why-comment quality, KISS, and whether a stateful
-class reads as its transitions.
+`this`, missing method comments, exports no other file imports, test-double
+placement, root-entry imports, and cross-package copies. These rules need your
+judgment because no tool checks them: small copied helpers, what a package's
+`index.ts` exposes, why-comment quality, KISS, and whether a stateful class
+reads as its transitions.
 
 ## AI Skill Conventions
 

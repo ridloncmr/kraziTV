@@ -57,7 +57,9 @@ Use `code-review` instead for a single diff or PR.
      checks left inside the class file.
    - Duplication below the jscpd threshold: the same small helper, schema,
      or projection written in several files.
-   - Exports: anything exported that no other file imports.
+   - Package surface: `index.ts` exports that no other package needs. The
+     `unused-export` rule skips entry points.
+   - Why-comments that narrate the code instead of explaining why.
    - Vocabulary: names that use a synonym `GLOSSARY.md` lists under **Avoid**.
 4. For every candidate finding, check accepted ADRs and the exceptions file.
    If an ADR sanctions it, drop it and say so once in the report.
