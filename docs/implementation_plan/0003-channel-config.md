@@ -1,6 +1,6 @@
 # Spec 0003 Implementation Plan: Channel Configuration
 
-Status: Planned; no tickets started
+Status: Implemented on 2026-10-01; all tickets (CH-001 through CH-006) complete
 
 Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
 
@@ -16,7 +16,7 @@ Work proceeds in three bands:
 
 1. Persist ordered media collections and expose them over HTTP. This is the
    first feedback loop and depends only on the implemented catalog.
-2. Add canonical channel numbers in `packages/core`, then persist channels and
+2. Add canonical channel numbers in `packages/krazi-brain`, then persist channels and
    expose channel CRUD.
 3. Coordinate committed disable and delete mutations with the channel runtime
    through the existing `ChannelStreamManagerContract`, then close acceptance.
@@ -32,12 +32,12 @@ apps/server
   channels/            channel repository, routes, runtime stop coordination
   database/            migrations and row types
         |
-        +---- packages/core   channel number parsing and channel types
+        +---- packages/krazi-brain   channel number parsing and channel types
         |
         `---- packages/signal ChannelStreamManagerContract (type only)
 ```
 
-- `packages/core` owns provider-neutral channel types and canonical channel
+- `packages/krazi-brain` owns provider-neutral channel types and canonical channel
   number parsing. Move the existing `Channel` type and `describeChannel` out of
   `src/index.ts` into `src/channels/` so the package follows the `AGENTS.md`
   source layout.
@@ -101,7 +101,10 @@ Migration `002_media_collections`:
   `media_collections` with `ON DELETE CASCADE`; `media_item_id` references
   `media_items`; `position` is a non-negative integer; `created_at`.
   `(media_collection_id, position)` and `(media_collection_id, media_item_id)`
-  are unique.
+  are unique. `media_item_id` has its own index for item-side lookups.
+- Follow migration `001_initial_catalog`: every timestamp is checked as a safe
+  non-negative integer, `name` is checked non-empty after trimming, and
+  `position` is checked as a non-negative integer.
 
 Migration `003_channels`:
 
@@ -124,6 +127,12 @@ transaction and writes contiguous positions in request order.
 ## Phase 1: Media Collections
 
 ### CH-001: Persist media collections and ordered membership
+
+**Status**
+
+Complete on 2026-10-01. Migration `002_media_collections` and
+`MediaCollectionRepository` persist collections and ordered membership with
+schema, repository, chunked-write, and reopen tests; HTTP exposure is CH-002.
 
 **Goal**
 
@@ -153,6 +162,19 @@ something to draw from.
   change cannot leave a dangling member; the foreign key is the final guard.
 - Media items are never deleted by the catalog, so membership stays valid when
   an item goes `missing`.
+- Duplicate media item IDs are a caller error, not a typed outcome. CH-002
+  rejects them before the repository runs; if one slips through, the unique
+  `(media_collection_id, media_item_id)` constraint throws and the transaction
+  rolls back.
+- Listing members returns, in position order, each member's position plus the
+  media item summary CH-002 serves (ID, title, status, duration), joined in one
+  query so the route does not reshape rows.
+- Sort collections by name case-folded in JS with a fixed-locale
+  `Intl.Collator("en", { sensitivity: "base" })`, then by ID, so the order
+  does not depend on the host locale. SQLite `lower()` folds only ASCII.
+- The repository stores names as given. Trimming and the non-empty rule belong
+  to CH-002 route validation, as with media roots; the check constraint is the
+  final guard.
 
 **Verification**
 
@@ -167,6 +189,13 @@ something to draw from.
 - None.
 
 ### CH-002: Expose the media collection API
+
+**Status**
+
+Complete on 2026-10-01. `registerMediaCollectionRoutes` serves all seven
+collection routes with strict Zod validation and the planned error codes;
+`POST` returns `201`, `DELETE` returns `204`, `GET /:id` returns the collection
+without members, and `PUT /:id/items` returns the replaced membership.
 
 **Goal**
 
@@ -207,7 +236,18 @@ Let a client create, list, fetch, rename, delete, and reorder collections.
 
 ## Phase 2: Channel Identity
 
-### CH-003: Add canonical channel numbers to `packages/core`
+### CH-003: Add canonical channel numbers to `packages/krazi-brain`
+
+**Status**
+
+Complete on 2026-10-01. `packages/krazi-brain/src/channels/` holds `Channel`
+(now with `enabled`), `describeChannel`, `parseChannelNumber` (returns the
+canonical number or `undefined`), and `compareChannelNumbers`, which compares
+digit strings so oversized major numbers still order exactly. `ChannelNumber`
+is a branded string, so the CH-004 repository must produce it through
+`parseChannelNumber` when reading rows. `apps/server` now depends on and
+references the package; the ID tiebreak for channel lists is left to the CH-004
+repository.
 
 **Goal**
 
@@ -215,11 +255,11 @@ Give every layer one definition of a valid channel number and one channel type.
 
 **Scope**
 
-- Move `Channel` and `describeChannel` into `packages/core/src/channels/` and
+- Move `Channel` and `describeChannel` into `packages/krazi-brain/src/channels/` and
   add `enabled` to `Channel`.
 - Add `parseChannelNumber()` accepting `[1-9][0-9]*(\.[1-9][0-9]*)?` and a
   comparator for list ordering.
-- Add `@krazitv/core` as an `apps/server` dependency and build reference.
+- Add `@krazitv/krazi-brain` as an `apps/server` dependency and build reference.
 
 **Out of scope**
 
@@ -245,6 +285,15 @@ Give every layer one definition of a valid channel number and one channel type.
 - None.
 
 ### CH-004: Persist channels and expose channel CRUD
+
+**Status**
+
+Complete on 2026-10-01. Migration `003_channels` (canonical numbers enforced
+with `GLOB` checks) and `ChannelRepository` back all five `/channels` routes;
+`POST` defaults `enabled` to `true`, an empty `PATCH` body is rejected, and
+an update that changes no value leaves `updatedAt` alone. Unique numbers make
+the planned ID tie-breaker in list order unnecessary, so it was dropped.
+Disable and delete change persistence only until CH-005 adds the runtime stop.
 
 **Goal**
 
@@ -289,6 +338,23 @@ Let a client create, list, fetch, update, enable, disable, and delete channels.
 ## Phase 3: Lifecycle and Acceptance
 
 ### CH-005: Coordinate disable, delete, and re-enable with the channel runtime
+
+**Status**
+
+Complete on 2026-10-01. The channel routes take a `ChannelRuntime`
+(`Pick<ChannelStreamManagerContract, "stopChannel">`); production injects
+`noOpChannelRuntime`. Disable and delete commit, then await the stop, and a
+failure returns the structured `503` with the change kept. Re-enable always
+retries the `disabled` stop first, because no cleanup-pending state is
+persisted, and a failure also refuses any other change in that request. An
+in-process `ChannelLifecycleLock` serializes `PATCH` and `DELETE` per channel
+so no change lands between a re-enable's stop and commit; each stop has a
+deadline (30 s by default, `channelStopTimeoutMs` in `buildServer` options)
+after which the request gets the retryable `503` and the lock is freed, so a
+hung stop cannot block the channel's later requests. The manager now tags
+cleanup failures with `phase` (`worker_startup` or `worker_stop`), and the
+failure log records the channel ID, operation, stop reason, phase, and each
+cause's code and details, which carry FFmpeg process information.
 
 **Goal**
 
@@ -337,6 +403,14 @@ commit-then-stop contract.
 
 ### CH-006: Close executable acceptance and hand off
 
+**Status**
+
+Complete on 2026-10-01. `channels/channel-acceptance.test.ts` drives
+collections and channels through the HTTP API, restarts on the same data
+directory, and confirms persistence, the disable and delete runtime stops, and
+that channel rows and responses hold only identity fields. The re-enable
+fresh-worker row stays with SIG-015.
+
 **Goal**
 
 Prove every spec 0003 acceptance criterion against the real server composition
@@ -360,8 +434,10 @@ and hand off to spec 0004 and plan 0006.
 
 **Verification**
 
-- `npm test`, `npm run typecheck`, `npm run build`, and Prettier pass.
-- The traceability table below has a passing test for every row.
+- `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
+  Prettier pass.
+- The traceability table below has a passing test for every row, except the
+  rows assigned to SIG-015, which plan 0006 verifies.
 
 **Docs impact**
 

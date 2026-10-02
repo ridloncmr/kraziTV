@@ -1,12 +1,9 @@
-const MPEG_TS_PACKET_BYTES = 188;
+import type { OutputReadinessInspector } from "../contracts.js";
+import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-forwarder.js";
+
 const REQUIRED_ALIGNED_PACKETS = 3;
 const INSPECTION_WINDOW_BYTES =
   MPEG_TS_PACKET_BYTES * REQUIRED_ALIGNED_PACKETS + MPEG_TS_PACKET_BYTES - 1;
-
-export interface OutputReadinessInspector {
-  /** Reports whether the output observed so far satisfies session readiness. */
-  observe(chunk: Uint8Array): boolean;
-}
 
 /** Detects a provisional bounded run of complete aligned MPEG-TS packets. */
 export class MpegTsReadinessInspector implements OutputReadinessInspector {

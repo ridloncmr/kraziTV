@@ -33,3 +33,22 @@ export class SignalError extends Error {
     this.details = details;
   }
 }
+
+/**
+ * Keeps an already-typed failure and classifies anything else, so every
+ * boundary preserves the most specific code while still carrying the cause.
+ */
+export function toSignalError(
+  cause: unknown,
+  code: SignalErrorCode,
+  message: string,
+  details: SignalErrorDetails,
+): SignalError {
+  if (cause instanceof SignalError) return cause;
+  return new SignalError(
+    code,
+    message,
+    details,
+    cause === undefined ? undefined : { cause },
+  );
+}

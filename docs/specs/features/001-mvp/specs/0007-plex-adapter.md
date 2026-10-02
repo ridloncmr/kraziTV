@@ -183,7 +183,7 @@ Important boundaries:
 - Plex adapter does not construct FFmpeg commands.
 - `packages/plex` owns Plex-specific formatting helpers.
 - `apps/server` owns HTTP route registration and response wiring.
-- `packages/core` should remain free of Plex-specific HDHomeRun and XMLTV formatting details.
+- `packages/krazi-brain` should remain free of Plex-specific HDHomeRun and XMLTV formatting details.
 
 ## Compatibility Spike
 

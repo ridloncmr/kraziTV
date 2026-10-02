@@ -1,16 +1,19 @@
-import type { MediaProbeOptions, MediaProber } from "./contracts.js";
+import {
+  OutputTail,
+  terminateProcess,
+  type ProcessExit,
+  type ProcessSpawner,
+  type SpawnedProcess,
+} from "@krazitv/process";
+
+import type {
+  MediaProbeOptions,
+  MediaProbeResult,
+  MediaProber,
+} from "./contracts.js";
 import { buildFfprobeArguments } from "./ffprobe-arguments.js";
 import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
-import {
-  parseFfprobeOutput,
-  type MediaProbeResult,
-} from "./parse-ffprobe-output.js";
-import type {
-  ProcessExit,
-  ProcessSpawner,
-  ProcessTerminationSignal,
-  SpawnedProcess,
-} from "../process/process-spawner.js";
+import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
 const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
@@ -71,19 +74,15 @@ export class FfprobeMediaProber implements MediaProber {
 
     const stdoutChunks: Buffer[] = [];
     let stdoutBytes = 0;
-    let stderrTail: Buffer = Buffer.alloc(0);
+    const stderrTail = new OutputTail(STDERR_TAIL_LIMIT_BYTES);
     let stopReason: StopReason | undefined;
-    let forceTimer: NodeJS.Timeout | undefined;
 
     // The first reason wins; later triggers cannot restart or re-signal the stop.
+    // Closure is still awaited below, so the termination result is not needed.
     const stop = (reason: StopReason): void => {
       if (stopReason !== undefined) return;
       stopReason = reason;
-      requestTermination(child, "SIGTERM");
-      forceTimer = setTimeout(
-        () => requestTermination(child, "SIGKILL"),
-        TERMINATION_GRACE_MS,
-      );
+      void terminateProcess(child, { graceMs: TERMINATION_GRACE_MS });
     };
 
     child.stdout.on("data", (chunk: Buffer) => {
@@ -97,9 +96,7 @@ export class FfprobeMediaProber implements MediaProber {
       }
       stdoutChunks.push(chunk);
     });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderrTail = retainTail(stderrTail, chunk);
-    });
+    child.stderr.on("data", (chunk: Buffer) => stderrTail.append(chunk));
 
     const onAbort = (): void => stop("cancelled");
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -112,7 +109,6 @@ export class FfprobeMediaProber implements MediaProber {
       throw spawnError(cause);
     } finally {
       clearTimeout(timeoutTimer);
-      clearTimeout(forceTimer);
       signal?.removeEventListener("abort", onAbort);
     }
 
@@ -122,40 +118,22 @@ export class FfprobeMediaProber implements MediaProber {
         "terminated_by_signal",
         withStderrSummary(
           `ffprobe was terminated by ${exit.signal}`,
-          stderrTail,
+          stderrTail.bytes(),
         ),
       );
     }
     if (exit.code !== 0) {
       throw new MediaProbeError(
         "exited_with_error",
-        withStderrSummary(`ffprobe exited with code ${exit.code}`, stderrTail),
+        withStderrSummary(
+          `ffprobe exited with code ${exit.code}`,
+          stderrTail.bytes(),
+        ),
       );
     }
 
     return parseFfprobeOutput(Buffer.concat(stdoutChunks).toString("utf8"));
   }
-}
-
-/** Sends a signal best-effort; a failed delivery is covered by escalation or closure. */
-function requestTermination(
-  child: SpawnedProcess,
-  signal: ProcessTerminationSignal,
-): void {
-  try {
-    child.terminate(signal);
-  } catch {
-    // Closure is still awaited; escalation or the OS will end the child.
-  }
-}
-
-/** Keeps only the newest stderr bytes so a noisy child cannot grow memory. */
-function retainTail(tail: Buffer, chunk: Buffer): Buffer {
-  const combined = Buffer.concat([tail, chunk]);
-  if (combined.byteLength <= STDERR_TAIL_LIMIT_BYTES) return combined;
-  return Buffer.from(
-    combined.subarray(combined.byteLength - STDERR_TAIL_LIMIT_BYTES),
-  );
 }
 
 /** Appends ffprobe's last meaningful diagnostic line; the error bounds its length. */

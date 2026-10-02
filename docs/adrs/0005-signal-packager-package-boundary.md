@@ -17,7 +17,7 @@ Create `packages/signal` as the home for SignalPackager code.
 Package responsibilities:
 
 - `packages/media`: media discovery, filesystem inspection, ffprobe, source metadata.
-- `packages/core`: scheduling, kraziBrain, channel rules, playback history, timeline generation.
+- `packages/krazi-brain`: scheduling, kraziBrain, channel rules, playback history, timeline generation.
 - `packages/signal`: FFmpeg lifecycle, transcoding, muxing, stream continuity, seeking, packaging, encoding profiles.
 - `packages/plex`: HDHomeRun compatibility, Plex-facing metadata, XMLTV integration, tuner endpoints.
 

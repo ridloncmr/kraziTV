@@ -11,7 +11,6 @@ describe("FakeProcessSpawner", () => {
     const request = {
       command: "ffmpeg",
       args: ["-i", "input.mkv"],
-      shell: false as const,
     };
 
     expect(spawner.spawn(request)).toBe(process);

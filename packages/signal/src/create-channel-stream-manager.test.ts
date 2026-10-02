@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ChannelAuthorization } from "./channel-worker/contracts.js";
 import type { ChannelStreamManagerContract } from "./channel-stream-manager/contracts.js";
 import { createChannelStreamManager } from "./create-channel-stream-manager.js";
-import type { OutputReadinessInspector } from "./ffmpeg/mpeg-ts/mpeg-ts-readiness-inspector.js";
+import type { OutputReadinessInspector } from "./ffmpeg/contracts.js";
 import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
 import type { CurrentPlayoutResult } from "./playout/contracts.js";
 import type { SignalLogger } from "./runtime/signal-logger.js";
@@ -11,6 +11,7 @@ import { FakeClock } from "./testing/fake-clock.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
 import { FakePlayoutProvider } from "./testing/fake-playout-provider.js";
 import { FakeProcess, FakeProcessSpawner } from "./testing/fake-process.js";
+import { settlePromises } from "./testing/settle-promises.js";
 
 class SilentLogger implements SignalLogger {
   /** Discards diagnostics that these lifecycle assertions do not inspect. */
@@ -60,10 +61,6 @@ const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
     startOffsetMs: 0,
   },
 });
-
-const settlePromises = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-};
 
 /** Supplies one retained transport packet carrying both test readiness markers. */
 const usableOutput = (): Buffer => {
@@ -180,7 +177,7 @@ describe("createChannelStreamManager", () => {
     await settlePromises();
 
     // Cancellation is caller-owned, so the viewer is released at once; the
-    // manager, not the waiter, keeps one encoder per channel.
+    // manager, not the waiter, keeps one FFmpeg process per channel.
     controller.abort();
     await expect(subscribing).rejects.toMatchObject({
       code: "subscription_aborted",

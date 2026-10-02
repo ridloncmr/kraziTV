@@ -7,58 +7,31 @@ import type {
   SignalSession,
 } from "../../signal-packager/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../../runtime/clock.js";
+import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
-import type { OutputReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
+import type { OutputReadinessInspector } from "../contracts.js";
 import type { FfmpegProcess } from "../process/ffmpeg-process.js";
+import {
+  FfmpegSignalPreparation,
+  type PreparationOwner,
+} from "./ffmpeg-signal-preparation.js";
 
-const MPEG_TS_PACKET_BYTES = 188;
-
-type EncoderBinding = {
+type ProcessBinding = {
   process: FfmpegProcess;
   forwarder: MpegTsPacketForwarder;
   context: LogContext;
   cancelReadiness(): void;
 };
 
-type PreparationState = "pending" | "committed" | "discarded";
-
-/** Holds a validated future item without starting an encoder before commit. */
-class FfmpegSignalPreparation implements SignalPreparation {
-  private state: PreparationState = "pending";
-
-  constructor(
-    private readonly owner: FfmpegSignalSession,
-    readonly item: SignalPlayoutItem,
-  ) {}
-
-  /** Irrevocably hands the validated item to its owning session. */
-  commit(): void {
-    if (this.state === "committed") {
-      throw new Error("Preparation was already committed");
-    }
-    if (this.state === "discarded") {
-      throw new Error("Preparation was already discarded");
-    }
-    this.state = "committed";
-    this.owner.commitPreparation(this);
-  }
-
-  /** Releases this preparation without allocating an encoder. */
-  async discard(): Promise<void> {
-    if (this.state !== "pending") return;
-    this.owner.discardPreparation(this);
-    this.state = "discarded";
-  }
-}
-
-/** Owns one stable output while sequential FFmpeg encoders serve its items. */
-export class FfmpegSignalSession implements SignalSession {
+/** Owns one stable output while sequential FFmpeg processes serve its items. */
+export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly output: Readable;
   readonly ready: Promise<void>;
   readonly completion: Promise<void>;
   private readonly sessionOutput = new PassThrough();
   private readonly processes = new Set<FfmpegProcess>();
-  private readonly bindings = new Map<FfmpegProcess, EncoderBinding>();
+  private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
   private resolveReady!: () => void;
   private rejectReady!: (reason: unknown) => void;
   private resolveCompletion!: () => void;
@@ -67,11 +40,11 @@ export class FfmpegSignalSession implements SignalSession {
   private completionSettled = false;
   private stopping = false;
   private stopped = false;
-  private stopPromise: Promise<void> | undefined;
-  private active: EncoderBinding;
+  private readonly stopAttempt = new RetryableAttempt();
+  private active: ProcessBinding;
   private preparation: FfmpegSignalPreparation | undefined;
 
-  /** Attaches the initial encoder before exposing the session-owned stream. */
+  /** Attaches the initial FFmpeg process before exposing the session-owned stream. */
   constructor(
     process: FfmpegProcess,
     initialItem: SignalPlayoutItem,
@@ -109,28 +82,22 @@ export class FfmpegSignalSession implements SignalSession {
     return preparation;
   }
 
-  /** Stops every encoder and ends the stable output only after verified closure. */
+  /** Stops every FFmpeg process and ends the stable output only after verified closure. */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-    if (this.stopped) return Promise.resolve();
-
-    this.stopping = true;
-    this.settleReadyWithError(stoppedError());
-    if (this.preparation !== undefined) {
-      void this.preparation.discard();
-    }
-    for (const binding of this.bindings.values()) {
-      binding.cancelReadiness();
-    }
-    const attempt = this.stopAllProcesses();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
+    return this.stopAttempt.run(() => {
+      this.stopping = true;
+      this.settleReadyWithError(stoppedError());
+      if (this.preparation !== undefined) {
+        void this.preparation.discard();
+      }
+      for (const binding of this.bindings.values()) {
+        binding.cancelReadiness();
+      }
+      return this.stopAllProcesses();
     });
-    return attempt;
   }
 
-  /** Atomically replaces the encoder feeding the stable output. */
+  /** Atomically replaces the FFmpeg process feeding the stable output. */
   commitPreparation(preparation: FfmpegSignalPreparation): void {
     this.assertRunning();
     this.assertCurrentPreparation(preparation);
@@ -159,12 +126,12 @@ export class FfmpegSignalSession implements SignalSession {
     this.preparation = undefined;
   }
 
-  /** Attaches packet forwarding and observes one encoder as session-internal. */
+  /** Attaches packet forwarding and observes one FFmpeg process as session-internal. */
   private attach(
     process: FfmpegProcess,
     item: SignalPlayoutItem,
     readinessKind: "initial" | "committed",
-  ): EncoderBinding {
+  ): ProcessBinding {
     const forwarder = new MpegTsPacketForwarder(
       process.output,
       this.sessionOutput,
@@ -191,7 +158,7 @@ export class FfmpegSignalSession implements SignalSession {
       readinessTimer = undefined;
     };
     const context = itemContext(item);
-    const binding: EncoderBinding = {
+    const binding: ProcessBinding = {
       process,
       forwarder,
       context,
@@ -211,11 +178,14 @@ export class FfmpegSignalSession implements SignalSession {
         );
       }, this.itemReadinessTimeoutMs);
     }
+    const release = (): void => {
+      cancelReadiness();
+      this.processes.delete(process);
+      this.bindings.delete(process);
+    };
     void process.completion.then(
       () => {
-        cancelReadiness();
-        this.processes.delete(process);
-        this.bindings.delete(process);
+        release();
         if (!usableOutputSeen && !this.stopping) {
           this.fail(
             new SignalError(
@@ -227,9 +197,7 @@ export class FfmpegSignalSession implements SignalSession {
         }
       },
       (error: unknown) => {
-        cancelReadiness();
-        this.processes.delete(process);
-        this.bindings.delete(process);
+        release();
         this.fail(error);
       },
     );
@@ -255,7 +223,7 @@ export class FfmpegSignalSession implements SignalSession {
     }
   }
 
-  /** Converts any encoder or commit failure into the session's terminal result. */
+  /** Converts any FFmpeg process or commit failure into the session's terminal result. */
   private fail(error: unknown): void {
     if (this.completionSettled || this.stopping) return;
     this.settleReadyWithError(error);
@@ -292,40 +260,6 @@ export class FfmpegSignalSession implements SignalSession {
       throw new Error("Preparation is not owned by this session");
     }
   }
-}
-
-/** Buffers one encoder's partial tail so only whole transport packets escape. */
-class MpegTsPacketForwarder {
-  private remainder = Buffer.alloc(0);
-
-  constructor(
-    private readonly source: Readable,
-    private readonly destination: PassThrough,
-  ) {
-    source.on("data", this.forward);
-  }
-
-  /** Detaches synchronously and drops an incomplete old-encoder packet. */
-  detach(): void {
-    this.source.off("data", this.forward);
-    this.remainder = Buffer.alloc(0);
-  }
-
-  /** Emits complete 188-byte units without letting backpressure stall FFmpeg. */
-  private readonly forward = (chunk: Buffer | Uint8Array | string): void => {
-    const bytes = Buffer.from(chunk);
-    const available =
-      this.remainder.byteLength === 0
-        ? bytes
-        : Buffer.concat([this.remainder, bytes]);
-    const completeBytes =
-      Math.floor(available.byteLength / MPEG_TS_PACKET_BYTES) *
-      MPEG_TS_PACKET_BYTES;
-    if (completeBytes > 0) {
-      this.destination.write(available.subarray(0, completeBytes));
-    }
-    this.remainder = Buffer.from(available.subarray(completeBytes));
-  };
 }
 
 /** Produces the typed error required for all post-stop operations. */

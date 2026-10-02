@@ -1,4 +1,9 @@
-import type { MediaProbeResult } from "./parse-ffprobe-output.js";
+/** The normalized facts one probe contributes before any metadata enrichment. */
+export interface MediaProbeResult {
+  /** Positive whole milliseconds, rounded once from ffprobe's seconds. */
+  durationMs: number;
+  hasAudio: boolean;
+}
 
 export interface MediaProbeOptions {
   signal?: AbortSignal;

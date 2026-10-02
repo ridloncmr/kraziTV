@@ -1,3 +1,4 @@
+import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js";
 import type { Clock, ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 
 type TimerRecord = {
@@ -80,13 +81,9 @@ export class FakeClock implements Clock, TimerScheduler {
   }
 }
 
+/** Rejects a timestamp that cannot be compared exactly; timestamps may be negative. */
 function assertSafeInteger(value: number, name: string): void {
   if (!Number.isSafeInteger(value)) {
     throw new RangeError(`${name} must be a safe integer`);
   }
-}
-
-function assertNonNegativeSafeInteger(value: number, name: string): void {
-  assertSafeInteger(value, name);
-  if (value < 0) throw new RangeError(`${name} must be non-negative`);
 }

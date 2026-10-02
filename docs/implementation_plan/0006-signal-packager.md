@@ -58,7 +58,7 @@ packages/signal
   transcoding, MPEG-TS output, readiness detection, and prepared-item mechanics.
 - `apps/server` owns persistence, SQLite/Kysely mechanics, HTTP semantics,
   dependency wiring, logging, and coordination with channel mutations.
-- `packages/core` remains the owner of current/following playout selection and
+- `packages/krazi-brain` remains the owner of current/following playout selection and
   offset calculations. `packages/signal` must not select programming.
 
 The public `@krazitv/signal` surface should remain smaller than its internal

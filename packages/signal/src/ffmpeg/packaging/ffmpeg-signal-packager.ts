@@ -1,11 +1,11 @@
+import type { ProcessSpawner } from "@krazitv/process";
+
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
-import {
-  MpegTsReadinessInspector,
-  type OutputReadinessInspector,
-} from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
-import type { ProcessSpawner } from "../../process/process-spawner.js";
+import type { OutputReadinessInspector } from "../contracts.js";
+import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
+import { assertPositiveSafeInteger } from "../../options/safe-integer-option.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type {
@@ -14,7 +14,7 @@ import type {
   SignalSession,
 } from "../../signal-packager/contracts.js";
 
-export type FfmpegSignalPackagerDependencies = {
+type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
@@ -34,14 +34,10 @@ export class FfmpegSignalPackager implements SignalPackager {
   constructor(private readonly dependencies: FfmpegSignalPackagerDependencies) {
     this.itemReadinessTimeoutMs =
       dependencies.itemReadinessTimeoutMs ?? DEFAULT_ITEM_READINESS_TIMEOUT_MS;
-    if (
-      !Number.isSafeInteger(this.itemReadinessTimeoutMs) ||
-      this.itemReadinessTimeoutMs <= 0
-    ) {
-      throw new RangeError(
-        "itemReadinessTimeoutMs must be a positive safe integer",
-      );
-    }
+    assertPositiveSafeInteger(
+      this.itemReadinessTimeoutMs,
+      "itemReadinessTimeoutMs",
+    );
   }
 
   /** Validates and starts one item synchronously so output can be drained at once. */
@@ -63,7 +59,7 @@ export class FfmpegSignalPackager implements SignalPackager {
     );
   }
 
-  /** Starts one item encoder whose normal exit remains internal to its session. */
+  /** Starts one item's FFmpeg process, whose normal exit remains internal to its session. */
   private startProcess(item: SignalPlayoutItem): FfmpegProcess {
     const process = FfmpegProcess.start({
       args: buildFfmpegArguments(item),

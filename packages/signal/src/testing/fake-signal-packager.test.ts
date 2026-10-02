@@ -136,7 +136,7 @@ describe("FakeSignalPackager", () => {
   it("reports stopped only after cleanup succeeds and permits a retry", async () => {
     const session = new FakeSignalPackager().start(item("entry-1"));
     await session.prepare(item("entry-2"));
-    const failure = new Error("encoder refused discard");
+    const failure = new Error("FFmpeg process refused discard");
     session.failDiscards(failure);
 
     await expect(session.stop()).rejects.toBe(failure);

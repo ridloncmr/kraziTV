@@ -2,8 +2,8 @@
 
 Work primarily on Node.js, TypeScript, Fastify, SQLite, scheduling, guide generation, and core domain packages.
 
-Favor KISS over SOLID or DRY purity. Keep one primary concrete class per file,
-exports deliberate, and every method documented with a concise why-comment.
+Favor KISS over SOLID or DRY purity. Keep one primary thing per file (a class,
+a table, a migration, a route group), exports deliberate, and every method documented with a concise why-comment.
 Place files by the source layout rules in `AGENTS.md`. Use explicit types at domain boundaries, while avoiding
 unnecessary layers and interfaces. Keep scheduling deterministic and testable.
 Do not put FFmpeg command construction into kraziBrain.

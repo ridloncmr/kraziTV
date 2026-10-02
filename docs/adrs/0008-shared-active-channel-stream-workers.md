@@ -8,7 +8,7 @@ Accepted
 
 kraziTV channels should behave like broadcasts, not viewer sessions. The earlier MVP streaming shape allowed each viewer request to own its own FFmpeg process or process sequence. That can prove basic playback, but it does not match the product model where a channel exists independently of its viewers.
 
-Per-viewer encoders also make future channel behavior harder. Commercial breaks, station IDs, manual interruptions, and operational monitoring should belong to the channel signal, not to many independent viewer-specific streams.
+Per-viewer FFmpeg processes also make future channel behavior harder. Commercial breaks, station IDs, manual interruptions, and operational monitoring should belong to the channel signal, not to many independent viewer-specific streams.
 
 ## Decision
 
@@ -59,7 +59,7 @@ playout items from kraziBrain-owned domain logic. Future selections are
 non-authoritative prefetch: each carries the materialized `scheduleRevision`.
 SignalPackager may prepare packaging resources for those selections, but
 preparation remains revocable and cannot change broadcast output. An active
-channel has one committed encoder pipeline and at most one prepared-next item;
+channel has one committed signal session and at most one prepared-next item;
 preparation has bounded memory and output and cannot spawn an unbounded queue of
 future FFmpeg processes. The compatibility spike determines whether the one
 prepared item uses a second process.
@@ -79,7 +79,7 @@ changed.
 SignalPackager remains responsible for encoding mechanics, FFmpeg process
 construction, transcoding, muxing, seeking, and stream continuity primitives.
 
-Per-viewer FFmpeg encoders are not the intended kraziTV streaming architecture.
+Per-viewer FFmpeg processes are not the intended kraziTV streaming architecture.
 
 This decision extends ADR 0005 by placing `ChannelStreamManager`, `ChannelWorker`, subscriber fan-out, and late-join stream initialization in `packages/signal` alongside SignalPackager.
 
@@ -112,9 +112,9 @@ harness and its fixed metadata and media paths are disposable.
 - Worker publication is readiness-gated: pending creations may be shared by
   waiters but are not joinable active workers.
 - Startup failure is reported before a streaming response succeeds, and a
-  cancelled or timed-out startup cannot leave an encoder process behind.
+  cancelled or timed-out startup cannot leave an FFmpeg process behind.
 - Worker lifecycle transitions must be serialized so a tune request cannot attach to a stopping worker or race shutdown into creating an overlapping replacement.
-- Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving encoder processes behind.
+- Manager shutdown is terminal: it rejects new tune requests, cannot create replacement workers, and must settle active workers and pending creations without leaving FFmpeg processes behind.
 - Failed workers may terminate current subscribers in the MVP; the next tune request can create a new worker.
 - Every subscription revalidates inside its serialized per-channel transition
   that the channel exists and is enabled before attaching, including when a
@@ -128,7 +128,7 @@ harness and its fixed metadata and media paths are disposable.
   persistence adapters, not signal runtime code, own SQLite/Kysely mechanics.
 - Schedule regeneration and following-item transition commitment serialize at
   the SQLite write-authority boundary, closing the check-then-transition race.
-- The number of encoders scales with active channels rather than viewers.
+- The number of FFmpeg processes scales with active channels rather than viewers.
 - The architecture better supports commercials, station IDs, shared interruptions, and channel monitoring later.
 - The compatibility spike becomes the first integration consumer of the durable
   streaming runtime rather than a prototype that must be rewritten after it

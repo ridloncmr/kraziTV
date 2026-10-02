@@ -10,10 +10,13 @@ export type MediaProbeErrorCode =
 
 const MAX_MESSAGE_LENGTH = 300;
 
+// Matching control characters is the point: these strip them from stderr.
+/* eslint-disable no-control-regex */
 // Terminal CSI (colour/cursor) and OSC (e.g. window title) sequences.
 const TERMINAL_ESCAPES =
   /\u001b\[[0-9;?]*[A-Za-z]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
+/* eslint-enable no-control-regex */
 
 /**
  * A failure to probe one file. The constructor sanitizes and truncates the

@@ -59,9 +59,8 @@ packages/media
   ffprobe
   source metadata
 
-packages/core
-  scheduling
-  kraziBrain
+packages/krazi-brain
+  kraziBrain scheduling and playout decisions
   channel rules
   playback history
   timeline generation

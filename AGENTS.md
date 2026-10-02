@@ -59,20 +59,67 @@ It should behave like a small broadcast automation system, not a playlist genera
   adapters.
 - Do not add abstractions solely for hypothetical reuse. Extract a seam when a
   current requirement or a known next integration needs it.
-- Keep files cohesive and easy to scan. Prefer one primary concrete class per
-  file; move independent classes or responsibilities into clearly named files.
-- Lay out every package or app `src/` the same way; `packages/signal` is the
-  reference:
+- Keep files cohesive and easy to scan. Put one primary thing in each file: one
+  concrete class, one table definition, one migration, one route group, or one
+  tight set of related types. When a file collects entries that could each
+  stand alone, such as every table in one schema file, split it.
+- Keep a stateful class to the code that reads or writes its state. A private
+  method that never reads `this` belongs beside the class, not in it. Move
+  error factories, record types, pure checks, and argument-only helpers into
+  cohesive files in the same domain folder. Inside the class, give any
+  sequence repeated three or more times one named helper, and write a chain of
+  early-exit checks as one function that returns the first failure, followed
+  by one handling path. Do not split transitions that share mutable state
+  across classes. Judge the result by whether the class reads as its
+  transitions, not by line count. Apply this check whenever a file nears 500
+  lines. `packages/signal/src/channel-stream-manager/` is the reference.
+- Lay out every package or app `src/` the same way. `packages/signal/src` and
+  `apps/server/src/database/` are the references
+  ([ADR 0010](docs/adrs/0010-source-layout.md)):
   - `src/` root holds only entry points: `index.ts`, `create-*.ts` factories,
     package-wide `errors.ts`, and app composition such as `app.ts`.
-  - Each domain or capability gets one folder directly under `src/` (for
-    example `probe/`, `catalog-scan/`, `media-roots/`), with its tests beside
-    the code. Nest a subfolder only when a domain itself splits into distinct
-    capabilities, as `signal/src/ffmpeg/` does.
-  - A capability used across domains, such as `process/`, `runtime/`, `config/`,
-    or `http/`, gets its own top-level folder instead of nesting inside the
+  - Each domain gets one folder directly under `src/` (for example `probe/`,
+    `catalog-scan/`, `media-roots/`), with its tests beside the code.
+  - Inside a domain, group files into capability subfolders when the domain
+    has more than four source files spanning more than one capability, or more
+    than eight source files in total. Tests and `contracts.ts` do not count. A
+    capability is a part a reader would look for on its own, such as HTTP
+    routes, persistence, a processing pipeline, or schema definitions.
+  - Leave a domain flat when its files all serve one capability:
+    `signal/src/channel-worker/` stays flat because every file serves the
+    worker. Group a domain whose files serve several capabilities, as
+    `database/` does and `catalog-scan/` should:
+
+    ```text
+    database/                     reference: grouped by capability
+      database.ts                 coordinates the domain
+      migrations/                 migrate-database.ts, 001-initial-catalog.ts, ...
+      schema/                     database-schema.ts, one file per table
+      columns/                    sqlite-boolean.ts
+
+    catalog-scan/                 before: routes, pipeline, and writer mixed
+      catalog-scan-routes.ts, catalog-scanner.ts, catalog-scan-writer.ts,
+      catalog-candidate.ts, concurrency-limited-prober.ts
+
+    catalog-scan/                 after
+      catalog-acceptance.test.ts  whole-domain test stays at the root
+      routes/  scanner/  writer/
+    ```
+
+  - Keep files that coordinate the whole domain, and whole-domain acceptance
+    tests, at the domain root; a capability's own orchestrator lives in its
+    capability folder, as `migrations/migrate-database.ts` does.
+  - Nest one capability level inside a domain: `src/<domain>/<capability>/`.
+    Nest further only when a capability itself meets the grouping rule above.
+  - When adding a file makes a folder meet the grouping rule, regroup it in the
+    same change. Do not leave the reorganization for later.
+  - A capability used across domains, such as `runtime/`, `config/`, or
+    `http/`, gets its own top-level folder instead of nesting inside the
     first domain that used it.
-  - Put interfaces shared across a domain's files in that folder's
+  - Code needed by more than one package moves into a package they both depend
+    on, as `packages/process` does ([ADR 0011](docs/adrs/0011-shared-process-package.md)).
+    Never copy code between packages.
+  - Put interfaces shared across a domain's files in that domain's
     `contracts.ts`, so domain files never import from a root entry point.
   - All test doubles and fixtures live in one `src/testing/` folder. Build
     configs exclude it along with `*.test.ts`.
@@ -82,8 +129,15 @@ It should behave like a small broadcast automation system, not a playlist genera
     `test:ffprobe`); they fail rather than skip when the binary is missing. The
     package's `tsconfig.json` typechecks `integration/`; its build config stays
     limited to `src/`.
-  - Never create catch-all folders such as `internal`, `utils`, `common`, or
-    `helpers`.
+  - `npm run audit` checks these layout rules, the file-composition rules
+    above, and cross-package copies mechanically. Record an accepted
+    deviation in `scripts/codebase-audit/audit-exceptions.json` with its
+    reason and source, never by weakening a rule.
+  - Name every folder so a reader can tell exactly what belongs in it. Folders
+    named for a specific kind of file are encouraged: `migrations/`,
+    `schema/`, `routes/`, and `types/` for type-only declarations. Never
+    create vague folders such as `internal`, `utils`, `common`, `helpers`,
+    `shared`, `lib`, or `misc`, where anything could land.
 - Keep exports deliberate and minimal. Export only the package or module surface
   that another file actually needs; do not use barrel exports as dumping grounds.
 - Give every method a concise comment that explains its purpose, policy, or
@@ -110,7 +164,8 @@ Do not make FFmpeg command construction part of kraziBrain.
 
 - Prefer small vertical slices with working feedback loops.
 - Start with the simplest implementation and add structure only when the code
-  demonstrates the need.
+  demonstrates the need. For folders, the source-layout grouping rule defines
+  that need.
 - Keep interfaces narrow and modules deep.
 - Use TypeScript types to model domain boundaries explicitly.
 - Prefer deterministic scheduling behavior over clever randomness.

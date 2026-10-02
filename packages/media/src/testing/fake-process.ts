@@ -6,7 +6,7 @@ import type {
   ProcessSpawnRequest,
   ProcessTerminationSignal,
   SpawnedProcess,
-} from "../process/process-spawner.js";
+} from "@krazitv/process";
 
 /** A child process whose output and closure are driven explicitly by tests. */
 export class FakeProcess implements SpawnedProcess {

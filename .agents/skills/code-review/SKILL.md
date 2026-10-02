@@ -19,10 +19,17 @@ Look for:
 - Architecture boundary violations
 - Missing or weak tests
 - Overly shallow modules
-- Files with multiple independent classes or muddied responsibilities
+- Files holding more than one primary thing (independent classes, several
+  tables or migrations) or muddied responsibilities
 - Files placed against the source layout rules in `AGENTS.md`: implementation
-  at the `src/` root, nested `process/` or `testing/` folders, or catch-all
-  directories
+  at the `src/` root, nested `process/` or `testing/` folders, vague folders
+  such as `utils/`, or a domain folder that meets the grouping rule but mixes
+  capabilities flat. Capability subfolders and specific kind folders such as
+  `schema/` or `types/` are correct, not findings.
+- Stateful classes carrying stateless code: private methods that never read
+  `this`, inline error factories, repeated multi-step sequences, or check
+  chains that repeat the same failure handling (see the stateful-class rule in
+  `AGENTS.md`). A long class whose transitions share state is not a finding.
 - Accidental, unused, or overly broad exports
 - Missing concise why-comments on methods
 - Unclear domain names

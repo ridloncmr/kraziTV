@@ -1,4 +1,4 @@
-import type { ChannelSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
+import type { ChannelSubscription } from "../channel-broadcast/contracts.js";
 import type { ChannelId } from "../playout/contracts.js";
 
 export type ChannelSubscribeOptions = {

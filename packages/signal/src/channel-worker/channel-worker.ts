@@ -2,17 +2,30 @@ import type { Readable } from "node:stream";
 
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
-import { SignalError } from "../errors.js";
+import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
+import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
+import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import type {
   SignalPackager,
   SignalSession,
 } from "../signal-packager/contracts.js";
+import {
+  interruptionError,
+  normalizePackagingStartError,
+  normalizeStartupError,
+  WorkerCreationCleanupError,
+} from "./channel-worker-errors.js";
 import type { TransitionCoordinator } from "./contracts.js";
 import { requireCurrent, toSignalItem } from "./playout-projection.js";
+import {
+  awaitControlled,
+  createStartupGuard,
+  type StartupGuard,
+  type StartupInterruption,
+} from "./startup-guard.js";
 import { type AiringItem, TransitionLoop } from "./transition-loop.js";
-import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
 
 export type ChannelWorkerOptions = {
   playoutProvider: PlayoutProvider;
@@ -29,15 +42,7 @@ export type ChannelWorkerOptions = {
   startupTimeoutMs: number;
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
-  findJoinPoint(retainedBytes: Buffer): number | undefined;
-};
-
-type StartupInterruption = "aborted" | "timeout";
-
-type StartupGuard = {
-  readonly interrupted: Promise<StartupInterruption>;
-  check(): StartupInterruption | undefined;
-  dispose(): void;
+  findJoinPoint: (retainedBytes: Buffer) => number | undefined;
 };
 
 type JoinableOutputWaiter = {
@@ -48,7 +53,7 @@ type JoinableOutputWaiter = {
 /** Owns one channel's active packaging session and retained broadcast output. */
 export class ChannelWorker {
   readonly completion: Promise<void>;
-  private stopPromise: Promise<void> | undefined;
+  private readonly stopAttempt = new RetryableAttempt();
   private readonly transitions: TransitionLoop;
   private readonly transitionsDone: Promise<void>;
   private failure: SignalError | undefined;
@@ -61,37 +66,25 @@ export class ChannelWorker {
   ): Promise<ChannelWorker> {
     validateOptions(options);
     const guard = createStartupGuard(signal, options);
-
-    try {
-      toSignalItem(
-        requireCurrent(
-          await awaitControlled(
-            () =>
-              options.playoutProvider.getCurrent(
-                channelId,
-                options.clock.now(),
-              ),
-            guard,
-            channelId,
-          ),
+    const lookupCurrent = async () =>
+      requireCurrent(
+        await awaitControlled(
+          () =>
+            options.playoutProvider.getCurrent(channelId, options.clock.now()),
+          guard,
           channelId,
         ),
         channelId,
       );
 
+    try {
+      // Preliminary validation only (ADR 0008): its offset is discarded,
+      // because setup consumes wall time and the session must start from a
+      // lookup made immediately before the packager starts.
+      toSignalItem(await lookupCurrent(), channelId);
+
       while (true) {
-        const current = requireCurrent(
-          await awaitControlled(
-            () =>
-              options.playoutProvider.getCurrent(
-                channelId,
-                options.clock.now(),
-              ),
-            guard,
-            channelId,
-          ),
-          channelId,
-        );
+        const current = await lookupCurrent();
         const item = toSignalItem(current, channelId);
 
         let session: SignalSession;
@@ -201,12 +194,11 @@ export class ChannelWorker {
   /**
    * Shares active cleanup, retains success, and releases failure for retry.
    * Halting and session stop run together so a slow discard cannot keep the
-   * encoder alive; resolving waits for the loop to discard any late preparation.
+   * FFmpeg process alive; resolving waits for the loop to discard any late
+   * preparation.
    */
   stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-
-    const attempt = (async () => {
+    return this.stopAttempt.run(async () => {
       const [halted, stopped] = await Promise.allSettled([
         this.transitions.halt(),
         this.session.stop(),
@@ -218,12 +210,7 @@ export class ChannelWorker {
       if (halted.status === "rejected" && this.transitions.holdsPreparation) {
         throw halted.reason;
       }
-    })();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
     });
-    return attempt;
   }
 }
 
@@ -254,75 +241,6 @@ function validateOptions(options: ChannelWorkerOptions): void {
   if (!Number.isSafeInteger(deadline)) {
     throw new RangeError("worker startup deadline must be a safe integer");
   }
-}
-
-/** Bounds every startup await with one overall timeout and caller cancellation. */
-function createStartupGuard(
-  signal: AbortSignal,
-  options: ChannelWorkerOptions,
-): StartupGuard {
-  const deadlineAt = options.clock.now() + options.startupTimeoutMs;
-  let resolve!: (outcome: StartupInterruption) => void;
-  let outcome: StartupInterruption | undefined;
-  const interrupted = new Promise<StartupInterruption>((settle) => {
-    resolve = settle;
-  });
-  const interrupt = (nextOutcome: StartupInterruption): void => {
-    if (outcome !== undefined) return;
-    outcome = nextOutcome;
-    resolve(nextOutcome);
-  };
-  const timeout = options.timers.setTimeout(
-    () => interrupt("timeout"),
-    options.startupTimeoutMs,
-  );
-  const abort = (): void => interrupt("aborted");
-  signal.addEventListener("abort", abort, { once: true });
-  if (signal.aborted) abort();
-
-  return {
-    interrupted,
-    check: () => {
-      if (outcome === undefined && options.clock.now() >= deadlineAt) {
-        interrupt("timeout");
-      }
-      return outcome;
-    },
-    dispose: () => {
-      timeout.cancel();
-      signal.removeEventListener("abort", abort);
-    },
-  };
-}
-
-/** Races provider work without allowing its late failure to become unhandled. */
-async function awaitControlled<T>(
-  startOperation: () => Promise<T>,
-  guard: StartupGuard,
-  channelId: ChannelId,
-): Promise<T> {
-  const existingInterruption = guard.check();
-  if (existingInterruption !== undefined) {
-    throw interruptionError(existingInterruption, channelId);
-  }
-  const operation = startOperation();
-  const result = await Promise.race([
-    operation.then(
-      (value) => ({ status: "value" as const, value }),
-      (error: unknown) => ({ status: "error" as const, error }),
-    ),
-    guard.interrupted.then((outcome) => ({
-      status: "interrupted" as const,
-      outcome,
-    })),
-  ]);
-  const interruption = guard.check();
-  if (interruption !== undefined) {
-    throw interruptionError(interruption, channelId);
-  }
-  if (result.status === "value") return result.value;
-  if (result.status === "error") throw result.error;
-  throw interruptionError(result.outcome, channelId);
 }
 
 /** Waits for both packager readiness and retained bytes, or an earlier bound. */
@@ -375,57 +293,4 @@ function waitForJoinableOutput(
     promise,
     dispose: () => output.off("data", inspect),
   };
-}
-
-/** Preserves typed packaging failures and classifies unknown start exceptions. */
-function normalizePackagingStartError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "packaging_start_failed",
-    `Signal packaging could not start for channel ${channelId}`,
-    { channelId },
-    { cause },
-  );
-}
-
-/** Keeps deliberate worker interruptions distinct from packaging failures. */
-function normalizeStartupError(
-  cause: unknown,
-  channelId: ChannelId,
-): SignalError {
-  if (cause instanceof SignalError) return cause;
-  return new SignalError(
-    "packaging_failed",
-    `Signal packaging failed while channel ${channelId} was starting`,
-    { channelId },
-    { cause },
-  );
-}
-
-/** Creates the provider-neutral error for cancellation or exhausted startup time. */
-function interruptionError(
-  outcome: StartupInterruption,
-  channelId: ChannelId,
-): SignalError {
-  return outcome === "aborted"
-    ? new SignalError(
-        "subscription_aborted",
-        `Channel ${channelId} startup was cancelled`,
-        { channelId },
-      )
-    : new SignalError(
-        "worker_startup_timeout",
-        `Channel ${channelId} did not become ready before its startup timeout`,
-        { channelId },
-      );
-}
-
-/** Enforces deterministic byte and duration limits. */
-function assertPositiveSafeInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`${name} must be a positive safe integer`);
-  }
 }

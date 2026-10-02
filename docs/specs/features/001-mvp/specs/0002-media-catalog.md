@@ -272,7 +272,7 @@ Media roots are filesystem discovery boundaries, not programming rules. Channel 
 - `packages/media` owns filesystem/media probing helpers and ffprobe normalization.
 - `apps/server` owns API routes, explicit scan-stage composition, final catalog
   candidate validation, and persistence wiring.
-- `packages/core` may define shared media-facing domain types only if they are scheduling concepts, not raw probe results.
+- `packages/krazi-brain` may define shared media-facing domain types only if they are scheduling concepts, not raw probe results.
 - kraziBrain may later consume normalized catalog records, but it must not perform discovery or invoke ffprobe.
 - SignalPackager and provider adapters do not participate in catalog discovery or decide which files belong in the catalog.
 

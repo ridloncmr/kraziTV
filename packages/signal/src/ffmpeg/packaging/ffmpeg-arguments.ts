@@ -1,4 +1,8 @@
 import { SignalError } from "../../errors.js";
+import {
+  isNonNegativeSafeInteger,
+  isPositiveSafeInteger,
+} from "../../options/safe-integer-option.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 
 const VIDEO_FILTER =
@@ -9,8 +13,12 @@ const VIDEO_FILTER =
 export function buildFfmpegArguments(
   item: SignalPlayoutItem,
 ): readonly string[] {
-  assertNonNegativeSafeInteger(item.mediaOffsetMs, "mediaOffsetMs");
-  assertPositiveSafeInteger(item.playDurationMs, "playDurationMs");
+  if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) {
+    throw invalidPlayoutItem("mediaOffsetMs");
+  }
+  if (!isPositiveSafeInteger(item.playDurationMs)) {
+    throw invalidPlayoutItem("playDurationMs");
+  }
   if (typeof item.hasAudio !== "boolean") {
     throw invalidPlayoutItem("hasAudio");
   }
@@ -74,26 +82,6 @@ function millisecondsToDecimalSeconds(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1_000);
   const remainder = milliseconds % 1_000;
   return `${seconds}.${remainder.toString().padStart(3, "0")}`;
-}
-
-/** Rejects invalid offsets at the packaging boundary with provider-neutral data. */
-function assertNonNegativeSafeInteger(
-  value: number,
-  field: "mediaOffsetMs",
-): void {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw invalidPlayoutItem(field);
-  }
-}
-
-/** Rejects invalid durations before any process can be created. */
-function assertPositiveSafeInteger(
-  value: number,
-  field: "playDurationMs",
-): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw invalidPlayoutItem(field);
-  }
 }
 
 /** Avoids echoing values or media paths into externally visible errors. */

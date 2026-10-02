@@ -1,6 +1,6 @@
 # Channel Configuration
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the MVP channel configuration slice: creating media collections, creating channels, assigning stable channel identity, and managing the channel lifecycle, including administrative runtime shutdown.
 
@@ -203,7 +203,10 @@ Re-enabling a disabled channel while its manager lifecycle record is still
 unsettled must first retry and complete the prior operational stop. The server
 must not commit `enabled: true` while old runtime resources remain. If cleanup
 still fails, the channel stays disabled and the re-enable request returns the
-same retryable cleanup error.
+same retryable cleanup error with `operation: "disable"` (the stop being
+retried) and `persistenceCommitted: false`, because nothing in that request was
+saved. Disable, delete, and re-enable of one channel are serialized, so a
+concurrent request cannot commit between a re-enable's stop and its commit.
 
 Re-enabling a disabled channel permits the next subscription to create a fresh
 worker; it does not resurrect the old process or subscriber streams. Changes to
@@ -267,7 +270,7 @@ Important boundaries:
 - `apps/server` coordinates committed channel disable/delete mutations with the
   per-channel runtime stop, returns a structured retryable `503` when cleanup
   fails after commit, and does not return success before cleanup settles.
-- `packages/core` may define provider-neutral channel types and validation rules.
+- `packages/krazi-brain` may define provider-neutral channel types and validation rules.
 - `packages/media` owns media catalog/probe concepts, not channel scheduling decisions.
 - Provider adapters may later map channel config into provider-specific outputs without modifying core channel identity.
 

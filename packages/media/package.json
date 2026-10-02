@@ -13,6 +13,9 @@
     "test:ffprobe": "vitest run integration/",
     "typecheck": "tsc -p tsconfig.json"
   },
+  "dependencies": {
+    "@krazitv/process": "file:../process"
+  },
   "devDependencies": {
     "@types/node": "^22.20.4"
   }

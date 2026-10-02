@@ -1,8 +1,5 @@
-import { PassThrough } from "node:stream";
-
 import { describe, expect, it, vi } from "vitest";
 
-import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import { SignalError, type SignalErrorCode } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import { Deferred } from "../testing/deferred.js";
@@ -11,9 +8,12 @@ import type {
   ChannelAuthorization,
   ChannelAuthorizationResult,
 } from "../channel-worker/contracts.js";
-import type { ManagedChannelWorker } from "../channel-worker/worker-factory.js";
-import { WorkerCreationCleanupError } from "../channel-worker/worker-creation-cleanup-error.js";
+import { WorkerCreationCleanupError } from "../channel-worker/channel-worker-errors.js";
 import { ChannelStreamManager } from "./channel-stream-manager.js";
+import { ControlledWorkerFactory } from "../testing/controlled-worker-factory.js";
+import { expectSignalError } from "../testing/expect-signal-error.js";
+import { FakeManagedWorker } from "../testing/fake-managed-worker.js";
+import { settlePromises } from "../testing/settle-promises.js";
 
 class MutableAuthorization implements ChannelAuthorization {
   readonly calls: ChannelId[] = [];
@@ -69,138 +69,6 @@ class SequencedAuthorization implements ChannelAuthorization {
     return result;
   }
 }
-
-class FakeManagedWorker implements ManagedChannelWorker {
-  readonly broadcaster: ChannelBroadcaster;
-  readonly completion: Promise<void>;
-  stopCalls = 0;
-
-  private readonly output = new PassThrough();
-  private readonly completionState = new Deferred<void>();
-  private stopGate: Deferred<void> | undefined;
-  private stopFailure: unknown;
-  private nextStopFailure: unknown;
-  private stopPromise: Promise<void> | undefined;
-
-  constructor(readonly channelId: ChannelId) {
-    this.completion = this.completionState.promise;
-    this.broadcaster = new ChannelBroadcaster(this.output, {
-      subscriberBufferLimitBytes: 1_024,
-      retentionLimitBytes: 1_024,
-      findJoinPoint: (bytes) =>
-        bytes.indexOf("INIT") === -1 ? undefined : bytes.indexOf("INIT"),
-    });
-    this.output.write("INIT-ready");
-    void this.completion.catch(() => undefined);
-  }
-
-  /** Delegates viewer creation to the worker's single shared broadcaster. */
-  trySubscribe() {
-    return this.broadcaster.trySubscribe();
-  }
-
-  /** Settles this fake worker once while preserving stop idempotence. */
-  stop(): Promise<void> {
-    if (this.stopPromise !== undefined) return this.stopPromise;
-    this.stopCalls += 1;
-    const attempt = this.finishStop();
-    this.stopPromise = attempt;
-    void attempt.catch(() => {
-      if (this.stopPromise === attempt) this.stopPromise = undefined;
-    });
-    return attempt;
-  }
-
-  /** Holds cleanup open so tests can prove replacement cannot overlap it. */
-  delayStop(): void {
-    this.stopGate = new Deferred<void>();
-  }
-
-  /** Releases cleanup after a race assertion has observed the stopping state. */
-  releaseStop(): void {
-    this.stopGate?.resolve(undefined);
-  }
-
-  /** Arranges a bounded cleanup failure after any configured stop gate opens. */
-  failStop(error: unknown): void {
-    this.stopFailure = error;
-  }
-
-  /** Fails only the next cleanup attempt so manager retry can be exercised. */
-  failNextStop(error: unknown): void {
-    this.nextStopFailure = error;
-  }
-
-  /** Exposes spontaneous worker failure independently from manager stop. */
-  fail(error: unknown): void {
-    this.completionState.reject(error);
-    this.output.destroy(error instanceof Error ? error : new Error("failed"));
-  }
-
-  /** Evicts retained initialization so a ready worker can no longer accept viewers. */
-  loseJoinability(): void {
-    this.output.write("x".repeat(1_024));
-  }
-
-  /** Retains a fresh initialization point so later viewers can join again. */
-  restoreJoinability(): void {
-    this.output.write("INIT");
-  }
-
-  /** Pushes shared output so subscriber eviction can be observed by the manager. */
-  pushOutput(chunk: string): void {
-    this.output.write(chunk);
-  }
-
-  /** Settles owned stream state after any arranged cleanup delay. */
-  private async finishStop(): Promise<void> {
-    await this.stopGate?.promise;
-    if (this.nextStopFailure !== undefined) {
-      const failure = this.nextStopFailure;
-      this.nextStopFailure = undefined;
-      throw failure;
-    }
-    if (this.stopFailure !== undefined) throw this.stopFailure;
-    this.output.end();
-    this.completionState.resolve(undefined);
-  }
-}
-
-class ControlledWorkerFactory {
-  readonly calls: Array<{
-    channelId: ChannelId;
-    signal: AbortSignal;
-    result: Deferred<ManagedChannelWorker>;
-  }> = [];
-
-  /** Creates a controllable readiness promise for one prospective worker. */
-  create(
-    channelId: ChannelId,
-    signal: AbortSignal,
-  ): Promise<ManagedChannelWorker> {
-    const result = new Deferred<ManagedChannelWorker>();
-    this.calls.push({ channelId, signal, result });
-    return result.promise;
-  }
-}
-
-const settlePromises = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalErrorCode,
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-  throw new Error(`Expected ${code}`);
-};
 
 /** Supplies deterministic lifecycle defaults while individual tests override policy. */
 const createManager = (options: {
@@ -1092,6 +960,36 @@ describe("ChannelStreamManager", () => {
     workerFactory.calls[1]?.result.resolve(replacementWorker);
     const replacementSubscription = await replacement;
     replacementSubscription.close();
+    await manager.shutdown();
+  });
+
+  it("names the worker_stop phase and keeps the cause when a worker stop fails", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+    const worker = new FakeManagedWorker("channel-1");
+    const cause = new SignalError("packaging_failed", "FFmpeg did not exit", {
+      pid: 4242,
+    });
+    worker.failNextStop(cause);
+    workerFactory.calls[0]?.result.resolve(worker);
+    (await subscribing).close();
+
+    const failure = await manager
+      .stopChannel("channel-1", "disabled")
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SignalError);
+    expect(failure).toMatchObject({
+      code: "runtime_cleanup_failed",
+      details: { channelId: "channel-1", phase: "worker_stop" },
+    });
+    expect((failure as Error).cause).toBe(cause);
+    await manager.stopChannel("channel-1", "disabled");
     await manager.shutdown();
   });
 

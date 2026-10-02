@@ -5,14 +5,20 @@ import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
-import { CatalogScanWriter } from "./catalog-scan/catalog-scan-writer.js";
-import { CatalogScanner } from "./catalog-scan/catalog-scanner.js";
-import { ConcurrencyLimitedProber } from "./catalog-scan/concurrency-limited-prober.js";
-import { parseProbeConfig } from "./config/probe-config.js";
-import { isLoopbackHost, parseCorsOrigins } from "./config/network.js";
+import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import { ChannelRepository } from "./channels/repository/channel-repository.js";
+import { noOpChannelRuntime } from "./channels/runtime/no-op-channel-runtime.js";
+import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
+import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
+import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
+import { parseProbeConfig } from "./config/probe.js";
+import {
+  isLoopbackHost,
+  parseCorsOrigins,
+  parseListenConfig,
+} from "./config/network.js";
 
-const port = Number(process.env.PORT ?? 3000);
-const host = process.env.HOST ?? "127.0.0.1";
+const { host, port } = parseListenConfig(process.env);
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
 const dataDirectory = resolveDataDirectory(
   process.env.KRAZITV_DATA_DIR,
@@ -37,9 +43,20 @@ const scanner = new CatalogScanner({
 });
 
 const mediaItems = new MediaItemRepository(database.db);
+const mediaCollections = new MediaCollectionRepository(database.db);
+const channels = new ChannelRepository(database.db);
 
 const server = buildServer(
-  { database, mediaRoots, scanner, mediaItems },
+  {
+    database,
+    mediaRoots,
+    scanner,
+    mediaItems,
+    mediaCollections,
+    channels,
+    // Plan 0006 replaces this with the composed channel stream manager.
+    channelRuntime: noOpChannelRuntime,
+  },
   {
     logger: true,
     ...(corsOrigins ? { corsOrigins } : {}),

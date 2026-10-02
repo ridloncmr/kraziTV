@@ -90,7 +90,7 @@ export class FakeSignalSession implements SignalSession {
     return this.readyState.promise;
   }
 
-  /** Lets leak assertions prove the session's encoder resources were released. */
+  /** Lets leak assertions prove the session's FFmpeg resources were released. */
   get isStopped(): boolean {
     return this.stopped;
   }
@@ -127,7 +127,7 @@ export class FakeSignalSession implements SignalSession {
     return preparation;
   }
 
-  /** Makes the next preparation reject, as an encoder that cannot prewarm. */
+  /** Makes the next preparation reject, as an FFmpeg process that cannot prewarm. */
   failNextPrepare(reason: unknown): void {
     this.nextPrepareFailure = { reason };
   }

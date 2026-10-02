@@ -15,6 +15,8 @@ Architecture decision records document important technical choices.
 | [0007](0007-integer-millisecond-time.md)             | Accepted | Use integer milliseconds for internal and persisted time     |
 | [0008](0008-shared-active-channel-stream-workers.md) | Accepted | Use at most one shared stream worker per channel             |
 | [0009](0009-programming-blocks.md)                   | Accepted | Programming blocks sit between channels and schedule entries |
+| [0010](0010-source-layout.md)                        | Accepted | Group source files by capability inside domain folders       |
+| [0011](0011-shared-process-package.md)               | Accepted | Child-process spawning lives in a shared `process` package   |
 
 ## Format
 

@@ -175,7 +175,7 @@ deferred read transaction into a write transaction.
 A single SQL statement that returns the complete revision and source projection
 would also be snapshot-safe, but the MVP standardizes the multi-query repository
 implementation on the connection-pinned read transaction. Kysely transaction
-objects and database row shapes do not cross into `packages/core` or
+objects and database row shapes do not cross into `packages/krazi-brain` or
 `packages/signal`.
 
 Channel state also supplies selected current and following playout items to the
@@ -279,7 +279,7 @@ Important boundaries:
 - Playout timeline generation must not construct FFmpeg commands.
 - Playout timeline generation must not emit Plex-specific output.
 - Schedule entries remain guide-facing; playout items represent transmission-facing items.
-- `packages/core` should own current item lookup and offset calculation.
+- `packages/krazi-brain` should own current item lookup and offset calculation.
 - `apps/server` should own API routing, persistence wiring, request validation,
   and the connection-pinned schedule snapshot repository.
 

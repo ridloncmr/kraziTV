@@ -1,67 +1,35 @@
-import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildServer } from "../app.js";
-import { openDatabase, type KraziDatabase } from "../database/database.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import {
+  cleanUpTestEnvironment,
+  createTemporaryDirectory,
+  startTestServer,
+} from "../testing/test-environment.js";
 import { MediaRootRepository } from "./media-root-repository.js";
-import { CatalogScanWriter } from "../catalog-scan/catalog-scan-writer.js";
-import { CatalogScanner } from "../catalog-scan/catalog-scanner.js";
-import { ControlledProber } from "../testing/controlled-prober.js";
-import { MediaItemRepository } from "../media-items/media-item-repository.js";
+import { sequentialIds } from "../testing/record-sources.js";
 
-// Awaiting buildServer's thenable result yields the plain instance, so tests hold that type.
 type Server = FastifyInstance;
 
-const servers: Server[] = [];
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
-});
-
-async function createDataDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "krazitv-media-roots-"));
-  temporaryDirectories.push(directory);
-  return directory;
-}
+afterEach(cleanUpTestEnvironment);
 
 // Boots the real composition with a deterministic clock and ID sequence.
 async function startServer(dataDirectory?: string): Promise<Server> {
-  const database: KraziDatabase = await openDatabase({
-    dataDirectory: dataDirectory ?? (await createDataDirectory()),
-  });
-  let nextId = 0;
   let now = FIXTURE_TIME;
-  const mediaRoots = new MediaRootRepository(database.db, {
-    createId: () => `root-${String(++nextId).padStart(3, "0")}`,
-    now: () => (now += 1_000),
-  });
-  // These tests never scan, so an idle scanner completes the composition.
-  const scanner = new CatalogScanner({
-    roots: mediaRoots,
-    prober: new ControlledProber(),
-    writer: new CatalogScanWriter(database.db),
-  });
-  const server = buildServer(
-    {
-      database,
-      mediaRoots,
-      scanner,
-      mediaItems: new MediaItemRepository(database.db),
+  const { server } = await startTestServer({
+    dataDirectory,
+    overrides: (db) => {
+      const mediaRoots = new MediaRootRepository(db, {
+        createId: sequentialIds("root"),
+        now: () => (now += 1_000),
+      });
+      return { mediaRoots };
     },
-    { logger: false },
-  );
-  servers.push(server);
+  });
   return server;
 }
 
@@ -280,7 +248,7 @@ describe("PATCH /media-roots/:id", () => {
 
 describe("media root persistence", () => {
   it("keeps roots, including missing ones, across a server and database restart", async () => {
-    const dataDirectory = await createDataDirectory();
+    const dataDirectory = await createTemporaryDirectory();
     const first = await startServer(dataDirectory);
     await createRoot(first, { path: missingPath("TV"), enabled: false });
     const created = await first.inject({ method: "GET", url: "/media-roots" });

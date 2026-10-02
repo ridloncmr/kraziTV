@@ -4,10 +4,10 @@ import SqliteDatabase from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 
 import { resolveDatabasePath } from "../config/data-directory.js";
-import { migrateDatabase } from "./migrations.js";
-import type { DatabaseSchema } from "./schema.js";
+import { migrateDatabase } from "./migrations/migrate-database.js";
+import type { DatabaseSchema } from "./schema/database-schema.js";
 
-export interface OpenDatabaseOptions {
+interface OpenDatabaseOptions {
   dataDirectory: string;
 }
 

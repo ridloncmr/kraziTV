@@ -17,6 +17,8 @@ import { InMemoryTransitionCoordinator } from "../testing/in-memory-transition-c
 import type { TimerScheduler } from "../runtime/clock.js";
 import { ChannelWorker, type ChannelWorkerOptions } from "./channel-worker.js";
 import type { TransitionCoordinator } from "./contracts.js";
+import { expectSignalError } from "../testing/expect-signal-error.js";
+import { settlePromises } from "../testing/settle-promises.js";
 
 const CHANNEL = "channel-1";
 const PREPARE_LEAD_MS = 2_000;
@@ -62,30 +64,10 @@ const following = (
   items,
 });
 
-const settlePromises = async (): Promise<void> => {
-  for (let turn = 0; turn < 5; turn += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-};
-
 /** Advances wall time and lets the worker react before asserting. */
 const advanceTo = async (clock: FakeClock, atMs: number): Promise<void> => {
   clock.advanceTo(atMs);
-  await settlePromises();
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-  throw new Error(`Expected ${code}`);
+  await settlePromises(5);
 };
 
 type Harness = {
@@ -129,7 +111,7 @@ const startWorker = async (
       retained.indexOf("INIT") === -1 ? undefined : retained.indexOf("INIT"),
     ...overrides,
   });
-  await settlePromises();
+  await settlePromises(5);
   const session = packager.sessions[0];
   if (session === undefined) throw new Error("Worker did not start a session");
   session.pushOutput("INIT-output");
@@ -140,7 +122,7 @@ const startWorker = async (
 const committedEntries = (session: FakeSignalSession): string[] =>
   session.committedItems.map((item) => item.scheduleEntryId);
 
-/** A dependency call that never answers, as a stalled database or encoder. */
+/** A dependency call that never answers, as a stalled database or FFmpeg process. */
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
 
 /** Records whether a promise has settled without consuming its outcome. */
@@ -270,9 +252,9 @@ describe("ChannelWorker following-item transitions", () => {
 
   it.each([
     [
-      "a stale cursor",
+      "a stale entry",
       {
-        status: "stale_cursor",
+        status: "stale_entry",
         channelId: CHANNEL,
         scheduleRevision: 8,
         items: [],
@@ -346,7 +328,7 @@ describe("ChannelWorker following-item transitions", () => {
     const stopping = worker.stop();
     pending.resolve();
     await stopping;
-    await settlePromises();
+    await settlePromises(5);
 
     expect(() => commit?.()).toThrow();
     expect(committedEntries(session)).toEqual(["entry-1"]);
@@ -383,7 +365,7 @@ describe("ChannelWorker following-item transitions", () => {
     const setup = harness();
     setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
     const { worker, session } = await startWorker(setup);
-    session.failNextPrepare(new Error("encoder unavailable"));
+    session.failNextPrepare(new Error("FFmpeg process unavailable"));
 
     await advanceTo(setup.clock, 8_000);
 
@@ -547,7 +529,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     session.rejectReady(failure);
     await expect(worker.completion).rejects.toBe(failure);
-    await settlePromises();
+    await settlePromises(5);
 
     expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
       "entry-2",
@@ -728,7 +710,7 @@ describe("ChannelWorker following-item transitions", () => {
     expect(session.isStopped).toBe(true);
 
     gate.resolve();
-    await settlePromises();
+    await settlePromises(5);
     expect(session.hasOutstandingPreparation).toBe(false);
     expect(committedEntries(session)).toEqual(["entry-1"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
@@ -813,7 +795,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     setup.clock.advanceTo(TRANSITION_DEADLINE_MS);
     gate.resolve();
-    await settlePromises();
+    await settlePromises(5);
 
     expect(refusal).toMatchObject({
       code: "transition_failed",

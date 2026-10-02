@@ -1,4 +1,8 @@
 import { SignalError } from "../errors.js";
+import {
+  isNonNegativeSafeInteger,
+  isPositiveSafeInteger,
+} from "../options/safe-integer-option.js";
 import type {
   ChannelId,
   CurrentPlayoutResult,
@@ -8,10 +12,7 @@ import type {
 import type { TimestampMs } from "../runtime/clock.js";
 import type { SignalPlayoutItem } from "../signal-packager/contracts.js";
 
-export type CurrentPlayout = Extract<
-  CurrentPlayoutResult,
-  { status: "current" }
->;
+type CurrentPlayout = Extract<CurrentPlayoutResult, { status: "current" }>;
 
 /** Converts one atomic current-state projection into route-safe failures. */
 export function requireCurrent(
@@ -56,10 +57,8 @@ export function toSignalItem(
   if (
     !Number.isSafeInteger(current.evaluatedAt) ||
     !Number.isSafeInteger(current.item.endsAt) ||
-    !Number.isSafeInteger(current.mediaOffsetMs) ||
-    current.mediaOffsetMs < 0 ||
-    !Number.isSafeInteger(playDurationMs) ||
-    playDurationMs <= 0
+    !isNonNegativeSafeInteger(current.mediaOffsetMs) ||
+    !isPositiveSafeInteger(playDurationMs)
   ) {
     throw invalidItem(channelId, "invalid_current_timing");
   }
@@ -95,8 +94,7 @@ export function selectContiguousFollowing(
     item.startsAt !== boundaryAt ||
     !Number.isSafeInteger(item.endsAt) ||
     item.endsAt <= item.startsAt ||
-    !Number.isSafeInteger(item.startOffsetMs) ||
-    item.startOffsetMs < 0
+    !isNonNegativeSafeInteger(item.startOffsetMs)
   ) {
     return undefined;
   }

@@ -1,7 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/core" },
+    { "path": "./packages/krazi-brain/tsconfig.build.json" },
+    { "path": "./packages/process/tsconfig.build.json" },
     { "path": "./packages/media/tsconfig.build.json" },
     { "path": "./packages/plex" },
     { "path": "./packages/signal/tsconfig.build.json" },

@@ -1,8 +1,13 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { z } from "zod";
 
-export type ApiErrorCode =
+type ApiErrorCode =
+  | "channel_not_found"
+  | "channel_number_duplicate"
+  | "channel_runtime_cleanup_failed"
   | "invalid_request"
   | "internal_error"
+  | "media_collection_not_found"
   | "media_item_not_found"
   | "media_root_disabled"
   | "media_root_duplicate"
@@ -13,14 +18,28 @@ export type ApiErrorCode =
   | "scan_cancelled"
   | "scan_in_progress";
 
-/** Sends the one error envelope every API client can rely on. */
+/**
+ * Sends the one error envelope every API client can rely on. Details add
+ * code-specific fields beside code and message, never replacing them.
+ */
 export function sendApiError(
   reply: FastifyReply,
   statusCode: number,
   code: ApiErrorCode,
   message: string,
+  details: Readonly<Record<string, unknown>> = {},
 ): FastifyReply {
-  return reply.status(statusCode).send({ error: { code, message } });
+  return reply
+    .status(statusCode)
+    .send({ error: { ...details, code, message } });
+}
+
+/** Every body failure shares one code; the message carries Zod's field detail. */
+export function sendInvalidRequest(
+  reply: FastifyReply,
+  error: z.ZodError,
+): FastifyReply {
+  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
 }
 
 /**

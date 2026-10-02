@@ -1,4 +1,5 @@
-import { NodeProcessSpawner } from "./process/node-process-spawner.js";
+import { NodeProcessSpawner } from "@krazitv/process";
+
 import type { MediaProber } from "./probe/contracts.js";
 import { FfprobeMediaProber } from "./probe/ffprobe-media-prober.js";
 

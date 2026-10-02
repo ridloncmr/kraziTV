@@ -1,25 +1,9 @@
 import type { Kysely, Selectable } from "kysely";
 
-import type {
-  DatabaseSchema,
-  MediaItemStatus,
-  MediaItemTable,
-} from "../database/schema.js";
-
-export interface MediaItem {
-  id: string;
-  mediaRootId: string;
-  path: string;
-  title: string;
-  durationMs: number | null;
-  hasAudio: boolean | null;
-  status: MediaItemStatus;
-  probeError: string | null;
-  createdAt: number;
-  updatedAt: number;
-  lastSeenAt: number;
-  lastProbedAt: number | null;
-}
+import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import type { MediaItem } from "./contracts.js";
 
 /** Reads committed catalog items; scans remain the only writer. */
 export class MediaItemRepository {
@@ -65,7 +49,7 @@ function toMediaItem(row: Selectable<MediaItemTable>): MediaItem {
     path: row.path,
     title: row.title,
     durationMs: row.duration_ms,
-    hasAudio: row.has_audio === null ? null : row.has_audio === 1,
+    hasAudio: row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
     status: row.status,
     probeError: row.probe_error,
     createdAt: row.created_at,

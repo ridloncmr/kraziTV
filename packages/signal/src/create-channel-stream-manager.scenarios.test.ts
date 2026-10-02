@@ -20,6 +20,8 @@ import {
   type FakeSignalSession,
 } from "./testing/fake-signal-packager.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
+import { expectSignalError } from "./testing/expect-signal-error.js";
+import { settlePromises } from "./testing/settle-promises.js";
 
 // Package-level scenarios: the real manager, worker, broadcaster, and
 // transition loop run together. Only playout, packaging, coordination, and
@@ -75,12 +77,6 @@ const following = (
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
 
 /** Drains stream and promise reactions so assertions see settled state. */
-const settlePromises = async (): Promise<void> => {
-  for (let turn = 0; turn < 10; turn += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-};
-
 class SwitchableAuthorization implements ChannelAuthorization {
   private readonly disabled = new Set<ChannelId>();
 
@@ -184,17 +180,17 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
 
     /** Emits a joinable initialization and reports packager readiness. */
     async ready(index: number, initialization = "INIT-output"): Promise<void> {
-      await settlePromises();
+      await settlePromises(10);
       const session = this.session(index);
       session.pushOutput(initialization);
       session.resolveReady();
-      await settlePromises();
+      await settlePromises(10);
     },
 
     /** Advances wall time and lets every runtime reaction settle. */
     async advanceTo(atMs: number): Promise<void> {
       clock.advanceTo(atMs);
-      await settlePromises();
+      await settlePromises(10);
     },
 
     /** Proves no timer, session, preparation, or viewer outlived the runtime. */
@@ -213,19 +209,6 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
 };
 
 /** Asserts a typed runtime failure and returns it for further checks. */
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  const error = await promise.then(
-    () => undefined,
-    (reason: unknown) => reason,
-  );
-  expect(error).toBeInstanceOf(SignalError);
-  expect(error).toMatchObject({ code });
-  return error as SignalError;
-};
-
 describe("createChannelStreamManager scenarios", () => {
   describe("startup and fan-out", () => {
     it.each([
@@ -241,21 +224,21 @@ describe("createChannelStreamManager scenarios", () => {
           joined = true;
           return viewer;
         });
-        await settlePromises();
+        await settlePromises(10);
 
         if (readinessFirst) run.session(0).resolveReady();
         else run.session(0).pushOutput("INIT-output");
-        await settlePromises();
+        await settlePromises(10);
         expect(joined).toBe(false);
 
         if (readinessFirst) run.session(0).pushOutput("INIT-output");
         else run.session(0).resolveReady();
-        await settlePromises();
+        await settlePromises(10);
         expect(joined).toBe(true);
         expect((await joining).received()).toBe("INIT-output");
 
         await run.manager.shutdown();
-        await settlePromises();
+        await settlePromises(10);
         run.expectNoLeaks();
       },
     );
@@ -271,19 +254,19 @@ describe("createChannelStreamManager scenarios", () => {
 
       expect(run.packager.sessions).toHaveLength(1);
       run.session(0).pushOutput("-live");
-      await settlePromises();
+      await settlePromises(10);
       expect(a.received()).toBe("INIT-output-live");
       expect(b.received()).toBe("INIT-output-live");
 
       a.subscription.close();
       run.session(0).pushOutput("-more");
-      await settlePromises();
+      await settlePromises(10);
       expect(a.received()).toBe("INIT-output-live");
       expect(b.received()).toBe("INIT-output-live-more");
       expect(run.session(0).isStopped).toBe(false);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -292,7 +275,7 @@ describe("createChannelStreamManager scenarios", () => {
       run.arrangeStartup(entry("entry-1", 0));
       const first = run.subscribe();
       const second = run.subscribe();
-      await settlePromises();
+      await settlePromises(10);
       const failure = new SignalError("packaging_failed", "FFmpeg exited");
 
       run.session(0).rejectReady(failure);
@@ -310,7 +293,7 @@ describe("createChannelStreamManager scenarios", () => {
       expect(run.packager.sessions).toHaveLength(2);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -319,12 +302,12 @@ describe("createChannelStreamManager scenarios", () => {
       run.arrangeStartup(entry("entry-1", 0));
       const controller = new AbortController();
       const joining = run.subscribe({ signal: controller.signal });
-      await settlePromises();
+      await settlePromises(10);
       expect(run.packager.sessions).toHaveLength(1);
 
       controller.abort();
       await expectSignalError(joining, "subscription_aborted");
-      await settlePromises();
+      await settlePromises(10);
 
       run.expectNoLeaks();
       await run.manager.shutdown();
@@ -338,17 +321,17 @@ describe("createChannelStreamManager scenarios", () => {
       const early = await joining;
 
       run.session(0).pushOutput("-b");
-      await settlePromises();
+      await settlePromises(10);
       const late = await run.subscribe();
       run.session(0).pushOutput("-c");
-      await settlePromises();
+      await settlePromises(10);
 
       expect(early.received()).toBe("INIT-a-b-c");
       expect(late.received()).toBe("INIT-a-b-c");
       expect(run.packager.sessions).toHaveLength(1);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -366,14 +349,14 @@ describe("createChannelStreamManager scenarios", () => {
       const chunk = "x".repeat(SUBSCRIBER_BUFFER_LIMIT_BYTES / 2 + 1);
       run.session(0).pushOutput(chunk);
       run.session(0).pushOutput(chunk);
-      await settlePromises();
+      await settlePromises(10);
 
       expect(stalled.subscription.stream.destroyed).toBe(true);
       expect(active.received()).toBe(`INIT-output${chunk}${chunk}`);
       expect(run.session(0).isStopped).toBe(false);
 
       active.subscription.close();
-      await settlePromises();
+      await settlePromises(10);
       await run.advanceTo(run.clock.now() + IDLE_GRACE_MS);
       run.expectNoLeaks();
     });
@@ -389,7 +372,7 @@ describe("createChannelStreamManager scenarios", () => {
 
       viewer.subscription.close();
       viewer.subscription.close();
-      await settlePromises();
+      await settlePromises(10);
       await run.advanceTo(1_000 + IDLE_GRACE_MS - 1);
       expect(run.session(0).isStopped).toBe(false);
 
@@ -403,7 +386,7 @@ describe("createChannelStreamManager scenarios", () => {
       const joining = run.subscribe();
       await run.ready(0);
       (await joining).subscription.close();
-      await settlePromises();
+      await settlePromises(10);
 
       await run.advanceTo(1_000 + IDLE_GRACE_MS / 2);
       const returning = await run.subscribe();
@@ -412,11 +395,11 @@ describe("createChannelStreamManager scenarios", () => {
       expect(run.packager.sessions).toHaveLength(1);
       expect(run.session(0).isStopped).toBe(false);
       run.session(0).pushOutput("-live");
-      await settlePromises();
+      await settlePromises(10);
       expect(returning.received()).toBe("INIT-output-live");
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -440,7 +423,7 @@ describe("createChannelStreamManager scenarios", () => {
         await run.advanceTo(8_000);
         await run.advanceTo(9_000);
         viewer.subscription.close();
-        await settlePromises();
+        await settlePromises(10);
 
         for (const atMs of [9_999, 10_000, 10_001]) {
           await run.advanceTo(atMs);
@@ -477,7 +460,7 @@ describe("createChannelStreamManager scenarios", () => {
         await run.advanceTo(atMs);
       }
       run.session(0).pushOutput("-after");
-      await settlePromises();
+      await settlePromises(10);
 
       expect(
         run.session(0).committedItems.map((item) => item.scheduleEntryId),
@@ -487,7 +470,7 @@ describe("createChannelStreamManager scenarios", () => {
       expect(viewer.subscription.stream.destroyed).toBe(false);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -517,7 +500,7 @@ describe("createChannelStreamManager scenarios", () => {
       expect(viewer.subscription.stream.destroyed).toBe(false);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -547,7 +530,7 @@ describe("createChannelStreamManager scenarios", () => {
       expect(run.packager.sessions).toHaveLength(2);
 
       await run.manager.shutdown();
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
   });
@@ -565,7 +548,7 @@ describe("createChannelStreamManager scenarios", () => {
 
       run.authorization.disable(CHANNEL);
       await run.manager.stopChannel(CHANNEL, "disabled");
-      await settlePromises();
+      await settlePromises(10);
 
       expect(
         run.session(0).discardedItems.map((item) => item.scheduleEntryId),
@@ -589,7 +572,7 @@ describe("createChannelStreamManager scenarios", () => {
       await run.ready(0);
       const viewer = await joining;
       await run.advanceTo(8_000);
-      const failure = new Error("encoder refused discard");
+      const failure = new Error("FFmpeg process refused discard");
       run.session(0).failDiscards(failure, failure, failure);
 
       await expect(
@@ -598,7 +581,7 @@ describe("createChannelStreamManager scenarios", () => {
       expect(viewer.subscription.stream.destroyed).toBe(true);
 
       await run.manager.stopChannel(CHANNEL, "disabled");
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
     });
 
@@ -611,12 +594,12 @@ describe("createChannelStreamManager scenarios", () => {
 
       run.arrangeStartup(entry("other-1", 0, "channel-2"));
       const starting = run.manager.subscribe("channel-2");
-      await settlePromises();
+      await settlePromises(10);
       expect(run.packager.sessions).toHaveLength(2);
 
       await run.manager.shutdown();
       await expectSignalError(starting, "manager_shutdown");
-      await settlePromises();
+      await settlePromises(10);
       run.expectNoLeaks();
       await expectSignalError(
         run.manager.subscribe(CHANNEL),

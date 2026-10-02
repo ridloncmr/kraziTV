@@ -6,7 +6,8 @@ import type {
   ProcessSpawnRequest,
   ProcessTerminationSignal,
   SpawnedProcess,
-} from "../process/process-spawner.js";
+} from "@krazitv/process";
+
 import { Deferred } from "./deferred.js";
 
 export class FakeProcess implements SpawnedProcess {

@@ -1,21 +1,21 @@
 // Spec 0002 acceptance: the whole catalog slice over HTTP, a real temporary
 // SQLite file, and a real media directory. Only ffprobe is replaced.
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, join, sep } from "node:path";
 
 import { MediaProbeError, type MediaProbeResult } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildServer } from "../app.js";
-import { openDatabase } from "../database/database.js";
-import { MediaItemRepository } from "../media-items/media-item-repository.js";
-import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
-import { CatalogScanWriter } from "./catalog-scan-writer.js";
-import { CatalogScanner } from "./catalog-scanner.js";
-import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
+import {
+  cleanUpTestEnvironment,
+  createTemporaryDirectory,
+  startTestServer,
+} from "../testing/test-environment.js";
+import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
+import { CatalogScanner } from "./scanner/catalog-scanner.js";
+import { ConcurrencyLimitedProber } from "./scanner/concurrency-limited-prober.js";
 
 interface RunningServer {
   server: FastifyInstance;
@@ -24,9 +24,7 @@ interface RunningServer {
 
 type ProbeOutcome = MediaProbeResult | MediaProbeError;
 
-const servers: FastifyInstance[] = [];
 const probers: ControlledProber[] = [];
-const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   // A failed assertion can leave probes pending, and shutdown waits for them, so
@@ -34,34 +32,22 @@ afterEach(async () => {
   for (const probe of probers.splice(0).flatMap((prober) => prober.started)) {
     probe.reject(new MediaProbeError("cancelled", "ffprobe was cancelled"));
   }
-  await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
+  await cleanUpTestEnvironment();
 });
 
 // Composes the server the way index.ts does, swapping only ffprobe for a controlled double.
 async function startServer(dataDirectory: string): Promise<RunningServer> {
-  const database = await openDatabase({ dataDirectory });
-  const mediaRoots = new MediaRootRepository(database.db);
   const prober = new ControlledProber();
-  const scanner = new CatalogScanner({
-    roots: mediaRoots,
-    prober: new ConcurrencyLimitedProber(prober, 4),
-    writer: new CatalogScanWriter(database.db),
+  const { server } = await startTestServer({
+    dataDirectory,
+    overrides: (db, { mediaRoots }) => ({
+      scanner: new CatalogScanner({
+        roots: mediaRoots,
+        prober: new ConcurrencyLimitedProber(prober, 4),
+        writer: new CatalogScanWriter(db),
+      }),
+    }),
   });
-  const server = buildServer(
-    {
-      database,
-      mediaRoots,
-      scanner,
-      mediaItems: new MediaItemRepository(database.db),
-    },
-    { logger: false },
-  );
-  servers.push(server);
   probers.push(prober);
   return { server, prober };
 }
@@ -103,8 +89,7 @@ async function listRoots({ server }: RunningServer) {
 
 describe("media catalog acceptance", () => {
   it("builds, persists, reconciles, and protects the catalog end to end", async () => {
-    const workspace = await mkdtemp(join(tmpdir(), "krazitv-acceptance-"));
-    temporaryDirectories.push(workspace);
+    const workspace = await createTemporaryDirectory();
     const dataDirectory = join(workspace, "data");
     const mediaDirectory = join(workspace, "Movies");
     await mkdir(mediaDirectory);

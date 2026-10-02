@@ -11,26 +11,36 @@
   "scripts": {
     "agents:check": "node .claude/sync-skills.mjs --check",
     "agents:sync": "node .claude/sync-skills.mjs",
+    "audit": "node scripts/codebase-audit/run-audit.mjs",
+    "audit:strict": "node scripts/codebase-audit/run-audit.mjs --strict",
     "build": "tsc -b tsconfig.build.json && npm run build --workspace @krazitv/web",
     "build:node": "tsc -b tsconfig.build.json",
+    "clean": "node -e \"const fs = require('node:fs'); for (const group of ['apps', 'packages']) for (const workspace of fs.readdirSync(group)) fs.rmSync(`${group}/${workspace}/dist`, { recursive: true, force: true })\"",
     "dev": "npm run dev --workspace @krazitv/server",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "spike:assets": "npm run assets --workspace @krazitv/plex-spike",
     "spike:dev": "npm run dev --workspace @krazitv/plex-spike",
     "spike:test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/plex-spike",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:audit",
     "test:ffprobe": "npm run test:ffprobe --workspace @krazitv/media",
-    "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspace @krazitv/server && npm run typecheck --workspace @krazitv/media && npm run typecheck --workspace @krazitv/signal && npm run typecheck --workspace @krazitv/plex-spike && npm run typecheck --workspace @krazitv/web"
+    "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test:audit": "vitest run scripts"
   },
   "engines": {
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^22.20.4",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
+    "jscpd": "^5.4.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"
   }
 }

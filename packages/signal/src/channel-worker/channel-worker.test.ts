@@ -13,7 +13,9 @@ import { Deferred } from "../testing/deferred.js";
 import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
 import { DefaultChannelWorkerFactory } from "./default-channel-worker-factory.js";
-import { WorkerCreationCleanupError } from "./worker-creation-cleanup-error.js";
+import { WorkerCreationCleanupError } from "./channel-worker-errors.js";
+import { expectSignalError } from "../testing/expect-signal-error.js";
+import { settlePromises } from "../testing/settle-promises.js";
 
 const currentItem = (
   evaluatedAt: number,
@@ -121,24 +123,6 @@ const workerOptions = (
       ? undefined
       : retainedBytes.indexOf("INIT"),
 });
-
-const settlePromises = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-};
-
-const expectSignalError = async (
-  promise: Promise<unknown>,
-  code: SignalError["code"],
-): Promise<SignalError> => {
-  try {
-    await promise;
-  } catch (error) {
-    expect(error).toBeInstanceOf(SignalError);
-    expect(error).toMatchObject({ code });
-    return error as SignalError;
-  }
-  throw new Error(`Expected ${code}`);
-};
 
 describe("ChannelWorker startup", () => {
   it("starts from the final wall-clock snapshot without shifting the scheduled end", async () => {
@@ -487,11 +471,11 @@ describe("ChannelWorker startup", () => {
       "arranged startup cleanup failure",
     );
     const stop = vi
-      .spyOn(session!, "stop")
+      .spyOn(session, "stop")
       .mockRejectedValueOnce(cleanupFailure)
       .mockResolvedValueOnce(undefined);
 
-    session!.rejectReady(
+    session.rejectReady(
       new SignalError("packaging_failed", "arranged readiness failure"),
     );
 
