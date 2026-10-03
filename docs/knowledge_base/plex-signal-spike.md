@@ -151,21 +151,22 @@ The SIG-011 matrix passed on 2026-09-29 with:
 - VIDEO B SHA-256
   `166f16a5ff351cef6b4dfcaa29e6ccf2759500d26d317a6f4047ec25d5201cb3`.
 
-| Measurement                | Result                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| Manual tuner setup         | Plex discovered the tuner and listed Channel 69                                 |
-| Corrected cold-start waits | 1,719 ms, 1,705 ms, 1,708 ms, 1,697 ms, and 1,730 ms                            |
-| Initial tune drift         | Approximately 1.7 seconds behind schedule; below the 2,000 ms ceiling           |
-| Pacing                     | `-re` remained approximately 1x through repeated 30-second items                |
-| Boundary commit latency    | Within 9 ms of the scheduled boundary                                           |
-| Boundary usable-output gap | 1,701-1,715 ms; Plex showed no playback interruption                            |
-| Boundary strategy          | Sequential encoders spliced on 188-byte packet boundaries                       |
-| Shared process count       | One kraziTV worker and encoder while two Plex clients played                    |
-| Plex late client           | Buffered still initially, then about one second behind Viewer A                 |
-| Direct late subscriber     | Attached in 5 ms and decoded a 165,064-byte, three-second capture               |
-| Slow subscriber            | A 1 KiB/s client ran for 110 seconds without affecting Plex playback            |
-| Idle shutdown              | Session stopped 5,261 ms after the final disconnect; no FFmpeg process remained |
-| Active shutdown            | Stopping the harness settled the active worker and encoder                      |
+| Measurement                | Result                                                                                                                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manual tuner setup         | Plex discovered the tuner and listed Channel 69                                                                                                                                                                |
+| Corrected cold-start waits | 1,719 ms, 1,705 ms, 1,708 ms, 1,697 ms, and 1,730 ms                                                                                                                                                           |
+| Initial tune drift         | Approximately 1.7 seconds behind schedule; below the 2,000 ms ceiling                                                                                                                                          |
+| Pacing                     | `-re` remained approximately 1x through repeated 30-second items                                                                                                                                               |
+| Boundary commit latency    | Within 9 ms of the scheduled boundary                                                                                                                                                                          |
+| Boundary usable-output gap | 1,701-1,715 ms; Plex showed no playback interruption                                                                                                                                                           |
+| Boundary strategy          | Sequential encoders spliced on 188-byte packet boundaries                                                                                                                                                      |
+| Shared process count       | One kraziTV worker and encoder while two Plex clients played                                                                                                                                                   |
+| Plex late client           | Buffered still initially, then about one second behind Viewer A                                                                                                                                                |
+| Direct late subscriber     | Attached in 5 ms and decoded a 165,064-byte, three-second capture                                                                                                                                              |
+| Slow subscriber            | A 1 KiB/s client ran for 110 seconds without affecting Plex playback                                                                                                                                           |
+| Idle shutdown              | Session stopped 5,261 ms after the final disconnect; no FFmpeg process remained                                                                                                                                |
+| Active shutdown            | Stopping the harness settled the active worker and encoder                                                                                                                                                     |
+| Black-tail boundary        | Passed on 2026-10-03 with an approximately 10-second black and silent tail; after extended initial buffering, Plex continued into the next labeled video without further buffering, stopping, or disconnecting |
 
 The first run exposed that replaying from the oldest retained PAT burst 4.3 MiB
 to a late subscriber and produced missing-PPS decoder warnings. The retained fix
@@ -178,3 +179,8 @@ one-second GOP bounds that interval.
 Selected defaults are a 2,000 ms startup timeout, 2,000 ms preparation lead,
 4 MiB retention and per-subscriber limits, 5,000 ms idle grace, and 5,000 ms
 process-termination grace. No startup burst or catch-up mode is required.
+
+The black-tail rerun used Plex Media Server
+`1.43.4.10903-e5521bd8c` and FFmpeg `6.1.1-3ubuntu5`. The retained black-tail
+command uses x264's `zerolatency` tune to stay within the startup ceiling; a
+real-FFmpeg regression measured readiness below 2,000 ms before the manual run.
