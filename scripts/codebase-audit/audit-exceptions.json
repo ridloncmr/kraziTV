@@ -55,6 +55,12 @@
       "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
     },
     {
+      "rule": "file-size",
+      "files": ["apps/server/src/schedules/schedule-service.ts"],
+      "reason": "Reviewed in the 2026-10-02 audit: the class reads as its schedule transitions; pure checks and persistence already live in schedule-coverage.ts and schedule-repository.ts.",
+      "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
+    },
+    {
       "rule": "shared-type-placement",
       "files": [
         "apps/server/src/database/schema/channel-table.ts",
