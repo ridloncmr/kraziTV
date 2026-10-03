@@ -22,6 +22,7 @@ import { ScheduleService } from "../schedules/schedule-service.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
+import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 
 /** Every server dependency except the database, which the helper always opens. */
@@ -93,6 +94,7 @@ export async function startTestServer(
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
     channelRuntime: noOpChannelRuntime,
+    channelStreams: new ControlledChannelStreams(),
     programmingBlocks: new ProgrammingBlockRepository(database.db),
     schedules,
     playout: new PlayoutService(database.db, schedules),

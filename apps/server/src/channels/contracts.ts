@@ -40,3 +40,12 @@ export type UpdateChannelResult =
  * administrative stop that settles a channel's runtime after disable or delete.
  */
 export type ChannelRuntime = Pick<ChannelStreamManagerContract, "stopChannel">;
+
+/**
+ * The slice of the channel stream manager the server owns: one viewer's tune,
+ * and the shutdown that ends live streams so the server can close.
+ */
+export type ChannelStreams = Pick<
+  ChannelStreamManagerContract,
+  "subscribe" | "shutdown"
+>;

@@ -13,6 +13,9 @@ import type { ChannelRepository } from "./channels/repository/channel-repository
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
+import type { ChannelStreams } from "./channels/contracts.js";
+import { captureLogLines } from "./testing/captured-log-lines.js";
+import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -21,6 +24,7 @@ function createDependencies(
   scanner: Pick<CatalogScanner, "shutdown"> = {
     shutdown: async () => undefined,
   },
+  channelStreams: ChannelStreams = new ControlledChannelStreams(),
 ): ServerDependencies {
   // These tests never reach catalog or channel routes, so unused stand-ins are
   // enough; schedules still answers the startup ensure.
@@ -32,6 +36,7 @@ function createDependencies(
     mediaCollections: {} as MediaCollectionRepository,
     channels: {} as ChannelRepository,
     channelRuntime: { stopChannel: async () => undefined },
+    channelStreams,
     programmingBlocks: {} as ProgrammingBlockRepository,
     schedules: {
       ensureAllEnabled: async () => undefined,
@@ -128,5 +133,36 @@ describe("buildServer", () => {
     await server.close();
 
     expect(events).toEqual(["scanner stopped", "database closed"]);
+  });
+
+  it("waits for scans and logs the failure when channel streams fail to shut down", async () => {
+    const events: string[] = [];
+    const { lines, stream } = captureLogLines();
+    const server = buildServer(
+      createDependencies(
+        { close: async () => void events.push("database closed") },
+        {
+          shutdown: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            events.push("scanner stopped");
+          },
+        },
+        {
+          subscribe: () => Promise.reject(new Error("unused")),
+          shutdown: () => Promise.reject(new Error("FFmpeg did not exit")),
+        },
+      ),
+      { logger: { level: "error", stream } },
+    );
+
+    await server.close();
+
+    expect(events).toEqual(["scanner stopped", "database closed"]);
+    expect(lines).toContainEqual(
+      expect.objectContaining({
+        msg: "Shutdown step failed",
+        err: expect.objectContaining({ message: "FFmpeg did not exit" }),
+      }),
+    );
   });
 });

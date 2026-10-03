@@ -623,6 +623,23 @@ structured HTTP error without a partially successful streaming response. After
 streaming begins, failures are logged and the affected subscriber streams
 terminate; the MVP does not synthesize an error or filler stream.
 
+`GET /channels/:id/stream` maps each pre-response failure to the existing API
+error envelope. Messages name the channel only; media paths, offsets, and
+FFmpeg output stay in the server log.
+
+| Code                     | Status | When                                                                                                              |
+| ------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| `channel_not_found`      | 404    | Unknown channel, or deleted while the tune waited                                                                 |
+| `channel_disabled`       | 409    | Disabled channel, or disabled while the tune waited                                                               |
+| `no_current_playout`     | 409    | Nothing airs now, such as a channel with no schedulable media                                                     |
+| `playout_unavailable`    | 503    | Schedule coverage stayed short after its retry; `retryable: true`                                                 |
+| `stream_startup_timeout` | 503    | The worker produced no usable output within the startup timeout; `retryable: true`                                |
+| `stream_unavailable`     | 503    | The runtime is stopping, shutting down, or still settling an earlier cleanup; `retryable: true`                   |
+| `stream_failed`          | 500    | Media unavailable, an invalid playout item, FFmpeg missing or failing before readiness, or any other worker fault |
+
+A tune the client abandons before the subscription completes cancels its
+subscription and sends nothing.
+
 When a committed disable or delete cannot finish `stopChannel()`, `apps/server`
 maps that operational failure to the channel API's retryable
 `channel_runtime_cleanup_failed` response. SignalPackager and the manager do not

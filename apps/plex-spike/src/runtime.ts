@@ -1,6 +1,8 @@
 import {
   createChannelStreamManager,
   createFfmpegSignalPackager,
+  findMpegTsJoinPoint,
+  SystemRuntime,
   type ChannelAuthorization,
   type ChannelAuthorizationResult,
   type ChannelId,
@@ -9,10 +11,8 @@ import {
   type CurrentPlayoutResult,
   type FollowingPlayoutResult,
   type PlayoutProvider,
-  type ScheduledTask,
   type SelectedPlayoutItem,
   type SignalLogger,
-  type TimerScheduler,
   type TransitionCandidate,
   type TransitionCoordinator,
 } from "@krazitv/signal";
@@ -21,7 +21,6 @@ import type { SpikeConfig } from "./config.js";
 
 const CHANNEL_ID = "69";
 const SCHEDULE_REVISION = 1;
-const MPEG_TS_PACKET_BYTES = 188;
 
 type FixedPlayoutOptions = Pick<
   SpikeConfig,
@@ -169,33 +168,6 @@ export class FixedTransitionCoordinator implements TransitionCoordinator {
   }
 }
 
-/** Adapts wall time and native timers to the signal runtime ports. */
-class SystemRuntime implements Clock, TimerScheduler {
-  /** Keeps schedule evaluation anchored to Unix epoch milliseconds. */
-  now(): number {
-    return Date.now();
-  }
-
-  /** Makes native timers explicitly cancellable for runtime cleanup. */
-  setTimeout(callback: () => void, delayMs: number): ScheduledTask {
-    let active = true;
-    const timeout = globalThis.setTimeout(() => {
-      active = false;
-      callback();
-    }, delayMs);
-    return {
-      get active() {
-        return active;
-      },
-      cancel: () => {
-        if (!active) return;
-        active = false;
-        globalThis.clearTimeout(timeout);
-      },
-    };
-  }
-}
-
 /** Timestamps retained lifecycle events when they reach the disposable harness. */
 const recordSpikeMeasurement = (
   event: string,
@@ -245,30 +217,6 @@ export function createSpikeManager(
     retentionLimitBytes: 4 * 1024 * 1024,
     findJoinPoint: findMpegTsJoinPoint,
   });
-}
-
-/** Finds the newest PAT-aligned late-join point backed by complete TS packets. */
-export function findMpegTsJoinPoint(retained: Buffer): number | undefined {
-  for (
-    let offset = retained.byteLength - MPEG_TS_PACKET_BYTES * 3;
-    offset >= 0;
-    offset -= 1
-  ) {
-    if (
-      retained[offset] === 0x47 &&
-      retained[offset + MPEG_TS_PACKET_BYTES] === 0x47 &&
-      retained[offset + MPEG_TS_PACKET_BYTES * 2] === 0x47 &&
-      packetPid(retained, offset) === 0
-    ) {
-      return offset;
-    }
-  }
-  return undefined;
-}
-
-/** Extracts the MPEG-TS PID while masking transport-error and payload flags. */
-function packetPid(buffer: Buffer, offset: number): number {
-  return ((buffer[offset + 1] ?? 0) & 0x1f) * 256 + (buffer[offset + 2] ?? 0);
 }
 
 /** Accepts only entry IDs created by this fixed provider. */

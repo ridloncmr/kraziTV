@@ -7,6 +7,8 @@ export {
   createFfmpegSignalPackager,
   type CreateFfmpegSignalPackagerOptions,
 } from "./create-ffmpeg-signal-packager.js";
+export { findMpegTsJoinPoint } from "./ffmpeg/mpeg-ts/mpeg-ts-join-point.js";
+export { SystemRuntime } from "./runtime/system-runtime.js";
 
 // What callers receive from the channel stream manager.
 export type {
