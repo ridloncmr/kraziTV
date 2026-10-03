@@ -26,6 +26,7 @@ const initialItem = (
   hasAudio: true,
   mediaOffsetMs: 250,
   playDurationMs: 30_000,
+  blackTailMs: 0,
   ...overrides,
 });
 

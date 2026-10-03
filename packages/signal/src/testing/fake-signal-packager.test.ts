@@ -11,6 +11,7 @@ const item = (scheduleEntryId: string): SignalPlayoutItem => ({
   hasAudio: true,
   mediaOffsetMs: 0,
   playDurationMs: 30_000,
+  blackTailMs: 0,
 });
 
 describe("FakeSignalPackager", () => {

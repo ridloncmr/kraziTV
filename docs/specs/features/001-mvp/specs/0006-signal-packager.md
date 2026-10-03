@@ -446,6 +446,12 @@ process emits black video and silence after the media ends. This keeps the
 broadcast signal continuous and paced at wall-clock speed up to the boundary
 instead of going quiet. The black tail is the seam that filler replaces later.
 
+A black tail only continues a broadcast that is already running. A tune that
+starts a new worker during the tail, like `GET /channels/:id/now`, gets
+`media_unavailable`, because spec 0005 reports an offset at or past the media's
+length that way. This happens only when media is re-probed shorter than its
+scheduled airtime.
+
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
 A narrow playout provider may be used by the worker:

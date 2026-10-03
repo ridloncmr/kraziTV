@@ -10,6 +10,8 @@ const VIDEO_FILTER =
   "scale=1920:1080:force_original_aspect_ratio=decrease," +
   "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1";
 
+const BLACK_TAIL_VIDEO_FILTER = "tpad=stop_mode=add:stop=-1:color=black";
+
 /** Validates one selected item and expresses the MVP packaging policy as argv. */
 export function buildFfmpegArguments(
   item: SignalPlayoutItem,
@@ -20,12 +22,16 @@ export function buildFfmpegArguments(
   if (!isPositiveSafeInteger(item.playDurationMs)) {
     throw invalidPlayoutItem("playDurationMs");
   }
+  if (!isNonNegativeSafeInteger(item.blackTailMs)) {
+    throw invalidPlayoutItem("blackTailMs");
+  }
   if (typeof item.hasAudio !== "boolean") {
     throw invalidPlayoutItem("hasAudio");
   }
   const audioInput = item.hasAudio
     ? []
     : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"];
+  const hasBlackTail = item.blackTailMs > 0;
 
   return [
     "-hide_banner",
@@ -35,11 +41,15 @@ export function buildFfmpegArguments(
     "-re",
     "-ss",
     millisecondsToDecimalSeconds(item.mediaOffsetMs),
+    // A black tail stops the media read at its span so the output can run on.
+    ...(hasBlackTail
+      ? ["-t", millisecondsToDecimalSeconds(item.playDurationMs)]
+      : []),
     "-i",
     item.mediaPath,
     ...audioInput,
     "-t",
-    millisecondsToDecimalSeconds(item.playDurationMs),
+    millisecondsToDecimalSeconds(item.playDurationMs + item.blackTailMs),
     "-map",
     "0:v:0",
     "-map",
@@ -57,7 +67,14 @@ export function buildFfmpegArguments(
     "-sc_threshold",
     "0",
     "-vf",
-    VIDEO_FILTER,
+    hasBlackTail ? `${VIDEO_FILTER},${BLACK_TAIL_VIDEO_FILTER}` : VIDEO_FILTER,
+    // `-re` paces input reads only, so the generated tail needs its own
+    // wall-clock pacing. Pacing audio alone holds the interleaved video too;
+    // a video `realtime` stage stacks with encoder buffering and can lag.
+    // Synthesized silence never ends, so only source audio needs padding.
+    ...(hasBlackTail
+      ? ["-af", item.hasAudio ? "apad,arealtime" : "arealtime"]
+      : []),
     "-c:a",
     "aac",
     "-ar",
@@ -87,7 +104,7 @@ function millisecondsToDecimalSeconds(milliseconds: number): string {
 
 /** Avoids echoing values or media paths into externally visible errors. */
 function invalidPlayoutItem(
-  field: "hasAudio" | "mediaOffsetMs" | "playDurationMs",
+  field: "blackTailMs" | "hasAudio" | "mediaOffsetMs" | "playDurationMs",
 ): SignalError {
   return new SignalError(
     "invalid_playout_item",
