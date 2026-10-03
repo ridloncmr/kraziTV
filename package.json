@@ -24,7 +24,7 @@
     "spike:test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/plex-spike",
     "test": "npm run test --workspaces --if-present && npm run test:audit",
     "test:ffprobe": "npm run test:ffprobe --workspace @krazitv/media",
-    "test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/signal",
+    "test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/signal --workspace @krazitv/server",
     "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "test:audit": "vitest run scripts",

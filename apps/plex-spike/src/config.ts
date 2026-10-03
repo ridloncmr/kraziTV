@@ -8,6 +8,8 @@ export type SpikeConfig = {
   mediaAPath: string;
   mediaBPath: string;
   mediaDurationMs: number;
+  /** Each slot's airtime; longer than the media to air a black tail. */
+  airtimeMs: number;
   publicBaseUrl: string;
   host: string;
   port: number;
@@ -43,11 +45,23 @@ export function loadSpikeConfig(
     environment.KRAZITV_SPIKE_PUBLIC_BASE_URL ?? `http://127.0.0.1:${port}`,
   );
 
+  const airtimeMs = positiveInteger(
+    environment.KRAZITV_SPIKE_AIRTIME_MS ?? String(GENERATED_ASSET_DURATION_MS),
+    "KRAZITV_SPIKE_AIRTIME_MS",
+  );
+  // A shorter slot would truncate media rather than test the black tail.
+  if (airtimeMs < GENERATED_ASSET_DURATION_MS) {
+    throw new Error(
+      `KRAZITV_SPIKE_AIRTIME_MS must be at least ${GENERATED_ASSET_DURATION_MS}, the generated media duration.`,
+    );
+  }
+
   return {
     ffmpegPath: environment.KRAZITV_SPIKE_FFMPEG_PATH ?? "ffmpeg",
     mediaAPath,
     mediaBPath,
     mediaDurationMs: GENERATED_ASSET_DURATION_MS,
+    airtimeMs,
     publicBaseUrl,
     host: environment.KRAZITV_SPIKE_HOST ?? "127.0.0.1",
     port,

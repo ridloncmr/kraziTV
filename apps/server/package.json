@@ -9,6 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run src",
+    "pretest:ffmpeg": "tsc -b ../../tsconfig.build.json",
+    "test:ffmpeg": "vitest run integration/",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

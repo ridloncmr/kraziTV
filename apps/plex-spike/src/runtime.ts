@@ -26,6 +26,8 @@ type FixedPlayoutOptions = Pick<
   SpikeConfig,
   "mediaAPath" | "mediaBPath" | "mediaDurationMs"
 > & {
+  /** Defaults to the media length; a longer slot airs a black tail. */
+  airtimeMs?: number;
   startedAt: number;
   record?: (event: string, context: Readonly<Record<string, unknown>>) => void;
 };
@@ -112,17 +114,19 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
   private ordinalAt(atMs: number): number {
     return Math.max(
       0,
-      Math.floor(
-        (atMs - this.options.startedAt) / this.options.mediaDurationMs,
-      ),
+      Math.floor((atMs - this.options.startedAt) / this.slotMs()),
     );
+  }
+
+  /** Slots default to the media length; a longer slot airs a black tail. */
+  private slotMs(): number {
+    return this.options.airtimeMs ?? this.options.mediaDurationMs;
   }
 
   /** Builds one complete atomic selection without storing mutable schedule state. */
   private item(ordinal: number): SelectedPlayoutItem {
     const isA = ordinal % 2 === 0;
-    const startsAt =
-      this.options.startedAt + ordinal * this.options.mediaDurationMs;
+    const startsAt = this.options.startedAt + ordinal * this.slotMs();
     return {
       channelId: CHANNEL_ID,
       scheduleEntryId: `spike-${ordinal}-${isA ? "a" : "b"}`,
@@ -132,7 +136,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
       hasAudio: true,
       title: isA ? "VIDEO A" : "VIDEO B",
       startsAt,
-      endsAt: startsAt + this.options.mediaDurationMs,
+      endsAt: startsAt + this.slotMs(),
       durationMs: this.options.mediaDurationMs,
       startOffsetMs: 0,
     };
@@ -196,6 +200,7 @@ export function createSpikeManager(
     mediaAPath: config.mediaAPath,
     mediaBPath: config.mediaBPath,
     mediaDurationMs: config.mediaDurationMs,
+    airtimeMs: config.airtimeMs,
     record: recordSpikeMeasurement,
   });
   const packager = createFfmpegSignalPackager({

@@ -3,9 +3,11 @@
   "compilerOptions": {
     "composite": true,
     "noEmit": false,
+    "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
+  "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/testing/**/*.ts"],
   "references": [
     { "path": "../../packages/krazi-brain/tsconfig.build.json" },

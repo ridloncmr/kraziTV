@@ -62,6 +62,33 @@ describe("FixedSpikePlayoutProvider", () => {
     });
   });
 
+  it("airs each item for its slot so media shorter than the slot ends in a black tail", async () => {
+    const provider = new FixedSpikePlayoutProvider({
+      startedAt: 1_000,
+      mediaDurationMs: 30_000,
+      airtimeMs: 40_000,
+      mediaAPath: "a.mp4",
+      mediaBPath: "b.mp4",
+    });
+
+    const tail = await provider.getCurrent("69", 36_000);
+    const following = await provider.getFollowing("69", "spike-0-a", 1);
+
+    expect(tail).toMatchObject({
+      status: "current",
+      mediaOffsetMs: 35_000,
+      item: {
+        scheduleEntryId: "spike-0-a",
+        startsAt: 1_000,
+        endsAt: 41_000,
+        durationMs: 30_000,
+      },
+    });
+    expect(following).toMatchObject({
+      items: [{ scheduleEntryId: "spike-1-b", startsAt: 41_000 }],
+    });
+  });
+
   it("records each current-state evaluation without exposing its media path", async () => {
     const record = vi.fn();
     const provider = new FixedSpikePlayoutProvider({

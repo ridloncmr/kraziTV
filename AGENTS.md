@@ -200,7 +200,8 @@ working in. Do not report work as done until all of these hold.
    ```
 
    Also run `npm run test:ffprobe` when you change ffprobe integration, and
-   `npm run test:ffmpeg` when you change FFmpeg packaging arguments.
+   `npm run test:ffmpeg` when you change FFmpeg packaging arguments or the
+   channel stream runtime.
 
 4. Resolve every audit `review` item in a file you touched, or say why it
    stands.
