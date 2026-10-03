@@ -1,13 +1,11 @@
 import type { FastifyInstance, InjectOptions } from "fastify";
-import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
-  itemFixtureAt,
   rootFixture,
+  titledItemFixture,
 } from "../testing/catalog-fixtures.js";
 import {
   channelFixture,
@@ -27,19 +25,9 @@ const LATER = FIXTURE_TIME + 60_000;
 
 afterEach(cleanUpTestEnvironment);
 
-function item(
-  id: string,
-  overrides: Partial<Insertable<MediaItemTable>> = {},
-): Insertable<MediaItemTable> {
-  return itemFixtureAt(id, `/media/movies/${id}.mkv`, {
-    title: id,
-    ...overrides,
-  });
-}
-
-const pilot = item("pilot", { duration_ms: 1_320_000 });
-const finale = item("finale", { status: "missing" });
-const broken = item("broken", {
+const pilot = titledItemFixture("pilot", { duration_ms: 1_320_000 });
+const finale = titledItemFixture("finale", { status: "missing" });
+const broken = titledItemFixture("broken", {
   status: "probe_failed",
   duration_ms: null,
   has_audio: null,

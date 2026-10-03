@@ -3,30 +3,23 @@
 // whole schedule lifecycle on a manual clock, including a restart.
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import type { FastifyInstance } from "fastify";
-import { sql, type Insertable, type Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { send, iso } from "../testing/api-requests.js";
-import {
-  FIXTURE_TIME,
-  itemFixtureAt,
-  rootFixture,
-} from "../testing/catalog-fixtures.js";
-import { manualClock, type ManualClock } from "../testing/manual-clock.js";
-import { sequentialIds } from "../testing/record-sources.js";
+import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { manualClock } from "../testing/manual-clock.js";
 import {
   readOnlyScheduleState,
   readScheduleEntries,
   seedScheduleScenario,
 } from "../testing/schedule-fixtures.js";
+import { startScheduleServer } from "../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
-  startTestServer,
 } from "../testing/test-environment.js";
-import { ScheduleService } from "./schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -98,49 +91,6 @@ interface ApiWindow {
   error: { code: string; reason?: string };
 }
 
-// Builds a cataloged media item whose ID doubles as its unique path and title.
-function item(id: string, minutes: number): Insertable<MediaItemTable> {
-  return itemFixtureAt(id, `/media/movies/${id}.mkv`, {
-    title: id,
-    duration_ms: minutes * MINUTE,
-  });
-}
-
-// Composes the server the way index.ts does, on the test's clock. Each boot
-// gets its own ID prefix so entries from different boots never collide.
-async function startServer(
-  dataDirectory: string,
-  clock: ManualClock,
-  boot: string,
-  options: { seedCatalog?: boolean } = {},
-) {
-  const { server, db } = await startTestServer({
-    dataDirectory,
-    seed: async (db) => {
-      if (!options.seedCatalog) return;
-      await db.insertInto("media_roots").values(rootFixture).execute();
-      await db
-        .insertInto("media_items")
-        .values([
-          item("pilot", 22),
-          item("second", 23),
-          item("finale", 24),
-          item("feature-a", 90),
-          item("feature-b", 100),
-        ])
-        .execute();
-    },
-    overrides: (db) => ({
-      schedules: new ScheduleService(db, {
-        now: clock.now,
-        createId: sequentialIds(`${boot}-entry`),
-      }),
-    }),
-  });
-  await server.ready();
-  return { server, db };
-}
-
 // Reads the entries overlapping a window, with the revision they belong to.
 async function readWindow(
   server: FastifyInstance,
@@ -183,7 +133,7 @@ describe("schedule generation acceptance", () => {
   it("programs a channel and keeps its schedule through changes, lapses, and a restart", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const clock = manualClock(T0);
-    const first = await startServer(dataDirectory, clock, "first", {
+    const first = await startScheduleServer(dataDirectory, clock, "first", {
       seedCatalog: true,
     });
 
@@ -445,7 +395,7 @@ describe("schedule generation acceptance", () => {
     // changes nothing while coverage still reaches a full horizon.
     const beforeRestart = await readOnlyScheduleState(first.db);
     await first.server.close();
-    const second = await startServer(dataDirectory, clock, "second");
+    const second = await startScheduleServer(dataDirectory, clock, "second");
     expect(await readOnlyScheduleState(second.db)).toEqual(beforeRestart);
     expect(
       (
@@ -510,7 +460,7 @@ describe("schedule generation acceptance", () => {
     // Random playback is the mode most likely to drift, so it proves the most.
     async function generate() {
       const clock = manualClock(T0);
-      const { server, db } = await startServer(
+      const { server, db } = await startScheduleServer(
         await createTemporaryDirectory(),
         clock,
         "run",

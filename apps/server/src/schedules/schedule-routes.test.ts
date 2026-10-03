@@ -10,11 +10,10 @@ import {
   readOnlyScheduleState,
   seedScheduleScenario,
   readScheduleEntries,
-  type ScheduleScenarioOptions,
 } from "../testing/schedule-fixtures.js";
+import { startScheduleScenarioServer } from "../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
-  createTemporaryDirectory,
   openTestDatabase,
   startTestServer,
 } from "../testing/test-environment.js";
@@ -34,32 +33,9 @@ const CHANNEL_ID = "channel-fixture-001";
 const SCHEDULE_URL = `/channels/${CHANNEL_ID}/schedule`;
 const GENERATE_URL = `${SCHEDULE_URL}/generate`;
 
-// Boots the real composition over three chronological episodes on a manual clock.
-async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
-  const dataDirectory = await createTemporaryDirectory();
-  const clock = manualClock(T0);
-  const { server, db } = await startTestServer({
-    dataDirectory,
-    seed: async (db) => {
-      await seedScheduleScenario(db, {
-        items: EPISODES,
-        source: "chronological",
-        ...scenario,
-      });
-    },
-    overrides: (db) => ({
-      schedules: new ScheduleService(db, {
-        now: clock.now,
-        createId: sequentialIds("entry"),
-      }),
-    }),
-  });
-  return { server, db, clock, dataDirectory };
-}
-
 describe("GET /channels/:id/schedule", () => {
   it("generates coverage and returns the window's entries with API timestamps", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(
       server,
@@ -97,7 +73,7 @@ describe("GET /channels/:id/schedule", () => {
 
   it("returns identical entries where overlapping windows meet, including entries crossing an edge", async () => {
     // A 71-minute cycle, so an entry straddles every window edge below.
-    const { server } = await startServer({
+    const { server } = await startScheduleScenarioServer({
       items: [22, 23, 26].map((minutes) => ({ durationMs: minutes * MINUTE })),
     });
 
@@ -129,7 +105,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("leaves the revision unchanged across repeated reads", async () => {
-    const { server, clock } = await startServer();
+    const { server, clock } = await startScheduleScenarioServer();
     const url = windowUrl(SCHEDULE_URL, T0, T0 + HOUR);
 
     const first = await send(server, "GET", url);
@@ -156,9 +132,8 @@ describe("GET /channels/:id/schedule", () => {
     ],
     ["a missing end", `${SCHEDULE_URL}?start=${iso(T0)}`],
   ])("rejects %s", async (_, url) => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     // Startup ensures coverage, so compare against what it wrote.
-    await server.ready();
     const before = await readScheduleEntries(db, CHANNEL_ID);
 
     const { status, body } = await send(server, "GET", url);
@@ -169,7 +144,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("accepts a range of exactly 7 days", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status } = await send(
       server,
@@ -181,7 +156,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("serves a disabled channel's existing entries without generating", async () => {
-    const { server } = await startServer({ enabled: false });
+    const { server } = await startScheduleScenarioServer({ enabled: false });
 
     await expect(
       send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR)),
@@ -197,7 +172,7 @@ describe("GET /channels/:id/schedule", () => {
   ])(
     "reports a channel with %s as unschedulable",
     async (_, scenario, reason) => {
-      const { server } = await startServer(scenario);
+      const { server } = await startScheduleScenarioServer(scenario);
 
       const { status, body } = await send(
         server,
@@ -214,7 +189,7 @@ describe("GET /channels/:id/schedule", () => {
   );
 
   it("still serves entries already in a window once the channel becomes unschedulable", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR));
     await db.deleteFrom("programming_blocks").execute();
     clock.advance(HOUR);
@@ -241,7 +216,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("repairs lapsed coverage from now and still serves the old window", async () => {
-    const { server, clock } = await startServer();
+    const { server, clock } = await startScheduleScenarioServer();
     const old = await send(
       server,
       "GET",
@@ -268,7 +243,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("never deletes or replaces entries when reading a covered window", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR));
     const before = await readScheduleEntries(db, CHANNEL_ID);
     clock.advance(6 * HOUR);
@@ -285,7 +260,7 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it("reports an unknown channel", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(
       server,
@@ -300,7 +275,7 @@ describe("GET /channels/:id/schedule", () => {
 
 describe("POST /channels/:id/schedule/generate", () => {
   it("covers the horizon and reports the revision and coverage end", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
 
     const { status, body } = await send(server, "POST", GENERATE_URL, {});
 
@@ -319,7 +294,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("extends coverage through a later instant without rewriting existing entries", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await db
       .selectFrom("schedule_entries")
@@ -345,7 +320,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("leaves the revision unchanged when coverage already reaches the request", async () => {
-    const { server, clock } = await startServer();
+    const { server, clock } = await startScheduleScenarioServer();
     const first = await send(server, "POST", GENERATE_URL, {});
     clock.advance(MINUTE);
 
@@ -358,18 +333,30 @@ describe("POST /channels/:id/schedule/generate", () => {
     expect(past).toEqual(first);
   });
 
+  it("rejects a through past the request limit, naming the latest allowed, without writing", async () => {
+    const { server, db } = await startScheduleScenarioServer();
+    // Startup ensures coverage, so compare against what it wrote.
+    const before = await readOnlyScheduleState(db);
+
+    const { status, body } = await send(server, "POST", GENERATE_URL, {
+      through: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS + 1),
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toMatchObject({
+      code: "invalid_request",
+      message: `through must not be after ${iso(T0 + SCHEDULE_REQUEST_LIMIT_MS)}`,
+    });
+    await expect(readOnlyScheduleState(db)).resolves.toEqual(before);
+  });
+
   it.each([
-    [
-      "a through past the request limit",
-      { through: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS + 1) },
-    ],
     ["a through with an offset", { through: "2024-01-02T02:00:00+02:00" }],
     ["an unknown field", { rebuild: true }],
     ["a regenerate flag that is not a boolean", { regenerate: "yes" }],
   ])("rejects %s without writing", async (_, payload) => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     // Startup ensures coverage, so compare against what it wrote.
-    await server.ready();
     const before = await readOnlyScheduleState(db);
 
     const { status, body } = await send(server, "POST", GENERATE_URL, payload);
@@ -380,7 +367,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("rejects a disabled channel", async () => {
-    const { server } = await startServer({ enabled: false });
+    const { server } = await startScheduleScenarioServer({ enabled: false });
 
     const { status, body } = await send(server, "POST", GENERATE_URL, {});
 
@@ -389,7 +376,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("regenerates future entries after the airing entry when asked", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readScheduleEntries(db, CHANNEL_ID);
     clock.set(T0 + 30 * MINUTE);
@@ -409,7 +396,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("rejects regenerating a disabled channel without writing", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     await db.updateTable("channels").set({ enabled: 0 }).execute();
     const before = await readScheduleEntries(db, CHANNEL_ID);
@@ -424,7 +411,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("regenerates channels drawing from a collection when its membership changes", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     clock.set(T0 + 30 * MINUTE);
 
@@ -452,7 +439,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   ])(
     "reports a channel with %s as unschedulable",
     async (_, scenario, reason) => {
-      const { server } = await startServer(scenario);
+      const { server } = await startScheduleScenarioServer(scenario);
 
       const { status, body } = await send(server, "POST", GENERATE_URL, {});
 
@@ -465,7 +452,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   );
 
   it("repairs lapsed coverage from now", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const later = T0 + SCHEDULE_HORIZON_MS + 24 * HOUR;
     clock.set(later);
@@ -487,7 +474,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("reports an unknown channel", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(
       server,
@@ -501,7 +488,7 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it("answers 503 retryable while another connection holds write authority", async () => {
-    const { server, dataDirectory } = await startServer();
+    const { server, dataDirectory } = await startScheduleScenarioServer();
     const other = await openTestDatabase(dataDirectory);
     const holder = await holdWriteAuthority(other.db);
     try {
@@ -529,7 +516,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
   const CHANNEL_URL = `/channels/${CHANNEL_ID}`;
 
   it("keeps the anchor and seed and repairs from now when re-enabled after a lapse", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readOnlyScheduleState(db);
     await send(server, "PATCH", CHANNEL_URL, { enabled: false });
@@ -556,7 +543,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
   });
 
   it("simply extends coverage when re-enabled before a lapse", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readScheduleEntries(db, CHANNEL_ID);
     const stateBefore = await readOnlyScheduleState(db);
@@ -576,7 +563,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
   });
 
   it("leaves a disabled channel's schedule untouched", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readScheduleEntries(db, CHANNEL_ID);
     const stateBefore = await readOnlyScheduleState(db);
@@ -648,7 +635,7 @@ describe("server startup schedule maintenance", () => {
   }
 
   it("repairs a gap on ready after downtime, keeping the anchor and seed", async () => {
-    const first = await startServer();
+    const first = await startScheduleScenarioServer();
     await send(first.server, "POST", GENERATE_URL, {});
     const before = await readOnlyScheduleState(first.db);
     await first.server.close();
@@ -675,7 +662,7 @@ describe("server startup schedule maintenance", () => {
   });
 
   it("leaves the revision unchanged when coverage still reaches a full horizon", async () => {
-    const first = await startServer();
+    const first = await startScheduleScenarioServer();
     await send(first.server, "POST", GENERATE_URL, {});
     const before = await readOnlyScheduleState(first.db);
     await first.server.close();

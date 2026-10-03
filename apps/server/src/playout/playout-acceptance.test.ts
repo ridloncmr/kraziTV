@@ -2,26 +2,19 @@
 // the real composition and a real temporary SQLite file, driven through a
 // channel's lifecycle on a manual clock, including a restart.
 import type { FastifyInstance } from "fastify";
-import { sql, type Insertable, type Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { iso, send, windowUrl } from "../testing/api-requests.js";
-import {
-  FIXTURE_TIME,
-  itemFixtureAt,
-  rootFixture,
-} from "../testing/catalog-fixtures.js";
-import { manualClock, type ManualClock } from "../testing/manual-clock.js";
-import { sequentialIds } from "../testing/record-sources.js";
+import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { manualClock } from "../testing/manual-clock.js";
 import { readScheduleEntries } from "../testing/schedule-fixtures.js";
+import { startScheduleServer } from "../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
-  startTestServer,
 } from "../testing/test-environment.js";
-import { ScheduleService } from "../schedules/schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -91,51 +84,6 @@ interface ApiEntry {
   endsAt: string;
 }
 
-// Builds a cataloged media item whose ID doubles as its unique path and title.
-function item(id: string, minutes: number): Insertable<MediaItemTable> {
-  return itemFixtureAt(id, `/media/movies/${id}.mkv`, {
-    title: id,
-    duration_ms: minutes * MINUTE,
-  });
-}
-
-// Composes the server the way index.ts does, on the test's clock. Only
-// `schedules` is overridden, so the default playout service shares its clock.
-// Each boot gets its own ID prefix so entries from different boots never
-// collide.
-async function startServer(
-  dataDirectory: string,
-  clock: ManualClock,
-  boot: string,
-  options: { seedCatalog?: boolean } = {},
-) {
-  const { server, db } = await startTestServer({
-    dataDirectory,
-    seed: async (db) => {
-      if (!options.seedCatalog) return;
-      await db.insertInto("media_roots").values(rootFixture).execute();
-      await db
-        .insertInto("media_items")
-        .values([
-          item("pilot", 22),
-          item("second", 23),
-          item("finale", 24),
-          item("feature-a", 90),
-          item("feature-b", 100),
-        ])
-        .execute();
-    },
-    overrides: (db) => ({
-      schedules: new ScheduleService(db, {
-        now: clock.now,
-        createId: sequentialIds(`${boot}-entry`),
-      }),
-    }),
-  });
-  await server.ready();
-  return { server, db };
-}
-
 // Reads channel state at the server's clock, or at a pinned instant.
 async function readNow(
   server: FastifyInstance,
@@ -200,7 +148,7 @@ describe("playout timeline acceptance", () => {
   it("serves channel state and playout windows through joins, boundaries, changes, and a restart", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const clock = manualClock(T0);
-    const first = await startServer(dataDirectory, clock, "first", {
+    const first = await startScheduleServer(dataDirectory, clock, "first", {
       seedCatalog: true,
     });
 
@@ -388,7 +336,7 @@ describe("playout timeline acceptance", () => {
       windowEnd,
     );
     await first.server.close();
-    const second = await startServer(dataDirectory, clock, "second");
+    const second = await startScheduleServer(dataDirectory, clock, "second");
     expect(await readNow(second.server, channelId)).toEqual(nowBeforeRestart);
     expect(
       await readPlayout(second.server, channelId, windowStart, windowEnd),

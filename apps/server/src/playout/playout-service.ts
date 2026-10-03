@@ -10,6 +10,7 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleLog } from "../schedules/contracts.js";
+import { scheduleRevisionOrZero } from "../schedules/schedule-coverage.js";
 import { loadScheduleState } from "../schedules/schedule-repository.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type {
@@ -154,7 +155,7 @@ export class PlayoutService {
    */
   async getScheduleRevision(channelId: string): Promise<number> {
     const state = await loadScheduleState(this.#db, channelId);
-    return state?.scheduleRevision ?? 0;
+    return scheduleRevisionOrZero(state);
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   sendChannelDisabled,
   sendChannelNotFound,
   sendInvalidRequest,
+  sendThroughOutOfRange,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import {
@@ -107,12 +108,7 @@ function sendCoverageFailure(
         { reason: failure.reason },
       );
     case "through_out_of_range":
-      return sendApiError(
-        reply,
-        400,
-        "invalid_request",
-        `through must not be after ${toApiTimestamp(failure.latestThrough)}`,
-      );
+      return sendThroughOutOfRange(reply, "through", failure.latestThrough);
   }
 }
 
