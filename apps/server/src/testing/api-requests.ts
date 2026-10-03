@@ -15,6 +15,23 @@ export async function send(
   };
 }
 
+/** Creates a channel and returns Fastify's raw response, for tests asserting headers or exact JSON. */
+export function createChannel(
+  server: FastifyInstance,
+  payload: InjectOptions["payload"],
+) {
+  return server.inject({ method: "POST", url: "/channels", payload });
+}
+
+/** Patches a channel and returns Fastify's raw response; pending calls let tests race lifecycle changes. */
+export function updateChannel(
+  server: FastifyInstance,
+  id: string,
+  payload: InjectOptions["payload"],
+) {
+  return server.inject({ method: "PATCH", url: `/channels/${id}`, payload });
+}
+
 /** Formats an epoch millisecond as the UTC instant the API accepts. */
 export function iso(epochMs: number): string {
   return new Date(epochMs).toISOString();

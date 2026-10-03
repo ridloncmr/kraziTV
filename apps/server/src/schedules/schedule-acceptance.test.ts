@@ -11,12 +11,13 @@ import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { send, iso } from "../testing/api-requests.js";
 import {
   FIXTURE_TIME,
-  itemFixture,
+  itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import { manualClock, type ManualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
+  readOnlyScheduleState,
   readScheduleEntries,
   seedScheduleScenario,
 } from "../testing/schedule-fixtures.js";
@@ -99,15 +100,10 @@ interface ApiWindow {
 
 // Builds a cataloged media item whose ID doubles as its unique path and title.
 function item(id: string, minutes: number): Insertable<MediaItemTable> {
-  const path = `/media/movies/${id}.mkv`;
-  return {
-    ...itemFixture,
-    id,
-    path,
-    path_key: path,
+  return itemFixtureAt(id, `/media/movies/${id}.mkv`, {
     title: id,
     duration_ms: minutes * MINUTE,
-  };
+  });
 }
 
 // Composes the server the way index.ts does, on the test's clock. Each boot
@@ -157,14 +153,6 @@ async function readWindow(
     "GET",
     `/channels/${channelId}/schedule?start=${iso(start)}&end=${iso(end)}`,
   );
-}
-
-// Reads the one channel's schedule state row.
-function readState(db: Kysely<DatabaseSchema>) {
-  return db
-    .selectFrom("channel_schedule_states")
-    .selectAll()
-    .executeTakeFirstOrThrow();
 }
 
 // Lists a table's column names, sorted, as SQLite reports them.
@@ -272,7 +260,7 @@ describe("schedule generation acceptance", () => {
         expect(entry.startsAt).toBe(openingEntries[index - 1].endsAt);
       }
     }
-    const opened = await readState(first.db);
+    const opened = await readOnlyScheduleState(first.db);
     expect(opened.anchor_time).toBe(T0);
     expect(opened.last_generated_through).toBeGreaterThanOrEqual(
       T0 + SCHEDULE_HORIZON_MS,
@@ -309,7 +297,7 @@ describe("schedule generation acceptance", () => {
       opening.body.scheduleRevision,
     );
     expect(
-      (await readState(first.db)).last_generated_through,
+      (await readOnlyScheduleState(first.db)).last_generated_through,
     ).toBeGreaterThanOrEqual(clock.now() + SCHEDULE_HORIZON_MS);
 
     // A block change mid-program keeps the airing entry and regenerates from
@@ -404,7 +392,7 @@ describe("schedule generation acceptance", () => {
 
     // After the schedule lapses, re-enabling keeps the anchor and seed and
     // repairs from now, leaving the uncovered interval empty.
-    const lapsed = await readState(first.db);
+    const lapsed = await readOnlyScheduleState(first.db);
     clock.advance(8 * DAY);
     const reenabledAt = clock.now();
     expect(lapsed.last_generated_through).toBeLessThan(reenabledAt);
@@ -423,7 +411,7 @@ describe("schedule generation acceptance", () => {
         })
       ).status,
     ).toBe(200);
-    const repaired = await readState(first.db);
+    const repaired = await readOnlyScheduleState(first.db);
     expect(repaired).toMatchObject({
       anchor_time: lapsed.anchor_time,
       seed: lapsed.seed,
@@ -455,10 +443,10 @@ describe("schedule generation acceptance", () => {
 
     // A restart on the same data directory serves the same schedule and
     // changes nothing while coverage still reaches a full horizon.
-    const beforeRestart = await readState(first.db);
+    const beforeRestart = await readOnlyScheduleState(first.db);
     await first.server.close();
     const second = await startServer(dataDirectory, clock, "second");
-    expect(await readState(second.db)).toEqual(beforeRestart);
+    expect(await readOnlyScheduleState(second.db)).toEqual(beforeRestart);
     expect(
       (
         await readWindow(

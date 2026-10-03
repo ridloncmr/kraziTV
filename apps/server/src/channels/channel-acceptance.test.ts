@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { send } from "../testing/api-requests.js";
-import { itemFixture, rootFixture } from "../testing/catalog-fixtures.js";
+import { itemFixtureAt, rootFixture } from "../testing/catalog-fixtures.js";
 import { RecordingChannelRuntime } from "../testing/recording-channel-runtime.js";
 import {
   cleanUpTestEnvironment,
@@ -38,8 +38,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // Builds a cataloged media item whose ID doubles as its unique path and title.
 function item(id: string): Insertable<MediaItemTable> {
-  const path = `/media/shows/${id}.mkv`;
-  return { ...itemFixture, id, path, path_key: path, title: id };
+  return itemFixtureAt(id, `/media/shows/${id}.mkv`, { title: id });
 }
 
 // Composes the server the way index.ts does, except for a recording runtime.

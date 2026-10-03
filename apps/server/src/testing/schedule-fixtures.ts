@@ -1,4 +1,5 @@
 // Seeds schedulable channels for tests only; production code must never import this module.
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import {
@@ -9,7 +10,6 @@ import {
 import { channelFixture, programmingBlockFixture } from "./channel-fixtures.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
-import type { PlaybackMode } from "../database/schema/programming-block-table.js";
 
 export interface ScheduleItemSpec {
   durationMs: number | null;
@@ -97,6 +97,17 @@ export async function seedScheduleScenario(
   }
 
   return { channelId, collectionId, itemIds };
+}
+
+/**
+ * Reads the schedule state row of a database seeded with one channel, and
+ * fails if there is none, so single-channel tests can read fields directly.
+ */
+export function readOnlyScheduleState(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("channel_schedule_states")
+    .selectAll()
+    .executeTakeFirstOrThrow();
 }
 
 /** Reads a channel's schedule entry rows in sequence order, as tests assert them. */

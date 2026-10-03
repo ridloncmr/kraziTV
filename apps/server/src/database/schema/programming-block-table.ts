@@ -1,6 +1,6 @@
-type ProgrammingBlockSourceKind = "collection" | "media_item";
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 
-export type PlaybackMode = "chronological" | "random";
+type ProgrammingBlockSourceKind = "collection" | "media_item";
 
 /** Exactly one source column set is non-null, as `source_kind` says; a check enforces it. */
 export interface ProgrammingBlockTable {

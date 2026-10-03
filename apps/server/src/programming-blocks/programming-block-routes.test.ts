@@ -14,8 +14,10 @@ import {
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
+  openTestDatabase,
   startTestServer,
 } from "../testing/test-environment.js";
+import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { ProgrammingBlockRepository } from "./programming-block-repository.js";
 
@@ -251,6 +253,28 @@ describe("programming block routes", () => {
       status: 200,
       body: [created.body],
     });
+  });
+
+  it("answers 503 retryable and creates nothing while another connection holds write authority", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const { server, db } = await startServer({}, dataDirectory);
+    const other = await openTestDatabase(dataDirectory);
+    const holder = await holdWriteAuthority(other.db);
+    try {
+      const response = await send(server, "POST", BLOCKS_URL, {
+        source: collectionSource,
+      });
+
+      expect(response).toMatchObject({
+        status: 503,
+        body: { error: { code: "schedule_busy", retryable: true } },
+      });
+    } finally {
+      await holder.release();
+    }
+    await expect(
+      db.selectFrom("programming_blocks").selectAll().execute(),
+    ).resolves.toEqual([]);
   });
 });
 

@@ -1,6 +1,7 @@
-import type { FastifyInstance, InjectOptions } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { createChannel, updateChannel } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import {
   cleanUpTestEnvironment,
@@ -33,14 +34,6 @@ async function startServer(
   return server;
 }
 
-function create(server: Server, payload: InjectOptions["payload"]) {
-  return server.inject({ method: "POST", url: "/channels", payload });
-}
-
-function update(server: Server, id: string, payload: InjectOptions["payload"]) {
-  return server.inject({ method: "PATCH", url: `/channels/${id}`, payload });
-}
-
 function get(server: Server, url: string) {
   return server.inject({ method: "GET", url });
 }
@@ -58,7 +51,7 @@ describe("POST /channels", () => {
   it("creates a channel with a trimmed name", async () => {
     const server = await startServer();
 
-    const response = await create(server, {
+    const response = await createChannel(server, {
       number: "69",
       name: "  Krazi Comedy  ",
       enabled: true,
@@ -71,7 +64,10 @@ describe("POST /channels", () => {
   it("defaults enabled to true and accepts subchannels", async () => {
     const server = await startServer();
 
-    const response = await create(server, { number: "69.1", name: "Classics" });
+    const response = await createChannel(server, {
+      number: "69.1",
+      name: "Classics",
+    });
 
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({ number: "69.1", enabled: true });
@@ -80,7 +76,7 @@ describe("POST /channels", () => {
   it("creates a disabled channel", async () => {
     const server = await startServer();
 
-    const response = await create(server, {
+    const response = await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
@@ -105,7 +101,7 @@ describe("POST /channels", () => {
   ])("rejects %s as invalid_request", async (_label, payload) => {
     const server = await startServer();
 
-    const response = await create(server, payload);
+    const response = await createChannel(server, payload);
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("invalid_request");
@@ -114,9 +110,9 @@ describe("POST /channels", () => {
 
   it("rejects a number held by a disabled channel", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Old", enabled: false });
+    await createChannel(server, { number: "69", name: "Old", enabled: false });
 
-    const response = await create(server, { number: "69", name: "New" });
+    const response = await createChannel(server, { number: "69", name: "New" });
 
     expect(response.statusCode).toBe(409);
     expect(response.json().error).toEqual({
@@ -139,7 +135,7 @@ describe("GET /channels", () => {
   it("orders channels numerically by major number, then subchannel", async () => {
     const server = await startServer();
     for (const number of ["11", "10.2", "2", "10", "10.1"]) {
-      await create(server, { number, name: `Channel ${number}` });
+      await createChannel(server, { number, name: `Channel ${number}` });
     }
 
     const response = await get(server, "/channels");
@@ -153,7 +149,7 @@ describe("GET /channels", () => {
 describe("GET /channels/:id", () => {
   it("fetches one channel", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
     const response = await get(server, "/channels/channel-001");
 
@@ -177,9 +173,11 @@ describe("GET /channels/:id", () => {
 describe("PATCH /channels/:id", () => {
   it("changes only the given fields and advances updatedAt", async () => {
     const server = await startServer({ times: [FIXTURE_TIME, LATER] });
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
-    const response = await update(server, "channel-001", { enabled: false });
+    const response = await updateChannel(server, "channel-001", {
+      enabled: false,
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
@@ -191,9 +189,9 @@ describe("PATCH /channels/:id", () => {
 
   it("renumbers and renames with a trimmed name", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
-    const response = await update(server, "channel-001", {
+    const response = await updateChannel(server, "channel-001", {
       number: "69.1",
       name: "  Krazi Classics ",
     });
@@ -212,9 +210,9 @@ describe("PATCH /channels/:id", () => {
     ["an unknown field", { collectionId: "x" }],
   ])("rejects %s as invalid_request", async (_label, payload) => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
-    const response = await update(server, "channel-001", payload);
+    const response = await updateChannel(server, "channel-001", payload);
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("invalid_request");
@@ -225,10 +223,12 @@ describe("PATCH /channels/:id", () => {
 
   it("rejects another channel's number, including a disabled one", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Old", enabled: false });
-    await create(server, { number: "70", name: "New" });
+    await createChannel(server, { number: "69", name: "Old", enabled: false });
+    await createChannel(server, { number: "70", name: "New" });
 
-    const response = await update(server, "channel-002", { number: "69" });
+    const response = await updateChannel(server, "channel-002", {
+      number: "69",
+    });
 
     expect(response.statusCode).toBe(409);
     expect(response.json().error).toEqual({
@@ -243,7 +243,9 @@ describe("PATCH /channels/:id", () => {
   it("reports an unknown channel", async () => {
     const server = await startServer();
 
-    const response = await update(server, "missing", { name: "Anything" });
+    const response = await updateChannel(server, "missing", {
+      name: "Anything",
+    });
 
     expect(response.statusCode).toBe(404);
     expect(response.json().error.code).toBe("channel_not_found");
@@ -253,7 +255,7 @@ describe("PATCH /channels/:id", () => {
 describe("DELETE /channels/:id", () => {
   it("deletes a channel and succeeds again when it is already gone", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
     const first = await server.inject({
       method: "DELETE",
@@ -271,10 +273,10 @@ describe("DELETE /channels/:id", () => {
 
   it("frees the deleted channel's number", async () => {
     const server = await startServer();
-    await create(server, { number: "69", name: "Old" });
+    await createChannel(server, { number: "69", name: "Old" });
     await server.inject({ method: "DELETE", url: "/channels/channel-001" });
 
-    const response = await create(server, { number: "69", name: "New" });
+    const response = await createChannel(server, { number: "69", name: "New" });
 
     expect(response.statusCode).toBe(201);
   });
@@ -284,7 +286,7 @@ describe("channel persistence", () => {
   it("keeps channels across a server restart", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const first = await startServer({ dataDirectory });
-    await create(first, { number: "69", name: "Krazi Comedy" });
+    await createChannel(first, { number: "69", name: "Krazi Comedy" });
     await first.close();
 
     const restarted = await startServer({ dataDirectory });

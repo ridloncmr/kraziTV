@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
+import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
+
 type ApiErrorCode =
   | "channel_disabled"
   | "channel_not_found"
@@ -48,12 +50,67 @@ export function sendInvalidRequest(
   return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
 }
 
+/** One 404 shape for every route that addresses a channel, in any domain. */
+export function sendChannelNotFound(
+  reply: FastifyReply,
+  id: string,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    404,
+    "channel_not_found",
+    `Channel ${id} does not exist`,
+  );
+}
+
+/** One 404 shape for every route that addresses a media root, in any domain. */
+export function sendMediaRootNotFound(
+  reply: FastifyReply,
+  id: string,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    404,
+    "media_root_not_found",
+    `Media root ${id} does not exist`,
+  );
+}
+
+/**
+ * Lists every unknown media item ID a request referenced, so the client can
+ * point at exactly what to fix. A 400, not a 404: the addressed resource
+ * exists, the body names items that do not.
+ */
+export function sendUnknownMediaItems(
+  reply: FastifyReply,
+  ids: readonly string[],
+): FastifyReply {
+  return sendApiError(
+    reply,
+    400,
+    "media_item_not_found",
+    `Unknown media items: ${ids.join(", ")}`,
+  );
+}
+
 /**
  * Maps framework-level failures, such as malformed JSON or unknown routes, into
  * the same envelope so clients never parse Fastify's default error format.
+ * A schedule writer that stayed busy is mapped here once, so every route that
+ * writes the schedule answers it as retryable instead of a 500.
  */
 export function registerApiErrorHandlers(server: FastifyInstance): void {
   server.setErrorHandler((error, request, reply) => {
+    if (error instanceof WriteAuthorityBusyError) {
+      return sendApiError(
+        reply,
+        503,
+        "schedule_busy",
+        "The schedule is busy; retry the request",
+        { retryable: true },
+      );
+    }
+
     const statusCode =
       typeof error === "object" &&
       error !== null &&

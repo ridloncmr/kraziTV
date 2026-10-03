@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
+  animeRootFixture,
   FIXTURE_TIME,
   itemFixture,
+  itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import {
@@ -15,14 +17,6 @@ import {
 } from "../testing/test-environment.js";
 
 type Server = FastifyInstance;
-
-// A second root whose path sorts before the fixture root even though its ID sorts after.
-const animeRoot = {
-  ...rootFixture,
-  id: "root-fixture-002",
-  path: "/media/anime",
-  path_key: "/media/anime",
-};
 
 const LATER = FIXTURE_TIME + 60_000;
 
@@ -38,7 +32,7 @@ async function startServer(
     seed: async (db) => {
       await db
         .insertInto("media_roots")
-        .values([rootFixture, animeRoot])
+        .values([rootFixture, animeRootFixture])
         .execute();
       if (items.length > 0) {
         await db.insertInto("media_items").values(items).execute();
@@ -48,32 +42,32 @@ async function startServer(
   return server;
 }
 
-function item(
-  id: string,
-  path: string,
-  overrides: Partial<Insertable<MediaItemTable>> = {},
-): Insertable<MediaItemTable> {
-  return { ...itemFixture, id, path, path_key: path, ...overrides };
-}
+const firstFailure = itemFixtureAt(
+  "item-first-failure",
+  "/media/movies/broken.mkv",
+  {
+    status: "probe_failed",
+    duration_ms: null,
+    has_audio: null,
+    probe_error: "ffprobe could not read the file",
+  },
+);
 
-const firstFailure = item("item-first-failure", "/media/movies/broken.mkv", {
-  status: "probe_failed",
-  duration_ms: null,
-  has_audio: null,
-  probe_error: "ffprobe could not read the file",
-});
+const laterFailure = itemFixtureAt(
+  "item-later-failure",
+  "/media/movies/corrupt.mkv",
+  {
+    status: "probe_failed",
+    duration_ms: 1_500_000,
+    has_audio: 0,
+    probe_error: "ffprobe timed out",
+    updated_at: LATER,
+    last_seen_at: LATER,
+    last_probed_at: LATER,
+  },
+);
 
-const laterFailure = item("item-later-failure", "/media/movies/corrupt.mkv", {
-  status: "probe_failed",
-  duration_ms: 1_500_000,
-  has_audio: 0,
-  probe_error: "ffprobe timed out",
-  updated_at: LATER,
-  last_seen_at: LATER,
-  last_probed_at: LATER,
-});
-
-const missing = item("item-missing", "/media/movies/gone.mkv", {
+const missing = itemFixtureAt("item-missing", "/media/movies/gone.mkv", {
   status: "missing",
   updated_at: LATER,
 });
@@ -98,10 +92,14 @@ describe("GET /media-items", () => {
 
   it("orders by root path, then item path, then item ID", async () => {
     const server = await startServer([
-      item("item-001", "/media/movies/b.mkv"),
-      item("item-002", "/media/movies/a.mkv"),
-      item("item-004", "/media/anime/z.mkv", { media_root_id: animeRoot.id }),
-      item("item-003", "/media/anime/z2.mkv", { media_root_id: animeRoot.id }),
+      itemFixtureAt("item-001", "/media/movies/b.mkv"),
+      itemFixtureAt("item-002", "/media/movies/a.mkv"),
+      itemFixtureAt("item-004", "/media/anime/z.mkv", {
+        media_root_id: animeRootFixture.id,
+      }),
+      itemFixtureAt("item-003", "/media/anime/z2.mkv", {
+        media_root_id: animeRootFixture.id,
+      }),
     ]);
 
     const response = await list(server);

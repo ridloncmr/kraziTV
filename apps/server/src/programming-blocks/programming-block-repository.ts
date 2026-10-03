@@ -6,10 +6,8 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { isUniqueViolation } from "../database/writes/unique-violation.js";
-import {
-  collectionExists,
-  findUnknownMediaItemIds,
-} from "../media-collections/media-collection-repository.js";
+import { collectionExists } from "../media-collections/media-collection-repository.js";
+import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
 import type {
   CreateProgrammingBlockResult,
   DeleteProgrammingBlockResult,
@@ -211,22 +209,26 @@ function toSourceColumns(source: ProgrammingBlockSource): SourceColumns {
       };
 }
 
-// Rebuilds the discriminated source; the table check makes a mismatch corruption.
+// Reads a row back into the shape callers and the API use.
 function toProgrammingBlock(
   row: Selectable<ProgrammingBlockTable>,
 ): ProgrammingBlock {
   return {
     id: row.id,
     channelId: row.channel_id,
-    source: toSource(row),
+    source: toProgrammingBlockSource(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-// Reads the source columns back into the shape callers and the API use.
-function toSource(
-  row: Selectable<ProgrammingBlockTable>,
+/**
+ * Rebuilds the discriminated source from its columns. The only decoder of
+ * block sources, so every reader agrees on what a valid row is; the table
+ * check makes a mismatch corruption, so it throws.
+ */
+export function toProgrammingBlockSource(
+  row: SourceColumns & Pick<ProgrammingBlockTable, "id">,
 ): ProgrammingBlockSource {
   if (
     row.source_kind === "collection" &&

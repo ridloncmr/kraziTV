@@ -40,14 +40,7 @@ export function checkCoverage(
   target: number,
 ): EnsureCoverageResult | undefined {
   if (state === undefined) return undefined;
-  if (state.lastGeneratedThrough >= target) {
-    return {
-      kind: "covered",
-      scheduleRevision: state.scheduleRevision,
-      generatedThrough: state.lastGeneratedThrough,
-    };
-  }
-  return undefined;
+  return state.lastGeneratedThrough >= target ? covered(state) : undefined;
 }
 
 /** Reports a committed chunk as covered once it reaches the target, else as still extending. */
@@ -56,12 +49,38 @@ export function coverageAfterChunk(
   target: number,
 ): ChunkResult {
   return next.lastGeneratedThrough >= target
-    ? {
-        kind: "covered",
-        scheduleRevision: next.scheduleRevision,
-        generatedThrough: next.lastGeneratedThrough,
-      }
+    ? covered(next)
     : { kind: "extended" };
+}
+
+// One shape for "covered", so a pre-check and a fresh chunk report coverage identically.
+function covered(
+  state: ScheduleState,
+): Extract<EnsureCoverageResult, { kind: "covered" }> {
+  return {
+    kind: "covered",
+    scheduleRevision: state.scheduleRevision,
+    generatedThrough: state.lastGeneratedThrough,
+  };
+}
+
+/**
+ * Returns the later of the clock and the last schedule mutation, so a clock
+ * stepping backward can never move generation before earlier work. Logs when
+ * it clamps, with the caller's context.
+ */
+export function clampToLastMutation(
+  now: number,
+  lastMutation: number | undefined,
+  log: ScheduleLog,
+  context: Readonly<Record<string, unknown>> = {},
+): number {
+  if (lastMutation === undefined || now >= lastMutation) return now;
+  log.warn(
+    { ...context, now, effectiveNow: lastMutation },
+    "Clock is behind the last schedule mutation; using the mutation's time",
+  );
+  return lastMutation;
 }
 
 /**

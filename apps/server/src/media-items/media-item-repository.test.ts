@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
+  animeRootFixture,
   FIXTURE_TIME,
   itemFixture,
+  itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import { MediaItemRepository } from "./media-item-repository.js";
@@ -13,38 +15,14 @@ import {
   openTestDatabase,
 } from "../testing/test-environment.js";
 
-// A second root whose path key sorts before the fixture root's even though its ID sorts after.
-const animeRoot = {
-  ...rootFixture,
-  id: "root-fixture-002",
-  path: "/media/anime",
-  path_key: "/media/anime",
-};
-
 afterEach(cleanUpTestEnvironment);
-
-function item(
-  id: string,
-  mediaRootId: string,
-  path: string,
-  overrides: Partial<Insertable<MediaItemTable>> = {},
-): Insertable<MediaItemTable> {
-  return {
-    ...itemFixture,
-    id,
-    media_root_id: mediaRootId,
-    path,
-    path_key: path,
-    ...overrides,
-  };
-}
 
 // Opens a fresh migrated database seeded with both roots and the given items.
 async function setup(items: Insertable<MediaItemTable>[]) {
   const database = await openTestDatabase();
   await database.db
     .insertInto("media_roots")
-    .values([rootFixture, animeRoot])
+    .values([rootFixture, animeRootFixture])
     .execute();
   if (items.length > 0) {
     await database.db.insertInto("media_items").values(items).execute();
@@ -55,9 +33,11 @@ async function setup(items: Insertable<MediaItemTable>[]) {
 describe("MediaItemRepository.list", () => {
   it("groups by root path key, then item path key", async () => {
     const repository = await setup([
-      item("item-b", rootFixture.id, "/media/movies/b.mkv"),
-      item("item-a", rootFixture.id, "/media/movies/a.mkv"),
-      item("item-z", animeRoot.id, "/media/anime/z.mkv"),
+      itemFixtureAt("item-b", "/media/movies/b.mkv"),
+      itemFixtureAt("item-a", "/media/movies/a.mkv"),
+      itemFixtureAt("item-z", "/media/anime/z.mkv", {
+        media_root_id: animeRootFixture.id,
+      }),
     ]);
 
     const items = await repository.list();
@@ -98,7 +78,7 @@ describe("MediaItemRepository.findById", () => {
 
   it("decodes a silent file's has_audio as false", async () => {
     const repository = await setup([
-      item("item-silent", rootFixture.id, "/media/movies/silent.mkv", {
+      itemFixtureAt("item-silent", "/media/movies/silent.mkv", {
         has_audio: 0,
       }),
     ]);
@@ -110,7 +90,7 @@ describe("MediaItemRepository.findById", () => {
 
   it("keeps unknown metadata of a probe failure as null", async () => {
     const repository = await setup([
-      item("item-broken", rootFixture.id, "/media/movies/broken.mkv", {
+      itemFixtureAt("item-broken", "/media/movies/broken.mkv", {
         status: "probe_failed",
         duration_ms: null,
         has_audio: null,

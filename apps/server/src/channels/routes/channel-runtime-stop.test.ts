@@ -1,8 +1,9 @@
-import type { FastifyInstance, InjectOptions } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SignalError } from "@krazitv/signal";
 
+import { createChannel, updateChannel } from "../../testing/api-requests.js";
 import { RecordingChannelRuntime } from "../../testing/recording-channel-runtime.js";
 import {
   cleanUpTestEnvironment,
@@ -39,14 +40,6 @@ async function startServer(options: { channelStopTimeoutMs?: number } = {}) {
   return { server, runtime, logs, channels: dependencies.channels };
 }
 
-function create(server: Server, payload: InjectOptions["payload"]) {
-  return server.inject({ method: "POST", url: "/channels", payload });
-}
-
-function update(server: Server, id: string, payload: InjectOptions["payload"]) {
-  return server.inject({ method: "PATCH", url: `/channels/${id}`, payload });
-}
-
 function remove(server: Server, id: string) {
   return server.inject({ method: "DELETE", url: `/channels/${id}` });
 }
@@ -70,13 +63,15 @@ function cleanupFailed(
 describe("disabling a channel", () => {
   it("stops the runtime after the disable commits", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     let committedState: boolean | undefined;
     runtime.onStop = async ({ channelId }) => {
       committedState = (await channels.findById(channelId))?.enabled;
     };
 
-    const response = await update(server, "channel-001", { enabled: false });
+    const response = await updateChannel(server, "channel-001", {
+      enabled: false,
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ enabled: false });
@@ -88,17 +83,17 @@ describe("disabling a channel", () => {
 
   it("does not respond until the stop settles", async () => {
     const { server, runtime } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     let release!: () => void;
     runtime.onStop = () => new Promise((resolve) => (release = resolve));
     let responded = false;
 
-    const pending = update(server, "channel-001", { enabled: false }).then(
-      (response) => {
-        responded = true;
-        return response;
-      },
-    );
+    const pending = updateChannel(server, "channel-001", {
+      enabled: false,
+    }).then((response) => {
+      responded = true;
+      return response;
+    });
     await vi.waitFor(() => expect(runtime.stops).toHaveLength(1));
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -109,23 +104,28 @@ describe("disabling a channel", () => {
 
   it("commits other changes in the same request before stopping", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     let committedName: string | undefined;
     runtime.onStop = async ({ channelId }) => {
       committedName = (await channels.findById(channelId))?.name;
     };
 
-    await update(server, "channel-001", { enabled: false, name: "Off Air" });
+    await updateChannel(server, "channel-001", {
+      enabled: false,
+      name: "Off Air",
+    });
 
     expect(committedName).toBe("Off Air");
   });
 
   it("keeps the disable and reports a retryable 503 when the stop fails", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.failure = new Error("ffmpeg would not exit");
 
-    const response = await update(server, "channel-001", { enabled: false });
+    const response = await updateChannel(server, "channel-001", {
+      enabled: false,
+    });
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual(cleanupFailed("disable", true));
@@ -134,12 +134,14 @@ describe("disabling a channel", () => {
 
   it("retries the stop when an already-disabled channel is disabled again", async () => {
     const { server, runtime } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.failure = new Error("ffmpeg would not exit");
-    await update(server, "channel-001", { enabled: false });
+    await updateChannel(server, "channel-001", { enabled: false });
     runtime.failure = undefined;
 
-    const retry = await update(server, "channel-001", { enabled: false });
+    const retry = await updateChannel(server, "channel-001", {
+      enabled: false,
+    });
 
     expect(retry.statusCode).toBe(200);
     expect(runtime.stops).toEqual([
@@ -151,7 +153,7 @@ describe("disabling a channel", () => {
   it("does not stop anything for an unknown channel", async () => {
     const { server, runtime } = await startServer();
 
-    const response = await update(server, "missing", { enabled: false });
+    const response = await updateChannel(server, "missing", { enabled: false });
 
     expect(response.statusCode).toBe(404);
     expect(runtime.stops).toEqual([]);
@@ -161,7 +163,7 @@ describe("disabling a channel", () => {
 describe("deleting a channel", () => {
   it("stops the runtime after the delete commits", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     let stillStored: boolean | undefined;
     runtime.onStop = async ({ channelId }) => {
       stillStored = (await channels.findById(channelId)) !== undefined;
@@ -178,7 +180,7 @@ describe("deleting a channel", () => {
 
   it("keeps the delete and reports a retryable 503 when the stop fails", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.failure = new Error("ffmpeg would not exit");
 
     const response = await remove(server, "channel-001");
@@ -190,7 +192,7 @@ describe("deleting a channel", () => {
 
   it("retries the stop when the channel is already gone", async () => {
     const { server, runtime } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.failure = new Error("ffmpeg would not exit");
     await remove(server, "channel-001");
     runtime.failure = undefined;
@@ -208,7 +210,7 @@ describe("deleting a channel", () => {
 describe("re-enabling a channel", () => {
   it("retries the prior stop before committing the enable", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, {
+    await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
@@ -218,7 +220,9 @@ describe("re-enabling a channel", () => {
       stateDuringStop = (await channels.findById(channelId))?.enabled;
     };
 
-    const response = await update(server, "channel-001", { enabled: true });
+    const response = await updateChannel(server, "channel-001", {
+      enabled: true,
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ enabled: true });
@@ -230,14 +234,14 @@ describe("re-enabling a channel", () => {
 
   it("keeps the channel disabled and unchanged while the stop fails", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, {
+    await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
     });
     runtime.failure = new Error("ffmpeg would not exit");
 
-    const response = await update(server, "channel-001", {
+    const response = await updateChannel(server, "channel-001", {
       enabled: true,
       name: "Back On Air",
     });
@@ -252,16 +256,16 @@ describe("re-enabling a channel", () => {
 
   it("enables once a retried stop succeeds", async () => {
     const { server, runtime } = await startServer();
-    await create(server, {
+    await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
     });
     runtime.failure = new Error("ffmpeg would not exit");
-    await update(server, "channel-001", { enabled: true });
+    await updateChannel(server, "channel-001", { enabled: true });
     runtime.failure = undefined;
 
-    const retry = await update(server, "channel-001", { enabled: true });
+    const retry = await updateChannel(server, "channel-001", { enabled: true });
 
     expect(retry.statusCode).toBe(200);
     expect(retry.json()).toMatchObject({ enabled: true });
@@ -271,11 +275,11 @@ describe("re-enabling a channel", () => {
 describe("changes that leave the runtime alone", () => {
   it("never stops for create, rename, renumber, or enabling an enabled channel", async () => {
     const { server, runtime } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
 
-    await update(server, "channel-001", { name: "Krazi Classics" });
-    await update(server, "channel-001", { number: "69.1" });
-    await update(server, "channel-001", { enabled: true });
+    await updateChannel(server, "channel-001", { name: "Krazi Classics" });
+    await updateChannel(server, "channel-001", { number: "69.1" });
+    await updateChannel(server, "channel-001", { enabled: true });
 
     expect(runtime.stops).toEqual([]);
   });
@@ -284,7 +288,7 @@ describe("changes that leave the runtime alone", () => {
 describe("cleanup failure logging", () => {
   it("logs the channel, operation, stop reason, phase, and cause details", async () => {
     const { server, runtime, logs } = await startServer();
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.failure = new SignalError(
       "runtime_cleanup_failed",
       "Channel channel-001 runtime cleanup did not settle",
@@ -296,7 +300,7 @@ describe("cleanup failure logging", () => {
       },
     );
 
-    await update(server, "channel-001", { enabled: false });
+    await updateChannel(server, "channel-001", { enabled: false });
 
     expect(logs).toContainEqual(
       expect.objectContaining({
@@ -326,7 +330,7 @@ describe("cleanup failure logging", () => {
 describe("concurrent lifecycle changes", () => {
   it("runs a disable only after an in-flight re-enable finishes", async () => {
     const { server, runtime, channels } = await startServer();
-    await create(server, {
+    await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
@@ -343,9 +347,9 @@ describe("concurrent lifecycle changes", () => {
 
     // ChannelLifecycleLock tests prove the waiting itself without timing; this
     // checks the routes hold the lock, so the disable lands after the re-enable.
-    const enabling = update(server, "channel-001", { enabled: true });
+    const enabling = updateChannel(server, "channel-001", { enabled: true });
     await vi.waitFor(() => expect(runtime.stops).toHaveLength(1));
-    const disabling = update(server, "channel-001", { enabled: false });
+    const disabling = updateChannel(server, "channel-001", { enabled: false });
     released = true;
     release();
     expect((await enabling).statusCode).toBe(200);
@@ -357,14 +361,14 @@ describe("concurrent lifecycle changes", () => {
 
   it("does not hold up lifecycle changes on other channels", async () => {
     const { server, runtime } = await startServer();
-    await create(server, { number: "69", name: "Held" });
-    await create(server, { number: "70", name: "Free" });
+    await createChannel(server, { number: "69", name: "Held" });
+    await createChannel(server, { number: "70", name: "Free" });
     let release!: () => void;
     const held = new Promise<void>((resolve) => (release = resolve));
     runtime.onStop = ({ channelId }) =>
       channelId === "channel-001" ? held : undefined;
 
-    const first = update(server, "channel-001", { enabled: false });
+    const first = updateChannel(server, "channel-001", { enabled: false });
     await vi.waitFor(() => expect(runtime.stops).toHaveLength(1));
 
     expect((await remove(server, "channel-002")).statusCode).toBe(204);
@@ -378,16 +382,20 @@ describe("a stop that never settles", () => {
     const { server, runtime, channels } = await startServer({
       channelStopTimeoutMs: 50,
     });
-    await create(server, { number: "69", name: "Krazi Comedy" });
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
     runtime.onStop = () =>
       runtime.stops.length === 1 ? new Promise<void>(() => {}) : undefined;
 
-    const disabling = await update(server, "channel-001", { enabled: false });
+    const disabling = await updateChannel(server, "channel-001", {
+      enabled: false,
+    });
 
     expect(disabling.statusCode).toBe(503);
     expect(disabling.json()).toEqual(cleanupFailed("disable", true));
     expect((await channels.findById("channel-001"))?.enabled).toBe(false);
-    const renaming = await update(server, "channel-001", { name: "Off Air" });
+    const renaming = await updateChannel(server, "channel-001", {
+      name: "Off Air",
+    });
     expect(renaming.statusCode).toBe(200);
   });
 
@@ -395,14 +403,16 @@ describe("a stop that never settles", () => {
     const { server, runtime, channels } = await startServer({
       channelStopTimeoutMs: 50,
     });
-    await create(server, {
+    await createChannel(server, {
       number: "69",
       name: "Krazi Comedy",
       enabled: false,
     });
     runtime.onStop = () => new Promise<void>(() => {});
 
-    const response = await update(server, "channel-001", { enabled: true });
+    const response = await updateChannel(server, "channel-001", {
+      enabled: true,
+    });
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual(cleanupFailed("disable", false));

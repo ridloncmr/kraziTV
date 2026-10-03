@@ -4,17 +4,16 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
+import { parameterChunks } from "../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
-import { findChannelsUsingCollection } from "../programming-blocks/channels-using-collection.js";
+import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
+import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import type {
   CreateMediaCollectionResult,
   DeleteMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
 } from "./contracts.js";
-
-// Keeps every statement well under SQLite's 32,766 bound-parameter limit.
-const CHUNK_SIZE = 1_000;
 
 // Fixed locale so list order never depends on the host's locale settings.
 const NAME_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
@@ -145,24 +144,6 @@ export async function collectionExists(
   return row !== undefined;
 }
 
-// Returns requested IDs absent from the catalog, in request order without repeats.
-export async function findUnknownMediaItemIds(
-  executor: Executor,
-  mediaItemIds: readonly string[],
-): Promise<string[]> {
-  const requested = [...new Set(mediaItemIds)];
-  const known = new Set<string>();
-  for (const chunk of chunks(requested)) {
-    const rows = await executor
-      .selectFrom("media_items")
-      .select("id")
-      .where("id", "in", chunk)
-      .execute();
-    for (const { id } of rows) known.add(id);
-  }
-  return requested.filter((id) => !known.has(id));
-}
-
 // Writes contiguous zero-based positions in request order.
 export async function insertMembers(
   executor: Executor,
@@ -176,7 +157,7 @@ export async function insertMembers(
     position,
     created_at: now,
   }));
-  for (const chunk of chunks(rows)) {
+  for (const chunk of parameterChunks(rows)) {
     await executor.insertInto("media_collection_items").values(chunk).execute();
   }
 }
@@ -210,15 +191,6 @@ export async function selectMembers(
     status: row.status,
     durationMs: row.duration_ms,
   }));
-}
-
-// Splits a list so each statement stays within SQLite's parameter limit.
-function chunks<T>(values: readonly T[]): T[][] {
-  const result: T[][] = [];
-  for (let start = 0; start < values.length; start += CHUNK_SIZE) {
-    result.push(values.slice(start, start + CHUNK_SIZE));
-  }
-  return result;
 }
 
 // Converts a row into the camel-cased record callers use.
