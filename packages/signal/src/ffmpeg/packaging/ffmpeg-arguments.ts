@@ -56,6 +56,7 @@ export function buildFfmpegArguments(
     item.hasAudio ? "0:a:0" : "1:a:0",
     "-c:v",
     "libx264",
+    ...(hasBlackTail ? ["-tune", "zerolatency"] : []),
     "-pix_fmt",
     "yuv420p",
     "-r",
