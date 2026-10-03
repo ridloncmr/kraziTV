@@ -54,6 +54,20 @@ export function itemFixtureAt(
   return { ...itemFixture, id, path, path_key: path, ...overrides };
 }
 
+/**
+ * The item fixture under rootFixture whose ID doubles as its title and file
+ * name, so a test can name each item once and read it back by that name.
+ */
+export function titledItemFixture(
+  id: string,
+  overrides: Partial<Insertable<MediaItemTable>> = {},
+): Insertable<MediaItemTable> {
+  return itemFixtureAt(id, `${rootFixture.path}/${id}.mkv`, {
+    title: id,
+    ...overrides,
+  });
+}
+
 export const collectionFixture: Insertable<MediaCollectionTable> = {
   id: "collection-fixture-001",
   name: "Example Collection",

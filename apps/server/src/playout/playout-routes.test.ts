@@ -5,16 +5,14 @@ import { iso, send, windowUrl } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
-import { sequentialIds } from "../testing/record-sources.js";
 import {
   readOnlyScheduleState,
   readScheduleEntries,
   seedScheduleScenario,
-  type ScheduleScenarioOptions,
 } from "../testing/schedule-fixtures.js";
+import { startScheduleScenarioServer } from "../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
-  createTemporaryDirectory,
   openTestDatabase,
   startTestServer,
 } from "../testing/test-environment.js";
@@ -38,32 +36,6 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
 const CHANNEL_ID = "channel-fixture-001";
 const NOW_URL = `/channels/${CHANNEL_ID}/now`;
 const PLAYOUT_URL = `/channels/${CHANNEL_ID}/playout`;
-
-// Boots the real composition over three chronological episodes on a manual
-// clock, with startup coverage anchored at T0. Only `schedules` is
-// overridden, so the default playout service must pick up its clock.
-async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
-  const dataDirectory = await createTemporaryDirectory();
-  const clock = manualClock(T0);
-  const { server, db } = await startTestServer({
-    dataDirectory,
-    seed: async (db) => {
-      await seedScheduleScenario(db, {
-        items: EPISODES,
-        source: "chronological",
-        ...scenario,
-      });
-    },
-    overrides: (db) => ({
-      schedules: new ScheduleService(db, {
-        now: clock.now,
-        createId: sequentialIds("entry"),
-      }),
-    }),
-  });
-  await server.ready();
-  return { server, db, clock, dataDirectory };
-}
 
 // Boots a server whose playout coverage writes never land, then moves a day
 // past startup coverage, so every playout read finds coverage still short
@@ -89,7 +61,7 @@ async function startServerWithUnwrittenCoverage() {
 
 describe("GET /channels/:id/now", () => {
   it("returns the current item with its join offset and the next item", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     clock.set(MID_SECOND);
 
     const { status, body } = await send(server, "GET", NOW_URL);
@@ -129,7 +101,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("evaluates a given instant deterministically", async () => {
-    const { server, clock } = await startServer();
+    const { server, clock } = await startScheduleScenarioServer();
     const url = `${NOW_URL}?at=${iso(MID_SECOND)}`;
 
     const first = await send(server, "GET", url);
@@ -147,7 +119,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("extends coverage for a channel short of its horizon, then answers at the new revision", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     clock.advance(DAY);
 
     const { status, body } = await send(server, "GET", NOW_URL);
@@ -163,7 +135,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("reports a schedule gap at revision 0 for an unschedulable channel with no entries", async () => {
-    const { server } = await startServer({ source: null });
+    const { server } = await startScheduleScenarioServer({ source: null });
 
     await expect(send(server, "GET", NOW_URL)).resolves.toEqual({
       status: 200,
@@ -179,7 +151,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("still returns the airing item once the channel becomes unschedulable", async () => {
-    const { server, db, clock } = await startServer();
+    const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "GET", NOW_URL);
     await db.deleteFrom("programming_blocks").execute();
     clock.set(MID_SECOND);
@@ -191,7 +163,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("reports unavailable media with its entry and leaves the schedule untouched", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     await send(server, "GET", NOW_URL);
     await db
       .updateTable("media_items")
@@ -220,7 +192,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("rejects a disabled channel", async () => {
-    const { server } = await startServer({ enabled: false });
+    const { server } = await startScheduleScenarioServer({ enabled: false });
 
     const { status, body } = await send(server, "GET", NOW_URL);
 
@@ -229,7 +201,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("reports an unknown channel", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(server, "GET", "/channels/missing/now");
 
@@ -242,7 +214,7 @@ describe("GET /channels/:id/now", () => {
     ["an instant without a zone", "2024-01-01T00:00:00"],
     ["a non-instant", "soon"],
   ])("rejects %s", async (_, at) => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(server, "GET", `${NOW_URL}?at=${at}`);
 
@@ -251,7 +223,7 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("rejects an instant past the request limit without generating", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     const before = await readScheduleEntries(db, CHANNEL_ID);
 
     const { status, body } = await send(
@@ -281,7 +253,8 @@ describe("GET /channels/:id/now", () => {
   });
 
   it("answers 503 retryable when coverage needs a busy writer, and 200 when already covered", async () => {
-    const { server, clock, dataDirectory } = await startServer();
+    const { server, clock, dataDirectory } =
+      await startScheduleScenarioServer();
     const covered = `${NOW_URL}?at=${iso(MID_SECOND)}`;
     await send(server, "GET", covered);
     const other = await openTestDatabase(dataDirectory);
@@ -306,7 +279,7 @@ describe("GET /channels/:id/now", () => {
 
 describe("GET /channels/:id/playout", () => {
   it("returns the playable items overlapping the window in the public shape", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
 
     const { status, body } = await send(
       server,
@@ -349,7 +322,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("returns identical items where two windows overlap", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
     const read = async (start: number, end: number) =>
       (
         await send(server, "GET", windowUrl(PLAYOUT_URL, start, end))
@@ -367,7 +340,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("omits an unplayable entry that the same window's schedule still lists", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     await db
       .updateTable("media_items")
       .set({ status: "missing" })
@@ -394,7 +367,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("returns 200 with no items for an unschedulable channel with no entries", async () => {
-    const { server } = await startServer({ source: null });
+    const { server } = await startScheduleScenarioServer({ source: null });
 
     await expect(
       send(server, "GET", windowUrl(PLAYOUT_URL, T0, T0 + HOUR)),
@@ -405,7 +378,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("rejects a disabled channel", async () => {
-    const { server } = await startServer({ enabled: false });
+    const { server } = await startScheduleScenarioServer({ enabled: false });
 
     const { status, body } = await send(
       server,
@@ -418,7 +391,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("reports an unknown channel", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
 
     const { status, body } = await send(
       server,
@@ -447,7 +420,7 @@ describe("GET /channels/:id/playout", () => {
     ],
     ["a missing end", `${PLAYOUT_URL}?start=${iso(T0)}`],
   ])("rejects %s", async (_, url) => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     const before = await readScheduleEntries(db, CHANNEL_ID);
 
     const { status, body } = await send(server, "GET", url);
@@ -458,7 +431,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("covers a 7-day window through its end, past the horizon", async () => {
-    const { server } = await startServer();
+    const { server } = await startScheduleScenarioServer();
     const end = T0 + SCHEDULE_REQUEST_LIMIT_MS;
 
     const { status, body } = await send(
@@ -472,7 +445,7 @@ describe("GET /channels/:id/playout", () => {
   });
 
   it("rejects a window ending past the request limit without generating", async () => {
-    const { server, db } = await startServer();
+    const { server, db } = await startScheduleScenarioServer();
     const end = T0 + SCHEDULE_REQUEST_LIMIT_MS + 1;
     const before = await readScheduleEntries(db, CHANNEL_ID);
 

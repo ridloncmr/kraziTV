@@ -1,12 +1,11 @@
 // Spec 0003 acceptance: collections and channels configured over HTTP against
 // the real composition and a real temporary SQLite file, then read back after a
 // restart. Only the channel runtime is replaced, so stops can be observed.
-import { sql, type Insertable } from "kysely";
+import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { send } from "../testing/api-requests.js";
-import { itemFixtureAt, rootFixture } from "../testing/catalog-fixtures.js";
+import { rootFixture, titledItemFixture } from "../testing/catalog-fixtures.js";
 import { RecordingChannelRuntime } from "../testing/recording-channel-runtime.js";
 import {
   cleanUpTestEnvironment,
@@ -36,11 +35,6 @@ const CHANNEL_COLUMNS = [
 ];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// Builds a cataloged media item whose ID doubles as its unique path and title.
-function item(id: string): Insertable<MediaItemTable> {
-  return itemFixtureAt(id, `/media/shows/${id}.mkv`, { title: id });
-}
-
 // Composes the server the way index.ts does, except for a recording runtime.
 async function startServer(
   dataDirectory: string,
@@ -54,7 +48,11 @@ async function startServer(
       await db.insertInto("media_roots").values(rootFixture).execute();
       await db
         .insertInto("media_items")
-        .values([item("pilot"), item("second"), item("finale")])
+        .values([
+          titledItemFixture("pilot"),
+          titledItemFixture("second"),
+          titledItemFixture("finale"),
+        ])
         .execute();
     },
     overrides: () => ({ channelRuntime: runtime }),
