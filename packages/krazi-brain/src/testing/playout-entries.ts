@@ -35,3 +35,25 @@ export function playoutEntry(
     },
   };
 }
+
+export const HALF_HOUR_MS = 30 * 60 * 1000;
+
+// 2026-09-28T20:00:00.000Z, where back-to-back half-hour entries begin.
+const HALF_HOURS_START_AT = Date.parse("2026-09-28T20:00:00.000Z");
+
+/**
+ * Builds the entry airing in the `index`th back-to-back half hour, with media
+ * filling it unless overridden, so contiguity tests state positions, not times.
+ */
+export function halfHourPlayoutEntry(
+  id: string,
+  index: number,
+  media: Partial<PlayoutMedia> = {},
+): PlayoutEntry {
+  const startsAt = HALF_HOURS_START_AT + index * HALF_HOUR_MS;
+  return playoutEntry(id, {
+    startsAt,
+    endsAt: startsAt + HALF_HOUR_MS,
+    media: { durationMs: HALF_HOUR_MS, ...media },
+  });
+}

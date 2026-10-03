@@ -42,6 +42,25 @@ export interface PlayoutItem {
   updatedAt: number;
 }
 
+interface FollowingPlayoutBase {
+  channelId: string;
+  scheduleRevision: number;
+}
+
+/**
+ * The contiguous playable items after a cursor entry, possibly none, or
+ * `stale_entry` when regeneration deleted the cursor entry.
+ */
+export type FollowingPlayout =
+  | (FollowingPlayoutBase & {
+      status: "selected";
+      items: readonly PlayoutItem[];
+    })
+  | (FollowingPlayoutBase & {
+      status: "stale_entry";
+      items: readonly [];
+    });
+
 /** The current playout item with the join offset for a viewer tuning now. */
 interface CurrentPlayoutItem extends PlayoutItem {
   offsetMs: number;

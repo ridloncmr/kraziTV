@@ -4,10 +4,14 @@
  * provider formatting do not.
  */
 
-// Current channel state the server derives from one schedule snapshot.
+// Current channel state, following items, and window timelines the server
+// derives from one schedule snapshot.
 export { deriveChannelState } from "./playout/channel-state.js";
+export { selectFollowingPlayout } from "./playout/following-playout.js";
+export { buildPlayoutTimeline } from "./playout/playout-item.js";
 export type {
   ChannelState,
+  FollowingPlayout,
   PlayoutEntry,
   PlayoutMedia,
 } from "./playout/contracts.js";

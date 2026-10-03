@@ -50,3 +50,22 @@ export function toPlayoutItem(
     updatedAt: entry.updatedAt,
   };
 }
+
+/**
+ * Maps a window's entries to the playout items the channel transmits, in
+ * order. Unplayable entries are omitted rather than replaced, because the
+ * playout timeline never invents programming the schedule does not list.
+ */
+export function buildPlayoutTimeline({
+  channelId,
+  scheduleRevision,
+  entries,
+}: {
+  channelId: string;
+  scheduleRevision: number;
+  entries: readonly PlayoutEntry[];
+}): PlayoutItem[] {
+  return entries.flatMap(
+    (entry) => toPlayoutItem(entry, channelId, scheduleRevision) ?? [],
+  );
+}
