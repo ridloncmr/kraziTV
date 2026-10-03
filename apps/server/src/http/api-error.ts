@@ -63,6 +63,33 @@ export function sendChannelNotFound(
   );
 }
 
+/** One 409 shape for every route a disabled channel cannot serve, in any domain. */
+export function sendChannelDisabled(
+  reply: FastifyReply,
+  id: string,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    409,
+    "channel_disabled",
+    `Channel ${id} is disabled`,
+  );
+}
+
+/**
+ * One retryable 503 for every schedule read or write that could not get or
+ * keep write authority, whether the writer stayed busy or won a race.
+ */
+export function sendScheduleBusy(reply: FastifyReply): FastifyReply {
+  return sendApiError(
+    reply,
+    503,
+    "schedule_busy",
+    "The schedule is busy; retry the request",
+    { retryable: true },
+  );
+}
+
 /** One 404 shape for every route that addresses a media root, in any domain. */
 export function sendMediaRootNotFound(
   reply: FastifyReply,
@@ -102,13 +129,7 @@ export function sendUnknownMediaItems(
 export function registerApiErrorHandlers(server: FastifyInstance): void {
   server.setErrorHandler((error, request, reply) => {
     if (error instanceof WriteAuthorityBusyError) {
-      return sendApiError(
-        reply,
-        503,
-        "schedule_busy",
-        "The schedule is busy; retry the request",
-        { retryable: true },
-      );
+      return sendScheduleBusy(reply);
     }
 
     const statusCode =

@@ -1,4 +1,4 @@
-import type { PlayoutEntry } from "@krazitv/krazi-brain";
+import { assertFollowingCount, type PlayoutEntry } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
@@ -65,9 +65,7 @@ export async function listPlayoutEntriesAfter(
   sequenceNumber: number,
   count: number,
 ): Promise<PlayoutEntry[]> {
-  if (!Number.isSafeInteger(count) || count < 1) {
-    throw new Error(`following count must be a positive integer: ${count}`);
-  }
+  assertFollowingCount(count);
   const rows = await selectPlayoutEntries(trx, channelId)
     .where("schedule_entries.sequence_number", ">", sequenceNumber)
     .orderBy("schedule_entries.sequence_number")

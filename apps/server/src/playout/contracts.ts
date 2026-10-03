@@ -49,3 +49,14 @@ export type PlayoutSnapshot<T> =
   | { kind: "coverage_needed"; target: number }
   | { kind: "through_out_of_range"; latestThrough: number }
   | { kind: "ok"; scheduleRevision: number; value: T };
+
+/**
+ * Why a playout read returned no kraziBrain value. `unavailable` means
+ * coverage was still short after the one retry, because another writer won
+ * the race; the caller may retry.
+ */
+export type PlayoutFailure =
+  | { kind: "not_found" }
+  | { kind: "disabled" }
+  | { kind: "through_out_of_range"; latestThrough: number }
+  | { kind: "unavailable" };

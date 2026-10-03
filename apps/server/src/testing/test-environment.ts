@@ -17,6 +17,7 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "../channels/runtime/no-op-channel-runtime.js";
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
+import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
@@ -80,6 +81,7 @@ export async function startTestServer(
   await options.seed?.(database.db);
 
   const mediaRoots = new MediaRootRepository(database.db);
+  const schedules = new ScheduleService(database.db);
   const defaults: TestServerDependencies = {
     mediaRoots,
     scanner: new CatalogScanner({
@@ -92,12 +94,19 @@ export async function startTestServer(
     channels: new ChannelRepository(database.db),
     channelRuntime: noOpChannelRuntime,
     programmingBlocks: new ProgrammingBlockRepository(database.db),
-    schedules: new ScheduleService(database.db),
+    schedules,
+    playout: new PlayoutService(database.db, schedules),
   };
-  const dependencies = {
-    ...defaults,
-    ...options.overrides?.(database.db, defaults),
-  };
+  const overridden = options.overrides?.(database.db, defaults) ?? {};
+  const dependencies: TestServerDependencies = { ...defaults, ...overridden };
+  // A default playout service follows the final schedule service, so
+  // overriding `schedules` alone keeps the two on one clock.
+  if (overridden.playout === undefined) {
+    dependencies.playout = new PlayoutService(
+      database.db,
+      dependencies.schedules,
+    );
+  }
   const server = buildServer(
     { database, ...dependencies },
     {

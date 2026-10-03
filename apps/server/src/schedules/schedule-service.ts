@@ -99,6 +99,14 @@ export class ScheduleService {
   }
 
   /**
+   * Reads the clock this service writes by. Playout reads use it as their
+   * only clock, so they evaluate the same time coverage is generated for.
+   */
+  now(): number {
+    return this.#now();
+  }
+
+  /**
    * Materializes an enabled channel's schedule at least a full horizon past
    * the effective current time, or through `through` when that is later. Extends in chunks, each its
    * own transaction that re-reads state, so concurrent callers never

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   sendApiError,
+  sendChannelDisabled,
   sendChannelNotFound,
   sendInvalidRequest,
 } from "../http/api-error.js";
@@ -101,12 +102,7 @@ function sendCoverageFailure(
     case "channel_not_found":
       return sendChannelNotFound(reply, channelId);
     case "disabled":
-      return sendApiError(
-        reply,
-        409,
-        "channel_disabled",
-        `Channel ${channelId} is disabled`,
-      );
+      return sendChannelDisabled(reply, channelId);
     case "unschedulable":
       return sendApiError(
         reply,
