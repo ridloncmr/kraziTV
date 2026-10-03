@@ -4,24 +4,24 @@
 
 Progress: 11 of 16 tickets complete.
 
-| Ticket  | Title                                                                | Status                 |
-| ------- | -------------------------------------------------------------------- | ---------------------- |
-| SIG-001 | Establish signal contracts and deterministic test kit                | Complete on 2026-09-28 |
-| SIG-002 | Build the bounded channel broadcaster                                | Complete on 2026-09-28 |
-| SIG-003 | Add the FFmpeg process lifecycle primitive                           | Complete on 2026-09-28 |
-| SIG-004 | Implement a single-item FFmpeg SignalSession                         | Complete on 2026-09-29 |
-| SIG-005 | Start one ChannelWorker at the fresh wall-clock position             | Complete on 2026-09-29 |
-| SIG-006 | Add readiness-gated manager subscription and creation deduplication  | Complete on 2026-09-29 |
-| SIG-007 | Complete active, idle, administrative, and terminal lifecycles       | Complete on 2026-09-29 |
-| SIG-008 | Add bounded following-item preparation and atomic transition use     | Complete on 2026-09-29 |
-| SIG-009 | Complete the pre-spike automated runtime suite                       | Complete on 2026-09-29 |
-| SIG-010 | Build the retained real-FFmpeg baseline and disposable spike harness | Complete on 2026-09-29 |
-| SIG-011 | Run the compatibility matrix and choose empirical defaults           | Complete on 2026-09-29 |
-| SIG-012 | Implement the production playout and authorization adapters          | Open                   |
-| SIG-013 | Implement the SQLite TransitionCoordinator adapter                   | Open                   |
-| SIG-014 | Add the provider-neutral HTTP stream route                           | Open                   |
-| SIG-015 | Wire administrative stops and server shutdown                        | Open                   |
-| SIG-016 | Close the full spec 0006 acceptance loop                             | Open                   |
+| Ticket  | Title                                                                      | Status                 |
+| ------- | -------------------------------------------------------------------------- | ---------------------- |
+| SIG-001 | Establish signal contracts and deterministic test kit                      | Complete on 2026-09-28 |
+| SIG-002 | Build the bounded channel broadcaster                                      | Complete on 2026-09-28 |
+| SIG-003 | Add the FFmpeg process lifecycle primitive                                 | Complete on 2026-09-28 |
+| SIG-004 | Implement a single-item FFmpeg SignalSession                               | Complete on 2026-09-29 |
+| SIG-005 | Start one ChannelWorker at the fresh wall-clock position                   | Complete on 2026-09-29 |
+| SIG-006 | Add readiness-gated manager subscription and creation deduplication        | Complete on 2026-09-29 |
+| SIG-007 | Complete active, idle, administrative, and terminal lifecycles             | Complete on 2026-09-29 |
+| SIG-008 | Add bounded following-item preparation and atomic transition use           | Complete on 2026-09-29 |
+| SIG-009 | Complete the pre-spike automated runtime suite                             | Complete on 2026-09-29 |
+| SIG-010 | Build the retained real-FFmpeg baseline and disposable spike harness       | Complete on 2026-09-29 |
+| SIG-011 | Run the compatibility matrix and choose empirical defaults                 | Complete on 2026-09-29 |
+| SIG-012 | Map PlayoutService into the PlayoutProvider and ChannelAuthorization ports | Open                   |
+| SIG-013 | Implement the SQLite TransitionCoordinator adapter                         | Open                   |
+| SIG-014 | Add the provider-neutral HTTP stream route                                 | Open                   |
+| SIG-015 | Wire administrative stops and server shutdown                              | Open                   |
+| SIG-016 | Close the full spec 0006 acceptance loop                                   | Open                   |
 
 <!-- plan-progress:end -->
 
@@ -114,7 +114,7 @@ packages/signal/src
 | G1: deterministic runtime contracts    | lifecycle implementation                         | Injected authorization, playout, transition, clock/timer, process, and logging seams exist without SQLite, Kysely, Fastify, or Plex types.   |
 | G2: automated runtime confidence       | manual Plex run                                  | Closed by SIG-009: fake-driven tests cover startup, fan-out, transitions, cancellation, idle grace, administrative stop retry, and shutdown. |
 | G3: FFmpeg/Plex compatibility evidence | freezing runtime defaults or accepting spec 0006 | Closed by SIG-011: the Linux/Plex matrix passes the 2,000 ms tune-drift ceiling and selects the runtime defaults.                            |
-| G4: specs 0002-0005 persistence        | production playout integration                   | Catalog, channels, schedules, and current/following playout snapshots are implemented with their documented transaction guarantees.          |
+| G4: specs 0002-0005 persistence        | production playout integration                   | Catalog, channels, and schedules are implemented, and plan 0005 G4 (playout executable acceptance) has passed.                               |
 | G5: production coordination            | full stream route acceptance                     | SQLite transition races pass in both orderings and stale output is never committed.                                                          |
 
 Until G3 passes, pacing flags, readiness detection, late-join replay shape,
@@ -783,58 +783,66 @@ Produce the evidence required to make spec 0006 acceptably precise.
 
 ## Phase 3: Production Integration
 
-### SIG-012: Implement the production playout and authorization adapters
+### SIG-012: Map PlayoutService into the PlayoutProvider and ChannelAuthorization ports
 
 **Goal**
 
-Feed workers real provider-neutral state from one consistent schedule snapshot.
+Feed workers real provider-neutral state by adapting plan 0005's
+`PlayoutService` and `ChannelRepository` to the signal ports.
 
 **Scope**
 
-- Implement channel authorization for existence/enabled checks.
-- Implement `getCurrent()` and `getFollowing()` adapters over the completed
-  specs 0002-0005 persistence model.
-- Read revision first, then every contributing row through one connection-pinned
-  Kysely read transaction.
-- Return typed domain projections rather than database rows.
-- End a snapshot and request horizon repair/extension before retrying; never
-  upgrade the read transaction to a write.
+- Implement `ChannelAuthorization` over `ChannelRepository.findById` for
+  existence and enabled checks.
+- Implement `PlayoutProvider.getCurrent`, `getFollowing`, and
+  `getScheduleRevision` over `PlayoutService`, converting kraziBrain results
+  into signal port types with the result mapping in
+  [plan 0005 Hand-off](0005-playout-timeline.md#hand-off).
+- Bind `server.log` in the adapter, because the signal ports take no logger.
+- Place the adapter in `apps/server/src/channels/runtime/`.
+- Clamp `playDurationMs` in `channel-worker/playout-projection.ts`: current
+  `min(endsAt - evaluatedAt, durationMs - mediaOffsetMs)` and following
+  `min(endsAt - startsAt, durationMs - startOffsetMs)`. Neither projection
+  clamps today.
+
+The connection-pinned snapshot read, revision-first ordering, never upgrading
+the read transaction, the single coverage retry, the two-connection torn-read
+test, and the schedule-gap and unavailable-media states belong to plan 0005
+PLY-004 to PLY-006.
 
 **Out of scope**
 
-- Signal runtime changes, schedule generation policy, and transition writes.
+- Signal runtime changes other than the `playout-projection.ts` clamp.
+- Schedule generation policy, snapshot reads, and transition writes.
 
 **Blocking dependencies**
 
-- G4: implemented specs 0002-0005 and the SQLite persistence foundation.
+- Plan 0005 G3 (snapshot consistency) and PLY-006 (`PlayoutService`).
 - SIG-001 contract shapes.
 
 **Implementation notes**
 
-- A following cursor must exist under the selected channel/revision; do not
-  guess after stale data.
-- Define `SelectedPlayoutItem.durationMs` in spec 0005 (media playable length
-  versus airtime). If it is media length, clamp `playDurationMs` in
-  `channel-worker/playout-projection.ts` to `durationMs - mediaOffsetMs` as
-  spec 0006 requires for the initial item; neither the current nor the
-  following projection clamps today.
-- Carry the catalog's required `hasAudio` fact into every
-  `SelectedPlayoutItem`; `packages/signal` consumes it but does not probe media.
-- Keep this adapter in the server/persistence composition layer, not
-  `packages/signal`.
+- `SelectedPlayoutItem.durationMs` is the media's playable length, and airtime
+  is `endsAt - startsAt` (spec 0005). kraziBrain reports an offset at or past
+  `durationMs` as `media_unavailable`, so the current play duration is always
+  positive; a non-positive value is still rejected as invalid timing.
+- What a session transmits when following media shorter than its airtime ends
+  before the boundary is decided here, in the signal layer.
+- `PlayoutService` already carries the catalog's `hasAudio` fact into every
+  item; `packages/signal` consumes it but does not probe media.
+- Keep Kysely row shapes and transaction objects out of `packages/signal`.
 
 **Verification**
 
-- Repository tests cover enabled, disabled, missing, schedule-gap,
-  unavailable-media, current, and following states.
-- A two-connection interleave proves every result is complete old or complete
-  new state, never a mixed revision/source projection.
+- Adapter tests map every `PlayoutService` result in plan 0005's Hand-off
+  table, including the thrown `SignalError` codes.
+- Projection tests cover both clamps, including media shorter than airtime.
 - Search confirms `packages/signal` has no SQLite or Kysely import.
 
 **Docs impact**
 
-- Update implementation status for specs 0002-0005 as their owning plans
-  require; no boundary change is expected in spec 0006.
+- None expected; spec 0005 owns playout behavior and no boundary change is
+  expected in spec 0006.
 
 ### SIG-013: Implement the SQLite TransitionCoordinator adapter
 
@@ -864,6 +872,10 @@ deterministic winner.
 
 - This adapter belongs with persistence wiring outside `packages/signal`.
 - The callback must remain synchronous and must not perform preparation.
+- Reuse `loadScheduleState` and the executor-agnostic covering query in
+  `apps/server/src/playout/playout-repository.ts` inside
+  `runImmediateTransaction`; both accept any executor. SIG-012 already brings
+  plan 0005 PLY-004 in as a dependency.
 
 **Verification**
 

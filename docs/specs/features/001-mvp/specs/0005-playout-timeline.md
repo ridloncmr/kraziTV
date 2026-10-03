@@ -45,22 +45,46 @@ Playback offset: 00:09:15
 
 The Web UI or API can expose current channel state for debugging and future admin screens.
 
-Example current state:
+Example current state from `GET /channels/:id/now`:
 
 ```json
 {
   "channelId": "channel_69",
   "scheduleRevision": 12,
+  "evaluatedAt": "2026-09-28T20:31:15.000Z",
   "currentItem": {
     "type": "program",
+    "scheduleEntryId": "entry_456",
     "mediaItemId": "media_123",
     "title": "Show A - Episode 2",
-    "startedAt": "2026-09-28T20:22:00Z",
-    "endsAt": "2026-09-28T20:44:00Z",
-    "offsetMs": 555000
-  }
+    "startsAt": "2026-09-28T20:22:00.000Z",
+    "endsAt": "2026-09-28T20:44:00.000Z",
+    "durationMs": 1320000,
+    "startOffsetMs": 0,
+    "offsetMs": 555000,
+    "createdAt": "2026-09-28T12:00:00.000Z",
+    "updatedAt": "2026-09-28T12:00:00.000Z"
+  },
+  "nextItem": null
 }
 ```
+
+`nextItem` has the same fields as `currentItem` except `offsetMs`. When nothing
+can be transmitted, the response is the no-current variant:
+
+```json
+{
+  "channelId": "channel_69",
+  "scheduleRevision": 12,
+  "evaluatedAt": "2026-09-28T20:31:15.000Z",
+  "currentItem": null,
+  "nextItem": null,
+  "reason": "media_unavailable",
+  "scheduleEntryId": "entry_456"
+}
+```
+
+`scheduleEntryId` appears only with reason `media_unavailable`.
 
 ## Technical Behavior
 
@@ -102,14 +126,29 @@ Minimum program playout item fields:
 - Channel ID
 - Schedule entry ID, also used as the stable MVP playout cursor
 - Media item ID
-- Media path
+- Media path (internal only)
+- Has audio (internal only)
 - Title
 - Starts at
 - Ends at
 - Duration milliseconds
 - Start offset milliseconds
 
-For the MVP, `startOffsetMs` is usually `0` for timeline items. The current playback offset is calculated from wall-clock time when a viewer tunes in.
+For the MVP, `startOffsetMs` is `0` for every item. The current playback offset
+is calculated from wall-clock time when a viewer tunes in.
+
+An item has two lengths:
+
+- `durationMs` is the media's playable length, read from the catalog in the
+  same snapshot as the entry.
+- Airtime is `endsAt - startsAt`, fixed when the entry was generated.
+
+They differ when a rescan changes a file after its entry was published.
+
+Media is **playable** when its status is `available`, its `durationMs` is a
+positive integer, and its `hasAudio` fact is known. Playable differs from
+schedulable: it has no duration floor, and it requires the audio fact
+packaging needs. Only entries with playable media become playout items.
 
 ### Current Item Lookup
 
@@ -125,11 +164,52 @@ The current offset is:
 now - startsAt + startOffsetMs
 ```
 
-The offset must be clamped to the media item's playable duration.
+All arithmetic is integer milliseconds and the offset is never clamped. Media
+longer than its airtime plays from the computed offset. An offset at or past
+`durationMs` leaves nothing to play, which happens when media was re-probed
+shorter than its airtime; that entry is reported as `media_unavailable`, so the
+API and the stream route always agree.
 
 If no schedule entry exists for the requested time, the API returns a no-current-item state with reason `schedule_gap`.
 
-If the current schedule entry references missing or otherwise unavailable media, kraziTV must not silently substitute another program because that would disagree with the published schedule. The API returns a no-current-item state with reason `media_unavailable` and identifies the affected schedule entry. The stream endpoint fails before sending media bytes. Later filler behavior may provide an explicit replacement policy.
+If the current schedule entry's media is not playable, or its offset is at or
+past `durationMs`, kraziTV must not silently substitute another program because
+that would disagree with the published schedule. The API returns a
+no-current-item state with reason `media_unavailable` and identifies the
+affected schedule entry. The stream endpoint fails before sending media bytes.
+Later filler behavior may provide an explicit replacement policy.
+
+The next item is the entry after the current one in channel sequence order,
+but only when it starts exactly at the current item's `endsAt` and its media is
+playable. Otherwise, and always when there is no current item, the next item
+is `null`. Near the edge of generated coverage the next entry may not exist
+yet, which also gives `null`.
+
+### Following Items
+
+A channel stream worker asks for the items that follow a cursor
+`scheduleEntryId`. The selection:
+
+- Returns `stale_entry` with no items when the cursor entry no longer exists on
+  the channel, because regeneration deleted it.
+- Otherwise walks entries after the cursor in channel sequence order and
+  returns the prefix that is contiguous by time, each item starting exactly at
+  the previous item's `endsAt` (beginning from the cursor's `endsAt`), and
+  playable, up to the requested count.
+- Stops at the first time gap or unplayable entry. An empty selection is valid.
+
+Contiguity is judged by time, never by consecutive sequence numbers, because
+sequence numbers are not reused after regeneration.
+
+A following item whose media is shorter than its airtime is still selected; its
+transmission is limited to the media length. What the broadcast signal carries
+for the rest of that airtime is a SignalPackager concern outside this spec.
+
+When the entry after the current item is unplayable or separated by a gap, the
+selection is empty and the worker cannot transition, so the broadcast ends at
+that boundary. Tunes then receive `media_unavailable` or `schedule_gap` until
+playable coverage resumes. The MVP accepts this; filler is the future
+replacement policy.
 
 ### Channel State
 
@@ -145,6 +225,11 @@ Minimum current channel state fields:
 - Next playout item when available
 
 Channel state is computed on demand from persisted schedules and media catalog data for the MVP. Channel-state snapshots are not persisted.
+
+A channel with no schedule state yet reports `scheduleRevision` `0`. Revisions
+start at `1`, so `0` never collides with a real revision. Playout responses use
+`0` where `GET /channels/:id/schedule` reports `null`, because the runtime
+playout contract requires a number.
 
 ### Consistent Schedule Read Snapshots
 
@@ -209,9 +294,47 @@ GET /channels/:id/now
 
 Exact route names can change during implementation, but the capabilities should remain equivalent.
 
-The playout endpoint returns timeline items for a bounded time window.
+The playout endpoint returns timeline items for a bounded time window. It
+shares the schedule route's window validation: `start` before `end`, at most 7
+days apart. It returns `{ channelId, scheduleRevision, items }`, with playable
+entries overlapping `[start, end)` as playout items ordered by `startsAt`.
+Unplayable entries are omitted; the now endpoint is where `media_unavailable`
+is reported.
 
-The now endpoint returns current channel state at the server's current wall-clock time. It also accepts an optional ISO 8601 `at` timestamp for deterministic tests and debugging; production provider flows omit it.
+The now endpoint returns current channel state at the server's current
+wall-clock time, in the shape shown under User-Facing Behavior. It also
+accepts an optional ISO 8601 `at` timestamp for deterministic tests and
+debugging; production provider flows omit it. The evaluation time is fixed once
+per request. A future `at` ensures schedule coverage through it, so a debugging
+read may extend the horizon. Generation is deterministic, so this changes when
+entries are written, never what airs.
+
+Public responses omit `mediaPath` and `hasAudio`. Instants are UTC ISO 8601
+strings; durations and offsets are integer milliseconds.
+
+Both endpoints ensure schedule coverage before answering. When a read finds
+coverage missing, the server ensures coverage once and retries the read once.
+If coverage is still short, because another writer won the race, the request
+fails with a retryable `503 schedule_busy`.
+
+| Channel condition                | `/now`                                   | `/playout`                                    |
+| -------------------------------- | ---------------------------------------- | --------------------------------------------- |
+| Disabled                         | `409 channel_disabled`                   | `409 channel_disabled`                        |
+| No block or no schedulable media | Existing entries; none is `schedule_gap` | Existing entries; none is `200` with no items |
+
+A disabled channel transmits nothing, so it has no channel state; its guide
+remains available from `GET /channels/:id/schedule`. An unschedulable channel's
+empty transmission is a state, not an error, unlike `/schedule`'s
+`409 channel_unschedulable`.
+
+Errors use the existing API error envelope and codes:
+
+| Code                | Status | When                                                                   |
+| ------------------- | ------ | ---------------------------------------------------------------------- |
+| `channel_not_found` | 404    | Unknown channel                                                        |
+| `channel_disabled`  | 409    | Disabled channel                                                       |
+| `invalid_request`   | 400    | Bad `at`, `start`, or `end`; a window over 7 days; `at` past the limit |
+| `schedule_busy`     | 503    | Write authority busy, or coverage still short after the retry          |
 
 ### Determinism
 
@@ -236,6 +359,7 @@ scheduleRevision
 scheduleEntryId
 mediaItemId
 mediaPath
+hasAudio
 title
 type
 startsAt
@@ -246,7 +370,8 @@ createdAt
 updatedAt
 ```
 
-`mediaPath` is an internal packaging input and must not be exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
+`mediaPath` and `hasAudio` are internal packaging inputs and must not be
+exposed by public API responses. Public playout and channel-state responses may omit internal-only fields while preserving the remaining domain semantics.
 
 `scheduleRevision` identifies the materialized schedule snapshot from which the
 item was selected. `scheduleEntryId` is the item's MVP identity and stable
@@ -290,7 +415,10 @@ Important boundaries:
 - The current offset is calculated from wall-clock time and item start time.
 - Playout arithmetic uses integer milliseconds without repeated floating-point
   conversion.
-- Current offset is clamped to the media item's playable duration.
+- A current offset at or past the media's playable duration produces
+  `media_unavailable` instead of a current item.
+- Following selections are the contiguous, playable prefix after a cursor, and
+  a missing cursor produces `stale_entry`.
 - The same inputs and timestamp produce the same current item and offset.
 - Channel state can report current item, current offset, evaluated timestamp, and next item when available.
 - Channel state can supply selected current and following playout items to a shared channel worker.
