@@ -35,11 +35,13 @@ export interface ScriptedSession {
 /**
  * Starts sessions that emit joinable output at once, or never become ready
  * when `readiness` is `"never"`, so server tests reach the real manager's
- * readiness paths without spawning FFmpeg.
+ * readiness and cleanup paths without spawning FFmpeg.
  */
 export class ScriptedSignalPackager implements SignalPackager {
   readonly sessions: ScriptedSession[] = [];
   readiness: "ready" | "never" = "ready";
+  /** When set, every session stop rejects with it and leaves the session running. */
+  stopFailure: Error | undefined;
 
   /** Records the session and writes joinable output unless told to hang. */
   start(initialItem: SignalPlayoutItem): SignalSession {
@@ -63,6 +65,7 @@ export class ScriptedSignalPackager implements SignalPackager {
       // Boundaries sit minutes past the test clock, so preparation never runs.
       prepare: () => Promise.reject(new Error("unexpected prepare")),
       stop: async () => {
+        if (this.stopFailure !== undefined) throw this.stopFailure;
         session.stopped = true;
         output.end();
         finish();

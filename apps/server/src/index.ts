@@ -9,7 +9,6 @@ import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
-import { noOpChannelRuntime } from "./channels/runtime/no-op-channel-runtime.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
 import { toSignalLogger } from "./channels/runtime/signal-log.js";
 import { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
@@ -82,8 +81,8 @@ const server = buildServer(
     mediaItems,
     mediaCollections,
     channels,
-    // SIG-015 points administrative stops at channelStreams.
-    channelRuntime: noOpChannelRuntime,
+    // Disable and delete stop the same workers that serve tunes.
+    channelRuntime: channelStreams,
     channelStreams,
     programmingBlocks,
     schedules,

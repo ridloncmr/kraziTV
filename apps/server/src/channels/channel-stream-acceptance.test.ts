@@ -37,7 +37,8 @@ const MINUTE = 60_000;
 // Eight minutes into the second of three chronological episodes.
 const MID_SECOND = FIXTURE_TIME + 30 * MINUTE;
 const CHANNEL_ID = "channel-fixture-001";
-const STREAM_URL = `/channels/${CHANNEL_ID}/stream`;
+const CHANNEL_URL = `/channels/${CHANNEL_ID}`;
+const STREAM_URL = `${CHANNEL_URL}/stream`;
 const EPISODES: ScheduleScenarioOptions = {
   items: [22, 23, 24].map((minutes) => ({ durationMs: minutes * MINUTE })),
   source: "chronological",
@@ -52,7 +53,7 @@ afterEach(async () => {
 });
 
 // Composes the real manager over the scenario with a scripted packager in
-// place of FFmpeg. The schedule anchors at FIXTURE_TIME on startup; the clock
+// place of FFmpeg, serving both tunes and administrative stops. The schedule anchors at FIXTURE_TIME on startup; the clock
 // then moves eight minutes into the second episode.
 async function startStreamingServer(
   scenario: Partial<ScheduleScenarioOptions> = {},
@@ -85,7 +86,13 @@ async function startStreamingServer(
         ...options,
       });
       managers.push(manager);
-      return { schedules, playout, channelStreams: manager };
+      // One manager serves tunes and administrative stops, as in index.ts.
+      return {
+        schedules,
+        playout,
+        channelStreams: manager,
+        channelRuntime: manager,
+      };
     },
   });
   await server.ready();
@@ -186,6 +193,146 @@ describe("channel stream acceptance", () => {
     await settleWithin(server.close(), 2_000, "server close");
 
     await responseFinished(viewer.response);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+  });
+});
+
+describe("administrative stops", () => {
+  // Tunes one viewer and reads its first chunk, so a worker is live.
+  async function startWatchedChannel() {
+    const { server, packager } = await startStreamingServer();
+    const baseUrl = await listenOnLoopback(server);
+    const viewer = await openStreamRequest(`${baseUrl}${STREAM_URL}`);
+    await readChunk(viewer.response);
+    return { server, packager, baseUrl, viewer };
+  }
+
+  it("closes viewers and stops the session before a disable answers", async () => {
+    const { server, packager, viewer } = await startWatchedChannel();
+
+    const { status } = await send(server, "PATCH", CHANNEL_URL, {
+      enabled: false,
+    });
+
+    expect(status).toBe(200);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+    await settleWithin(responseFinished(viewer.response), 1_000, "viewer end");
+    const tune = await send(server, "GET", STREAM_URL);
+    expect(tune.status).toBe(409);
+    expect(packager.sessions).toHaveLength(1);
+  });
+
+  it("closes viewers and stops the session before a delete answers", async () => {
+    const { server, packager, viewer } = await startWatchedChannel();
+
+    const { status } = await send(server, "DELETE", CHANNEL_URL);
+
+    expect(status).toBe(204);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+    await settleWithin(responseFinished(viewer.response), 1_000, "viewer end");
+    expect((await send(server, "GET", STREAM_URL)).status).toBe(404);
+  });
+
+  it("keeps a failed disable committed and finishes cleanup on retry", async () => {
+    const { server, packager } = await startWatchedChannel();
+    packager.stopFailure = new Error("session stop failed");
+
+    const failed = await send(server, "PATCH", CHANNEL_URL, { enabled: false });
+
+    expect(failed.status).toBe(503);
+    expect(failed.body).toMatchObject({
+      error: {
+        code: "channel_runtime_cleanup_failed",
+        retryable: true,
+        persistenceCommitted: true,
+      },
+    });
+    expect((await send(server, "GET", CHANNEL_URL)).body.enabled).toBe(false);
+    expect(packager.sessions[0]?.stopped).toBe(false);
+
+    packager.stopFailure = undefined;
+    const retried = await send(server, "PATCH", CHANNEL_URL, {
+      enabled: false,
+    });
+
+    expect(retried.status).toBe(200);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+  });
+
+  it("keeps a failed delete committed and finishes cleanup on retry", async () => {
+    const { server, packager } = await startWatchedChannel();
+    packager.stopFailure = new Error("session stop failed");
+
+    const failed = await send(server, "DELETE", CHANNEL_URL);
+
+    expect(failed.status).toBe(503);
+    expect(failed.body).toMatchObject({
+      error: { code: "channel_runtime_cleanup_failed", retryable: true },
+    });
+    expect((await send(server, "GET", CHANNEL_URL)).status).toBe(404);
+
+    packager.stopFailure = undefined;
+    const retried = await send(server, "DELETE", CHANNEL_URL);
+
+    expect(retried.status).toBe(204);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+  });
+
+  it("blocks re-enable until cleanup settles, then tunes a new worker", async () => {
+    const { server, packager, baseUrl } = await startWatchedChannel();
+    packager.stopFailure = new Error("session stop failed");
+    await send(server, "PATCH", CHANNEL_URL, { enabled: false });
+
+    const blocked = await send(server, "PATCH", CHANNEL_URL, { enabled: true });
+
+    expect(blocked.status).toBe(503);
+    expect(blocked.body).toMatchObject({
+      error: {
+        code: "channel_runtime_cleanup_failed",
+        persistenceCommitted: false,
+      },
+    });
+    expect((await send(server, "GET", CHANNEL_URL)).body.enabled).toBe(false);
+
+    packager.stopFailure = undefined;
+    const enabled = await send(server, "PATCH", CHANNEL_URL, { enabled: true });
+    const viewer = await openStreamRequest(`${baseUrl}${STREAM_URL}`);
+
+    expect(enabled.status).toBe(200);
+    expect(packager.sessions[0]?.stopped).toBe(true);
+    expect(viewer.response.statusCode).toBe(200);
+    expect(await readChunk(viewer.response)).toEqual(JOINABLE_OUTPUT);
+    expect(packager.sessions).toHaveLength(2);
+    expect(packager.sessions[1]?.stopped).toBe(false);
+  });
+
+  it("keeps the stream live across a rename", async () => {
+    const { server, packager, viewer } = await startWatchedChannel();
+
+    const { status } = await send(server, "PATCH", CHANNEL_URL, {
+      name: "Renamed",
+    });
+    const later = transportPacket(256);
+    packager.sessions[0]?.output.write(later);
+
+    expect(status).toBe(200);
+    expect(await readChunk(viewer.response)).toEqual(later);
+    expect(packager.sessions[0]?.stopped).toBe(false);
+  });
+});
+
+describe("server shutdown", () => {
+  it("settles a still-starting worker and answers its tune", async () => {
+    const { server, packager } = await startStreamingServer();
+    packager.readiness = "never";
+    const baseUrl = await listenOnLoopback(server);
+    const tune = openStreamRequest(`${baseUrl}${STREAM_URL}`);
+    await vi.waitFor(() => expect(packager.sessions).toHaveLength(1));
+
+    await settleWithin(server.close(), 2_000, "server close");
+
+    const { response } = await tune;
+    expect(response.statusCode).toBe(503);
     expect(packager.sessions[0]?.stopped).toBe(true);
   });
 });

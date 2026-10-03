@@ -15,7 +15,6 @@ import {
 } from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
-import { noOpChannelRuntime } from "../channels/runtime/no-op-channel-runtime.js";
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
@@ -24,6 +23,7 @@ import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
+import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
 
 /** Every server dependency except the database, which the helper always opens. */
 export type TestServerDependencies = Omit<ServerDependencies, "database">;
@@ -93,7 +93,7 @@ export async function startTestServer(
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
-    channelRuntime: noOpChannelRuntime,
+    channelRuntime: new RecordingChannelRuntime(),
     channelStreams: new ControlledChannelStreams(),
     programmingBlocks: new ProgrammingBlockRepository(database.db),
     schedules,
