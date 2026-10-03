@@ -1,8 +1,9 @@
 import type { Readable } from "node:stream";
 
+import { assertPositiveSafeInteger } from "@krazitv/process";
+
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
-import { assertPositiveSafeInteger } from "../options/safe-integer-option.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type { Clock, TimerScheduler } from "../runtime/clock.js";
@@ -17,7 +18,7 @@ import {
   normalizeStartupError,
   WorkerCreationCleanupError,
 } from "./channel-worker-errors.js";
-import type { TransitionCoordinator } from "./contracts.js";
+import type { AiringItem, TransitionCoordinator } from "./contracts.js";
 import { requireCurrent, toSignalItem } from "./playout-projection.js";
 import {
   awaitControlled,
@@ -25,7 +26,7 @@ import {
   type StartupGuard,
   type StartupInterruption,
 } from "./startup-guard.js";
-import { type AiringItem, TransitionLoop } from "./transition-loop.js";
+import { TransitionLoop } from "./transition-loop.js";
 
 export type ChannelWorkerOptions = {
   playoutProvider: PlayoutProvider;

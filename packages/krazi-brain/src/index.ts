@@ -12,8 +12,10 @@ export {
 } from "./schedule/regeneration.js";
 export { SCHEDULE_HORIZON_MS } from "./schedule/schedule-policy.js";
 export { deriveChannelSeed } from "./schedule/seeded-hash.js";
+export { PLAYBACK_MODES } from "./schedule/contracts.js";
 export type {
   GeneratedScheduleEntry,
+  PlaybackMode,
   PlaybackProgress,
   RestorableEntry,
   ScheduleMedia,

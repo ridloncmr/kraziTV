@@ -1,11 +1,11 @@
 import type { Readable } from "node:stream";
 
-import { OutputTail } from "@krazitv/process";
-
 import {
   assertPositiveSafeInteger,
   isNonNegativeSafeInteger,
-} from "../options/safe-integer-option.js";
+  OutputTail,
+} from "@krazitv/process";
+
 import { ChannelBroadcastSubscription } from "./channel-broadcast-subscription.js";
 
 type ChannelBroadcasterOptions = {

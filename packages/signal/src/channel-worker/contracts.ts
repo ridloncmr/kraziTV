@@ -1,5 +1,21 @@
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import type { ChannelId, ScheduleEntryId } from "../playout/contracts.js";
+import type { TimestampMs } from "../runtime/clock.js";
+
+/** The item a worker's session is transmitting, and when its boundary falls. */
+export type AiringItem = {
+  scheduleEntryId: ScheduleEntryId;
+  endsAt: TimestampMs;
+};
+
+/** The dependency call a transition was waiting on; named in deadline failures. */
+export type TransitionStep =
+  | "following_lookup"
+  | "current_lookup"
+  | "prepare"
+  | "commit"
+  | "discard"
+  | "recovery";
 
 export type ChannelAuthorizationResult =
   | { status: "enabled"; channelId: ChannelId }

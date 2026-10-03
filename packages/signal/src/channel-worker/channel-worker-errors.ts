@@ -1,5 +1,6 @@
 import { SignalError, toSignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
+import type { TransitionStep } from "./contracts.js";
 import type { StartupInterruption } from "./startup-guard.js";
 
 /** Unwinds the transition loop quietly once the worker has halted it. */
@@ -54,6 +55,39 @@ export function normalizeTransitionError(
     "transition_failed",
     `Channel ${channelId} could not transition to its next playout item`,
     { channelId },
+  );
+}
+
+/** Ends recovery once every fresh selection came back stale, so a churning schedule fails the worker. */
+export function recoveryAttemptsExhausted(channelId: ChannelId): SignalError {
+  return new SignalError(
+    "transition_failed",
+    `Channel ${channelId} could not commit fresh playout`,
+    { channelId, reason: "recovery_attempts_exhausted" },
+  );
+}
+
+/**
+ * Reports a coordinator that answered `committed` without running the commit
+ * callback; trusting it would leave the session on the old item.
+ */
+export function committedWithoutCommit(channelId: ChannelId): SignalError {
+  return new SignalError(
+    "transition_failed",
+    `Channel ${channelId} transition was reported committed without its commit`,
+    { channelId },
+  );
+}
+
+/** Classifies an expired dependency call as a worker-fatal transition failure. */
+export function transitionDeadlineExceeded(
+  channelId: ChannelId,
+  step: TransitionStep,
+): SignalError {
+  return new SignalError(
+    "transition_failed",
+    `Channel ${channelId} did not finish ${step} before its transition deadline`,
+    { channelId, step, reason: "deadline_exceeded" },
   );
 }
 

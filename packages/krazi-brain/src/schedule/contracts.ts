@@ -1,5 +1,12 @@
+/**
+ * Every way a collection-sourced block can order its collection. The one
+ * list of values: the server's request validation and persisted columns
+ * derive from it, so a new mode cannot be accepted before it is scheduled.
+ */
+export const PLAYBACK_MODES = ["chronological", "random"] as const;
+
 /** How a collection-sourced block orders its collection. */
-export type PlaybackMode = "chronological" | "random";
+export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
 
 type ScheduleMediaStatus = "available" | "missing" | "probe_failed";
 
