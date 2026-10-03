@@ -804,6 +804,13 @@ Feed workers real provider-neutral state by adapting plan 0005's
   `min(endsAt - evaluatedAt, durationMs - mediaOffsetMs)` and following
   `min(endsAt - startsAt, durationMs - startOffsetMs)`. Neither projection
   clamps today.
+- Add `blackTailMs` to `SignalPlayoutItem`: the airtime left after the clamped
+  `playDurationMs`, which is `0` when media covers its airtime. The FFmpeg
+  process emits black video and silence for that span, so the broadcast
+  signal never goes quiet before the boundary. Filler replaces the black
+  tail later.
+- Add the `playout_unavailable` `SignalErrorCode` for `PlayoutService`'s
+  `unavailable` result.
 
 The connection-pinned snapshot read, revision-first ordering, never upgrading
 the read transaction, the single coverage retry, the two-connection torn-read
@@ -812,7 +819,9 @@ PLY-004 to PLY-006.
 
 **Out of scope**
 
-- Signal runtime changes other than the `playout-projection.ts` clamp.
+- Signal runtime changes other than the `playout-projection.ts` clamp, the
+  black tail, and the `playout_unavailable` code.
+- Filler selection; the black tail is the seam it fills later.
 - Schedule generation policy, snapshot reads, and transition writes.
 
 **Blocking dependencies**
@@ -826,8 +835,14 @@ PLY-004 to PLY-006.
   is `endsAt - startsAt` (spec 0005). kraziBrain reports an offset at or past
   `durationMs` as `media_unavailable`, so the current play duration is always
   positive; a non-positive value is still rejected as invalid timing.
-- What a session transmits when following media shorter than its airtime ends
-  before the boundary is decided here, in the signal layer.
+- With a black tail, limit the media read to `playDurationMs` and the output to
+  `playDurationMs + blackTailMs`. For example, use input-side `-t`, `tpad`
+  with `color=black` for video, and `apad` for source audio; synthesized
+  silence already runs indefinitely. Keep the argv unchanged when
+  `blackTailMs` is `0`.
+- `-re` paces input reads only, so FFmpeg may generate the black tail faster
+  than wall-clock speed. Verify pacing with real FFmpeg, and add a `realtime`
+  and `arealtime` stage if the tail races ahead.
 - `PlayoutService` already carries the catalog's `hasAudio` fact into every
   item; `packages/signal` consumes it but does not probe media.
 - Keep Kysely row shapes and transaction objects out of `packages/signal`.
@@ -836,13 +851,17 @@ PLY-004 to PLY-006.
 
 - Adapter tests map every `PlayoutService` result in plan 0005's Hand-off
   table, including the thrown `SignalError` codes.
-- Projection tests cover both clamps, including media shorter than airtime.
+- Projection tests cover both clamps, including media shorter than airtime,
+  and the resulting `blackTailMs`.
+- FFmpeg argument tests cover a zero and a non-zero black tail.
+- A real-FFmpeg integration test shows a short item emits its full airtime at
+  wall-clock pace, with black video and stable audio for the tail.
 - Search confirms `packages/signal` has no SQLite or Kysely import.
 
 **Docs impact**
 
-- None expected; spec 0005 owns playout behavior and no boundary change is
-  expected in spec 0006.
+- Spec 0006 records `blackTailMs` and `playout_unavailable` (done with this
+  ticket's planning, 2026-10-03).
 
 ### SIG-013: Implement the SQLite TransitionCoordinator adapter
 

@@ -794,15 +794,15 @@ and record the hand-offs.
 
 SIG-012 maps `PlayoutService` results onto the signal ports:
 
-| `PlayoutService` result            | SIG-012 returns or throws                                                        |
-| ---------------------------------- | -------------------------------------------------------------------------------- |
-| Channel state `current`            | `CurrentPlayoutResult` `current`, with `offsetMs` as `mediaOffsetMs`             |
-| Channel state `no_current`         | `CurrentPlayoutResult` `no_current` with the same reason, revision, and entry ID |
-| Following `selected`/`stale_entry` | `FollowingPlayoutResult` with the same status, revision, and items               |
-| `not_found`                        | Throw `SignalError` `channel_not_found`                                          |
-| `disabled`                         | Throw `SignalError` `channel_disabled`                                           |
-| `unavailable`                      | Throw a transient failure; the worker fails and the next tune retries            |
-| `through_out_of_range`             | Programming error; ports never pass `at` beyond now                              |
+| `PlayoutService` result            | SIG-012 returns or throws                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------- |
+| Channel state `current`            | `CurrentPlayoutResult` `current`, with `offsetMs` as `mediaOffsetMs`                  |
+| Channel state `no_current`         | `CurrentPlayoutResult` `no_current` with the same reason, revision, and entry ID      |
+| Following `selected`/`stale_entry` | `FollowingPlayoutResult` with the same status, revision, and items                    |
+| `not_found`                        | Throw `SignalError` `channel_not_found`                                               |
+| `disabled`                         | Throw `SignalError` `channel_disabled`                                                |
+| `unavailable`                      | Throw `SignalError` `playout_unavailable`; the worker fails and the next tune retries |
+| `through_out_of_range`             | Programming error; ports never pass `at` beyond now                                   |
 
 ## Acceptance-Criteria Traceability
 

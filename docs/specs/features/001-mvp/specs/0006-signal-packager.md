@@ -420,6 +420,7 @@ mediaPath
 hasAudio
 mediaOffsetMs
 playDurationMs
+blackTailMs
 ```
 
 `hasAudio` is provider-neutral source metadata determined before packaging.
@@ -427,7 +428,7 @@ SignalPackager uses it to preserve real source audio when present or synthesize
 one silent stereo stream when absent, keeping the MVP audio PID stable across
 item boundaries. `packages/signal` does not invoke ffprobe to discover it.
 
-`mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration to emit from that position before transitioning to the next selected playout item.
+`mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration of source media to emit from that position; any `blackTailMs` follows it before the transition to the next selected playout item.
 
 For the initial current item, the worker maps the final pre-spawn channel
 state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs`
@@ -436,7 +437,14 @@ media remaining after `mediaOffsetMs`. The worker also enforces `endsAt` as an
 absolute transition deadline, so process initialization time cannot extend the
 program. For a following item, the worker maps the playout item's
 `startOffsetMs` to `mediaOffsetMs` and its selected playout duration to
-`playDurationMs`. Both fields use safe integer milliseconds.
+`playDurationMs`, clamped to the media remaining after `startOffsetMs`. Both
+fields use safe integer milliseconds.
+
+`blackTailMs` is the scheduled airtime left after the clamped `playDurationMs`:
+`0` when media covers its airtime, otherwise the span during which the FFmpeg
+process emits black video and silence after the media ends. This keeps the
+broadcast signal continuous and paced at wall-clock speed up to the boundary
+instead of going quiet. The black tail is the seam that filler replaces later.
 
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
@@ -592,6 +600,8 @@ Failure cases should include:
 - Channel not found
 - Channel disabled
 - No current playout item
+- Playout temporarily unavailable (`playout_unavailable`): schedule coverage
+  stayed short after its one retry. The worker fails and the next tune retries.
 - Missing media path
 - Invalid offset
 - FFmpeg not found
