@@ -2,7 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import {
+  sendApiError,
+  sendInvalidRequest,
+  sendMediaRootNotFound,
+} from "../http/api-error.js";
 import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
 import type { MediaRoot } from "./contracts.js";
@@ -76,12 +80,7 @@ export function registerMediaRootRoutes(
 
     const root = await mediaRoots.setEnabled(id, body.data.enabled);
     if (root === undefined) {
-      return sendApiError(
-        reply,
-        404,
-        "media_root_not_found",
-        `Media root ${id} does not exist`,
-      );
+      return sendMediaRootNotFound(reply, id);
     }
 
     return toApiMediaRoot(root);

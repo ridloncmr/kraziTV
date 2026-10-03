@@ -1,9 +1,4 @@
-import { SignalError } from "../errors.js";
-import type {
-  ChannelId,
-  PlayoutProvider,
-  ScheduleEntryId,
-} from "../playout/contracts.js";
+import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
 import type {
   Clock,
   DurationMs,
@@ -17,13 +12,18 @@ import type {
   SignalSession,
 } from "../signal-packager/contracts.js";
 import {
+  committedWithoutCommit,
   normalizePreparationError,
   normalizeTransitionError,
+  recoveryAttemptsExhausted,
+  transitionDeadlineExceeded,
   TransitionLoopHalted,
 } from "./channel-worker-errors.js";
 import type {
+  AiringItem,
   TransitionCandidate,
   TransitionCoordinator,
+  TransitionStep,
 } from "./contracts.js";
 import {
   requireCurrent,
@@ -46,24 +46,11 @@ type TransitionLoopOptions = {
   recoveryTimeoutMs: DurationMs;
 };
 
-export type AiringItem = {
-  scheduleEntryId: ScheduleEntryId;
-  endsAt: TimestampMs;
-};
-
 type PlannedTransition = {
   candidate: TransitionCandidate;
   item: SignalPlayoutItem;
   endsAt: TimestampMs;
 };
-
-type TransitionStep =
-  | "following_lookup"
-  | "current_lookup"
-  | "prepare"
-  | "commit"
-  | "discard"
-  | "recovery";
 
 /**
  * Replaces the airing item at each scheduled boundary with selected playout.
@@ -200,14 +187,7 @@ export class TransitionLoop {
       if (committed) return;
       this.checkDeadline("recovery", deadlineAt);
     }
-    throw new SignalError(
-      "transition_failed",
-      `Channel ${this.options.channelId} could not commit fresh playout`,
-      {
-        channelId: this.options.channelId,
-        reason: "recovery_attempts_exhausted",
-      },
-    );
+    throw recoveryAttemptsExhausted(this.options.channelId);
   }
 
   /**
@@ -263,11 +243,7 @@ export class TransitionLoop {
 
     if (outcome === "committed") {
       if (this.preparation === preparation) {
-        throw new SignalError(
-          "transition_failed",
-          `Channel ${this.options.channelId} transition was reported committed without its commit`,
-          { channelId: this.options.channelId },
-        );
+        throw committedWithoutCommit(this.options.channelId);
       }
       this.airing = {
         scheduleEntryId: planned.candidate.scheduleEntryId,
@@ -340,7 +316,7 @@ export class TransitionLoop {
       if (typeof result === "object") return result.value;
       void pending.catch(() => undefined);
       if (result === "halted") this.checkHalted();
-      throw this.deadlineError(step);
+      throw transitionDeadlineExceeded(this.options.channelId, step);
     } finally {
       task?.cancel();
       if (this.wake === wake) this.wake = undefined;
@@ -349,20 +325,9 @@ export class TransitionLoop {
 
   /** Fails the transition once wall time reaches its shared deadline. */
   private checkDeadline(step: TransitionStep, deadlineAt: TimestampMs): void {
-    if (this.options.clock.now() >= deadlineAt) throw this.deadlineError(step);
-  }
-
-  /** Classifies an expired dependency call as a worker-fatal transition failure. */
-  private deadlineError(step: TransitionStep): SignalError {
-    return new SignalError(
-      "transition_failed",
-      `Channel ${this.options.channelId} did not finish ${step} before its transition deadline`,
-      {
-        channelId: this.options.channelId,
-        step,
-        reason: "deadline_exceeded",
-      },
-    );
+    if (this.options.clock.now() >= deadlineAt) {
+      throw transitionDeadlineExceeded(this.options.channelId, step);
+    }
   }
 
   /**

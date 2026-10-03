@@ -1,14 +1,13 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
-import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, iso } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
+  readOnlyScheduleState,
   seedScheduleScenario,
   readScheduleEntries,
   type ScheduleScenarioOptions,
@@ -56,14 +55,6 @@ async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
     }),
   });
   return { server, db, clock, dataDirectory };
-}
-
-// Reads the one channel's schedule state row.
-function readState(db: Kysely<DatabaseSchema>) {
-  return db
-    .selectFrom("channel_schedule_states")
-    .selectAll()
-    .executeTakeFirstOrThrow();
 }
 
 // Builds a window query from epoch milliseconds.
@@ -363,13 +354,13 @@ describe("POST /channels/:id/schedule/generate", () => {
     const { server, db } = await startServer();
     // Startup ensures coverage, so compare against what it wrote.
     await server.ready();
-    const before = await readState(db);
+    const before = await readOnlyScheduleState(db);
 
     const { status, body } = await send(server, "POST", GENERATE_URL, payload);
 
     expect(status).toBe(400);
     expect(body.error.code).toBe("invalid_request");
-    await expect(readState(db)).resolves.toEqual(before);
+    await expect(readOnlyScheduleState(db)).resolves.toEqual(before);
   });
 
   it("rejects a disabled channel", async () => {
@@ -520,7 +511,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
   it("keeps the anchor and seed and repairs from now when re-enabled after a lapse", async () => {
     const { server, db, clock } = await startServer();
     await send(server, "POST", GENERATE_URL, {});
-    const before = await readState(db);
+    const before = await readOnlyScheduleState(db);
     await send(server, "PATCH", CHANNEL_URL, { enabled: false });
     const later = T0 + 6 * 7 * 24 * HOUR;
     clock.set(later);
@@ -531,7 +522,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
 
     expect(status).toBe(200);
     expect(body.enabled).toBe(true);
-    const after = await readState(db);
+    const after = await readOnlyScheduleState(db);
     expect(after).toMatchObject({
       anchor_time: before.anchor_time,
       seed: before.seed,
@@ -548,7 +539,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
     const { server, db, clock } = await startServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readScheduleEntries(db, CHANNEL_ID);
-    const stateBefore = await readState(db);
+    const stateBefore = await readOnlyScheduleState(db);
     await send(server, "PATCH", CHANNEL_URL, { enabled: false });
     clock.advance(6 * HOUR);
 
@@ -559,7 +550,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
     expect(after[before.length]?.starts_at).toBe(
       stateBefore.last_generated_through,
     );
-    await expect(readState(db)).resolves.toMatchObject({
+    await expect(readOnlyScheduleState(db)).resolves.toMatchObject({
       schedule_revision: stateBefore.schedule_revision + 1,
     });
   });
@@ -568,14 +559,14 @@ describe("PATCH /channels/:id schedule maintenance", () => {
     const { server, db, clock } = await startServer();
     await send(server, "POST", GENERATE_URL, {});
     const before = await readScheduleEntries(db, CHANNEL_ID);
-    const stateBefore = await readState(db);
+    const stateBefore = await readOnlyScheduleState(db);
     clock.advance(6 * HOUR);
 
     await send(server, "PATCH", CHANNEL_URL, { enabled: false });
     await send(server, "PATCH", CHANNEL_URL, { name: "Renamed" });
 
     await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
-    await expect(readState(db)).resolves.toEqual(stateBefore);
+    await expect(readOnlyScheduleState(db)).resolves.toEqual(stateBefore);
   });
 
   it("logs, rather than returns, a coverage failure after the enable commits", async () => {
@@ -639,14 +630,14 @@ describe("server startup schedule maintenance", () => {
   it("repairs a gap on ready after downtime, keeping the anchor and seed", async () => {
     const first = await startServer();
     await send(first.server, "POST", GENERATE_URL, {});
-    const before = await readState(first.db);
+    const before = await readOnlyScheduleState(first.db);
     await first.server.close();
     const later = T0 + 4 * DAY;
 
     const second = await restartServer(first.dataDirectory, () => later);
     await second.server.ready();
 
-    const after = await readState(second.db);
+    const after = await readOnlyScheduleState(second.db);
     expect(after).toMatchObject({
       anchor_time: before.anchor_time,
       seed: before.seed,
@@ -666,12 +657,12 @@ describe("server startup schedule maintenance", () => {
   it("leaves the revision unchanged when coverage still reaches a full horizon", async () => {
     const first = await startServer();
     await send(first.server, "POST", GENERATE_URL, {});
-    const before = await readState(first.db);
+    const before = await readOnlyScheduleState(first.db);
     await first.server.close();
 
     const second = await restartServer(first.dataDirectory, first.clock.now);
     await second.server.ready();
 
-    expect(await readState(second.db)).toEqual(before);
+    expect(await readOnlyScheduleState(second.db)).toEqual(before);
   });
 });

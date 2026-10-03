@@ -1,23 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  compareChannelNumbers,
-  parseChannelNumber,
-  type ChannelNumber,
-} from "./channel-number.js";
-
-/** Parses test inputs that must be canonical, failing loudly if one is not. */
-function channelNumber(input: string): ChannelNumber {
-  const parsed = parseChannelNumber(input);
-  if (parsed === undefined) {
-    throw new Error(`Test input ${JSON.stringify(input)} is not canonical`);
-  }
-  return parsed;
-}
+import { canonicalChannelNumber } from "../testing/channel-fixtures.js";
+import { compareChannelNumbers, parseChannelNumber } from "./channel-number.js";
 
 /** Sorts canonical inputs with the comparator under test. */
 function sortChannelNumbers(inputs: string[]): string[] {
-  return inputs.map(channelNumber).sort(compareChannelNumbers);
+  return inputs.map(canonicalChannelNumber).sort(compareChannelNumbers);
 }
 
 describe("parseChannelNumber", () => {
@@ -73,7 +61,10 @@ describe("compareChannelNumbers", () => {
 
   it("treats equal numbers as equal", () => {
     expect(
-      compareChannelNumbers(channelNumber("69.1"), channelNumber("69.1")),
+      compareChannelNumbers(
+        canonicalChannelNumber("69.1"),
+        canonicalChannelNumber("69.1"),
+      ),
     ).toBe(0);
   });
 

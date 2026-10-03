@@ -18,6 +18,14 @@ export const rootFixture: Insertable<MediaRootTable> = {
   last_scanned_at: null,
 };
 
+/** A second root whose path key sorts before rootFixture's even though its ID sorts after. */
+export const animeRootFixture: Insertable<MediaRootTable> = {
+  ...rootFixture,
+  id: "root-fixture-002",
+  path: "/media/anime",
+  path_key: "/media/anime",
+};
+
 export const itemFixture: Insertable<MediaItemTable> = {
   id: "item-fixture-001",
   media_root_id: rootFixture.id,
@@ -33,6 +41,18 @@ export const itemFixture: Insertable<MediaItemTable> = {
   last_seen_at: FIXTURE_TIME,
   last_probed_at: FIXTURE_TIME,
 };
+
+/**
+ * The item fixture at its own ID and path. The path key mirrors the path, so
+ * tests that insert several items never collide on the unique path key.
+ */
+export function itemFixtureAt(
+  id: string,
+  path: string,
+  overrides: Partial<Insertable<MediaItemTable>> = {},
+): Insertable<MediaItemTable> {
+  return { ...itemFixture, id, path, path_key: path, ...overrides };
+}
 
 export const collectionFixture: Insertable<MediaCollectionTable> = {
   id: "collection-fixture-001",

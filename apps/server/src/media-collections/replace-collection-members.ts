@@ -1,12 +1,12 @@
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { findChannelsUsingCollection } from "../programming-blocks/channels-using-collection.js";
+import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
 import type { ScheduleInputChange } from "../schedules/contracts.js";
+import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import type { ReplaceMediaCollectionMembersResult } from "./contracts.js";
 import {
   collectionExists,
-  findUnknownMediaItemIds,
   insertMembers,
   selectMembers,
 } from "./media-collection-repository.js";

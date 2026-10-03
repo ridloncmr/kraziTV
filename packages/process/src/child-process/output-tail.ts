@@ -1,3 +1,7 @@
+// Stderr bytes ffprobe and FFmpeg keep for failure diagnostics, shared so both
+// report failures with the same amount of context.
+export const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
+
 /** Retains only the newest bytes of a child's output, so a noisy child cannot grow memory. */
 export class OutputTail {
   private readonly chunks: Buffer[] = [];

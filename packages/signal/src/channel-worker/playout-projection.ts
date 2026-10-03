@@ -1,8 +1,9 @@
-import { SignalError } from "../errors.js";
 import {
   isNonNegativeSafeInteger,
   isPositiveSafeInteger,
-} from "../options/safe-integer-option.js";
+} from "@krazitv/process";
+
+import { SignalError } from "../errors.js";
 import type {
   ChannelId,
   CurrentPlayoutResult,

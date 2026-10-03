@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import {
+  sendApiError,
+  sendInvalidRequest,
+  sendUnknownMediaItems,
+} from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams, nameField } from "../http/request-schemas.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
@@ -132,19 +136,6 @@ function sendCollectionNotFound(reply: FastifyReply, id: string) {
     404,
     "media_collection_not_found",
     `Media collection ${id} does not exist`,
-  );
-}
-
-// Lists every unknown ID so the client can point at exactly what to fix.
-export function sendUnknownMediaItems(
-  reply: FastifyReply,
-  ids: readonly string[],
-) {
-  return sendApiError(
-    reply,
-    400,
-    "media_item_not_found",
-    `Unknown media items: ${ids.join(", ")}`,
   );
 }
 

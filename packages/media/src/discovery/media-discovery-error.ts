@@ -1,4 +1,4 @@
-export type MediaDiscoveryErrorCode =
+type MediaDiscoveryErrorCode =
   | "invalid_root_path"
   | "root_not_found"
   | "root_not_directory"

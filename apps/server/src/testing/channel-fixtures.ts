@@ -6,11 +6,24 @@ import {
   FIXTURE_TIME,
   itemFixture,
 } from "./catalog-fixtures.js";
+import {
+  parseChannelNumber,
+  type ChannelNumber,
+} from "../channels/channel-number.js";
 import type { ChannelCollectionProgressTable } from "../database/schema/channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { ChannelTable } from "../database/schema/channel-table.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
+
+/** Parses a test input that must be canonical, failing loudly on a typo. */
+export function canonicalChannelNumber(input: string): ChannelNumber {
+  const parsed = parseChannelNumber(input);
+  if (parsed === undefined) {
+    throw new Error(`Test input ${JSON.stringify(input)} is not canonical`);
+  }
+  return parsed;
+}
 
 export const channelFixture: Insertable<ChannelTable> = {
   id: "channel-fixture-001",

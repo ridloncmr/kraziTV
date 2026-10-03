@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "../database/schema/programming-block-table.js";
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 
 /** What a block plays: one collection in a playback mode, or one media item on repeat. */
 export type ProgrammingBlockSource =

@@ -1,4 +1,4 @@
-export type MediaProbeErrorCode =
+type MediaProbeErrorCode =
   | "spawn_failed"
   | "timed_out"
   | "cancelled"

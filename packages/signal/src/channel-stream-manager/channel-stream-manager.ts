@@ -1,3 +1,5 @@
+import { assertNonNegativeSafeInteger } from "@krazitv/process";
+
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
 import type {
   ChannelAuthorization,
@@ -6,7 +8,6 @@ import type {
   ManagedChannelWorker,
 } from "../channel-worker/contracts.js";
 import { WorkerCreationCleanupError } from "../channel-worker/channel-worker-errors.js";
-import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";

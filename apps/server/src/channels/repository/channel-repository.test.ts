@@ -2,8 +2,8 @@ import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { KraziDatabase } from "../../database/database.js";
-import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { canonicalChannelNumber } from "../../testing/channel-fixtures.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
@@ -13,13 +13,6 @@ import { ChannelRepository } from "./channel-repository.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 
 afterEach(cleanUpTestEnvironment);
-
-// Builds a canonical number for fixtures; a typo here should fail loudly.
-function channelNumber(input: string): ChannelNumber {
-  const parsed = parseChannelNumber(input);
-  if (parsed === undefined) throw new Error(`Not canonical: ${input}`);
-  return parsed;
-}
 
 // Creates a repository with a controllable clock and sequential IDs.
 function createRepository(database: KraziDatabase) {
@@ -32,7 +25,7 @@ function createRepository(database: KraziDatabase) {
 }
 
 const comedy = {
-  number: channelNumber("69"),
+  number: canonicalChannelNumber("69"),
   name: "Krazi Comedy",
   enabled: true,
 };
@@ -96,7 +89,7 @@ describe("ChannelRepository", () => {
 
     await expect(
       repository.update("channel-001", {
-        number: channelNumber("69.1"),
+        number: canonicalChannelNumber("69.1"),
         name: "Krazi Classics",
       }),
     ).resolves.toMatchObject({
@@ -127,7 +120,10 @@ describe("ChannelRepository", () => {
   it("rejects an update to another channel's number and keeps the prior one", async () => {
     const { repository } = createRepository(await openTestDatabase());
     await repository.create(comedy);
-    await repository.create({ ...comedy, number: channelNumber("70") });
+    await repository.create({
+      ...comedy,
+      number: canonicalChannelNumber("70"),
+    });
 
     await expect(
       repository.update("channel-002", { number: comedy.number }),

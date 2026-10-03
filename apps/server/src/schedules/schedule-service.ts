@@ -15,6 +15,8 @@ import {
 } from "../database/writes/immediate-transaction.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
+  AdmissionFailure,
+  ChannelAdmission,
   ChannelChunk,
   ChunkResult,
   ChunkStart,
@@ -28,6 +30,7 @@ import type {
 } from "./contracts.js";
 import {
   checkCoverage,
+  clampToLastMutation,
   coverageAfterChunk,
   resolveTarget,
   warnIfGapRepaired,
@@ -109,10 +112,8 @@ export class ScheduleService {
     through?: number,
   ): Promise<EnsureCoverageResult> {
     for (;;) {
-      const chunk = await runImmediateTransaction(
-        this.#db,
-        (trx) => this.#extendChunk(trx, channelId, log, through),
-        { hooks: this.#transactionHooks },
+      const chunk = await this.#immediate((trx) =>
+        this.#extendChunk(trx, channelId, log, through),
       );
       warnIfGapRepaired(chunk, log);
       if (chunk.result.kind !== "extended") return chunk.result;
@@ -157,25 +158,16 @@ export class ScheduleService {
     log: ScheduleLog,
     through?: number,
   ): Promise<EnsureCoverageResult> {
-    const chunk = await runImmediateTransaction(
-      this.#db,
-      async (trx): Promise<ChannelChunk> => {
-        const enabled = await findChannelEnabled(trx, channelId);
-        if (enabled === undefined) {
-          return { channelId, result: { kind: "channel_not_found" } };
-        }
-        if (!enabled) return { channelId, result: { kind: "disabled" } };
-        const state = await loadScheduleState(trx, channelId);
-        if (state === undefined) {
-          return this.#extendChunk(trx, channelId, log, through);
-        }
-        const effectiveNow = this.#effectiveNow(channelId, state, log);
-        const target = resolveTarget(effectiveNow, through);
-        if (typeof target !== "number") return { channelId, result: target };
-        return this.#regenerateChunk(trx, state, effectiveNow, target);
-      },
-      { hooks: this.#transactionHooks },
-    );
+    const chunk = await this.#immediate(async (trx): Promise<ChannelChunk> => {
+      const admission = await this.#admit(trx, channelId, log, through);
+      if (admission.kind !== "admitted") {
+        return { channelId, result: admission };
+      }
+      const { state, effectiveNow, target } = admission;
+      return state === undefined
+        ? this.#extendAdmitted(trx, channelId, admission)
+        : this.#regenerateChunk(trx, state, effectiveNow, target);
+    });
 
     return this.#finishChunk(chunk, "manual", log, through);
   }
@@ -213,21 +205,24 @@ export class ScheduleService {
     reason: ScheduleChangeReason,
     change: ScheduleInputChange<T>,
   ): Promise<T> {
-    const { value, chunks } = await runImmediateTransaction(
-      this.#db,
-      async (trx) => {
-        const effectiveNow = await this.#effectiveInputTime(trx, log);
-        const changed = await change(trx, effectiveNow);
-        const chunks: ChannelChunk[] = [];
-        for (const channelId of new Set(changed.affectedChannelIds)) {
-          chunks.push(
-            await this.#firstChunkAfterInput(trx, channelId, log, effectiveNow),
-          );
-        }
-        return { value: changed.value, chunks };
-      },
-      { hooks: this.#transactionHooks },
-    );
+    const { value, chunks } = await this.#immediate(async (trx) => {
+      // Computed before the change runs, when its affected channels are still
+      // unknown, so it clamps to the latest mutation on any channel and can
+      // never fall behind any of their schedules.
+      const effectiveNow = clampToLastMutation(
+        this.#now(),
+        await findLatestScheduleMutation(trx),
+        log,
+      );
+      const changed = await change(trx, effectiveNow);
+      const chunks: ChannelChunk[] = [];
+      for (const channelId of new Set(changed.affectedChannelIds)) {
+        chunks.push(
+          await this.#firstChunkAfterInput(trx, channelId, log, effectiveNow),
+        );
+      }
+      return { value: changed.value, chunks };
+    });
 
     // A failure here is logged, not thrown: the change already stands, and
     // the next ensure resumes from the committed chunk.
@@ -293,26 +288,6 @@ export class ScheduleService {
         : "Applied schedule input change",
     );
     return result;
-  }
-
-  /**
-   * Returns one effective time for an input change: the later of the clock
-   * and the latest schedule mutation on any channel. Computed before the
-   * change runs, when its affected channels are still unknown, so it can
-   * never fall behind any of their schedules. Logs when it clamps.
-   */
-  async #effectiveInputTime(
-    trx: Kysely<DatabaseSchema>,
-    log: ScheduleLog,
-  ): Promise<number> {
-    const now = this.#now();
-    const latest = await findLatestScheduleMutation(trx);
-    if (latest === undefined || now >= latest) return now;
-    log.warn(
-      { now, effectiveNow: latest },
-      "Clock is behind the latest schedule mutation; using the mutation's time",
-    );
-    return latest;
   }
 
   /**
@@ -397,18 +372,34 @@ export class ScheduleService {
     through: number | undefined,
     inputTime?: number,
   ): Promise<ChannelChunk> {
+    const admission = await this.#admit(
+      trx,
+      channelId,
+      log,
+      through,
+      inputTime,
+    );
+    if (admission.kind !== "admitted") {
+      return { channelId, result: admission };
+    }
+    return this.#extendAdmitted(trx, channelId, admission);
+  }
+
+  /**
+   * Extends an admitted channel by one chunk, or repairs it from the
+   * effective time when its coverage already ended. Split from admission so
+   * `regenerate` can give a channel without state its first chunk without
+   * admitting it twice.
+   */
+  async #extendAdmitted(
+    trx: Kysely<DatabaseSchema>,
+    channelId: string,
+    { state, effectiveNow, target }: ChannelAdmission,
+  ): Promise<ChannelChunk> {
     const settled = (result: ChunkResult): ChannelChunk => ({
       channelId,
       result,
     });
-    const enabled = await findChannelEnabled(trx, channelId);
-    if (enabled === undefined) return settled({ kind: "channel_not_found" });
-    if (!enabled) return settled({ kind: "disabled" });
-
-    const state = await loadScheduleState(trx, channelId);
-    const effectiveNow = inputTime ?? this.#effectiveNow(channelId, state, log);
-    const target = resolveTarget(effectiveNow, through);
-    if (typeof target !== "number") return settled(target);
     if (state !== undefined && state.lastGeneratedThrough <= effectiveNow) {
       return this.#regenerateChunk(trx, state, effectiveNow, target);
     }
@@ -502,21 +493,35 @@ export class ScheduleService {
   }
 
   /**
-   * Returns the later of the clock and the last schedule mutation, so a clock
-   * stepping backward can never move generation before earlier work. Logs
-   * when it clamps.
+   * Returns the first check that refuses generation for a channel (unknown,
+   * disabled, or a target past the request limit) or its state, effective
+   * time, and target. An input change passes its own effective time, which
+   * already accounts for every channel's last mutation; otherwise the clock
+   * is clamped to this channel's last mutation.
    */
-  #effectiveNow(
+  async #admit(
+    trx: Kysely<DatabaseSchema>,
     channelId: string,
-    state: ScheduleState | undefined,
     log: ScheduleLog,
-  ): number {
-    const now = this.#now();
-    if (state === undefined || now >= state.updatedAt) return now;
-    log.warn(
-      { channelId, now, effectiveNow: state.updatedAt },
-      "Clock is behind the last schedule mutation; using the mutation's time",
-    );
-    return state.updatedAt;
+    through: number | undefined,
+    inputTime?: number,
+  ): Promise<ChannelAdmission | AdmissionFailure> {
+    const enabled = await findChannelEnabled(trx, channelId);
+    if (enabled === undefined) return { kind: "channel_not_found" };
+    if (!enabled) return { kind: "disabled" };
+    const state = await loadScheduleState(trx, channelId);
+    const effectiveNow =
+      inputTime ??
+      clampToLastMutation(this.#now(), state?.updatedAt, log, { channelId });
+    const target = resolveTarget(effectiveNow, through);
+    if (typeof target !== "number") return target;
+    return { kind: "admitted", state, effectiveNow, target };
+  }
+
+  /** Runs `work` holding write authority, with the hooks every mutation shares. */
+  #immediate<T>(work: (trx: Kysely<DatabaseSchema>) => Promise<T>): Promise<T> {
+    return runImmediateTransaction(this.#db, work, {
+      hooks: this.#transactionHooks,
+    });
   }
 }

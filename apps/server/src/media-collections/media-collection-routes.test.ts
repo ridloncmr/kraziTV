@@ -6,7 +6,7 @@ import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
-  itemFixture,
+  itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
 import {
@@ -31,8 +31,10 @@ function item(
   id: string,
   overrides: Partial<Insertable<MediaItemTable>> = {},
 ): Insertable<MediaItemTable> {
-  const path = `/media/movies/${id}.mkv`;
-  return { ...itemFixture, id, path, path_key: path, title: id, ...overrides };
+  return itemFixtureAt(id, `/media/movies/${id}.mkv`, {
+    title: id,
+    ...overrides,
+  });
 }
 
 const pilot = item("pilot", { duration_ms: 1_320_000 });

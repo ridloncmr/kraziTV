@@ -16,6 +16,7 @@ import {
   FfmpegSignalPreparation,
   type PreparationOwner,
 } from "./ffmpeg-signal-preparation.js";
+import { itemContext } from "./item-log-context.js";
 
 type ProcessBinding = {
   process: FfmpegProcess;
@@ -265,13 +266,4 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
 /** Produces the typed error required for all post-stop operations. */
 function stoppedError(): SignalError {
   return new SignalError("packaging_stopped", "Signal packaging stopped");
-}
-
-/** Builds safe item identity context without retaining or logging its media path. */
-function itemContext(item: SignalPlayoutItem): LogContext {
-  return {
-    channelId: item.channelId,
-    scheduleEntryId: item.scheduleEntryId,
-    mediaItemId: item.mediaItemId,
-  };
 }

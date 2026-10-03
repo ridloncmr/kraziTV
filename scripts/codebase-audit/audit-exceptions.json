@@ -35,11 +35,29 @@
       "source": "docs/implementation_plan/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
     },
     {
+      "rule": "grouping",
+      "files": ["apps/server/src/database/migrations/"],
+      "reason": "migrations/ is a kind folder holding one file per migration plus their runner; every file serves the migration history.",
+      "source": "AGENTS.md (source layout reference tree for database/: \"migrations/ migrate-database.ts, 001-initial-catalog.ts, ...\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/signal/src/ffmpeg/packaging/"],
+      "reason": "Every file serves one capability, turning playout items into FFmpeg-packaged output, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
       "rule": "file-size",
       "files": [
         "packages/signal/src/channel-stream-manager/channel-stream-manager.ts"
       ],
       "reason": "Reviewed in the 2026-10-01 audit: the class reads as its transitions, with helpers already moved beside it.",
+      "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
+    },
+    {
+      "rule": "file-size",
+      "files": ["apps/server/src/schedules/schedule-service.ts"],
+      "reason": "Reviewed in the 2026-10-02 audit: the class reads as its schedule transitions; pure checks and persistence already live in schedule-coverage.ts and schedule-repository.ts.",
       "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
     },
     {
@@ -55,11 +73,30 @@
     {
       "rule": "duplicate-code",
       "files": [
+        "apps/server/src/catalog-scan/writer/catalog-scan-writer.ts",
         "apps/server/src/channels/repository/channel-repository.ts",
         "apps/server/src/media-collections/media-collection-repository.ts",
-        "apps/server/src/media-roots/media-root-repository.ts"
+        "apps/server/src/media-roots/media-root-repository.ts",
+        "apps/server/src/programming-blocks/programming-block-repository.ts"
       ],
       "reason": "The repeat is the injected record-sources constructor; a shared base class would add indirection for three fields.",
+      "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/003-channels.ts",
+        "apps/server/src/database/migrations/005-schedules.ts"
+      ],
+      "reason": "Committed migrations are frozen history; each keeps its own column definitions so a shared edit can never change an applied migration.",
+      "source": "apps/server/src/database/migrations/003-channels.ts (\"Each migration keeps its own copy so committed history never shifts under a shared edit\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/programming-blocks/programming-block-routes.ts"
+      ],
+      "reason": "POST and PATCH share only param and body parsing before running different input changes; a helper would hide two lines behind indirection.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     }
   ]

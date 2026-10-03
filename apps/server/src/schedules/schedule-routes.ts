@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendChannelNotFound } from "../channels/routes/channel-routes.js";
-import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import {
+  sendApiError,
+  sendChannelNotFound,
+  sendInvalidRequest,
+} from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams, isoInstantField } from "../http/request-schemas.js";
 import type {
@@ -31,9 +33,8 @@ const generateBody = z.strictObject({
   regenerate: z.boolean().optional(),
 });
 
-/** Every ensure outcome except success, plus a writer that stayed busy. */
-type CoverageFailure =
-  Exclude<EnsureCoverageResult, { kind: "covered" }> | { kind: "busy" };
+/** Every ensure outcome except success; a busy writer is mapped by the shared error handler. */
+type CoverageFailure = Exclude<EnsureCoverageResult, { kind: "covered" }>;
 
 /** Registers schedule HTTP routes; validation and status mapping live only here. */
 export function registerScheduleRoutes(
@@ -47,9 +48,7 @@ export function registerScheduleRoutes(
       return sendInvalidRequest(reply, query.error);
     }
 
-    const coverage = await reportBusy(() =>
-      schedules.ensureCoverage(id, request.log),
-    );
+    const coverage = await schedules.ensureCoverage(id, request.log);
     // A disabled or unschedulable channel still serves what it already has.
     if (
       coverage.kind !== "covered" &&
@@ -78,11 +77,10 @@ export function registerScheduleRoutes(
     }
 
     const { through, regenerate } = body.data;
-    const coverage = await reportBusy(() =>
+    const coverage =
       regenerate === true
-        ? schedules.regenerate(id, request.log, through)
-        : schedules.ensureCoverage(id, request.log, through),
-    );
+        ? await schedules.regenerate(id, request.log, through)
+        : await schedules.ensureCoverage(id, request.log, through);
     if (coverage.kind !== "covered") {
       return sendCoverageFailure(reply, id, coverage);
     }
@@ -91,18 +89,6 @@ export function registerScheduleRoutes(
       generatedThrough: toApiTimestamp(coverage.generatedThrough),
     };
   });
-}
-
-// Reports a writer that stayed busy as an outcome, so routes answer it as retryable instead of a 500.
-async function reportBusy(
-  write: () => Promise<EnsureCoverageResult>,
-): Promise<EnsureCoverageResult | { kind: "busy" }> {
-  try {
-    return await write();
-  } catch (error) {
-    if (error instanceof WriteAuthorityBusyError) return { kind: "busy" };
-    throw error;
-  }
 }
 
 // Maps each coverage failure to its status. A gap is a 409 until gap repair replaces it.
@@ -135,14 +121,6 @@ function sendCoverageFailure(
         400,
         "invalid_request",
         `through must not be after ${toApiTimestamp(failure.latestThrough)}`,
-      );
-    case "busy":
-      return sendApiError(
-        reply,
-        503,
-        "schedule_busy",
-        "The schedule is busy; retry the request",
-        { retryable: true },
       );
   }
 }

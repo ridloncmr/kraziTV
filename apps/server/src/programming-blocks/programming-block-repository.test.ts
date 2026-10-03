@@ -15,7 +15,6 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../testing/test-environment.js";
-import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import type { ProgrammingBlockSource } from "./contracts.js";
 import { ProgrammingBlockRepository } from "./programming-block-repository.js";
 
@@ -298,27 +297,5 @@ describe("ProgrammingBlockRepository", () => {
     await expect(repository.listForChannel(channelFixture.id)).resolves.toEqual(
       [],
     );
-  });
-});
-
-describe("findChannelsUsingCollection", () => {
-  it("lists every channel whose block draws from the collection, in ID order", async () => {
-    const { db, repository } = await setup();
-    await write(db, async (trx) => {
-      await repository.create(trx, "channel-second", chronological, LATER);
-      await repository.create(
-        trx,
-        channelFixture.id,
-        { ...chronological, playbackMode: "random" },
-        LATER,
-      );
-    });
-
-    await expect(
-      findChannelsUsingCollection(db, collectionFixture.id),
-    ).resolves.toEqual([channelFixture.id, "channel-second"]);
-    await expect(
-      findChannelsUsingCollection(db, "unused-collection"),
-    ).resolves.toEqual([]);
   });
 });

@@ -1,11 +1,14 @@
-import type { ProcessSpawner } from "@krazitv/process";
+import {
+  assertPositiveSafeInteger,
+  type ProcessSpawner,
+} from "@krazitv/process";
 
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
+import { itemContext } from "./item-log-context.js";
 import type { OutputReadinessInspector } from "../contracts.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
-import { assertPositiveSafeInteger } from "../../options/safe-integer-option.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type {
@@ -68,18 +71,10 @@ export class FfmpegSignalPackager implements SignalPackager {
       logger: this.dependencies.logger,
       ffmpegPath: this.dependencies.ffmpegPath,
       terminationGraceMs: this.dependencies.terminationGraceMs,
-      diagnosticContext: {
-        channelId: item.channelId,
-        scheduleEntryId: item.scheduleEntryId,
-        mediaItemId: item.mediaItemId,
-      },
+      diagnosticContext: itemContext(item),
       isSuccessfulExitExpected: () => true,
     });
-    this.dependencies.logger.info("ffmpeg_process_started", {
-      channelId: item.channelId,
-      scheduleEntryId: item.scheduleEntryId,
-      mediaItemId: item.mediaItemId,
-    });
+    this.dependencies.logger.info("ffmpeg_process_started", itemContext(item));
     return process;
   }
 }

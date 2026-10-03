@@ -1,21 +1,21 @@
 import type { Readable } from "node:stream";
 
 import {
+  assertNonNegativeSafeInteger,
   OutputTail,
+  STDERR_TAIL_LIMIT_BYTES,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
   type SpawnedProcess,
 } from "@krazitv/process";
 
-import { assertNonNegativeSafeInteger } from "../../options/safe-integer-option.js";
-import { SignalError } from "../../errors.js";
+import { SignalError, type SignalErrorCode } from "../../errors.js";
 import type { TimerScheduler } from "../../runtime/clock.js";
 import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 5_000;
-const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
 
 type FfmpegProcessOptions = {
   args: readonly string[];
@@ -103,14 +103,11 @@ export class FfmpegProcess {
     try {
       exit = await this.child.exited;
     } catch (cause) {
-      throw logged(
-        this.logger,
-        new SignalError(
-          "packaging_start_failed",
-          "FFmpeg failed before process closure",
-          this.failureDetails(),
-          { cause },
-        ),
+      throw this.fail(
+        "packaging_start_failed",
+        "FFmpeg failed before process closure",
+        this.failureDetails(),
+        { cause },
       );
     }
 
@@ -118,23 +115,17 @@ export class FfmpegProcess {
     if (exit.code === 0 && exit.signal === null) {
       if (this.isSuccessfulExitExpected()) return;
 
-      throw logged(
-        this.logger,
-        new SignalError(
-          "packaging_failed",
-          "FFmpeg exited before completion was expected",
-          this.failureDetails(exit, { reason: "premature_exit" }),
-        ),
+      throw this.fail(
+        "packaging_failed",
+        "FFmpeg exited before completion was expected",
+        this.failureDetails(exit, { reason: "premature_exit" }),
       );
     }
 
-    throw logged(
-      this.logger,
-      new SignalError(
-        "packaging_failed",
-        "FFmpeg exited unexpectedly",
-        this.failureDetails(exit),
-      ),
+    throw this.fail(
+      "packaging_failed",
+      "FFmpeg exited unexpectedly",
+      this.failureDetails(exit),
     );
   }
 
@@ -146,16 +137,30 @@ export class FfmpegProcess {
     });
     if (termination.closed) return;
 
-    throw logged(
+    throw this.fail(
+      "runtime_cleanup_failed",
+      "FFmpeg did not close after forced termination",
+      this.failureDetails(),
+      termination.cause === undefined
+        ? undefined
+        : { cause: termination.cause },
+    );
+  }
+
+  /**
+   * Builds a failure and logs it once to this process's logger, so every
+   * classified failure of a running child is logged exactly where it is
+   * classified.
+   */
+  private fail(
+    code: SignalErrorCode,
+    message: string,
+    details: LogContext,
+    options?: ErrorOptions,
+  ): SignalError {
+    return logged(
       this.logger,
-      new SignalError(
-        "runtime_cleanup_failed",
-        "FFmpeg did not close after forced termination",
-        this.failureDetails(),
-        termination.cause === undefined
-          ? undefined
-          : { cause: termination.cause },
-      ),
+      new SignalError(code, message, details, options),
     );
   }
 

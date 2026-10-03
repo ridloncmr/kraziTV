@@ -1,18 +1,18 @@
 import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import {
-  MediaDiscoveryError,
-  MediaProbeError,
-  type DiscoveredMediaFile,
-  type DiscoverMediaFilesOptions,
-} from "@krazitv/media";
+import { MediaDiscoveryError, MediaProbeError } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
+import {
+  discoveredFiles,
+  PROBE_RESULT,
+  type Discover,
+} from "../../testing/discovery-fixtures.js";
 import {
   readScheduleEntries,
   seedScheduleScenario,
@@ -26,26 +26,15 @@ import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
 
 type Server = FastifyInstance;
-type Discover = (
-  rootPath: string,
-  options?: DiscoverMediaFilesOptions,
-) => Promise<DiscoveredMediaFile[]>;
 
-const RESULT = { durationMs: 2_000, hasAudio: true };
 const SCAN_URL = `/media-roots/${rootFixture.id}/scan`;
 
 afterEach(cleanUpTestEnvironment);
 
-function files(...names: string[]): DiscoveredMediaFile[] {
-  return names.map((name) => ({
-    path: `/media/movies/${name}.mkv`,
-    pathKey: `/media/movies/${name}.mkv`,
-    title: name,
-  }));
-}
-
 // Boots the real composition with a seeded root, fake discovery, and a controlled prober.
-async function startServer(discover: Discover = async () => files("a", "b")) {
+async function startServer(
+  discover: Discover = async () => discoveredFiles("a", "b"),
+) {
   const prober = new ControlledProber();
   const discoverSpy = vi.fn<Discover>(discover);
   let time = FIXTURE_TIME;
@@ -77,7 +66,7 @@ describe("POST /media-roots/:id/scan", () => {
 
     const response = scan(server);
     await prober.waitForStarted(2);
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
 
     const result = await response;
     expect(result.statusCode).toBe(200);
@@ -97,7 +86,7 @@ describe("POST /media-roots/:id/scan", () => {
 
     const response = scan(server);
     await prober.waitForStarted(2);
-    prober.get("/media/movies/a.mkv").resolve(RESULT);
+    prober.get("/media/movies/a.mkv").resolve(PROBE_RESULT);
     prober
       .get("/media/movies/b.mkv")
       .reject(new MediaProbeError("timed_out", "ffprobe timed out"));
@@ -162,7 +151,7 @@ describe("POST /media-roots/:id/scan", () => {
     expect(second.json()).toEqual({
       error: { code: "scan_in_progress", message: expect.any(String) },
     });
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
     expect((await first).statusCode).toBe(200);
   });
 
@@ -190,12 +179,12 @@ describe("POST /media-roots/:id/scan", () => {
     const signals: AbortSignal[] = [];
     const { server, prober } = await startServer(async (_rootPath, options) => {
       signals.push(options!.signal!);
-      return files("a");
+      return discoveredFiles("a");
     });
 
     const response = scan(server);
     await prober.waitForStarted(1);
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
     expect((await response).statusCode).toBe(200);
 
     expect(signals[0]?.aborted).toBe(false);
@@ -249,7 +238,7 @@ describe("POST /media-roots/:id/scan", () => {
     await vi.waitFor(() => expect(scanSpy).toHaveBeenCalled());
     const result = scanSpy.mock.results[0].value as Promise<unknown>;
     // Unblocks a wrongly started scan so a regression fails fast instead of hanging.
-    const unblock = setInterval(() => prober.resolveAll(RESULT), 5);
+    const unblock = setInterval(() => prober.resolveAll(PROBE_RESULT), 5);
     try {
       await expect(result).resolves.toEqual({ kind: "cancelled" });
     } finally {
@@ -313,7 +302,7 @@ describe("POST /media-roots/:id/scan schedule maintenance", () => {
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),
-          discover: async () => files("item-001"),
+          discover: async () => discoveredFiles("item-001"),
         }),
       }),
     });

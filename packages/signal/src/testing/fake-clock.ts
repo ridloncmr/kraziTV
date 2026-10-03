@@ -1,4 +1,5 @@
-import { assertNonNegativeSafeInteger } from "../options/safe-integer-option.js";
+import { assertNonNegativeSafeInteger } from "@krazitv/process";
+
 import type { Clock, ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 
 type TimerRecord = {

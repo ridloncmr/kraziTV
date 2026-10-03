@@ -1,12 +1,16 @@
+import { PLAYBACK_MODES } from "@krazitv/krazi-brain";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import type { ChannelRepository } from "../channels/repository/channel-repository.js";
-import { sendChannelNotFound } from "../channels/routes/channel-routes.js";
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import {
+  sendApiError,
+  sendChannelNotFound,
+  sendInvalidRequest,
+  sendUnknownMediaItems,
+} from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
-import { sendUnknownMediaItems } from "../media-collections/media-collection-routes.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import { blockChange } from "./block-change.js";
 import type {
@@ -21,7 +25,7 @@ const source = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("collection"),
     mediaCollectionId: z.string(),
-    playbackMode: z.enum(["chronological", "random"]),
+    playbackMode: z.enum(PLAYBACK_MODES),
   }),
   z.strictObject({
     kind: z.literal("media_item"),

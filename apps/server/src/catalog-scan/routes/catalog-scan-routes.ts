@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 
-import { sendApiError } from "../../http/api-error.js";
+import { sendApiError, sendMediaRootNotFound } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { ScanResult, ScanSummary } from "../contracts.js";
@@ -56,12 +56,7 @@ function sendScanResult(
     case "completed":
       return toApiScanSummary(result.summary);
     case "root_not_found":
-      return sendApiError(
-        reply,
-        404,
-        "media_root_not_found",
-        `Media root ${id} does not exist`,
-      );
+      return sendMediaRootNotFound(reply, id);
     case "root_disabled":
       return sendApiError(
         reply,

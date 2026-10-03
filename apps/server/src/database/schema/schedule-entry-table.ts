@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "./programming-block-table.js";
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 
 /**
  * One guide-visible program. `playback_mode` and `playback_index` are null

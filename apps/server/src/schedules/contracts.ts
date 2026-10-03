@@ -1,8 +1,8 @@
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { PlaybackMode } from "../database/schema/programming-block-table.js";
 
 /**
  * The per-call logger a schedule mutation writes to: `request.log` from
@@ -54,6 +54,20 @@ export type EnsureCoverageResult =
 
 /** One chunk committed entries but coverage still falls short of the target. */
 export type ChunkResult = EnsureCoverageResult | { kind: "extended" };
+
+/** A channel cleared to generate: it exists, is enabled, and its target is in range. */
+export interface ChannelAdmission {
+  kind: "admitted";
+  state: ScheduleState | undefined;
+  effectiveNow: number;
+  target: number;
+}
+
+/** The first check that refused a channel generation, in check order. */
+export type AdmissionFailure = Extract<
+  EnsureCoverageResult,
+  { kind: "channel_not_found" | "disabled" | "through_out_of_range" }
+>;
 
 /** Where one chunk of generation starts. */
 export interface ChunkStart {

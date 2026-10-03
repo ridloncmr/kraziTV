@@ -3,6 +3,7 @@ import type { Kysely, Selectable } from "kysely";
 import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import { parameterChunks } from "../database/writes/parameter-chunks.js";
 import type { MediaItem } from "./contracts.js";
 
 /** Reads committed catalog items; scans remain the only writer. */
@@ -39,6 +40,28 @@ export class MediaItemRepository {
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaItem(row);
   }
+}
+
+/**
+ * Returns requested IDs absent from the catalog, in request order without
+ * repeats. Takes the caller's executor so the check commits with the write it
+ * guards.
+ */
+export async function findUnknownMediaItemIds(
+  executor: Kysely<DatabaseSchema>,
+  mediaItemIds: readonly string[],
+): Promise<string[]> {
+  const requested = [...new Set(mediaItemIds)];
+  const known = new Set<string>();
+  for (const chunk of parameterChunks(requested)) {
+    const rows = await executor
+      .selectFrom("media_items")
+      .select("id")
+      .where("id", "in", chunk)
+      .execute();
+    for (const { id } of rows) known.add(id);
+  }
+  return requested.filter((id) => !known.has(id));
 }
 
 // Keeps SQLite's integer booleans and internal identity key out of callers.

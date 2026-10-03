@@ -5,8 +5,6 @@ import {
   discoverMediaFiles,
   MediaDiscoveryError,
   MediaProbeError,
-  type DiscoveredMediaFile,
-  type DiscoverMediaFilesOptions,
 } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +19,11 @@ import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import {
+  discoveredFiles,
+  PROBE_RESULT,
+  type Discover,
+} from "../../testing/discovery-fixtures.js";
+import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
@@ -28,23 +31,8 @@ import { sequentialIds } from "../../testing/record-sources.js";
 import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
-const RESULT = { durationMs: 2_000, hasAudio: true };
-
-type Discover = (
-  rootPath: string,
-  options?: DiscoverMediaFilesOptions,
-) => Promise<DiscoveredMediaFile[]>;
 
 afterEach(cleanUpTestEnvironment);
-
-// Builds discovery output for files directly under the fixture root, in identity order.
-function files(...names: string[]): DiscoveredMediaFile[] {
-  return names.map((name) => ({
-    path: `/media/movies/${name}.mkv`,
-    pathKey: `/media/movies/${name}.mkv`,
-    title: name,
-  }));
-}
 
 function path(name: string): string {
   return `/media/movies/${name}.mkv`;
@@ -80,7 +68,7 @@ async function setup(options: SetupOptions = {}) {
   const discover = vi.fn<Discover>(
     options.discover === "real"
       ? discoverMediaFiles
-      : (options.discover ?? (async () => files("a", "b", "c"))),
+      : (options.discover ?? (async () => discoveredFiles("a", "b", "c"))),
   );
   const scanner = new CatalogScanner({
     roots: new MediaRootRepository(database.db),
@@ -118,7 +106,7 @@ describe("CatalogScanner", () => {
     const scan = scanner.scan(rootFixture.id);
     await prober.waitForStarted(3);
     // Completion order differs from identity order on purpose.
-    prober.get(path("c")).resolve(RESULT);
+    prober.get(path("c")).resolve(PROBE_RESULT);
     prober
       .get(path("a"))
       .reject(
@@ -194,12 +182,12 @@ describe("CatalogScanner", () => {
 
     const scan = scanner.scan(rootFixture.id);
     await prober.waitForStarted(3);
-    prober.get(path("a")).resolve(RESULT);
-    prober.get(path("b")).resolve(RESULT);
+    prober.get(path("a")).resolve(PROBE_RESULT);
+    prober.get(path("b")).resolve(PROBE_RESULT);
     await flushMicrotasks(10);
 
     expect(await catalogSnapshot(db)).toEqual(before);
-    prober.get(path("c")).resolve(RESULT);
+    prober.get(path("c")).resolve(PROBE_RESULT);
     await expect(scan).resolves.toMatchObject({ kind: "completed" });
   });
 
@@ -238,12 +226,12 @@ describe("CatalogScanner", () => {
     expect(discover).toHaveBeenCalledTimes(1);
     expect(prober.started).toHaveLength(3);
 
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
     await expect(first).resolves.toMatchObject({ kind: "completed" });
     // The registry is released once the first scan settles.
     const again = scanner.scan(rootFixture.id);
     await prober.waitForStarted(6);
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
     await expect(again).resolves.toMatchObject({ kind: "completed" });
   });
 
@@ -272,7 +260,7 @@ describe("CatalogScanner", () => {
     terminating.reject(new MediaProbeError("timed_out", "ffprobe timed out"));
 
     while (prober.active > 0) {
-      prober.resolveAll(RESULT);
+      prober.resolveAll(PROBE_RESULT);
       await flushMicrotasks(10);
     }
 
@@ -289,7 +277,7 @@ describe("CatalogScanner", () => {
     );
     const { scanner, prober } = await setup({
       concurrency: 1,
-      discover: async () => files(...names),
+      discover: async () => discoveredFiles(...names),
     });
     const warnings: Error[] = [];
     const onWarning = (warning: Error) => warnings.push(warning);
@@ -302,7 +290,7 @@ describe("CatalogScanner", () => {
       });
       // With one slot, each round finishes the running probe and lets the next start.
       while (!settled) {
-        prober.resolveAll(RESULT);
+        prober.resolveAll(PROBE_RESULT);
         await new Promise((resolve) => setImmediate(resolve));
       }
       await expect(scan).resolves.toMatchObject({
@@ -428,7 +416,7 @@ describe("CatalogScanner", () => {
 
     const scan = scanner.scan(rootFixture.id, { signal: controller.signal });
     await prober.waitForStarted(3);
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
     controller.abort();
 
     await expect(scan).resolves.toEqual({ kind: "cancelled" });
@@ -446,7 +434,7 @@ describe("CatalogScanner", () => {
       .where("id", "=", rootFixture.id)
       .execute();
     const before = await catalogSnapshot(db);
-    prober.resolveAll(RESULT);
+    prober.resolveAll(PROBE_RESULT);
 
     await expect(scan).resolves.toEqual({ kind: "root_disabled" });
     expect(await catalogSnapshot(db)).toEqual(before);

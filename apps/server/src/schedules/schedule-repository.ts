@@ -8,10 +8,15 @@ import {
 } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
+import {
+  fromSqliteBoolean,
+  toSqliteBoolean,
+} from "../database/columns/sqlite-boolean.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
+import { toProgrammingBlockSource } from "../programming-blocks/programming-block-repository.js";
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 
 // Every function here takes the caller's executor: schedule mutations run
@@ -37,7 +42,7 @@ export async function findChannelEnabled(
     .select("enabled")
     .where("id", "=", channelId)
     .executeTakeFirst();
-  return row === undefined ? undefined : row.enabled === 1;
+  return row === undefined ? undefined : fromSqliteBoolean(row.enabled);
 }
 
 /** Lists every enabled channel's ID in ID order, so maintenance runs in a stable order. */
@@ -45,7 +50,7 @@ export async function listEnabledChannelIds(trx: Executor): Promise<string[]> {
   const rows = await trx
     .selectFrom("channels")
     .select("id")
-    .where("enabled", "=", 1)
+    .where("enabled", "=", toSqliteBoolean(true))
     .orderBy("id")
     .execute();
   return rows.map((row) => row.id);
@@ -91,7 +96,8 @@ export async function loadScheduleSource(
     .executeTakeFirst();
   if (block === undefined) return undefined;
 
-  if (block.media_collection_id !== null && block.playback_mode !== null) {
+  const source = toProgrammingBlockSource(block);
+  if (source.kind === "collection") {
     const members = await trx
       .selectFrom("media_collection_items")
       .innerJoin(
@@ -108,32 +114,29 @@ export async function loadScheduleSource(
       .where(
         "media_collection_items.media_collection_id",
         "=",
-        block.media_collection_id,
+        source.mediaCollectionId,
       )
       .orderBy("media_collection_items.position")
       .execute();
     return {
       kind: "collection",
       programmingBlockId: block.id,
-      mediaCollectionId: block.media_collection_id,
-      playbackMode: block.playback_mode,
+      mediaCollectionId: source.mediaCollectionId,
+      playbackMode: source.playbackMode,
       members: members.map(toScheduleMedia),
     };
   }
 
-  if (block.media_item_id !== null) {
-    const item = await trx
-      .selectFrom("media_items")
-      .select(["id", "title", "status", "duration_ms"])
-      .where("id", "=", block.media_item_id)
-      .executeTakeFirstOrThrow();
-    return {
-      kind: "media_item",
-      programmingBlockId: block.id,
-      media: toScheduleMedia(item),
-    };
-  }
-  throw new Error(`Programming block ${block.id} has a malformed source`);
+  const item = await trx
+    .selectFrom("media_items")
+    .select(["id", "title", "status", "duration_ms"])
+    .where("id", "=", source.mediaItemId)
+    .executeTakeFirstOrThrow();
+  return {
+    kind: "media_item",
+    programmingBlockId: block.id,
+    media: toScheduleMedia(item),
+  };
 }
 
 /** Loads the channel's progress through a collection, starting at zero when it has none. */

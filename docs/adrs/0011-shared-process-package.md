@@ -26,6 +26,9 @@ someone remembering to apply both.
   lifecycle helpers both consumers need: `terminateProcess` (SIGTERM, then
   one SIGKILL escalation, with injectable timers) and `OutputTail` (bounded
   retention of the newest output bytes).
+- It also holds the safe-integer option checks both consumers apply to their
+  timeouts, grace periods, and limits, moved from `packages/signal` under the
+  no-copy rule below once media needed the same check.
 - `packages/media` and `packages/signal` depend on `@krazitv/process`. Neither
   depends on the other.
 - `packages/process` knows nothing about FFmpeg, ffprobe, media, or signals.

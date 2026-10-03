@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
+import {
+  sendApiError,
+  sendChannelNotFound,
+  sendInvalidRequest,
+} from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
 import { idParams, nameField } from "../../http/request-schemas.js";
@@ -186,16 +190,6 @@ export function registerChannelRoutes(
       release();
     }
   });
-}
-
-// One 404 shape for every channel route.
-export function sendChannelNotFound(reply: FastifyReply, id: string) {
-  return sendApiError(
-    reply,
-    404,
-    "channel_not_found",
-    `Channel ${id} does not exist`,
-  );
 }
 
 // Names the contested number so the client can pick another.

@@ -1,5 +1,7 @@
 import {
+  assertPositiveSafeInteger,
   OutputTail,
+  STDERR_TAIL_LIMIT_BYTES,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -16,7 +18,6 @@ import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
 import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
-const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
 const TERMINATION_GRACE_MS = 5_000;
 
 type StopReason = "timed_out" | "cancelled" | "output_limit_exceeded";
@@ -112,28 +113,43 @@ export class FfprobeMediaProber implements MediaProber {
       signal?.removeEventListener("abort", onAbort);
     }
 
-    if (stopReason !== undefined) throw stopError(stopReason, this.timeoutMs);
-    if (exit.signal !== null) {
-      throw new MediaProbeError(
-        "terminated_by_signal",
-        withStderrSummary(
-          `ffprobe was terminated by ${exit.signal}`,
-          stderrTail.bytes(),
-        ),
-      );
-    }
-    if (exit.code !== 0) {
-      throw new MediaProbeError(
-        "exited_with_error",
-        withStderrSummary(
-          `ffprobe exited with code ${exit.code}`,
-          stderrTail.bytes(),
-        ),
-      );
-    }
+    const failure = exitFailure(
+      stopReason,
+      exit,
+      stderrTail.bytes(),
+      this.timeoutMs,
+    );
+    if (failure !== undefined) throw failure;
 
     return parseFfprobeOutput(Buffer.concat(stdoutChunks).toString("utf8"));
   }
+}
+
+/**
+ * Returns the first reason a closed probe produced no usable output, or
+ * undefined for a clean exit. A stop this adapter requested wins over the
+ * exit it caused, so a timeout is never reported as a signal.
+ */
+function exitFailure(
+  stopReason: StopReason | undefined,
+  exit: ProcessExit,
+  stderrTail: Buffer,
+  timeoutMs: number,
+): MediaProbeError | undefined {
+  if (stopReason !== undefined) return stopError(stopReason, timeoutMs);
+  if (exit.signal !== null) {
+    return new MediaProbeError(
+      "terminated_by_signal",
+      withStderrSummary(`ffprobe was terminated by ${exit.signal}`, stderrTail),
+    );
+  }
+  if (exit.code !== 0) {
+    return new MediaProbeError(
+      "exited_with_error",
+      withStderrSummary(`ffprobe exited with code ${exit.code}`, stderrTail),
+    );
+  }
+  return undefined;
 }
 
 /** Appends ffprobe's last meaningful diagnostic line; the error bounds its length. */
@@ -172,11 +188,4 @@ function spawnError(cause: unknown): MediaProbeError {
       cause,
     },
   );
-}
-
-/** Rejects values that cannot form deterministic millisecond deadlines. */
-function assertPositiveSafeInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`${name} must be a positive safe integer`);
-  }
 }

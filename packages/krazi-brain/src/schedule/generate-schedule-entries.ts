@@ -97,18 +97,18 @@ export function generateScheduleEntries(
   }
 
   const entries: GeneratedScheduleEntry[] = [];
-  let cursor = options.startsAt;
+  let nextStartsAt = options.startsAt;
   let progress = options.progress;
   let sequenceNumber = options.nextSequenceNumber;
-  while (cursor < through && entries.length < maxEntries) {
+  while (nextStartsAt < through && entries.length < maxEntries) {
     const airing = nextAiring(source, progress, options.channelSeed);
     // The schedulability check guarantees an integer duration at the floor.
     const durationMs = airing.media.durationMs ?? 0;
     entries.push({
       mediaItemId: airing.media.id,
       title: airing.media.title,
-      startsAt: cursor,
-      endsAt: cursor + durationMs,
+      startsAt: nextStartsAt,
+      endsAt: nextStartsAt + durationMs,
       durationMs,
       sequenceNumber,
       programmingBlockId: source.programmingBlockId,
@@ -116,7 +116,7 @@ export function generateScheduleEntries(
       playbackMode: airing.playbackMode,
       playbackIndex: airing.playbackIndex,
     });
-    cursor += durationMs;
+    nextStartsAt += durationMs;
     sequenceNumber += 1;
     progress = airing.progress;
   }
@@ -126,6 +126,6 @@ export function generateScheduleEntries(
     entries,
     progress,
     nextSequenceNumber: sequenceNumber,
-    generatedThrough: cursor,
+    generatedThrough: nextStartsAt,
   };
 }
