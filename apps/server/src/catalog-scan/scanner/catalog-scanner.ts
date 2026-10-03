@@ -17,6 +17,7 @@ import {
   type ProbeOutcome,
 } from "./catalog-candidate.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
+import { admitRoot } from "../writer/root-admission.js";
 import type { ScanResult } from "../contracts.js";
 
 interface ScanOptions {
@@ -67,16 +68,15 @@ export class CatalogScanner {
 
   /** Scans one root, rejecting disabled roots and overlapping scans of the same root. */
   async scan(rootId: string, options: ScanOptions = {}): Promise<ScanResult> {
-    const root = await this.#roots.findById(rootId);
+    const found = await this.#roots.findById(rootId);
     if (this.#closing) {
       return { kind: "cancelled" };
     }
-    if (root === undefined) {
-      return { kind: "root_not_found" };
+    const admission = admitRoot(found);
+    if (admission.kind !== "admitted") {
+      return admission;
     }
-    if (!root.enabled) {
-      return { kind: "root_disabled" };
-    }
+    const { root } = admission;
     if (this.#active.has(rootId)) {
       return { kind: "scan_in_progress" };
     }

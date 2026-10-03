@@ -9,6 +9,7 @@ import {
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import type { CatalogCandidate } from "../contracts.js";
+import { admitRoot } from "./root-admission.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
 interface CatalogGeneration {
@@ -57,16 +58,16 @@ export class CatalogScanWriter {
     }
 
     return this.#db.transaction().execute(async (trx) => {
-      const root = await trx
+      const row = await trx
         .selectFrom("media_roots")
         .select("enabled")
         .where("id", "=", generation.rootId)
         .executeTakeFirst();
-      if (root === undefined) {
-        return { kind: "root_not_found" };
-      }
-      if (!fromSqliteBoolean(root.enabled)) {
-        return { kind: "root_disabled" };
+      const admission = admitRoot(
+        row && { enabled: fromSqliteBoolean(row.enabled) },
+      );
+      if (admission.kind !== "admitted") {
+        return admission;
       }
 
       const missingCount = await this.#applyGeneration(trx, generation);
