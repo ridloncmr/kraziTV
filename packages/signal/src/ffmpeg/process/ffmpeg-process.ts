@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import {
   assertNonNegativeSafeInteger,
   OutputTail,
+  STDERR_TAIL_LIMIT_BYTES,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -15,7 +16,6 @@ import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
 import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 
 const DEFAULT_TERMINATION_GRACE_MS = 5_000;
-const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
 
 type FfmpegProcessOptions = {
   args: readonly string[];

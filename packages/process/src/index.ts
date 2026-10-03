@@ -9,7 +9,10 @@ export type {
 export { NodeProcessSpawner } from "./child-process/node-process-spawner.js";
 
 // Lifecycle helpers both consumers share, so termination and diagnostics stay consistent.
-export { OutputTail } from "./child-process/output-tail.js";
+export {
+  OutputTail,
+  STDERR_TAIL_LIMIT_BYTES,
+} from "./child-process/output-tail.js";
 export { terminateProcess } from "./child-process/terminate-process.js";
 
 // Integer option checks both consumers apply to process timeouts and limits,

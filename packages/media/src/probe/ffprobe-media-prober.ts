@@ -1,6 +1,7 @@
 import {
   assertPositiveSafeInteger,
   OutputTail,
+  STDERR_TAIL_LIMIT_BYTES,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -17,7 +18,6 @@ import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
 import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
-const STDERR_TAIL_LIMIT_BYTES = 64 * 1024;
 const TERMINATION_GRACE_MS = 5_000;
 
 type StopReason = "timed_out" | "cancelled" | "output_limit_exceeded";
