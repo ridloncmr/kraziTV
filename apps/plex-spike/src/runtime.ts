@@ -1,6 +1,8 @@
 import {
   createChannelStreamManager,
   createFfmpegSignalPackager,
+  findMpegTsJoinPoint,
+  SystemRuntime,
   type ChannelAuthorization,
   type ChannelAuthorizationResult,
   type ChannelId,
@@ -9,10 +11,8 @@ import {
   type CurrentPlayoutResult,
   type FollowingPlayoutResult,
   type PlayoutProvider,
-  type ScheduledTask,
   type SelectedPlayoutItem,
   type SignalLogger,
-  type TimerScheduler,
   type TransitionCandidate,
   type TransitionCoordinator,
 } from "@krazitv/signal";
@@ -21,12 +21,13 @@ import type { SpikeConfig } from "./config.js";
 
 const CHANNEL_ID = "69";
 const SCHEDULE_REVISION = 1;
-const MPEG_TS_PACKET_BYTES = 188;
 
 type FixedPlayoutOptions = Pick<
   SpikeConfig,
   "mediaAPath" | "mediaBPath" | "mediaDurationMs"
 > & {
+  /** Defaults to the media length; a longer slot airs a black tail. */
+  airtimeMs?: number;
   startedAt: number;
   record?: (event: string, context: Readonly<Record<string, unknown>>) => void;
 };
@@ -113,17 +114,19 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
   private ordinalAt(atMs: number): number {
     return Math.max(
       0,
-      Math.floor(
-        (atMs - this.options.startedAt) / this.options.mediaDurationMs,
-      ),
+      Math.floor((atMs - this.options.startedAt) / this.slotMs()),
     );
+  }
+
+  /** Slots default to the media length; a longer slot airs a black tail. */
+  private slotMs(): number {
+    return this.options.airtimeMs ?? this.options.mediaDurationMs;
   }
 
   /** Builds one complete atomic selection without storing mutable schedule state. */
   private item(ordinal: number): SelectedPlayoutItem {
     const isA = ordinal % 2 === 0;
-    const startsAt =
-      this.options.startedAt + ordinal * this.options.mediaDurationMs;
+    const startsAt = this.options.startedAt + ordinal * this.slotMs();
     return {
       channelId: CHANNEL_ID,
       scheduleEntryId: `spike-${ordinal}-${isA ? "a" : "b"}`,
@@ -133,7 +136,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
       hasAudio: true,
       title: isA ? "VIDEO A" : "VIDEO B",
       startsAt,
-      endsAt: startsAt + this.options.mediaDurationMs,
+      endsAt: startsAt + this.slotMs(),
       durationMs: this.options.mediaDurationMs,
       startOffsetMs: 0,
     };
@@ -169,33 +172,6 @@ export class FixedTransitionCoordinator implements TransitionCoordinator {
   }
 }
 
-/** Adapts wall time and native timers to the signal runtime ports. */
-class SystemRuntime implements Clock, TimerScheduler {
-  /** Keeps schedule evaluation anchored to Unix epoch milliseconds. */
-  now(): number {
-    return Date.now();
-  }
-
-  /** Makes native timers explicitly cancellable for runtime cleanup. */
-  setTimeout(callback: () => void, delayMs: number): ScheduledTask {
-    let active = true;
-    const timeout = globalThis.setTimeout(() => {
-      active = false;
-      callback();
-    }, delayMs);
-    return {
-      get active() {
-        return active;
-      },
-      cancel: () => {
-        if (!active) return;
-        active = false;
-        globalThis.clearTimeout(timeout);
-      },
-    };
-  }
-}
-
 /** Timestamps retained lifecycle events when they reach the disposable harness. */
 const recordSpikeMeasurement = (
   event: string,
@@ -224,6 +200,7 @@ export function createSpikeManager(
     mediaAPath: config.mediaAPath,
     mediaBPath: config.mediaBPath,
     mediaDurationMs: config.mediaDurationMs,
+    airtimeMs: config.airtimeMs,
     record: recordSpikeMeasurement,
   });
   const packager = createFfmpegSignalPackager({
@@ -245,30 +222,6 @@ export function createSpikeManager(
     retentionLimitBytes: 4 * 1024 * 1024,
     findJoinPoint: findMpegTsJoinPoint,
   });
-}
-
-/** Finds the newest PAT-aligned late-join point backed by complete TS packets. */
-export function findMpegTsJoinPoint(retained: Buffer): number | undefined {
-  for (
-    let offset = retained.byteLength - MPEG_TS_PACKET_BYTES * 3;
-    offset >= 0;
-    offset -= 1
-  ) {
-    if (
-      retained[offset] === 0x47 &&
-      retained[offset + MPEG_TS_PACKET_BYTES] === 0x47 &&
-      retained[offset + MPEG_TS_PACKET_BYTES * 2] === 0x47 &&
-      packetPid(retained, offset) === 0
-    ) {
-      return offset;
-    }
-  }
-  return undefined;
-}
-
-/** Extracts the MPEG-TS PID while masking transport-error and payload flags. */
-function packetPid(buffer: Buffer, offset: number): number {
-  return ((buffer[offset + 1] ?? 0) & 0x1f) * 256 + (buffer[offset + 2] ?? 0);
 }
 
 /** Accepts only entry IDs created by this fixed provider. */

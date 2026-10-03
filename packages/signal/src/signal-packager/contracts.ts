@@ -17,10 +17,17 @@ export type SignalPlayoutItem = {
   /** Absolute source-media position where this item starts emitting. */
   mediaOffsetMs: DurationMs;
   /**
-   * Maximum emission time, not a promise to fill it: the next commit or stop
-   * truncates the tail. The worker enforces the scheduled end, not this value.
+   * Maximum source-media emission time, not a promise to fill it: the next
+   * commit or stop truncates the tail. The worker enforces the scheduled end,
+   * not this value.
    */
   playDurationMs: DurationMs;
+  /**
+   * Black video and silence emitted after the media when it is shorter than
+   * its airtime, so the signal stays continuous to the boundary. Filler
+   * replaces it later.
+   */
+  blackTailMs: DurationMs;
 };
 
 export interface SignalPackager {

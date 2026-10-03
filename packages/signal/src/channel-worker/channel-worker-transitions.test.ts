@@ -161,6 +161,7 @@ describe("ChannelWorker following-item transitions", () => {
         hasAudio: true,
         mediaOffsetMs: 0,
         playDurationMs: 10_000,
+        blackTailMs: 0,
       },
     ]);
     expect(setup.coordinator.calls).toEqual([]);

@@ -1,9 +1,12 @@
 import type { OutputReadinessInspector } from "../contracts.js";
 import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-forwarder.js";
+import {
+  ALIGNED_PACKET_RUN,
+  startsAlignedPacketRun,
+} from "./mpeg-ts-packet-run.js";
 
-const REQUIRED_ALIGNED_PACKETS = 3;
 const INSPECTION_WINDOW_BYTES =
-  MPEG_TS_PACKET_BYTES * REQUIRED_ALIGNED_PACKETS + MPEG_TS_PACKET_BYTES - 1;
+  MPEG_TS_PACKET_BYTES * ALIGNED_PACKET_RUN + MPEG_TS_PACKET_BYTES - 1;
 
 /** Detects a provisional bounded run of complete aligned MPEG-TS packets. */
 export class MpegTsReadinessInspector implements OutputReadinessInspector {
@@ -27,19 +30,8 @@ export class MpegTsReadinessInspector implements OutputReadinessInspector {
 
 /** Finds complete packets without assuming chunks begin on an MPEG-TS boundary. */
 function hasCompleteAlignedPackets(buffer: Buffer): boolean {
-  const requiredBytes = MPEG_TS_PACKET_BYTES * REQUIRED_ALIGNED_PACKETS;
-  for (
-    let offset = 0;
-    offset + requiredBytes <= buffer.byteLength;
-    offset += 1
-  ) {
-    if (
-      buffer[offset] === 0x47 &&
-      buffer[offset + MPEG_TS_PACKET_BYTES] === 0x47 &&
-      buffer[offset + MPEG_TS_PACKET_BYTES * 2] === 0x47
-    ) {
-      return true;
-    }
+  for (let offset = 0; offset < buffer.byteLength; offset += 1) {
+    if (startsAlignedPacketRun(buffer, offset)) return true;
   }
   return false;
 }

@@ -22,6 +22,8 @@ export interface ScheduleItemSpec {
   status?: MediaItemTable["status"];
   /** Defaults to the item fixture's audio fact; null records none, as an unprobed file has. */
   hasAudio?: boolean | null;
+  /** A real file for suites that transmit it; defaults to a placeholder path. */
+  path?: string;
 }
 
 export interface ScheduleScenarioOptions {
@@ -62,21 +64,24 @@ export async function seedScheduleScenario(
     await db
       .insertInto("media_items")
       .values(
-        options.items.map((item, index) => ({
-          ...itemFixture,
-          id: itemIds[index],
-          path: `/media/movies/${itemIds[index]}.mkv`,
-          path_key: `/media/movies/${itemIds[index]}.mkv`,
-          title: `Item ${index + 1}`,
-          duration_ms: item.durationMs,
-          has_audio:
-            item.hasAudio === undefined
-              ? itemFixture.has_audio
-              : item.hasAudio === null
-                ? null
-                : toSqliteBoolean(item.hasAudio),
-          status: item.status ?? "available",
-        })),
+        options.items.map((item, index) => {
+          const path = item.path ?? `/media/movies/${itemIds[index]}.mkv`;
+          return {
+            ...itemFixture,
+            id: itemIds[index],
+            path,
+            path_key: path,
+            title: `Item ${index + 1}`,
+            duration_ms: item.durationMs,
+            has_audio:
+              item.hasAudio === undefined
+                ? itemFixture.has_audio
+                : item.hasAudio === null
+                  ? null
+                  : toSqliteBoolean(item.hasAudio),
+            status: item.status ?? "available",
+          };
+        }),
       )
       .execute();
     await db

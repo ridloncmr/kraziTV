@@ -20,12 +20,17 @@ type ApiErrorCode =
   | "media_root_not_found"
   | "media_root_path_immutable"
   | "media_root_unavailable"
+  | "no_current_playout"
   | "not_found"
+  | "playout_unavailable"
   | "programming_block_limit_reached"
   | "programming_block_not_found"
   | "scan_cancelled"
   | "scan_in_progress"
-  | "schedule_busy";
+  | "schedule_busy"
+  | "stream_failed"
+  | "stream_startup_timeout"
+  | "stream_unavailable";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

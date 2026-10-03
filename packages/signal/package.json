@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "test": "vitest run src",
+    "test:ffmpeg": "vitest run integration/",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

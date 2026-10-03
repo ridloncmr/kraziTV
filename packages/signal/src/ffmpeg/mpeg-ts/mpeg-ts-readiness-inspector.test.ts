@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { transportPacket } from "../../testing/transport-packet.js";
 import { MpegTsReadinessInspector } from "./mpeg-ts-readiness-inspector.js";
 
-const packet = (fill: number): Buffer => {
-  const value = Buffer.alloc(188, fill);
-  value[0] = 0x47;
-  return value;
-};
+const packet = (fill: number): Buffer => transportPacket({ fill });
 
 describe("MpegTsReadinessInspector", () => {
   it("does not accept random bytes or a lone sync byte", () => {

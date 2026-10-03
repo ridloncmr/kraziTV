@@ -154,6 +154,7 @@ describe("ChannelWorker startup", () => {
         hasAudio: true,
         mediaOffsetMs: 1_750,
         playDurationMs: 8_750,
+        blackTailMs: 0,
       },
     ]);
 

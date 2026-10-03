@@ -1,4 +1,6 @@
 import { createMediaProber } from "@krazitv/media";
+import { createFfmpegSignalPackager, SystemRuntime } from "@krazitv/signal";
+import { pino } from "pino";
 
 import { buildServer } from "./app.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
@@ -7,7 +9,8 @@ import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
-import { noOpChannelRuntime } from "./channels/runtime/no-op-channel-runtime.js";
+import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
+import { toSignalLogger } from "./channels/runtime/signal-log.js";
 import { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
@@ -15,6 +18,7 @@ import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js"
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { parseProbeConfig } from "./config/probe.js";
+import { parseFfmpegPath } from "./config/ffmpeg.js";
 import {
   isLoopbackHost,
   parseCorsOrigins,
@@ -29,6 +33,7 @@ const dataDirectory = resolveDataDirectory(
 );
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
+const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
 const mediaRoots = new MediaRootRepository(database.db);
@@ -52,6 +57,22 @@ const programmingBlocks = new ProgrammingBlockRepository(database.db);
 const schedules = new ScheduleService(database.db);
 const playout = new PlayoutService(database.db, schedules);
 
+// Created before Fastify so the stream runtime logs through the same logger.
+const logger = pino();
+const runtime = new SystemRuntime();
+const channelStreams = composeChannelStreamManager({
+  db: database.db,
+  playout,
+  channels,
+  log: logger,
+  packager: createFfmpegSignalPackager({
+    logger: toSignalLogger(logger),
+    timers: runtime,
+    ffmpegPath,
+  }),
+  runtime,
+});
+
 const server = buildServer(
   {
     database,
@@ -60,14 +81,15 @@ const server = buildServer(
     mediaItems,
     mediaCollections,
     channels,
-    // Plan 0006 replaces this with the composed channel stream manager.
-    channelRuntime: noOpChannelRuntime,
+    // Disable and delete stop the same workers that serve tunes.
+    channelRuntime: channelStreams,
+    channelStreams,
     programmingBlocks,
     schedules,
     playout,
   },
   {
-    logger: true,
+    loggerInstance: logger,
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );

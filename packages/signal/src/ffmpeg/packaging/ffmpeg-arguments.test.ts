@@ -14,6 +14,7 @@ const item = (
   hasAudio: true,
   mediaOffsetMs: 12_345,
   playDurationMs: 67_890,
+  blackTailMs: 0,
   ...overrides,
 });
 
@@ -86,6 +87,56 @@ describe("buildFfmpegArguments", () => {
     );
     expect(args).not.toContain("0:a:0?");
   });
+
+  it("reads only the media span and extends the output with a black tail", () => {
+    const args = buildFfmpegArguments(
+      item({ playDurationMs: 4_000, blackTailMs: 6_500 }),
+    );
+
+    expect(args.slice(4, 11)).toEqual([
+      "-re",
+      "-ss",
+      "12.345",
+      "-t",
+      "4.000",
+      "-i",
+      "C:/media/My Movie.mkv",
+    ]);
+    expect(args).toEqual(expect.arrayContaining(["-t", "10.500"]));
+    expect(args[args.indexOf("-vf") + 1]).toBe(
+      "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1," +
+        "tpad=stop_mode=add:stop=-1:color=black",
+    );
+    expect(args[args.indexOf("-af") + 1]).toBe("apad,arealtime");
+  });
+
+  it("paces synthesized silence through a black tail without padding it", () => {
+    const args = buildFfmpegArguments(
+      item({ hasAudio: false, playDurationMs: 4_000, blackTailMs: 6_500 }),
+    );
+
+    expect(args[args.indexOf("-af") + 1]).toBe("arealtime");
+    expect(args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
+  });
+
+  it("leaves the command unchanged when media covers its airtime", () => {
+    const args = buildFfmpegArguments(item());
+
+    expect(args).not.toContain("-af");
+    expect(args.filter((arg) => arg === "-t")).toHaveLength(1);
+  });
+
+  it.each([NaN, Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects invalid black tail %s before process creation",
+    (blackTailMs) => {
+      expect(() => buildFfmpegArguments(item({ blackTailMs }))).toThrowError(
+        expect.objectContaining<Partial<SignalError>>({
+          code: "invalid_playout_item",
+          details: { field: "blackTailMs" },
+        }),
+      );
+    },
+  );
 
   it.each([NaN, Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
     "rejects invalid media offset %s before process creation",

@@ -14,8 +14,9 @@ import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
-import type { ChannelRuntime } from "./channels/contracts.js";
+import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
+import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
@@ -43,6 +44,7 @@ export type ServerDependencies = {
   mediaCollections: MediaCollectionRepository;
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
+  channelStreams: ChannelStreams;
   programmingBlocks: ProgrammingBlockRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
@@ -80,6 +82,7 @@ function registerRoutes(
     dependencies.schedules,
     channelStopTimeoutMs,
   );
+  registerChannelStreamRoutes(server, dependencies.channelStreams);
   registerProgrammingBlockRoutes(
     server,
     dependencies.programmingBlocks,
@@ -104,8 +107,20 @@ export function buildServer(
 
   // Scans are cancelled first so in-flight requests can answer and every ffprobe
   // child closes before onClose releases the database they would commit to.
+  // Channel streams shut down here too: a live stream response never ends on
+  // its own, so the server could not finish closing while one is open. Both
+  // steps settle before the database closes, even when one fails; a failure
+  // is logged, not thrown, so shutdown still completes.
   server.addHook("preClose", async () => {
-    await dependencies.scanner.shutdown();
+    const results = await Promise.allSettled([
+      dependencies.scanner.shutdown(),
+      dependencies.channelStreams.shutdown(),
+    ]);
+    for (const result of results) {
+      if (result.status === "rejected") {
+        server.log.error({ err: result.reason }, "Shutdown step failed");
+      }
+    }
   });
 
   // Repairs schedules that lapsed while the server was down before it serves

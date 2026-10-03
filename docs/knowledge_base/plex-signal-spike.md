@@ -117,6 +117,27 @@ isolation, the VIDEO A/B boundary, idle shutdown, and process sharing. Record
 the observed FFmpeg version, asset hashes, startup wait, tune drift, pacing
 drift, boundary gap, late-join result, buffer behavior, and encoder count.
 
+### Black-Tail Boundary
+
+SIG-016 reruns the boundary row for media shorter than its airtime, because
+the black-tail arguments postdate the SIG-011 run. Launch as above with a
+40-second slot, so each 30-second asset airs a 10-second black tail:
+
+```powershell
+$env:KRAZITV_SPIKE_AIRTIME_MS = '40000'
+npm run spike:dev
+```
+
+Slots start when the harness starts. Tune Channel 69 in Plex, watch VIDEO A
+end, then confirm that Plex shows about 10 seconds of black and silence and
+keeps playing into VIDEO B without buffering or dropping. Record the result
+under Retained Plex Result with the FFmpeg and Plex versions, then clear the
+setting so later matrix rows air full-length slots again:
+
+```powershell
+Remove-Item Env:KRAZITV_SPIKE_AIRTIME_MS
+```
+
 ## Retained Plex Result
 
 The SIG-011 matrix passed on 2026-09-29 with:

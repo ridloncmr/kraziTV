@@ -62,6 +62,33 @@ describe("FixedSpikePlayoutProvider", () => {
     });
   });
 
+  it("airs each item for its slot so media shorter than the slot ends in a black tail", async () => {
+    const provider = new FixedSpikePlayoutProvider({
+      startedAt: 1_000,
+      mediaDurationMs: 30_000,
+      airtimeMs: 40_000,
+      mediaAPath: "a.mp4",
+      mediaBPath: "b.mp4",
+    });
+
+    const tail = await provider.getCurrent("69", 36_000);
+    const following = await provider.getFollowing("69", "spike-0-a", 1);
+
+    expect(tail).toMatchObject({
+      status: "current",
+      mediaOffsetMs: 35_000,
+      item: {
+        scheduleEntryId: "spike-0-a",
+        startsAt: 1_000,
+        endsAt: 41_000,
+        durationMs: 30_000,
+      },
+    });
+    expect(following).toMatchObject({
+      items: [{ scheduleEntryId: "spike-1-b", startsAt: 41_000 }],
+    });
+  });
+
   it("records each current-state evaluation without exposing its media path", async () => {
     const record = vi.fn();
     const provider = new FixedSpikePlayoutProvider({
@@ -115,46 +142,5 @@ describe("fixed runtime adapters", () => {
       ),
     ).resolves.toBe("committed");
     expect(commit).toHaveBeenCalledOnce();
-  });
-});
-
-describe("findMpegTsJoinPoint", () => {
-  it("returns an aligned PAT packet backed by further synchronized packets", () => {
-    const packet = (pid: number) => {
-      const value = Buffer.alloc(188);
-      value[0] = 0x47;
-      value[1] = (pid >> 8) & 0x1f;
-      value[2] = pid & 0xff;
-      return value;
-    };
-    const retained = Buffer.concat([
-      Buffer.from([1, 2]),
-      packet(256),
-      packet(0),
-      packet(100),
-      packet(256),
-    ]);
-
-    expect(findMpegTsJoinPoint(retained)).toBe(190);
-  });
-
-  it("returns the newest valid PAT so late joins do not replay stale output", () => {
-    const packet = (pid: number) => {
-      const value = Buffer.alloc(188);
-      value[0] = 0x47;
-      value[1] = (pid >> 8) & 0x1f;
-      value[2] = pid & 0xff;
-      return value;
-    };
-    const retained = Buffer.concat([
-      packet(0),
-      packet(256),
-      packet(256),
-      packet(0),
-      packet(256),
-      packet(256),
-    ]);
-
-    expect(findMpegTsJoinPoint(retained)).toBe(188 * 3);
   });
 });

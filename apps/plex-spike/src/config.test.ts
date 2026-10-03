@@ -11,6 +11,7 @@ const validConfig: SpikeConfig = {
   mediaAPath: "C:/spike/video-a.mp4",
   mediaBPath: "C:/spike/video-b.mp4",
   mediaDurationMs: 30_000,
+  airtimeMs: 30_000,
   publicBaseUrl: "http://10.0.0.25:3100",
   host: "0.0.0.0",
   port: 3100,
@@ -32,10 +33,34 @@ describe("loadSpikeConfig", () => {
       mediaAPath: "C:/media/a.mp4",
       mediaBPath: "C:/media/b.mp4",
       mediaDurationMs: 30_000,
+      airtimeMs: 30_000,
       publicBaseUrl: "http://spike.local:4000",
       host: "0.0.0.0",
       port: 4000,
     });
+  });
+
+  it("lengthens each slot past its media so boundaries cross a black tail", () => {
+    const config = loadSpikeConfig({
+      KRAZITV_SPIKE_MEDIA_A_PATH: "a.mp4",
+      KRAZITV_SPIKE_MEDIA_B_PATH: "b.mp4",
+      KRAZITV_SPIKE_AIRTIME_MS: "40000",
+    });
+
+    expect(config).toMatchObject({
+      mediaDurationMs: 30_000,
+      airtimeMs: 40_000,
+    });
+  });
+
+  it("rejects an airtime that would cut the media short", () => {
+    expect(() =>
+      loadSpikeConfig({
+        KRAZITV_SPIKE_MEDIA_A_PATH: "a.mp4",
+        KRAZITV_SPIKE_MEDIA_B_PATH: "b.mp4",
+        KRAZITV_SPIKE_AIRTIME_MS: "20000",
+      }),
+    ).toThrowError(/KRAZITV_SPIKE_AIRTIME_MS must be at least 30000/);
   });
 
   it("points missing assets at the deterministic generation command", () => {

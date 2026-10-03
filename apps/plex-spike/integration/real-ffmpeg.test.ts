@@ -141,6 +141,7 @@ function item(
     hasAudio: true,
     mediaOffsetMs,
     playDurationMs: 5_000,
+    blackTailMs: 0,
   };
 }
 

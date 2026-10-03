@@ -54,12 +54,15 @@ export function toSignalItem(
   current: CurrentPlayout,
   channelId: ChannelId,
 ): SignalPlayoutItem {
-  const playDurationMs = current.item.endsAt - current.evaluatedAt;
+  const timing = splitAirtime(
+    current.item.endsAt - current.evaluatedAt,
+    current.item.durationMs - current.mediaOffsetMs,
+  );
   if (
     !Number.isSafeInteger(current.evaluatedAt) ||
     !Number.isSafeInteger(current.item.endsAt) ||
     !isNonNegativeSafeInteger(current.mediaOffsetMs) ||
-    !isPositiveSafeInteger(playDurationMs)
+    !isPositiveSafeInteger(timing.playDurationMs)
   ) {
     throw invalidItem(channelId, "invalid_current_timing");
   }
@@ -71,7 +74,7 @@ export function toSignalItem(
     mediaPath: current.item.mediaPath,
     hasAudio: current.item.hasAudio,
     mediaOffsetMs: current.mediaOffsetMs,
-    playDurationMs,
+    ...timing,
   };
 }
 
@@ -95,7 +98,8 @@ export function selectContiguousFollowing(
     item.startsAt !== boundaryAt ||
     !Number.isSafeInteger(item.endsAt) ||
     item.endsAt <= item.startsAt ||
-    !isNonNegativeSafeInteger(item.startOffsetMs)
+    !isNonNegativeSafeInteger(item.startOffsetMs) ||
+    item.startOffsetMs >= item.durationMs
   ) {
     return undefined;
   }
@@ -113,8 +117,24 @@ export function toFollowingSignalItem(
     mediaPath: item.mediaPath,
     hasAudio: item.hasAudio,
     mediaOffsetMs: item.startOffsetMs,
-    playDurationMs: item.endsAt - item.startsAt,
+    ...splitAirtime(
+      item.endsAt - item.startsAt,
+      item.durationMs - item.startOffsetMs,
+    ),
   };
+}
+
+/**
+ * Plays media for as much of the airtime as it covers and fills the rest with
+ * a black tail, so short media never leaves the signal quiet before the
+ * boundary.
+ */
+function splitAirtime(
+  airtimeMs: number,
+  mediaRemainingMs: number,
+): Pick<SignalPlayoutItem, "playDurationMs" | "blackTailMs"> {
+  const playDurationMs = Math.min(airtimeMs, mediaRemainingMs);
+  return { playDurationMs, blackTailMs: airtimeMs - playDurationMs };
 }
 
 /** Creates a safe invalid-projection error without exposing a media path. */

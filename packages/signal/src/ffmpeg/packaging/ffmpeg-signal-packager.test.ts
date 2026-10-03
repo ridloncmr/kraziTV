@@ -7,6 +7,7 @@ import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
 import type { OutputReadinessInspector } from "../contracts.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
+import { transportPacket } from "../../testing/transport-packet.js";
 import { flushMicrotasks } from "../../testing/settle-promises.js";
 
 class MarkerInspector implements OutputReadinessInspector {
@@ -26,6 +27,7 @@ const initialItem = (
   hasAudio: true,
   mediaOffsetMs: 250,
   playDurationMs: 30_000,
+  blackTailMs: 0,
   ...overrides,
 });
 
@@ -46,11 +48,7 @@ const createHarness = () => {
   return { child, spawner, timers, logger, packager };
 };
 
-const packet = (fill: number): Buffer => {
-  const bytes = Buffer.alloc(188, fill);
-  bytes[0] = 0x47;
-  return bytes;
-};
+const packet = (fill: number): Buffer => transportPacket({ fill });
 
 describe("FfmpegSignalPackager", () => {
   it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(

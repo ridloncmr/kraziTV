@@ -420,6 +420,7 @@ mediaPath
 hasAudio
 mediaOffsetMs
 playDurationMs
+blackTailMs
 ```
 
 `hasAudio` is provider-neutral source metadata determined before packaging.
@@ -427,7 +428,7 @@ SignalPackager uses it to preserve real source audio when present or synthesize
 one silent stereo stream when absent, keeping the MVP audio PID stable across
 item boundaries. `packages/signal` does not invoke ffprobe to discover it.
 
-`mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration to emit from that position before transitioning to the next selected playout item.
+`mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration of source media to emit from that position; any `blackTailMs` follows it before the transition to the next selected playout item.
 
 For the initial current item, the worker maps the final pre-spawn channel
 state's calculated `offsetMs` to `mediaOffsetMs`. It calculates `playDurationMs`
@@ -436,7 +437,20 @@ media remaining after `mediaOffsetMs`. The worker also enforces `endsAt` as an
 absolute transition deadline, so process initialization time cannot extend the
 program. For a following item, the worker maps the playout item's
 `startOffsetMs` to `mediaOffsetMs` and its selected playout duration to
-`playDurationMs`. Both fields use safe integer milliseconds.
+`playDurationMs`, clamped to the media remaining after `startOffsetMs`. Both
+fields use safe integer milliseconds.
+
+`blackTailMs` is the scheduled airtime left after the clamped `playDurationMs`:
+`0` when media covers its airtime, otherwise the span during which the FFmpeg
+process emits black video and silence after the media ends. This keeps the
+broadcast signal continuous and paced at wall-clock speed up to the boundary
+instead of going quiet. The black tail is the seam that filler replaces later.
+
+A black tail only continues a broadcast that is already running. A tune that
+starts a new worker during the tail, like `GET /channels/:id/now`, gets
+`media_unavailable`, because spec 0005 reports an offset at or past the media's
+length that way. This happens only when media is re-probed shorter than its
+scheduled airtime.
 
 SignalPackager must not query channel rules, choose media, advance schedules, or modify playback history.
 
@@ -592,6 +606,8 @@ Failure cases should include:
 - Channel not found
 - Channel disabled
 - No current playout item
+- Playout temporarily unavailable (`playout_unavailable`): schedule coverage
+  stayed short after its one retry. The worker fails and the next tune retries.
 - Missing media path
 - Invalid offset
 - FFmpeg not found
@@ -606,6 +622,23 @@ new worker is not published before readiness, startup failures return a
 structured HTTP error without a partially successful streaming response. After
 streaming begins, failures are logged and the affected subscriber streams
 terminate; the MVP does not synthesize an error or filler stream.
+
+`GET /channels/:id/stream` maps each pre-response failure to the existing API
+error envelope. Messages name the channel only; media paths, offsets, and
+FFmpeg output stay in the server log.
+
+| Code                     | Status | When                                                                                                              |
+| ------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| `channel_not_found`      | 404    | Unknown channel, or deleted while the tune waited                                                                 |
+| `channel_disabled`       | 409    | Disabled channel, or disabled while the tune waited                                                               |
+| `no_current_playout`     | 409    | Nothing airs now, such as a channel with no schedulable media                                                     |
+| `playout_unavailable`    | 503    | Schedule coverage stayed short after its retry; `retryable: true`                                                 |
+| `stream_startup_timeout` | 503    | The worker produced no usable output within the startup timeout; `retryable: true`                                |
+| `stream_unavailable`     | 503    | The runtime is stopping, shutting down, or still settling an earlier cleanup; `retryable: true`                   |
+| `stream_failed`          | 500    | Media unavailable, an invalid playout item, FFmpeg missing or failing before readiness, or any other worker fault |
+
+A tune the client abandons before the subscription completes cancels its
+subscription and sends nothing.
 
 When a committed disable or delete cannot finish `stopChannel()`, `apps/server`
 maps that operational failure to the channel API's retryable
