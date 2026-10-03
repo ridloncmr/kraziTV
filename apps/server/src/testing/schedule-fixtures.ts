@@ -7,13 +7,21 @@ import {
   itemFixture,
   rootFixture,
 } from "./catalog-fixtures.js";
-import { channelFixture, programmingBlockFixture } from "./channel-fixtures.js";
+import {
+  channelFixture,
+  programmingBlockFixture,
+  scheduleEntryFixture,
+  scheduleStateFixture,
+} from "./channel-fixtures.js";
+import { toSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 
 export interface ScheduleItemSpec {
   durationMs: number | null;
   status?: MediaItemTable["status"];
+  /** Defaults to the item fixture's audio fact; null records none, as an unprobed file has. */
+  hasAudio?: boolean | null;
 }
 
 export interface ScheduleScenarioOptions {
@@ -61,6 +69,12 @@ export async function seedScheduleScenario(
           path_key: `/media/movies/${itemIds[index]}.mkv`,
           title: `Item ${index + 1}`,
           duration_ms: item.durationMs,
+          has_audio:
+            item.hasAudio === undefined
+              ? itemFixture.has_audio
+              : item.hasAudio === null
+                ? null
+                : toSqliteBoolean(item.hasAudio),
           status: item.status ?? "available",
         })),
       )
@@ -97,6 +111,64 @@ export async function seedScheduleScenario(
   }
 
   return { channelId, collectionId, itemIds };
+}
+
+export interface ScheduleEntrySpec {
+  mediaItemId: string;
+  startsAt: number;
+  endsAt: number;
+  sequenceNumber: number;
+  /** Defaults to the fixture channel; another channel's entry IDs start with its ID. */
+  channelId?: string;
+}
+
+/**
+ * Inserts hand-placed entries, IDs named by sequence number, so a playout
+ * test can stage gaps and sequence jumps that generation would only produce
+ * after a regeneration.
+ */
+export async function insertScheduleEntries(
+  db: Kysely<DatabaseSchema>,
+  entries: readonly ScheduleEntrySpec[],
+): Promise<void> {
+  await db
+    .insertInto("schedule_entries")
+    .values(
+      entries.map((entry) => ({
+        ...scheduleEntryFixture,
+        id:
+          entry.channelId === undefined
+            ? `entry-${entry.sequenceNumber}`
+            : `${entry.channelId}-entry-${entry.sequenceNumber}`,
+        channel_id: entry.channelId ?? scheduleEntryFixture.channel_id,
+        media_item_id: entry.mediaItemId,
+        title: `Entry ${entry.sequenceNumber}`,
+        starts_at: entry.startsAt,
+        ends_at: entry.endsAt,
+        duration_ms: entry.endsAt - entry.startsAt,
+        sequence_number: entry.sequenceNumber,
+        playback_index: entry.sequenceNumber,
+      })),
+    )
+    .execute();
+}
+
+/**
+ * Inserts the fixture channel's schedule state with the given coverage end
+ * and revision, so a snapshot test controls coverage without generating.
+ */
+export async function insertScheduleState(
+  db: Kysely<DatabaseSchema>,
+  state: { lastGeneratedThrough: number; scheduleRevision: number },
+): Promise<void> {
+  await db
+    .insertInto("channel_schedule_states")
+    .values({
+      ...scheduleStateFixture,
+      last_generated_through: state.lastGeneratedThrough,
+      schedule_revision: state.scheduleRevision,
+    })
+    .execute();
 }
 
 /**

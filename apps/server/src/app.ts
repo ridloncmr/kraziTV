@@ -18,6 +18,8 @@ import type { ChannelRuntime } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
+import { registerPlayoutRoutes } from "./playout/playout-routes.js";
+import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 
@@ -43,6 +45,7 @@ export type ServerDependencies = {
   channelRuntime: ChannelRuntime;
   programmingBlocks: ProgrammingBlockRepository;
   schedules: ScheduleService;
+  playout: PlayoutService;
 };
 
 /** Registers HTTP behavior without opening production infrastructure. */
@@ -84,6 +87,7 @@ function registerRoutes(
     dependencies.schedules,
   );
   registerScheduleRoutes(server, dependencies.schedules);
+  registerPlayoutRoutes(server, dependencies.playout);
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */

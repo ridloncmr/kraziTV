@@ -10,6 +10,7 @@ import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { noOpChannelRuntime } from "./channels/runtime/no-op-channel-runtime.js";
 import { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
+import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
@@ -49,6 +50,7 @@ const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
 const programmingBlocks = new ProgrammingBlockRepository(database.db);
 const schedules = new ScheduleService(database.db);
+const playout = new PlayoutService(database.db, schedules);
 
 const server = buildServer(
   {
@@ -62,6 +64,7 @@ const server = buildServer(
     channelRuntime: noOpChannelRuntime,
     programmingBlocks,
     schedules,
+    playout,
   },
   {
     logger: true,

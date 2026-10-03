@@ -11,6 +11,7 @@ import type { MediaItemRepository } from "./media-items/media-item-repository.js
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
+import type { PlayoutService } from "./playout/playout-service.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
@@ -35,6 +36,7 @@ function createDependencies(
     schedules: {
       ensureAllEnabled: async () => undefined,
     } as Partial<ScheduleService> as ScheduleService,
+    playout: {} as PlayoutService,
   };
 }
 

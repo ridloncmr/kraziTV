@@ -36,3 +36,8 @@ export function updateChannel(
 export function iso(epochMs: number): string {
   return new Date(epochMs).toISOString();
 }
+
+/** Builds a `[start, end)` window URL for a route such as `/schedule` or `/playout`. */
+export function windowUrl(url: string, start: number, end: number): string {
+  return `${url}?start=${iso(start)}&end=${iso(end)}`;
+}

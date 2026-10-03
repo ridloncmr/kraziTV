@@ -3,11 +3,16 @@ import { z } from "zod";
 
 import {
   sendApiError,
+  sendChannelDisabled,
   sendChannelNotFound,
   sendInvalidRequest,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams, isoInstantField } from "../http/request-schemas.js";
+import {
+  idParams,
+  isoInstantField,
+  windowQuery,
+} from "../http/request-schemas.js";
 import type {
   EnsureCoverageResult,
   ScheduleEntry,
@@ -16,16 +21,7 @@ import type {
 import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
 import type { ScheduleService } from "./schedule-service.js";
 
-const windowQuery = z
-  .strictObject({ start: isoInstantField, end: isoInstantField })
-  .refine((window) => window.end > window.start, {
-    message: "end must be after start",
-    path: ["end"],
-  })
-  .refine((window) => window.end - window.start <= SCHEDULE_REQUEST_LIMIT_MS, {
-    message: "the window must not exceed 7 days",
-    path: ["end"],
-  });
+const scheduleWindowQuery = windowQuery(SCHEDULE_REQUEST_LIMIT_MS);
 
 // `regenerate` rebuilds from the boundary instead of only extending.
 const generateBody = z.strictObject({
@@ -43,7 +39,7 @@ export function registerScheduleRoutes(
 ): void {
   server.get("/channels/:id/schedule", async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const query = windowQuery.safeParse(request.query);
+    const query = scheduleWindowQuery.safeParse(request.query);
     if (!query.success) {
       return sendInvalidRequest(reply, query.error);
     }
@@ -101,12 +97,7 @@ function sendCoverageFailure(
     case "channel_not_found":
       return sendChannelNotFound(reply, channelId);
     case "disabled":
-      return sendApiError(
-        reply,
-        409,
-        "channel_disabled",
-        `Channel ${channelId} is disabled`,
-      );
+      return sendChannelDisabled(reply, channelId);
     case "unschedulable":
       return sendApiError(
         reply,

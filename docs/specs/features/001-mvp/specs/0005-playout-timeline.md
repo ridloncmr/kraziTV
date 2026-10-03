@@ -1,6 +1,6 @@
 # Playout Timeline
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the MVP playout timeline and channel state behavior: determining what a channel is transmitting at a wall-clock time and what offset a viewer should join at.
 
@@ -299,7 +299,9 @@ shares the schedule route's window validation: `start` before `end`, at most 7
 days apart. It returns `{ channelId, scheduleRevision, items }`, with playable
 entries overlapping `[start, end)` as playout items ordered by `startsAt`.
 Unplayable entries are omitted; the now endpoint is where `media_unavailable`
-is reported.
+is reported. The playout endpoint ensures coverage through `end`, as a future
+`at` does for the now endpoint, so a window past the horizon is never silently
+partial; an `end` past the request limit is rejected.
 
 The now endpoint returns current channel state at the server's current
 wall-clock time, in the shape shown under User-Facing Behavior. It also
@@ -329,12 +331,12 @@ empty transmission is a state, not an error, unlike `/schedule`'s
 
 Errors use the existing API error envelope and codes:
 
-| Code                | Status | When                                                                   |
-| ------------------- | ------ | ---------------------------------------------------------------------- |
-| `channel_not_found` | 404    | Unknown channel                                                        |
-| `channel_disabled`  | 409    | Disabled channel                                                       |
-| `invalid_request`   | 400    | Bad `at`, `start`, or `end`; a window over 7 days; `at` past the limit |
-| `schedule_busy`     | 503    | Write authority busy, or coverage still short after the retry          |
+| Code                | Status | When                                                                            |
+| ------------------- | ------ | ------------------------------------------------------------------------------- |
+| `channel_not_found` | 404    | Unknown channel                                                                 |
+| `channel_disabled`  | 409    | Disabled channel                                                                |
+| `invalid_request`   | 400    | Bad `at`, `start`, or `end`; a window over 7 days; `at` or `end` past the limit |
+| `schedule_busy`     | 503    | Write authority busy, or coverage still short after the retry                   |
 
 ### Determinism
 

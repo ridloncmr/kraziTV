@@ -66,8 +66,19 @@ function covered(
 
 /**
  * Returns the later of the clock and the last schedule mutation, so a clock
- * stepping backward can never move generation before earlier work. Logs when
- * it clamps, with the caller's context.
+ * stepping backward can never move generation before earlier work. Pure, so
+ * a read-only snapshot computes the same target a coverage write aims for.
+ */
+export function effectiveNow(
+  now: number,
+  lastMutation: number | undefined,
+): number {
+  return lastMutation === undefined ? now : Math.max(now, lastMutation);
+}
+
+/**
+ * Returns the effective current time for a schedule mutation, and logs when
+ * the clock is behind the last mutation, with the caller's context.
  */
 export function clampToLastMutation(
   now: number,
@@ -75,12 +86,14 @@ export function clampToLastMutation(
   log: ScheduleLog,
   context: Readonly<Record<string, unknown>> = {},
 ): number {
-  if (lastMutation === undefined || now >= lastMutation) return now;
-  log.warn(
-    { ...context, now, effectiveNow: lastMutation },
-    "Clock is behind the last schedule mutation; using the mutation's time",
-  );
-  return lastMutation;
+  const effective = effectiveNow(now, lastMutation);
+  if (effective !== now) {
+    log.warn(
+      { ...context, now, effectiveNow: effective },
+      "Clock is behind the last schedule mutation; using the mutation's time",
+    );
+  }
+  return effective;
 }
 
 /**

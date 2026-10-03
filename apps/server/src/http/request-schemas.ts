@@ -12,5 +12,25 @@ export const isoInstantField = z.iso
   .datetime()
   .transform((value) => Date.parse(value));
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A `[start, end)` query of UTC instants: `start` before `end`, at most
+ * `maxWindowMs` apart. The caller supplies the limit, so `http/` never
+ * imports a domain's policy.
+ */
+export function windowQuery(maxWindowMs: number) {
+  return z
+    .strictObject({ start: isoInstantField, end: isoInstantField })
+    .refine((window) => window.end > window.start, {
+      message: "end must be after start",
+      path: ["end"],
+    })
+    .refine((window) => window.end - window.start <= maxWindowMs, {
+      message: `the window must not exceed ${maxWindowMs / DAY_MS} days`,
+      path: ["end"],
+    });
+}
+
 /** A display name: trimmed, and never empty once trimmed. */
 export const nameField = z.string().trim().min(1, "name must not be empty");

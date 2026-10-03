@@ -4,6 +4,22 @@
  * provider formatting do not.
  */
 
+// Current channel state, following items, and window timelines the server
+// derives from one schedule snapshot.
+export { deriveChannelState } from "./playout/channel-state.js";
+export {
+  assertFollowingCount,
+  selectFollowingPlayout,
+} from "./playout/following-playout.js";
+export { buildPlayoutTimeline } from "./playout/playout-item.js";
+export type {
+  ChannelState,
+  FollowingPlayout,
+  PlayoutEntry,
+  PlayoutItem,
+  PlayoutMedia,
+} from "./playout/contracts.js";
+
 // Schedule generation the server materializes into persisted entries.
 export { generateScheduleEntries } from "./schedule/generate-schedule-entries.js";
 export {
