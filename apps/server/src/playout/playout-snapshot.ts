@@ -6,6 +6,7 @@ import {
   checkCoverage,
   effectiveNow,
   resolveTarget,
+  scheduleRevisionOrZero,
 } from "../schedules/schedule-coverage.js";
 import {
   findChannelEnabled,
@@ -45,8 +46,7 @@ export async function readPlayoutSnapshot<T>(
     const shortfall = findCoverageShortfall(options.coverage, state, now);
     if (shortfall !== undefined) return shortfall;
 
-    // Revisions start at 1, so 0 can never collide with a real revision.
-    const scheduleRevision = state?.scheduleRevision ?? 0;
+    const scheduleRevision = scheduleRevisionOrZero(state);
     return {
       kind: "ok",
       scheduleRevision,

@@ -43,6 +43,16 @@ export function checkCoverage(
   return state.lastGeneratedThrough >= target ? covered(state) : undefined;
 }
 
+/**
+ * Returns the numeric revision required by playout contracts. A channel with
+ * no schedule state uses 0 because persisted revisions start at 1.
+ */
+export function scheduleRevisionOrZero(
+  state: ScheduleState | undefined,
+): number {
+  return state?.scheduleRevision ?? 0;
+}
+
 /** Reports a committed chunk as covered once it reaches the target, else as still extending. */
 export function coverageAfterChunk(
   next: ScheduleState,
