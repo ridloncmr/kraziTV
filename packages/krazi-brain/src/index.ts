@@ -4,6 +4,14 @@
  * provider formatting do not.
  */
 
+// Current channel state the server derives from one schedule snapshot.
+export { deriveChannelState } from "./playout/channel-state.js";
+export type {
+  ChannelState,
+  PlayoutEntry,
+  PlayoutMedia,
+} from "./playout/contracts.js";
+
 // Schedule generation the server materializes into persisted entries.
 export { generateScheduleEntries } from "./schedule/generate-schedule-entries.js";
 export {

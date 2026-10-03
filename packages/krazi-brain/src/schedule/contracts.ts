@@ -8,7 +8,8 @@ export const PLAYBACK_MODES = ["chronological", "random"] as const;
 /** How a collection-sourced block orders its collection. */
 export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
 
-type ScheduleMediaStatus = "available" | "missing" | "probe_failed";
+/** A media item's catalog status. */
+export type ScheduleMediaStatus = "available" | "missing" | "probe_failed";
 
 /** The catalog facts about one media item that scheduling needs. */
 export interface ScheduleMedia {
