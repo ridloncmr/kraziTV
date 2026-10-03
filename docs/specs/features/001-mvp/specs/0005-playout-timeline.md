@@ -1,6 +1,6 @@
 # Playout Timeline
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the MVP playout timeline and channel state behavior: determining what a channel is transmitting at a wall-clock time and what offset a viewer should join at.
 

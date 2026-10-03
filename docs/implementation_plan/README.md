@@ -33,7 +33,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0002 Implementation Plan: Local Media Catalog](0002-media-catalog.md) - 8 of 8 tickets complete
 - [Spec 0003 Implementation Plan: Channel Configuration](0003-channel-config.md) - 6 of 6 tickets complete
 - [Spec 0004 Implementation Plan: Schedule Generation](0004-schedule-generation.md) - 12 of 12 tickets complete
-- [Spec 0005 Implementation Plan: Playout Timeline and Channel State](0005-playout-timeline.md) - 7 of 8 tickets complete
+- [Spec 0005 Implementation Plan: Playout Timeline and Channel State](0005-playout-timeline.md) - 8 of 8 tickets complete
 - [Spec 0006 Implementation Plan: Shared Channel Streaming](0006-signal-packager.md) - 11 of 16 tickets complete
 
 <!-- plan-index:end -->
