@@ -18,6 +18,7 @@ import {
 } from "../testing/test-environment.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
+import type { PlayoutTimeline } from "./contracts.js";
 import { PlayoutService } from "./playout-service.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -279,6 +280,142 @@ describe("PlayoutService.getFollowing", () => {
     await expect(
       playout.getFollowing(channelId, "entry-001", 1, log),
     ).resolves.toEqual({ kind: "disabled" });
+  });
+});
+
+describe("PlayoutService.getTimeline", () => {
+  it("ensures coverage, then returns the playable items overlapping the window in order", async () => {
+    const { db, channelId, playout, log } = await setup();
+
+    const timeline = await playout.getTimeline(
+      channelId,
+      T0 + 10 * MINUTE,
+      T0 + 50 * MINUTE,
+      log,
+    );
+
+    const { schedule_revision } = await readOnlyScheduleState(db);
+    expect(timeline).toMatchObject({
+      kind: "timeline",
+      channelId,
+      scheduleRevision: schedule_revision,
+      items: [
+        { scheduleEntryId: "entry-001", startsAt: T0 },
+        { scheduleEntryId: "entry-002", startsAt: T0 + 22 * MINUTE },
+        { scheduleEntryId: "entry-003", startsAt: T0 + 45 * MINUTE },
+      ],
+    });
+  });
+
+  it("excludes an entry that only touches a window edge", async () => {
+    const { channelId, playout, log } = await setup();
+
+    const timeline = await playout.getTimeline(
+      channelId,
+      T0 + 22 * MINUTE,
+      T0 + 45 * MINUTE,
+      log,
+    );
+
+    expect(timeline).toMatchObject({
+      items: [{ scheduleEntryId: "entry-002" }],
+    });
+  });
+
+  it("omits an entry whose media is not playable", async () => {
+    const { db, channelId, playout, log } = await setup();
+    await playout.getCurrent(channelId, T0, log);
+    await db
+      .updateTable("media_items")
+      .set({ status: "missing" })
+      .where("id", "=", "item-002")
+      .execute();
+
+    const timeline = await playout.getTimeline(
+      channelId,
+      T0,
+      T0 + 69 * MINUTE,
+      log,
+    );
+
+    expect(timeline).toMatchObject({
+      items: [
+        { scheduleEntryId: "entry-001" },
+        { scheduleEntryId: "entry-003" },
+      ],
+    });
+  });
+
+  it("ensures coverage through a window end beyond the horizon", async () => {
+    const { channelId, playout, log } = await setup();
+    const start = T0 + SCHEDULE_HORIZON_MS + HOUR;
+
+    const timeline = await playout.getTimeline(
+      channelId,
+      start,
+      start + HOUR,
+      log,
+    );
+
+    // Without coverage through the end, the window would have no items at all.
+    expect(timeline).toMatchObject({ kind: "timeline" });
+    expect(
+      (timeline as PlayoutTimeline).items.at(-1)?.endsAt,
+    ).toBeGreaterThanOrEqual(start + HOUR);
+  });
+
+  it("rejects a window end past the request limit without generating", async () => {
+    const { db, channelId, playout, log } = await setup();
+    const end = T0 + SCHEDULE_REQUEST_LIMIT_MS + 1;
+
+    await expect(
+      playout.getTimeline(channelId, end - HOUR, end, log),
+    ).resolves.toEqual({
+      kind: "through_out_of_range",
+      latestThrough: T0 + SCHEDULE_REQUEST_LIMIT_MS,
+    });
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
+  });
+
+  it("returns no items at revision 0 for an unschedulable channel with no entries", async () => {
+    const { channelId, playout, log } = await setup({ source: null });
+
+    await expect(
+      playout.getTimeline(channelId, T0, T0 + HOUR, log),
+    ).resolves.toEqual({
+      kind: "timeline",
+      channelId,
+      scheduleRevision: 0,
+      items: [],
+    });
+  });
+
+  it("reports unavailable when coverage is still short after its one retry", async () => {
+    const { db, channelId, clock } = await setup();
+    const coverage = unwrittenCoverage(clock.now);
+    const playout = new PlayoutService(db, coverage);
+
+    await expect(
+      playout.getTimeline(channelId, T0, T0 + HOUR, recordingLog()),
+    ).resolves.toEqual({ kind: "unavailable" });
+    expect(coverage.calls).toBe(1);
+  });
+
+  it("reports a disabled channel without generating", async () => {
+    const { db, channelId, playout, log } = await setup({ enabled: false });
+
+    await expect(
+      playout.getTimeline(channelId, T0, T0 + HOUR, log),
+    ).resolves.toEqual({ kind: "disabled" });
+    await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
+  });
+
+  it("reports an unknown channel", async () => {
+    const { playout, log } = await setup();
+
+    await expect(
+      playout.getTimeline("channel-missing", T0, T0 + HOUR, log),
+    ).resolves.toEqual({ kind: "not_found" });
   });
 });
 

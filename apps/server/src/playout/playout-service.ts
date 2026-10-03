@@ -1,5 +1,6 @@
 import {
   assertFollowingCount,
+  buildPlayoutTimeline,
   type ChannelState,
   deriveChannelState,
   type FollowingPlayout,
@@ -17,11 +18,13 @@ import type {
   PlayoutSnapshot,
   PlayoutSnapshotOptions,
   PlayoutSnapshotRead,
+  PlayoutTimeline,
 } from "./contracts.js";
 import {
   findCoveringPlayoutEntries,
   findPlayoutEntryById,
   listPlayoutEntriesAfter,
+  listPlayoutEntriesInWindow,
 } from "./playout-repository.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";
 
@@ -119,6 +122,29 @@ export class PlayoutService {
         });
       },
     );
+  }
+
+  /**
+   * Builds the playout timeline for `[start, end)` from one snapshot, with
+   * coverage ensured through `end` first, so a window past the horizon is
+   * never silently partial. An `end` past the request limit is refused.
+   */
+  async getTimeline(
+    channelId: string,
+    start: number,
+    end: number,
+    log: ScheduleLog,
+  ): Promise<PlayoutTimeline | PlayoutFailure> {
+    return this.#readCovered(channelId, log, end, async (trx, revision) => ({
+      kind: "timeline",
+      channelId,
+      scheduleRevision: revision,
+      items: buildPlayoutTimeline({
+        channelId,
+        scheduleRevision: revision,
+        entries: await listPlayoutEntriesInWindow(trx, channelId, start, end),
+      }),
+    }));
   }
 
   /**

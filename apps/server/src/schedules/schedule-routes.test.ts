@@ -1,7 +1,7 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { send, iso } from "../testing/api-requests.js";
+import { iso, send, windowUrl } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
@@ -57,11 +57,6 @@ async function startServer(scenario: Partial<ScheduleScenarioOptions> = {}) {
   return { server, db, clock, dataDirectory };
 }
 
-// Builds a window query from epoch milliseconds.
-function windowUrl(start: number, end: number, url = SCHEDULE_URL): string {
-  return `${url}?start=${iso(start)}&end=${iso(end)}`;
-}
-
 describe("GET /channels/:id/schedule", () => {
   it("generates coverage and returns the window's entries with API timestamps", async () => {
     const { server } = await startServer();
@@ -69,7 +64,7 @@ describe("GET /channels/:id/schedule", () => {
     const { status, body } = await send(
       server,
       "GET",
-      windowUrl(T0, T0 + 30 * MINUTE),
+      windowUrl(SCHEDULE_URL, T0, T0 + 30 * MINUTE),
     );
 
     expect(status).toBe(200);
@@ -109,7 +104,11 @@ describe("GET /channels/:id/schedule", () => {
     type Entry = { startsAt: string; endsAt: string };
     // ISO instants in one zone and precision compare correctly as strings.
     const read = async (start: number, end: number) => {
-      const { body } = await send(server, "GET", windowUrl(start, end));
+      const { body } = await send(
+        server,
+        "GET",
+        windowUrl(SCHEDULE_URL, start, end),
+      );
       const entries = (body as { entries: Entry[] }).entries;
       expect(entries[0].startsAt < iso(start)).toBe(true);
       expect(entries[entries.length - 1].endsAt > iso(end)).toBe(true);
@@ -131,7 +130,7 @@ describe("GET /channels/:id/schedule", () => {
 
   it("leaves the revision unchanged across repeated reads", async () => {
     const { server, clock } = await startServer();
-    const url = windowUrl(T0, T0 + HOUR);
+    const url = windowUrl(SCHEDULE_URL, T0, T0 + HOUR);
 
     const first = await send(server, "GET", url);
     clock.advance(MINUTE);
@@ -141,11 +140,11 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it.each([
-    ["a reversed range", windowUrl(T0 + HOUR, T0)],
-    ["an empty range", windowUrl(T0, T0)],
+    ["a reversed range", windowUrl(SCHEDULE_URL, T0 + HOUR, T0)],
+    ["an empty range", windowUrl(SCHEDULE_URL, T0, T0)],
     [
       "a range longer than 7 days",
-      windowUrl(T0, T0 + SCHEDULE_REQUEST_LIMIT_MS + 1),
+      windowUrl(SCHEDULE_URL, T0, T0 + SCHEDULE_REQUEST_LIMIT_MS + 1),
     ],
     [
       "an instant with an offset",
@@ -175,7 +174,7 @@ describe("GET /channels/:id/schedule", () => {
     const { status } = await send(
       server,
       "GET",
-      windowUrl(T0, T0 + SCHEDULE_REQUEST_LIMIT_MS),
+      windowUrl(SCHEDULE_URL, T0, T0 + SCHEDULE_REQUEST_LIMIT_MS),
     );
 
     expect(status).toBe(200);
@@ -185,7 +184,7 @@ describe("GET /channels/:id/schedule", () => {
     const { server } = await startServer({ enabled: false });
 
     await expect(
-      send(server, "GET", windowUrl(T0, T0 + HOUR)),
+      send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR)),
     ).resolves.toEqual({
       status: 200,
       body: { scheduleRevision: null, entries: [] },
@@ -203,7 +202,7 @@ describe("GET /channels/:id/schedule", () => {
       const { status, body } = await send(
         server,
         "GET",
-        windowUrl(T0, T0 + HOUR),
+        windowUrl(SCHEDULE_URL, T0, T0 + HOUR),
       );
 
       expect(status).toBe(409);
@@ -216,15 +215,20 @@ describe("GET /channels/:id/schedule", () => {
 
   it("still serves entries already in a window once the channel becomes unschedulable", async () => {
     const { server, db, clock } = await startServer();
-    await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    await send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR));
     await db.deleteFrom("programming_blocks").execute();
     clock.advance(HOUR);
 
-    const covered = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const covered = await send(
+      server,
+      "GET",
+      windowUrl(SCHEDULE_URL, T0, T0 + HOUR),
+    );
     const uncovered = await send(
       server,
       "GET",
       windowUrl(
+        SCHEDULE_URL,
         T0 + SCHEDULE_HORIZON_MS + 2 * HOUR,
         T0 + SCHEDULE_HORIZON_MS + 3 * HOUR,
       ),
@@ -238,12 +242,24 @@ describe("GET /channels/:id/schedule", () => {
 
   it("repairs lapsed coverage from now and still serves the old window", async () => {
     const { server, clock } = await startServer();
-    const old = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const old = await send(
+      server,
+      "GET",
+      windowUrl(SCHEDULE_URL, T0, T0 + HOUR),
+    );
     const later = T0 + SCHEDULE_HORIZON_MS + 24 * HOUR;
     clock.set(later);
 
-    const repaired = await send(server, "GET", windowUrl(later, later + HOUR));
-    const oldAgain = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    const repaired = await send(
+      server,
+      "GET",
+      windowUrl(SCHEDULE_URL, later, later + HOUR),
+    );
+    const oldAgain = await send(
+      server,
+      "GET",
+      windowUrl(SCHEDULE_URL, T0, T0 + HOUR),
+    );
 
     expect(repaired.status).toBe(200);
     expect(repaired.body.scheduleRevision).toBe(2);
@@ -253,14 +269,14 @@ describe("GET /channels/:id/schedule", () => {
 
   it("never deletes or replaces entries when reading a covered window", async () => {
     const { server, db, clock } = await startServer();
-    await send(server, "GET", windowUrl(T0, T0 + HOUR));
+    await send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR));
     const before = await readScheduleEntries(db, CHANNEL_ID);
     clock.advance(6 * HOUR);
 
     const { status } = await send(
       server,
       "GET",
-      windowUrl(T0 + 6 * HOUR, T0 + 7 * HOUR),
+      windowUrl(SCHEDULE_URL, T0 + 6 * HOUR, T0 + 7 * HOUR),
     );
 
     const after = await readScheduleEntries(db, CHANNEL_ID);
@@ -274,7 +290,7 @@ describe("GET /channels/:id/schedule", () => {
     const { status, body } = await send(
       server,
       "GET",
-      windowUrl(T0, T0 + HOUR, "/channels/missing/schedule"),
+      windowUrl("/channels/missing/schedule", T0, T0 + HOUR),
     );
 
     expect(status).toBe(404);
@@ -490,7 +506,11 @@ describe("POST /channels/:id/schedule/generate", () => {
     const holder = await holdWriteAuthority(other.db);
     try {
       const generate = await send(server, "POST", GENERATE_URL, {});
-      const read = await send(server, "GET", windowUrl(T0, T0 + HOUR));
+      const read = await send(
+        server,
+        "GET",
+        windowUrl(SCHEDULE_URL, T0, T0 + HOUR),
+      );
 
       for (const { status, body } of [generate, read]) {
         expect(status).toBe(503);

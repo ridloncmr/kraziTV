@@ -1,4 +1,5 @@
 import {
+  buildPlayoutTimeline,
   deriveChannelState,
   selectFollowingPlayout,
 } from "@krazitv/krazi-brain";
@@ -23,6 +24,7 @@ import {
   findCoveringPlayoutEntries,
   findPlayoutEntryById,
   listPlayoutEntriesAfter,
+  listPlayoutEntriesInWindow,
 } from "./playout-repository.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";
 
@@ -91,6 +93,26 @@ const readFollowing =
     };
   };
 
+// The window read: every playable item in the three hours from T0.
+const readWindow =
+  (channelId: string): PlayoutSnapshotRead<Observed> =>
+  async (trx, scheduleRevision) => {
+    const items = buildPlayoutTimeline({
+      channelId,
+      scheduleRevision,
+      entries: await listPlayoutEntriesInWindow(
+        trx,
+        channelId,
+        T0,
+        T0 + 3 * HOUR,
+      ),
+    });
+    return {
+      scheduleRevision,
+      entryIds: items.map((item) => item.scheduleEntryId),
+    };
+  };
+
 const READS = [
   {
     name: "current-state",
@@ -103,6 +125,12 @@ const READS = [
     read: readFollowing,
     before: ["original-002", "original-003", "original-004"],
     after: ["regenerated-001", "regenerated-002", "regenerated-003"],
+  },
+  {
+    name: "window",
+    read: readWindow,
+    before: ["original-001", "original-002", "original-003"],
+    after: ["original-001", "regenerated-001", "regenerated-002"],
   },
 ] as const;
 

@@ -10,12 +10,20 @@ import {
   sendScheduleBusy,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams, isoInstantField } from "../http/request-schemas.js";
+import {
+  idParams,
+  isoInstantField,
+  windowQuery,
+} from "../http/request-schemas.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
 import type { PlayoutFailure } from "./contracts.js";
 import type { PlayoutService } from "./playout-service.js";
 
 // Production callers omit `at`; tests and debugging pin the evaluation time.
 const nowQuery = z.strictObject({ at: isoInstantField.optional() });
+
+// Playout windows share the schedule route's limit, so both read the same span.
+const playoutWindowQuery = windowQuery(SCHEDULE_REQUEST_LIMIT_MS);
 
 /** Registers playout HTTP routes; validation and status mapping live only here. */
 export function registerPlayoutRoutes(
@@ -31,18 +39,43 @@ export function registerPlayoutRoutes(
 
     const state = await playout.getCurrent(id, query.data.at, request.log);
     if (state.kind !== "current" && state.kind !== "no_current") {
-      return sendPlayoutFailure(reply, id, state);
+      return sendPlayoutFailure(reply, id, state, "at");
     }
     return toApiChannelState(state);
+  });
+
+  server.get("/channels/:id/playout", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const query = playoutWindowQuery.safeParse(request.query);
+    if (!query.success) {
+      return sendInvalidRequest(reply, query.error);
+    }
+
+    const timeline = await playout.getTimeline(
+      id,
+      query.data.start,
+      query.data.end,
+      request.log,
+    );
+    if (timeline.kind !== "timeline") {
+      return sendPlayoutFailure(reply, id, timeline, "end");
+    }
+    return {
+      channelId: timeline.channelId,
+      scheduleRevision: timeline.scheduleRevision,
+      items: timeline.items.map(toApiPlayoutItem),
+    };
   });
 }
 
 // Maps each playout failure to its status; a busy writer thrown by the
-// coverage write is mapped by the shared error handler instead.
+// coverage write is mapped by the shared error handler instead. `throughParam`
+// names the query parameter that set the coverage instant.
 function sendPlayoutFailure(
   reply: FastifyReply,
   channelId: string,
   failure: PlayoutFailure,
+  throughParam: "at" | "end",
 ) {
   switch (failure.kind) {
     case "not_found":
@@ -54,7 +87,7 @@ function sendPlayoutFailure(
         reply,
         400,
         "invalid_request",
-        `at must not be after ${toApiTimestamp(failure.latestThrough)}`,
+        `${throughParam} must not be after ${toApiTimestamp(failure.latestThrough)}`,
       );
     case "unavailable":
       return sendScheduleBusy(reply);

@@ -1,4 +1,4 @@
-import type { PlayoutEntry } from "@krazitv/krazi-brain";
+import type { PlayoutEntry, PlayoutItem } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -10,6 +10,17 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 export interface SequencedPlayoutEntry {
   entry: PlayoutEntry;
   sequenceNumber: number;
+}
+
+/**
+ * The playable items overlapping one window, all read at `scheduleRevision`.
+ * `kind` tells it apart from a playout failure.
+ */
+export interface PlayoutTimeline {
+  kind: "timeline";
+  channelId: string;
+  scheduleRevision: number;
+  items: PlayoutItem[];
 }
 
 /** How far a snapshot requires the channel's schedule coverage to reach. */
