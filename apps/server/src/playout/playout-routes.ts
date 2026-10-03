@@ -3,11 +3,11 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import {
-  sendApiError,
   sendChannelDisabled,
   sendChannelNotFound,
   sendInvalidRequest,
   sendScheduleBusy,
+  sendThroughOutOfRange,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import {
@@ -83,12 +83,7 @@ function sendPlayoutFailure(
     case "disabled":
       return sendChannelDisabled(reply, channelId);
     case "through_out_of_range":
-      return sendApiError(
-        reply,
-        400,
-        "invalid_request",
-        `${throughParam} must not be after ${toApiTimestamp(failure.latestThrough)}`,
-      );
+      return sendThroughOutOfRange(reply, throughParam, failure.latestThrough);
     case "unavailable":
       return sendScheduleBusy(reply);
   }

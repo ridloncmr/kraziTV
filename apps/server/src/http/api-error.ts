@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
+import { toApiTimestamp } from "./api-timestamp.js";
 
 type ApiErrorCode =
   | "channel_disabled"
@@ -87,6 +88,24 @@ export function sendScheduleBusy(reply: FastifyReply): FastifyReply {
     "schedule_busy",
     "The schedule is busy; retry the request",
     { retryable: true },
+  );
+}
+
+/**
+ * One 400 shape for every schedule or playout request whose coverage instant
+ * lies past the request limit. `param` names the query or body field that
+ * set the instant, so the client knows which value to change.
+ */
+export function sendThroughOutOfRange(
+  reply: FastifyReply,
+  param: string,
+  latestThrough: number,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    400,
+    "invalid_request",
+    `${param} must not be after ${toApiTimestamp(latestThrough)}`,
   );
 }
 
