@@ -6,8 +6,9 @@ export class ChannelTransitionQueue {
 
   /** Runs one operation after every earlier operation for the same channel settles. */
   run<T>(channelId: ChannelId, operation: () => Promise<T> | T): Promise<T> {
+    // Stored tails never reject, so the next operation needs no rejection path.
     const previous = this.tails.get(channelId) ?? Promise.resolve();
-    const result = previous.then(operation, operation);
+    const result = previous.then(operation);
     const tail = result.then(
       () => undefined,
       () => undefined,

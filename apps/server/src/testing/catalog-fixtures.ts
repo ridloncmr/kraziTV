@@ -34,6 +34,7 @@ export const itemFixture: Insertable<MediaItemTable> = {
   title: "Example",
   duration_ms: 7_200_000,
   has_audio: 1,
+  has_video: 1,
   status: "available",
   probe_error: null,
   created_at: FIXTURE_TIME,

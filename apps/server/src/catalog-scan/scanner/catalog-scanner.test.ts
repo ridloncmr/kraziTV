@@ -112,7 +112,11 @@ describe("CatalogScanner", () => {
       .reject(
         new MediaProbeError("invalid_json", "ffprobe returned malformed JSON"),
       );
-    prober.get(path("b")).resolve({ durationMs: 3_000, hasAudio: false });
+    prober.get(path("b")).resolve({
+      durationMs: 3_000,
+      hasAudio: false,
+      hasVideo: true,
+    });
 
     await expect(scan).resolves.toEqual({
       kind: "completed",

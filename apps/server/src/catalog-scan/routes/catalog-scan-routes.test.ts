@@ -314,7 +314,11 @@ describe("POST /media-roots/:id/scan schedule maintenance", () => {
 
     const response = scan(server);
     await prober.waitForStarted(1);
-    prober.resolveAll({ durationMs: 22 * 60_000, hasAudio: true });
+    prober.resolveAll({
+      durationMs: 22 * 60_000,
+      hasAudio: true,
+      hasVideo: true,
+    });
 
     expect((await response).statusCode).toBe(200);
     await expect(

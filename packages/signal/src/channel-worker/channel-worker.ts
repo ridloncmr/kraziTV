@@ -6,7 +6,7 @@ import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
-import type { Clock, TimerScheduler } from "../runtime/clock.js";
+import type { Clock, ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import type {
   SignalPackager,
@@ -96,6 +96,7 @@ export class ChannelWorker {
         }
 
         let joinable: JoinableOutputWaiter | undefined;
+        let outcome: "expired" | StartupInterruption;
         try {
           const broadcaster = new ChannelBroadcaster(session.output, {
             subscriberBufferLimitBytes: options.subscriberBufferLimitBytes,
@@ -103,14 +104,14 @@ export class ChannelWorker {
             findJoinPoint: options.findJoinPoint,
           });
           joinable = waitForJoinableOutput(session.output, broadcaster);
-          const outcome = await waitForAttempt(
+          const attempt = await waitForAttempt(
             session,
             joinable,
             current.item.endsAt,
             guard,
             options,
           );
-          if (outcome === "ready") {
+          if (attempt === "ready") {
             guard.dispose();
             return new ChannelWorker(
               channelId,
@@ -123,17 +124,19 @@ export class ChannelWorker {
               options,
             );
           }
-
-          await stopStartupSession(session, channelId);
-          if (outcome === "expired") continue;
-          throw interruptionError(outcome, channelId);
+          outcome = attempt;
         } catch (cause) {
-          if (cause instanceof WorkerCreationCleanupError) throw cause;
           await stopStartupSession(session, channelId);
           throw normalizeStartupError(cause, channelId);
         } finally {
           joinable?.dispose();
         }
+
+        // An attempt that did not become ready stops its session exactly once;
+        // an expired item retries from a fresh lookup.
+        await stopStartupSession(session, channelId);
+        if (outcome === "expired") continue;
+        throw interruptionError(outcome, channelId);
       }
     } finally {
       guard.dispose();
@@ -256,7 +259,7 @@ async function waitForAttempt(
   const readiness = Promise.all([session.ready, joinable.promise]).then(
     () => "ready" as const,
   );
-  let expiryTask: ReturnType<TimerScheduler["setTimeout"]> | undefined;
+  let expiryTask: ScheduledTask | undefined;
   const expiry = new Promise<"expired">((resolve) => {
     expiryTask = options.timers.setTimeout(
       () => resolve("expired"),
@@ -281,10 +284,7 @@ function waitForJoinableOutput(
   output: Readable,
   broadcaster: ChannelBroadcaster,
 ): JoinableOutputWaiter {
-  let resolve!: () => void;
-  const promise = new Promise<void>((settle) => {
-    resolve = settle;
-  });
+  const { promise, resolve } = Promise.withResolvers<void>();
   const inspect = (): void => {
     if (broadcaster.hasJoinableInitialization) resolve();
   };

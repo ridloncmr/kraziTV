@@ -112,7 +112,7 @@ function sendCoverageFailure(
   }
 }
 
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
+// Shapes one schedule window for the API; each entry converts its own instants.
 function toApiScheduleWindow(window: ScheduleWindow) {
   return {
     scheduleRevision: window.scheduleRevision,

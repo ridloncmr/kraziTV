@@ -31,6 +31,7 @@ export function playoutEntry(
       status: "available",
       durationMs: DEFAULT_DURATION_MS,
       hasAudio: true,
+      hasVideo: true,
       ...media,
     },
   };

@@ -6,26 +6,12 @@ import { createChannelStreamManager } from "./create-channel-stream-manager.js";
 import type { OutputReadinessInspector } from "./ffmpeg/contracts.js";
 import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
 import type { CurrentPlayoutResult } from "./playout/contracts.js";
-import type { SignalLogger } from "./runtime/signal-logger.js";
 import { FakeClock } from "./testing/fake-clock.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
 import { FakePlayoutProvider } from "./testing/fake-playout-provider.js";
 import { FakeProcess, FakeProcessSpawner } from "./testing/fake-process.js";
+import { RecordingLogger } from "./testing/recording-logger.js";
 import { settlePromises } from "./testing/settle-promises.js";
-
-class SilentLogger implements SignalLogger {
-  /** Discards diagnostics that these lifecycle assertions do not inspect. */
-  debug(): void {}
-
-  /** Discards diagnostics that these lifecycle assertions do not inspect. */
-  info(): void {}
-
-  /** Discards diagnostics that these lifecycle assertions do not inspect. */
-  warn(): void {}
-
-  /** Discards diagnostics that these lifecycle assertions do not inspect. */
-  error(): void {}
-}
 
 class MarkerInspector implements OutputReadinessInspector {
   /** Treats an explicit test marker as usable media output. */
@@ -54,6 +40,7 @@ const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
     mediaItemId: "media-1",
     mediaPath: "C:/media/movie.mkv",
     hasAudio: true,
+    hasVideo: true,
     title: "Movie",
     startsAt: 0,
     endsAt: 60_000,
@@ -81,11 +68,13 @@ const createHarness = () => {
   const manager = createChannelStreamManager({
     authorization: new EnabledAuthorization(),
     idleGraceMs: 1_000,
+    logger: new RecordingLogger(),
     playoutProvider,
     packager: new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: clock,
-      logger: new SilentLogger(),
+      logger: new RecordingLogger(),
       terminationGraceMs: 500,
       createReadinessInspector: () => new MarkerInspector(),
     }),

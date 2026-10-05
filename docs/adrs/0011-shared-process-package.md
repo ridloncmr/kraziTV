@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted on 2026-10-01.
+Accepted on 2026-10-01. Amended on 2026-10-05: the per-consumer allowance
+covers every test double and fixture, not only the fake process, and the
+package holds the shared stderr summary and diagnostic truncation. The server
+also reuses the safe-integer option checks.
 
 ## Context
 
@@ -24,18 +27,25 @@ someone remembering to apply both.
   port (`ProcessSpawner`, `SpawnedProcess`, and their types) and its Node
   implementation, `NodeProcessSpawner`. It also holds tool-neutral child
   lifecycle helpers both consumers need: `terminateProcess` (SIGTERM, then
-  one SIGKILL escalation, with injectable timers) and `OutputTail` (bounded
-  retention of the newest output bytes).
-- It also holds the safe-integer option checks both consumers apply to their
+  one SIGKILL escalation, with injectable timers), `OutputTail` (bounded
+  retention of the newest output bytes), and `summarizeStderr` (the last
+  sanitized stderr line, with caller-named values redacted), and
+  `truncateDiagnosticText` (the length cap every stored or logged diagnostic
+  shares).
+- It also holds the safe-integer option checks media and signal apply to their
   timeouts, grace periods, and limits, moved from `packages/signal` under the
-  no-copy rule below once media needed the same check.
+  no-copy rule below once media needed the same check. The server reuses them
+  for its own runtime options rather than keeping a third copy.
 - `packages/media` and `packages/signal` depend on `@krazitv/process`. Neither
   depends on the other.
 - `packages/process` knows nothing about FFmpeg, ffprobe, media, or signals.
   Tool-specific arguments, timeouts, and error mapping stay in the consuming
   package.
-- Each consumer keeps its own fake process in `src/testing/`, because test
-  doubles are not part of any package's build.
+- Each consumer keeps its own test doubles and fixtures in `src/testing/`,
+  such as its fake process or MPEG-TS packet builder, because `src/testing/`
+  is not part of any package's build. Repeating a test helper this way is
+  allowed. A repeat the codebase audit detects is recorded in
+  `audit-exceptions.json` with this ADR as its source.
 - When code is needed by more than one package, move it into a package both
   depend on. Do not copy it.
 

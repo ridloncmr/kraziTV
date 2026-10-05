@@ -1,6 +1,6 @@
-import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-forwarder.js";
 import {
   ALIGNED_PACKET_RUN,
+  MPEG_TS_PACKET_BYTES,
   startsAlignedPacketRun,
 } from "./mpeg-ts-packet-run.js";
 

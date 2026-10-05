@@ -38,6 +38,7 @@ describe("buildPlayoutTimeline", () => {
         mediaItemId: entry.mediaItemId,
         mediaPath: entry.media.path,
         hasAudio: true,
+        hasVideo: true,
         title: entry.title,
         startsAt: entry.startsAt,
         endsAt: entry.endsAt,
@@ -47,6 +48,28 @@ describe("buildPlayoutTimeline", () => {
         updatedAt: entry.updatedAt,
       },
     ]);
+  });
+
+  it("carries a missing video stream so packaging can render black", () => {
+    const [item] = buildPlayoutTimeline({
+      channelId: CHANNEL_ID,
+      scheduleRevision: SCHEDULE_REVISION,
+      entries: [halfHourPlayoutEntry("entry_1", 0, { hasVideo: false })],
+    });
+
+    expect(item?.hasVideo).toBe(false);
+  });
+
+  // Video detection arrived after the first catalogs; until a rescan records
+  // the fact, an item keeps the video it was always packaged with.
+  it("assumes video for media cataloged before video detection", () => {
+    const [item] = buildPlayoutTimeline({
+      channelId: CHANNEL_ID,
+      scheduleRevision: SCHEDULE_REVISION,
+      entries: [halfHourPlayoutEntry("entry_1", 0, { hasVideo: null })],
+    });
+
+    expect(item?.hasVideo).toBe(true);
   });
 
   it("omits unplayable entries and keeps the rest in order", () => {

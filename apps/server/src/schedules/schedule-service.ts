@@ -6,6 +6,7 @@ import {
   generateScheduleEntries,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
+import { assertPositiveSafeInteger } from "@krazitv/process";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -87,14 +88,10 @@ export class ScheduleService {
     this.#entriesPerTransaction =
       options.entriesPerTransaction ?? ENTRIES_PER_TRANSACTION;
     // A chunk that may insert nothing would loop forever without covering anything.
-    if (
-      !Number.isSafeInteger(this.#entriesPerTransaction) ||
-      this.#entriesPerTransaction < 1
-    ) {
-      throw new RangeError(
-        `entriesPerTransaction must be a positive integer, got ${this.#entriesPerTransaction}`,
-      );
-    }
+    assertPositiveSafeInteger(
+      this.#entriesPerTransaction,
+      "entriesPerTransaction",
+    );
     this.#transactionHooks = options.transactionHooks;
   }
 

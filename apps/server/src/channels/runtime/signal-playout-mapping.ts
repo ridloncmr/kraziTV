@@ -100,6 +100,7 @@ function toSelectedPlayoutItem(item: PlayoutItem): SelectedPlayoutItem {
     mediaItemId: item.mediaItemId,
     mediaPath: item.mediaPath,
     hasAudio: item.hasAudio,
+    hasVideo: item.hasVideo,
     title: item.title,
     startsAt: item.startsAt,
     endsAt: item.endsAt,

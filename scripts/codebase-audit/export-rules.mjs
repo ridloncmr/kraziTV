@@ -1,8 +1,8 @@
 // The export rule from AGENTS.md ("Export only the package or module surface
 // that another file actually needs"), checked by matching every production
 // export against the relative imports and re-exports of the whole inventory.
-// Packages expose only `index.ts`, so `src/` root entry points are the public
-// surface and are not checked; their re-exports count as uses.
+// Package entry points have a separate consumer check; internal re-exports
+// count as uses only for the module-level rule.
 
 import { posix } from "node:path";
 
@@ -49,7 +49,7 @@ function useKey(path, name) {
 }
 
 /** The names a file's exported declarations and local export lists declare. */
-function exportsOf(source) {
+function exportsOf(source, includeReexports = false) {
   const names = [];
   const add = (name, node) =>
     names.push({
@@ -60,10 +60,13 @@ function exportsOf(source) {
   for (const statement of source.statements) {
     if (ts.isExportDeclaration(statement)) {
       // Re-exports from another module are uses of that module, not new surface.
-      if (statement.moduleSpecifier !== undefined) continue;
+      if (statement.moduleSpecifier !== undefined && !includeReexports)
+        continue;
       const clause = statement.exportClause;
       if (clause !== undefined && ts.isNamedExports(clause)) {
         for (const element of clause.elements) add(element.name.text, element);
+      } else if (clause !== undefined && ts.isNamespaceExport(clause)) {
+        add(clause.name.text, clause);
       }
       continue;
     }
@@ -88,6 +91,95 @@ function exportsOf(source) {
     }
   }
   return names;
+}
+
+/** Checks named package exports against consumers outside the owning workspace. */
+export function checkPackageExports(inventory) {
+  const paths = new Set(inventory.files.map((file) => file.path));
+  const entries = inventory.workspaces
+    .filter((workspace) => workspace.name.startsWith("packages/"))
+    .map((workspace) => ({
+      ...workspace,
+      entry: inventory.files.find(
+        (file) =>
+          file.workspace === workspace.name && file.srcPath === "index.ts",
+      ),
+    }))
+    .filter((workspace) => workspace.entry !== undefined);
+  const used = new Set();
+  for (const file of inventory.consumerFiles ?? inventory.files) {
+    const source = parseSource(file);
+    for (const { specifier, names } of packageReferences(source)) {
+      const target = entries.find(
+        (workspace) =>
+          workspace.name !== file.workspace &&
+          (specifier === workspace.packageName ||
+            (specifier.startsWith(".") &&
+              resolveTarget(file, specifier, paths) === workspace.entry.path)),
+      );
+      if (target === undefined) continue;
+      for (const name of names) {
+        used.add(useKey(target.entry.path, name));
+      }
+    }
+  }
+  const findings = [];
+  for (const { entry } of entries) {
+    if (used.has(useKey(entry.path, ALL_NAMES))) continue;
+    for (const { name, line } of exportsOf(parseSource(entry), true)) {
+      if (used.has(useKey(entry.path, name))) continue;
+      findings.push({
+        rule: "unused-package-export",
+        severity: "error",
+        files: [entry.path],
+        line,
+        symbol: name,
+        message: `${name} is exported but no other workspace imports it; drop the export or record a justified exception`,
+      });
+    }
+  }
+  return findings;
+}
+
+/** Includes type expressions and lazy loading so valid consumers are never pruned. */
+function packageReferences(source) {
+  const references = [];
+  /** Literal specifiers are decidable; computed dynamic imports remain a review concern. */
+  function visit(node) {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        references.push({
+          specifier: node.moduleSpecifier.text,
+          names: importedNames(node, ts.isImportDeclaration(node)),
+        });
+      }
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      let qualifier = node.qualifier;
+      while (qualifier && ts.isQualifiedName(qualifier))
+        qualifier = qualifier.left;
+      references.push({
+        specifier: node.argument.literal.text,
+        names: [qualifier ? qualifier.text : ALL_NAMES],
+      });
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      references.push({
+        specifier: node.arguments[0].text,
+        names: [ALL_NAMES],
+      });
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return references;
 }
 
 /** Every `path#name` a file imports or re-exports through a relative specifier. */

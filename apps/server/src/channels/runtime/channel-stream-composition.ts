@@ -1,6 +1,5 @@
 import {
   createChannelStreamManager,
-  findMpegTsJoinPoint,
   type ChannelStreamManagerContract,
   type Clock,
   type SignalPackager,
@@ -12,6 +11,7 @@ import type { Kysely } from "kysely";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { PlayoutService } from "../../playout/playout-service.js";
 import type { ChannelRepository } from "../repository/channel-repository.js";
+import { toSignalLogger } from "./signal-log.js";
 import { SignalPlayoutAdapter } from "./signal-playout-adapter.js";
 import { SqliteTransitionCoordinator } from "./sqlite-transition-coordinator.js";
 
@@ -64,8 +64,8 @@ export function composeChannelStreamManager(
     startupTimeoutMs,
     prepareLeadMs: PREPARE_LEAD_MS,
     idleGraceMs: IDLE_GRACE_MS,
+    logger: toSignalLogger(options.log),
     subscriberBufferLimitBytes: BUFFER_LIMIT_BYTES,
     retentionLimitBytes: BUFFER_LIMIT_BYTES,
-    findJoinPoint: findMpegTsJoinPoint,
   });
 }

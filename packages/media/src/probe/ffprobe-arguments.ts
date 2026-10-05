@@ -9,7 +9,8 @@ export function buildFfprobeArguments(path: string): string[] {
     "-print_format",
     "json",
     "-show_entries",
-    "format=duration:stream=codec_type",
+    // The disposition tells real video from an audio file's cover art.
+    "format=duration:stream=codec_type:stream_disposition=attached_pic",
     "-i",
     path,
   ];

@@ -7,7 +7,7 @@
         "packages/media/src/testing/fake-process.ts",
         "packages/signal/src/testing/fake-process.ts"
       ],
-      "reason": "Each consumer keeps its own fake process because test doubles are not part of any package's build.",
+      "reason": "Each consumer keeps its own test doubles and fixtures because src/testing/ is not part of any package's build.",
       "source": "docs/adrs/0011-shared-process-package.md"
     },
     {
@@ -44,6 +44,18 @@
       "rule": "grouping",
       "files": ["packages/signal/src/ffmpeg/packaging/"],
       "reason": "Every file serves one capability, turning playout items into FFmpeg-packaged output, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/config/"],
+      "reason": "Every file parses startup environment settings, one capability, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/channels/runtime/"],
+      "reason": "Every file connects the server to the signal runtime (stream manager setup, playout adapter, mapping, transition coordinator, log adapter), one capability, so the folder stays flat.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {

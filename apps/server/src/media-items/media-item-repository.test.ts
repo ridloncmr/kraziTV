@@ -67,6 +67,7 @@ describe("MediaItemRepository.findById", () => {
       title: "Example",
       durationMs: 7_200_000,
       hasAudio: true,
+      hasVideo: true,
       status: "available",
       probeError: null,
       createdAt: FIXTURE_TIME,
@@ -86,6 +87,24 @@ describe("MediaItemRepository.findById", () => {
     await expect(repository.findById("item-silent")).resolves.toMatchObject({
       hasAudio: false,
     });
+  });
+
+  it("decodes an audio-only file's has_video as false and an unscanned fact as null", async () => {
+    const repository = await setup([
+      itemFixtureAt("item-audio-only", "/media/movies/audio-only.mkv", {
+        has_video: 0,
+      }),
+      itemFixtureAt("item-before-video", "/media/movies/before-video.mkv", {
+        has_video: null,
+      }),
+    ]);
+
+    await expect(repository.findById("item-audio-only")).resolves.toMatchObject(
+      { hasVideo: false },
+    );
+    await expect(
+      repository.findById("item-before-video"),
+    ).resolves.toMatchObject({ hasVideo: null });
   });
 
   it("keeps unknown metadata of a probe failure as null", async () => {

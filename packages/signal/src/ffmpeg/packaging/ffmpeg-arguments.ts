@@ -12,25 +12,32 @@ const VIDEO_FILTER =
 
 const BLACK_TAIL_VIDEO_FILTER = "tpad=stop_mode=add:stop=-1:color=black";
 
+const SILENT_AUDIO_SOURCE = "anullsrc=channel_layout=stereo:sample_rate=48000";
+const BLACK_VIDEO_SOURCE = "color=c=black:s=1920x1080:r=30";
+
 /** Validates one selected item and expresses the MVP packaging policy as argv. */
 export function buildFfmpegArguments(
   item: SignalPlayoutItem,
 ): readonly string[] {
-  if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) {
-    throw invalidPlayoutItem("mediaOffsetMs");
+  const invalidField = findInvalidField(item);
+  if (invalidField !== undefined) {
+    throw invalidPlayoutItem(invalidField);
   }
-  if (!isPositiveSafeInteger(item.playDurationMs)) {
-    throw invalidPlayoutItem("playDurationMs");
-  }
-  if (!isNonNegativeSafeInteger(item.blackTailMs)) {
-    throw invalidPlayoutItem("blackTailMs");
-  }
-  if (typeof item.hasAudio !== "boolean") {
-    throw invalidPlayoutItem("hasAudio");
-  }
-  const audioInput = item.hasAudio
-    ? []
-    : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"];
+  // A stream the media lacks is generated, so every item reaches the same
+  // two output streams: silence for audio, black for video. Generated inputs
+  // follow the media at input 0 in this order.
+  const generatedSources = [
+    ...(item.hasAudio ? [] : [SILENT_AUDIO_SOURCE]),
+    ...(item.hasVideo ? [] : [BLACK_VIDEO_SOURCE]),
+  ];
+  const inputIndex = (source: string): number =>
+    generatedSources.indexOf(source) + 1;
+  const audioStream = item.hasAudio
+    ? "0:a:0"
+    : `${inputIndex(SILENT_AUDIO_SOURCE)}:a:0`;
+  const videoStream = item.hasVideo
+    ? "0:v:0"
+    : `${inputIndex(BLACK_VIDEO_SOURCE)}:v:0`;
   const hasBlackTail = item.blackTailMs > 0;
 
   return [
@@ -47,13 +54,13 @@ export function buildFfmpegArguments(
       : []),
     "-i",
     item.mediaPath,
-    ...audioInput,
+    ...generatedSources.flatMap((source) => ["-f", "lavfi", "-i", source]),
     "-t",
     millisecondsToDecimalSeconds(item.playDurationMs + item.blackTailMs),
     "-map",
-    "0:v:0",
+    videoStream,
     "-map",
-    item.hasAudio ? "0:a:0" : "1:a:0",
+    audioStream,
     "-c:v",
     "libx264",
     ...(hasBlackTail ? ["-tune", "zerolatency"] : []),
@@ -96,6 +103,23 @@ export function buildFfmpegArguments(
   ];
 }
 
+type PackagingField =
+  "blackTailMs" | "hasAudio" | "hasVideo" | "mediaOffsetMs" | "playDurationMs";
+
+/**
+ * Returns the first field FFmpeg cannot be given as-is, or undefined when the
+ * item can be packaged. Checked in a fixed order, so an item with several bad
+ * fields always reports the same one.
+ */
+function findInvalidField(item: SignalPlayoutItem): PackagingField | undefined {
+  if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) return "mediaOffsetMs";
+  if (!isPositiveSafeInteger(item.playDurationMs)) return "playDurationMs";
+  if (!isNonNegativeSafeInteger(item.blackTailMs)) return "blackTailMs";
+  if (typeof item.hasAudio !== "boolean") return "hasAudio";
+  if (typeof item.hasVideo !== "boolean") return "hasVideo";
+  return undefined;
+}
+
 /** Converts exact integer milliseconds without introducing float rounding. */
 function millisecondsToDecimalSeconds(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1_000);
@@ -104,9 +128,7 @@ function millisecondsToDecimalSeconds(milliseconds: number): string {
 }
 
 /** Avoids echoing values or media paths into externally visible errors. */
-function invalidPlayoutItem(
-  field: "blackTailMs" | "hasAudio" | "mediaOffsetMs" | "playDurationMs",
-): SignalError {
+function invalidPlayoutItem(field: PackagingField): SignalError {
   return new SignalError(
     "invalid_playout_item",
     `Signal playout item has an invalid ${field}`,

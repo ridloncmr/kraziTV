@@ -12,7 +12,7 @@ const createHarness = (
   options: {
     ffmpegPath?: string;
     terminationGraceMs?: number;
-    isSuccessfulExitExpected?: () => boolean;
+    redactions?: readonly string[];
   } = {},
 ) => {
   const child = new FakeProcess();
@@ -26,10 +26,10 @@ const createHarness = (
     spawner,
     timers,
     logger,
-    ffmpegPath: options.ffmpegPath,
+    ffmpegPath: options.ffmpegPath ?? "ffmpeg",
     terminationGraceMs: options.terminationGraceMs,
     diagnosticContext: { channelId: "channel-1" },
-    isSuccessfulExitExpected: options.isSuccessfulExitExpected ?? (() => true),
+    redactions: options.redactions,
   });
 
   return { child, spawner, timers, logger, managed };
@@ -76,10 +76,10 @@ describe("FfmpegProcess", () => {
     expect(() =>
       FfmpegProcess.start({
         args: [],
+        ffmpegPath: "ffmpeg",
         spawner,
         timers: new FakeClock(),
         logger: new RecordingLogger(),
-        isSuccessfulExitExpected: () => true,
       }),
     ).toThrowError(
       expect.objectContaining({
@@ -103,18 +103,18 @@ describe("FfmpegProcess", () => {
     expect(logger.errors).toHaveLength(1);
   });
 
-  it("retains only the final 64 KiB of stderr", async () => {
+  it("reports at most 64 KiB of retained stderr", async () => {
     const { child, managed } = createHarness();
-    const discarded = Buffer.alloc(10, "a");
-    const retained = Buffer.alloc(64 * 1024, "b");
 
-    child.writeStderr(discarded);
-    child.writeStderr(retained);
+    child.writeStderr(Buffer.alloc(10, "a"));
+    child.writeStderr(Buffer.alloc(64 * 1024, "b"));
     child.exit({ code: 1, signal: null });
-    await expectSignalError(managed.completion, "packaging_failed");
 
-    expect(managed.stderrTail.byteLength).toBe(64 * 1024);
-    expect(managed.stderrTail.equals(retained)).toBe(true);
+    const error = await expectSignalError(
+      managed.completion,
+      "packaging_failed",
+    );
+    expect(error.details).toMatchObject({ stderrTailBytes: 64 * 1024 });
   });
 
   it("normalizes a non-zero exit with bounded diagnostics", async () => {
@@ -132,34 +132,20 @@ describe("FfmpegProcess", () => {
       exitCode: 7,
       signal: null,
       stderrTailBytes: Buffer.byteLength("decoder failed"),
+      stderrSummary: "decoder failed",
     });
     expect(logger.errors[0]?.context).toEqual(error.details);
   });
 
-  it("normalizes a clean exit that its owner identifies as premature", async () => {
-    const { child, managed } = createHarness({
-      isSuccessfulExitExpected: () => false,
+  it("logs the last stderr line with redacted values removed", async () => {
+    const mediaPath = "C:/private/media/movie.mkv";
+    const { child, managed, logger } = createHarness({
+      redactions: [mediaPath],
     });
-
-    child.exit({ code: 0, signal: null });
-
-    const error = await expectSignalError(
-      managed.completion,
-      "packaging_failed",
-    );
-    expect(error.message).toBe("FFmpeg exited before completion was expected");
-    expect(error.details).toMatchObject({
-      channelId: "channel-1",
-      exitCode: 0,
-      signal: null,
-      reason: "premature_exit",
-    });
-  });
-
-  it("retains stderr without placing sensitive contents in errors or logs", async () => {
-    const { child, managed, logger } = createHarness();
-    const sensitiveStderr = "failed to open C:/private/media/movie.mkv";
-    child.writeStderr(sensitiveStderr);
+    child.writeStderr(`Input #0, from '${mediaPath}':
+`);
+    child.writeStderr(`${mediaPath}: Invalid data found
+`);
 
     child.exit({ code: 1, signal: null });
 
@@ -167,12 +153,23 @@ describe("FfmpegProcess", () => {
       managed.completion,
       "packaging_failed",
     );
-    expect(managed.stderrTail.toString()).toBe(sensitiveStderr);
-    expect(JSON.stringify(error.details)).not.toContain(sensitiveStderr);
-    expect(JSON.stringify(logger.errors)).not.toContain(sensitiveStderr);
     expect(error.details).toMatchObject({
-      stderrTailBytes: Buffer.byteLength(sensitiveStderr),
+      stderrSummary: "[redacted]: Invalid data found",
     });
+    expect(JSON.stringify(error.details)).not.toContain(mediaPath);
+    expect(JSON.stringify(logger.errors)).not.toContain(mediaPath);
+  });
+
+  it("omits the summary when stderr is empty", async () => {
+    const { child, managed } = createHarness();
+
+    child.exit({ code: 1, signal: null });
+
+    const error = await expectSignalError(
+      managed.completion,
+      "packaging_failed",
+    );
+    expect(error.details).not.toHaveProperty("stderrSummary");
   });
 
   it("normalizes an unexpected signal exit", async () => {

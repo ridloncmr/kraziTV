@@ -14,6 +14,8 @@ export type SignalPlayoutItem = {
   mediaPath: string;
   /** Precomputed source layout; packaging must not probe provider media. */
   hasAudio: boolean;
+  /** False for audio-only media, which is packaged over black video. */
+  hasVideo: boolean;
   /** Absolute source-media position where this item starts emitting. */
   mediaOffsetMs: DurationMs;
   /**

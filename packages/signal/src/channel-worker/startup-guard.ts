@@ -23,11 +23,9 @@ export function createStartupGuard(
   options: StartupGuardOptions,
 ): StartupGuard {
   const deadlineAt = options.clock.now() + options.startupTimeoutMs;
-  let resolve!: (outcome: StartupInterruption) => void;
+  const { promise: interrupted, resolve } =
+    Promise.withResolvers<StartupInterruption>();
   let outcome: StartupInterruption | undefined;
-  const interrupted = new Promise<StartupInterruption>((settle) => {
-    resolve = settle;
-  });
   const interrupt = (nextOutcome: StartupInterruption): void => {
     if (outcome !== undefined) return;
     outcome = nextOutcome;

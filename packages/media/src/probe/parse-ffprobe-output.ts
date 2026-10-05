@@ -2,8 +2,8 @@ import type { MediaProbeResult } from "./contracts.js";
 import { MediaProbeError } from "./media-probe-error.js";
 
 /**
- * Normalizes ffprobe JSON output. Only duration and audio presence cross this
- * boundary; anything else ffprobe reports stays private to the adapter.
+ * Normalizes ffprobe JSON output. Only duration and audio and video presence
+ * cross this boundary; anything else ffprobe reports stays private to the adapter.
  */
 export function parseFfprobeOutput(stdout: string): MediaProbeResult {
   let document: unknown;
@@ -23,9 +23,17 @@ export function parseFfprobeOutput(stdout: string): MediaProbeResult {
     throw invalidMetadata("ffprobe output has no format section");
   }
 
+  const streams = parseStreams(document.streams);
   return {
     durationMs: parseDurationMs(document.format.duration),
-    hasAudio: parseHasAudio(document.streams),
+    hasAudio: streams.some((stream) => stream.codec_type === "audio"),
+    hasVideo: streams.some(
+      (stream) =>
+        stream.codec_type === "video" &&
+        !(
+          isRecord(stream.disposition) && stream.disposition.attached_pic === 1
+        ),
+    ),
   };
 }
 
@@ -60,15 +68,16 @@ function parseDurationMs(duration: unknown): number {
   return durationMs;
 }
 
-/** Treats an absent stream list as silence; any other non-array is malformed. */
-function parseHasAudio(streams: unknown): boolean {
-  if (streams === undefined) return false;
+/**
+ * Treats an absent stream list as no streams; any other non-array is
+ * malformed. Entries that are not objects are skipped.
+ */
+function parseStreams(streams: unknown): Record<string, unknown>[] {
+  if (streams === undefined) return [];
   if (!Array.isArray(streams)) {
     throw invalidMetadata("ffprobe reported a malformed stream list");
   }
-  return streams.some(
-    (stream) => isRecord(stream) && stream.codec_type === "audio",
-  );
+  return streams.filter(isRecord);
 }
 
 /** Narrows parsed JSON to an indexable object. */

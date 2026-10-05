@@ -127,6 +127,7 @@ describe("GET /media-items/:id", () => {
       title: "Example",
       durationMs: 7_200_000,
       hasAudio: true,
+      hasVideo: true,
       status: "available",
       probeError: null,
       createdAt: "2024-01-01T00:00:00.000Z",

@@ -6,6 +6,7 @@ import type {
   ScheduleEntryId,
 } from "../playout/contracts.js";
 
+/** Answers playout lookups from scripted queues and records every call. */
 export class FakePlayoutProvider implements PlayoutProvider {
   readonly currentCalls: Array<{ channelId: ChannelId; atMs: number }> = [];
   readonly followingCalls: Array<{
@@ -15,20 +16,18 @@ export class FakePlayoutProvider implements PlayoutProvider {
   }> = [];
   private readonly currentResults: CurrentPlayoutResult[] = [];
   private readonly followingResults: FollowingPlayoutResult[] = [];
-  private readonly revisions = new Map<ChannelId, number>();
 
+  /** Queues the answer for the next current lookup, in call order. */
   enqueueCurrent(result: CurrentPlayoutResult): void {
     this.currentResults.push(result);
   }
 
+  /** Queues the answer for the next following lookup, in call order. */
   enqueueFollowing(result: FollowingPlayoutResult): void {
     this.followingResults.push(result);
   }
 
-  setScheduleRevision(channelId: ChannelId, revision: number): void {
-    this.revisions.set(channelId, revision);
-  }
-
+  /** Throws when nothing was queued, so an unexpected lookup fails the test loudly. */
   async getCurrent(
     channelId: ChannelId,
     atMs: number,
@@ -39,6 +38,7 @@ export class FakePlayoutProvider implements PlayoutProvider {
     return result;
   }
 
+  /** Throws when nothing was queued, so an unexpected lookup fails the test loudly. */
   async getFollowing(
     channelId: ChannelId,
     afterScheduleEntryId: ScheduleEntryId,
@@ -48,13 +48,5 @@ export class FakePlayoutProvider implements PlayoutProvider {
     const result = this.followingResults.shift();
     if (!result) throw new Error("No following playout result was arranged");
     return result;
-  }
-
-  async getScheduleRevision(channelId: ChannelId): Promise<number> {
-    const revision = this.revisions.get(channelId);
-    if (revision === undefined) {
-      throw new Error(`No schedule revision was arranged for ${channelId}`);
-    }
-    return revision;
   }
 }

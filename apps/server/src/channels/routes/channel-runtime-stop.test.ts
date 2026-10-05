@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SignalError } from "@krazitv/signal";
 
 import { createChannel, updateChannel } from "../../testing/api-requests.js";
+import { captureLogLines } from "../../testing/captured-log-lines.js";
 import { RecordingChannelRuntime } from "../../testing/recording-channel-runtime.js";
 import {
   cleanUpTestEnvironment,
@@ -20,16 +21,10 @@ afterEach(cleanUpTestEnvironment);
 // error logs captured as parsed JSON lines.
 async function startServer(options: { channelStopTimeoutMs?: number } = {}) {
   const runtime = new RecordingChannelRuntime();
-  const logs: Record<string, unknown>[] = [];
+  const { lines: logs, stream } = captureLogLines();
   const { server, dependencies } = await startTestServer({
     channelStopTimeoutMs: options.channelStopTimeoutMs,
-    logger: {
-      level: "error",
-      stream: {
-        write: (line: string) =>
-          logs.push(JSON.parse(line) as Record<string, unknown>),
-      },
-    },
+    logger: { level: "error", stream },
     overrides: (db) => ({
       channels: new ChannelRepository(db, {
         createId: sequentialIds("channel"),

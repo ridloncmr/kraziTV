@@ -6,15 +6,17 @@ import type {
   SignalPreparation,
   SignalSession,
 } from "../signal-packager/contracts.js";
-import { SignalError } from "../errors.js";
+import { packagingStoppedError } from "../errors.js";
 import { Deferred } from "./deferred.js";
 
 type PreparationState = "pending" | "committed" | "discarded";
 
+/** A held next item that enforces the commit-or-discard-once contract. */
 export class FakeSignalPreparation implements SignalPreparation {
   private state: PreparationState = "pending";
   private discardWasRequested = false;
 
+  /** Binds the preparation to the session that must accept its outcome. */
   constructor(
     private readonly owner: FakeSignalSession,
     readonly item: SignalPlayoutItem,
@@ -25,6 +27,7 @@ export class FakeSignalPreparation implements SignalPreparation {
     return this.discardWasRequested;
   }
 
+  /** Refuses a second outcome so a worker that commits twice fails its test. */
   commit(): void {
     if (this.state === "committed") {
       throw new Error("Preparation was already committed");
@@ -42,6 +45,7 @@ export class FakeSignalPreparation implements SignalPreparation {
     return this.owner.trackDiscard(this.release());
   }
 
+  /** Rechecks state after any arranged pause, since a commit may win meanwhile. */
   private async release(): Promise<void> {
     if (this.state !== "pending") return;
     await this.owner.beforeDiscard();
@@ -51,6 +55,10 @@ export class FakeSignalPreparation implements SignalPreparation {
   }
 }
 
+/**
+ * A signal session whose readiness, output, and preparation outcomes the test
+ * scripts, and which records what the worker committed and discarded.
+ */
 export class FakeSignalSession implements SignalSession {
   readonly output = new PassThrough();
   readonly committedItems: SignalPlayoutItem[];
@@ -79,6 +87,11 @@ export class FakeSignalSession implements SignalSession {
   private preparing?: Promise<unknown>;
   private readonly discarding = new Set<Promise<void>>();
 
+  /**
+   * Counts the initial item as committed, as a real session airs it at once.
+   * Unobserved rejections are absorbed so a test that never awaits them
+   * does not crash Node.
+   */
   constructor(initialItem: SignalPlayoutItem) {
     this.committedItems = [initialItem];
     this.completion = this.completionState.promise;
@@ -86,6 +99,7 @@ export class FakeSignalSession implements SignalSession {
     void this.completion.catch(() => undefined);
   }
 
+  /** Settles only through `resolveReady`, `rejectReady`, or stop. */
   get ready(): Promise<void> {
     return this.readyState.promise;
   }
@@ -107,10 +121,14 @@ export class FakeSignalSession implements SignalSession {
     return preparing;
   }
 
+  /**
+   * Applies any arranged failure or pause, then rechecks stop, because a stop
+   * during the pause must end the preparation rather than hand it out.
+   */
   private async prepareUnlessStopped(
     item: SignalPlayoutItem,
   ): Promise<FakeSignalPreparation> {
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     if (this.currentPreparation) {
       throw new Error("Session already has an outstanding preparation");
     }
@@ -121,7 +139,7 @@ export class FakeSignalSession implements SignalSession {
     const gate = this.nextPrepareGate;
     this.nextPrepareGate = undefined;
     if (gate) await Promise.race([gate.promise, this.stopRequested.promise]);
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     const preparation = new FakeSignalPreparation(this, item);
     this.currentPreparation = preparation;
     return preparation;
@@ -166,26 +184,31 @@ export class FakeSignalSession implements SignalSession {
     return discard;
   }
 
+  /** Reports usable initial output, the moment a real session would. */
   resolveReady(): void {
     this.readyState.resolve(undefined);
   }
 
+  /** Fails startup; the session also ends, as a real one does on that failure. */
   rejectReady(reason: unknown): void {
     this.readyState.reject(reason);
     this.completionState.reject(reason);
   }
 
+  /** Feeds the stable output so broadcaster retention and joins can be driven. */
   pushOutput(chunk: string | Uint8Array): void {
     this.output.write(chunk);
   }
 
+  /** Refuses a commit after stop, matching the real session's contract. */
   commitPreparation(preparation: FakeSignalPreparation): void {
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     this.assertCurrentPreparation(preparation);
     this.currentPreparation = undefined;
     this.committedItems.push(preparation.item);
   }
 
+  /** Records the discarded item so tests can assert what never aired. */
   discardPreparation(preparation: FakeSignalPreparation): void {
     this.assertCurrentPreparation(preparation);
     this.currentPreparation = undefined;
@@ -207,12 +230,13 @@ export class FakeSignalSession implements SignalSession {
     }
     await this.currentPreparation?.discard();
     await Promise.allSettled([...this.discarding]);
-    this.readyState.reject(stoppedError());
+    this.readyState.reject(packagingStoppedError());
     this.output.end();
     this.completionState.resolve(undefined);
     this.stopped = true;
   }
 
+  /** Prevents a stale preparation handle from changing this session. */
   private assertCurrentPreparation(preparation: FakeSignalPreparation): void {
     if (this.currentPreparation !== preparation) {
       throw new Error("Preparation is not owned by this session");
@@ -220,15 +244,12 @@ export class FakeSignalSession implements SignalSession {
   }
 }
 
-/** The typed failure every post-stop session operation reports. */
-function stoppedError(): SignalError {
-  return new SignalError("packaging_stopped", "Signal session stopped");
-}
-
+/** Starts fake sessions and keeps each one so tests can drive it afterwards. */
 export class FakeSignalPackager implements SignalPackager {
   readonly startCalls: SignalPlayoutItem[] = [];
   readonly sessions: FakeSignalSession[] = [];
 
+  /** Starts synchronously, as the real packager does, and records the item. */
   start(initialItem: SignalPlayoutItem): FakeSignalSession {
     this.startCalls.push(initialItem);
     const session = new FakeSignalSession(initialItem);

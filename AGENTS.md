@@ -185,6 +185,10 @@ working in. Do not report work as done until all of these hold.
    does the job. Look in the package's `src/testing/` and its cross-domain
    folders such as `options/`, `runtime/`, `config/`, and `http/`. Reuse it,
    or move it to where both callers can reach it. Never write a second copy.
+   Before implementation, briefly report the affected capability, the existing
+   production and test helpers you found, and what you will reuse or extend.
+   Search by behavior as well as proposed names, including integration suites.
+   Explain why an existing candidate does not fit before adding a new helper.
 2. Write code in its final shape. Put test doubles in `src/testing/` from the
    start, export only what another file imports today, and give each new
    method its why-comment as you write it.
@@ -208,13 +212,20 @@ working in. Do not report work as done until all of these hold.
 5. Record plan-ticket status when the change completes a ticket (see
    Documentation Rules).
 6. Report any check you skipped or that failed, with its output.
+7. Complete a judgment review with the `code-review` skill. Report concrete
+   evidence for reuse searches, public API consumers, ownership or cancellation
+   checks after asynchronous waits, and test-double contract fidelity. Mark
+   categories that do not apply and explain why; passing commands alone is not
+   a judgment review. For substantial features or lifecycle changes, use a
+   separate review session or the existing reviewer role before committing.
 
 The audit decides layout, one class per file, private methods that never read
 `this`, missing method comments, exports no other file imports, test-double
-placement, root-entry imports, and cross-package copies. These rules need your
-judgment because no tool checks them: small copied helpers, what a package's
-`index.ts` exposes, why-comment quality, KISS, and whether a stateful class
-reads as its transitions.
+placement, unused named package exports, root-entry imports, and cross-package
+copies. These rules need your
+judgment because no tool checks them: small copied helpers, whether a used
+public API exposes policy its consumer should not choose, why-comment quality,
+KISS, and whether a stateful class reads as its transitions.
 
 ## AI Skill Conventions
 

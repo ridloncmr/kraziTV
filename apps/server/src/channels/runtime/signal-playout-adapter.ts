@@ -74,9 +74,4 @@ export class SignalPlayoutAdapter
     if ("kind" in following) throw playoutFailureError(following, channelId);
     return toFollowingPlayoutResult(following);
   }
-
-  /** Reads the revision a worker compares against its prepared transition. */
-  getScheduleRevision(channelId: string): Promise<number> {
-    return this.#playout.getScheduleRevision(channelId);
-  }
 }

@@ -10,6 +10,7 @@ import { mediaCollectionsMigration } from "./002-media-collections.js";
 import { channelsMigration } from "./003-channels.js";
 import { programmingBlocksMigration } from "./004-programming-blocks.js";
 import { schedulesMigration } from "./005-schedules.js";
+import { mediaVideoMigration } from "./006-media-video.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -18,6 +19,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "003_channels": channelsMigration,
   "004_programming_blocks": programmingBlocksMigration,
   "005_schedules": schedulesMigration,
+  "006_media_video": mediaVideoMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

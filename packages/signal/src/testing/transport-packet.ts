@@ -1,4 +1,4 @@
-import { MPEG_TS_PACKET_BYTES } from "../ffmpeg/mpeg-ts/mpeg-ts-packet-forwarder.js";
+import { MPEG_TS_PACKET_BYTES } from "../ffmpeg/mpeg-ts/mpeg-ts-packet-run.js";
 
 /**
  * Builds one MPEG-TS packet with its sync byte set. `fill` makes packets

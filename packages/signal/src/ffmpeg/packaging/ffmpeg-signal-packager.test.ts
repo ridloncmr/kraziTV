@@ -25,6 +25,7 @@ const initialItem = (
   mediaItemId: "media-1",
   mediaPath: "C:/private/media/movie.mkv",
   hasAudio: true,
+  hasVideo: true,
   mediaOffsetMs: 250,
   playDurationMs: 30_000,
   blackTailMs: 0,
@@ -39,6 +40,7 @@ const createHarness = () => {
   spawner.enqueue(child);
 
   const packager = new FfmpegSignalPackager({
+    ffmpegPath: "ffmpeg",
     spawner,
     timers,
     logger,
@@ -57,6 +59,7 @@ describe("FfmpegSignalPackager", () => {
       expect(
         () =>
           new FfmpegSignalPackager({
+            ffmpegPath: "ffmpeg",
             spawner: new FakeProcessSpawner(),
             timers: new FakeClock(),
             logger: new RecordingLogger(),
@@ -65,6 +68,21 @@ describe("FfmpegSignalPackager", () => {
       ).toThrow(/positive safe integer/i);
     },
   );
+
+  it("rejects an empty FFmpeg executable before any item starts", () => {
+    const spawner = new FakeProcessSpawner();
+
+    expect(
+      () =>
+        new FfmpegSignalPackager({
+          ffmpegPath: "",
+          spawner,
+          timers: new FakeClock(),
+          logger: new RecordingLogger(),
+        }),
+    ).toThrow(/ffmpegPath must not be empty/);
+    expect(spawner.spawnCalls).toHaveLength(0);
+  });
 
   it("returns a session synchronously with session-owned output available", () => {
     const { child, packager, spawner } = createHarness();
@@ -131,6 +149,20 @@ describe("FfmpegSignalPackager", () => {
     expect(JSON.stringify(error.details)).not.toContain("movie.mkv");
   });
 
+  it("logs why FFmpeg failed with the item's media path redacted", async () => {
+    const { child, logger, packager } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStderr("C:/private/media/movie.mkv: Invalid data found\n");
+
+    child.exit({ code: 1, signal: null });
+
+    const error = await expectSignalError(session.ready, "packaging_failed");
+    expect(error.details).toMatchObject({
+      stderrSummary: "[redacted]: Invalid data found",
+    });
+    expect(JSON.stringify(logger.errors)).not.toContain("movie.mkv");
+  });
+
   it("reports a clean exit before readiness as premature", async () => {
     const { child, packager } = createHarness();
     const session = packager.start(initialItem());
@@ -166,6 +198,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -201,6 +234,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger,
@@ -247,6 +281,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -341,6 +376,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -382,6 +418,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(second);
     const logger = new RecordingLogger();
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger,
@@ -422,6 +459,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),
@@ -470,6 +508,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),
@@ -509,6 +548,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),

@@ -1,4 +1,5 @@
-import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-forwarder.js";
+/** Every MPEG-TS transport packet is exactly this many bytes. */
+export const MPEG_TS_PACKET_BYTES = 188;
 
 /** How many consecutive sync bytes prove an offset is packet-aligned. */
 export const ALIGNED_PACKET_RUN = 3;

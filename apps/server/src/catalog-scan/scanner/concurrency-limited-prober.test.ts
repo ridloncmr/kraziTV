@@ -5,7 +5,7 @@ import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 
-const RESULT = { durationMs: 1_000, hasAudio: true };
+const RESULT = { durationMs: 1_000, hasAudio: true, hasVideo: true };
 
 // Lets queued promise continuations run so assertions see settled scheduling.
 describe("ConcurrencyLimitedProber", () => {

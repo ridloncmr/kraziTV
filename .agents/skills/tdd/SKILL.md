@@ -18,6 +18,15 @@ Use a red-green-refactor loop for core behavior.
 4. Run the relevant test command.
 5. Refactor only with tests green.
 
+## Choose Distinguishing Inputs
+
+Make the test fail for a plausible wrong interpretation, not just an empty
+implementation. For ordering, make membership position differ from item IDs,
+titles, and insertion order. For nullable facts, distinguish unknown from false.
+For asynchronous transitions, arrange stop, replacement, or failure during a
+pending operation and assert the public outcome after it resumes. Use existing
+fixtures and controllable doubles following **Before You Finish** in `AGENTS.md`.
+
 After implementation, tests and source code are the canonical description of
 behavior. Keep tests readable as behavioral contracts and prefer the simplest
 implementation that makes them pass. Do not add abstractions merely to satisfy

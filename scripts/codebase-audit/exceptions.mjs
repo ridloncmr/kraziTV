@@ -30,6 +30,7 @@ function covers(exceptionPath, path) {
 export function matches(exception, finding) {
   return (
     exception.rule === finding.rule &&
+    (exception.symbol === undefined || exception.symbol === finding.symbol) &&
     finding.files.every((path) =>
       exception.files.some((exceptionPath) => covers(exceptionPath, path)),
     )

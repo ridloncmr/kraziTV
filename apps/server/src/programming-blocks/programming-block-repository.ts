@@ -14,16 +14,12 @@ import type {
   ProgrammingBlock,
   ProgrammingBlockSource,
   ReplaceProgrammingBlockSourceResult,
+  UnknownSourceResult,
 } from "./contracts.js";
 
 type SourceColumns = Pick<
   ProgrammingBlockTable,
   "source_kind" | "media_collection_id" | "media_item_id" | "playback_mode"
->;
-
-type UnknownSource = Exclude<
-  CreateProgrammingBlockResult,
-  { kind: "created" | "limit_reached" | "channel_not_found" }
 >;
 
 /**
@@ -177,7 +173,7 @@ function isSameSource(
 async function findUnknownSource(
   executor: Kysely<DatabaseSchema>,
   source: ProgrammingBlockSource,
-): Promise<UnknownSource | undefined> {
+): Promise<UnknownSourceResult | undefined> {
   if (source.kind === "collection") {
     return (await collectionExists(executor, source.mediaCollectionId))
       ? undefined

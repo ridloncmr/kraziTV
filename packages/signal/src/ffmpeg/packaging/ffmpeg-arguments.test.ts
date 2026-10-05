@@ -12,11 +12,22 @@ const item = (
   mediaItemId: "media-1",
   mediaPath: "C:/media/My Movie.mkv",
   hasAudio: true,
+  hasVideo: true,
   mediaOffsetMs: 12_345,
   playDurationMs: 67_890,
   blackTailMs: 0,
   ...overrides,
 });
+
+/** The stream each `-map` selects, in output order. */
+const mappedStreams = (args: readonly string[]): string[] =>
+  args.flatMap((arg, index) => (arg === "-map" ? [args[index + 1] ?? ""] : []));
+
+/** The generated sources each lavfi input reads, in input order. */
+const lavfiSources = (args: readonly string[]): string[] =>
+  args.flatMap((arg, index) =>
+    arg === "lavfi" && args[index + 1] === "-i" ? [args[index + 2] ?? ""] : [],
+  );
 
 describe("buildFfmpegArguments", () => {
   it("builds the paced fixed-profile MPEG-TS command", () => {
@@ -86,6 +97,33 @@ describe("buildFfmpegArguments", () => {
       ]),
     );
     expect(args).not.toContain("0:a:0?");
+  });
+
+  it("renders black video for media without a video stream", () => {
+    const args = buildFfmpegArguments(item({ hasVideo: false }));
+
+    expect(args.slice(args.indexOf("C:/media/My Movie.mkv") + 1)).toEqual(
+      expect.arrayContaining([
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=1920x1080:r=30",
+      ]),
+    );
+    expect(mappedStreams(args)).toEqual(["1:v:0", "0:a:0"]);
+    expect(args).toEqual(expect.arrayContaining(["-streamid", "0:256"]));
+  });
+
+  it("synthesizes both streams for media with neither audio nor video", () => {
+    const args = buildFfmpegArguments(
+      item({ hasAudio: false, hasVideo: false }),
+    );
+
+    expect(lavfiSources(args)).toEqual([
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "color=c=black:s=1920x1080:r=30",
+    ]);
+    expect(mappedStreams(args)).toEqual(["2:v:0", "1:a:0"]);
   });
 
   it("reads only the media span and extends the output with a black tail", () => {
@@ -158,6 +196,22 @@ describe("buildFfmpegArguments", () => {
         expect.objectContaining<Partial<SignalError>>({
           code: "invalid_playout_item",
           details: { field: "playDurationMs" },
+        }),
+      );
+    },
+  );
+
+  it.each([undefined, null, 0, "yes"])(
+    "rejects invalid video-presence metadata %s before process creation",
+    (hasVideo) => {
+      expect(() =>
+        buildFfmpegArguments(
+          item({ hasVideo } as unknown as Partial<SignalPlayoutItem>),
+        ),
+      ).toThrowError(
+        expect.objectContaining<Partial<SignalError>>({
+          code: "invalid_playout_item",
+          details: { field: "hasVideo" },
         }),
       );
     },

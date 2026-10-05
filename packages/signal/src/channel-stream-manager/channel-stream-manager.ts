@@ -12,6 +12,7 @@ import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 import { RetryableAttempt } from "../runtime/retryable-attempt.js";
+import type { SignalLogger } from "../runtime/signal-logger.js";
 import {
   cancelIdleStop,
   closeSubscriptions,
@@ -62,6 +63,7 @@ type ChannelStreamManagerOptions = {
   workerFactory: ChannelWorkerFactory<ManagedChannelWorker>;
   timers: TimerScheduler;
   idleGraceMs: number;
+  logger: SignalLogger;
 };
 
 /** Serializes channel broadcast creation, publication, and terminal cleanup. */
@@ -208,40 +210,50 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     }
 
     if (lifecycle?.kind === "active") {
-      if (lifecycle.observation.terminated) {
-        rejectWaiter(
-          waiter,
-          normalizeWorkerFailure(channelId, lifecycle.observation.failure),
-        );
-        await this.stopActiveLifecycle(lifecycle);
-        return;
-      }
-      let subscription: ChannelBroadcastSubscription | undefined;
-      try {
-        subscription = lifecycle.worker.trySubscribe();
-      } catch (error) {
-        rejectWaiter(waiter, normalizeWorkerFailure(channelId, error));
-        await this.stopActiveLifecycle(lifecycle);
-        return;
-      }
-      if (subscription !== undefined) {
-        this.trackSubscription(lifecycle, subscription);
-        cancelIdleStop(lifecycle);
-        resolveWaiter(waiter, subscription);
-        return;
-      }
+      await this.joinActiveLifecycle(lifecycle, waiter);
+    } else if (lifecycle?.kind === "pending") {
+      lifecycle.waiters.add(waiter);
+    } else {
+      this.lifecycles.set(
+        channelId,
+        this.startPendingLifecycle(channelId, waiter),
+      );
+    }
+  }
 
+  /**
+   * Subscribes one waiter to an already published worker. A worker that has
+   * terminated or throws while subscribing rejects the waiter and is stopped,
+   * so the next subscribe starts a fresh one instead of reusing it.
+   */
+  private async joinActiveLifecycle(
+    lifecycle: ActiveLifecycle,
+    waiter: SubscriptionWaiter,
+  ): Promise<void> {
+    const { channelId } = lifecycle;
+    if (lifecycle.observation.terminated) {
+      rejectWaiter(
+        waiter,
+        normalizeWorkerFailure(channelId, lifecycle.observation.failure),
+      );
+      await this.stopActiveLifecycle(lifecycle);
+      return;
+    }
+    let subscription: ChannelBroadcastSubscription | undefined;
+    try {
+      subscription = lifecycle.worker.trySubscribe();
+    } catch (error) {
+      rejectWaiter(waiter, normalizeWorkerFailure(channelId, error));
+      await this.stopActiveLifecycle(lifecycle);
+      return;
+    }
+    if (subscription === undefined) {
       rejectWaiter(waiter, workerUnavailable(channelId));
       return;
     }
-
-    if (lifecycle?.kind === "pending") {
-      lifecycle.waiters.add(waiter);
-      return;
-    }
-
-    const pending = this.startPendingLifecycle(channelId, waiter);
-    this.lifecycles.set(channelId, pending);
+    this.trackSubscription(lifecycle, subscription);
+    cancelIdleStop(lifecycle);
+    resolveWaiter(waiter, subscription);
   }
 
   /** Returns why a waiter may no longer join, checked again after every await. */
@@ -335,7 +347,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     pending: PendingLifecycle,
     outcome: WorkerOutcome,
   ): Promise<void> {
-    if (this.lifecycles.get(pending.channelId) !== pending) {
+    if (!this.isCurrent(pending)) {
       if (outcome.status === "ready") await outcome.worker.stop();
       return;
     }
@@ -436,13 +448,16 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     await this.stopPendingLifecycle(lifecycle);
   }
 
-  /** Removes a spontaneously terminated worker and rejects unpublished waiters. */
+  /**
+   * Removes a spontaneously terminated worker and rejects unpublished waiters.
+   * A published worker's failure is logged here because its viewers' requests
+   * have already succeeded, so nothing else would ever report the cause.
+   */
   private async handleWorkerTermination(
     pending: PendingLifecycle,
     worker: ManagedChannelWorker,
   ): Promise<void> {
-    const lifecycle = this.lifecycles.get(pending.channelId);
-    if (lifecycle === pending) {
+    if (this.isCurrent(pending)) {
       rejectPendingWaiters(
         pending,
         normalizeWorkerFailure(pending.channelId, pending.observation.failure),
@@ -450,7 +465,15 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       await this.stopPendingWorker(pending, worker);
       return;
     }
+    const lifecycle = this.lifecycles.get(pending.channelId);
     if (lifecycle?.kind === "active" && lifecycle.worker === worker) {
+      const { failure } = lifecycle.observation;
+      if (failure !== undefined) {
+        this.options.logger.error("channel_worker_failed", {
+          channelId: lifecycle.channelId,
+          err: failure,
+        });
+      }
       await this.stopActiveLifecycle(lifecycle);
     }
   }
@@ -563,9 +586,18 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
   /** Forgets a record only if a newer lifecycle has not already replaced it. */
   private releaseLifecycle(lifecycle: ChannelLifecycle): void {
-    if (this.lifecycles.get(lifecycle.channelId) === lifecycle) {
+    if (this.isCurrent(lifecycle)) {
       this.lifecycles.delete(lifecycle.channelId);
     }
+  }
+
+  /**
+   * Reports whether a record still owns its channel. Every deferred step
+   * checks this first, because a stop or a newer worker may have replaced
+   * the record while the step waited.
+   */
+  private isCurrent(lifecycle: ChannelLifecycle): boolean {
+    return this.lifecycles.get(lifecycle.channelId) === lifecycle;
   }
 
   /** Observes every close path so final-viewer cleanup is counted exactly once. */
@@ -587,7 +619,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     lifecycle: ActiveLifecycle,
     subscription: ChannelBroadcastSubscription,
   ): void {
-    if (this.lifecycles.get(lifecycle.channelId) !== lifecycle) return;
+    if (!this.isCurrent(lifecycle)) return;
     if (!lifecycle.subscriptions.delete(subscription)) return;
     if (
       lifecycle.subscriptions.size > 0 ||
@@ -615,12 +647,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     lifecycle: ActiveLifecycle,
     task: ScheduledTask,
   ): Promise<void> {
-    if (
-      this.lifecycles.get(lifecycle.channelId) !== lifecycle ||
-      lifecycle.idleTask !== task
-    ) {
-      return;
-    }
+    if (!this.isCurrent(lifecycle) || lifecycle.idleTask !== task) return;
     lifecycle.idleTask = undefined;
     if (lifecycle.subscriptions.size > 0 || lifecycle.stopping) return;
     await this.stopActiveLifecycle(lifecycle);

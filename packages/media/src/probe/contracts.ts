@@ -3,6 +3,8 @@ export interface MediaProbeResult {
   /** Positive whole milliseconds, rounded once from ffprobe's seconds. */
   durationMs: number;
   hasAudio: boolean;
+  /** False for audio-only media, including media whose only picture is cover art. */
+  hasVideo: boolean;
 }
 
 export interface MediaProbeOptions {

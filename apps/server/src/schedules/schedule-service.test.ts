@@ -136,6 +136,37 @@ describe("ScheduleService.ensureCoverage", () => {
     expect(log.lines).toEqual([]);
   });
 
+  it("plays a chronological collection in membership position order, not item ID order", async () => {
+    const { db, channelId, collectionId, service, log } = await setup();
+    // Rows go in by item ID, but their positions order them 3, 1, 2.
+    await db.deleteFrom("media_collection_items").execute();
+    await db
+      .insertInto("media_collection_items")
+      .values(
+        [
+          ["item-001", 1],
+          ["item-002", 2],
+          ["item-003", 0],
+        ].map(([mediaItemId, position]) => ({
+          media_collection_id: collectionId,
+          media_item_id: mediaItemId as string,
+          position: position as number,
+          created_at: T0,
+        })),
+      )
+      .execute();
+
+    await service.ensureCoverage(channelId, log);
+
+    const entries = await readScheduleEntries(db, channelId);
+    expect(entries.slice(0, 4).map((entry) => entry.media_item_id)).toEqual([
+      "item-003",
+      "item-001",
+      "item-002",
+      "item-003",
+    ]);
+  });
+
   it("stores random progress as the index after the last entry", async () => {
     const { db, channelId, service, log } = await setup({ source: "random" });
 

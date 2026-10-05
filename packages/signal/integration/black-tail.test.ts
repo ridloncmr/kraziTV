@@ -5,16 +5,18 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createFfmpegSignalPackager } from "../src/index.js";
-import type { ScheduledTask, TimerScheduler } from "../src/index.js";
+import { createFfmpegSignalPackager, SystemRuntime } from "../src/index.js";
 
 const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
 const MEDIA_MS = 2_000;
 const BLACK_TAIL_MS = 3_000;
 const AIRTIME_MS = MEDIA_MS + BLACK_TAIL_MS;
 
+const AUDIO_ONLY_MS = 3_000;
+
 let fixtureDirectory: string;
 const clipPaths = new Map<boolean, string>();
+let coverArtPath: string;
 
 beforeAll(async () => {
   runFfmpeg(["-version"], "FFmpeg is required for test:ffmpeg");
@@ -40,6 +42,24 @@ beforeAll(async () => {
     "FFmpeg could not generate the silent black-tail fixture",
   );
   clipPaths.set(true, tonedPath).set(false, silentPath);
+  // Audio whose only picture is cover art: mapping that picture would freeze
+  // one frame, so packaging must render black instead.
+  coverArtPath = join(fixtureDirectory, "tone-with-cover.mp4");
+  runFfmpeg(
+    [
+      ...[
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:d=3",
+      ],
+      ...["-f", "lavfi", "-i", "testsrc=s=320x240:r=25:d=0.04"],
+      ...["-map", "0:a:0", "-map", "1:v:0", "-c:a", "aac", "-c:v", "mjpeg"],
+      ...["-disposition:v:0", "attached_pic", coverArtPath],
+    ],
+    "FFmpeg could not generate the cover-art fixture",
+  );
 });
 
 afterAll(async () => {
@@ -58,7 +78,7 @@ describe("real FFmpeg black tail", () => {
       const packager = createFfmpegSignalPackager({
         ffmpegPath,
         logger: { debug() {}, info() {}, warn() {}, error() {} },
-        timers: new NativeTimers(),
+        timers: new SystemRuntime(),
         terminationGraceMs: 5_000,
         itemReadinessTimeoutMs: 15_000,
       });
@@ -69,6 +89,7 @@ describe("real FFmpeg black tail", () => {
         mediaItemId: "media-short",
         mediaPath: clipPaths.get(hasAudio) ?? "",
         hasAudio,
+        hasVideo: true,
         mediaOffsetMs: 0,
         playDurationMs: MEDIA_MS,
         blackTailMs: BLACK_TAIL_MS,
@@ -113,27 +134,61 @@ describe("real FFmpeg black tail", () => {
   );
 });
 
-/** Gives the real process lifecycle cancellable wall-clock deadlines. */
-class NativeTimers implements TimerScheduler {
-  /** Schedules one cancellable callback on the real event loop. */
-  setTimeout(callback: () => void, delayMs: number): ScheduledTask {
-    let active = true;
-    const handle = globalThis.setTimeout(() => {
-      active = false;
-      callback();
-    }, delayMs);
-    return {
-      get active() {
-        return active;
-      },
-      cancel: () => {
-        if (!active) return;
-        active = false;
-        globalThis.clearTimeout(handle);
-      },
-    };
-  }
-}
+describe("real FFmpeg black video", () => {
+  it("emits audio-only media over black video at wall-clock pace", async () => {
+    const packager = createFfmpegSignalPackager({
+      ffmpegPath,
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+      timers: new SystemRuntime(),
+      terminationGraceMs: 5_000,
+      itemReadinessTimeoutMs: 15_000,
+    });
+    const startedAt = performance.now();
+    const session = packager.start({
+      channelId: "69",
+      scheduleEntryId: "entry-audio-only",
+      mediaItemId: "media-audio-only",
+      mediaPath: coverArtPath,
+      hasAudio: true,
+      hasVideo: false,
+      mediaOffsetMs: 0,
+      playDurationMs: AUDIO_ONLY_MS,
+      blackTailMs: 0,
+    });
+    const chunks: Buffer[] = [];
+    let lastArrival = startedAt;
+    session.output.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+      lastArrival = performance.now();
+    });
+
+    await session.ready;
+    await wait(AUDIO_ONLY_MS + 2_000);
+    await session.stop();
+
+    // Generated video is unpaced on its own; the paced audio must hold it.
+    const emittedMs = lastArrival - startedAt;
+    expect(emittedMs).toBeGreaterThan(AUDIO_ONLY_MS - 500);
+    expect(emittedMs).toBeLessThan(AUDIO_ONLY_MS + 1_500);
+
+    const analysis = runFfmpeg(
+      [
+        ...["-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0"],
+        ...["-vf", "blackdetect=d=1:pix_th=0.05"],
+        ...["-af", "silencedetect=d=1", "-f", "null", "-"],
+      ],
+      "FFmpeg could not decode the audio-only capture",
+      Buffer.concat(chunks),
+    );
+    const black = /black_start:([\d.]+) black_end:([\d.]+)/.exec(analysis);
+    expect(black, analysis).not.toBeNull();
+    const [blackStart, blackEnd] = [Number(black?.[1]), Number(black?.[2])];
+    expect(blackStart).toBeLessThan(0.5);
+    expect(blackEnd - blackStart).toBeGreaterThan(AUDIO_ONLY_MS / 1_000 - 0.5);
+    // The tone plays throughout, so no second of silence is detected.
+    expect(analysis).not.toMatch(/silence_start/);
+  }, 45_000);
+});
 
 /**
  * Runs FFmpeg to completion and returns its stderr, where FFmpeg writes its

@@ -1,7 +1,7 @@
 import { assertFollowingCount, type PlayoutEntry } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
-import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
+import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { SequencedPlayoutEntry } from "./contracts.js";
 
@@ -114,6 +114,7 @@ function selectPlayoutEntries(trx: Executor, channelId: string) {
       "media_items.status",
       "media_items.duration_ms",
       "media_items.has_audio",
+      "media_items.has_video",
     ])
     .where("schedule_entries.channel_id", "=", channelId);
 }
@@ -136,8 +137,8 @@ function toPlayoutEntry(row: PlayoutRow): PlayoutEntry {
       path: row.path,
       status: row.status,
       durationMs: row.duration_ms,
-      hasAudio:
-        row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
+      hasAudio: fromNullableSqliteBoolean(row.has_audio),
+      hasVideo: fromNullableSqliteBoolean(row.has_video),
     },
   };
 }

@@ -1,11 +1,9 @@
 import {
   createChannelStreamManager,
   createFfmpegSignalPackager,
-  findMpegTsJoinPoint,
   SystemRuntime,
   type ChannelAuthorization,
   type ChannelAuthorizationResult,
-  type ChannelId,
   type ChannelStreamManagerContract,
   type Clock,
   type CurrentPlayoutResult,
@@ -36,7 +34,7 @@ type FixedPlayoutOptions = Pick<
 export class FixedChannelAuthorization implements ChannelAuthorization {
   /** Keeps unknown IDs out of the production channel runtime. */
   async getChannelAuthorization(
-    channelId: ChannelId,
+    channelId: string,
   ): Promise<ChannelAuthorizationResult> {
     return channelId === CHANNEL_ID
       ? { status: "enabled", channelId }
@@ -51,7 +49,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
 
   /** Resolves the media position viewers should see at this instant. */
   async getCurrent(
-    channelId: ChannelId,
+    channelId: string,
     atMs: number,
   ): Promise<CurrentPlayoutResult> {
     if (channelId !== CHANNEL_ID) {
@@ -95,7 +93,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
 
   /** Supplies exactly the contiguous successor requested by the worker. */
   async getFollowing(
-    channelId: ChannelId,
+    channelId: string,
     afterScheduleEntryId: string,
     count: number,
   ): Promise<FollowingPlayoutResult> {
@@ -117,7 +115,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
   }
 
   /** Exposes the fixed revision used by transition revalidation. */
-  async getScheduleRevision(_channelId: ChannelId): Promise<number> {
+  async getScheduleRevision(_channelId: string): Promise<number> {
     return SCHEDULE_REVISION;
   }
 
@@ -145,6 +143,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
       mediaItemId: isA ? "spike-video-a" : "spike-video-b",
       mediaPath: isA ? this.options.mediaAPath : this.options.mediaBPath,
       hasAudio: true,
+      hasVideo: true,
       title: isA ? "VIDEO A" : "VIDEO B",
       startsAt,
       endsAt: startsAt + this.slotMs(),
@@ -227,11 +226,11 @@ export function createSpikeManager(
     timers: runtime,
     transitionCoordinator: new FixedTransitionCoordinator(provider, runtime),
     idleGraceMs: 5_000,
+    logger,
     prepareLeadMs: 2_000,
     startupTimeoutMs: 2_000,
     subscriberBufferLimitBytes: 4 * 1024 * 1024,
     retentionLimitBytes: 4 * 1024 * 1024,
-    findJoinPoint: findMpegTsJoinPoint,
   });
 }
 

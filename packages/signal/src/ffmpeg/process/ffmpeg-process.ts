@@ -4,6 +4,7 @@ import {
   assertNonNegativeSafeInteger,
   OutputTail,
   STDERR_TAIL_LIMIT_BYTES,
+  summarizeStderr,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -22,10 +23,11 @@ type FfmpegProcessOptions = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  ffmpegPath?: string;
+  ffmpegPath: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
-  isSuccessfulExitExpected: () => boolean;
+  /** Values, such as the media path, replaced before stderr reaches a log. */
+  redactions?: readonly string[];
 };
 
 /** Owns one FFmpeg child until normal closure or verified termination. */
@@ -43,7 +45,7 @@ export class FfmpegProcess {
     private readonly logger: SignalLogger,
     private readonly terminationGraceMs: number,
     private readonly diagnosticContext: LogContext,
-    private readonly isSuccessfulExitExpected: () => boolean,
+    private readonly redactions: readonly string[],
   ) {
     this.output = child.stdout;
     child.stderr.on("data", (chunk: Buffer | Uint8Array | string) => {
@@ -58,18 +60,20 @@ export class FfmpegProcess {
       options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
     assertNonNegativeSafeInteger(terminationGraceMs, "terminationGraceMs");
 
-    const command = options.ffmpegPath || "ffmpeg";
     const context = options.diagnosticContext ?? {};
 
     try {
-      const child = options.spawner.spawn({ command, args: options.args });
+      const child = options.spawner.spawn({
+        command: options.ffmpegPath,
+        args: options.args,
+      });
       return new FfmpegProcess(
         child,
         options.timers,
         options.logger,
         terminationGraceMs,
         context,
-        options.isSuccessfulExitExpected,
+        options.redactions ?? [],
       );
     } catch (cause) {
       throw logged(
@@ -82,11 +86,6 @@ export class FfmpegProcess {
         ),
       );
     }
-  }
-
-  /** Returns a defensive copy for deliberate redaction or classified logging. */
-  get stderrTail(): Buffer {
-    return this.stderr.bytes();
   }
 
   /** Shares active termination, retains success, and releases failure for retry. */
@@ -112,15 +111,7 @@ export class FfmpegProcess {
     }
 
     if (this.stopRequested) return;
-    if (exit.code === 0 && exit.signal === null) {
-      if (this.isSuccessfulExitExpected()) return;
-
-      throw this.fail(
-        "packaging_failed",
-        "FFmpeg exited before completion was expected",
-        this.failureDetails(exit, { reason: "premature_exit" }),
-      );
-    }
+    if (exit.code === 0 && exit.signal === null) return;
 
     throw this.fail(
       "packaging_failed",
@@ -164,18 +155,20 @@ export class FfmpegProcess {
     );
   }
 
-  /** Builds bounded context without exposing the executable argument list. */
-  private failureDetails(
-    exit?: ProcessExit,
-    additionalContext: LogContext = {},
-  ): LogContext {
+  /**
+   * Builds bounded context without exposing the executable argument list.
+   * FFmpeg states why it failed on its last stderr line, so that line is
+   * carried with every redacted value replaced.
+   */
+  private failureDetails(exit?: ProcessExit): LogContext {
+    const stderrSummary = summarizeStderr(this.stderr.bytes(), this.redactions);
     return {
       ...this.diagnosticContext,
       ...(exit === undefined
         ? {}
         : { exitCode: exit.code, signal: exit.signal }),
-      ...additionalContext,
       stderrTailBytes: this.stderr.byteLength,
+      ...(stderrSummary === undefined ? {} : { stderrSummary }),
     };
   }
 }

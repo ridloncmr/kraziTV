@@ -11,7 +11,11 @@ export type Discover = (
 ) => Promise<DiscoveredMediaFile[]>;
 
 /** A successful probe result for any file; tests vary the files, not the metadata. */
-export const PROBE_RESULT = { durationMs: 2_000, hasAudio: true };
+export const PROBE_RESULT = {
+  durationMs: 2_000,
+  hasAudio: true,
+  hasVideo: true,
+};
 
 /** Builds discovery output for files directly under the fixture root, in the order given. */
 export function discoveredFiles(...names: string[]): DiscoveredMediaFile[] {
