@@ -13,6 +13,7 @@ const ffprobePath = process.env.FFPROBE_PATH || "ffprobe";
 let fixtureDirectory: string;
 let toneClipPath: string;
 let silentClipPath: string;
+let coverArtClipPath: string;
 
 beforeAll(async () => {
   requireExecutable("ffmpeg", ffmpegPath, "FFMPEG_PATH");
@@ -42,6 +43,16 @@ beforeAll(async () => {
     ...["-f", "lavfi", "-i", "color=c=red:s=64x64:r=30000/1001"],
     ...["-frames:v", "75", "-c:v", "mpeg4", silentClipPath],
   ]);
+
+  // An audio file whose only picture is one frame of cover art. MP4 marks it
+  // with the attached_pic disposition; Matroska would store an attachment.
+  coverArtClipPath = join(fixtureDirectory, "tone-with-cover.mp4");
+  generateClip([
+    ...["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2"],
+    ...["-f", "lavfi", "-i", "color=c=red:s=64x64:r=25:d=0.04"],
+    ...["-map", "0:a:0", "-map", "1:v:0", "-c:a", "aac", "-c:v", "mjpeg"],
+    ...["-disposition:v:0", "attached_pic", coverArtClipPath],
+  ]);
   // Four cold process launches can be slow while Windows Defender scans them.
 }, 30_000);
 
@@ -64,6 +75,7 @@ describe(
       await expect(prober().probe(toneClipPath)).resolves.toEqual({
         durationMs: 2_501,
         hasAudio: true,
+        hasVideo: true,
       });
     });
 
@@ -71,7 +83,16 @@ describe(
       await expect(prober().probe(silentClipPath)).resolves.toEqual({
         durationMs: 2_503,
         hasAudio: false,
+        hasVideo: true,
       });
+    });
+
+    it("reports no video for audio whose only picture is cover art", async () => {
+      const result = await prober().probe(coverArtClipPath);
+
+      expect(result).toMatchObject({ hasAudio: true, hasVideo: false });
+      // AAC framing can shift the container duration by a few milliseconds.
+      expect(Math.abs(result.durationMs - 2_000)).toBeLessThan(50);
     });
   },
 );

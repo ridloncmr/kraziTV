@@ -10,7 +10,7 @@ describe("buildFfprobeArguments", () => {
       "-print_format",
       "json",
       "-show_entries",
-      "format=duration:stream=codec_type",
+      "format=duration:stream=codec_type:stream_disposition=attached_pic",
       "-i",
       "/media/show.mkv",
     ]);

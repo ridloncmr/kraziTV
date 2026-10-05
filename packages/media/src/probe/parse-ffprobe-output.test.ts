@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MediaProbeError } from "./media-probe-error.js";
 import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
-// Builds ffprobe JSON shaped like `-show_entries format=duration:stream=codec_type`.
+// Builds ffprobe JSON shaped like
+// `-show_entries format=duration:stream=codec_type:stream_disposition=attached_pic`.
 function ffprobeJson(duration: unknown, codecTypes: string[] = ["video"]) {
   return JSON.stringify({
     streams: codecTypes.map((codec_type) => ({ codec_type })),
@@ -27,6 +28,7 @@ describe("parseFfprobeOutput", () => {
     expect(parseFfprobeOutput(ffprobeJson("1320.042000"))).toEqual({
       durationMs: 1_320_042,
       hasAudio: false,
+      hasVideo: true,
     });
   });
 
@@ -61,6 +63,33 @@ describe("parseFfprobeOutput", () => {
     expect(parseFfprobeOutput(noStreams).hasAudio).toBe(false);
   });
 
+  it("reports no video for audio-only media", () => {
+    expect(parseFfprobeOutput(ffprobeJson("5", ["audio"])).hasVideo).toBe(
+      false,
+    );
+    const noStreams = JSON.stringify({ format: { duration: "5" } });
+    expect(parseFfprobeOutput(noStreams).hasVideo).toBe(false);
+  });
+
+  // Audio files carry cover art as a one-frame video stream; packaging it
+  // would freeze the picture instead of showing black.
+  it("ignores attached cover art when detecting video", () => {
+    const coverArtOnly = JSON.stringify({
+      streams: [
+        { codec_type: "audio", disposition: { attached_pic: 0 } },
+        { codec_type: "video", disposition: { attached_pic: 1 } },
+      ],
+      format: { duration: "5" },
+    });
+    expect(parseFfprobeOutput(coverArtOnly).hasVideo).toBe(false);
+
+    const realVideo = JSON.stringify({
+      streams: [{ codec_type: "video", disposition: { attached_pic: 0 } }],
+      format: { duration: "5" },
+    });
+    expect(parseFfprobeOutput(realVideo).hasVideo).toBe(true);
+  });
+
   it("exposes only normalized fields, never raw ffprobe JSON", () => {
     const stdout = JSON.stringify({
       streams: [{ codec_type: "audio", codec_name: "aac" }],
@@ -69,6 +98,7 @@ describe("parseFfprobeOutput", () => {
     expect(Object.keys(parseFfprobeOutput(stdout)).sort()).toEqual([
       "durationMs",
       "hasAudio",
+      "hasVideo",
     ]);
   });
 

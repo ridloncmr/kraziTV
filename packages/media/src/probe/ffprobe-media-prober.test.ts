@@ -92,6 +92,7 @@ describe("FfprobeMediaProber", () => {
       await expect(probe).resolves.toEqual({
         durationMs: 1_320_042,
         hasAudio: true,
+        hasVideo: true,
       });
     });
 
