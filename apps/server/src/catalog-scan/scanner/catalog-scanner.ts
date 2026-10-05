@@ -68,18 +68,14 @@ export class CatalogScanner {
 
   /** Scans one root, rejecting disabled roots and overlapping scans of the same root. */
   async scan(rootId: string, options: ScanOptions = {}): Promise<ScanResult> {
-    const found = await this.#roots.findById(rootId);
-    if (this.#closing) {
-      return { kind: "cancelled" };
-    }
-    const admission = admitRoot(found);
+    const admission = this.#refuseScan(
+      rootId,
+      await this.#roots.findById(rootId),
+    );
     if (admission.kind !== "admitted") {
       return admission;
     }
     const { root } = admission;
-    if (this.#active.has(rootId)) {
-      return { kind: "scan_in_progress" };
-    }
 
     // Registered synchronously after the check so two requests cannot both pass it.
     const controller = new AbortController();
@@ -107,6 +103,22 @@ export class CatalogScanner {
       scan.controller.abort();
     }
     await Promise.allSettled(scans.map((scan) => scan.done));
+  }
+
+  /**
+   * Returns the first reason this scan may not start, or the admitted root.
+   * Runs after the root lookup's await, so a shutdown that began meanwhile
+   * still wins, and synchronously before registration.
+   */
+  #refuseScan(
+    rootId: string,
+    found: MediaRoot | undefined,
+  ): { kind: "admitted"; root: MediaRoot } | ScanResult {
+    if (this.#closing) return { kind: "cancelled" };
+    const admission = admitRoot(found);
+    if (admission.kind !== "admitted") return admission;
+    if (this.#active.has(rootId)) return { kind: "scan_in_progress" };
+    return admission;
   }
 
   // Runs every stage in order; each stage observes the same cancellation signal.
