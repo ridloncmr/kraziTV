@@ -195,18 +195,6 @@ describe("SignalPlayoutAdapter.getFollowing", () => {
   });
 });
 
-describe("SignalPlayoutAdapter.getScheduleRevision", () => {
-  it("reads the channel's current schedule revision", async () => {
-    const { db, channelId, adapter } = await setup();
-    await adapter.getCurrent(channelId, T0);
-
-    const { schedule_revision } = await readOnlyScheduleState(db);
-    await expect(adapter.getScheduleRevision(channelId)).resolves.toBe(
-      schedule_revision,
-    );
-  });
-});
-
 describe("SignalPlayoutAdapter.getChannelAuthorization", () => {
   it("authorizes an enabled channel", async () => {
     const { channelId, adapter } = await setup();

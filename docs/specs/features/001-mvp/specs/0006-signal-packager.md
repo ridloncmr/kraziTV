@@ -464,7 +464,6 @@ interface PlayoutProvider {
     afterScheduleEntryId: ScheduleEntryId,
     count: number,
   ): Promise<PlayoutSelection>;
-  getScheduleRevision(channelId: ChannelId): Promise<number>;
 }
 
 interface PlayoutSelection {
@@ -482,9 +481,9 @@ schedule, channel, and catalog rows afterward through one connection-pinned
 Kysely read transaction. The adapter returns only the completed domain result;
 the worker cannot combine a revision from one call with items from another.
 
-`getScheduleRevision()` is the narrow revalidation read used inside the
-separately specified transition coordination boundary. It does not replace the
-snapshot guarantee for current or following selection.
+The provider has no separate revision read. The TransitionCoordinator
+revalidates a candidate's schedule revision itself, under write authority,
+inside the transition coordination boundary.
 
 For the MVP, `afterScheduleEntryId` is the continuation cursor because each
 program playout item maps one-to-one to a persisted schedule entry. The provider

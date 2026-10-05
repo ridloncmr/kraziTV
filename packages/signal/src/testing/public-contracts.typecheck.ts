@@ -38,9 +38,6 @@ const playoutAdapter = {
       items: [],
     };
   },
-  async getScheduleRevision() {
-    return 1;
-  },
 } satisfies PlayoutProvider;
 
 const transitionAdapter = {

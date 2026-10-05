@@ -10,8 +10,6 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleLog } from "../schedules/contracts.js";
-import { scheduleRevisionOrZero } from "../schedules/schedule-coverage.js";
-import { loadScheduleState } from "../schedules/schedule-repository.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type {
   CoverageRequirement,
@@ -146,16 +144,6 @@ export class PlayoutService {
         entries: await listPlayoutEntriesInWindow(trx, channelId, start, end),
       }),
     }));
-  }
-
-  /**
-   * Reads the channel's schedule revision in one query, already atomic.
-   * Returns 0 for a channel with no schedule state, including an unknown one,
-   * because revisions start at 1.
-   */
-  async getScheduleRevision(channelId: string): Promise<number> {
-    const state = await loadScheduleState(this.#db, channelId);
-    return scheduleRevisionOrZero(state);
   }
 
   /**

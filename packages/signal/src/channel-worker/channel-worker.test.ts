@@ -62,11 +62,6 @@ class DeferredFirstPlayoutProvider implements PlayoutProvider {
   async getFollowing(): Promise<never> {
     throw new Error("Unexpected following lookup");
   }
-
-  /** Revision lookup is not needed because current results are atomic. */
-  async getScheduleRevision(): Promise<never> {
-    throw new Error("Unexpected revision lookup");
-  }
 }
 
 class SequencePlayoutProvider implements PlayoutProvider {
@@ -92,11 +87,6 @@ class SequencePlayoutProvider implements PlayoutProvider {
     _count: number,
   ): Promise<FollowingPlayoutResult> {
     throw new Error("Unexpected following lookup");
-  }
-
-  /** Revision lookup is not needed because current results are atomic. */
-  async getScheduleRevision(_channelId: ChannelId): Promise<number> {
-    throw new Error("Unexpected revision lookup");
   }
 }
 

@@ -36,7 +36,6 @@ describe("FakePlayoutProvider", () => {
     const provider = new FakePlayoutProvider();
     provider.enqueueCurrent(currentResult);
     provider.enqueueFollowing(followingResult);
-    provider.setScheduleRevision("comedy", 4);
 
     await expect(provider.getCurrent("comedy", 1_000)).resolves.toBe(
       currentResult,
@@ -44,7 +43,6 @@ describe("FakePlayoutProvider", () => {
     await expect(provider.getFollowing("comedy", "entry-1", 2)).resolves.toBe(
       followingResult,
     );
-    await expect(provider.getScheduleRevision("comedy")).resolves.toBe(4);
 
     expect(provider.currentCalls).toEqual([
       { channelId: "comedy", atMs: 1_000 },

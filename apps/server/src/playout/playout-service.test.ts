@@ -418,24 +418,3 @@ describe("PlayoutService.getTimeline", () => {
     ).resolves.toEqual({ kind: "not_found" });
   });
 });
-
-describe("PlayoutService.getScheduleRevision", () => {
-  it("returns 0 for a channel with no schedule state, including an unknown one", async () => {
-    const { channelId, playout } = await setup();
-
-    await expect(playout.getScheduleRevision(channelId)).resolves.toBe(0);
-    await expect(playout.getScheduleRevision("channel-missing")).resolves.toBe(
-      0,
-    );
-  });
-
-  it("returns the channel's current revision", async () => {
-    const { db, channelId, playout, log } = await setup();
-    await playout.getCurrent(channelId, T0, log);
-
-    const { schedule_revision } = await readOnlyScheduleState(db);
-    await expect(playout.getScheduleRevision(channelId)).resolves.toBe(
-      schedule_revision,
-    );
-  });
-});

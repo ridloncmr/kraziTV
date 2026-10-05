@@ -63,5 +63,4 @@ export interface PlayoutProvider {
     afterScheduleEntryId: ScheduleEntryId,
     count: number,
   ): Promise<FollowingPlayoutResult>;
-  getScheduleRevision(channelId: ChannelId): Promise<number>;
 }
