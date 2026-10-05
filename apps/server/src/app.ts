@@ -95,7 +95,12 @@ function registerRoutes(
   );
   registerScheduleRoutes(server, dependencies.schedules);
   registerPlayoutRoutes(server, dependencies.playout);
-  registerPlexRoutes(server, dependencies.channels, plex);
+  registerPlexRoutes(
+    server,
+    dependencies.channels,
+    dependencies.schedules,
+    plex,
+  );
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */

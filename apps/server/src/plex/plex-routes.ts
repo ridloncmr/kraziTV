@@ -1,3 +1,4 @@
+import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import {
   formatDeviceXml,
   formatDiscovery,
@@ -9,6 +10,7 @@ import type { FastifyInstance } from "fastify";
 
 import type { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
+import type { ScheduleService } from "../schedules/schedule-service.js";
 
 const LINEUP_PATH = "/lineup.json";
 const XML_CONTENT_TYPE = "application/xml; charset=utf-8";
@@ -21,13 +23,14 @@ export type PlexSettings = {
 };
 
 /**
- * Registers the HDHomeRun-compatible routes Plex reads. They only format
- * what channels already hold; tuning happens at the provider-neutral stream
- * route the lineup links to.
+ * Registers the HDHomeRun-compatible and XMLTV routes Plex reads. They only
+ * format what channels and schedules already hold; tuning happens at the
+ * provider-neutral stream route the lineup links to.
  */
 export function registerPlexRoutes(
   server: FastifyInstance,
   channels: ChannelRepository,
+  schedules: ScheduleService,
   settings: PlexSettings,
 ): void {
   const { publicBaseUrl, deviceId, tunerCount } = settings;
@@ -58,17 +61,29 @@ export function registerPlexRoutes(
     reply.type(XML_CONTENT_TYPE).send(formatDeviceXml(deviceId)),
   );
 
-  server.get("/plex/xmltv.xml", async (_request, reply) => {
-    const guide = await listEnabledChannels(channels);
-    return reply.type(XML_CONTENT_TYPE).send(
-      formatXmltv(
-        guide.map((channel) => ({
-          id: channel.id,
-          number: channel.number,
-          name: channel.name,
+  // A busy schedule writer propagates to the shared schedule_busy 503 handler.
+  server.get("/plex/xmltv.xml", async (request, reply) => {
+    const start = schedules.now();
+    const end = start + SCHEDULE_HORIZON_MS;
+    const guide = [];
+    // One channel at a time, so coverage writes never queue for write authority.
+    for (const channel of await listEnabledChannels(channels)) {
+      // Any outcome still reads the window: an unschedulable channel keeps
+      // listing entries generated before it became unschedulable.
+      await schedules.ensureCoverage(channel.id, request.log);
+      const { entries } = await schedules.readWindow(channel.id, start, end);
+      guide.push({
+        id: channel.id,
+        number: channel.number,
+        name: channel.name,
+        programmes: entries.map((entry) => ({
+          startsAt: entry.startsAt,
+          endsAt: entry.endsAt,
+          title: entry.title,
         })),
-      ),
-    );
+      });
+    }
+    return reply.type(XML_CONTENT_TYPE).send(formatXmltv(guide));
   });
 }
 
