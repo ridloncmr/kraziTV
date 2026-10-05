@@ -24,14 +24,8 @@ export type SubscriptionWaiter = {
 export function createWaiter(
   signal: AbortSignal | undefined,
 ): SubscriptionWaiter {
-  let resolve!: (subscription: ChannelSubscription) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<ChannelSubscription>(
-    (resolvePromise, rejectPromise) => {
-      resolve = resolvePromise;
-      reject = rejectPromise;
-    },
-  );
+  const { promise, resolve, reject } =
+    Promise.withResolvers<ChannelSubscription>();
   return {
     signal,
     promise,
@@ -45,11 +39,8 @@ export function createWaiter(
 
 /** Creates a first-error-wins gate that an awaiting transition can race against. */
 export function createInterruption(): Interruption {
-  let resolve!: (error: SignalError) => void;
+  const { promise, resolve } = Promise.withResolvers<SignalError>();
   let error: SignalError | undefined;
-  const promise = new Promise<SignalError>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
   return {
     promise,
     /** The first interruption, so a transition can check it without awaiting. */

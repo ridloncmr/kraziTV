@@ -11,7 +11,9 @@ export class ChannelBroadcastSubscription implements ChannelSubscription {
   readonly closed: Promise<BroadcastSubscriptionCloseReason>;
 
   private readonly queue: PassThrough;
-  private resolveClosed!: (reason: BroadcastSubscriptionCloseReason) => void;
+  private readonly resolveClosed: (
+    reason: BroadcastSubscriptionCloseReason,
+  ) => void;
   private closeReason?: BroadcastSubscriptionCloseReason;
 
   /** Creates an isolated queue so this viewer cannot block its peers. */
@@ -26,9 +28,9 @@ export class ChannelBroadcastSubscription implements ChannelSubscription {
       writableHighWaterMark: bufferLimitBytes,
     });
     this.stream = this.queue;
-    this.closed = new Promise((resolve) => {
-      this.resolveClosed = resolve;
-    });
+    const closed = Promise.withResolvers<BroadcastSubscriptionCloseReason>();
+    this.closed = closed.promise;
+    this.resolveClosed = closed.resolve;
     this.queue.once("close", () => this.finish("closed", false));
   }
 

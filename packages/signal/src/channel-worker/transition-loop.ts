@@ -291,10 +291,9 @@ export class TransitionLoop {
 
     const pending = operation();
     let task: ScheduledTask | undefined;
-    let settleEarly!: (reason: "expired" | "halted") => void;
-    const early = new Promise<"expired" | "halted">((resolve) => {
-      settleEarly = resolve;
-    });
+    const { promise: early, resolve: settleEarly } = Promise.withResolvers<
+      "expired" | "halted"
+    >();
     const arm = (): void => {
       task = this.options.timers.setTimeout(() => {
         if (this.options.clock.now() < deadlineAt) arm();

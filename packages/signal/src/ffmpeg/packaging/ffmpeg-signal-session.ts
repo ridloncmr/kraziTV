@@ -33,10 +33,10 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   private readonly sessionOutput = new PassThrough();
   private readonly processes = new Set<FfmpegProcess>();
   private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
-  private resolveReady!: () => void;
-  private rejectReady!: (reason: unknown) => void;
-  private resolveCompletion!: () => void;
-  private rejectCompletion!: (reason: unknown) => void;
+  private readonly resolveReady: () => void;
+  private readonly rejectReady: (reason: unknown) => void;
+  private readonly resolveCompletion: () => void;
+  private readonly rejectCompletion: (reason: unknown) => void;
   private readySettled = false;
   private completionSettled = false;
   private stopping = false;
@@ -57,14 +57,14 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     private readonly logger: SignalLogger,
   ) {
     this.output = this.sessionOutput;
-    this.ready = new Promise<void>((resolve, reject) => {
-      this.resolveReady = resolve;
-      this.rejectReady = reject;
-    });
-    this.completion = new Promise<void>((resolve, reject) => {
-      this.resolveCompletion = resolve;
-      this.rejectCompletion = reject;
-    });
+    const ready = Promise.withResolvers<void>();
+    this.ready = ready.promise;
+    this.resolveReady = ready.resolve;
+    this.rejectReady = ready.reject;
+    const completion = Promise.withResolvers<void>();
+    this.completion = completion.promise;
+    this.resolveCompletion = completion.resolve;
+    this.rejectCompletion = completion.reject;
     void this.ready.catch(() => undefined);
     void this.completion.catch(() => undefined);
     this.active = this.attach(process, initialItem, "initial");

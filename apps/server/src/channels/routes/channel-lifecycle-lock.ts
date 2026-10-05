@@ -13,8 +13,7 @@ export class ChannelLifecycleLock {
    */
   async acquire(channelId: string): Promise<() => void> {
     const previous = this.#tails.get(channelId) ?? Promise.resolve();
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => (release = resolve));
+    const { promise: held, resolve: release } = Promise.withResolvers<void>();
     const tail = previous.then(() => held);
     this.#tails.set(channelId, tail);
     await previous;

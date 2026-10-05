@@ -281,10 +281,7 @@ function waitForJoinableOutput(
   output: Readable,
   broadcaster: ChannelBroadcaster,
 ): JoinableOutputWaiter {
-  let resolve!: () => void;
-  const promise = new Promise<void>((settle) => {
-    resolve = settle;
-  });
+  const { promise, resolve } = Promise.withResolvers<void>();
   const inspect = (): void => {
     if (broadcaster.hasJoinableInitialization) resolve();
   };
