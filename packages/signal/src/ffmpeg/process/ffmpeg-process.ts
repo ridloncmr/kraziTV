@@ -25,7 +25,6 @@ type FfmpegProcessOptions = {
   ffmpegPath?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
-  isSuccessfulExitExpected: () => boolean;
 };
 
 /** Owns one FFmpeg child until normal closure or verified termination. */
@@ -43,7 +42,6 @@ export class FfmpegProcess {
     private readonly logger: SignalLogger,
     private readonly terminationGraceMs: number,
     private readonly diagnosticContext: LogContext,
-    private readonly isSuccessfulExitExpected: () => boolean,
   ) {
     this.output = child.stdout;
     child.stderr.on("data", (chunk: Buffer | Uint8Array | string) => {
@@ -69,7 +67,6 @@ export class FfmpegProcess {
         options.logger,
         terminationGraceMs,
         context,
-        options.isSuccessfulExitExpected,
       );
     } catch (cause) {
       throw logged(
@@ -82,11 +79,6 @@ export class FfmpegProcess {
         ),
       );
     }
-  }
-
-  /** Returns a defensive copy for deliberate redaction or classified logging. */
-  get stderrTail(): Buffer {
-    return this.stderr.bytes();
   }
 
   /** Shares active termination, retains success, and releases failure for retry. */
@@ -112,15 +104,7 @@ export class FfmpegProcess {
     }
 
     if (this.stopRequested) return;
-    if (exit.code === 0 && exit.signal === null) {
-      if (this.isSuccessfulExitExpected()) return;
-
-      throw this.fail(
-        "packaging_failed",
-        "FFmpeg exited before completion was expected",
-        this.failureDetails(exit, { reason: "premature_exit" }),
-      );
-    }
+    if (exit.code === 0 && exit.signal === null) return;
 
     throw this.fail(
       "packaging_failed",
@@ -165,16 +149,12 @@ export class FfmpegProcess {
   }
 
   /** Builds bounded context without exposing the executable argument list. */
-  private failureDetails(
-    exit?: ProcessExit,
-    additionalContext: LogContext = {},
-  ): LogContext {
+  private failureDetails(exit?: ProcessExit): LogContext {
     return {
       ...this.diagnosticContext,
       ...(exit === undefined
         ? {}
         : { exitCode: exit.code, signal: exit.signal }),
-      ...additionalContext,
       stderrTailBytes: this.stderr.byteLength,
     };
   }

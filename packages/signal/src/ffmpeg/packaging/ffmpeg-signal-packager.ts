@@ -72,7 +72,6 @@ export class FfmpegSignalPackager implements SignalPackager {
       ffmpegPath: this.dependencies.ffmpegPath,
       terminationGraceMs: this.dependencies.terminationGraceMs,
       diagnosticContext: itemContext(item),
-      isSuccessfulExitExpected: () => true,
     });
     this.dependencies.logger.info("ffmpeg_process_started", itemContext(item));
     return process;
