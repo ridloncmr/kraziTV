@@ -47,6 +47,18 @@
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
+      "rule": "grouping",
+      "files": ["apps/server/src/config/"],
+      "reason": "Every file parses startup environment settings, one capability, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/channels/runtime/"],
+      "reason": "Every file connects the server to the signal runtime (stream manager setup, playout adapter, mapping, transition coordinator, log adapter), one capability, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
       "rule": "file-size",
       "files": [
         "packages/signal/src/channel-stream-manager/channel-stream-manager.ts"
