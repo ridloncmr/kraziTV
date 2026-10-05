@@ -1,7 +1,7 @@
 // Reads XMLTV guide output for route and acceptance tests only; production code must never import this module.
 
 /** One `<programme>` as a test compares it with schedule entries. */
-export interface GuideProgramme {
+export interface XmltvProgrammeElement {
   start: string;
   stop: string;
   channel: string;
@@ -12,7 +12,7 @@ const PROGRAMME =
   /<programme start="([^"]*)" stop="([^"]*)" channel="([^"]*)">\s*<title>([^<]*)<\/title>/g;
 
 /** Extracts every programme in document order, leaving values exactly as emitted. */
-export function readGuideProgrammes(xml: string): GuideProgramme[] {
+export function readGuideProgrammes(xml: string): XmltvProgrammeElement[] {
   return [...xml.matchAll(PROGRAMME)].map(
     ([, start = "", stop = "", channel = "", title = ""]) => ({
       start,
