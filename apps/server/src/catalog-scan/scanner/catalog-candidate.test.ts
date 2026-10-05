@@ -19,7 +19,7 @@ describe("createCatalogCandidate", () => {
       createCatalogCandidate(FILE, {
         kind: "probed",
         probedAt: 5,
-        result: { durationMs: 1_500, hasAudio: true },
+        result: { durationMs: 1_500, hasAudio: true, hasVideo: false },
       }),
     ).toEqual({
       ...FILE,
@@ -27,6 +27,7 @@ describe("createCatalogCandidate", () => {
       status: "available",
       durationMs: 1_500,
       hasAudio: true,
+      hasVideo: false,
     });
   });
 
@@ -56,6 +57,7 @@ describe("validateCatalogCandidate", () => {
     status: "available",
     durationMs: 1,
     hasAudio: false,
+    hasVideo: true,
   };
 
   it("accepts a candidate that satisfies the catalog invariants", () => {

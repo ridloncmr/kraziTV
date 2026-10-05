@@ -73,6 +73,7 @@ function toMediaItem(row: Selectable<MediaItemTable>): MediaItem {
     title: row.title,
     durationMs: row.duration_ms,
     hasAudio: row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
+    hasVideo: row.has_video === null ? null : fromSqliteBoolean(row.has_video),
     status: row.status,
     probeError: row.probe_error,
     createdAt: row.created_at,

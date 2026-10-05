@@ -5,7 +5,9 @@ import {
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
+  titledItemFixture,
 } from "../../testing/catalog-fixtures.js";
+import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { CatalogCandidate } from "../contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import {
@@ -42,6 +44,7 @@ function available(
     status: "available",
     durationMs: 1_234,
     hasAudio: false,
+    hasVideo: true,
     ...overrides,
   } as CatalogCandidate;
 }
@@ -81,7 +84,11 @@ describe("CatalogScanWriter", () => {
       rootId: rootFixture.id,
       scannedAt: SCANNED_AT,
       candidates: [
-        available("example", { durationMs: 7_300_000, hasAudio: false }),
+        available("example", {
+          durationMs: 7_300_000,
+          hasAudio: false,
+          hasVideo: false,
+        }),
         available("new-film"),
         failed("broken"),
       ],
@@ -98,6 +105,7 @@ describe("CatalogScanWriter", () => {
         title: "broken",
         duration_ms: null,
         has_audio: null,
+        has_video: null,
         status: "probe_failed",
         probe_error: "ffprobe timed out",
         created_at: SCANNED_AT,
@@ -110,6 +118,7 @@ describe("CatalogScanWriter", () => {
         title: "example",
         duration_ms: 7_300_000,
         has_audio: 0,
+        has_video: 0,
         updated_at: SCANNED_AT,
         last_seen_at: SCANNED_AT,
         last_probed_at: PROBED_AT,
@@ -122,6 +131,7 @@ describe("CatalogScanWriter", () => {
         title: "new-film",
         duration_ms: 1_234,
         has_audio: 0,
+        has_video: 1,
         status: "available",
         probe_error: null,
         created_at: SCANNED_AT,
@@ -196,6 +206,33 @@ describe("CatalogScanWriter", () => {
         updated_at: SCANNED_AT,
       },
     ]);
+  });
+
+  // An unmounted network share leaves an empty mount point, so a whole large
+  // library can go missing in one scan.
+  it("marks more items missing at once than SQLite binds parameters in one statement", async () => {
+    const { db, writer } = await setup();
+    const count = 33_000;
+    const rows = Array.from({ length: count }, (_, index) =>
+      titledItemFixture(`bulk-${String(index).padStart(5, "0")}`),
+    );
+    for (const chunk of parameterChunks(rows)) {
+      await db.insertInto("media_items").values(chunk).execute();
+    }
+
+    const result = await writer.commit({
+      rootId: rootFixture.id,
+      scannedAt: SCANNED_AT,
+      candidates: [],
+    });
+
+    expect(result).toEqual({ kind: "committed", missingCount: count + 1 });
+    const { remaining } = await db
+      .selectFrom("media_items")
+      .select((eb) => eb.fn.countAll<number>().as("remaining"))
+      .where("status", "!=", "missing")
+      .executeTakeFirstOrThrow();
+    expect(remaining).toBe(0);
   });
 
   it("restores a rediscovered missing item from its new probe result", async () => {

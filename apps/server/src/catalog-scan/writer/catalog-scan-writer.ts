@@ -7,8 +7,9 @@ import {
   toSqliteBoolean,
 } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
-import type { CatalogCandidate } from "../contracts.js";
+import type { CatalogCandidate, RootRejection } from "../contracts.js";
 import { admitRoot } from "../root-admission.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
@@ -22,8 +23,7 @@ interface CatalogGeneration {
 
 type CommitGenerationResult =
   | { kind: "committed"; missingCount: number }
-  | { kind: "root_not_found" }
-  | { kind: "root_disabled" }
+  | RootRejection
   | { kind: "cancelled" };
 
 /**
@@ -108,11 +108,11 @@ export class CatalogScanWriter {
     const newlyMissing = [...existingByKey.values()]
       .filter((item) => item.status !== "missing")
       .map((item) => item.id);
-    if (newlyMissing.length > 0) {
+    for (const chunk of parameterChunks(newlyMissing)) {
       await trx
         .updateTable("media_items")
         .set({ status: "missing", updated_at: scannedAt })
-        .where("id", "in", newlyMissing)
+        .where("id", "in", chunk)
         .execute();
     }
     return newlyMissing.length;
@@ -136,6 +136,7 @@ export class CatalogScanWriter {
         title: candidate.title,
         duration_ms: probed ? candidate.durationMs : null,
         has_audio: probed ? toSqliteBoolean(candidate.hasAudio) : null,
+        has_video: probed ? toSqliteBoolean(candidate.hasVideo) : null,
         status: candidate.status,
         probe_error: probed ? null : candidate.probeError,
         created_at: scannedAt,
@@ -159,6 +160,7 @@ async function update(
       ? {
           duration_ms: candidate.durationMs,
           has_audio: toSqliteBoolean(candidate.hasAudio),
+          has_video: toSqliteBoolean(candidate.hasVideo),
           probe_error: null,
         }
       : { probe_error: candidate.probeError };

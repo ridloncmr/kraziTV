@@ -28,6 +28,7 @@ export function createCatalogCandidate(
       status: "available",
       durationMs: outcome.result.durationMs,
       hasAudio: outcome.result.hasAudio,
+      hasVideo: outcome.result.hasVideo,
     };
   }
   // The code prefix keeps failure kinds, such as timeouts, distinguishable.

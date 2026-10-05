@@ -108,9 +108,9 @@ describe("media catalog acceptance", () => {
     const rootId: string = created.json().id;
 
     const firstScan = await scan(first, rootId, {
-      "Alpha.mkv": { durationMs: 1_000, hasAudio: true },
-      "Bravo.mp4": { durationMs: 2_000, hasAudio: false },
-      "Charlie.mkv": { durationMs: 3_000, hasAudio: true },
+      "Alpha.mkv": { durationMs: 1_000, hasAudio: true, hasVideo: true },
+      "Bravo.mp4": { durationMs: 2_000, hasAudio: false, hasVideo: true },
+      "Charlie.mkv": { durationMs: 3_000, hasAudio: true, hasVideo: false },
     });
     expect(firstScan.statusCode).toBe(200);
     expect(firstScan.json()).toMatchObject({
@@ -128,6 +128,7 @@ describe("media catalog acceptance", () => {
         title: "Alpha",
         durationMs: 1_000,
         hasAudio: true,
+        hasVideo: true,
         status: "available",
       }),
       expect.objectContaining({
@@ -140,6 +141,7 @@ describe("media catalog acceptance", () => {
         title: "Charlie",
         durationMs: 3_000,
         hasAudio: true,
+        hasVideo: false,
         status: "available",
       }),
     ]);
@@ -153,7 +155,7 @@ describe("media catalog acceptance", () => {
     // both keep their last known metadata; the healthy file picks up new metadata.
     await rm(join(mediaDirectory, "Charlie.mkv"));
     const rescan = await scan(second, rootId, {
-      "Alpha.mkv": { durationMs: 1_500, hasAudio: true },
+      "Alpha.mkv": { durationMs: 1_500, hasAudio: true, hasVideo: true },
       "Bravo.mp4": new MediaProbeError("timed_out", "ffprobe timed out"),
     });
     expect(rescan.statusCode).toBe(200);

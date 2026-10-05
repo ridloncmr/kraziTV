@@ -36,6 +36,11 @@ interface CandidateIdentity {
  */
 export type CatalogCandidate = CandidateIdentity &
   (
-    | { status: "available"; durationMs: number; hasAudio: boolean }
+    | {
+        status: "available";
+        durationMs: number;
+        hasAudio: boolean;
+        hasVideo: boolean;
+      }
     | { status: "probe_failed"; probeError: string }
   );

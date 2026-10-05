@@ -40,6 +40,7 @@ function toApiMediaItem(item: MediaItem) {
     title: item.title,
     durationMs: item.durationMs,
     hasAudio: item.hasAudio,
+    hasVideo: item.hasVideo,
     status: item.status,
     probeError: item.probeError,
     createdAt: toApiTimestamp(item.createdAt),

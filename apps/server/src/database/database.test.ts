@@ -71,7 +71,7 @@ describe("openDatabase", () => {
     const migrations = await sql<{ count: number }>`
       select count(*) as count from kysely_migration
     `.execute(database.db);
-    expect(migrations.rows[0]?.count).toBe(5);
+    expect(migrations.rows[0]?.count).toBe(6);
   });
 
   it("reproduces the same logical schema in independent clean environments", async () => {

@@ -10,6 +10,8 @@ export interface MediaItemTable {
   title: string;
   duration_ms: number | null;
   has_audio: SqliteBoolean | null;
+  /** Null for items cataloged before video detection. */
+  has_video: SqliteBoolean | null;
   status: MediaItemStatus;
   probe_error: string | null;
   created_at: number;
