@@ -1,7 +1,6 @@
 import type { PassThrough, Readable } from "node:stream";
 
-/** Every MPEG-TS transport packet is exactly this many bytes. */
-export const MPEG_TS_PACKET_BYTES = 188;
+import { MPEG_TS_PACKET_BYTES } from "./mpeg-ts-packet-run.js";
 
 /** Buffers one FFmpeg process's partial tail so only whole transport packets escape. */
 export class MpegTsPacketForwarder {
