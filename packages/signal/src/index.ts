@@ -1,7 +1,6 @@
 // Factories the server composes the signal runtime from.
 export { createChannelStreamManager } from "./create-channel-stream-manager.js";
 export { createFfmpegSignalPackager } from "./create-ffmpeg-signal-packager.js";
-export { findMpegTsJoinPoint } from "./ffmpeg/mpeg-ts/mpeg-ts-join-point.js";
 export { SystemRuntime } from "./runtime/system-runtime.js";
 
 // What callers receive from the channel stream manager.

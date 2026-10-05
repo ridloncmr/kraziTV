@@ -1,6 +1,5 @@
 import {
   createChannelStreamManager,
-  findMpegTsJoinPoint,
   type ChannelStreamManagerContract,
   type Clock,
   type SignalPackager,
@@ -68,6 +67,5 @@ export function composeChannelStreamManager(
     logger: toSignalLogger(options.log),
     subscriberBufferLimitBytes: BUFFER_LIMIT_BYTES,
     retentionLimitBytes: BUFFER_LIMIT_BYTES,
-    findJoinPoint: findMpegTsJoinPoint,
   });
 }

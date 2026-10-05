@@ -5,7 +5,6 @@ import {
   FixedChannelAuthorization,
   FixedSpikePlayoutProvider,
   FixedTransitionCoordinator,
-  findMpegTsJoinPoint,
 } from "./runtime.js";
 
 const clock = (now: number): Clock => ({ now: () => now });

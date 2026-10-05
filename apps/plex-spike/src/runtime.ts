@@ -1,7 +1,6 @@
 import {
   createChannelStreamManager,
   createFfmpegSignalPackager,
-  findMpegTsJoinPoint,
   SystemRuntime,
   type ChannelAuthorization,
   type ChannelAuthorizationResult,
@@ -222,7 +221,6 @@ export function createSpikeManager(
     startupTimeoutMs: 2_000,
     subscriberBufferLimitBytes: 4 * 1024 * 1024,
     retentionLimitBytes: 4 * 1024 * 1024,
-    findJoinPoint: findMpegTsJoinPoint,
   });
 }
 

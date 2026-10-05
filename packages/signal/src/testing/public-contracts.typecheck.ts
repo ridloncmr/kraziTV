@@ -95,7 +95,6 @@ const manager = createChannelStreamManager({
   logger: loggerAdapter,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,
-  findJoinPoint: () => 0,
 });
 const subscribe: (channelId: string) => Promise<ChannelSubscription> =
   manager.subscribe.bind(manager);
