@@ -37,6 +37,14 @@ export class SignalError extends Error {
 }
 
 /**
+ * The error every signal session raises for work after stop, shared so the
+ * FFmpeg session and its test double can never report it differently.
+ */
+export function packagingStoppedError(): SignalError {
+  return new SignalError("packaging_stopped", "Signal packaging stopped");
+}
+
+/**
  * Keeps an already-typed failure and classifies anything else, so every
  * boundary preserves the most specific code while still carrying the cause.
  */

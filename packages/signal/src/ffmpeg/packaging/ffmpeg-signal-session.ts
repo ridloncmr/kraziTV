@@ -1,6 +1,6 @@
 import { PassThrough, type Readable } from "node:stream";
 
-import { SignalError } from "../../errors.js";
+import { packagingStoppedError, SignalError } from "../../errors.js";
 import type {
   SignalPlayoutItem,
   SignalPreparation,
@@ -86,7 +86,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   stop(): Promise<void> {
     return this.stopAttempt.run(() => {
       this.stopping = true;
-      this.settleReadyWithError(stoppedError());
+      this.settleReadyWithError(packagingStoppedError());
       if (this.preparation !== undefined) {
         void this.preparation.discard();
       }
@@ -250,7 +250,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   /** Refuses all new work once stop or fatal failure owns the session. */
   private assertRunning(): void {
     if (this.stopping || this.stopped || this.completionSettled) {
-      throw stoppedError();
+      throw packagingStoppedError();
     }
   }
 
@@ -260,9 +260,4 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       throw new Error("Preparation is not owned by this session");
     }
   }
-}
-
-/** Produces the typed error required for all post-stop operations. */
-function stoppedError(): SignalError {
-  return new SignalError("packaging_stopped", "Signal packaging stopped");
 }

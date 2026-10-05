@@ -6,7 +6,7 @@ import type {
   SignalPreparation,
   SignalSession,
 } from "../signal-packager/contracts.js";
-import { SignalError } from "../errors.js";
+import { packagingStoppedError } from "../errors.js";
 import { Deferred } from "./deferred.js";
 
 type PreparationState = "pending" | "committed" | "discarded";
@@ -110,7 +110,7 @@ export class FakeSignalSession implements SignalSession {
   private async prepareUnlessStopped(
     item: SignalPlayoutItem,
   ): Promise<FakeSignalPreparation> {
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     if (this.currentPreparation) {
       throw new Error("Session already has an outstanding preparation");
     }
@@ -121,7 +121,7 @@ export class FakeSignalSession implements SignalSession {
     const gate = this.nextPrepareGate;
     this.nextPrepareGate = undefined;
     if (gate) await Promise.race([gate.promise, this.stopRequested.promise]);
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     const preparation = new FakeSignalPreparation(this, item);
     this.currentPreparation = preparation;
     return preparation;
@@ -180,7 +180,7 @@ export class FakeSignalSession implements SignalSession {
   }
 
   commitPreparation(preparation: FakeSignalPreparation): void {
-    if (this.stopping) throw stoppedError();
+    if (this.stopping) throw packagingStoppedError();
     this.assertCurrentPreparation(preparation);
     this.currentPreparation = undefined;
     this.committedItems.push(preparation.item);
@@ -207,7 +207,7 @@ export class FakeSignalSession implements SignalSession {
     }
     await this.currentPreparation?.discard();
     await Promise.allSettled([...this.discarding]);
-    this.readyState.reject(stoppedError());
+    this.readyState.reject(packagingStoppedError());
     this.output.end();
     this.completionState.resolve(undefined);
     this.stopped = true;
@@ -218,11 +218,6 @@ export class FakeSignalSession implements SignalSession {
       throw new Error("Preparation is not owned by this session");
     }
   }
-}
-
-/** The typed failure every post-stop session operation reports. */
-function stoppedError(): SignalError {
-  return new SignalError("packaging_stopped", "Signal session stopped");
 }
 
 export class FakeSignalPackager implements SignalPackager {
