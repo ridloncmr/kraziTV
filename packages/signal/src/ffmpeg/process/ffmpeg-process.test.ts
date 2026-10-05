@@ -12,6 +12,7 @@ const createHarness = (
   options: {
     ffmpegPath?: string;
     terminationGraceMs?: number;
+    redactions?: readonly string[];
   } = {},
 ) => {
   const child = new FakeProcess();
@@ -28,6 +29,7 @@ const createHarness = (
     ffmpegPath: options.ffmpegPath,
     terminationGraceMs: options.terminationGraceMs,
     diagnosticContext: { channelId: "channel-1" },
+    redactions: options.redactions,
   });
 
   return { child, spawner, timers, logger, managed };
@@ -129,14 +131,20 @@ describe("FfmpegProcess", () => {
       exitCode: 7,
       signal: null,
       stderrTailBytes: Buffer.byteLength("decoder failed"),
+      stderrSummary: "decoder failed",
     });
     expect(logger.errors[0]?.context).toEqual(error.details);
   });
 
-  it("keeps sensitive stderr contents out of errors and logs", async () => {
-    const { child, managed, logger } = createHarness();
-    const sensitiveStderr = "failed to open C:/private/media/movie.mkv";
-    child.writeStderr(sensitiveStderr);
+  it("logs the last stderr line with redacted values removed", async () => {
+    const mediaPath = "C:/private/media/movie.mkv";
+    const { child, managed, logger } = createHarness({
+      redactions: [mediaPath],
+    });
+    child.writeStderr(`Input #0, from '${mediaPath}':
+`);
+    child.writeStderr(`${mediaPath}: Invalid data found
+`);
 
     child.exit({ code: 1, signal: null });
 
@@ -144,11 +152,23 @@ describe("FfmpegProcess", () => {
       managed.completion,
       "packaging_failed",
     );
-    expect(JSON.stringify(error.details)).not.toContain(sensitiveStderr);
-    expect(JSON.stringify(logger.errors)).not.toContain(sensitiveStderr);
     expect(error.details).toMatchObject({
-      stderrTailBytes: Buffer.byteLength(sensitiveStderr),
+      stderrSummary: "[redacted]: Invalid data found",
     });
+    expect(JSON.stringify(error.details)).not.toContain(mediaPath);
+    expect(JSON.stringify(logger.errors)).not.toContain(mediaPath);
+  });
+
+  it("omits the summary when stderr is empty", async () => {
+    const { child, managed } = createHarness();
+
+    child.exit({ code: 1, signal: null });
+
+    const error = await expectSignalError(
+      managed.completion,
+      "packaging_failed",
+    );
+    expect(error.details).not.toHaveProperty("stderrSummary");
   });
 
   it("normalizes an unexpected signal exit", async () => {

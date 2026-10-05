@@ -4,6 +4,7 @@ import {
   assertNonNegativeSafeInteger,
   OutputTail,
   STDERR_TAIL_LIMIT_BYTES,
+  summarizeStderr,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -25,6 +26,8 @@ type FfmpegProcessOptions = {
   ffmpegPath?: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
+  /** Values, such as the media path, replaced before stderr reaches a log. */
+  redactions?: readonly string[];
 };
 
 /** Owns one FFmpeg child until normal closure or verified termination. */
@@ -42,6 +45,7 @@ export class FfmpegProcess {
     private readonly logger: SignalLogger,
     private readonly terminationGraceMs: number,
     private readonly diagnosticContext: LogContext,
+    private readonly redactions: readonly string[],
   ) {
     this.output = child.stdout;
     child.stderr.on("data", (chunk: Buffer | Uint8Array | string) => {
@@ -67,6 +71,7 @@ export class FfmpegProcess {
         options.logger,
         terminationGraceMs,
         context,
+        options.redactions ?? [],
       );
     } catch (cause) {
       throw logged(
@@ -148,14 +153,20 @@ export class FfmpegProcess {
     );
   }
 
-  /** Builds bounded context without exposing the executable argument list. */
+  /**
+   * Builds bounded context without exposing the executable argument list.
+   * FFmpeg states why it failed on its last stderr line, so that line is
+   * carried with every redacted value replaced.
+   */
   private failureDetails(exit?: ProcessExit): LogContext {
+    const stderrSummary = summarizeStderr(this.stderr.bytes(), this.redactions);
     return {
       ...this.diagnosticContext,
       ...(exit === undefined
         ? {}
         : { exitCode: exit.code, signal: exit.signal }),
       stderrTailBytes: this.stderr.byteLength,
+      ...(stderrSummary === undefined ? {} : { stderrSummary }),
     };
   }
 }

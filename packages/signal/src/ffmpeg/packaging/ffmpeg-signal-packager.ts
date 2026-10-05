@@ -72,6 +72,8 @@ export class FfmpegSignalPackager implements SignalPackager {
       ffmpegPath: this.dependencies.ffmpegPath,
       terminationGraceMs: this.dependencies.terminationGraceMs,
       diagnosticContext: itemContext(item),
+      // FFmpeg names its input in errors; logs must never carry the path.
+      redactions: [item.mediaPath],
     });
     this.dependencies.logger.info("ffmpeg_process_started", itemContext(item));
     return process;

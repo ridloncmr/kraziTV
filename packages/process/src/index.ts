@@ -13,6 +13,10 @@ export {
   OutputTail,
   STDERR_TAIL_LIMIT_BYTES,
 } from "./child-process/output-tail.js";
+export {
+  sanitizeDiagnosticText,
+  summarizeStderr,
+} from "./child-process/stderr-summary.js";
 export { terminateProcess } from "./child-process/terminate-process.js";
 
 // Integer option checks both consumers apply to process timeouts and limits,

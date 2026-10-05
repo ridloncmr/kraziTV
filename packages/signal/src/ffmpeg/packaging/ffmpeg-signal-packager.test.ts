@@ -25,6 +25,7 @@ const initialItem = (
   mediaItemId: "media-1",
   mediaPath: "C:/private/media/movie.mkv",
   hasAudio: true,
+  hasVideo: true,
   mediaOffsetMs: 250,
   playDurationMs: 30_000,
   blackTailMs: 0,
@@ -129,6 +130,20 @@ describe("FfmpegSignalPackager", () => {
     const error = await expectSignalError(session.ready, "packaging_failed");
     expect(error.details).not.toHaveProperty("mediaPath");
     expect(JSON.stringify(error.details)).not.toContain("movie.mkv");
+  });
+
+  it("logs why FFmpeg failed with the item's media path redacted", async () => {
+    const { child, logger, packager } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStderr("C:/private/media/movie.mkv: Invalid data found\n");
+
+    child.exit({ code: 1, signal: null });
+
+    const error = await expectSignalError(session.ready, "packaging_failed");
+    expect(error.details).toMatchObject({
+      stderrSummary: "[redacted]: Invalid data found",
+    });
+    expect(JSON.stringify(logger.errors)).not.toContain("movie.mkv");
   });
 
   it("reports a clean exit before readiness as premature", async () => {

@@ -2,6 +2,7 @@ import {
   assertPositiveSafeInteger,
   OutputTail,
   STDERR_TAIL_LIMIT_BYTES,
+  summarizeStderr,
   terminateProcess,
   type ProcessExit,
   type ProcessSpawner,
@@ -14,7 +15,7 @@ import type {
   MediaProber,
 } from "./contracts.js";
 import { buildFfprobeArguments } from "./ffprobe-arguments.js";
-import { MediaProbeError, sanitizeProbeText } from "./media-probe-error.js";
+import { MediaProbeError } from "./media-probe-error.js";
 import { parseFfprobeOutput } from "./parse-ffprobe-output.js";
 
 const STDOUT_LIMIT_BYTES = 1024 * 1024;
@@ -154,13 +155,8 @@ function exitFailure(
 
 /** Appends ffprobe's last meaningful diagnostic line; the error bounds its length. */
 function withStderrSummary(message: string, stderrTail: Buffer): string {
-  const lastLine = stderrTail
-    .toString("utf8")
-    .split(/\r?\n/)
-    .map(sanitizeProbeText)
-    .filter((line) => line !== "")
-    .at(-1);
-  return lastLine === undefined ? message : `${message}: ${lastLine}`;
+  const summary = summarizeStderr(stderrTail);
+  return summary === undefined ? message : `${message}: ${summary}`;
 }
 
 /** Describes why a probe this adapter stopped did not produce metadata. */
