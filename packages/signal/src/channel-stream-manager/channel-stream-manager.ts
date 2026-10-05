@@ -347,7 +347,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     pending: PendingLifecycle,
     outcome: WorkerOutcome,
   ): Promise<void> {
-    if (this.lifecycles.get(pending.channelId) !== pending) {
+    if (!this.isCurrent(pending)) {
       if (outcome.status === "ready") await outcome.worker.stop();
       return;
     }
@@ -457,8 +457,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     pending: PendingLifecycle,
     worker: ManagedChannelWorker,
   ): Promise<void> {
-    const lifecycle = this.lifecycles.get(pending.channelId);
-    if (lifecycle === pending) {
+    if (this.isCurrent(pending)) {
       rejectPendingWaiters(
         pending,
         normalizeWorkerFailure(pending.channelId, pending.observation.failure),
@@ -466,6 +465,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       await this.stopPendingWorker(pending, worker);
       return;
     }
+    const lifecycle = this.lifecycles.get(pending.channelId);
     if (lifecycle?.kind === "active" && lifecycle.worker === worker) {
       const { failure } = lifecycle.observation;
       if (failure !== undefined) {
@@ -586,9 +586,18 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
 
   /** Forgets a record only if a newer lifecycle has not already replaced it. */
   private releaseLifecycle(lifecycle: ChannelLifecycle): void {
-    if (this.lifecycles.get(lifecycle.channelId) === lifecycle) {
+    if (this.isCurrent(lifecycle)) {
       this.lifecycles.delete(lifecycle.channelId);
     }
+  }
+
+  /**
+   * Reports whether a record still owns its channel. Every deferred step
+   * checks this first, because a stop or a newer worker may have replaced
+   * the record while the step waited.
+   */
+  private isCurrent(lifecycle: ChannelLifecycle): boolean {
+    return this.lifecycles.get(lifecycle.channelId) === lifecycle;
   }
 
   /** Observes every close path so final-viewer cleanup is counted exactly once. */
@@ -610,7 +619,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     lifecycle: ActiveLifecycle,
     subscription: ChannelBroadcastSubscription,
   ): void {
-    if (this.lifecycles.get(lifecycle.channelId) !== lifecycle) return;
+    if (!this.isCurrent(lifecycle)) return;
     if (!lifecycle.subscriptions.delete(subscription)) return;
     if (
       lifecycle.subscriptions.size > 0 ||
@@ -638,12 +647,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     lifecycle: ActiveLifecycle,
     task: ScheduledTask,
   ): Promise<void> {
-    if (
-      this.lifecycles.get(lifecycle.channelId) !== lifecycle ||
-      lifecycle.idleTask !== task
-    ) {
-      return;
-    }
+    if (!this.isCurrent(lifecycle) || lifecycle.idleTask !== task) return;
     lifecycle.idleTask = undefined;
     if (lifecycle.subscriptions.size > 0 || lifecycle.stopping) return;
     await this.stopActiveLifecycle(lifecycle);
