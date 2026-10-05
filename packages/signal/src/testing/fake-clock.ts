@@ -9,24 +9,32 @@ type TimerRecord = {
   active: boolean;
 };
 
+/**
+ * Time and timers that move only when a test advances them, so boundary,
+ * deadline, and idle-grace behavior is deterministic.
+ */
 export class FakeClock implements Clock, TimerScheduler {
   private currentTimeMs: number;
   private nextTimerId = 1;
   private readonly timers = new Map<number, TimerRecord>();
 
+  /** Rejects an inexact start time so every later comparison stays exact. */
   constructor(initialTimeMs = 0) {
     assertSafeInteger(initialTimeMs, "initialTimeMs");
     this.currentTimeMs = initialTimeMs;
   }
 
+  /** Reads fake time; it never moves on its own. */
   now(): number {
     return this.currentTimeMs;
   }
 
+  /** Lets leak checks prove a stopped component left no timer behind. */
   get pendingTimerCount(): number {
     return this.timers.size;
   }
 
+  /** Schedules a callback that fires only when an advance reaches its deadline. */
   setTimeout(callback: () => void, delayMs: number): ScheduledTask {
     assertNonNegativeSafeInteger(delayMs, "delayMs");
     const deadlineMs = this.currentTimeMs + delayMs;
@@ -41,6 +49,7 @@ export class FakeClock implements Clock, TimerScheduler {
     this.timers.set(record.id, record);
 
     return {
+      /** Reads the live record, so a fired or cancelled timer reports inactive. */
       get active() {
         return record.active;
       },
@@ -52,11 +61,17 @@ export class FakeClock implements Clock, TimerScheduler {
     };
   }
 
+  /** Moves time forward by a duration; see `advanceTo` for firing order. */
   advanceBy(durationMs: number): void {
     assertNonNegativeSafeInteger(durationMs, "durationMs");
     this.advanceTo(this.currentTimeMs + durationMs);
   }
 
+  /**
+   * Fires due timers one at a time in deadline order, with `now` set to each
+   * deadline, so a callback that schedules another timer sees real ordering.
+   * Never moves backwards, matching wall-clock time.
+   */
   advanceTo(targetTimeMs: number): void {
     assertSafeInteger(targetTimeMs, "targetTimeMs");
     if (targetTimeMs < this.currentTimeMs) {

@@ -19,6 +19,7 @@ export class FakeManagedWorker implements ManagedChannelWorker {
   private nextStopFailure: unknown;
   private readonly stopAttempt = new RetryableAttempt();
 
+  /** Starts already joinable, as a published worker is, with a real broadcaster. */
   constructor(readonly channelId: ChannelId) {
     this.completion = this.completionState.promise;
     this.broadcaster = new ChannelBroadcaster(this.output, {
