@@ -87,6 +87,29 @@ beforeAll(async () => {
 });
 
 describe("real FFmpeg signal baseline", () => {
+  it("makes a sought black-tail item ready within the compatibility ceiling", async () => {
+    const packager = createFfmpegSignalPackager({
+      ffmpegPath: config.ffmpegPath,
+      logger: new MeasurementLogger(),
+      timers: new NativeTimers(),
+      terminationGraceMs: 5_000,
+      itemReadinessTimeoutMs: 15_000,
+    });
+    const session = packager.start({
+      ...item("entry-tail", "media-tail", config.mediaAPath, 5_000),
+      playDurationMs: 25_000,
+      blackTailMs: 10_000,
+    });
+    session.output.resume();
+    const startedAt = performance.now();
+
+    await session.ready;
+    const readinessMs = performance.now() - startedAt;
+    await session.stop();
+
+    expect(readinessMs).toBeLessThanOrEqual(2_000);
+  }, 30_000);
+
   it("seeks, crosses one real file boundary, and leaves decodable fixed-profile MPEG-TS", async () => {
     const logger = new MeasurementLogger();
     const packager = createFfmpegSignalPackager({

@@ -141,6 +141,7 @@ describe("buildFfmpegArguments", () => {
       "C:/media/My Movie.mkv",
     ]);
     expect(args).toEqual(expect.arrayContaining(["-t", "10.500"]));
+    expect(args).toEqual(expect.arrayContaining(["-tune", "zerolatency"]));
     expect(args[args.indexOf("-vf") + 1]).toBe(
       "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1," +
         "tpad=stop_mode=add:stop=-1:color=black",

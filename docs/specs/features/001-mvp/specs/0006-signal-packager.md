@@ -1,6 +1,6 @@
 # Shared Channel Streaming MVP
 
-Status: In Development
+Status: Implemented
 
 This spec defines the MVP streaming behavior: one shared active-channel broadcast worker converts selected playout media and offsets into MPEG-TS output using SignalPackager and FFmpeg without making programming decisions.
 

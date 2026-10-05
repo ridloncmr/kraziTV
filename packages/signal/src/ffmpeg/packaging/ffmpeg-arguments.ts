@@ -63,6 +63,7 @@ export function buildFfmpegArguments(
     audioStream,
     "-c:v",
     "libx264",
+    ...(hasBlackTail ? ["-tune", "zerolatency"] : []),
     "-pix_fmt",
     "yuv420p",
     "-r",

@@ -63,19 +63,30 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
     }
     const ordinal = this.ordinalAt(atMs);
     const item = this.item(ordinal);
+    const mediaOffsetMs = Math.max(0, atMs - item.startsAt);
     this.options.record?.("playout_state_evaluated", {
       channelId,
       evaluatedAt: atMs,
       scheduleEntryId: item.scheduleEntryId,
       mediaItemId: item.mediaItemId,
-      mediaOffsetMs: Math.max(0, atMs - item.startsAt),
+      mediaOffsetMs,
     });
+    if (mediaOffsetMs >= item.durationMs) {
+      return {
+        status: "no_current",
+        channelId,
+        scheduleRevision: SCHEDULE_REVISION,
+        evaluatedAt: atMs,
+        reason: "media_unavailable",
+        scheduleEntryId: item.scheduleEntryId,
+      };
+    }
     return {
       status: "current",
       channelId,
       scheduleRevision: SCHEDULE_REVISION,
       evaluatedAt: atMs,
-      mediaOffsetMs: Math.max(0, atMs - item.startsAt),
+      mediaOffsetMs,
       item,
     };
   }
