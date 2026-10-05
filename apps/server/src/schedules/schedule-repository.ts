@@ -16,6 +16,7 @@ import type { ChannelScheduleStateTable } from "../database/schema/channel-sched
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
+import { selectMembers } from "../media-collections/media-collection-repository.js";
 import { toProgrammingBlockSource } from "../programming-blocks/programming-block-repository.js";
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 
@@ -98,32 +99,18 @@ export async function loadScheduleSource(
 
   const source = toProgrammingBlockSource(block);
   if (source.kind === "collection") {
-    const members = await trx
-      .selectFrom("media_collection_items")
-      .innerJoin(
-        "media_items",
-        "media_items.id",
-        "media_collection_items.media_item_id",
-      )
-      .select([
-        "media_items.id",
-        "media_items.title",
-        "media_items.status",
-        "media_items.duration_ms",
-      ])
-      .where(
-        "media_collection_items.media_collection_id",
-        "=",
-        source.mediaCollectionId,
-      )
-      .orderBy("media_collection_items.position")
-      .execute();
+    const members = await selectMembers(trx, source.mediaCollectionId);
     return {
       kind: "collection",
       programmingBlockId: block.id,
       mediaCollectionId: source.mediaCollectionId,
       playbackMode: source.playbackMode,
-      members: members.map(toScheduleMedia),
+      members: members.map((member) => ({
+        id: member.mediaItemId,
+        title: member.title,
+        status: member.status,
+        durationMs: member.durationMs,
+      })),
     };
   }
 
