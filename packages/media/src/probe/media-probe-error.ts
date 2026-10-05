@@ -1,3 +1,8 @@
+import {
+  sanitizeDiagnosticText,
+  truncateDiagnosticText,
+} from "@krazitv/process";
+
 type MediaProbeErrorCode =
   | "spawn_failed"
   | "timed_out"
@@ -7,11 +12,6 @@ type MediaProbeErrorCode =
   | "terminated_by_signal"
   | "invalid_json"
   | "invalid_metadata";
-
-import {
-  sanitizeDiagnosticText,
-  truncateDiagnosticText,
-} from "@krazitv/process";
 
 const MAX_MESSAGE_LENGTH = 300;
 

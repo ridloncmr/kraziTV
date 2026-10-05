@@ -32,7 +32,7 @@ function runFfmpeg(
 }
 
 /**
- * Writes a test-pattern clip with a tone into `directory`, so the media a
+ * Writes a test-pattern media file with a tone into `directory`, so the media a
  * channel airs is real, seekable, and has the audio fact the catalog records.
  */
 export function generateClip(
@@ -53,7 +53,7 @@ export function generateClip(
       ],
       ...["-c:v", "libx264", "-g", "30", "-c:a", "aac", "-shortest", path],
     ],
-    `FFmpeg could not generate the ${name} clip`,
+    `FFmpeg could not generate the ${name} media file`,
   );
   return path;
 }

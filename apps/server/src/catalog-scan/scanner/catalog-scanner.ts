@@ -178,7 +178,7 @@ export class CatalogScanner {
   ): Promise<ProbeOutcome[] | undefined> {
     const stop = new AbortController();
     // Every queued or running probe listens on this one signal by design, so
-    // Node's default 10-listener leak warning would fire on any real library.
+    // Node's default 10-listener leak warning would fire on any real media root.
     setMaxListeners(0, stop.signal);
     const onAbort = () => stop.abort();
     signal.addEventListener("abort", onAbort, { once: true });
