@@ -4,7 +4,8 @@
 
 Accepted on 2026-10-01. Amended on 2026-10-05: the per-consumer allowance
 covers every test double and fixture, not only the fake process, and the
-package holds the shared stderr summary.
+package holds the shared stderr summary and diagnostic truncation. The server
+also reuses the safe-integer option checks.
 
 ## Context
 
@@ -28,10 +29,13 @@ someone remembering to apply both.
   lifecycle helpers both consumers need: `terminateProcess` (SIGTERM, then
   one SIGKILL escalation, with injectable timers), `OutputTail` (bounded
   retention of the newest output bytes), and `summarizeStderr` (the last
-  sanitized stderr line, with caller-named values redacted).
-- It also holds the safe-integer option checks both consumers apply to their
+  sanitized stderr line, with caller-named values redacted), and
+  `truncateDiagnosticText` (the length cap every stored or logged diagnostic
+  shares).
+- It also holds the safe-integer option checks media and signal apply to their
   timeouts, grace periods, and limits, moved from `packages/signal` under the
-  no-copy rule below once media needed the same check.
+  no-copy rule below once media needed the same check. The server reuses them
+  for its own runtime options rather than keeping a third copy.
 - `packages/media` and `packages/signal` depend on `@krazitv/process`. Neither
   depends on the other.
 - `packages/process` knows nothing about FFmpeg, ffprobe, media, or signals.

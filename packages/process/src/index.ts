@@ -16,11 +16,12 @@ export {
 export {
   sanitizeDiagnosticText,
   summarizeStderr,
+  truncateDiagnosticText,
 } from "./child-process/stderr-summary.js";
 export { terminateProcess } from "./child-process/terminate-process.js";
 
-// Integer option checks both consumers apply to process timeouts and limits,
-// shared here so one rule and one message never drift between packages.
+// Integer option checks media, signal, and the server apply to timeouts and
+// limits, shared here so one rule and one message never drift between packages.
 export {
   assertNonNegativeSafeInteger,
   assertPositiveSafeInteger,

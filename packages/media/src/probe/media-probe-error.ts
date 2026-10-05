@@ -8,7 +8,10 @@ type MediaProbeErrorCode =
   | "invalid_json"
   | "invalid_metadata";
 
-import { sanitizeDiagnosticText } from "@krazitv/process";
+import {
+  sanitizeDiagnosticText,
+  truncateDiagnosticText,
+} from "@krazitv/process";
 
 const MAX_MESSAGE_LENGTH = 300;
 
@@ -26,14 +29,14 @@ export class MediaProbeError extends Error {
     message: string,
     options?: ErrorOptions,
   ) {
-    super(truncate(sanitizeDiagnosticText(message)), options);
+    super(
+      truncateDiagnosticText(
+        sanitizeDiagnosticText(message),
+        MAX_MESSAGE_LENGTH,
+      ),
+      options,
+    );
     this.name = "MediaProbeError";
     this.code = code;
   }
-}
-
-/** Caps stored messages; the ellipsis marks that detail was cut. */
-function truncate(text: string): string {
-  if (text.length <= MAX_MESSAGE_LENGTH) return text;
-  return `${text.slice(0, MAX_MESSAGE_LENGTH - 1)}…`;
 }

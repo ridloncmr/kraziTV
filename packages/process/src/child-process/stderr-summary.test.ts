@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeDiagnosticText, summarizeStderr } from "./stderr-summary.js";
+import {
+  sanitizeDiagnosticText,
+  summarizeStderr,
+  truncateDiagnosticText,
+} from "./stderr-summary.js";
 
 describe("sanitizeDiagnosticText", () => {
   it("strips terminal escape sequences and control characters", () => {
@@ -37,5 +41,12 @@ describe("summarizeStderr", () => {
 
     expect(summary).toHaveLength(300);
     expect(summary?.endsWith("…")).toBe(true);
+  });
+});
+
+describe("truncateDiagnosticText", () => {
+  it("keeps text at the limit and marks text beyond it as cut", () => {
+    expect(truncateDiagnosticText("abc", 3)).toBe("abc");
+    expect(truncateDiagnosticText("abcd", 3)).toBe("ab…");
   });
 });

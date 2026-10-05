@@ -41,8 +41,19 @@ export function summarizeStderr(
     .map(sanitizeDiagnosticText)
     .filter((line) => line !== "")
     .at(-1);
-  if (lastLine === undefined || lastLine.length <= MAX_SUMMARY_LENGTH) {
-    return lastLine;
-  }
-  return `${lastLine.slice(0, MAX_SUMMARY_LENGTH - 1)}…`;
+  return lastLine === undefined
+    ? undefined
+    : truncateDiagnosticText(lastLine, MAX_SUMMARY_LENGTH);
+}
+
+/**
+ * Caps diagnostic text at `maxLength` characters, with an ellipsis marking
+ * that detail was cut, so every logged or stored diagnostic is bounded alike.
+ */
+export function truncateDiagnosticText(
+  text: string,
+  maxLength: number,
+): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}…`;
 }
