@@ -10,6 +10,26 @@ const finding = (rule, files) => ({
 });
 
 describe("matches", () => {
+  it("limits a symbol exception without exempting the whole package surface", () => {
+    const exception = {
+      rule: "unused-package-export",
+      files: ["index.ts"],
+      symbol: "Clock",
+      reason: "external consumer",
+    };
+    expect(
+      matches(exception, {
+        ...finding("unused-package-export", ["index.ts"]),
+        symbol: "Clock",
+      }),
+    ).toBe(true);
+    expect(
+      matches(exception, {
+        ...finding("unused-package-export", ["index.ts"]),
+        symbol: "Options",
+      }),
+    ).toBe(false);
+  });
   it("needs the same rule and every finding file covered", () => {
     const exception = { rule: "grouping", files: ["a/b/"], reason: "r" };
 

@@ -19,12 +19,13 @@ export function isExcluded(path, excludedPaths) {
 }
 
 /**
- * Reads every workspace that has a `package.json`, its `src/` TypeScript
- * files, and its `tsconfig.build.json` when present.
+ * Reads source for audited workspaces and source/integration consumers for all
+ * workspaces, so excluding a spike never hides its use of a public API.
  */
 export function loadInventory(repoRoot, { excludedPaths = [] } = {}) {
   const workspaces = [];
   const files = [];
+  const consumerFiles = [];
 
   for (const group of WORKSPACE_GROUPS) {
     const groupDir = join(repoRoot, group);
@@ -34,11 +35,30 @@ export function loadInventory(repoRoot, { excludedPaths = [] } = {}) {
       const workspace = `${group}/${entry.name}`;
       const workspaceDir = join(groupDir, entry.name);
       if (!existsSync(join(workspaceDir, "package.json"))) continue;
-      if (isExcluded(`${workspace}/`, excludedPaths)) continue;
+      const excluded = isExcluded(`${workspace}/`, excludedPaths);
+      const manifest = JSON.parse(
+        readFileSync(join(workspaceDir, "package.json"), "utf8"),
+      );
+
+      // Excluded spikes still consume APIs, as do opt-in integration suites.
+      for (const folder of ["src", "integration"]) {
+        for (const absolute of walk(join(workspaceDir, folder))) {
+          const file = {
+            path: toPosix(relative(repoRoot, absolute)),
+            workspace,
+            srcPath: toPosix(relative(join(workspaceDir, folder), absolute)),
+            content: readFileSync(absolute, "utf8"),
+          };
+          consumerFiles.push(file);
+          if (!excluded && folder === "src") files.push(file);
+        }
+      }
+      if (excluded) continue;
 
       const buildConfigPath = join(workspaceDir, "tsconfig.build.json");
       workspaces.push({
         name: workspace,
+        packageName: manifest.name,
         buildConfig: existsSync(buildConfigPath)
           ? {
               path: `${workspace}/tsconfig.build.json`,
@@ -46,21 +66,10 @@ export function loadInventory(repoRoot, { excludedPaths = [] } = {}) {
             }
           : undefined,
       });
-
-      const srcDir = join(workspaceDir, "src");
-      for (const absolute of walk(srcDir)) {
-        const srcPath = toPosix(relative(srcDir, absolute));
-        files.push({
-          path: `${workspace}/src/${srcPath}`,
-          workspace,
-          srcPath,
-          content: readFileSync(absolute, "utf8"),
-        });
-      }
     }
   }
 
-  return { workspaces, files };
+  return { workspaces, files, consumerFiles };
 }
 
 /** Yields every TypeScript file below a directory, skipping build output. */

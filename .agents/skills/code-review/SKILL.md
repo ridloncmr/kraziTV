@@ -40,7 +40,8 @@ No tool checks these. Check each one against the changed files:
 - **Inline test doubles.** A fake, stub, or fixture written inside a test file
   that another test could use belongs in `src/testing/`.
 - **Package surface.** Each new `index.ts` export is needed by another
-  package. The audit skips entry points, so this is yours to check.
+  workspace. The audit checks named exports for consumers; judge whether used
+  exports, interface methods, and configuration choices belong in the public API.
 - **Why-comments.** Each new comment explains purpose, policy, or invariant
   rather than narrating the code. The audit only checks that one exists.
 - **KISS.** Flag indirection, layers, or types with one user. Do not demand
@@ -52,7 +53,13 @@ No tool checks these. Check each one against the changed files:
 - **Boundaries.** Anything that breaks **Core Architecture Boundaries** in
   `AGENTS.md`, plus database row shapes leaking past their repository.
 - **Tests.** Missing or weak tests for changed behavior, or tests coupled to
-  internals.
+  internals. Inspect changed test helpers and integration setup for duplicated
+  infrastructure and missing policy explanations; the mechanical checks do not
+  fully cover testing files. Compare changed fakes with production contracts,
+  especially errors, readiness, stop, and commit-or-discard behavior.
+- **Async ownership.** Inspect each changed asynchronous transition for stale
+  ownership or cancellation after a wait, and identify the test that exercises
+  stop, replacement, or failure while the operation is pending.
 - **Vocabulary.** Names that use a synonym `GLOSSARY.md` lists under **Avoid**.
 - **Docs.** Incorrect active documentation, or a completed plan ticket without
   a recorded status (see **Documentation Rules** in `AGENTS.md`).
@@ -69,3 +76,9 @@ changes solely to match a completed document.
 List findings first, ordered by severity, with `path:line` references. Then
 state which mechanical checks ran and their results. If there are no findings,
 say so and name residual risks or missing verification.
+
+Include the judgment evidence required by **Before You Finish** in `AGENTS.md`,
+even with no findings: cite the searched helpers, API consumers, transition
+guards and tests, and fake/production comparisons. Do not repeat the checklist
+as generic assurances. Inspect the diff and adjacent consumers before relying
+on the implementer's explanation.

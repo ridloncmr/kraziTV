@@ -33,7 +33,8 @@ Use `code-review` instead for a single diff or PR.
   Propose the entry; let the user accept it.
 - Never fix findings during the audit. Report first; fix only what the user
   picks.
-- Never count `apps/plex-spike` or anything else in `excludedPaths`.
+- Never report findings against `apps/plex-spike` or anything else in
+  `excludedPaths`. Their imports still count as consumers of audited packages.
 
 ## Steps
 
@@ -57,8 +58,11 @@ Use `code-review` instead for a single diff or PR.
      checks left inside the class file.
    - Duplication below the jscpd threshold: the same small helper, schema,
      or projection written in several files.
-   - Package surface: `index.ts` exports that no other package needs. The
-     `unused-export` rule skips entry points.
+   - Package surface: whether used exports expose unnecessary policy or
+     configuration. The `unused-package-export` rule checks named exports;
+     namespace imports, literal dynamic imports, and star re-exports
+     conservatively count as using the whole surface, so inspect those consumers
+     manually. Computed import paths and unnamed star exports need manual review.
    - Why-comments that narrate the code instead of explaining why.
    - Vocabulary: names that use a synonym `GLOSSARY.md` lists under **Avoid**.
 4. For every candidate finding, check accepted ADRs and the exceptions file.
