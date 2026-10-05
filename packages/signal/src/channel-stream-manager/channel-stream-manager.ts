@@ -208,40 +208,50 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     }
 
     if (lifecycle?.kind === "active") {
-      if (lifecycle.observation.terminated) {
-        rejectWaiter(
-          waiter,
-          normalizeWorkerFailure(channelId, lifecycle.observation.failure),
-        );
-        await this.stopActiveLifecycle(lifecycle);
-        return;
-      }
-      let subscription: ChannelBroadcastSubscription | undefined;
-      try {
-        subscription = lifecycle.worker.trySubscribe();
-      } catch (error) {
-        rejectWaiter(waiter, normalizeWorkerFailure(channelId, error));
-        await this.stopActiveLifecycle(lifecycle);
-        return;
-      }
-      if (subscription !== undefined) {
-        this.trackSubscription(lifecycle, subscription);
-        cancelIdleStop(lifecycle);
-        resolveWaiter(waiter, subscription);
-        return;
-      }
+      await this.joinActiveLifecycle(lifecycle, waiter);
+    } else if (lifecycle?.kind === "pending") {
+      lifecycle.waiters.add(waiter);
+    } else {
+      this.lifecycles.set(
+        channelId,
+        this.startPendingLifecycle(channelId, waiter),
+      );
+    }
+  }
 
+  /**
+   * Subscribes one waiter to an already published worker. A worker that has
+   * terminated or throws while subscribing rejects the waiter and is stopped,
+   * so the next subscribe starts a fresh one instead of reusing it.
+   */
+  private async joinActiveLifecycle(
+    lifecycle: ActiveLifecycle,
+    waiter: SubscriptionWaiter,
+  ): Promise<void> {
+    const { channelId } = lifecycle;
+    if (lifecycle.observation.terminated) {
+      rejectWaiter(
+        waiter,
+        normalizeWorkerFailure(channelId, lifecycle.observation.failure),
+      );
+      await this.stopActiveLifecycle(lifecycle);
+      return;
+    }
+    let subscription: ChannelBroadcastSubscription | undefined;
+    try {
+      subscription = lifecycle.worker.trySubscribe();
+    } catch (error) {
+      rejectWaiter(waiter, normalizeWorkerFailure(channelId, error));
+      await this.stopActiveLifecycle(lifecycle);
+      return;
+    }
+    if (subscription === undefined) {
       rejectWaiter(waiter, workerUnavailable(channelId));
       return;
     }
-
-    if (lifecycle?.kind === "pending") {
-      lifecycle.waiters.add(waiter);
-      return;
-    }
-
-    const pending = this.startPendingLifecycle(channelId, waiter);
-    this.lifecycles.set(channelId, pending);
+    this.trackSubscription(lifecycle, subscription);
+    cancelIdleStop(lifecycle);
+    resolveWaiter(waiter, subscription);
   }
 
   /** Returns why a waiter may no longer join, checked again after every await. */

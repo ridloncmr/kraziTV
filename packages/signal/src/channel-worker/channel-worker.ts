@@ -6,7 +6,7 @@ import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-
 import { ChannelBroadcaster } from "../channel-broadcast/channel-broadcaster.js";
 import type { SignalError } from "../errors.js";
 import type { ChannelId, PlayoutProvider } from "../playout/contracts.js";
-import type { Clock, TimerScheduler } from "../runtime/clock.js";
+import type { Clock, ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 import { RetryableAttempt } from "../runtime/retryable-attempt.js";
 import type {
   SignalPackager,
@@ -256,7 +256,7 @@ async function waitForAttempt(
   const readiness = Promise.all([session.ready, joinable.promise]).then(
     () => "ready" as const,
   );
-  let expiryTask: ReturnType<TimerScheduler["setTimeout"]> | undefined;
+  let expiryTask: ScheduledTask | undefined;
   const expiry = new Promise<"expired">((resolve) => {
     expiryTask = options.timers.setTimeout(
       () => resolve("expired"),

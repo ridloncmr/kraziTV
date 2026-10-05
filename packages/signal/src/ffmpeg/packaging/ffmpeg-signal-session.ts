@@ -31,7 +31,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly ready: Promise<void>;
   readonly completion: Promise<void>;
   private readonly sessionOutput = new PassThrough();
-  private readonly processes = new Set<FfmpegProcess>();
   private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
   private readonly resolveReady: () => void;
   private readonly rejectReady: (reason: unknown) => void;
@@ -165,7 +164,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       context,
       cancelReadiness,
     };
-    this.processes.add(process);
     this.bindings.set(process, binding);
     process.output.on("data", inspect);
     if (readinessKind === "committed") {
@@ -181,7 +179,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     }
     const release = (): void => {
       cancelReadiness();
-      this.processes.delete(process);
       this.bindings.delete(process);
     };
     void process.completion.then(
@@ -214,7 +211,9 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
 
   /** Retries process cleanup as a unit while preserving failed handles. */
   private async stopAllProcesses(): Promise<void> {
-    await Promise.all([...this.processes].map((process) => process.stop()));
+    await Promise.all(
+      [...this.bindings.keys()].map((process) => process.stop()),
+    );
     this.stopped = true;
     this.sessionOutput.end();
     if (!this.completionSettled) {
@@ -236,12 +235,12 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.sessionOutput.end();
     this.logger.info("signal_session_failed", this.active.context);
     this.rejectCompletion(error);
-    for (const process of this.processes) {
+    for (const process of this.bindings.keys()) {
       void process.stop().catch(() => undefined);
     }
   }
 
-  /** Rejects readiness once and detaches its inspection listener. */
+  /** Rejects initial readiness once; later failures leave it settled. */
   private settleReadyWithError(error: unknown): void {
     if (this.readySettled) return;
     this.readySettled = true;
