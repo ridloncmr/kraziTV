@@ -5,8 +5,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createFfmpegSignalPackager } from "../src/index.js";
-import type { ScheduledTask, TimerScheduler } from "../src/index.js";
+import { createFfmpegSignalPackager, SystemRuntime } from "../src/index.js";
 
 const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
 const MEDIA_MS = 2_000;
@@ -58,7 +57,7 @@ describe("real FFmpeg black tail", () => {
       const packager = createFfmpegSignalPackager({
         ffmpegPath,
         logger: { debug() {}, info() {}, warn() {}, error() {} },
-        timers: new NativeTimers(),
+        timers: new SystemRuntime(),
         terminationGraceMs: 5_000,
         itemReadinessTimeoutMs: 15_000,
       });
@@ -112,28 +111,6 @@ describe("real FFmpeg black tail", () => {
     45_000,
   );
 });
-
-/** Gives the real process lifecycle cancellable wall-clock deadlines. */
-class NativeTimers implements TimerScheduler {
-  /** Schedules one cancellable callback on the real event loop. */
-  setTimeout(callback: () => void, delayMs: number): ScheduledTask {
-    let active = true;
-    const handle = globalThis.setTimeout(() => {
-      active = false;
-      callback();
-    }, delayMs);
-    return {
-      get active() {
-        return active;
-      },
-      cancel: () => {
-        if (!active) return;
-        active = false;
-        globalThis.clearTimeout(handle);
-      },
-    };
-  }
-}
 
 /**
  * Runs FFmpeg to completion and returns its stderr, where FFmpeg writes its
