@@ -7,7 +7,7 @@
         "packages/media/src/testing/fake-process.ts",
         "packages/signal/src/testing/fake-process.ts"
       ],
-      "reason": "Each consumer keeps its own fake process because test doubles are not part of any package's build.",
+      "reason": "Each consumer keeps its own test doubles and fixtures because src/testing/ is not part of any package's build.",
       "source": "docs/adrs/0011-shared-process-package.md"
     },
     {

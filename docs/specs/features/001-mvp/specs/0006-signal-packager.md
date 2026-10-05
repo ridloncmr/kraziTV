@@ -418,6 +418,7 @@ scheduleEntryId
 mediaItemId
 mediaPath
 hasAudio
+hasVideo
 mediaOffsetMs
 playDurationMs
 blackTailMs
@@ -427,6 +428,13 @@ blackTailMs
 SignalPackager uses it to preserve real source audio when present or synthesize
 one silent stereo stream when absent, keeping the MVP audio PID stable across
 item boundaries. `packages/signal` does not invoke ffprobe to discover it.
+
+`hasVideo` works the same way for video. Audio-only media, including media
+whose only picture is attached cover art, is packaged over generated black
+video at the profile's resolution and frame rate, so the video PID stays stable
+and a single cover frame is never frozen on screen. The catalog records the fact
+at scan time; media cataloged before video detection is treated as having video
+until its next scan.
 
 `mediaOffsetMs` is the absolute position in the source media where packaging starts. `playDurationMs` is the maximum wall-clock duration of source media to emit from that position; any `blackTailMs` follows it before the transition to the next selected playout item.
 
@@ -519,7 +527,7 @@ The MVP should support:
 - Input file path
 - Seek offset
 - MPEG-TS output to stdout
-- Process stderr capture for logs
+- Process stderr capture for logs: a failure logs FFmpeg's last stderr line, sanitized, bounded, and with the item's media path redacted
 - Process cleanup when the channel worker stops
 - Non-zero exit handling
 - Transitioning from the current item to at least the next item in one logical channel broadcast
@@ -907,7 +915,8 @@ boundaries, so the boundary gap remains below the selected 2,000 ms ceiling.
 - After the final viewer disconnects, the worker stops after the idle grace period.
 - No FFmpeg process remains for the channel after worker shutdown.
 - Plex remains playing for both viewers across an actual two-file boundary during the compatibility spike.
-- FFmpeg stderr and exit information are logged for failures.
+- FFmpeg stderr and exit information are logged for failures, without the media path.
+- Audio-only media is transmitted over black video at wall-clock pace.
 - FFmpeg is terminated when the channel worker stops.
 - Slow subscribers are isolated and cannot stall the shared broadcast.
 - FFmpeg stderr capture is bounded, and worker/session shutdown waits for child termination with escalation after the configured grace period.
