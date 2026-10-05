@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import {
@@ -59,6 +59,12 @@ export function registerChannelRoutes(
   // Every PATCH and DELETE takes it, so a rename cannot slip between a
   // re-enable's stop and its commit either; uncontended waits are one tick.
   const lifecycle = new ChannelLifecycleLock();
+  // Every lifecycle change stops the same runtime under the same deadline.
+  const settleStop = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    stop: Parameters<typeof stopRuntime>[4],
+  ) => stopRuntime(request, reply, runtime, stopTimeoutMs, stop);
 
   server.get("/channels", async () => {
     const all = await channels.list();
@@ -108,17 +114,11 @@ export function registerChannelRoutes(
           return sendChannelNotFound(reply, id);
         }
         if (!current.enabled) {
-          const settled = await stopRuntime(
-            request,
-            reply,
-            runtime,
-            stopTimeoutMs,
-            {
-              channelId: id,
-              operation: "disable",
-              persistenceCommitted: false,
-            },
-          );
+          const settled = await settleStop(request, reply, {
+            channelId: id,
+            operation: "disable",
+            persistenceCommitted: false,
+          });
           if (!settled) return reply;
         }
       }
@@ -133,17 +133,11 @@ export function registerChannelRoutes(
 
       // Stops even when the channel was already disabled, so a disable retries cleanup.
       if (body.data.enabled === false) {
-        const settled = await stopRuntime(
-          request,
-          reply,
-          runtime,
-          stopTimeoutMs,
-          {
-            channelId: id,
-            operation: "disable",
-            persistenceCommitted: true,
-          },
-        );
+        const settled = await settleStop(request, reply, {
+          channelId: id,
+          operation: "disable",
+          persistenceCommitted: true,
+        });
         if (!settled) return reply;
       }
 
@@ -173,17 +167,11 @@ export function registerChannelRoutes(
     const release = await lifecycle.acquire(id);
     try {
       await channels.delete(id);
-      const settled = await stopRuntime(
-        request,
-        reply,
-        runtime,
-        stopTimeoutMs,
-        {
-          channelId: id,
-          operation: "delete",
-          persistenceCommitted: true,
-        },
-      );
+      const settled = await settleStop(request, reply, {
+        channelId: id,
+        operation: "delete",
+        persistenceCommitted: true,
+      });
       if (!settled) return reply;
       return reply.status(204).send();
     } finally {

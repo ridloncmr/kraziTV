@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Kysely, Selectable, Transaction } from "kysely";
+import type { Kysely, Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
@@ -18,7 +18,7 @@ import type {
 // Fixed locale so list order never depends on the host's locale settings.
 const NAME_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
 
-type Executor = Kysely<DatabaseSchema> | Transaction<DatabaseSchema>;
+type Executor = Kysely<DatabaseSchema>;
 
 /**
  * Persists media collections and their explicit item order. Duplicate member
