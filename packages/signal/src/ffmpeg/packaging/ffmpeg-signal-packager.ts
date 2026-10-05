@@ -21,7 +21,8 @@ type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  ffmpegPath?: string;
+  /** Executable to spawn; the server resolves `FFMPEG_PATH` before this point. */
+  ffmpegPath: string;
   terminationGraceMs?: number;
   itemReadinessTimeoutMs?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
@@ -33,8 +34,14 @@ const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
 export class FfmpegSignalPackager implements SignalPackager {
   private readonly itemReadinessTimeoutMs: number;
 
-  /** Keeps process and inspection dependencies explicit for deterministic tests. */
+  /**
+   * Keeps process and inspection dependencies explicit for deterministic
+   * tests, and validates configuration so a bad value fails at startup.
+   */
   constructor(private readonly dependencies: FfmpegSignalPackagerDependencies) {
+    if (dependencies.ffmpegPath === "") {
+      throw new RangeError("ffmpegPath must not be empty");
+    }
     this.itemReadinessTimeoutMs =
       dependencies.itemReadinessTimeoutMs ?? DEFAULT_ITEM_READINESS_TIMEOUT_MS;
     assertPositiveSafeInteger(
@@ -47,19 +54,19 @@ export class FfmpegSignalPackager implements SignalPackager {
   start(initialItem: SignalPlayoutItem): SignalSession {
     const process = this.startProcess(initialItem);
 
-    return new FfmpegSignalSession(
-      process,
-      initialItem,
-      this.dependencies.createReadinessInspector ??
+    return new FfmpegSignalSession(process, initialItem, {
+      createReadinessInspector:
+        this.dependencies.createReadinessInspector ??
         (() => new MpegTsReadinessInspector()),
-      (item) => {
+      // Building the argv is the item validation, so prepare and start agree.
+      validateItem: (item) => {
         buildFfmpegArguments(item);
       },
-      (item) => this.startProcess(item),
-      this.dependencies.timers,
-      this.itemReadinessTimeoutMs,
-      this.dependencies.logger,
-    );
+      startProcess: (item) => this.startProcess(item),
+      timers: this.dependencies.timers,
+      itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
+      logger: this.dependencies.logger,
+    });
   }
 
   /** Starts one item's FFmpeg process, whose normal exit remains internal to its session. */

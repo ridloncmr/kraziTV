@@ -26,7 +26,7 @@ const createHarness = (
     spawner,
     timers,
     logger,
-    ffmpegPath: options.ffmpegPath,
+    ffmpegPath: options.ffmpegPath ?? "ffmpeg",
     terminationGraceMs: options.terminationGraceMs,
     diagnosticContext: { channelId: "channel-1" },
     redactions: options.redactions,
@@ -76,6 +76,7 @@ describe("FfmpegProcess", () => {
     expect(() =>
       FfmpegProcess.start({
         args: [],
+        ffmpegPath: "ffmpeg",
         spawner,
         timers: new FakeClock(),
         logger: new RecordingLogger(),

@@ -8,7 +8,8 @@ import type { SignalPackager } from "./signal-packager/contracts.js";
 export type CreateFfmpegSignalPackagerOptions = {
   logger: SignalLogger;
   timers: TimerScheduler;
-  ffmpegPath?: string;
+  /** The server's resolved `FFMPEG_PATH`; the one place its default lives. */
+  ffmpegPath: string;
   terminationGraceMs?: number;
   itemReadinessTimeoutMs?: number;
 };

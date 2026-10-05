@@ -71,6 +71,7 @@ const createHarness = () => {
     logger: new RecordingLogger(),
     playoutProvider,
     packager: new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: clock,
       logger: new RecordingLogger(),

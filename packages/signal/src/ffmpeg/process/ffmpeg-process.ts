@@ -23,7 +23,7 @@ type FfmpegProcessOptions = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
   logger: SignalLogger;
-  ffmpegPath?: string;
+  ffmpegPath: string;
   terminationGraceMs?: number;
   diagnosticContext?: LogContext;
   /** Values, such as the media path, replaced before stderr reaches a log. */
@@ -60,11 +60,13 @@ export class FfmpegProcess {
       options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
     assertNonNegativeSafeInteger(terminationGraceMs, "terminationGraceMs");
 
-    const command = options.ffmpegPath || "ffmpeg";
     const context = options.diagnosticContext ?? {};
 
     try {
-      const child = options.spawner.spawn({ command, args: options.args });
+      const child = options.spawner.spawn({
+        command: options.ffmpegPath,
+        args: options.args,
+      });
       return new FfmpegProcess(
         child,
         options.timers,

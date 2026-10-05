@@ -19,20 +19,9 @@ const BLACK_VIDEO_SOURCE = "color=c=black:s=1920x1080:r=30";
 export function buildFfmpegArguments(
   item: SignalPlayoutItem,
 ): readonly string[] {
-  if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) {
-    throw invalidPlayoutItem("mediaOffsetMs");
-  }
-  if (!isPositiveSafeInteger(item.playDurationMs)) {
-    throw invalidPlayoutItem("playDurationMs");
-  }
-  if (!isNonNegativeSafeInteger(item.blackTailMs)) {
-    throw invalidPlayoutItem("blackTailMs");
-  }
-  if (typeof item.hasAudio !== "boolean") {
-    throw invalidPlayoutItem("hasAudio");
-  }
-  if (typeof item.hasVideo !== "boolean") {
-    throw invalidPlayoutItem("hasVideo");
+  const invalidField = findInvalidField(item);
+  if (invalidField !== undefined) {
+    throw invalidPlayoutItem(invalidField);
   }
   // A stream the media lacks is generated, so every item reaches the same
   // two output streams: silence for audio, black for video. Generated inputs
@@ -113,6 +102,23 @@ export function buildFfmpegArguments(
   ];
 }
 
+type PackagingField =
+  "blackTailMs" | "hasAudio" | "hasVideo" | "mediaOffsetMs" | "playDurationMs";
+
+/**
+ * Returns the first field FFmpeg cannot be given as-is, or undefined when the
+ * item can be packaged. Checked in a fixed order, so an item with several bad
+ * fields always reports the same one.
+ */
+function findInvalidField(item: SignalPlayoutItem): PackagingField | undefined {
+  if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) return "mediaOffsetMs";
+  if (!isPositiveSafeInteger(item.playDurationMs)) return "playDurationMs";
+  if (!isNonNegativeSafeInteger(item.blackTailMs)) return "blackTailMs";
+  if (typeof item.hasAudio !== "boolean") return "hasAudio";
+  if (typeof item.hasVideo !== "boolean") return "hasVideo";
+  return undefined;
+}
+
 /** Converts exact integer milliseconds without introducing float rounding. */
 function millisecondsToDecimalSeconds(milliseconds: number): string {
   const seconds = Math.floor(milliseconds / 1_000);
@@ -121,14 +127,7 @@ function millisecondsToDecimalSeconds(milliseconds: number): string {
 }
 
 /** Avoids echoing values or media paths into externally visible errors. */
-function invalidPlayoutItem(
-  field:
-    | "blackTailMs"
-    | "hasAudio"
-    | "hasVideo"
-    | "mediaOffsetMs"
-    | "playDurationMs",
-): SignalError {
+function invalidPlayoutItem(field: PackagingField): SignalError {
   return new SignalError(
     "invalid_playout_item",
     `Signal playout item has an invalid ${field}`,

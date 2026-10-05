@@ -40,6 +40,7 @@ const createHarness = () => {
   spawner.enqueue(child);
 
   const packager = new FfmpegSignalPackager({
+    ffmpegPath: "ffmpeg",
     spawner,
     timers,
     logger,
@@ -58,6 +59,7 @@ describe("FfmpegSignalPackager", () => {
       expect(
         () =>
           new FfmpegSignalPackager({
+            ffmpegPath: "ffmpeg",
             spawner: new FakeProcessSpawner(),
             timers: new FakeClock(),
             logger: new RecordingLogger(),
@@ -66,6 +68,21 @@ describe("FfmpegSignalPackager", () => {
       ).toThrow(/positive safe integer/i);
     },
   );
+
+  it("rejects an empty FFmpeg executable before any item starts", () => {
+    const spawner = new FakeProcessSpawner();
+
+    expect(
+      () =>
+        new FfmpegSignalPackager({
+          ffmpegPath: "",
+          spawner,
+          timers: new FakeClock(),
+          logger: new RecordingLogger(),
+        }),
+    ).toThrow(/ffmpegPath must not be empty/);
+    expect(spawner.spawnCalls).toHaveLength(0);
+  });
 
   it("returns a session synchronously with session-owned output available", () => {
     const { child, packager, spawner } = createHarness();
@@ -181,6 +198,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -216,6 +234,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger,
@@ -262,6 +281,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -356,6 +376,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
@@ -397,6 +418,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(second);
     const logger = new RecordingLogger();
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       logger,
@@ -437,6 +459,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),
@@ -485,6 +508,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),
@@ -524,6 +548,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
       spawner,
       timers,
       logger: new RecordingLogger(),

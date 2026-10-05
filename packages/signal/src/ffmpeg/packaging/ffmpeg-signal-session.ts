@@ -1,6 +1,6 @@
 import { PassThrough, type Readable } from "node:stream";
 
-import { packagingStoppedError, SignalError } from "../../errors.js";
+import { packagingStoppedError } from "../../errors.js";
 import type {
   SignalPlayoutItem,
   SignalPreparation,
@@ -17,12 +17,24 @@ import {
   type PreparationOwner,
 } from "./ffmpeg-signal-preparation.js";
 import { itemContext } from "./item-log-context.js";
+import { itemReadinessTimeout, prematureExit } from "./packaging-errors.js";
 
 type ProcessBinding = {
   process: FfmpegProcess;
   forwarder: MpegTsPacketForwarder;
   context: LogContext;
   cancelReadiness(): void;
+};
+
+/** What a session needs from its packager to start and judge each item's FFmpeg process. */
+type FfmpegSignalSessionOptions = {
+  createReadinessInspector: () => OutputReadinessInspector;
+  /** Rejects an item before it is held as a preparation; never starts a process. */
+  validateItem: (item: SignalPlayoutItem) => void;
+  startProcess: (item: SignalPlayoutItem) => FfmpegProcess;
+  timers: TimerScheduler;
+  itemReadinessTimeoutMs: number;
+  logger: SignalLogger;
 };
 
 /** Owns one stable output while sequential FFmpeg processes serve its items. */
@@ -48,12 +60,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   constructor(
     process: FfmpegProcess,
     initialItem: SignalPlayoutItem,
-    private readonly createReadinessInspector: () => OutputReadinessInspector,
-    private readonly validateItem: (item: SignalPlayoutItem) => void,
-    private readonly startProcess: (item: SignalPlayoutItem) => FfmpegProcess,
-    private readonly timers: TimerScheduler,
-    private readonly itemReadinessTimeoutMs: number,
-    private readonly logger: SignalLogger,
+    private readonly options: FfmpegSignalSessionOptions,
   ) {
     this.output = this.sessionOutput;
     const ready = Promise.withResolvers<void>();
@@ -75,7 +82,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     if (this.preparation !== undefined) {
       throw new Error("Session already has an outstanding preparation");
     }
-    this.validateItem(item);
+    this.options.validateItem(item);
     this.assertRunning();
     const preparation = new FfmpegSignalPreparation(this, item);
     this.preparation = preparation;
@@ -108,7 +115,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
 
     let next: FfmpegProcess;
     try {
-      next = this.startProcess(preparation.item);
+      next = this.options.startProcess(preparation.item);
     } catch (error) {
       void previous.process.stop().catch(() => undefined);
       this.fail(error);
@@ -116,7 +123,10 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     }
 
     this.active = this.attach(next, preparation.item, "committed");
-    this.logger.info("signal_transition_committed", this.active.context);
+    this.options.logger.info(
+      "signal_transition_committed",
+      this.active.context,
+    );
     void previous.process.stop().catch((error: unknown) => this.fail(error));
   }
 
@@ -136,7 +146,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       process.output,
       this.sessionOutput,
     );
-    const inspector = this.createReadinessInspector();
+    const inspector = this.options.createReadinessInspector();
     let usableOutputSeen = false;
     let readinessTimer: ScheduledTask | undefined;
     const inspect = (chunk: Buffer | Uint8Array | string): void => {
@@ -146,10 +156,10 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       usableOutputSeen = true;
       cancelReadiness();
       if (readinessKind === "initial") {
-        this.logger.info("signal_initial_output_ready", context);
+        this.options.logger.info("signal_initial_output_ready", context);
         this.settleReadySuccessfully();
       } else {
-        this.logger.info("signal_committed_item_ready", context);
+        this.options.logger.info("signal_committed_item_ready", context);
       }
     };
     const cancelReadiness = (): void => {
@@ -167,15 +177,10 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.bindings.set(process, binding);
     process.output.on("data", inspect);
     if (readinessKind === "committed") {
-      readinessTimer = this.timers.setTimeout(() => {
-        this.fail(
-          new SignalError(
-            "packaging_failed",
-            "Committed FFmpeg item produced no usable output in time",
-            { reason: "item_readiness_timeout" },
-          ),
-        );
-      }, this.itemReadinessTimeoutMs);
+      readinessTimer = this.options.timers.setTimeout(
+        () => this.fail(itemReadinessTimeout()),
+        this.options.itemReadinessTimeoutMs,
+      );
     }
     const release = (): void => {
       cancelReadiness();
@@ -185,13 +190,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       () => {
         release();
         if (!usableOutputSeen && !this.stopping) {
-          this.fail(
-            new SignalError(
-              "packaging_failed",
-              "FFmpeg exited before producing usable output",
-              { reason: "premature_exit" },
-            ),
-          );
+          this.fail(prematureExit());
         }
       },
       (error: unknown) => {
@@ -218,7 +217,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.sessionOutput.end();
     if (!this.completionSettled) {
       this.completionSettled = true;
-      this.logger.info("signal_session_stopped", this.active.context);
+      this.options.logger.info("signal_session_stopped", this.active.context);
       this.resolveCompletion();
     }
   }
@@ -233,7 +232,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       binding.forwarder.detach();
     }
     this.sessionOutput.end();
-    this.logger.info("signal_session_failed", this.active.context);
+    this.options.logger.info("signal_session_failed", this.active.context);
     this.rejectCompletion(error);
     for (const process of this.bindings.keys()) {
       void process.stop().catch(() => undefined);
