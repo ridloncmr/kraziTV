@@ -21,6 +21,7 @@ import { ScheduleService } from "../schedules/schedule-service.js";
 import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
+import type { PlexSettings } from "../plex/plex-routes.js";
 import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
@@ -41,8 +42,8 @@ export interface StartTestServerOptions {
   ) => Partial<TestServerDependencies>;
   /** Overrides the channel routes' runtime stop deadline, for hung-stop tests. */
   channelStopTimeoutMs?: number | undefined;
-  /** The origin Plex URLs are built on; defaults to the Plex settings fixture's. */
-  publicBaseUrl?: string | undefined;
+  /** Replaces only the Plex settings a test cares about; the rest come from the fixture. */
+  plex?: Partial<PlexSettings>;
   /** Fastify logger options; defaults to silent so test output stays clean. */
   logger?: FastifyServerOptions["logger"];
 }
@@ -117,11 +118,7 @@ export async function startTestServer(
     {
       logger: options.logger ?? false,
       channelStopTimeoutMs: options.channelStopTimeoutMs,
-      plex: {
-        ...plexSettingsFixture,
-        publicBaseUrl:
-          options.publicBaseUrl ?? plexSettingsFixture.publicBaseUrl,
-      },
+      plex: { ...plexSettingsFixture, ...options.plex },
     },
   );
   servers.push(server);

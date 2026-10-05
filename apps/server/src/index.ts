@@ -19,6 +19,7 @@ import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { parseProbeConfig } from "./config/probe.js";
 import { parseFfmpegPath } from "./config/ffmpeg.js";
+import { parseTunerConfig } from "./config/tuner.js";
 import {
   isLoopbackHost,
   parseCorsOrigins,
@@ -28,6 +29,7 @@ import {
 
 const { host, port } = parseListenConfig(process.env);
 const publicBaseUrl = parsePublicBaseUrl(process.env.PUBLIC_BASE_URL, port);
+const tuner = parseTunerConfig(process.env);
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
 const dataDirectory = resolveDataDirectory(
   process.env.KRAZITV_DATA_DIR,
@@ -92,7 +94,7 @@ const server = buildServer(
   },
   {
     loggerInstance: logger,
-    plex: { publicBaseUrl },
+    plex: { publicBaseUrl, ...tuner },
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );

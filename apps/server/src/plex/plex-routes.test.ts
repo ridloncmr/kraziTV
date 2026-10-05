@@ -13,7 +13,7 @@ const BASE_URL = "http://plex-facing.lan:8080";
 describe("GET /lineup.json", () => {
   it("lists enabled channels in channel-number order with stream URLs on the configured base", async () => {
     const { server } = await startTestServer({
-      publicBaseUrl: BASE_URL,
+      plex: { publicBaseUrl: BASE_URL },
       // Inserted 10 first, and text order also puts "10" before "2".
       seed: async (db) => {
         await db
@@ -52,5 +52,56 @@ describe("GET /lineup.json", () => {
         URL: `${BASE_URL}/channels/ten/stream`,
       },
     ]);
+  });
+});
+
+describe("tuner device endpoints", () => {
+  const PLEX = {
+    publicBaseUrl: BASE_URL,
+    deviceId: "0BADF00D",
+    tunerCount: 5,
+  };
+
+  it("serves discovery from the configured device identity and base", async () => {
+    const { server } = await startTestServer({ plex: PLEX });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/discover.json",
+      headers: { host: "attacker.example:9999" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      DeviceID: "0BADF00D",
+      TunerCount: 5,
+      BaseURL: BASE_URL,
+      LineupURL: `${BASE_URL}/lineup.json`,
+    });
+  });
+
+  it("serves an idle lineup status", async () => {
+    const { server } = await startTestServer({ plex: PLEX });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/lineup_status.json",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ScanInProgress: 0 });
+  });
+
+  it("serves device.xml as XML carrying the device ID", async () => {
+    const { server } = await startTestServer({ plex: PLEX });
+
+    const response = await server.inject({ method: "GET", url: "/device.xml" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe(
+      "application/xml; charset=utf-8",
+    );
+    expect(response.body).toContain("<serialNumber>0BADF00D</serialNumber>");
+    expect(response.body).toContain("<UDN>uuid:0BADF00D</UDN>");
   });
 });
