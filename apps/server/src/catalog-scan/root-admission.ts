@@ -1,5 +1,4 @@
-/** Why a root may not receive a scan: it is gone or switched off. */
-type RootRejection = { kind: "root_not_found" } | { kind: "root_disabled" };
+import type { RootRejection } from "./contracts.js";
 
 /**
  * Returns the first reason a root may not be scanned, or the root itself.

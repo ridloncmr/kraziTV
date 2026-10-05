@@ -11,10 +11,13 @@ export interface ScanSummary {
   missingCount: number;
 }
 
+/** Why a root may not receive a scan: it is gone or switched off. */
+export type RootRejection =
+  { kind: "root_not_found" } | { kind: "root_disabled" };
+
 export type ScanResult =
   | { kind: "completed"; summary: ScanSummary }
-  | { kind: "root_not_found" }
-  | { kind: "root_disabled" }
+  | RootRejection
   | { kind: "scan_in_progress" }
   | { kind: "root_unavailable"; error: MediaDiscoveryError }
   | { kind: "cancelled" };
