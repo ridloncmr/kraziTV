@@ -14,8 +14,8 @@ import {
 } from "../database/columns/sqlite-boolean.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
+import type { MediaCollectionMember } from "../media-collections/contracts.js";
 import { selectMembers } from "../media-collections/media-collection-repository.js";
 import { toProgrammingBlockSource } from "../programming-blocks/programming-block-repository.js";
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
@@ -105,18 +105,18 @@ export async function loadScheduleSource(
       programmingBlockId: block.id,
       mediaCollectionId: source.mediaCollectionId,
       playbackMode: source.playbackMode,
-      members: members.map((member) => ({
-        id: member.mediaItemId,
-        title: member.title,
-        status: member.status,
-        durationMs: member.durationMs,
-      })),
+      members: members.map(toScheduleMedia),
     };
   }
 
   const item = await trx
     .selectFrom("media_items")
-    .select(["id", "title", "status", "duration_ms"])
+    .select([
+      "id as mediaItemId",
+      "title",
+      "status",
+      "duration_ms as durationMs",
+    ])
     .where("id", "=", source.mediaItemId)
     .executeTakeFirstOrThrow();
   return {
@@ -367,14 +367,18 @@ function toScheduleEntry(row: Selectable<ScheduleEntryTable>): ScheduleEntry {
   };
 }
 
-// Narrows a catalog row to the facts kraziBrain schedules from.
+// Narrows a collection member or single item to the facts kraziBrain
+// schedules from, so both block sources hand it the same shape.
 function toScheduleMedia(
-  row: Pick<MediaItemTable, "id" | "title" | "status" | "duration_ms">,
+  media: Pick<
+    MediaCollectionMember,
+    "mediaItemId" | "title" | "status" | "durationMs"
+  >,
 ): ScheduleMedia {
   return {
-    id: row.id,
-    title: row.title,
-    status: row.status,
-    durationMs: row.duration_ms,
+    id: media.mediaItemId,
+    title: media.title,
+    status: media.status,
+    durationMs: media.durationMs,
   };
 }
