@@ -23,6 +23,38 @@ export function parseListenConfig(
   };
 }
 
+/**
+ * Resolves the origin Plex reaches kraziTV at, which every absolute tuner and
+ * stream URL is built on. Request Host headers are never trusted for this, so
+ * a non-local Plex needs the setting; the default follows PORT on loopback.
+ */
+export function parsePublicBaseUrl(
+  value: string | undefined,
+  port: number,
+): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return `http://${DEFAULT_HOST}:${port}`;
+  }
+
+  const url = URL.canParse(trimmed) ? new URL(trimmed) : null;
+  if (
+    url === null ||
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.pathname !== "/" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    throw new Error(
+      `PUBLIC_BASE_URL must be an absolute http: or https: URL with no credentials, path, query, or fragment; received "${value}"`,
+    );
+  }
+  // The origin drops the trailing slash, so paths append with no double slash.
+  return url.origin;
+}
+
 /** Decides whether the bind address stays on this machine, which gates the no-auth warning. */
 export function isLoopbackHost(host: string): boolean {
   const normalizedHost = host.trim().toLowerCase();

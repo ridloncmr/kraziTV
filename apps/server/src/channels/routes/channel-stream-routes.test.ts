@@ -15,6 +15,7 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../testing/test-environment.js";
+import { channelStreamPath } from "./channel-stream-routes.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -123,6 +124,22 @@ describe("GET /channels/:id/stream success", () => {
     expect(headers["content-type"]).toBe("video/MP2T");
     expect(body).toBe("ts-bytes");
     expect(subscription.closeCount).toBe(1);
+  });
+
+  it("serves the path channelStreamPath builds, decoding an encoded ID", async () => {
+    const { server, streams } = await startStreamServer();
+
+    const response = server.inject({
+      method: "GET",
+      url: channelStreamPath("channel 1"),
+    });
+    const call = await streams.nextSubscribe();
+    call.open().stream.end();
+    const { statusCode } = await response;
+
+    expect(channelStreamPath("channel 1")).toBe("/channels/channel%201/stream");
+    expect(call.channelId).toBe("channel 1");
+    expect(statusCode).toBe(200);
   });
 
   it("closes the subscription once when the viewer disconnects", async () => {

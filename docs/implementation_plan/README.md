@@ -35,6 +35,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0004 Implementation Plan: Schedule Generation](0004-schedule-generation.md) - 12 of 12 tickets complete
 - [Spec 0005 Implementation Plan: Playout Timeline and Channel State](0005-playout-timeline.md) - 8 of 8 tickets complete
 - [Spec 0006 Implementation Plan: Shared Channel Streaming](0006-signal-packager.md) - 16 of 16 tickets complete
+- [Spec 0007 Implementation Plan: Plex Adapter](0007-plex-adapter.md) - 4 of 5 tickets complete
 
 <!-- plan-index:end -->
 
@@ -59,7 +60,9 @@ Each milestone links to the spec that owns its scope and status.
 6. Integrate the spike-tested `packages/signal` primitives with real channel
    authorization, channel state, selected playout, and administrative shutdown:
    [plan 0006](0006-signal-packager.md), Phase 3.
-7. Expose Plex-compatible tuner, guide, and stream endpoints:
-   [spec 0007](../specs/features/001-mvp/specs/0007-plex-adapter.md).
+7. Expose Plex-compatible tuner, guide, and stream endpoints, then retire the
+   compatibility spike:
+   [spec 0007](../specs/features/001-mvp/specs/0007-plex-adapter.md) and
+   [plan 0007](0007-plex-adapter.md).
 8. Complete the MVP Web Admin flow:
    [spec 0008](../specs/features/001-mvp/specs/0008-web-admin.md).

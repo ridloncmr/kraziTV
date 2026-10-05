@@ -9,6 +9,17 @@ import {
 import { idParams } from "../../http/request-schemas.js";
 import type { ChannelStreams } from "../contracts.js";
 
+const STREAM_ROUTE = "/channels/:id/stream";
+
+/**
+ * Fills the stream route's own pattern, so provider adapters link to the
+ * route without a second copy of its path. The ID is encoded because channel
+ * IDs are opaque strings.
+ */
+export function channelStreamPath(id: string): string {
+  return STREAM_ROUTE.replace(":id", encodeURIComponent(id));
+}
+
 /**
  * Registers the provider-neutral stream route. A request owns one viewer's
  * subscription only; the manager owns the worker and its FFmpeg processes.
@@ -17,7 +28,7 @@ export function registerChannelStreamRoutes(
   server: FastifyInstance,
   streams: ChannelStreams,
 ): void {
-  server.get("/channels/:id/stream", async (request, reply) => {
+  server.get(STREAM_ROUTE, async (request, reply) => {
     const { id } = idParams.parse(request.params);
     // Before headers are sent, the response closing means the viewer left.
     const abandoned = new AbortController();

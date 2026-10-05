@@ -35,7 +35,7 @@ function runFfmpeg(
  * Writes a test-pattern media file with a tone into `directory`, so the media a
  * channel airs is real, seekable, and has the audio fact the catalog records.
  */
-export function generateClip(
+export function generateMediaFile(
   directory: string,
   name: string,
   durationMs: number,

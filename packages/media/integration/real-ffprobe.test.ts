@@ -11,9 +11,9 @@ const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
 const ffprobePath = process.env.FFPROBE_PATH || "ffprobe";
 
 let fixtureDirectory: string;
-let toneClipPath: string;
-let silentClipPath: string;
-let coverArtClipPath: string;
+let toneMediaPath: string;
+let silentMediaPath: string;
+let coverArtMediaPath: string;
 
 beforeAll(async () => {
   requireExecutable("ffmpeg", ffmpegPath, "FFMPEG_PATH");
@@ -24,8 +24,8 @@ beforeAll(async () => {
   // and frame counts: 120024 PCM samples at 48 kHz outlast the 2 s video and
   // make the format duration exactly 2.500500 s. Both sources are bounded at
   // the input because an output frame limit would also cut the audio short.
-  toneClipPath = join(fixtureDirectory, "color-and-tone.mov");
-  generateClip([
+  toneMediaPath = join(fixtureDirectory, "color-and-tone.mov");
+  generateMediaFile([
     ...["-f", "lavfi", "-i", "color=c=blue:s=64x64:r=25:d=2"],
     ...[
       "-f",
@@ -34,24 +34,24 @@ beforeAll(async () => {
       "sine=frequency=440:sample_rate=48000:duration=2.5005",
     ],
     ...["-map", "0:v:0", "-map", "1:a:0"],
-    ...["-c:v", "mpeg4", "-c:a", "pcm_s16le", toneClipPath],
+    ...["-c:v", "mpeg4", "-c:a", "pcm_s16le", toneMediaPath],
   ]);
 
   // 75 frames at 30000/1001 fps last exactly 75075/30000 = 2.502500 s.
-  silentClipPath = join(fixtureDirectory, "color-only.mov");
-  generateClip([
+  silentMediaPath = join(fixtureDirectory, "color-only.mov");
+  generateMediaFile([
     ...["-f", "lavfi", "-i", "color=c=red:s=64x64:r=30000/1001"],
-    ...["-frames:v", "75", "-c:v", "mpeg4", silentClipPath],
+    ...["-frames:v", "75", "-c:v", "mpeg4", silentMediaPath],
   ]);
 
   // An audio file whose only picture is one frame of cover art. MP4 marks it
   // with the attached_pic disposition; Matroska would store an attachment.
-  coverArtClipPath = join(fixtureDirectory, "tone-with-cover.mp4");
-  generateClip([
+  coverArtMediaPath = join(fixtureDirectory, "tone-with-cover.mp4");
+  generateMediaFile([
     ...["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2"],
     ...["-f", "lavfi", "-i", "color=c=red:s=64x64:r=25:d=0.04"],
     ...["-map", "0:a:0", "-map", "1:v:0", "-c:a", "aac", "-c:v", "mjpeg"],
-    ...["-disposition:v:0", "attached_pic", coverArtClipPath],
+    ...["-disposition:v:0", "attached_pic", coverArtMediaPath],
   ]);
   // Four cold process launches can be slow while Windows Defender scans them.
 }, 30_000);
@@ -72,7 +72,7 @@ describe(
     const prober = () => createMediaProber({ ffprobePath, timeoutMs: 10_000 });
 
     it("rounds a half-millisecond duration up and detects audio", async () => {
-      await expect(prober().probe(toneClipPath)).resolves.toEqual({
+      await expect(prober().probe(toneMediaPath)).resolves.toEqual({
         durationMs: 2_501,
         hasAudio: true,
         hasVideo: true,
@@ -80,7 +80,7 @@ describe(
     });
 
     it("rounds a video-only duration and reports no audio", async () => {
-      await expect(prober().probe(silentClipPath)).resolves.toEqual({
+      await expect(prober().probe(silentMediaPath)).resolves.toEqual({
         durationMs: 2_503,
         hasAudio: false,
         hasVideo: true,
@@ -88,7 +88,7 @@ describe(
     });
 
     it("reports no video for audio whose only picture is cover art", async () => {
-      const result = await prober().probe(coverArtClipPath);
+      const result = await prober().probe(coverArtMediaPath);
 
       expect(result).toMatchObject({ hasAudio: true, hasVideo: false });
       // AAC framing can shift the container duration by a few milliseconds.
@@ -115,7 +115,7 @@ function requireExecutable(name: string, path: string, envName: string): void {
 }
 
 /** Writes one controlled fixture with FFmpeg, surfacing its stderr on failure. */
-function generateClip(args: readonly string[]): void {
+function generateMediaFile(args: readonly string[]): void {
   const result = spawnSync(
     ffmpegPath,
     ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", ...args],
