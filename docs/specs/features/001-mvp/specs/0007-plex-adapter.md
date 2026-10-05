@@ -264,6 +264,24 @@ The verified discovery response fields are `FriendlyName`, `Manufacturer`,
 `BaseURL`, `LineupURL`, and `TunerCount`. A lineup entry requires `GuideNumber`,
 `GuideName`, and `URL`.
 
+### Spike Retirement
+
+`apps/plex-spike` is throwaway. Delete it in the same change that finishes the
+formal MVP adapter, once that adapter meets this spec's acceptance criteria.
+That change also removes what the spike alone keeps alive:
+
+- the `spike:*` scripts in the root `package.json` and the spike's reference in
+  `tsconfig.build.json`;
+- the `apps/plex-spike/` entry in `excludedPaths` in
+  `scripts/codebase-audit/audit-exceptions.json`;
+- the `ChannelId` export from `packages/signal/src/index.ts`, which no other
+  package imports;
+- the spike provider's `getScheduleRevision` method, which the
+  `PlayoutProvider` port no longer declares.
+
+Until then, codebase audits and convention cleanups skip the spike. The empty
+`packages/plex` package stays as the home of the formal adapter.
+
 ## Decisions Required From The Spike
 
 - Exact HDHomeRun response fields required for reliable manual tuner setup.
