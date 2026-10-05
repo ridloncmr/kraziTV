@@ -23,6 +23,7 @@ import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
+import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
 
 /** Every server dependency except the database, which the helper always opens. */
@@ -40,6 +41,8 @@ export interface StartTestServerOptions {
   ) => Partial<TestServerDependencies>;
   /** Overrides the channel routes' runtime stop deadline, for hung-stop tests. */
   channelStopTimeoutMs?: number | undefined;
+  /** The origin Plex URLs are built on; defaults to the Plex settings fixture's. */
+  publicBaseUrl?: string | undefined;
   /** Fastify logger options; defaults to silent so test output stays clean. */
   logger?: FastifyServerOptions["logger"];
 }
@@ -114,6 +117,11 @@ export async function startTestServer(
     {
       logger: options.logger ?? false,
       channelStopTimeoutMs: options.channelStopTimeoutMs,
+      plex: {
+        ...plexSettingsFixture,
+        publicBaseUrl:
+          options.publicBaseUrl ?? plexSettingsFixture.publicBaseUrl,
+      },
     },
   );
   servers.push(server);

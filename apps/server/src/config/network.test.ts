@@ -4,6 +4,7 @@ import {
   isLoopbackHost,
   parseCorsOrigins,
   parseListenConfig,
+  parsePublicBaseUrl,
 } from "./network.js";
 
 describe("parseListenConfig", () => {
@@ -60,5 +61,31 @@ describe("parseCorsOrigins", () => {
 
   it("uses the server default when no origins are configured", () => {
     expect(parseCorsOrigins("  ")).toBeUndefined();
+  });
+});
+
+describe("parsePublicBaseUrl", () => {
+  it("follows PORT on loopback when unset", () => {
+    expect(parsePublicBaseUrl(undefined, 3000)).toBe("http://127.0.0.1:3000");
+    expect(parsePublicBaseUrl("  ", 8080)).toBe("http://127.0.0.1:8080");
+  });
+
+  it("trims a trailing slash", () => {
+    expect(parsePublicBaseUrl(" https://tv.example.lan:8443/ ", 3000)).toBe(
+      "https://tv.example.lan:8443",
+    );
+  });
+
+  it.each([
+    "http://tv.lan/krazitv",
+    "http://tv.lan/?debug=1",
+    "http://tv.lan/#guide",
+    "ftp://tv.lan",
+    "http://user:secret@tv.lan",
+    "tv.lan:3000",
+  ])("rejects PUBLIC_BASE_URL=%s", (value) => {
+    expect(() => parsePublicBaseUrl(value, 3000)).toThrow(
+      `PUBLIC_BASE_URL must be an absolute http: or https: URL with no credentials, path, query, or fragment; received "${value}"`,
+    );
   });
 });

@@ -20,6 +20,7 @@ import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-ro
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
+import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
@@ -30,6 +31,8 @@ type BuildServerOptions = FastifyServerOptions & {
   corsOrigins?: string[];
   /** How long a channel disable, delete, or re-enable waits for its runtime stop. */
   channelStopTimeoutMs?: number | undefined;
+  /** Required so Plex URLs always come from parsed configuration, never a second default. */
+  plex: PlexSettings;
 };
 
 export type ServerDatabaseLifecycle = {
@@ -56,6 +59,7 @@ function registerRoutes(
   dependencies: ServerDependencies,
   corsOrigins: string[],
   channelStopTimeoutMs: number | undefined,
+  plex: PlexSettings,
 ): void {
   registerApiErrorHandlers(server);
   void server.register(cors, {
@@ -91,16 +95,18 @@ function registerRoutes(
   );
   registerScheduleRoutes(server, dependencies.schedules);
   registerPlayoutRoutes(server, dependencies.playout);
+  registerPlexRoutes(server, dependencies.channels, plex);
 }
 
 /** Composes Fastify with injected lifecycle dependencies for production or tests. */
 export function buildServer(
   dependencies: ServerDependencies,
-  options: BuildServerOptions = {},
+  options: BuildServerOptions,
 ) {
   const {
     corsOrigins = DEFAULT_CORS_ORIGINS,
     channelStopTimeoutMs,
+    plex,
     ...fastifyOptions
   } = options;
   const server = Fastify(fastifyOptions);
@@ -133,7 +139,7 @@ export function buildServer(
     await dependencies.database.close();
   });
 
-  registerRoutes(server, dependencies, corsOrigins, channelStopTimeoutMs);
+  registerRoutes(server, dependencies, corsOrigins, channelStopTimeoutMs, plex);
 
   return server;
 }

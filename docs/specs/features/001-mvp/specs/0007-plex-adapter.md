@@ -125,7 +125,7 @@ Stream URLs exposed to Plex should map to existing channel stream behavior. Mult
 
 Exact URL shape can change during implementation, but Plex-facing URLs must be stable enough for Plex configuration.
 
-All absolute tuner, lineup, guide, and stream URLs are built from a configured `PUBLIC_BASE_URL`. It defaults to `http://127.0.0.1:3000` for local development. Deployments where Plex runs in another process, container, or host must configure a URL Plex can reach; request `Host` headers are not treated as authoritative public configuration.
+All absolute tuner, lineup, guide, and stream URLs are built from a configured `PUBLIC_BASE_URL`. It defaults to `http://127.0.0.1:<PORT>` for local development, which is `http://127.0.0.1:3000` when `PORT` is unset. Deployments where Plex runs in another process, container, or host must configure a URL Plex can reach; request `Host` headers are not treated as authoritative public configuration.
 
 ### API
 

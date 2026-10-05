@@ -23,9 +23,11 @@ import {
   isLoopbackHost,
   parseCorsOrigins,
   parseListenConfig,
+  parsePublicBaseUrl,
 } from "./config/network.js";
 
 const { host, port } = parseListenConfig(process.env);
+const publicBaseUrl = parsePublicBaseUrl(process.env.PUBLIC_BASE_URL, port);
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
 const dataDirectory = resolveDataDirectory(
   process.env.KRAZITV_DATA_DIR,
@@ -90,6 +92,7 @@ const server = buildServer(
   },
   {
     loggerInstance: logger,
+    plex: { publicBaseUrl },
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );

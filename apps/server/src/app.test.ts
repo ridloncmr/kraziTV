@@ -16,6 +16,7 @@ import type { ScheduleService } from "./schedules/schedule-service.js";
 import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
 import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
+import { plexSettingsFixture } from "./testing/plex-fixtures.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -51,7 +52,10 @@ afterEach(async () => {
 
 describe("buildServer", () => {
   it("serves the health endpoint through request injection", async () => {
-    const server = buildServer(createDependencies(), { logger: false });
+    const server = buildServer(createDependencies(), {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
     servers.push(server);
 
     const response = await server.inject({
@@ -64,7 +68,10 @@ describe("buildServer", () => {
   });
 
   it("answers unknown routes with the structured error envelope", async () => {
-    const server = buildServer(createDependencies(), { logger: false });
+    const server = buildServer(createDependencies(), {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
     servers.push(server);
 
     const response = await server.inject({
@@ -79,7 +86,10 @@ describe("buildServer", () => {
   });
 
   it("allows the local Web UI origin", async () => {
-    const server = buildServer(createDependencies(), { logger: false });
+    const server = buildServer(createDependencies(), {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
     servers.push(server);
 
     const response = await server.inject({
@@ -94,7 +104,10 @@ describe("buildServer", () => {
   });
 
   it("does not allow an unconfigured browser origin", async () => {
-    const server = buildServer(createDependencies(), { logger: false });
+    const server = buildServer(createDependencies(), {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
     servers.push(server);
 
     const response = await server.inject({
@@ -113,7 +126,10 @@ describe("buildServer", () => {
         closeCount += 1;
       },
     };
-    const server = buildServer(createDependencies(database), { logger: false });
+    const server = buildServer(createDependencies(database), {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
 
     await server.close();
 
@@ -127,7 +143,7 @@ describe("buildServer", () => {
         { close: async () => void events.push("database closed") },
         { shutdown: async () => void events.push("scanner stopped") },
       ),
-      { logger: false },
+      { logger: false, plex: plexSettingsFixture },
     );
 
     await server.close();
@@ -152,7 +168,7 @@ describe("buildServer", () => {
           shutdown: () => Promise.reject(new Error("FFmpeg did not exit")),
         },
       ),
-      { logger: { level: "error", stream } },
+      { logger: { level: "error", stream }, plex: plexSettingsFixture },
     );
 
     await server.close();
