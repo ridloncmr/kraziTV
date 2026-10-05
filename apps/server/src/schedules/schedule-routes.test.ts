@@ -2,6 +2,7 @@ import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../testing/api-requests.js";
+import { captureLogLines } from "../testing/captured-log-lines.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
@@ -577,7 +578,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
   });
 
   it("logs, rather than returns, a coverage failure after the enable commits", async () => {
-    const lines: string[] = [];
+    const { lines, stream } = captureLogLines();
     const { server, db } = await startTestServer({
       seed: async (db) => {
         await seedScheduleScenario(db, {
@@ -596,7 +597,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
           },
         }),
       }),
-      logger: { level: "warn", stream: { write: (line) => lines.push(line) } },
+      logger: { level: "warn", stream },
     });
 
     const { status, body } = await send(server, "PATCH", CHANNEL_URL, {
@@ -609,7 +610,7 @@ describe("PATCH /channels/:id schedule maintenance", () => {
       db.selectFrom("channels").select("enabled").executeTakeFirstOrThrow(),
     ).resolves.toEqual({ enabled: 1 });
     // The logger records only warn and above, so any line here is a warning.
-    expect(lines.map((line) => JSON.parse(line) as unknown)).toContainEqual(
+    expect(lines).toContainEqual(
       expect.objectContaining({
         channelId: CHANNEL_ID,
         msg: expect.stringMatching(/schedule coverage failed/i) as unknown,
