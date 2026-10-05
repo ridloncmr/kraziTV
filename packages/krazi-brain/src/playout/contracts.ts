@@ -6,6 +6,8 @@ export interface PlayoutMedia {
   status: ScheduleMediaStatus;
   durationMs: number | null;
   hasAudio: boolean | null;
+  /** Null for media cataloged before video detection; treated as video. */
+  hasVideo: boolean | null;
 }
 
 /** One persisted schedule entry with its media, read in one snapshot. */
@@ -32,6 +34,8 @@ export interface PlayoutItem {
   mediaPath: string;
   /** Internal packaging input; public responses omit it. */
   hasAudio: boolean;
+  /** Internal packaging input: false means packaging renders black video. */
+  hasVideo: boolean;
   title: string;
   startsAt: number;
   endsAt: number;

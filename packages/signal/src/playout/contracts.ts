@@ -10,8 +10,9 @@ export type SelectedPlayoutItem = {
   scheduleRevision: number;
   mediaItemId: MediaItemId;
   mediaPath: string;
-  /** Provider-neutral media inspection result used by downstream packaging. */
+  /** Provider-neutral media inspection results used by downstream packaging. */
   hasAudio: boolean;
+  hasVideo: boolean;
   title: string;
   startsAt: TimestampMs;
   endsAt: TimestampMs;

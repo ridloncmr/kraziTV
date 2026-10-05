@@ -114,6 +114,7 @@ function selectPlayoutEntries(trx: Executor, channelId: string) {
       "media_items.status",
       "media_items.duration_ms",
       "media_items.has_audio",
+      "media_items.has_video",
     ])
     .where("schedule_entries.channel_id", "=", channelId);
 }
@@ -138,6 +139,8 @@ function toPlayoutEntry(row: PlayoutRow): PlayoutEntry {
       durationMs: row.duration_ms,
       hasAudio:
         row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
+      hasVideo:
+        row.has_video === null ? null : fromSqliteBoolean(row.has_video),
     },
   };
 }

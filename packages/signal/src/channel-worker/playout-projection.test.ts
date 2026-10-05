@@ -22,6 +22,7 @@ const item = (
   mediaItemId: "media-1",
   mediaPath: "C:/media/movie.mkv",
   hasAudio: true,
+  hasVideo: true,
   title: "Movie",
   startsAt: 0,
   endsAt: 10_000,
@@ -41,6 +42,19 @@ const current = (
   evaluatedAt,
   mediaOffsetMs,
   item: item(1, overrides),
+});
+
+describe("playout projection stream layout", () => {
+  it("carries the media's audio and video facts to packaging", () => {
+    const layout = { hasAudio: false, hasVideo: false };
+
+    expect(
+      toSignalItem(current(4_000, 4_000, layout), "channel-1"),
+    ).toMatchObject(layout);
+    expect(
+      toFollowingSignalItem(item(1, { startsAt: 10_000, ...layout })),
+    ).toMatchObject(layout);
+  });
 });
 
 describe("current playout projection timing", () => {

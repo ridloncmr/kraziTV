@@ -41,6 +41,9 @@ export function toPlayoutItem(
     mediaItemId: entry.mediaItemId,
     mediaPath: media.path,
     hasAudio: media.hasAudio,
+    // Unlike audio, an unknown video fact never blocks playout: media
+    // cataloged before video detection keeps its video until a rescan.
+    hasVideo: media.hasVideo ?? true,
     title: entry.title,
     startsAt: entry.startsAt,
     endsAt: entry.endsAt,

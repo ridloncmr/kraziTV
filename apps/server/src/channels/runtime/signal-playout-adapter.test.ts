@@ -73,6 +73,7 @@ describe("SignalPlayoutAdapter.getCurrent", () => {
         mediaItemId: itemIds[1],
         mediaPath: expect.any(String),
         hasAudio: expect.any(Boolean),
+        hasVideo: true,
         title: expect.any(String),
         startsAt: T0 + 22 * MINUTE,
         endsAt: T0 + 45 * MINUTE,
@@ -80,6 +81,16 @@ describe("SignalPlayoutAdapter.getCurrent", () => {
         startOffsetMs: 0,
       },
     });
+  });
+
+  it("tells packaging when the current item has no video stream", async () => {
+    const { channelId, adapter } = await setup({
+      items: [EPISODES[0], { ...EPISODES[1], hasVideo: false }, EPISODES[2]],
+    });
+
+    const result = await adapter.getCurrent(channelId, MID_SECOND);
+
+    expect(result).toMatchObject({ item: { hasVideo: false } });
   });
 
   it("passes a schedule gap through with its revision", async () => {

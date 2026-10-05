@@ -92,6 +92,7 @@ const manager = createChannelStreamManager({
   prepareLeadMs: 10_000,
   startupTimeoutMs: 5_000,
   idleGraceMs: 30_000,
+  logger: loggerAdapter,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,
   findJoinPoint: () => 0,

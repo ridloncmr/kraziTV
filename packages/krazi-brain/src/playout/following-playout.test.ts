@@ -54,6 +54,7 @@ describe("selectFollowingPlayout", () => {
           mediaItemId: first.mediaItemId,
           mediaPath: first.media.path,
           hasAudio: true,
+          hasVideo: true,
           title: first.title,
           startsAt: first.startsAt,
           endsAt: first.endsAt,

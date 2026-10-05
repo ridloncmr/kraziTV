@@ -54,28 +54,20 @@ export function toSignalItem(
   current: CurrentPlayout,
   channelId: ChannelId,
 ): SignalPlayoutItem {
-  const timing = splitAirtime(
+  const item = toPackagedItem(
+    current.item,
+    current.mediaOffsetMs,
     current.item.endsAt - current.evaluatedAt,
-    current.item.durationMs - current.mediaOffsetMs,
   );
   if (
     !Number.isSafeInteger(current.evaluatedAt) ||
     !Number.isSafeInteger(current.item.endsAt) ||
     !isNonNegativeSafeInteger(current.mediaOffsetMs) ||
-    !isPositiveSafeInteger(timing.playDurationMs)
+    !isPositiveSafeInteger(item.playDurationMs)
   ) {
     throw invalidItem(channelId, "invalid_current_timing");
   }
-
-  return {
-    channelId,
-    scheduleEntryId: current.item.scheduleEntryId,
-    mediaItemId: current.item.mediaItemId,
-    mediaPath: current.item.mediaPath,
-    hasAudio: current.item.hasAudio,
-    mediaOffsetMs: current.mediaOffsetMs,
-    ...timing,
-  };
+  return item;
 }
 
 /**
@@ -110,31 +102,32 @@ export function selectContiguousFollowing(
 export function toFollowingSignalItem(
   item: SelectedPlayoutItem,
 ): SignalPlayoutItem {
+  return toPackagedItem(item, item.startOffsetMs, item.endsAt - item.startsAt);
+}
+
+/**
+ * Builds the packaging input for an item airing from `mediaOffsetMs` for
+ * `airtimeMs`. Media plays for as much of the airtime as it covers and a black
+ * tail fills the rest, so short media never leaves the signal quiet before
+ * the boundary.
+ */
+function toPackagedItem(
+  item: SelectedPlayoutItem,
+  mediaOffsetMs: number,
+  airtimeMs: number,
+): SignalPlayoutItem {
+  const playDurationMs = Math.min(airtimeMs, item.durationMs - mediaOffsetMs);
   return {
     channelId: item.channelId,
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,
     mediaPath: item.mediaPath,
     hasAudio: item.hasAudio,
-    mediaOffsetMs: item.startOffsetMs,
-    ...splitAirtime(
-      item.endsAt - item.startsAt,
-      item.durationMs - item.startOffsetMs,
-    ),
+    hasVideo: item.hasVideo,
+    mediaOffsetMs,
+    playDurationMs,
+    blackTailMs: airtimeMs - playDurationMs,
   };
-}
-
-/**
- * Plays media for as much of the airtime as it covers and fills the rest with
- * a black tail, so short media never leaves the signal quiet before the
- * boundary.
- */
-function splitAirtime(
-  airtimeMs: number,
-  mediaRemainingMs: number,
-): Pick<SignalPlayoutItem, "playDurationMs" | "blackTailMs"> {
-  const playDurationMs = Math.min(airtimeMs, mediaRemainingMs);
-  return { playDurationMs, blackTailMs: airtimeMs - playDurationMs };
 }
 
 /** Creates a safe invalid-projection error without exposing a media path. */

@@ -22,6 +22,8 @@ export interface ScheduleItemSpec {
   status?: MediaItemTable["status"];
   /** Defaults to the item fixture's audio fact; null records none, as an unprobed file has. */
   hasAudio?: boolean | null;
+  /** Defaults to the item fixture's video fact; null records none, as an item cataloged before video detection has. */
+  hasVideo?: boolean | null;
   /** A real file for suites that transmit it; defaults to a placeholder path. */
   path?: string;
 }
@@ -79,6 +81,12 @@ export async function seedScheduleScenario(
                 : item.hasAudio === null
                   ? null
                   : toSqliteBoolean(item.hasAudio),
+            has_video:
+              item.hasVideo === undefined
+                ? itemFixture.has_video
+                : item.hasVideo === null
+                  ? null
+                  : toSqliteBoolean(item.hasVideo),
             status: item.status ?? "available",
           };
         }),

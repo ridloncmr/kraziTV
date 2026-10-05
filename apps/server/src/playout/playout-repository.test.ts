@@ -26,7 +26,7 @@ const OTHER_CHANNEL_ID = "channel-other";
 
 // Three contiguous entries, a gap, then one entry whose sequence number jumps
 // as it would after a regeneration. Entry 1's media is missing with no audio
-// fact. A second channel airs during the gap and after the last entry, so any
+// fact; entry 2's is audio-only. A second channel airs during the gap and after the last entry, so any
 // query that drops its channel filter returns the wrong rows.
 async function setup() {
   const { db } = await openTestDatabase();
@@ -34,7 +34,7 @@ async function setup() {
     items: [
       { durationMs: 22 * MINUTE },
       { durationMs: 23 * MINUTE, status: "missing", hasAudio: null },
-      { durationMs: 24 * MINUTE },
+      { durationMs: 24 * MINUTE, hasVideo: false },
     ],
     source: "chronological",
   });
@@ -112,8 +112,21 @@ describe("playout queries", () => {
         status: "available",
         durationMs: 22 * MINUTE,
         hasAudio: true,
+        hasVideo: true,
       },
     });
+  });
+
+  it("projects an audio-only item's missing video stream", async () => {
+    const { db, channelId } = await setup();
+
+    const [entry] = await findCoveringPlayoutEntries(
+      db,
+      channelId,
+      T0 + 50 * MINUTE,
+    );
+
+    expect(entry?.media).toMatchObject({ hasVideo: false });
   });
 
   it("finds the covering entry and its successor, whatever its media status", async () => {
