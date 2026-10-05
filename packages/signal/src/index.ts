@@ -1,12 +1,6 @@
 // Factories the server composes the signal runtime from.
-export {
-  createChannelStreamManager,
-  type CreateChannelStreamManagerOptions,
-} from "./create-channel-stream-manager.js";
-export {
-  createFfmpegSignalPackager,
-  type CreateFfmpegSignalPackagerOptions,
-} from "./create-ffmpeg-signal-packager.js";
+export { createChannelStreamManager } from "./create-channel-stream-manager.js";
+export { createFfmpegSignalPackager } from "./create-ffmpeg-signal-packager.js";
 export { findMpegTsJoinPoint } from "./ffmpeg/mpeg-ts/mpeg-ts-join-point.js";
 export { SystemRuntime } from "./runtime/system-runtime.js";
 
@@ -17,11 +11,7 @@ export type {
   ChannelSubscribeOptions,
   ChannelSubscription,
 } from "./channel-stream-manager/contracts.js";
-export {
-  SignalError,
-  type SignalErrorCode,
-  type SignalErrorDetails,
-} from "./errors.js";
+export { SignalError, type SignalErrorCode } from "./errors.js";
 
 // Ports the server implements so workers can authorize channels and commit transitions.
 export type {
@@ -36,21 +26,13 @@ export type {
   ChannelId,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
-  MediaItemId,
   PlayoutProvider,
-  ScheduleEntryId,
   SelectedPlayoutItem,
 } from "./playout/contracts.js";
 
 // Runtime ports injected so time and logging stay deterministic in tests.
-export type {
-  Clock,
-  DurationMs,
-  ScheduledTask,
-  TimerScheduler,
-  TimestampMs,
-} from "./runtime/clock.js";
-export type { LogContext, SignalLogger } from "./runtime/signal-logger.js";
+export type { Clock, ScheduledTask, TimerScheduler } from "./runtime/clock.js";
+export type { SignalLogger } from "./runtime/signal-logger.js";
 
 // The packaging port a SignalPackager implementation fulfils.
 export type {

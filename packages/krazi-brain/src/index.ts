@@ -17,7 +17,6 @@ export type {
   FollowingPlayout,
   PlayoutEntry,
   PlayoutItem,
-  PlayoutMedia,
 } from "./playout/contracts.js";
 
 // Schedule generation the server materializes into persisted entries.
