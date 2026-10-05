@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from "kysely";
 
-import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
+import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { parameterChunks } from "../database/writes/parameter-chunks.js";
@@ -72,8 +72,8 @@ function toMediaItem(row: Selectable<MediaItemTable>): MediaItem {
     path: row.path,
     title: row.title,
     durationMs: row.duration_ms,
-    hasAudio: row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
-    hasVideo: row.has_video === null ? null : fromSqliteBoolean(row.has_video),
+    hasAudio: fromNullableSqliteBoolean(row.has_audio),
+    hasVideo: fromNullableSqliteBoolean(row.has_video),
     status: row.status,
     probeError: row.probe_error,
     createdAt: row.created_at,

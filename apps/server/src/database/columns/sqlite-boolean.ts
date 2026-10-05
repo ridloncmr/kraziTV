@@ -12,3 +12,10 @@ export function toSqliteBoolean(value: boolean): number {
 export function fromSqliteBoolean(value: number): boolean {
   return value === 1;
 }
+
+/** Decodes a nullable 0/1 column, keeping null as "not known yet". */
+export function fromNullableSqliteBoolean(
+  value: number | null,
+): boolean | null {
+  return value === null ? null : fromSqliteBoolean(value);
+}

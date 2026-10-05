@@ -1,7 +1,7 @@
 import { assertFollowingCount, type PlayoutEntry } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
-import { fromSqliteBoolean } from "../database/columns/sqlite-boolean.js";
+import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { SequencedPlayoutEntry } from "./contracts.js";
 
@@ -137,10 +137,8 @@ function toPlayoutEntry(row: PlayoutRow): PlayoutEntry {
       path: row.path,
       status: row.status,
       durationMs: row.duration_ms,
-      hasAudio:
-        row.has_audio === null ? null : fromSqliteBoolean(row.has_audio),
-      hasVideo:
-        row.has_video === null ? null : fromSqliteBoolean(row.has_video),
+      hasAudio: fromNullableSqliteBoolean(row.has_audio),
+      hasVideo: fromNullableSqliteBoolean(row.has_video),
     },
   };
 }
