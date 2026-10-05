@@ -9,7 +9,7 @@ import {
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import type { CatalogCandidate } from "../contracts.js";
-import { admitRoot } from "./root-admission.js";
+import { admitRoot } from "../root-admission.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
 interface CatalogGeneration {

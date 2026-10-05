@@ -17,7 +17,7 @@ import {
   type ProbeOutcome,
 } from "./catalog-candidate.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
-import { admitRoot } from "../writer/root-admission.js";
+import { admitRoot } from "../root-admission.js";
 import type { ScanResult } from "../contracts.js";
 
 interface ScanOptions {
