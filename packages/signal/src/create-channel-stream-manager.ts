@@ -3,10 +3,13 @@ import type { ChannelStreamManagerContract } from "./channel-stream-manager/cont
 import { DefaultChannelWorkerFactory } from "./channel-worker/default-channel-worker-factory.js";
 import type { ChannelWorkerOptions } from "./channel-worker/channel-worker.js";
 import type { ChannelAuthorization } from "./channel-worker/contracts.js";
+import type { SignalLogger } from "./runtime/signal-logger.js";
 
 export type CreateChannelStreamManagerOptions = ChannelWorkerOptions & {
   authorization: ChannelAuthorization;
   idleGraceMs: number;
+  /** Receives failures of published workers, which no viewer request reports. */
+  logger: SignalLogger;
 };
 
 /** Creates the production manager while keeping worker construction internal. */
@@ -18,5 +21,6 @@ export function createChannelStreamManager(
     workerFactory: new DefaultChannelWorkerFactory(options),
     timers: options.timers,
     idleGraceMs: options.idleGraceMs,
+    logger: options.logger,
   });
 }

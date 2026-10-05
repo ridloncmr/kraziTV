@@ -13,6 +13,7 @@ import { ChannelStreamManager } from "./channel-stream-manager.js";
 import { ControlledWorkerFactory } from "../testing/controlled-worker-factory.js";
 import { expectSignalError } from "../testing/expect-signal-error.js";
 import { FakeManagedWorker } from "../testing/fake-managed-worker.js";
+import { RecordingLogger } from "../testing/recording-logger.js";
 import { settlePromises } from "../testing/settle-promises.js";
 
 class MutableAuthorization implements ChannelAuthorization {
@@ -76,12 +77,14 @@ const createManager = (options: {
   workerFactory: ControlledWorkerFactory;
   timers?: FakeClock;
   idleGraceMs?: number;
+  logger?: RecordingLogger;
 }): ChannelStreamManager =>
   new ChannelStreamManager({
     authorization: options.authorization,
     workerFactory: options.workerFactory,
     timers: options.timers ?? new FakeClock(),
     idleGraceMs: options.idleGraceMs ?? 1_000,
+    logger: options.logger ?? new RecordingLogger(),
   });
 
 type LifecycleStop = {
@@ -124,6 +127,7 @@ describe("ChannelStreamManager", () => {
             workerFactory: new ControlledWorkerFactory(),
             timers: new FakeClock(),
             idleGraceMs,
+            logger: new RecordingLogger(),
           }),
       ).toThrow("idleGraceMs must be a non-negative safe integer");
     },
@@ -504,6 +508,56 @@ describe("ChannelStreamManager", () => {
     const replacementSubscription = await replacement;
     replacementSubscription.close();
     await manager.shutdown();
+  });
+
+  it("logs why a published worker failed, because no viewer request reports it", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const logger = new RecordingLogger();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+      logger,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+    const worker = new FakeManagedWorker("channel-1");
+    workerFactory.calls[0]?.result.resolve(worker);
+    (await subscribing).stream.resume();
+    const failure = new SignalError(
+      "transition_failed",
+      "arranged transition failure",
+      { channelId: "channel-1" },
+    );
+
+    worker.fail(failure);
+    await settlePromises();
+
+    expect(logger.errors).toEqual([
+      {
+        message: "channel_worker_failed",
+        context: { channelId: "channel-1", err: failure },
+      },
+    ]);
+    await manager.shutdown();
+  });
+
+  it("logs nothing when the manager stops a published worker itself", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const logger = new RecordingLogger();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+      logger,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+    workerFactory.calls[0]?.result.resolve(new FakeManagedWorker("channel-1"));
+    (await subscribing).stream.resume();
+
+    await manager.stopChannel("channel-1", "disabled");
+    await settlePromises();
+
+    expect(logger.errors).toEqual([]);
   });
 
   it("treats abort after subscription creation as caller-owned closure", async () => {

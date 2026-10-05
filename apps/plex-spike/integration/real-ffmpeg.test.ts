@@ -139,6 +139,7 @@ function item(
     mediaItemId,
     mediaPath,
     hasAudio: true,
+    hasVideo: true,
     mediaOffsetMs,
     playDurationMs: 5_000,
     blackTailMs: 0,

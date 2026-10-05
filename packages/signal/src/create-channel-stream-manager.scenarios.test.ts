@@ -20,6 +20,7 @@ import {
   type FakeSignalSession,
 } from "./testing/fake-signal-packager.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
+import { RecordingLogger } from "./testing/recording-logger.js";
 import { expectSignalError } from "./testing/expect-signal-error.js";
 import { settlePromises } from "./testing/settle-promises.js";
 
@@ -43,6 +44,7 @@ const entry = (
   mediaItemId: `media-${scheduleEntryId}`,
   mediaPath: `C:/media/${scheduleEntryId}.mkv`,
   hasAudio: true,
+  hasVideo: true,
   title: scheduleEntryId,
   startsAt,
   endsAt: startsAt + 10_000,
@@ -117,6 +119,7 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
   const manager = createChannelStreamManager({
     authorization,
     idleGraceMs,
+    logger: new RecordingLogger(),
     playoutProvider: provider,
     packager,
     clock,

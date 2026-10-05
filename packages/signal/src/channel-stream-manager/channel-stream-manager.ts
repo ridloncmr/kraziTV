@@ -12,6 +12,7 @@ import type { SignalError } from "../errors.js";
 import type { ChannelId } from "../playout/contracts.js";
 import type { ScheduledTask, TimerScheduler } from "../runtime/clock.js";
 import { RetryableAttempt } from "../runtime/retryable-attempt.js";
+import type { SignalLogger } from "../runtime/signal-logger.js";
 import {
   cancelIdleStop,
   closeSubscriptions,
@@ -62,6 +63,7 @@ type ChannelStreamManagerOptions = {
   workerFactory: ChannelWorkerFactory<ManagedChannelWorker>;
   timers: TimerScheduler;
   idleGraceMs: number;
+  logger: SignalLogger;
 };
 
 /** Serializes channel broadcast creation, publication, and terminal cleanup. */
@@ -446,7 +448,11 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     await this.stopPendingLifecycle(lifecycle);
   }
 
-  /** Removes a spontaneously terminated worker and rejects unpublished waiters. */
+  /**
+   * Removes a spontaneously terminated worker and rejects unpublished waiters.
+   * A published worker's failure is logged here because its viewers' requests
+   * have already succeeded, so nothing else would ever report the cause.
+   */
   private async handleWorkerTermination(
     pending: PendingLifecycle,
     worker: ManagedChannelWorker,
@@ -461,6 +467,13 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       return;
     }
     if (lifecycle?.kind === "active" && lifecycle.worker === worker) {
+      const { failure } = lifecycle.observation;
+      if (failure !== undefined) {
+        this.options.logger.error("channel_worker_failed", {
+          channelId: lifecycle.channelId,
+          err: failure,
+        });
+      }
       await this.stopActiveLifecycle(lifecycle);
     }
   }

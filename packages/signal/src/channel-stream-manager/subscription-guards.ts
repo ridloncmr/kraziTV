@@ -53,7 +53,8 @@ export function findAuthorizationFailure(
 /**
  * Returns the first publication guard a ready worker fails, or undefined when
  * it may publish. Guards run in precedence order: administrative interruption,
- * authorization, worker health, remaining viewers, then worker identity.
+ * a failed authorization lookup, worker health, the authorization's verdict,
+ * remaining viewers, then worker identity.
  */
 export function findPublicationBlock(
   pending: PendingLifecycle,

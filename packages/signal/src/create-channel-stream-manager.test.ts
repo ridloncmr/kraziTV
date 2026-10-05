@@ -40,6 +40,7 @@ const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
     mediaItemId: "media-1",
     mediaPath: "C:/media/movie.mkv",
     hasAudio: true,
+    hasVideo: true,
     title: "Movie",
     startsAt: 0,
     endsAt: 60_000,
@@ -67,6 +68,7 @@ const createHarness = () => {
   const manager = createChannelStreamManager({
     authorization: new EnabledAuthorization(),
     idleGraceMs: 1_000,
+    logger: new RecordingLogger(),
     playoutProvider,
     packager: new FfmpegSignalPackager({
       spawner,
