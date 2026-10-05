@@ -28,7 +28,7 @@ import { programmingBlockFixture } from "../src/testing/channel-fixtures.js";
 import {
   decodedVideoMs,
   ffmpegPath,
-  generateClip,
+  generateMediaFile,
   runningFfmpegProcesses,
 } from "../src/testing/real-ffmpeg.js";
 import { RecordingSignalPackager } from "../src/testing/recording-signal-packager.js";
@@ -45,7 +45,7 @@ import {
 } from "../src/testing/test-environment.js";
 import { TrackedRuntime } from "../src/testing/tracked-runtime.js";
 
-const CLIP_MS = 6_000;
+const MEDIA_DURATION_MS = 6_000;
 // The last item airs for an hour on its six-second file, behind a black tail.
 // Uniform six-second airtimes would materialize 43,200 entries over the
 // horizon, and regenerating them holds write authority long enough under load
@@ -58,13 +58,15 @@ const DRIFT_CEILING_MS = 2_000;
 const TEST_TIMEOUT_MS = 60_000;
 
 let fixtureDirectory: string;
-const clipPaths: string[] = [];
+const mediaPaths: string[] = [];
 const managers: ChannelStreamManagerContract[] = [];
 
 beforeAll(async () => {
   fixtureDirectory = await mkdtemp(join(tmpdir(), "krazitv-stream-e2e-"));
   for (const name of ["first", "second", "third"]) {
-    clipPaths.push(generateClip(fixtureDirectory, name, CLIP_MS));
+    mediaPaths.push(
+      generateMediaFile(fixtureDirectory, name, MEDIA_DURATION_MS),
+    );
   }
 }, TEST_TIMEOUT_MS);
 
@@ -82,7 +84,7 @@ afterAll(async () => {
 });
 
 /**
- * Boots the production composition over three real clips programmed
+ * Boots the production composition over three real media files programmed
  * chronologically, so the schedule anchors at server startup on the wall
  * clock. Returns the first entries so tests can time tunes to boundaries.
  */
@@ -99,9 +101,11 @@ async function startRealChannel() {
   const { server, db } = await startTestServer({
     seed: async (db) => {
       await seedScheduleScenario(db, {
-        items: clipPaths.map((path, index) => ({
+        items: mediaPaths.map((path, index) => ({
           durationMs:
-            index === clipPaths.length - 1 ? LAST_AIRTIME_MS : CLIP_MS,
+            index === mediaPaths.length - 1
+              ? LAST_AIRTIME_MS
+              : MEDIA_DURATION_MS,
           path,
         })),
         source: "chronological",
@@ -241,7 +245,7 @@ describe("real FFmpeg channel stream", () => {
           expect(packager.sessions[0]?.prepared[0]?.scheduleEntryId).toBe(
             stale.id,
           ),
-        { timeout: CLIP_MS, interval: 50 },
+        { timeout: MEDIA_DURATION_MS, interval: 50 },
       );
 
       // Regeneration takes write authority as soon as the change arrives, so a
