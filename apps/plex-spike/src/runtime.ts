@@ -4,7 +4,6 @@ import {
   SystemRuntime,
   type ChannelAuthorization,
   type ChannelAuthorizationResult,
-  type ChannelId,
   type ChannelStreamManagerContract,
   type Clock,
   type CurrentPlayoutResult,
@@ -35,7 +34,7 @@ type FixedPlayoutOptions = Pick<
 export class FixedChannelAuthorization implements ChannelAuthorization {
   /** Keeps unknown IDs out of the production channel runtime. */
   async getChannelAuthorization(
-    channelId: ChannelId,
+    channelId: string,
   ): Promise<ChannelAuthorizationResult> {
     return channelId === CHANNEL_ID
       ? { status: "enabled", channelId }
@@ -50,7 +49,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
 
   /** Resolves the media position viewers should see at this instant. */
   async getCurrent(
-    channelId: ChannelId,
+    channelId: string,
     atMs: number,
   ): Promise<CurrentPlayoutResult> {
     if (channelId !== CHANNEL_ID) {
@@ -83,7 +82,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
 
   /** Supplies exactly the contiguous successor requested by the worker. */
   async getFollowing(
-    channelId: ChannelId,
+    channelId: string,
     afterScheduleEntryId: string,
     count: number,
   ): Promise<FollowingPlayoutResult> {
@@ -105,7 +104,7 @@ export class FixedSpikePlayoutProvider implements PlayoutProvider {
   }
 
   /** Exposes the fixed revision used by transition revalidation. */
-  async getScheduleRevision(_channelId: ChannelId): Promise<number> {
+  async getScheduleRevision(_channelId: string): Promise<number> {
     return SCHEDULE_REVISION;
   }
 

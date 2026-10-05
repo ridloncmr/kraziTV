@@ -22,7 +22,6 @@ export type {
 
 // Port kraziBrain's adapter implements to tell workers what plays.
 export type {
-  ChannelId,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
   PlayoutProvider,
