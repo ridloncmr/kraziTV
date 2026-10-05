@@ -3,6 +3,7 @@ import {
   formatDiscovery,
   formatLineup,
   formatLineupStatus,
+  formatXmltv,
 } from "@krazitv/plex";
 import type { FastifyInstance } from "fastify";
 
@@ -10,6 +11,7 @@ import type { ChannelRepository } from "../channels/repository/channel-repositor
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
 
 const LINEUP_PATH = "/lineup.json";
+const XML_CONTENT_TYPE = "application/xml; charset=utf-8";
 
 /** Deployment values the Plex routes build URLs and tuner identity from, parsed once at startup. */
 export type PlexSettings = {
@@ -42,7 +44,7 @@ export function registerPlexRoutes(
   server.get("/lineup_status.json", async () => formatLineupStatus());
 
   server.get(LINEUP_PATH, async () => {
-    const lineup = (await channels.list()).filter((channel) => channel.enabled);
+    const lineup = await listEnabledChannels(channels);
     return formatLineup(
       lineup.map((channel) => ({
         number: channel.number,
@@ -53,8 +55,24 @@ export function registerPlexRoutes(
   });
 
   server.get("/device.xml", async (_request, reply) =>
-    reply
-      .type("application/xml; charset=utf-8")
-      .send(formatDeviceXml(deviceId)),
+    reply.type(XML_CONTENT_TYPE).send(formatDeviceXml(deviceId)),
   );
+
+  server.get("/plex/xmltv.xml", async (_request, reply) => {
+    const guide = await listEnabledChannels(channels);
+    return reply.type(XML_CONTENT_TYPE).send(
+      formatXmltv(
+        guide.map((channel) => ({
+          id: channel.id,
+          number: channel.number,
+          name: channel.name,
+        })),
+      ),
+    );
+  });
+}
+
+/** Lists the channels Plex may see, in lineup order; disabled channels never reach Plex. */
+async function listEnabledChannels(channels: ChannelRepository) {
+  return (await channels.list()).filter((channel) => channel.enabled);
 }
