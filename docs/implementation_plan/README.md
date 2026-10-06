@@ -35,7 +35,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0004 Implementation Plan: Schedule Generation](0004-schedule-generation.md) - 12 of 12 tickets complete
 - [Spec 0005 Implementation Plan: Playout Timeline and Channel State](0005-playout-timeline.md) - 8 of 8 tickets complete
 - [Spec 0006 Implementation Plan: Shared Channel Streaming](0006-signal-packager.md) - 16 of 16 tickets complete
-- [Spec 0007 Implementation Plan: Plex Adapter](0007-plex-adapter.md) - 4 of 5 tickets complete
+- [Spec 0007 Implementation Plan: Plex Adapter](0007-plex-adapter.md) - 5 of 5 tickets complete
 - [Spec 0008 Implementation Plan: XP Desktop Web Admin](0008-web-admin.md) - 4 of 4 tickets complete
 
 <!-- plan-index:end -->

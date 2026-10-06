@@ -1,5 +1,5 @@
 {
-  "excludedPaths": ["apps/plex-spike/"],
+  "excludedPaths": [],
   "exceptions": [
     {
       "rule": "cross-package-copy",

@@ -6,7 +6,6 @@
     { "path": "./packages/media/tsconfig.build.json" },
     { "path": "./packages/plex/tsconfig.build.json" },
     { "path": "./packages/signal/tsconfig.build.json" },
-    { "path": "./apps/server/tsconfig.build.json" },
-    { "path": "./apps/plex-spike" }
+    { "path": "./apps/server/tsconfig.build.json" }
   ]
 }

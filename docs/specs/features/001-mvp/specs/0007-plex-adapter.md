@@ -1,6 +1,6 @@
 # Plex Adapter MVP
 
-Status: Accepted
+Status: Implemented
 
 This spec defines the MVP Plex adapter behavior: exposing kraziTV channels, guide data, and stream URLs in Plex-compatible forms without moving scheduling or media packaging decisions into the adapter.
 
@@ -266,21 +266,21 @@ The verified discovery response fields are `FriendlyName`, `Manufacturer`,
 
 ### Spike Retirement
 
-`apps/plex-spike` is throwaway. Delete it in the same change that finishes the
-formal MVP adapter, once that adapter meets this spec's acceptance criteria.
-That change also removes what the spike alone keeps alive:
+The disposable `apps/plex-spike` harness was retired on 2026-10-05 after the
+formal MVP adapter met this spec's automated and real-Plex acceptance criteria.
+Retirement also removed what the spike alone kept alive:
 
 - the `spike:*` scripts in the root `package.json` and the spike's reference in
   `tsconfig.build.json`;
 - the `apps/plex-spike/` entry in `excludedPaths` in
   `scripts/codebase-audit/audit-exceptions.json`;
-- the `ChannelId` export from `packages/signal/src/index.ts`, which no other
-  package imports;
 - the spike provider's `getScheduleRevision` method, which the
-  `PlayoutProvider` port no longer declares.
+  `PlayoutProvider` port no longer declared.
 
-Until then, codebase audits and convention cleanups skip the spike. The empty
-`packages/plex` package stays as the home of the formal adapter.
+The exercised `packages/signal` primitives were retained, and `packages/plex`
+is the home of the formal adapter. The historical compatibility evidence and
+formal acceptance result remain in
+[`plex-signal-spike.md`](../../../../knowledge_base/plex-signal-spike.md).
 
 ## Decisions Required From The Spike
 
@@ -322,7 +322,8 @@ Until then, codebase audits and convention cleanups skip the spike. The empty
 - Plex receives no successful stream response from a newly starting worker until
   that worker has buffered usable MPEG-TS output.
 - A late Plex viewer can join an already-running shared channel worker.
-- The spike's hard-coded Plex harness delegates streaming behavior to the same
-  `packages/signal` primitives retained by the MVP.
+- Recorded compatibility-spike evidence confirms its hard-coded Plex harness
+  delegated streaming behavior to the same `packages/signal` primitives
+  retained by the MVP.
 - Plex adapter does not generate schedules, generate playout timelines, choose media, mutate channel state, or construct FFmpeg commands.
 - kraziBrain does not emit Plex-specific HDHomeRun or XMLTV formatting.

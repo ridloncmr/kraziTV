@@ -33,8 +33,8 @@ Use `code-review` instead for a single diff or PR.
   Propose the entry; let the user accept it.
 - Never fix findings during the audit. Report first; fix only what the user
   picks.
-- Never report findings against `apps/plex-spike` or anything else in
-  `excludedPaths`. Their imports still count as consumers of audited packages.
+- Never report findings against paths in `excludedPaths`. Their imports still
+  count as consumers of audited packages.
 
 ## Steps
 
