@@ -4,6 +4,18 @@ This file records license notices for third-party material included or adapted
 in kraziTV. These notices apply to the identified third-party material; they do
 not replace the project's PolyForm Noncommercial license.
 
+## Web Admin Visual Reference
+
+The Web Admin's visual research reference is
+[faisalAkhtar/windows-xp](https://github.com/faisalAkhtar/windows-xp), licensed
+under MPL-2.0. Its `assets/desktop.css`, `assets/loader.css`, `desktop.html`, and
+`loading.html` informed the compact proportions, dimensional chrome, Start,
+taskbar, and boot composition. The kraziTV implementation was written
+independently from the design brief's tokens; no upstream code, Microsoft
+wallpaper, logos, icons, or font binaries are distributed. The CRT mark,
+program icons, and `apps/web/public/northwoods.svg` are original kraziTV vector
+artwork and use the project's license.
+
 ## Matt Pocock Skills
 
 The following files are adapted from Matt Pocock's

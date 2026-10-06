@@ -62,6 +62,14 @@ file in the same change.
 | **Black tail**            | Black video and silence a signal session emits after a playout item's media ends before its airtime does, so the broadcast signal stays continuous until the boundary. Stored as `blackTailMs`; filler replaces it later. See [spec 0006](docs/specs/features/001-mvp/specs/0006-signal-packager.md). | padding, dead air              |
 | **Bumper**                | A short branded clip marking a transition into or out of a program or break.                                                                                                                                                                                                                          | intro, sting (unless distinct) |
 
+## Web Administration
+
+| Term                | Definition                                                                                                                                                                                                                             | Avoid                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| **Desktop shell**   | The browser presentation environment containing shortcuts, windows, Start, taskbar and system tray. Its state is transient and never decides broadcast behavior. See [spec 0008](docs/specs/features/001-mvp/specs/0008-web-admin.md). | operating-system framework |
+| **Desktop program** | A singleton administration interface opened through the desktop or Start, such as My Channels or Media Library.                                                                                                                        | fake process               |
+| **Cleanup retry**   | A browser-held reference to a failed administrative runtime stop, retained until the server confirms cleanup succeeded. It never recreates deleted channel configuration.                                                              | rollback                   |
+
 ## Media Catalog
 
 | Term                     | Definition                                                                                                                                                                                                                                  | Avoid                         |
