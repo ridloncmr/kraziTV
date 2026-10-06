@@ -93,7 +93,7 @@ describe("POST /media-roots/:id/scan", () => {
     await response;
 
     const items = await server.inject({ method: "GET", url: "/media-items" });
-    expect(items.json()).toEqual([
+    expect(items.json().items).toEqual([
       expect.objectContaining({
         mediaRootId: rootFixture.id,
         path: "/media/movies/a.mkv",

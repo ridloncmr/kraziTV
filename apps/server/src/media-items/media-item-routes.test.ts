@@ -72,8 +72,8 @@ const missing = itemFixtureAt("item-missing", "/media/movies/gone.mkv", {
   updated_at: LATER,
 });
 
-function list(server: Server) {
-  return server.inject({ method: "GET", url: "/media-items" });
+function list(server: Server, query = "") {
+  return server.inject({ method: "GET", url: `/media-items${query}` });
 }
 
 function detail(server: Server, id: string) {
@@ -81,13 +81,47 @@ function detail(server: Server, id: string) {
 }
 
 describe("GET /media-items", () => {
-  it("returns an empty list before anything is scanned", async () => {
+  it("returns an empty page before anything is scanned", async () => {
     const server = await startServer();
 
     const response = await list(server);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([]);
+    expect(response.json()).toEqual({ items: [], total: 0 });
+  });
+
+  it("applies search, limit and offset while total counts every match", async () => {
+    const server = await startServer([
+      itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
+      itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
+      itemFixtureAt("item-c", "/media/movies/show-c.mkv"),
+      itemFixtureAt("item-x", "/media/movies/other.mkv"),
+    ]);
+
+    const response = await list(server, "?q=%20SHOW%20&limit=1&offset=1");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: "item-b" }],
+      total: 3,
+    });
+  });
+
+  it.each([
+    ["a zero limit", "?limit=0"],
+    ["a limit above the page cap", "?limit=201"],
+    ["a negative offset", "?offset=-1"],
+    ["a non-numeric limit", "?limit=ten"],
+    ["an unknown parameter", "?status=available"],
+  ])("rejects %s as an invalid request", async (_case, query) => {
+    const server = await startServer();
+
+    const response = await list(server, query);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: { code: "invalid_request", message: expect.any(String) },
+    });
   });
 
   it("orders by root path, then item path, then item ID", async () => {
@@ -104,7 +138,7 @@ describe("GET /media-items", () => {
 
     const response = await list(server);
 
-    expect(response.json().map(({ id }: { id: string }) => id)).toEqual([
+    expect(response.json().items.map(({ id }: { id: string }) => id)).toEqual([
       "item-004",
       "item-003",
       "item-002",
@@ -203,7 +237,7 @@ describe("media item persistence", () => {
     const { server: second } = await startTestServer({ dataDirectory });
     const after = await list(second);
 
-    expect(after.json()).toHaveLength(4);
+    expect(after.json().total).toBe(4);
     expect(after.json()).toEqual(before.json());
   });
 });

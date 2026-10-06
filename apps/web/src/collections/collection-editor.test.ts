@@ -33,11 +33,11 @@ it("saves explicit draft order, removal and addition while rendering backend eli
     schedulableCount: 1,
   });
   api.reply("/media-collections/favorites/items", [], "PUT");
+  api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
   const view = render(
     createElement(CollectionEditor, {
       collection: adminFixtures.collections[0],
-      media: adminFixtures.media,
       visible: true,
       changed: vi.fn(),
     }),
@@ -47,7 +47,6 @@ it("saves explicit draft order, removal and addition while rendering backend eli
   view.rerender(
     createElement(CollectionEditor, {
       collection: adminFixtures.collections[0],
-      media: adminFixtures.media,
       visible: false,
       changed: vi.fn(),
     }),
@@ -55,7 +54,6 @@ it("saves explicit draft order, removal and addition while rendering backend eli
   view.rerender(
     createElement(CollectionEditor, {
       collection: adminFixtures.collections[0],
-      media: adminFixtures.media,
       visible: true,
       changed: vi.fn(),
     }),
@@ -82,6 +80,7 @@ it("saves explicit draft order, removal and addition while rendering backend eli
     ).toBe(false),
   );
   fireEvent.click(screen.getByRole("button", { name: "Remove Zulu" }));
+  await screen.findByRole("option", { name: "Zulu (missing)" });
   fireEvent.change(screen.getByLabelText("Catalog media"), {
     target: { value: "a" },
   });

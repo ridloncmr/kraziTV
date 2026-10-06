@@ -1,19 +1,35 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 
-import { sendApiError } from "../http/api-error.js";
+import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
 import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
 import type { MediaItem } from "./contracts.js";
 import type { MediaItemRepository } from "./media-item-repository.js";
+
+// Bounds one response so a large catalog never ships in a single read.
+const MAX_PAGE_SIZE = 200;
+
+// Query strings arrive as text, so numbers are coerced before range checks.
+const listQuery = z.strictObject({
+  q: z.string().trim().default(""),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 /** Registers read-only catalog routes; status mapping and projection live only here. */
 export function registerMediaItemRoutes(
   server: FastifyInstance,
   mediaItems: MediaItemRepository,
 ): void {
-  server.get("/media-items", async () => {
-    const items = await mediaItems.list();
-    return items.map(toApiMediaItem);
+  server.get("/media-items", async (request, reply) => {
+    const query = listQuery.safeParse(request.query);
+    if (!query.success) {
+      return sendInvalidRequest(reply, query.error);
+    }
+    const { q, limit, offset } = query.data;
+    const page = await mediaItems.list({ search: q, limit, offset });
+    return { items: page.items.map(toApiMediaItem), total: page.total };
   });
 
   server.get("/media-items/:id", async (request, reply) => {

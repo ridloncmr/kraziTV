@@ -22,7 +22,7 @@ it("boots, navigates Start, restores one singleton and synchronizes the taskbar 
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
   api.reply("/media-roots", []);
-  api.reply("/media-items", []);
+  api.reply("/media-items", { items: [], total: 0 });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(DesktopShell));
   expect(screen.getByLabelText("kraziTV starting")).toBeTruthy();
@@ -91,7 +91,7 @@ it("keeps windows on screen while the browser shrinks and restores their places 
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
   api.reply("/media-roots", []);
-  api.reply("/media-items", []);
+  api.reply("/media-items", { items: [], total: 0 });
   vi.stubGlobal("fetch", api.fetch);
   vi.stubGlobal("innerWidth", 1280);
   vi.stubGlobal("innerHeight", 800);
@@ -126,7 +126,7 @@ it("focuses inactive windows by pointer and moves the focused title with the key
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
   api.reply("/media-roots", []);
-  api.reply("/media-items", []);
+  api.reply("/media-items", { items: [], total: 0 });
   api.reply("/media-collections", []);
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(DesktopShell));

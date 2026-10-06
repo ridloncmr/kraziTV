@@ -1,7 +1,7 @@
 import { formText } from "../controls/form-text.js";
 import { useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
-import type { MediaCollection, MediaItem } from "../http/contracts.js";
+import type { MediaCollection } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { CollectionEditor } from "./collection-editor.js";
 
@@ -11,7 +11,6 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
     "/media-collections",
     visible,
   );
-  const media = useResource<MediaItem[]>("/media-items", visible);
   const mutation = useMutation();
   const [selected, setSelected] = useState("");
   const collection = collections.data?.find((item) => item.id === selected);
@@ -19,22 +18,15 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
     <div className="program-page">
       <div className="program-toolbar">
         <span>Collections</span>
-        <button
-          onClick={() => {
-            collections.refresh();
-            media.refresh();
-          }}
-        >
-          Refresh
-        </button>
+        <button onClick={collections.refresh}>Refresh</button>
       </div>
       <p className="program-intro">
         Build ordered sets of media for your channels. Chronological playback
         follows this order.
       </p>
       <RequestFeedback
-        loading={collections.loading || media.loading || mutation.pending}
-        error={mutation.error ?? collections.error ?? media.error}
+        loading={collections.loading || mutation.pending}
+        error={mutation.error ?? collections.error}
         message={mutation.message}
       />
       <form
@@ -85,7 +77,6 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
         <CollectionEditor
           key={collection.id}
           collection={collection}
-          media={media.data ?? []}
           visible={visible}
           changed={collections.refresh}
         />

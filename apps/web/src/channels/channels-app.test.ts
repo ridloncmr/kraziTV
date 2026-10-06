@@ -123,7 +123,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   const api = new BrowserApi();
   api.reply("/channels/one/programming-blocks", []);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/media-items", adminFixtures.media);
+  api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   api.reply(
     "/channels/one/programming-blocks",
     { id: "block", source: { kind: "media_item", mediaItemId: "z" } },
@@ -136,6 +136,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   fireEvent.change(screen.getByLabelText("Source type"), {
     target: { value: "media_item" },
   });
+  await screen.findByRole("option", { name: "Alpha (available)" });
   fireEvent.change(screen.getByLabelText("Programming source"), {
     target: { value: "z" },
   });
@@ -160,7 +161,6 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
     },
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/media-items", adminFixtures.media);
   vi.stubGlobal("fetch", api.fetch);
   const view = render(
     createElement(ProgrammingEditor, { channelId: "one", visible: true }),

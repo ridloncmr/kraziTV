@@ -1,6 +1,8 @@
 /** Requests captured at the fetch boundary use the real public API method/body/error contract. */
 interface BrowserRequest {
   path: string;
+  /** Handlers match on path alone; tests read the query to check paging and search. */
+  query: URLSearchParams;
   method: string;
   body: unknown;
   signal?: AbortSignal | null;
@@ -56,12 +58,14 @@ export class BrowserApi {
     input: RequestInfo | URL,
     options?: RequestInit,
   ): Promise<Response> => {
-    const path = new URL(
+    const url = new URL(
       input instanceof Request ? input.url : String(input),
       "http://ui.test",
-    ).pathname;
+    );
+    const path = url.pathname;
     const request: BrowserRequest = {
       path,
+      query: url.searchParams,
       method: options?.method ?? "GET",
       body:
         typeof options?.body === "string"

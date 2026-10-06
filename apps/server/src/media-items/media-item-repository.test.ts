@@ -30,6 +30,17 @@ async function setup(items: Insertable<MediaItemTable>[]) {
   return new MediaItemRepository(database.db);
 }
 
+const EVERYTHING = { search: "", limit: 50, offset: 0 };
+
+// Lists the IDs on one page so ordering and filtering assertions stay short.
+async function listIds(
+  repository: MediaItemRepository,
+  query: Partial<typeof EVERYTHING>,
+): Promise<string[]> {
+  const page = await repository.list({ ...EVERYTHING, ...query });
+  return page.items.map((entry) => entry.id);
+}
+
 describe("MediaItemRepository.list", () => {
   it("groups by root path key, then item path key", async () => {
     const repository = await setup([
@@ -40,19 +51,62 @@ describe("MediaItemRepository.list", () => {
       }),
     ]);
 
-    const items = await repository.list();
-
-    expect(items.map((entry) => entry.id)).toEqual([
+    await expect(listIds(repository, {})).resolves.toEqual([
       "item-z",
       "item-a",
       "item-b",
     ]);
   });
 
-  it("returns an empty list for an empty catalog", async () => {
+  it("returns an empty page for an empty catalog", async () => {
     const repository = await setup([]);
 
-    await expect(repository.list()).resolves.toEqual([]);
+    await expect(repository.list(EVERYTHING)).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
+  });
+
+  it("pages through the stable order while total counts every item", async () => {
+    const repository = await setup(
+      ["a", "b", "c", "d", "e"].map((name) =>
+        itemFixtureAt(`item-${name}`, `/media/movies/${name}.mkv`),
+      ),
+    );
+
+    const page = await repository.list({ ...EVERYTHING, limit: 2, offset: 2 });
+
+    expect(page.items.map((entry) => entry.id)).toEqual(["item-c", "item-d"]);
+    expect(page.total).toBe(5);
+  });
+
+  it("matches the search in a title or path, ignoring ASCII case", async () => {
+    const repository = await setup([
+      itemFixtureAt("item-title", "/media/movies/one.mkv", {
+        title: "Northwoods Pilot",
+      }),
+      itemFixtureAt("item-path", "/media/movies/NORTHWOODS/two.mkv"),
+      itemFixtureAt("item-other", "/media/movies/three.mkv"),
+    ]);
+
+    const page = await repository.list({ ...EVERYTHING, search: "northwoods" });
+
+    expect(page.items.map((entry) => entry.id)).toEqual([
+      "item-path",
+      "item-title",
+    ]);
+    expect(page.total).toBe(2);
+  });
+
+  it("treats LIKE wildcards in the search as literal text", async () => {
+    const repository = await setup([
+      itemFixtureAt("item-percent", "/media/movies/100%.mkv"),
+      itemFixtureAt("item-plain", "/media/movies/1000.mkv"),
+    ]);
+
+    await expect(listIds(repository, { search: "0%" })).resolves.toEqual([
+      "item-percent",
+    ]);
   });
 });
 

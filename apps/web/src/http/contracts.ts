@@ -13,6 +13,10 @@ export interface MediaItem {
   durationMs: number | null;
   probeError: string | null;
 }
+export interface MediaItemPage {
+  items: MediaItem[];
+  total: number;
+}
 export interface MediaCollection {
   id: string;
   name: string;

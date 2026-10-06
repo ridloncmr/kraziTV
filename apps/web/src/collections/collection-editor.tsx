@@ -9,16 +9,15 @@ import type {
   MediaItem,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
+import { MediaItemPicker } from "../media-search/media-item-picker.js";
 
 /** Draft order is form state; membership and schedulability become authoritative only after API writes. */
 export function CollectionEditor({
   collection,
-  media,
   visible,
   changed,
 }: {
   collection: MediaCollection;
-  media: MediaItem[];
   visible: boolean;
   changed: () => void;
 }) {
@@ -27,7 +26,9 @@ export function CollectionEditor({
   const status = useResource<CollectionStatus>(`${path}/status`, visible);
   const mutation = useMutation();
   const [ids, setIds] = useState<string[]>([]);
-  const [addId, setAddId] = useState("");
+  const [adding, setAdding] = useState<MediaItem>();
+  // Unsaved additions are not members yet, so their titles come from the picker.
+  const [picked, setPicked] = useState<MediaItem[]>([]);
   const dirty = useRef(false);
   useEffect(() => {
     if (members.data && !dirty.current)
@@ -79,28 +80,21 @@ export function CollectionEditor({
       <fieldset disabled={mutation.pending || !members.data}>
         <legend>Media order</legend>
         <div className="inline-form">
-          <label>
-            Catalog media
-            <select
-              value={addId}
-              onChange={(event) => setAddId(event.target.value)}
-            >
-              <option value="">Choose media to add</option>
-              {media
-                .filter((item) => !ids.includes(item.id))
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title} ({item.status})
-                  </option>
-                ))}
-            </select>
-          </label>
+          <MediaItemPicker
+            label="Catalog media"
+            value={adding?.id ?? ""}
+            exclude={ids}
+            visible={visible}
+            onChange={setAdding}
+          />
           <button
-            disabled={!addId}
+            disabled={!adding}
             onClick={() => {
+              if (!adding) return;
               dirty.current = true;
-              setIds([...ids, addId]);
-              setAddId("");
+              setIds([...ids, adding.id]);
+              setPicked([...picked, adding]);
+              setAdding(undefined);
             }}
           >
             Add media
@@ -114,8 +108,8 @@ export function CollectionEditor({
         <ol className="member-list">
           {ids.map((id, index) => {
             const item =
-              media.find((item) => item.id === id) ??
-              members.data?.find((item) => item.mediaItemId === id);
+              members.data?.find((item) => item.mediaItemId === id) ??
+              picked.find((item) => item.id === id);
             return (
               <li key={id}>
                 <span>

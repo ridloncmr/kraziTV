@@ -16,3 +16,16 @@ export interface MediaItem {
   lastSeenAt: number;
   lastProbedAt: number | null;
 }
+
+/** One page of the catalog listing; an empty `search` matches every item. */
+export interface MediaItemQuery {
+  search: string;
+  limit: number;
+  offset: number;
+}
+
+/** The requested page plus the count of every item the search matches. */
+export interface MediaItemPage {
+  items: MediaItem[];
+  total: number;
+}

@@ -3,13 +3,18 @@ import { useState } from "react";
 import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type { MediaItem, MediaRoot, ScanSummary } from "../http/contracts.js";
+import { Pager } from "../controls/pager.js";
+import type { MediaRoot, ScanSummary } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
+import { useMediaItemPage } from "../media-search/use-media-item-page.js";
+
+const PAGE_SIZE = 50;
 
 /** Configures discovery locations and displays real synchronous scan outcomes and catalog facts. */
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
-  const media = useResource<MediaItem[]>("/media-items", visible);
+  const [search, setSearch] = useState("");
+  const media = useMediaItemPage(search, PAGE_SIZE, visible);
   const mutation = useMutation();
   const [summary, setSummary] = useState<ScanSummary>();
   const [scanning, setScanning] = useState("");
@@ -141,14 +146,33 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
         </fieldset>
       )}
       <h2>
-        Cataloged media <small>({media.data?.length ?? 0})</small>
+        Cataloged media <small>({media.data?.total ?? 0})</small>
       </h2>
-      {media.data?.length === 0 && (
+      <label>
+        Find media
+        <input
+          type="search"
+          value={search}
+          placeholder="Title or path"
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+      {media.data?.total === 0 && (
         <p className="empty-state">
-          The catalog is empty. Scan an enabled media root to discover media.
+          {search.trim()
+            ? "No cataloged media matches this search."
+            : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
       )}
-      {media.data && media.data.length > 0 && (
+      {media.data && (
+        <Pager
+          offset={media.offset}
+          limit={PAGE_SIZE}
+          total={media.data.total}
+          onChange={media.setOffset}
+        />
+      )}
+      {media.data && media.data.items.length > 0 && (
         <div className="table-scroll">
           <table>
             <thead>
@@ -159,7 +183,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {media.data.map((item) => (
+              {media.data.items.map((item) => (
                 <tr key={item.id}>
                   <td>
                     {item.title}
