@@ -35,6 +35,12 @@ export function registerPlexRoutes(
 ): void {
   const { publicBaseUrl, deviceId, tunerCount } = settings;
 
+  // Administration reads configured public URLs without reproducing provider URL policy.
+  server.get("/plex/setup", async () => ({
+    tunerBaseUrl: publicBaseUrl,
+    xmltvUrl: `${publicBaseUrl}/plex/xmltv.xml`,
+  }));
+
   server.get("/discover.json", async () =>
     formatDiscovery({
       deviceId,

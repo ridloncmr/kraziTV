@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { isSchedulableMedia } from "@krazitv/krazi-brain";
 import { z } from "zod";
 
 import {
@@ -105,6 +106,21 @@ export function registerMediaCollectionRoutes(
       return sendCollectionNotFound(reply, id);
     }
     return members.map(toApiMediaCollectionMember);
+  });
+
+  // The browser displays eligibility; kraziBrain alone owns its duration/status policy.
+  server.get("/media-collections/:id/status", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const members = await mediaCollections.listMembers(id);
+    if (members === undefined) return sendCollectionNotFound(reply, id);
+    const schedulableCount = members.filter((member) =>
+      isSchedulableMedia({ ...member, id: member.mediaItemId }),
+    ).length;
+    return {
+      schedulable: schedulableCount > 0,
+      memberCount: members.length,
+      schedulableCount,
+    };
   });
 
   server.put("/media-collections/:id/items", async (request, reply) => {
