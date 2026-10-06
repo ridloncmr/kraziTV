@@ -1,10 +1,19 @@
 import { useEffect, useRef, type Dispatch, type ReactNode } from "react";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type {
+  DesktopViewport,
   DesktopWindow,
   ProgramDefinition,
   WindowAction,
 } from "../contracts.js";
+
+/** Keeps a 760x540 window (smaller when CSS shrinks it) fully inside the usable viewport. */
+function withinViewport(x: number, y: number, viewport: DesktopViewport) {
+  return {
+    x: Math.max(0, Math.min(x, viewport.width - 760)),
+    y: Math.max(0, Math.min(y, viewport.height - 540)),
+  };
+}
 
 /** Hosts arbitrary program contents while owning only chrome and pointer/keyboard movement. */
 export function AppWindow({
@@ -12,6 +21,7 @@ export function AppWindow({
   program,
   active,
   index,
+  viewport,
   dispatch,
   children,
 }: {
@@ -19,6 +29,7 @@ export function AppWindow({
   program: ProgramDefinition;
   active: boolean;
   index: number;
+  viewport: DesktopViewport;
   dispatch: Dispatch<WindowAction>;
   children: ReactNode;
 }) {
@@ -34,15 +45,13 @@ export function AppWindow({
     if (active && !frame.current?.contains(document.activeElement))
       title.current?.focus();
   }, [active]);
-  /** Bounds movement to the usable viewport so the entire title bar remains recoverable. */
+  const shown = withinViewport(window.x, window.y, viewport);
+  /** Commits a move bounded to the usable viewport so the entire title bar remains recoverable. */
   function move(x: number, y: number) {
-    const width = frame.current?.offsetWidth ?? 760;
-    const height = frame.current?.offsetHeight ?? 540;
     dispatch({
       type: "move",
       id: window.id,
-      x: Math.max(0, Math.min(x, globalThis.innerWidth - width)),
-      y: Math.max(0, Math.min(y, globalThis.innerHeight - 32 - height)),
+      ...withinViewport(x, y, viewport),
     });
   }
   return (
@@ -52,7 +61,7 @@ export function AppWindow({
       role="region"
       aria-label={program.name}
       hidden={window.minimized}
-      style={{ left: window.x, top: window.y, zIndex: index + 1 }}
+      style={{ left: shown.x, top: shown.y, zIndex: index + 1 }}
       onPointerDown={() => dispatch({ type: "focus", id: window.id })}
       onFocusCapture={() => {
         if (!active) dispatch({ type: "focus", id: window.id });
@@ -78,7 +87,7 @@ export function AppWindow({
           const step = steps[event.key];
           if (step) {
             event.preventDefault();
-            move(window.x + step[0], window.y + step[1]);
+            move(shown.x + step[0], shown.y + step[1]);
           }
         }}
         onPointerDown={(event) => {
@@ -91,8 +100,8 @@ export function AppWindow({
           drag.current = {
             x: event.clientX,
             y: event.clientY,
-            left: window.x,
-            top: window.y,
+            left: shown.x,
+            top: shown.y,
           };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}

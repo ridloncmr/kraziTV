@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -84,6 +85,41 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
   expect(
     screen.getByRole("button", { name: "API connection failed" }),
   ).toBeTruthy();
+});
+
+it("keeps windows on screen while the browser shrinks and restores their places when it grows", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-items", []);
+  vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
+  render(createElement(DesktopShell));
+  const shortcuts = await screen.findByLabelText("Desktop programs");
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "Media Library" }),
+  );
+  const media = screen.getByRole("region", { name: "Media Library" });
+  const title = within(media).getByLabelText(/Media Library window/);
+  for (let step = 0; step < 10; step++)
+    fireEvent.keyDown(title, { key: "ArrowRight" });
+  const placed = { left: media.style.left, top: media.style.top };
+  expect(placed).toEqual({ left: "340px", top: "40px" });
+  /** Simulates dragging the browser between monitors of different sizes. */
+  const resizeTo = (width: number, height: number) =>
+    act(() => {
+      vi.stubGlobal("innerWidth", width);
+      vi.stubGlobal("innerHeight", height);
+      globalThis.dispatchEvent(new Event("resize"));
+    });
+  resizeTo(800, 600);
+  expect({ left: media.style.left, top: media.style.top }).toEqual({
+    left: "40px",
+    top: "28px",
+  });
+  resizeTo(1280, 800);
+  expect({ left: media.style.left, top: media.style.top }).toEqual(placed);
 });
 
 it("focuses inactive windows by pointer and moves the focused title with the keyboard", async () => {

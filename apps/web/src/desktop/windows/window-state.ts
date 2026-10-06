@@ -1,17 +1,14 @@
 import type { DesktopWindow, WindowAction } from "../contracts.js";
 
-/** Array order is stacking order, keeping taskbar membership and focus in one state. */
+/**
+ * Array order is stacking order, keeping taskbar membership and focus in one state.
+ * Positions are where the user placed each window; viewport clamping happens at render
+ * so a temporarily small browser never overwrites them.
+ */
 export function windowReducer(
   state: DesktopWindow[],
   action: WindowAction,
 ): DesktopWindow[] {
-  if (action.type === "viewport") {
-    return state.map((item) => ({
-      ...item,
-      x: Math.max(0, Math.min(item.x, action.width - 760)),
-      y: Math.max(0, Math.min(item.y, action.height - 540)),
-    }));
-  }
   if (action.type === "close")
     return state.filter((item) => item.id !== action.id);
   const existing = state.find((item) => item.id === action.id);

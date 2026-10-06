@@ -17,8 +17,13 @@ export type WindowAction =
       type: "open" | "close" | "focus" | "minimize" | "maximize";
       id: ProgramId;
     }
-  | { type: "move"; id: ProgramId; x: number; y: number }
-  | { type: "viewport"; width: number; height: number };
+  | { type: "move"; id: ProgramId; x: number; y: number };
+
+/** The usable desktop area: the browser viewport minus the taskbar. */
+export interface DesktopViewport {
+  width: number;
+  height: number;
+}
 
 export interface ProgramDefinition {
   id: ProgramId;
