@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "rootDir": "."
-  },
-  "include": ["integration/**/*.ts"],
-  "references": [{ "path": "../../packages/signal/tsconfig.build.json" }]
-}
