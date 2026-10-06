@@ -95,6 +95,22 @@ they are missing. `npm test` and CI do not run it.
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. The Web Admin runs separately during development.
 
+The Web Admin at `http://127.0.0.1:5173` is an XP-inspired kraziTV desktop.
+Open Media Library to add and scan server paths, Collections to arrange media,
+and My Channels to configure channel identity and programming. Program Guide
+and Live Monitor display backend-computed state; Plex Setup supplies the
+server-configured tuner and XMLTV URLs. Programs are reachable through desktop
+shortcuts or Start; title bars support pointer dragging and arrow-key movement.
+Minimized programs retain form drafts and remain on the taskbar.
+
+Set `VITE_API_BASE_URL` when the browser should use a different API origin.
+Development defaults to `http://127.0.0.1:3000`; a production build defaults to
+same-origin requests. Serving the built UI is still deployment/packaging work.
+For Chromium verification, run `npx playwright install chromium` and
+`npm run test:browser --workspace @krazitv/web`. This opt-in suite uses real
+Fastify routes and SQLite, with the existing controlled probe adapter, and writes
+desktop/guide screenshots under `data/`. It does not tune Plex or test FFmpeg.
+
 Browser CORS access defaults to the local Web UI at
 `http://127.0.0.1:5173`. Set `CORS_ORIGINS` to a comma-separated list of exact
 allowed origins when the UI is served elsewhere. CORS is not authentication and
@@ -103,9 +119,9 @@ does not make a network-exposed API safe.
 CI runs install, formatting, typecheck, test, and build checks on every pull
 request and on pushes to `main`. Automated tests cover the local media catalog
 end to end (media roots, discovery, probing through a controlled double, scans,
-and catalog queries against SQLite), the shared-signal runtime primitives, and
-server configuration. Scheduling, playout, and provider behavior are not built
-yet, so a passing test step does not reflect full MVP coverage.
+and catalog queries against SQLite), scheduling, playout, Plex formatting,
+shared-signal runtime primitives, server configuration, and browser interaction
+contracts. Real Plex compatibility and external-binary suites remain separate.
 
 ## License
 

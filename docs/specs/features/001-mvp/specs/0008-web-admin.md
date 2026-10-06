@@ -1,8 +1,8 @@
 # Web Admin MVP
 
-Status: Accepted
+Status: Implemented
 
-This spec defines the MVP Web Admin behavior: a minimal browser interface for configuring media roots, media collections, channels, programming blocks, and observing generated programming and current channel state.
+This spec defines the MVP Web Admin behavior: a Windows XP-inspired desktop for configuring media roots, media collections, channels, programming blocks, and observing generated programming and current channel state. Windows XP is the presentation grammar; kraziTV is the operating environment.
 
 ## Problem
 
@@ -12,7 +12,7 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 
 ## Goals
 
-- Provide a minimal browser UI for MVP setup.
+- Provide a compact, original XP Luna-inspired desktop for MVP setup.
 - Let users configure local media roots.
 - Let users trigger or observe media scans.
 - Let users create simple media collections from cataloged media.
@@ -26,7 +26,7 @@ The Web Admin should make the MVP loop visible and debuggable while keeping sche
 
 ## Non-Goals
 
-- Do not implement a polished final design system.
+- Do not reproduce Microsoft artwork, wallpaper, logos, or proprietary fonts.
 - Do not implement user accounts or authentication.
 - Do not implement multi-user permissions.
 - Do not implement manual schedule editing.
@@ -70,16 +70,48 @@ The UI should make empty states clear, especially when:
 
 The Web Admin uses React, Vite, and TypeScript.
 
-The MVP UI should include navigation or sections for:
+The desktop represents the server. Shortcuts and an organized Start menu open
+singleton administrative programs in windows; the bottom taskbar represents open
+programs, including minimized ones. The system tray shows a clock and the result
+of actual API health requests, never inferred FFmpeg or Plex health.
 
-- Overview
-- Media roots and catalog
-- Media collections
-- Channels
-- Schedule/current state
-- Plex setup, when the Plex adapter is accepted
+| Program       | Existing capability                                              |
+| ------------- | ---------------------------------------------------------------- |
+| Media Library | Media roots, synchronous scans, catalog and availability         |
+| Collections   | Collection names and explicit ordered membership                 |
+| My Channels   | Channel identity, lifecycle, cleanup retries, programming blocks |
+| Program Guide | Selected channel's generated schedule and current/next state     |
+| Plex Setup    | Backend-supplied tuner and XMLTV URLs and copy actions           |
+| Live Monitor  | API connection and backend-computed selected channel state       |
 
-The exact visual layout can change during implementation, but the setup path should remain obvious.
+The shell supports open, close, focus, stacking, title-bar dragging,
+minimize/restore, and maximize/restore. Reopening a program restores and focuses
+its existing window. Closing removes its taskbar button; minimizing preserves
+the mounted form state. Maximized windows occupy the viewport above the 32px
+taskbar. Resizing the viewport keeps title bars reachable; narrow screens use
+full usable-area windows with scrollable content. Window state is transient
+browser state and never enters the domain database.
+
+A short black boot screen uses an original CRT mark containing four colored
+panes, kraziTV branding, and a segmented loading indicator during the initial
+health request. A bounded request timeout lets an offline server reach a usable
+desktop with an honest connection error. No login or password is shown.
+
+Centralized CSS tokens define dimensional blue chrome, a green lowercase
+`start` button, compact controls, inset borders, inactive title bars, and
+Tahoma/system-safe typography. Original vector icons and Northwoods/broadcast
+wallpaper provide kraziTV identity. The visual reference is
+[faisalAkhtar/windows-xp](https://github.com/faisalAkhtar/windows-xp), especially
+`assets/desktop.css`, `assets/loader.css`, `desktop.html`, and `loading.html`.
+Implement the visual grammar independently; do not copy bundled Microsoft
+assets or code. Direct adaptations must account for MPL-2.0.
+
+Programs and window controls are semantic, named buttons. Keyboard users can
+open every program, focus windows, use controls, and move windows without
+dragging. Start dismisses on Escape or outside interaction and returns focus
+to its trigger. Forms retain labels, validation messages, visible focus,
+pending/disabled states, explicit destructive confirmations, and useful empty
+states. Reduced-motion preferences disable boot animation.
 
 ### Media Root UI
 
@@ -163,6 +195,11 @@ The user can view or copy:
 - Plex tuner base URL
 - Plex XMLTV guide URL
 
+`GET /plex/setup` supplies `tunerBaseUrl` and `xmltvUrl`, both constructed by
+the server from configured public URL settings. The collection status endpoint
+`GET /media-collections/:id/status` supplies `schedulable` and member counts
+using kraziBrain's existing eligibility policy; the browser never duplicates it.
+
 The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. The backend supplies these URLs from its configured `PUBLIC_BASE_URL`; the browser must not reconstruct them from its own location.
 
 ### API Integration
@@ -218,10 +255,29 @@ Important boundaries:
 - Decide how the Web Admin is served in production when packaging work begins.
 - Add authentication before treating the administration API as safe for untrusted networks.
 - Add background scan jobs and progress reporting if synchronous scans prove too slow.
+- Real Welcome/login, accounts and permissions, snap layouts/tiling, persistent
+  window or icon layouts, Event Viewer/logging APIs, Control Panel settings,
+  context-menu ecosystems, fake filesystem/applets/games, sounds, screensavers,
+  themes, and pixel-perfect XP emulation. No placeholder programs imply these
+  capabilities exist.
+
+## Reconciliation And Open Questions
+
+The desktop replaces the original section-navigation model and the original
+non-goal of a polished design system. All functional requirements and accepted
+ADR boundaries remain. Two additive read-only projections above close existing
+MVP presentation gaps without adding telemetry or persistent data. Production
+hosting remains packaging work; there are no unresolved MVP design decisions.
 
 ## Acceptance Criteria
 
 - The Web Admin loads in a browser.
+- The user boots into an original XP-inspired desktop and can reach all six
+  programs through shortcuts and Start, using pointer or keyboard.
+- Singleton windows focus, drag, minimize, restore, maximize, and close, with
+  synchronized taskbar buttons and distinguishable active/inactive chrome.
+- At desktop and narrow viewports, window controls remain reachable, forms
+  scroll, and the taskbar handles overflow. Reduced motion is respected.
 - The UI can show API health or connection status.
 - A user can add or view media roots through the UI.
 - A user can trigger media scanning and see its result summary through the UI.
