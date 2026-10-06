@@ -15,7 +15,7 @@ const MAX_TUNER_COUNT = 64;
 /**
  * Resolves the tuner identity Plex sees once at startup. The device ID is
  * uppercased so a case-only change never makes Plex treat it as a new tuner.
- * The tuner count caps how many distinct channels Plex streams at once.
+ * The tuner count advertises capacity so Plex limits concurrent channel use.
  */
 export function parseTunerConfig(
   env: Readonly<Record<string, string | undefined>>,

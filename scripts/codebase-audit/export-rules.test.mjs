@@ -141,7 +141,7 @@ describe("unused-package-export", () => {
     ).toEqual([]);
   });
 
-  it("counts opt-in integration suites and excluded spikes as consumers", () => {
+  it("counts opt-in integration suites and excluded workspaces as consumers", () => {
     const entry = file("index.ts", "export const Clock = 1, Options = 2;");
     const integration = {
       ...file(
@@ -151,13 +151,15 @@ describe("unused-package-export", () => {
       ),
       path: "packages/consumer/integration/real.test.ts",
     };
-    const spike = file(
+    const excludedWorkspace = file(
       "runtime.ts",
       'import { Options } from "@krazitv/demo";',
-      "apps/plex-spike",
+      "apps/prototype",
     );
     expect(
-      checkPackageExports(inventory([entry], [entry, integration, spike])),
+      checkPackageExports(
+        inventory([entry], [entry, integration, excludedWorkspace]),
+      ),
     ).toEqual([]);
   });
 

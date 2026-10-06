@@ -6,14 +6,7 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig(
   {
-    ignores: [
-      "**/dist/**",
-      "**/node_modules/**",
-      "**/coverage/**",
-      "data/**",
-      // Throwaway spike; it is not held to project conventions.
-      "apps/plex-spike/**",
-    ],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/coverage/**", "data/**"],
   },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
