@@ -1,0 +1,28 @@
+/** Stable singleton program identities; the shell stores presentation only. */
+export type ProgramId =
+  "channels" | "media" | "collections" | "guide" | "plex" | "monitor";
+
+export interface DesktopWindow {
+  id: ProgramId;
+  /** Creation order keeps taskbar positions stable when stacking order changes. */
+  openedOrder: number;
+  x: number;
+  y: number;
+  minimized: boolean;
+  maximized: boolean;
+}
+
+export type WindowAction =
+  | {
+      type: "open" | "close" | "focus" | "minimize" | "maximize";
+      id: ProgramId;
+    }
+  | { type: "move"; id: ProgramId; x: number; y: number }
+  | { type: "viewport"; width: number; height: number };
+
+export interface ProgramDefinition {
+  id: ProgramId;
+  name: string;
+  description: string;
+  group: "Primary" | "Server";
+}
