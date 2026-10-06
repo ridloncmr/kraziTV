@@ -145,32 +145,34 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           </dl>
         </fieldset>
       )}
-      <h2>
-        Cataloged media <small>({media.data?.total ?? 0})</small>
-      </h2>
-      <label>
-        Find media
-        <input
-          type="search"
-          value={search}
-          placeholder="Title or path"
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </label>
+      <div className="sticky-list-header">
+        <h2>
+          Cataloged media <small>({media.data?.total ?? 0})</small>
+        </h2>
+        <label className="search-field">
+          Find media
+          <input
+            type="search"
+            value={search}
+            placeholder="Title or path"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        {media.data && (
+          <Pager
+            offset={media.offset}
+            limit={PAGE_SIZE}
+            total={media.data.total}
+            onChange={media.setOffset}
+          />
+        )}
+      </div>
       {media.data?.total === 0 && (
         <p className="empty-state">
           {search.trim()
             ? "No cataloged media matches this search."
             : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
-      )}
-      {media.data && (
-        <Pager
-          offset={media.offset}
-          limit={PAGE_SIZE}
-          total={media.data.total}
-          onChange={media.setOffset}
-        />
       )}
       {media.data && media.data.items.length > 0 && (
         <div className="table-scroll">

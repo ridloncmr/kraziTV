@@ -238,3 +238,25 @@
   gap: 8px;
   margin: 6px 0;
 }
+/* Spaces the search from the grid even when no pager sits between them. */
+.search-field {
+  margin-bottom: 6px;
+}
+/*
+ * Keeps a long list's title, search and pager reachable while its rows scroll
+ * in the window. The border stops child margins collapsing out of the header,
+ * so the stuck header keeps its spacing and a visible edge over the rows.
+ */
+.sticky-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 8px -12px 6px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+.sticky-list-header h2 {
+  margin-top: 0;
+  padding-top: 8px;
+}
