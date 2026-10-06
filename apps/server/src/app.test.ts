@@ -103,6 +103,32 @@ describe("buildServer", () => {
     );
   });
 
+  it.each(["PATCH", "PUT", "DELETE"])(
+    "lets the local Web UI preflight %s writes",
+    async (method) => {
+      const server = buildServer(createDependencies(), {
+        logger: false,
+        plex: plexSettingsFixture,
+      });
+      servers.push(server);
+
+      const response = await server.inject({
+        method: "OPTIONS",
+        url: "/channels/any",
+        headers: {
+          origin: "http://127.0.0.1:5173",
+          "access-control-request-method": method,
+          "access-control-request-headers": "content-type",
+        },
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(response.headers["access-control-allow-methods"]).toContain(
+        method,
+      );
+    },
+  );
+
   it("does not allow an unconfigured browser origin", async () => {
     const server = buildServer(createDependencies(), {
       logger: false,
