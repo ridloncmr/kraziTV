@@ -30,10 +30,21 @@ export function useMediaItemPage(
     offset: String(query.offset),
   });
   const page = useResource<MediaItemPage>(`/media-items?${params}`, active);
+  // The last page stays on screen while the next one loads, so a list never
+  // empties mid-request and its scroll position survives paging and searching.
+  const [shown, setShown] = useState<MediaItemPage>();
+  useEffect(() => {
+    if (page.data) setShown(page.data);
+  }, [page.data]);
   /** Keeps the current search while moving between pages. */
   const setOffset = useCallback(
     (offset: number) => setQuery((current) => ({ ...current, offset })),
     [],
   );
-  return { ...page, offset: query.offset, setOffset };
+  return {
+    ...page,
+    data: page.data ?? shown,
+    offset: query.offset,
+    setOffset,
+  };
 }

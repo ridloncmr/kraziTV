@@ -73,3 +73,26 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   await waitFor(() => expect(lastQuery()?.get("q")).toBe("pilot"));
   expect(lastQuery()?.get("offset")).toBe("0");
 });
+
+it("keeps the current rows on screen while the next page loads", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  await screen.findByText("Alpha");
+
+  api.hold("/media-items");
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("51–100 of 120");
+  expect(screen.getByText("Alpha")).toBeTruthy();
+
+  await act(async () => {
+    api.release("/media-items", {
+      items: [adminFixtures.media[1]],
+      total: 120,
+    });
+  });
+  expect(screen.getByText("Zulu")).toBeTruthy();
+  expect(screen.queryByText("Alpha")).toBeNull();
+});

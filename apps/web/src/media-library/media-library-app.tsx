@@ -33,7 +33,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
         Tell kraziTV where your media lives, then scan it into the catalog.
       </p>
       <RequestFeedback
-        loading={roots.loading || media.loading || mutation.pending}
+        loading={roots.loading || mutation.pending}
         error={mutation.error ?? roots.error ?? media.error}
         message={mutation.message}
       />
@@ -175,7 +175,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
         </p>
       )}
       {media.data && media.data.items.length > 0 && (
-        <div className="table-scroll">
+        <div className="table-scroll" aria-busy={media.loading}>
           <table>
             <thead>
               <tr>
