@@ -106,9 +106,15 @@ it("focuses inactive windows by pointer and moves the focused title with the key
   const openedButtons = within(taskbar)
     .getAllByRole("button")
     .map((button) => button.textContent);
+  const domOrder = () =>
+    screen.getAllByRole("region").map((region) => region.ariaLabel);
+  const openedRegions = domOrder();
   expect(media.className).toContain("inactive");
   fireEvent.pointerDown(media);
   expect(media.className).toContain("active");
+  // Browsers drop a click whose pressed node moves, so focus restacks by z-index only.
+  expect(domOrder()).toEqual(openedRegions);
+  expect(Number(media.style.zIndex)).toBe(2);
   expect(
     within(taskbar)
       .getAllByRole("button")

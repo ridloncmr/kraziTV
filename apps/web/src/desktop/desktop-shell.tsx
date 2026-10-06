@@ -85,22 +85,25 @@ export function DesktopShell() {
         </strong>
         <span>Your television network.</span>
       </div>
-      {windows.map((window, index) => (
-        <AppWindow
-          key={window.id}
-          window={window}
-          program={programs.find((program) => program.id === window.id)!}
-          active={activeId === window.id}
-          index={index}
-          dispatch={dispatch}
-        >
-          <ProgramContents
-            id={window.id}
-            visible={!window.minimized && pageVisible}
-            connection={connection}
-          />
-        </AppWindow>
-      ))}
+      {/* DOM order stays fixed and z-index carries stacking: moving a pressed window's node would make the browser drop its click. */}
+      {[...windows]
+        .sort((a, b) => a.openedOrder - b.openedOrder)
+        .map((window) => (
+          <AppWindow
+            key={window.id}
+            window={window}
+            program={programs.find((program) => program.id === window.id)!}
+            active={activeId === window.id}
+            index={windows.indexOf(window)}
+            dispatch={dispatch}
+          >
+            <ProgramContents
+              id={window.id}
+              visible={!window.minimized && pageVisible}
+              connection={connection}
+            />
+          </AppWindow>
+        ))}
       <Taskbar
         windows={windows}
         activeId={activeId}
