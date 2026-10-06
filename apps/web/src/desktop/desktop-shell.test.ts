@@ -161,3 +161,39 @@ it("focuses inactive windows by pointer and moves the focused title with the key
   fireEvent.keyDown(title, { key: "ArrowRight" });
   expect(Number.parseFloat(media.style.left)).toBeGreaterThan(before);
 });
+
+it("resizes by grip and keyboard within the space below and right of the window", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
+  render(createElement(DesktopShell));
+  const shortcuts = await screen.findByLabelText("Desktop programs");
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "Media Library" }),
+  );
+  const media = screen.getByRole("region", { name: "Media Library" });
+  const size = () => ({ width: media.style.width, height: media.style.height });
+  expect(size()).toEqual({ width: "760px", height: "540px" });
+  // jsdom implements no pointer capture; the browser keeps the grip tracking off-element.
+  const grip = Object.assign(media.querySelector(".resize-grip")!, {
+    setPointerCapture: vi.fn(),
+  });
+  fireEvent.pointerDown(grip, { button: 0, clientX: 900, clientY: 580 });
+  fireEvent.pointerMove(grip, { clientX: 1000, clientY: 500 });
+  fireEvent.pointerUp(grip);
+  expect(size()).toEqual({ width: "860px", height: "460px" });
+  // The window sits at 140,40 in a 1280x768 desktop, so growth stops at the edges.
+  fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 0 });
+  fireEvent.pointerMove(grip, { clientX: 2000, clientY: 2000 });
+  fireEvent.pointerUp(grip);
+  expect(size()).toEqual({ width: "1140px", height: "728px" });
+  const title = within(media).getByLabelText(/Media Library window/);
+  for (let step = 0; step < 50; step++)
+    fireEvent.keyDown(title, { key: "ArrowLeft", shiftKey: true });
+  expect(size()).toEqual({ width: "360px", height: "728px" });
+  expect(media.style.left).toBe("140px");
+});

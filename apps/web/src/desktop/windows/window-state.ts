@@ -2,8 +2,8 @@ import type { DesktopWindow, WindowAction } from "../contracts.js";
 
 /**
  * Array order is stacking order, keeping taskbar membership and focus in one state.
- * Positions are where the user placed each window; viewport clamping happens at render
- * so a temporarily small browser never overwrites them.
+ * Positions and sizes are where the user placed each window; viewport clamping happens
+ * at render so a temporarily small browser never overwrites them.
  */
 export function windowReducer(
   state: DesktopWindow[],
@@ -20,6 +20,8 @@ export function windowReducer(
       openedOrder: Math.max(-1, ...state.map((entry) => entry.openedOrder)) + 1,
       x: 140 + offset,
       y: 40 + offset,
+      width: 760,
+      height: 540,
       minimized: false,
       maximized: false,
     };
@@ -37,6 +39,10 @@ export function windowReducer(
         return { ...item, maximized: !item.maximized };
       case "move":
         return item.maximized ? item : { ...item, x: action.x, y: action.y };
+      case "resize":
+        return item.maximized
+          ? item
+          : { ...item, width: action.width, height: action.height };
     }
     return item;
   });

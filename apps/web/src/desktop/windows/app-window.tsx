@@ -1,4 +1,10 @@
-import { useEffect, useRef, type Dispatch, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  type Dispatch,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type {
   DesktopViewport,
@@ -7,15 +13,31 @@ import type {
   WindowAction,
 } from "../contracts.js";
 
-/** Keeps a 760x540 window (smaller when CSS shrinks it) fully inside the usable viewport. */
-function withinViewport(x: number, y: number, viewport: DesktopViewport) {
+/** Smallest window that still shows its title controls and a usable slice of content. */
+const minimumSize = { width: 360, height: 240 };
+
+/** Shrinks a window to the usable viewport, then shifts it until it sits fully inside. */
+function withinViewport(
+  rect: { x: number; y: number; width: number; height: number },
+  viewport: DesktopViewport,
+) {
+  const width = Math.min(
+    Math.max(rect.width, minimumSize.width),
+    viewport.width,
+  );
+  const height = Math.min(
+    Math.max(rect.height, minimumSize.height),
+    viewport.height,
+  );
   return {
-    x: Math.max(0, Math.min(x, viewport.width - 760)),
-    y: Math.max(0, Math.min(y, viewport.height - 540)),
+    x: Math.max(0, Math.min(rect.x, viewport.width - width)),
+    y: Math.max(0, Math.min(rect.y, viewport.height - height)),
+    width,
+    height,
   };
 }
 
-/** Hosts arbitrary program contents while owning only chrome and pointer/keyboard movement. */
+/** Hosts arbitrary program contents while owning only chrome and pointer/keyboard movement and sizing. */
 export function AppWindow({
   window,
   program,
@@ -35,25 +57,71 @@ export function AppWindow({
 }) {
   const frame = useRef<HTMLElement>(null);
   const title = useRef<HTMLDivElement>(null);
-  const drag = useRef<{
+  const gesture = useRef<{
+    apply: (a: number, b: number) => void;
     x: number;
     y: number;
-    left: number;
-    top: number;
+    fromA: number;
+    fromB: number;
   } | null>(null);
   useEffect(() => {
     if (active && !frame.current?.contains(document.activeElement))
       title.current?.focus();
   }, [active]);
-  const shown = withinViewport(window.x, window.y, viewport);
+  const shown = withinViewport(window, viewport);
   /** Commits a move bounded to the usable viewport so the entire title bar remains recoverable. */
   function move(x: number, y: number) {
+    const placed = withinViewport({ ...shown, x, y }, viewport);
+    dispatch({ type: "move", id: window.id, x: placed.x, y: placed.y });
+  }
+  /** Commits a size bounded to the space right of and below the window, so growing never shifts it. */
+  function resize(width: number, height: number) {
     dispatch({
-      type: "move",
+      type: "resize",
       id: window.id,
-      ...withinViewport(x, y, viewport),
+      width: Math.max(
+        minimumSize.width,
+        Math.min(width, viewport.width - shown.x),
+      ),
+      height: Math.max(
+        minimumSize.height,
+        Math.min(height, viewport.height - shown.y),
+      ),
     });
   }
+  /** Captures the pointer so a drag keeps tracking after it leaves the title bar or grip. */
+  function startGesture(
+    event: PointerEvent<HTMLElement>,
+    apply: (a: number, b: number) => void,
+    fromA: number,
+    fromB: number,
+  ) {
+    gesture.current = {
+      apply,
+      x: event.clientX,
+      y: event.clientY,
+      fromA,
+      fromB,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  /** Shared by the title bar and grip: applies pointer travel to whichever gesture began. */
+  const tracking = {
+    onPointerMove: (event: PointerEvent<HTMLElement>) => {
+      const current = gesture.current;
+      if (current)
+        current.apply(
+          current.fromA + event.clientX - current.x,
+          current.fromB + event.clientY - current.y,
+        );
+    },
+    onPointerUp: () => {
+      gesture.current = null;
+    },
+    onPointerCancel: () => {
+      gesture.current = null;
+    },
+  };
   return (
     <section
       ref={frame}
@@ -61,7 +129,13 @@ export function AppWindow({
       role="region"
       aria-label={program.name}
       hidden={window.minimized}
-      style={{ left: shown.x, top: shown.y, zIndex: index + 1 }}
+      style={{
+        left: shown.x,
+        top: shown.y,
+        width: shown.width,
+        height: shown.height,
+        zIndex: index + 1,
+      }}
       onPointerDown={() => dispatch({ type: "focus", id: window.id })}
       onFocusCapture={() => {
         if (!active) dispatch({ type: "focus", id: window.id });
@@ -71,7 +145,7 @@ export function AppWindow({
         ref={title}
         tabIndex={0}
         className="title-bar"
-        aria-label={`${program.name} window. Arrow keys move; double click maximizes.`}
+        aria-label={`${program.name} window. Arrow keys move; Shift+Arrow keys resize; double click maximizes.`}
         onDoubleClick={(event) => {
           if (!(event.target as HTMLElement).closest("button"))
             dispatch({ type: "maximize", id: window.id });
@@ -85,10 +159,11 @@ export function AppWindow({
             ArrowDown: [0, 20],
           };
           const step = steps[event.key];
-          if (step) {
-            event.preventDefault();
-            move(shown.x + step[0], shown.y + step[1]);
-          }
+          if (!step) return;
+          event.preventDefault();
+          if (event.shiftKey)
+            resize(shown.width + step[0], shown.height + step[1]);
+          else move(shown.x + step[0], shown.y + step[1]);
         }}
         onPointerDown={(event) => {
           if (
@@ -97,27 +172,9 @@ export function AppWindow({
             (event.target as HTMLElement).closest("button")
           )
             return;
-          drag.current = {
-            x: event.clientX,
-            y: event.clientY,
-            left: shown.x,
-            top: shown.y,
-          };
-          event.currentTarget.setPointerCapture(event.pointerId);
+          startGesture(event, move, shown.x, shown.y);
         }}
-        onPointerMove={(event) => {
-          if (drag.current)
-            move(
-              drag.current.left + event.clientX - drag.current.x,
-              drag.current.top + event.clientY - drag.current.y,
-            );
-        }}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-        }}
+        {...tracking}
       >
         <span className="window-caption">
           <ProgramIcon program={program.id} size={19} />
@@ -147,6 +204,17 @@ export function AppWindow({
       </div>
       <div className="window-content">{children}</div>
       <div className="window-status">kraziTV · {program.description}</div>
+      {!window.maximized && (
+        <div
+          className="resize-grip"
+          aria-hidden="true"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            startGesture(event, resize, shown.width, shown.height);
+          }}
+          {...tracking}
+        />
+      )}
     </section>
   );
 }
