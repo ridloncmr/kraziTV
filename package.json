@@ -17,6 +17,7 @@
     "build:node": "tsc -b tsconfig.build.json",
     "clean": "node -e \"const fs = require('node:fs'); for (const group of ['apps', 'packages']) for (const workspace of fs.readdirSync(group)) fs.rmSync(`${group}/${workspace}/dist`, { recursive: true, force: true })\"",
     "dev": "npm run dev --workspace @krazitv/server",
+    "dev:web": "npm run dev --workspace @krazitv/web",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "npm run test --workspaces --if-present && npm run test:audit",
