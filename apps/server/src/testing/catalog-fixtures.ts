@@ -1,10 +1,12 @@
 // Deterministic catalog rows for tests only; production code must never import this module.
-import type { Insertable } from "kysely";
+import type { Insertable, Kysely } from "kysely";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaCollectionItemTable } from "../database/schema/media-collection-item-table.js";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
+import { parameterChunks } from "../database/writes/parameter-chunks.js";
 
 export const FIXTURE_TIME = 1_704_067_200_000;
 
@@ -66,6 +68,23 @@ export function titledItemFixture(
   return itemFixtureAt(id, `${rootFixture.path}/${id}.mkv`, {
     title: id,
     ...overrides,
+  });
+}
+
+/**
+ * Inserts a titled item per ID in one transaction. Bulk seeds then pay for one
+ * commit instead of one fsync per chunk, which kept large-membership tests
+ * near the timeout when the suite runs in parallel.
+ */
+export async function insertTitledItems(
+  db: Kysely<DatabaseSchema>,
+  ids: readonly string[],
+): Promise<void> {
+  const rows = ids.map((id) => titledItemFixture(id));
+  await db.transaction().execute(async (trx) => {
+    for (const chunk of parameterChunks(rows)) {
+      await trx.insertInto("media_items").values(chunk).execute();
+    }
   });
 }
 

@@ -577,11 +577,14 @@ describe("development fixtures", () => {
       .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
       .filter((file) => !file.split(/[\\/]/).includes("testing"));
 
-    const offenders: string[] = [];
-    for (const file of productionFiles) {
-      const source = await readFile(join(sourceRoot, file), "utf8");
-      if (/["'`][^"'`]*\/testing\//.test(source)) offenders.push(file);
-    }
+    // Reads concurrently: one file at a time made this I/O-bound test time out
+    // when the whole suite competed for the disk.
+    const sources = await Promise.all(
+      productionFiles.map((file) => readFile(join(sourceRoot, file), "utf8")),
+    );
+    const offenders = productionFiles.filter((_, index) =>
+      /["'`][^"'`]*\/testing\//.test(sources[index] ?? ""),
+    );
 
     expect(productionFiles).toContain(
       join("database", "migrations", "migrate-database.ts"),

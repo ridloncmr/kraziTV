@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { KraziDatabase } from "../database/database.js";
 import {
   FIXTURE_TIME,
+  insertTitledItems,
   itemFixture,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
@@ -254,18 +255,7 @@ describe("MediaCollectionRepository", () => {
       { length: 9_000 },
       (_, index) => `bulk-${String(index).padStart(5, "0")}`,
     );
-    for (let start = 0; start < ids.length; start += 1_000) {
-      await database.db
-        .insertInto("media_items")
-        .values(
-          ids.slice(start, start + 1_000).map((id) => ({
-            ...itemFixture,
-            id,
-            path_key: `/media/movies/${id}.mkv`,
-          })),
-        )
-        .execute();
-    }
+    await insertTitledItems(database.db, ids);
 
     await expect(repository.create("Bulk", ids)).resolves.toMatchObject({
       kind: "created",

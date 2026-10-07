@@ -30,7 +30,10 @@ interface ChannelStreamCompositionOptions {
   packager: SignalPackager;
   /** One source for both, so worker sleeps and transition checks agree. */
   runtime: Clock & TimerScheduler;
-  /** Tests shorten this to reach the readiness timeout quickly. */
+  /**
+   * Tests shorten this to reach the readiness timeout quickly, or lengthen it
+   * when startup latency is not what they check.
+   */
   startupTimeoutMs?: number;
 }
 

@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { runImmediateTransaction } from "../database/writes/immediate-transaction.js";
-import { FIXTURE_TIME, itemFixture } from "../testing/catalog-fixtures.js";
+import {
+  FIXTURE_TIME,
+  insertTitledItems,
+} from "../testing/catalog-fixtures.js";
 import { seedScheduleScenario } from "../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
@@ -136,18 +139,7 @@ describe("replaceCollectionMembers", () => {
       { length: 9_000 },
       (_, index) => `bulk-${String(index).padStart(5, "0")}`,
     );
-    for (let start = 0; start < ids.length; start += 1_000) {
-      await db
-        .insertInto("media_items")
-        .values(
-          ids.slice(start, start + 1_000).map((id) => ({
-            ...itemFixture,
-            id,
-            path_key: `/media/movies/${id}.mkv`,
-          })),
-        )
-        .execute();
-    }
+    await insertTitledItems(db, ids);
 
     const result = await replace(db, collectionId, ids);
 
