@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { rowClickProps } from "../controls/row-click.js";
 import { WindowDialog } from "../controls/window-dialog.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
@@ -133,7 +134,8 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
               {displayedChannels.map((channel) => (
                 <tr
                   key={channel.id}
-                  className={channel.id === selected ? "selected-row" : ""}
+                  className={`clickable-row${channel.id === selected ? " selected-row" : ""}`}
+                  {...rowClickProps(() => setSelected(channel.id))}
                 >
                   <td>{channel.number}</td>
                   <td>

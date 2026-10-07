@@ -157,6 +157,10 @@
   min-width: 120px;
   max-width: 320px;
 }
+/* Rows wired through rowClickProps show they act on a click anywhere. */
+.clickable-row {
+  cursor: pointer;
+}
 .selected-row {
   background: color-mix(
     in srgb,

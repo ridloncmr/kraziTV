@@ -227,9 +227,11 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await waitFor(() =>
     expect(
-      screen.getByRole("button", { name: "Northwoods TV" }).closest("tr")
-        ?.className,
-    ).toBe("selected-row"),
+      screen
+        .getByRole("button", { name: "Northwoods TV" })
+        .closest("tr")
+        ?.classList.contains("selected-row"),
+    ).toBe(true),
   );
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
@@ -254,4 +256,23 @@ it("opens a delete confirmation without an earlier action's error", async () => 
   const dialog = screen.getByRole("dialog", { name: "Delete channel" });
   expect(dialog.textContent).not.toContain("Disable failed");
   expect(screen.queryByText("Disable failed")).toBeNull();
+});
+
+it("selects a channel from anywhere on its row except the row's buttons", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", adminFixtures.channels);
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+  const selected = (name: string) =>
+    screen
+      .getByRole("button", { name })
+      .closest("tr")
+      ?.classList.contains("selected-row");
+
+  fireEvent.click(await screen.findByText("70"));
+  expect(selected("Second channel")).toBe(true);
+
+  fireEvent.click(screen.getAllByRole("button", { name: "Disable" })[0]);
+  expect(selected("Northwoods TV")).toBe(false);
+  expect(selected("Second channel")).toBe(true);
 });
