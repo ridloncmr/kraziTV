@@ -81,6 +81,7 @@ file in the same change.
 | **Media item**           | One cataloged file, identified by its media root and normalized absolute path. Status is `available`, `missing`, or `probe_failed`.                                                                                                         | asset, file record, video     |
 | **Catalog**              | The persisted inventory of media roots and media items.                                                                                                                                                                                     | database, index               |
 | **Catalog scan**         | One discover → probe → validate → persist pass over a media root. Commits atomically; a failed scan leaves prior statuses untouched.                                                                                                        | import, sync, refresh         |
+| **Scan job**             | The server's in-memory record of one catalog scan of one media root: its phase, progress counts, and outcome. At most one runs per root. See [spec 0009](docs/specs/features/001-mvp/specs/0009-background-catalog-scans.md).               | background task, scan session |
 | **Probe**                | Running ffprobe against a file to read duration, streams, and codecs. A probe failure is stored, not thrown away.                                                                                                                           | analyze, inspect              |
 
 ## Broadcast And Provider Terms

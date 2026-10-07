@@ -8,16 +8,17 @@ This feature folder contains the goal and vertical-slice specs for the first usa
 
 Each spec's status is the `Status:` line at the top of the spec.
 
-| Spec                                                          | Description                                                            |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [0001-bootstrap](specs/0001-bootstrap.md)                     | Local startup, health checks, and workspace verification               |
-| [0002-media-catalog](specs/0002-media-catalog.md)             | Local media roots, scanning, ffprobe metadata, and catalog persistence |
-| [0003-channel-config](specs/0003-channel-config.md)           | Channel identity, lifecycle, and media collections                     |
-| [0004-schedule-generation](specs/0004-schedule-generation.md) | Programming blocks and deterministic guide schedule generation         |
-| [0005-playout-timeline](specs/0005-playout-timeline.md)       | Runtime timeline and current broadcast position                        |
-| [0006-signal-packager](specs/0006-signal-packager.md)         | Shared active-channel streaming and FFmpeg MPEG-TS packaging           |
-| [0007-plex-adapter](specs/0007-plex-adapter.md)               | Plex-compatible tuner, guide, and stream exposure                      |
-| [0008-web-admin](specs/0008-web-admin.md)                     | Minimal browser flow for configuring and observing the MVP             |
+| Spec                                                                    | Description                                                             |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [0001-bootstrap](specs/0001-bootstrap.md)                               | Local startup, health checks, and workspace verification                |
+| [0002-media-catalog](specs/0002-media-catalog.md)                       | Local media roots, scanning, ffprobe metadata, and catalog persistence  |
+| [0003-channel-config](specs/0003-channel-config.md)                     | Channel identity, lifecycle, and media collections                      |
+| [0004-schedule-generation](specs/0004-schedule-generation.md)           | Programming blocks and deterministic guide schedule generation          |
+| [0005-playout-timeline](specs/0005-playout-timeline.md)                 | Runtime timeline and current broadcast position                         |
+| [0006-signal-packager](specs/0006-signal-packager.md)                   | Shared active-channel streaming and FFmpeg MPEG-TS packaging            |
+| [0007-plex-adapter](specs/0007-plex-adapter.md)                         | Plex-compatible tuner, guide, and stream exposure                       |
+| [0008-web-admin](specs/0008-web-admin.md)                               | Minimal browser flow for configuring and observing the MVP              |
+| [0009-background-catalog-scans](specs/0009-background-catalog-scans.md) | Background scan jobs with progress and a window-locking progress dialog |
 
 The first release should intentionally be small and focused on proving the core loop.
 

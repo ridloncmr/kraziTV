@@ -37,6 +37,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0006 Implementation Plan: Shared Channel Streaming](0006-signal-packager.md) - 16 of 16 tickets complete
 - [Spec 0007 Implementation Plan: Plex Adapter](0007-plex-adapter.md) - 5 of 5 tickets complete
 - [Spec 0008 Implementation Plan: XP Desktop Web Admin](0008-web-admin.md) - 4 of 4 tickets complete
+- [Spec 0009 Implementation Plan: Background Catalog Scans](0009-background-catalog-scans.md) - 4 of 4 tickets complete
 
 <!-- plan-index:end -->
 
@@ -67,3 +68,6 @@ Each milestone links to the spec that owns its scope and status.
    [plan 0007](0007-plex-adapter.md).
 8. Complete the MVP Web Admin flow:
    [spec 0008](../specs/features/001-mvp/specs/0008-web-admin.md).
+9. Run catalog scans as background scan jobs with a progress dialog:
+   [spec 0009](../specs/features/001-mvp/specs/0009-background-catalog-scans.md)
+   and [plan 0009](0009-background-catalog-scans.md).
