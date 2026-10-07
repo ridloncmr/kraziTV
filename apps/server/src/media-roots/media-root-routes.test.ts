@@ -1,5 +1,6 @@
+import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
 
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
@@ -162,6 +163,59 @@ describe("GET /media-roots", () => {
     });
 
     expect(response.json()).toEqual([]);
+  });
+});
+
+describe("GET /media-roots/folders", () => {
+  // Lists folders through the real route, encoding the path like a browser.
+  async function listFolders(server: Server, path?: string) {
+    const query = path === undefined ? "" : `?path=${encodeURIComponent(path)}`;
+    return server.inject({
+      method: "GET",
+      url: `/media-roots/folders${query}`,
+    });
+  }
+
+  it("lists the child folders of a server path", async () => {
+    const server = await startServer();
+    const directory = await createTemporaryDirectory();
+    await mkdir(join(directory, "Shows"));
+
+    const response = await listFolders(server, directory);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      path: directory,
+      parent: dirname(directory),
+      folders: [{ name: "Shows", path: join(directory, "Shows") }],
+    });
+  });
+
+  it("lists the top level without a path", async () => {
+    const server = await startServer();
+
+    const response = await listFolders(server);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ path: null, parent: null });
+  });
+
+  it("rejects a relative path", async () => {
+    const server = await startServer();
+
+    const response = await listFolders(server, join("media", "TV"));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("invalid_request");
+  });
+
+  it("reports a missing folder", async () => {
+    const server = await startServer();
+
+    const response = await listFolders(server, missingPath("TV"));
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe("folder_not_found");
   });
 });
 

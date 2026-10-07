@@ -1,5 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
+import {
+  currentPathPlatform,
+  listMediaFolders,
+  MediaDiscoveryError,
+  normalizeMediaPath,
+} from "@krazitv/media";
 import { z } from "zod";
 
 import {
@@ -23,6 +28,10 @@ const updateBody = z.strictObject({
   enabled: z.boolean(),
 });
 
+const foldersQuery = z.strictObject({
+  path: z.string().optional(),
+});
+
 /**
  * Registers media-root HTTP routes; validation and status mapping live only
  * here. `scanStatus` answers each listed root's current or latest scan job,
@@ -44,6 +53,35 @@ export function registerMediaRootRoutes(
       ...toApiMediaRoot(root),
       scan: scanStatus(root.id),
     }));
+  });
+
+  // Lists server folders for the root picker. The admin API has no auth and
+  // is trusted on the LAN, so browsing is deliberately not restricted.
+  server.get("/media-roots/folders", async (request, reply) => {
+    const query = foldersQuery.safeParse(request.query);
+    if (!query.success) {
+      return sendInvalidRequest(reply, query.error);
+    }
+
+    try {
+      return await listMediaFolders(query.data.path);
+    } catch (error) {
+      if (!(error instanceof MediaDiscoveryError)) {
+        throw error;
+      }
+      if (error.code === "invalid_root_path") {
+        return sendApiError(
+          reply,
+          400,
+          "invalid_request",
+          "path must be a fully qualified absolute path",
+        );
+      }
+      if (error.code === "traversal_failed") {
+        return sendApiError(reply, 403, "folder_unreadable", error.message);
+      }
+      return sendApiError(reply, 404, "folder_not_found", error.message);
+    }
   });
 
   server.post("/media-roots", async (request, reply) => {

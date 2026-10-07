@@ -11,6 +11,8 @@ type ApiErrorCode =
   | "channel_runtime_cleanup_failed"
   | "channels_left_unschedulable"
   | "channel_unschedulable"
+  | "folder_not_found"
+  | "folder_unreadable"
   | "invalid_request"
   | "internal_error"
   | "media_collection_in_use"
