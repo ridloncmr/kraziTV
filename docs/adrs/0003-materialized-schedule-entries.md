@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Amended on 2026-10-07: a user may explicitly choose to interrupt
+what is airing as part of an administrative change; kraziTV never interrupts
+on its own.
 
 ## Context
 
@@ -17,6 +19,15 @@ kraziTV will persist generated `ScheduleEntry` records.
 Schedule generation will extend a future horizon for enabled channels. Persisted entries are the authority for guide output and the shared scheduling input from which kraziBrain derives the playout timeline and channel state. Stream selection uses that derived channel state.
 
 Configuration changes must not silently change what is currently airing. Regeneration begins at the current program end. When nothing is airing, it begins at the current UTC Unix epoch millisecond and replaces future entries from that boundary. Initial generation begins at the persisted schedule anchor.
+
+A user may explicitly choose to interrupt what is airing as part of an
+administrative change, such as removing the media it plays. kraziTV then
+deletes the airing entry, regenerates from the current UTC Unix epoch
+millisecond, and stops the channel's stream worker so viewers tune in to the
+new schedule. Because the user chose it, the change is not silent. kraziTV
+never chooses to interrupt on its own, and every other regeneration still
+begins at the current program end. See
+[spec 0010](../specs/features/001-mvp/specs/0010-catalog-removal.md).
 
 Horizon maintenance extends schedules without replacing entries in already-covered windows. It runs when the server starts, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. An enabled, schedulable channel with no entry covering the current time requires an explicit, logged gap repair before normal horizon extension continues.
 
@@ -57,7 +68,8 @@ SignalPackager commit before releasing write authority. `ChannelWorker` does not
 depend on SQLite or Kysely. That commit is the point at which the item becomes
 irrevocable. A regeneration transaction that commits first invalidates the stale
 preparation; a transition that commits first makes the entry current, so later
-regeneration preserves it through its scheduled end.
+regeneration preserves it through its scheduled end unless the user
+interrupts it.
 
 The database enforces a unique `(channelId, sequenceNumber)` constraint and one
 schedule-state row per channel. Indexes on `(channelId, startsAt)` and
