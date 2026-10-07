@@ -27,6 +27,7 @@ type ApiErrorCode =
   | "programming_block_not_found"
   | "scan_cancelled"
   | "scan_in_progress"
+  | "scan_not_found"
   | "schedule_busy"
   | "stream_failed"
   | "stream_startup_timeout"

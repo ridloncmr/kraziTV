@@ -7,6 +7,7 @@ import {
 } from "./app.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
+import type { ScanStatus } from "./catalog-scan/contracts.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
@@ -160,6 +161,59 @@ describe("buildServer", () => {
     await server.close();
 
     expect(closeCount).toBe(1);
+  });
+
+  it("lists each media root with the scanner's status in wire form", async () => {
+    const dependencies = createDependencies();
+    const root = {
+      enabled: true,
+      createdAt: 0,
+      updatedAt: 0,
+      lastScannedAt: null,
+    };
+    dependencies.mediaRoots = {
+      list: async () => [
+        { ...root, id: "root-scanned", path: "/media/a" },
+        { ...root, id: "root-idle", path: "/media/b" },
+      ],
+    } as Partial<MediaRootRepository> as MediaRootRepository;
+    const status: ScanStatus = {
+      id: "scan-1",
+      rootId: "root-scanned",
+      phase: "probing",
+      startedAt: Date.UTC(2024, 0, 1),
+      finishedAt: null,
+      discoveredCount: 3,
+      settledCount: 1,
+      probeFailedCount: 0,
+      currentPath: "/media/a/x.mkv",
+      cancelRequested: false,
+      summary: null,
+      error: null,
+    };
+    dependencies.scanner = {
+      shutdown: async () => undefined,
+      status: (rootId: string) =>
+        rootId === status.rootId ? status : undefined,
+    } as Partial<CatalogScanner> as CatalogScanner;
+    const server = buildServer(dependencies, {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/media-roots",
+    });
+
+    expect(response.json()).toEqual([
+      expect.objectContaining({
+        id: "root-scanned",
+        scan: { ...status, startedAt: "2024-01-01T00:00:00.000Z" },
+      }),
+      expect.objectContaining({ id: "root-idle", scan: null }),
+    ]);
   });
 
   it("stops catalog scans before closing the database on shutdown", async () => {

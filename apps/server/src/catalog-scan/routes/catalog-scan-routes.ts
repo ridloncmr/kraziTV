@@ -1,60 +1,51 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 
 import { sendApiError, sendMediaRootNotFound } from "../../http/api-error.js";
-import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams } from "../../http/request-schemas.js";
-import type { ScanResult, ScanSummary } from "../contracts.js";
-import type { ScheduleService } from "../../schedules/schedule-service.js";
+import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
+import type { ScanStart } from "../contracts.js";
 import type { CatalogScanner } from "../scanner/catalog-scanner.js";
+import { toApiScanStatus } from "./api-scan-status.js";
 
 /**
- * Registers the synchronous scan trigger; status mapping lives only here. A
- * completed scan ensures every enabled channel's schedule before replying,
- * because it may have made a channel schedulable.
+ * Registers the scan job routes: start, read, and cancel one root's scan.
+ * Jobs run in the background, so no request's lifetime affects a scan; status
+ * mapping lives only here.
  */
 export function registerCatalogScanRoutes(
   server: FastifyInstance,
   scanner: CatalogScanner,
-  schedules: ScheduleService,
+  roots: Pick<MediaRootRepository, "findById">,
 ): void {
   server.post("/media-roots/:id/scan", async (request, reply) => {
     const { id } = idParams.parse(request.params);
+    return sendScanStart(reply, id, await scanner.start(id));
+  });
 
-    // A response that closes before it finished means the client went away.
-    const controller = new AbortController();
-    const onClose = () => {
-      if (!reply.raw.writableFinished) controller.abort();
-    };
-    reply.raw.on("close", onClose);
-    // A client that left during routing may have closed the connection before
-    // this listener existed; the socket flag is set before any close event fires.
-    if (request.raw.socket?.destroyed || reply.raw.destroyed)
-      controller.abort();
+  server.get("/media-roots/:id/scan", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const status = scanner.status(id);
+    if (status === undefined) return sendNoScan(reply, id, roots);
+    return toApiScanStatus(status);
+  });
 
-    let result: ScanResult;
-    try {
-      result = await scanner.scan(id, { signal: controller.signal });
-    } finally {
-      // Detach before replying so a finished scan can never be cancelled late.
-      reply.raw.off("close", onClose);
-    }
-    // Logs its own failures, so the scan response never depends on it.
-    if (result.kind === "completed") {
-      await schedules.ensureAllEnabled(request.log);
-    }
-    return sendScanResult(reply, id, result);
+  server.delete("/media-roots/:id/scan", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const status = scanner.cancel(id);
+    if (status === undefined) return sendNoScan(reply, id, roots);
+    return reply.status(202).send(toApiScanStatus(status));
   });
 }
 
-// Maps each scan outcome to its HTTP status and structured error code.
-function sendScanResult(
+// Maps each start outcome to its HTTP status and structured error code.
+function sendScanStart(
   reply: FastifyReply,
   id: string,
-  result: ScanResult,
-): FastifyReply | ReturnType<typeof toApiScanSummary> {
+  result: ScanStart,
+): FastifyReply {
   switch (result.kind) {
-    case "completed":
-      return toApiScanSummary(result.summary);
+    case "started":
+      return reply.status(202).send(toApiScanStatus(result.status));
     case "root_not_found":
       return sendMediaRootNotFound(reply, id);
     case "root_disabled":
@@ -71,32 +62,32 @@ function sendScanResult(
         "scan_in_progress",
         `Media root ${id} is already being scanned`,
       );
-    case "root_unavailable":
-      return sendApiError(
-        reply,
-        409,
-        "media_root_unavailable",
-        result.error.message,
-      );
-    case "cancelled":
+    case "shutting_down":
       return sendApiError(
         reply,
         503,
         "scan_cancelled",
-        "The scan was cancelled before it committed; the catalog is unchanged",
+        "The server is shutting down; the scan did not start",
       );
   }
 }
 
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
-function toApiScanSummary(summary: ScanSummary) {
-  return {
-    rootId: summary.rootId,
-    startedAt: toApiTimestamp(summary.startedAt),
-    completedAt: toApiTimestamp(summary.completedAt),
-    discoveredCount: summary.discoveredCount,
-    probedCount: summary.probedCount,
-    probeFailedCount: summary.probeFailedCount,
-    missingCount: summary.missingCount,
-  };
+/**
+ * Answers a read or cancel when the scanner holds no job: the root is looked
+ * up only now, so a held job is returned even after its root was removed.
+ */
+async function sendNoScan(
+  reply: FastifyReply,
+  id: string,
+  roots: Pick<MediaRootRepository, "findById">,
+): Promise<FastifyReply> {
+  if ((await roots.findById(id)) === undefined) {
+    return sendMediaRootNotFound(reply, id);
+  }
+  return sendApiError(
+    reply,
+    404,
+    "scan_not_found",
+    `Media root ${id} has not been scanned since the server started`,
+  );
 }
