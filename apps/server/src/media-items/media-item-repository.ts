@@ -3,14 +3,21 @@ import { sql, type Kysely, type Selectable } from "kysely";
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
-import { parameterChunks } from "../database/writes/parameter-chunks.js";
+import {
+  jsonIdList,
+  parameterChunks,
+} from "../database/writes/parameter-chunks.js";
 import type { MediaItem, MediaItemPage, MediaItemQuery } from "./contracts.js";
 
-/** Reads committed catalog items; scans remain the only writer. */
+/**
+ * Reads cataloged items. Items a user removed are invisible to every read
+ * here; scans and catalog removal write item rows elsewhere.
+ */
 export class MediaItemRepository {
   readonly #db: Kysely<DatabaseSchema>;
 
-  // Needs no clock or ID source because it never writes; CatalogScanWriter owns item rows.
+  // Needs no clock or ID source because it never writes; CatalogScanWriter
+  // and catalog removal own item rows.
   constructor(db: Kysely<DatabaseSchema>) {
     this.#db = db;
   }
@@ -26,12 +33,15 @@ export class MediaItemRepository {
     const matching = this.#db
       .selectFrom("media_items")
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
+      .where("media_items.removed_at", "is", null)
       .$if(query.search !== "", (builder) =>
         builder.where(matchesSearch(query.search)),
       )
       .$if((query.excludeIds?.length ?? 0) > 0, (builder) =>
         builder.where(
-          sql<boolean>`media_items.id not in (select value from json_each(${JSON.stringify(query.excludeIds)}))`,
+          "media_items.id",
+          "not in",
+          jsonIdList(query.excludeIds ?? []),
         ),
       );
     const rows = await matching
@@ -48,12 +58,13 @@ export class MediaItemRepository {
     return { items: rows.map(toMediaItem), total };
   }
 
-  /** Loads one item; returns undefined when the ID is unknown. */
+  /** Loads one item; returns undefined when the ID is unknown or removed. */
   async findById(id: string): Promise<MediaItem | undefined> {
     const row = await this.#db
       .selectFrom("media_items")
       .selectAll()
       .where("id", "=", id)
+      .where("removed_at", "is", null)
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaItem(row);
   }
@@ -61,7 +72,8 @@ export class MediaItemRepository {
 
 /**
  * Returns requested IDs absent from the catalog, in request order without
- * repeats. Takes the caller's executor so the check commits with the write it
+ * repeats. A removed item counts as absent, so nothing can reference it
+ * again. Takes the caller's executor so the check commits with the write it
  * guards.
  */
 export async function findUnknownMediaItemIds(
@@ -75,6 +87,7 @@ export async function findUnknownMediaItemIds(
       .selectFrom("media_items")
       .select("id")
       .where("id", "in", chunk)
+      .where("removed_at", "is", null)
       .execute();
     for (const { id } of rows) known.add(id);
   }

@@ -10,6 +10,7 @@ import {
 import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
 import type { ApiScanStatus } from "../catalog-scan/contracts.js";
+import type { RemovedPathReclaim } from "../catalog-removal/contracts.js";
 import type { MediaRoot } from "./contracts.js";
 import type { MediaRootRepository } from "./media-root-repository.js";
 
@@ -26,11 +27,14 @@ const updateBody = z.strictObject({
  * Registers media-root HTTP routes; validation and status mapping live only
  * here. `scanStatus` answers each listed root's current or latest scan job,
  * so this domain carries scan status without knowing how scans run.
+ * `reclaimRemovedPath` frees a path a removed root still holds, so this
+ * domain can re-add one without knowing how removal and purge work.
  */
 export function registerMediaRootRoutes(
   server: FastifyInstance,
   mediaRoots: MediaRootRepository,
   scanStatus: (rootId: string) => ApiScanStatus | null,
+  reclaimRemovedPath: (pathKey: string) => Promise<RemovedPathReclaim>,
 ): void {
   const platform = currentPathPlatform();
 
@@ -58,7 +62,24 @@ export function registerMediaRootRoutes(
       );
     }
 
-    const result = await mediaRoots.create(rootPath, body.data.enabled ?? true);
+    const enabled = body.data.enabled ?? true;
+    let result = await mediaRoots.create(rootPath, enabled);
+    // A removed root waiting for purge still holds its path; free it and retry once.
+    if (result.kind === "duplicate") {
+      const reclaim = await reclaimRemovedPath(rootPath.pathKey);
+      if (reclaim.kind === "removal_pending") {
+        return sendApiError(
+          reply,
+          409,
+          "media_root_removal_pending",
+          `A removed media root at ${rootPath.path} still airs until ${toApiTimestamp(reclaim.airingUntil)}; add it again after that`,
+          { airingUntil: toApiTimestamp(reclaim.airingUntil) },
+        );
+      }
+      if (reclaim.kind === "reclaimed") {
+        result = await mediaRoots.create(rootPath, enabled);
+      }
+    }
     if (result.kind === "duplicate") {
       return sendApiError(
         reply,

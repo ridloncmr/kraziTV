@@ -9,6 +9,7 @@ import { pino } from "pino";
 import { buildServer, type ServerDependencies } from "../app.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
+import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
 import {
   openDatabase,
   type KraziDatabase,
@@ -88,6 +89,15 @@ export async function startTestServer(
 
   const mediaRoots = new MediaRootRepository(database.db);
   const schedules = new ScheduleService(database.db);
+  // Removals ask the scanner whether a root is scanning, and every completed
+  // scan purges. Each reaches the other through the final dependency set when
+  // called, so an override of either one is followed.
+  const wired: { dependencies?: TestServerDependencies } = {};
+  const isScanning = (rootId: string) =>
+    wired.dependencies?.scanner.isScanning(rootId) ?? false;
+  const removals: Pick<CatalogRemovalService, "purge"> = {
+    purge: async (log) => wired.dependencies?.catalogRemovals.purge(log),
+  };
   // Built per dependency set, so the default scanner can follow overrides.
   const defaultScanner = (
     roots: MediaRootRepository,
@@ -98,13 +108,22 @@ export async function startTestServer(
       prober: new ControlledProber(),
       writer: new CatalogScanWriter(database.db),
       schedules: scheduleService,
+      removals,
       log: pino({ level: "silent" }),
+    });
+  // Built per dependency set, so default removals follow an overridden
+  // schedule service.
+  const defaultRemovals = (scheduleService: ScheduleService) =>
+    new CatalogRemovalService(database.db, {
+      schedules: scheduleService,
+      isScanning,
     });
   const defaults: TestServerDependencies = {
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
+    catalogRemovals: defaultRemovals(schedules),
     channels: new ChannelRepository(database.db),
     channelRuntime: new RecordingChannelRuntime(),
     channelStreams: new ControlledChannelStreams(),
@@ -114,9 +133,9 @@ export async function startTestServer(
   };
   const overridden = options.overrides?.(database.db, defaults) ?? {};
   const dependencies: TestServerDependencies = { ...defaults, ...overridden };
-  // A default playout service and scanner follow the final schedule service
-  // (and the scanner the final roots), so overriding `schedules` alone keeps
-  // every consumer on one clock and one service.
+  // A default playout service, scanner, and removal service follow the final
+  // schedule service (and the scanner the final roots), so overriding
+  // `schedules` alone keeps every consumer on one clock and one service.
   if (overridden.playout === undefined) {
     dependencies.playout = new PlayoutService(
       database.db,
@@ -129,6 +148,10 @@ export async function startTestServer(
       dependencies.schedules,
     );
   }
+  if (overridden.catalogRemovals === undefined) {
+    dependencies.catalogRemovals = defaultRemovals(dependencies.schedules);
+  }
+  wired.dependencies = dependencies;
   const server = buildServer(
     { database, ...dependencies },
     {

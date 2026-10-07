@@ -10,6 +10,8 @@ import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { registerCatalogScanRoutes } from "./catalog-scan/routes/catalog-scan-routes.js";
 import { toApiScanStatus } from "./catalog-scan/routes/api-scan-status.js";
+import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
+import { registerCatalogRemovalRoutes } from "./catalog-removal/routes/catalog-removal-routes.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
@@ -17,6 +19,11 @@ import { registerMediaCollectionRoutes } from "./media-collections/media-collect
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
+import { ChannelLifecycleLock } from "./channels/runtime/channel-lifecycle-lock.js";
+import {
+  DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
+  stopChannelUnderLock,
+} from "./channels/runtime/settle-runtime-stop.js";
 import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
@@ -30,7 +37,7 @@ const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
 type BuildServerOptions = FastifyServerOptions & {
   corsOrigins?: string[];
-  /** How long a channel disable, delete, or re-enable waits for its runtime stop. */
+  /** How long a channel disable, delete, re-enable, or interrupt waits for its runtime stop. */
   channelStopTimeoutMs?: number | undefined;
   /** Required so Plex URLs always come from parsed configuration, never a second default. */
   plex: PlexSettings;
@@ -46,6 +53,7 @@ export type ServerDependencies = {
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
   mediaCollections: MediaCollectionRepository;
+  catalogRemovals: CatalogRemovalService;
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
   channelStreams: ChannelStreams;
@@ -59,10 +67,13 @@ function registerRoutes(
   server: FastifyInstance,
   dependencies: ServerDependencies,
   corsOrigins: string[],
-  channelStopTimeoutMs: number | undefined,
+  channelStopTimeoutMs: number,
   plex: PlexSettings,
 ): void {
   registerApiErrorHandlers(server);
+  // One lock per server, so every route that stops a channel's runtime
+  // serializes with every other lifecycle change of that channel.
+  const lifecycle = new ChannelLifecycleLock();
   // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also edits and deletes.
   void server.register(cors, {
     origin: corsOrigins,
@@ -70,16 +81,33 @@ function registerRoutes(
   });
 
   server.get("/health", async () => ({ status: "ok" }));
-  registerMediaRootRoutes(server, dependencies.mediaRoots, (rootId) => {
-    const status = dependencies.scanner.status(rootId);
-    return status === undefined ? null : toApiScanStatus(status);
-  });
+  registerMediaRootRoutes(
+    server,
+    dependencies.mediaRoots,
+    (rootId) => {
+      const status = dependencies.scanner.status(rootId);
+      return status === undefined ? null : toApiScanStatus(status);
+    },
+    (pathKey) => dependencies.catalogRemovals.reclaimRemovedPath(pathKey),
+  );
   registerCatalogScanRoutes(
     server,
     dependencies.scanner,
     dependencies.mediaRoots,
   );
   registerMediaItemRoutes(server, dependencies.mediaItems);
+  registerCatalogRemovalRoutes(
+    server,
+    dependencies.catalogRemovals,
+    (channelId, log) =>
+      stopChannelUnderLock(
+        lifecycle,
+        dependencies.channelRuntime,
+        channelStopTimeoutMs,
+        log,
+        { channelId, reason: "interrupted" },
+      ),
+  );
   registerMediaCollectionRoutes(
     server,
     dependencies.mediaCollections,
@@ -90,6 +118,7 @@ function registerRoutes(
     dependencies.channels,
     dependencies.channelRuntime,
     dependencies.schedules,
+    lifecycle,
     channelStopTimeoutMs,
   );
   registerChannelStreamRoutes(server, dependencies.channelStreams);
@@ -116,7 +145,7 @@ export function buildServer(
 ) {
   const {
     corsOrigins = DEFAULT_CORS_ORIGINS,
-    channelStopTimeoutMs,
+    channelStopTimeoutMs = DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
     plex,
     ...fastifyOptions
   } = options;
@@ -140,9 +169,11 @@ export function buildServer(
     }
   });
 
-  // Repairs schedules that lapsed while the server was down before it serves
-  // traffic; ensureAllEnabled logs failures instead of blocking startup.
+  // Purges removed media whose airing ended while the server was down, then
+  // repairs schedules that lapsed, before it serves traffic. Both log
+  // failures instead of blocking startup.
   server.addHook("onReady", async () => {
+    await dependencies.catalogRemovals.purge(server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
   });
 

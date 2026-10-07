@@ -560,6 +560,34 @@ describe("ChannelStreamManager", () => {
     expect(logger.errors).toEqual([]);
   });
 
+  it("closes viewers on an interrupt and starts a fresh worker for the next tune", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+    const first = new FakeManagedWorker("channel-1");
+    workerFactory.calls[0]?.result.resolve(first);
+    const viewer = await subscribing;
+    viewer.stream.resume();
+    const closed = new Promise((resolve) =>
+      viewer.stream.once("close", resolve),
+    );
+
+    await manager.stopChannel("channel-1", "interrupted");
+    await closed;
+    const retuning = manager.subscribe("channel-1");
+    await settlePromises();
+    workerFactory.calls[1]?.result.resolve(new FakeManagedWorker("channel-1"));
+    (await retuning).stream.resume();
+
+    expect(first.stopCalls).toBe(1);
+    expect(workerFactory.calls).toHaveLength(2);
+    await manager.shutdown();
+  });
+
   it("treats abort after subscription creation as caller-owned closure", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
@@ -788,9 +816,11 @@ describe("ChannelStreamManager", () => {
     await expectSignalError(manager.shutdown(), "runtime_cleanup_failed");
   });
 
+  // An interrupted channel stays enabled, so a racing tune is told to retry.
   it.each([
     ["disabled", "channel_disabled"],
     ["deleted", "channel_not_found"],
+    ["interrupted", "playout_unavailable"],
   ] as const)(
     "lets an administrative %s stop defeat pending publication",
     async (reason, expectedCode) => {
@@ -821,6 +851,7 @@ describe("ChannelStreamManager", () => {
   it.each([
     ["disabled", "channel_disabled"],
     ["deleted", "channel_not_found"],
+    ["interrupted", "playout_unavailable"],
   ] as const)(
     "lets an administrative %s stop overtake initial authorization",
     async (reason, expectedCode) => {

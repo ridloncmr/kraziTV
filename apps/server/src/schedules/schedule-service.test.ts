@@ -724,6 +724,47 @@ describe("ScheduleService.applyInputChange", () => {
     ]);
   });
 
+  it("interrupts a channel the change names: replaces its airing entry from the effective time", async () => {
+    const { db, channelId, clock, service, log } = await setup();
+    await service.ensureCoverage(channelId, log);
+    const before = await readState(db, channelId);
+    const [airing] = await readScheduleEntries(db, channelId);
+    log.lines.length = 0;
+    clock.set(T0 + 5 * MINUTE);
+
+    await service.applyInputChange(log, "media_removed", async () => ({
+      value: undefined,
+      affectedChannelIds: [channelId],
+      interruptedChannelIds: [channelId],
+    }));
+
+    const entries = await readScheduleEntries(db, channelId);
+    // Progress is restored from the deleted airing entry, so the rebuilt
+    // schedule starts with the episode it was airing, from now.
+    expect(entries[0]).toMatchObject({
+      starts_at: T0 + 5 * MINUTE,
+      media_item_id: airing?.media_item_id,
+      playback_index: 0,
+    });
+    expect(entries.map((entry) => entry.id)).not.toContain(airing?.id);
+    expectContiguous(entries);
+    await expect(readState(db, channelId)).resolves.toMatchObject({
+      schedule_revision: (before?.schedule_revision ?? 0) + 1,
+    });
+    expect(log.lines).toEqual([
+      {
+        level: "info",
+        fields: expect.objectContaining({
+          channelId,
+          reason: "media_removed",
+          interruptedFrom: T0,
+          boundary: T0 + 5 * MINUTE,
+        }),
+        message: expect.any(String),
+      },
+    ]);
+  });
+
   it("rolls back the change when its first chunk fails", async () => {
     const { db, channelId, collectionId, service, log } = await setup({
       source: null,

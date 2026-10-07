@@ -7,8 +7,9 @@ import type { SequencedPlayoutEntry } from "./contracts.js";
 
 // Every query takes the caller's executor, so the snapshot read and the
 // transition coordinator's immediate transaction run the same SQL. The inner
-// join is safe: an entry's media item is a non-null foreign key and
-// production never deletes media items.
+// join is safe: an entry's media item is a non-null foreign key, and catalog
+// purge deletes an item only after deleting every entry that points at it,
+// once all of them have ended.
 
 type Executor = Kysely<DatabaseSchema>;
 

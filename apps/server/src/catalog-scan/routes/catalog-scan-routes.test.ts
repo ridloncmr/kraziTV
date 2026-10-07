@@ -69,7 +69,7 @@ async function startServer(options: ServerOptions = {}) {
         .values([rootFixture, OTHER_ROOT])
         .execute();
     },
-    overrides: (db, { mediaRoots, schedules }) => {
+    overrides: (db, { mediaRoots, schedules, catalogRemovals }) => {
       const real = new CatalogScanWriter(db);
       return {
         scanner: new CatalogScanner({
@@ -82,6 +82,7 @@ async function startServer(options: ServerOptions = {}) {
               options.ensureAllEnabled ??
               ((scheduleLog) => schedules.ensureAllEnabled(scheduleLog)),
           },
+          removals: catalogRemovals,
           log,
           now: () => (time += 1_000),
         }),
@@ -633,13 +634,14 @@ describe("scan schedule maintenance", () => {
           source: "chronological",
         });
       },
-      overrides: (db, { mediaRoots, schedules }) => ({
+      overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
         scanner: new CatalogScanner({
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),
           discover,
           schedules,
+          removals: catalogRemovals,
           log: recordingLog(),
         }),
       }),

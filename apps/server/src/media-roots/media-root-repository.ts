@@ -55,28 +55,33 @@ export class MediaRootRepository {
     }
   }
 
-  /** Lists every root in path-identity order, with ID as a stable tie-breaker. */
+  /** Lists every cataloged root in path-identity order, with ID as a stable tie-breaker. */
   async list(): Promise<MediaRoot[]> {
     const rows = await this.#db
       .selectFrom("media_roots")
       .selectAll()
+      .where("removed_at", "is", null)
       .orderBy("path_key")
       .orderBy("id")
       .execute();
     return rows.map(toMediaRoot);
   }
 
-  /** Loads one root for operations such as scanning that act on a single root. */
+  /**
+   * Loads one root for operations such as scanning that act on a single
+   * root. A removed root reads as unknown, so no such operation reaches it.
+   */
   async findById(id: string): Promise<MediaRoot | undefined> {
     const row = await this.#db
       .selectFrom("media_roots")
       .selectAll()
       .where("id", "=", id)
+      .where("removed_at", "is", null)
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaRoot(row);
   }
 
-  /** Toggles scan eligibility; returns undefined when the root does not exist. */
+  /** Toggles scan eligibility; returns undefined when the root does not exist or was removed. */
   async setEnabled(
     id: string,
     enabled: boolean,
@@ -85,6 +90,7 @@ export class MediaRootRepository {
       .updateTable("media_roots")
       .set({ enabled: toSqliteBoolean(enabled), updated_at: this.#now() })
       .where("id", "=", id)
+      .where("removed_at", "is", null)
       .returningAll()
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaRoot(row);

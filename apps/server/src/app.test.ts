@@ -10,6 +10,7 @@ import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -36,6 +37,9 @@ function createDependencies(
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,
     mediaCollections: {} as MediaCollectionRepository,
+    catalogRemovals: {
+      purge: async () => undefined,
+    } as Partial<CatalogRemovalService> as CatalogRemovalService,
     channels: {} as ChannelRepository,
     channelRuntime: { stopChannel: async () => undefined },
     channelStreams,

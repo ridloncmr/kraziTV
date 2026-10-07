@@ -67,7 +67,8 @@ const ENTRIES_PER_TRANSACTION = 500;
 
 /**
  * The only writer of schedule entries, schedule state, and collection
- * progress. Every mutation runs in an immediate transaction and reads its
+ * progress, apart from catalog purge, which deletes only entries that have
+ * ended. Every mutation runs in an immediate transaction and reads its
  * effective current time only after acquiring write authority.
  */
 export class ScheduleService {
@@ -202,7 +203,9 @@ export class ScheduleService {
    * first chunk in one immediate transaction, because no later check could
    * detect a schedule generated from stale programming. A channel that
    * already has a schedule regenerates from its boundary; one without gets
-   * its first chunk. Completes coverage after the commit. Returns the
+   * its first chunk, and one the user chose to interrupt is rebuilt from the
+   * effective time instead. The change's `afterRegeneration` step then runs
+   * in the same transaction. Completes coverage after the commit. Returns the
    * change's value.
    */
   async applyInputChange<T>(
@@ -220,12 +223,28 @@ export class ScheduleService {
         log,
       );
       const changed = await change(trx, effectiveNow);
+      const interrupted = new Set(changed.interruptedChannelIds);
       const chunks: ChannelChunk[] = [];
       for (const channelId of new Set(changed.affectedChannelIds)) {
         chunks.push(
-          await this.#firstChunkAfterInput(trx, channelId, log, effectiveNow),
+          interrupted.has(channelId)
+            ? await this.#interruptAfterInput(trx, channelId, log, effectiveNow)
+            : await this.#firstChunkAfterInput(
+                trx,
+                channelId,
+                log,
+                effectiveNow,
+              ),
         );
       }
+      await changed.afterRegeneration?.(
+        trx,
+        new Set(
+          chunks
+            .filter((chunk) => chunk.revisionAdvanced)
+            .map((chunk) => chunk.channelId),
+        ),
+      );
       return { value: changed.value, chunks };
     });
 
@@ -268,6 +287,29 @@ export class ScheduleService {
   }
 
   /**
+   * Applies an input change to a channel whose airing entry the user chose
+   * to interrupt. A channel without a schedule has nothing airing, so it
+   * gets its first chunk as any input change gives it.
+   */
+  async #interruptAfterInput(
+    trx: Kysely<DatabaseSchema>,
+    channelId: string,
+    log: ScheduleLog,
+    effectiveNow: number,
+  ): Promise<ChannelChunk> {
+    const state = await loadScheduleState(trx, channelId);
+    if (state === undefined) {
+      return this.#firstChunkAfterInput(trx, channelId, log, effectiveNow);
+    }
+    return this.#interruptChunk(
+      trx,
+      state,
+      effectiveNow,
+      effectiveNow + SCHEDULE_HORIZON_MS,
+    );
+  }
+
+  /**
    * Finishes a channel's coverage after its first chunk committed and logs
    * what happened. A repaired gap is warned about first, with its uncovered
    * interval, so the repair is recorded even if completing coverage then
@@ -297,10 +339,9 @@ export class ScheduleService {
 
   /**
    * Rebuilds a scheduled channel from the regeneration boundary in the
-   * caller's transaction. The airing entry is never touched; entries from
-   * the boundary are deleted and their progress restored, then one chunk is
-   * generated if the channel is enabled and schedulable. State is written,
-   * and the revision advances once, only if an entry was deleted or inserted.
+   * caller's transaction. The airing entry is never touched (ADR 0003):
+   * entries from the end of the airing entry, or from now when nothing airs,
+   * are replaced.
    */
   async #regenerateChunk(
     trx: Kysely<DatabaseSchema>,
@@ -308,10 +349,62 @@ export class ScheduleService {
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
-    const { channelId } = state;
-    const airing = await findEntryAiringAt(trx, channelId, effectiveNow);
+    const airing = await findEntryAiringAt(trx, state.channelId, effectiveNow);
     const boundary = findRegenerationBoundary(airing, effectiveNow);
-    const deleted = await deleteEntriesFrom(trx, channelId, boundary);
+    return this.#rebuildChunk(
+      trx,
+      state,
+      { deleteFrom: boundary, startsAt: boundary },
+      effectiveNow,
+      target,
+    );
+  }
+
+  /**
+   * Rebuilds a scheduled channel from the effective time, replacing the
+   * entry airing now. Only a user's explicit choice reaches this (the ADR
+   * 0003 amendment): the airing entry and every later one are deleted and
+   * their progress restored, and the interval from the deleted entry's start
+   * to now is left empty, in the past.
+   */
+  async #interruptChunk(
+    trx: Kysely<DatabaseSchema>,
+    state: ScheduleState,
+    effectiveNow: number,
+    target: number,
+  ): Promise<ChannelChunk> {
+    const airing = await findEntryAiringAt(trx, state.channelId, effectiveNow);
+    return this.#rebuildChunk(
+      trx,
+      state,
+      {
+        deleteFrom: airing?.startsAt ?? effectiveNow,
+        startsAt: effectiveNow,
+        interruptedFrom: airing?.startsAt,
+      },
+      effectiveNow,
+      target,
+    );
+  }
+
+  /**
+   * Deletes the channel's entries starting at or after `span.deleteFrom`,
+   * restores progress from them, and generates one chunk from
+   * `span.startsAt` if the channel is enabled and schedulable. State is
+   * written, and the revision advances once, only if an entry was deleted or
+   * inserted. Callers choose the positions; this never decides what may be
+   * replaced.
+   */
+  async #rebuildChunk(
+    trx: Kysely<DatabaseSchema>,
+    state: ScheduleState,
+    span: { deleteFrom: number; startsAt: number; interruptedFrom?: number },
+    effectiveNow: number,
+    target: number,
+  ): Promise<ChannelChunk> {
+    const { channelId } = state;
+    const { startsAt: boundary } = span;
+    const deleted = await deleteEntriesFrom(trx, channelId, span.deleteFrom);
     await restoreDeletedProgress(trx, channelId, deleted, effectiveNow);
 
     const written = (await findChannelEnabled(trx, channelId))
@@ -350,8 +443,12 @@ export class ScheduleService {
           : written.kind === "written"
             ? coverageAfterChunk(next, target)
             : written,
+      revisionAdvanced: changed,
       regeneration: {
         boundary,
+        ...(span.interruptedFrom === undefined
+          ? {}
+          : { interruptedFrom: span.interruptedFrom }),
         deletedEntryCount: deleted.length,
         insertedEntryCount,
         // Generating past where coverage had already ended repairs a gap.
@@ -438,7 +535,10 @@ export class ScheduleService {
     await (state === undefined
       ? createScheduleState(trx, next)
       : updateScheduleState(trx, next));
-    return settled(coverageAfterChunk(next, target));
+    return {
+      ...settled(coverageAfterChunk(next, target)),
+      revisionAdvanced: true,
+    };
   }
 
   /**

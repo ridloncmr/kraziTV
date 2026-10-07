@@ -18,6 +18,7 @@ export const rootFixture: Insertable<MediaRootTable> = {
   created_at: FIXTURE_TIME,
   updated_at: FIXTURE_TIME,
   last_scanned_at: null,
+  removed_at: null,
 };
 
 /** A second root whose path key sorts before rootFixture's even though its ID sorts after. */
@@ -43,6 +44,7 @@ export const itemFixture: Insertable<MediaItemTable> = {
   updated_at: FIXTURE_TIME,
   last_seen_at: FIXTURE_TIME,
   last_probed_at: FIXTURE_TIME,
+  removed_at: null,
 };
 
 /**

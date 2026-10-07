@@ -9,7 +9,7 @@ import {
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
 import { idParams, nameField } from "../../http/request-schemas.js";
-import { ChannelLifecycleLock } from "./channel-lifecycle-lock.js";
+import type { ChannelLifecycleLock } from "../runtime/channel-lifecycle-lock.js";
 import type { ChannelRepository } from "../repository/channel-repository.js";
 import { stopRuntime } from "./channel-runtime-stop.js";
 import type { ChannelRuntime, StoredChannel } from "../contracts.js";
@@ -44,21 +44,21 @@ const updateBody = z
     message: "body must change at least one of number, name, or enabled",
   });
 
-// Well above the manager's FFmpeg termination grace plus one escalation, so
-// only a stop that truly hangs is cut off.
-const DEFAULT_STOP_TIMEOUT_MS = 30_000;
-
-/** Registers channel HTTP routes; validation and status mapping live only here. */
+/**
+ * Registers channel HTTP routes; validation and status mapping live only
+ * here. `lifecycle` is the server's one lifecycle lock, shared with every
+ * other route that stops a channel's runtime.
+ */
 export function registerChannelRoutes(
   server: FastifyInstance,
   channels: ChannelRepository,
   runtime: ChannelRuntime,
   schedules: ScheduleService,
-  stopTimeoutMs = DEFAULT_STOP_TIMEOUT_MS,
+  lifecycle: ChannelLifecycleLock,
+  stopTimeoutMs: number,
 ): void {
-  // Every PATCH and DELETE takes it, so a rename cannot slip between a
+  // Every PATCH and DELETE takes the lock, so a rename cannot slip between a
   // re-enable's stop and its commit either; uncontended waits are one tick.
-  const lifecycle = new ChannelLifecycleLock();
   // Every lifecycle change stops the same runtime under the same deadline.
   const settleStop = (
     request: FastifyRequest,

@@ -18,4 +18,6 @@ export interface MediaItemTable {
   updated_at: number;
   last_seen_at: number;
   last_probed_at: number | null;
+  /** When a user removed the item from the catalog; null while it is cataloged. */
+  removed_at: number | null;
 }

@@ -8,18 +8,15 @@ import {
   sendUnknownMediaItems,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams, nameField } from "../http/request-schemas.js";
+import {
+  idParams,
+  nameField,
+  uniqueMediaItemIds as mediaItemIds,
+} from "../http/request-schemas.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type { MediaCollection, MediaCollectionMember } from "./contracts.js";
 import type { MediaCollectionRepository } from "./media-collection-repository.js";
 import { membershipChange } from "./replace-collection-members.js";
-
-// Duplicates are a caller error the repository never sees.
-const mediaItemIds = z
-  .array(z.string())
-  .refine((ids) => new Set(ids).size === ids.length, {
-    message: "mediaItemIds must not contain duplicates",
-  });
 
 const createBody = z.strictObject({
   name: nameField,

@@ -32,5 +32,12 @@ export function windowQuery(maxWindowMs: number) {
     });
 }
 
+/** A list of media item IDs naming each item once; a duplicate is a caller error. */
+export const uniqueMediaItemIds = z
+  .array(z.string())
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "mediaItemIds must not contain duplicates",
+  });
+
 /** A display name: trimmed, and never empty once trimmed. */
 export const nameField = z.string().trim().min(1, "name must not be empty");
