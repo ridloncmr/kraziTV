@@ -1,5 +1,6 @@
 import { formText } from "../controls/form-text.js";
 import { useState } from "react";
+import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
@@ -195,11 +196,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                     )}
                   </td>
                   <td>{item.status}</td>
-                  <td>
-                    {item.durationMs === null
-                      ? "Unknown"
-                      : `${(item.durationMs / 1000).toFixed(1)} s`}
-                  </td>
+                  <td>{displayDuration(item.durationMs)}</td>
                 </tr>
               ))}
             </tbody>

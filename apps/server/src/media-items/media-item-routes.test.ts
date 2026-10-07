@@ -147,6 +147,38 @@ describe("GET /media-items", () => {
   });
 });
 
+describe("GET /media-items/matches", () => {
+  it("returns every search match in catalog order with the full match count", async () => {
+    const server = await startServer([
+      itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
+      itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
+      itemFixtureAt("item-x", "/media/movies/other.mkv"),
+    ]);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/media-items/matches?q=show",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: "item-a" }, { id: "item-b" }],
+      total: 2,
+    });
+  });
+
+  it("rejects paging parameters because it never pages", async () => {
+    const server = await startServer();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/media-items/matches?limit=10",
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+});
+
 describe("GET /media-items/:id", () => {
   it("projects an available item with public fields only", async () => {
     const server = await startServer([itemFixture]);

@@ -17,6 +17,12 @@ const listQuery = z.strictObject({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+// Bulk selection takes every match at once; the cap keeps one response bounded
+// and `total` tells the caller when the search must be narrowed first.
+const MAX_MATCHES = 5000;
+
+const matchesQuery = z.strictObject({ q: z.string().trim().default("") });
+
 /** Registers read-only catalog routes; status mapping and projection live only here. */
 export function registerMediaItemRoutes(
   server: FastifyInstance,
@@ -29,6 +35,19 @@ export function registerMediaItemRoutes(
     }
     const { q, limit, offset } = query.data;
     const page = await mediaItems.list({ search: q, limit, offset });
+    return { items: page.items.map(toApiMediaItem), total: page.total };
+  });
+
+  server.get("/media-items/matches", async (request, reply) => {
+    const query = matchesQuery.safeParse(request.query);
+    if (!query.success) {
+      return sendInvalidRequest(reply, query.error);
+    }
+    const page = await mediaItems.list({
+      search: query.data.q,
+      limit: MAX_MATCHES,
+      offset: 0,
+    });
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });
 

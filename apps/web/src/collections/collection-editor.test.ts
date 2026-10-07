@@ -10,6 +10,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
+import { episodes, serveCollection } from "../testing/collection-api.js";
 import { CollectionEditor } from "./collection-editor.js";
 
 afterEach(() => {
@@ -17,81 +18,135 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("saves explicit draft order, removal and addition while rendering backend eligibility", async () => {
+// Serves the favorites collection with the given saved order and renders its editor.
+function renderEditor(memberIds: string[]) {
   const api = new BrowserApi();
-  api.reply(
-    "/media-collections/favorites/items",
-    adminFixtures.media.map((item, position) => ({
-      ...item,
-      mediaItemId: item.id,
-      position,
-    })),
-  );
-  api.reply("/media-collections/favorites/status", {
-    schedulable: true,
-    memberCount: 2,
-    schedulableCount: 1,
-  });
-  api.reply("/media-collections/favorites/items", [], "PUT");
-  api.reply("/media-items", { items: adminFixtures.media, total: 2 });
+  serveCollection(api, "favorites", memberIds);
   vi.stubGlobal("fetch", api.fetch);
-  const view = render(
+  const onDirtyChange = vi.fn();
+  render(
     createElement(CollectionEditor, {
       collection: adminFixtures.collections[0],
       visible: true,
       changed: vi.fn(),
+      deleted: vi.fn(),
+      onDirtyChange,
     }),
   );
+  return { api, onDirtyChange };
+}
+
+// Reads the draft order from the member checkboxes, which render in position order.
+function memberOrder() {
+  return screen
+    .getAllByLabelText(/^Select member /)
+    .map((box) =>
+      box.getAttribute("aria-label")?.replace("Select member ", ""),
+    );
+}
+
+function click(name: string) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
+
+function lastPut(api: BrowserApi) {
+  return api.requests.filter((request) => request.method === "PUT").at(-1)
+    ?.body;
+}
+
+it("adds picked catalog media in path order, moves a chosen block and saves the whole order", async () => {
+  const { api, onDirtyChange } = renderEditor(["z", "a"]);
   await screen.findByText(/Schedulable · 1 eligible/);
-  fireEvent.click(await screen.findByRole("button", { name: "Move Zulu up" }));
-  view.rerender(
-    createElement(CollectionEditor, {
-      collection: adminFixtures.collections[0],
-      visible: false,
-      changed: vi.fn(),
-    }),
+  fireEvent.click(await screen.findByLabelText("Select Episode 10"));
+  fireEvent.click(screen.getByLabelText("Select Episode 2"));
+  expect(screen.getByLabelText("Select Alpha").hasAttribute("disabled")).toBe(
+    true,
   );
-  view.rerender(
-    createElement(CollectionEditor, {
-      collection: adminFixtures.collections[0],
-      visible: true,
-      changed: vi.fn(),
-    }),
-  );
+  click("Add selected (2)");
+  expect(memberOrder()).toEqual(["Alpha", "Zulu", "Episode 2", "Episode 10"]);
+  expect(screen.getByText(/Unsaved changes/)).toBeTruthy();
+  expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+  fireEvent.click(screen.getByLabelText("Select member Episode 2"));
+  fireEvent.click(screen.getByLabelText("Select member Zulu"));
+  click("Move to top");
+  expect(memberOrder()).toEqual(["Zulu", "Episode 2", "Alpha", "Episode 10"]);
+  click("Save changes");
+
+  await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+  expect(lastPut(api)).toEqual({ mediaItemIds: ["a", "e2", "z", "e10"] });
+  await screen.findByText(/eligible of 4 saved members/);
+  expect(memberOrder()).toEqual(["Zulu", "Episode 2", "Alpha", "Episode 10"]);
+});
+
+it("adds every match of the settled search and refuses a capped match list", async () => {
+  const { api } = renderEditor(["z"]);
+  await screen.findByLabelText("Select Episode 2");
+  fireEvent.change(screen.getByLabelText("Find media"), {
+    target: { value: "show" },
+  });
   await waitFor(() =>
     expect(
-      screen
-        .getByRole("button", { name: "Move Zulu up" })
-        .hasAttribute("disabled"),
+      api.requests.some((request) => request.query.get("q") === "show"),
     ).toBe(true),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Save media order" }));
+  api.reply("/media-items/matches", { items: episodes, total: 2 });
+  click("Add all matches (4)");
+
   await waitFor(() =>
-    expect(api.requests.some((request) => request.method === "PUT")).toBe(true),
+    expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]),
   );
   expect(
-    api.requests.find((request) => request.method === "PUT")?.body,
-  ).toEqual({ mediaItemIds: ["a", "z"] });
-  await waitFor(() =>
-    expect(
-      screen
-        .getByRole("button", { name: "Remove Zulu" })
-        .hasAttribute("disabled"),
-    ).toBe(false),
+    api.requests
+      .find((request) => request.path === "/media-items/matches")
+      ?.query.get("q"),
+  ).toBe("show");
+
+  api.reply("/media-items/matches", { items: [episodes[0]], total: 5001 });
+  click("Add all matches (4)");
+  expect((await screen.findByRole("alert")).textContent).toMatch(
+    /5001 items match/,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Remove Zulu" }));
-  await screen.findByRole("option", { name: "Zulu (missing)" });
-  fireEvent.change(screen.getByLabelText("Catalog media"), {
-    target: { value: "a" },
+  expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]);
+});
+
+it("keeps member edits made while an add-all request is pending", async () => {
+  const { api } = renderEditor(["z", "a"]);
+  await screen.findByLabelText("Select member Zulu");
+  api.hold("/media-items/matches");
+  click("Add all matches (4)");
+  fireEvent.click(screen.getByLabelText("Select member Zulu"));
+  click("Move to top");
+
+  api.release("/media-items/matches", { items: episodes, total: 2 });
+
+  await waitFor(() =>
+    expect(memberOrder()).toEqual(["Zulu", "Alpha", "Episode 2", "Episode 10"]),
+  );
+});
+
+it("filters without renumbering, moves to a position, sorts and discards back to the saved order", async () => {
+  renderEditor(["e10", "z", "a", "e2"]);
+  await screen.findByLabelText("Select member Zulu");
+
+  fireEvent.change(screen.getByLabelText("Filter members"), {
+    target: { value: "episode" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Add media" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save media order" }));
-  await waitFor(() =>
-    expect(
-      api.requests.filter((request) => request.method === "PUT"),
-    ).toHaveLength(2),
-  );
-  expect(
-    api.requests.filter((request) => request.method === "PUT")[1].body,
-  ).toEqual({ mediaItemIds: ["z", "a"] });
+  expect(memberOrder()).toEqual(["Episode 10", "Episode 2"]);
+  fireEvent.click(screen.getByLabelText("Select all shown members"));
+  fireEvent.change(screen.getByLabelText("Filter members"), {
+    target: { value: "" },
+  });
+  fireEvent.change(screen.getByLabelText("Target position"), {
+    target: { value: "2" },
+  });
+  click("Move to position");
+  expect(memberOrder()).toEqual(["Alpha", "Episode 10", "Episode 2", "Zulu"]);
+
+  click("Sort all by path");
+  expect(memberOrder()).toEqual(["Alpha", "Zulu", "Episode 2", "Episode 10"]);
+
+  click("Discard changes");
+  expect(memberOrder()).toEqual(["Episode 10", "Alpha", "Zulu", "Episode 2"]);
+  expect(screen.queryByText(/Unsaved changes/)).toBeNull();
 });

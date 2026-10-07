@@ -171,21 +171,6 @@
   text-decoration: underline;
   text-align: left;
 }
-.member-list {
-  padding-left: 27px;
-}
-.member-list li {
-  background: var(--xp-window-surface);
-  border-bottom: 1px solid var(--xp-border);
-  padding: 7px;
-}
-.member-list li > span {
-  display: inline-block;
-  margin: 0 8px 5px 0;
-}
-.member-list .row-actions {
-  display: inline-flex;
-}
 .facts {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -263,4 +248,82 @@
 /* A list refreshing in place dims instead of announcing a status line, so its layout and scroll position hold still. */
 .table-scroll[aria-busy="true"] {
   opacity: 0.6;
+}
+/* Checkboxes keep their native size inside full-width form controls. */
+.program-page input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+}
+/*
+ * Collections place the list beside the editor and the catalog beside the
+ * members; both pairs wrap to one column when the window is narrow.
+ */
+.collections-layout,
+.program-page .collection-panes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+.collection-list {
+  flex: 0 0 180px;
+  min-width: 0;
+}
+.collection-list fieldset {
+  margin-top: 0;
+}
+.collection-list ul {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.program-page .collection-list li button {
+  width: 100%;
+  margin-bottom: 2px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.collection-detail {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+.program-page .collection-panes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.program-page .collection-pane {
+  flex: 1 1 320px;
+  margin: 0;
+}
+/* Keeps Save and Discard reachable while a long member list scrolls. */
+.save-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+.bulk-actions {
+  align-items: center;
+  margin: 6px 0;
+}
+.program-page .position-input {
+  width: 64px;
+}
+.program-page .collection-list button.selected-row {
+  background: color-mix(
+    in srgb,
+    var(--xp-selection) 30%,
+    var(--xp-window-surface)
+  );
+  border-color: var(--xp-title-primary);
+  font-weight: bold;
 }

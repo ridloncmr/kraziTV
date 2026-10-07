@@ -44,6 +44,8 @@ export function useMediaItemPage(
   return {
     ...page,
     data: page.data ?? shown,
+    // The settled search the page answers, which typing may not have reached yet.
+    search: query.q,
     offset: query.offset,
     setOffset,
   };

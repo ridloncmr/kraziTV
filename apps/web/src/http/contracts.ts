@@ -24,6 +24,7 @@ export interface MediaCollection {
 export interface CollectionMember {
   mediaItemId: string;
   title: string;
+  path: string;
   status: string;
   durationMs: number | null;
   position: number;

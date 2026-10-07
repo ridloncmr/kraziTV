@@ -130,12 +130,12 @@ for (const viewport of [
       .getByRole("button", { name: "Create collection" })
       .click();
     await collections
-      .getByLabel("Catalog media")
-      .selectOption({ label: "Northwoods (available)" });
+      .getByRole("checkbox", { name: /^Select Northwoods/ })
+      .check();
     await collections
-      .getByRole("button", { name: "Add media", exact: true })
+      .getByRole("button", { name: "Add selected (1)", exact: true })
       .click();
-    await collections.getByRole("button", { name: "Save media order" }).click();
+    await collections.getByRole("button", { name: "Save changes" }).click();
     await expect(
       collections.getByText(/Schedulable · 1 eligible/),
     ).toBeVisible();

@@ -1,47 +1,75 @@
 import { formText } from "../controls/form-text.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { displayDuration } from "../controls/display-duration.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
   CollectionMember,
   CollectionStatus,
   MediaCollection,
-  MediaItem,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
-import { MediaItemPicker } from "../media-search/media-item-picker.js";
+import { CatalogPicker } from "./catalog-picker.js";
+import type { DraftMember } from "./contracts.js";
+import { MemberList } from "./member-list.js";
+import { appendMedia } from "./member-order.js";
 
 /** Draft order is form state; membership and schedulability become authoritative only after API writes. */
 export function CollectionEditor({
   collection,
   visible,
   changed,
+  deleted,
+  onDirtyChange,
 }: {
   collection: MediaCollection;
   visible: boolean;
   changed: () => void;
+  deleted: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const path = resourcePath("media-collections", collection.id);
   const members = useResource<CollectionMember[]>(`${path}/items`, visible);
   const status = useResource<CollectionStatus>(`${path}/status`, visible);
   const mutation = useMutation();
-  const [ids, setIds] = useState<string[]>([]);
-  const [adding, setAdding] = useState<MediaItem>();
-  // Unsaved additions are not members yet, so their titles come from the picker.
-  const [picked, setPicked] = useState<MediaItem[]>([]);
-  const dirty = useRef(false);
+  const [deleting, setDeleting] = useState(false);
+  // Unsaved edits, or the order a save returned until the refetch replaces it,
+  // so a save never flashes the old order back.
+  const [local, setLocal] = useState<{
+    members: DraftMember[];
+    dirty: boolean;
+  }>();
   useEffect(() => {
-    if (members.data && !dirty.current)
-      setIds(members.data.map((member) => member.mediaItemId));
+    setLocal((current) => (current?.dirty ? current : undefined));
   }, [members.data]);
-  /** Moving an item preserves explicit membership order instead of sorting by title or ID. */
-  function move(index: number, direction: number) {
-    dirty.current = true;
-    const reordered = [...ids];
-    const [item] = reordered.splice(index, 1);
-    reordered.splice(index + direction, 0, item);
-    setIds(reordered);
+  const dirty = local?.dirty ?? false;
+  useEffect(() => {
+    onDirtyChange(dirty);
+    return () => onDirtyChange(false);
+  }, [dirty, onDirtyChange]);
+  const saved: readonly DraftMember[] = members.data ?? [];
+  const draft = local?.members ?? saved;
+  const memberIds = useMemo(
+    () => new Set(draft.map((item) => item.mediaItemId)),
+    [draft],
+  );
+  const runtimeMs = draft.reduce(
+    (sum, item) => sum + (item.durationMs ?? 0),
+    0,
+  );
+
+  /**
+   * Every pane edit replaces the whole draft, which marks it unsaved. Edits
+   * apply to the draft current when they land, so an addition that waited on
+   * a request never overwrites edits made while it was pending.
+   */
+  function edit(change: (current: readonly DraftMember[]) => DraftMember[]) {
+    setLocal((current) => ({
+      members: change(current?.members ?? saved),
+      dirty: true,
+    }));
   }
+
   return (
     <>
       <RequestFeedback
@@ -49,120 +77,110 @@ export function CollectionEditor({
         error={mutation.error ?? members.error ?? status.error}
         message={mutation.message}
       />
-      <fieldset disabled={mutation.pending}>
-        <legend>Collection properties</legend>
-        <form
-          className="inline-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void mutation.run(
-              path,
-              "PATCH",
-              { name: formText(new FormData(event.currentTarget), "name") },
-              changed,
-            );
-          }}
-        >
-          <label>
-            Name
-            <input name="name" defaultValue={collection.name} required />
-          </label>
-          <button type="submit">Rename</button>
-        </form>
-        {status.data && (
-          <p className="info-strip">
-            {status.data.schedulable ? "Schedulable" : "No schedulable media"} ·{" "}
-            {status.data.schedulableCount} eligible of {status.data.memberCount}{" "}
-            saved members
-          </p>
-        )}
-      </fieldset>
-      <fieldset disabled={mutation.pending || !members.data}>
-        <legend>Media order</legend>
-        <div className="inline-form">
-          <MediaItemPicker
-            label="Catalog media"
-            value={adding?.id ?? ""}
-            exclude={ids}
-            visible={visible}
-            onChange={setAdding}
+      <form
+        className="inline-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void mutation.run(
+            path,
+            "PATCH",
+            { name: formText(new FormData(event.currentTarget), "name") },
+            changed,
+          );
+        }}
+      >
+        <label>
+          Name
+          <input
+            name="name"
+            defaultValue={collection.name}
+            required
+            disabled={mutation.pending}
           />
+        </label>
+        <button disabled={mutation.pending} type="submit">
+          Rename
+        </button>
+        <button
+          disabled={mutation.pending}
+          type="button"
+          onClick={() => setDeleting(true)}
+        >
+          Delete collection
+        </button>
+      </form>
+      {deleting && (
+        <div className="destructive-confirmation">
+          <p>
+            Delete collection <strong>{collection.name}</strong>? Its media stay
+            in the catalog. A collection a channel programs from cannot be
+            deleted.
+          </p>
           <button
-            disabled={!adding}
+            disabled={mutation.pending}
             onClick={() => {
-              if (!adding) return;
-              dirty.current = true;
-              setIds([...ids, adding.id]);
-              setPicked([...picked, adding]);
-              setAdding(undefined);
+              void mutation.run(path, "DELETE", undefined, deleted);
             }}
           >
-            Add media
+            Delete collection permanently
+          </button>
+          <button
+            disabled={mutation.pending}
+            onClick={() => setDeleting(false)}
+          >
+            Cancel
           </button>
         </div>
-        {ids.length === 0 && (
-          <p className="empty-state">
-            This collection has no media. Add cataloged items above.
-          </p>
-        )}
-        <ol className="member-list">
-          {ids.map((id, index) => {
-            const item =
-              members.data?.find((item) => item.mediaItemId === id) ??
-              picked.find((item) => item.id === id);
-            return (
-              <li key={id}>
-                <span>
-                  {item?.title ?? id}
-                  <small className="secondary">
-                    {item?.status ?? "Unknown"}
-                  </small>
-                </span>
-                <div className="row-actions">
-                  <button
-                    aria-label={`Move ${item?.title ?? id} up`}
-                    disabled={index === 0}
-                    onClick={() => move(index, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    aria-label={`Move ${item?.title ?? id} down`}
-                    disabled={index === ids.length - 1}
-                    onClick={() => move(index, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    onClick={() => {
-                      dirty.current = true;
-                      setIds(ids.filter((member) => member !== id));
-                    }}
-                    aria-label={`Remove ${item?.title ?? id}`}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-        <button
-          onClick={() => {
-            void mutation.run(
-              `${path}/items`,
-              "PUT",
-              { mediaItemIds: ids },
-              () => {
-                dirty.current = false;
-                members.refresh();
-                status.refresh();
-              },
-            );
-          }}
-        >
-          Save media order
-        </button>
+      )}
+      {status.data && (
+        <p className="info-strip">
+          {status.data.schedulable ? "Schedulable" : "No schedulable media"} ·{" "}
+          {status.data.schedulableCount} eligible of {status.data.memberCount}{" "}
+          saved members
+        </p>
+      )}
+      <div className="save-bar">
+        <span>
+          {draft.length} {draft.length === 1 ? "item" : "items"} ·{" "}
+          {displayDuration(runtimeMs)} total
+          {dirty && <strong> · Unsaved changes</strong>}
+        </span>
+        <div className="row-actions">
+          <button
+            disabled={!dirty || mutation.pending}
+            onClick={() => setLocal(undefined)}
+          >
+            Discard changes
+          </button>
+          <button
+            disabled={!dirty || mutation.pending}
+            onClick={() => {
+              void mutation.run<CollectionMember[]>(
+                `${path}/items`,
+                "PUT",
+                { mediaItemIds: draft.map((item) => item.mediaItemId) },
+                (saved) => {
+                  setLocal({ members: saved, dirty: false });
+                  members.refresh();
+                  status.refresh();
+                },
+              );
+            }}
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+      <fieldset
+        className="collection-panes"
+        disabled={mutation.pending || !members.data}
+      >
+        <CatalogPicker
+          memberIds={memberIds}
+          visible={visible}
+          onAdd={(media) => edit((current) => appendMedia(current, media))}
+        />
+        <MemberList members={draft} onChange={(next) => edit(() => next)} />
       </fieldset>
     </>
   );

@@ -178,6 +178,7 @@ export async function selectMembers(
       "media_collection_items.position",
       "media_items.id",
       "media_items.title",
+      "media_items.path",
       "media_items.status",
       "media_items.duration_ms",
     ])
@@ -188,6 +189,7 @@ export async function selectMembers(
     position: row.position,
     mediaItemId: row.id,
     title: row.title,
+    path: row.path,
     status: row.status,
     durationMs: row.duration_ms,
   }));
