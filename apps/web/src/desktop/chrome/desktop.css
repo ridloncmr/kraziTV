@@ -96,8 +96,6 @@ button:disabled {
 }
 .app-window {
   position: absolute;
-  width: min(760px, 100vw);
-  height: min(540px, calc(100dvh - var(--xp-taskbar-height)));
   max-width: 100vw;
   max-height: calc(100dvh - var(--xp-taskbar-height));
   display: flex;
@@ -115,9 +113,25 @@ button:disabled {
 }
 .app-window.maximized {
   inset: 0 0 var(--xp-taskbar-height) 0 !important;
-  width: 100%;
-  height: calc(100dvh - var(--xp-taskbar-height));
+  width: 100% !important;
+  height: calc(100dvh - var(--xp-taskbar-height)) !important;
   border-radius: 0;
+}
+.resize-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 3px,
+    var(--xp-muted) 3px 4px,
+    transparent 4px 5px
+  );
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 .title-bar {
   min-height: 30px;
@@ -209,6 +223,14 @@ button:disabled {
 }
 .inactive .window-controls {
   opacity: 0.8;
+}
+/* Positions the dialog layer over the content without scrolling with it. */
+.window-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .window-content {
   overflow: auto;
@@ -482,8 +504,11 @@ button:disabled {
   .app-window {
     left: 0 !important;
     top: 0 !important;
-    width: 100%;
-    height: calc(100dvh - 32px);
+    width: 100% !important;
+    height: calc(100dvh - 32px) !important;
+  }
+  .resize-grip {
+    display: none;
   }
   .desktop-shortcuts {
     gap: 0;

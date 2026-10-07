@@ -18,6 +18,45 @@ test.afterEach(async () => {
   await cleanUpTestEnvironment();
 });
 
+test("operates title-bar controls on an inactive window with one click", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer();
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  const shortcuts = page.getByLabel("Desktop programs");
+  /** Opens a program and moves it to the bottom-right so earlier windows' controls stay uncovered. */
+  async function openAside(name: string) {
+    await shortcuts.getByRole("button", { name, exact: true }).click();
+    const title = page.getByLabel(new RegExp(`${name} window`));
+    for (let step = 0; step < 20; step++) {
+      await title.press("ArrowDown");
+      await title.press("ArrowRight");
+    }
+    return page.getByRole("region", { name, exact: true });
+  }
+  await shortcuts
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", { name: "Media Library" });
+  const collections = await openAside("Collections");
+
+  await expect(media).toHaveClass(/inactive/);
+  await media.getByRole("button", { name: "Maximize Media Library" }).click();
+  await expect(media).toHaveClass(/maximized/);
+  await media.getByRole("button", { name: "Restore Media Library" }).click();
+
+  await expect(collections).toHaveClass(/inactive/);
+  await collections.getByRole("button", { name: "Close Collections" }).click();
+  await expect(collections).toHaveCount(0);
+
+  await openAside("Program Guide");
+  await expect(media).toHaveClass(/inactive/);
+  await media.getByRole("button", { name: "Minimize Media Library" }).click();
+  await expect(media).toBeHidden();
+});
+
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -59,8 +98,13 @@ for (const viewport of [
       name: "Media Library",
       exact: true,
     });
-    await media.getByLabel("Absolute server path").fill(directory);
-    await media.getByRole("button", { name: "Add root", exact: true }).click();
+    await media.getByRole("button", { name: "Add a media root…" }).click();
+    const addRoot = media.getByRole("dialog", { name: "Add media root" });
+    await addRoot.getByLabel("Absolute server path").fill(directory);
+    await addRoot
+      .getByRole("button", { name: "Add root", exact: true })
+      .click();
+    await expect(addRoot).toBeHidden();
     await expect(
       media.getByRole("button", { name: "Scan", exact: true }),
     ).toBeVisible();
@@ -85,18 +129,25 @@ for (const viewport of [
       exact: true,
     });
     await collections
-      .getByLabel("New collection name")
+      .getByRole("button", { name: "Create a collection…" })
+      .click();
+    const newCollection = collections.getByRole("dialog", {
+      name: "New collection",
+    });
+    await newCollection
+      .getByLabel("Collection name")
       .fill("Northwoods collection");
-    await collections
+    await newCollection
       .getByRole("button", { name: "Create collection" })
       .click();
+    await expect(newCollection).toBeHidden();
     await collections
-      .getByLabel("Catalog media")
-      .selectOption({ label: "Northwoods (available)" });
+      .getByRole("checkbox", { name: /^Select Northwoods/ })
+      .check();
     await collections
-      .getByRole("button", { name: "Add media", exact: true })
+      .getByRole("button", { name: "Add selected (1)", exact: true })
       .click();
-    await collections.getByRole("button", { name: "Save media order" }).click();
+    await collections.getByRole("button", { name: "Save changes" }).click();
     await expect(
       collections.getByText(/Schedulable · 1 eligible/),
     ).toBeVisible();
@@ -112,13 +163,16 @@ for (const viewport of [
       name: "My Channels",
       exact: true,
     });
-    await channels.getByLabel("Channel number", { exact: true }).fill("69");
-    await channels
+    await channels.getByRole("button", { name: "New channel…" }).click();
+    const newChannel = channels.getByRole("dialog", { name: "New channel" });
+    await newChannel.getByLabel("Channel number", { exact: true }).fill("69");
+    await newChannel
       .getByLabel("Channel name", { exact: true })
       .fill("Northwoods TV");
-    await channels
+    await newChannel
       .getByRole("button", { name: "Create channel", exact: true })
       .click();
+    await expect(newChannel).toBeHidden();
     await channels
       .getByLabel("Programming source")
       .selectOption({ label: "Northwoods collection" });

@@ -171,6 +171,7 @@ function toApiMediaCollectionMember(member: MediaCollectionMember) {
     position: member.position,
     mediaItemId: member.mediaItemId,
     title: member.title,
+    path: member.path,
     status: member.status,
     durationMs: member.durationMs,
   };

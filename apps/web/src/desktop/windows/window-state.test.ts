@@ -36,11 +36,23 @@ describe("desktop windows", () => {
     expect(state[0]).toMatchObject({ maximized: false, x: 100, y: 150 });
   });
 
-  it("recovers windows when the usable viewport shrinks", () => {
-    let state = windowReducer([], { type: "open", id: "guide" });
-    state = windowReducer(state, { type: "move", id: "guide", x: 900, y: 600 });
-    state = windowReducer(state, { type: "viewport", width: 360, height: 480 });
-    expect(state[0].x).toBe(0);
-    expect(state[0].y).toBe(0);
+  it("keeps a resized window's size through maximize, ignoring resizes while maximized", () => {
+    let state = windowReducer([], { type: "open", id: "media" });
+    expect(state[0]).toMatchObject({ width: 760, height: 540 });
+    state = windowReducer(state, {
+      type: "resize",
+      id: "media",
+      width: 900,
+      height: 600,
+    });
+    state = windowReducer(state, { type: "maximize", id: "media" });
+    state = windowReducer(state, {
+      type: "resize",
+      id: "media",
+      width: 400,
+      height: 300,
+    });
+    state = windowReducer(state, { type: "maximize", id: "media" });
+    expect(state[0]).toMatchObject({ width: 900, height: 600 });
   });
 });

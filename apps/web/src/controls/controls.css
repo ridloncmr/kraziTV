@@ -119,6 +119,9 @@
   line-height: 1.5;
   color: var(--xp-muted);
 }
+.empty-state p {
+  margin: 0 0 8px;
+}
 .info-strip {
   padding: 8px;
   background: var(--xp-info);
@@ -171,21 +174,6 @@
   text-decoration: underline;
   text-align: left;
 }
-.member-list {
-  padding-left: 27px;
-}
-.member-list li {
-  background: var(--xp-window-surface);
-  border-bottom: 1px solid var(--xp-border);
-  padding: 7px;
-}
-.member-list li > span {
-  display: inline-block;
-  margin: 0 8px 5px 0;
-}
-.member-list .row-actions {
-  display: inline-flex;
-}
 .facts {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -199,15 +187,11 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.cleanup-notice,
-.destructive-confirmation {
+.cleanup-notice {
   background: var(--xp-warning);
   border: 1px solid var(--xp-menu-border);
   padding: 10px;
   margin: 10px 0;
-}
-.destructive-confirmation button {
-  margin-right: 6px;
 }
 .setup-steps {
   padding-left: 22px;
@@ -231,4 +215,154 @@
   .program-page fieldset {
     padding: 7px;
   }
+}
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+/* Spaces the search from the grid even when no pager sits between them. */
+.search-field {
+  margin-bottom: 6px;
+}
+/*
+ * Keeps a long list's title, search and pager reachable while its rows scroll
+ * in the window. The border stops child margins collapsing out of the header,
+ * so the stuck header keeps its spacing and a visible edge over the rows.
+ */
+.sticky-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 8px -12px 6px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+.sticky-list-header h2 {
+  margin-top: 0;
+  padding-top: 8px;
+}
+/* A list refreshing in place dims instead of announcing a status line, so its layout and scroll position hold still. */
+.table-scroll[aria-busy="true"] {
+  opacity: 0.6;
+}
+/* Checkboxes keep their native size inside full-width form controls. */
+.program-page input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+}
+/* The catalog sits beside the members and wraps below them when the window is narrow. */
+.program-page .collection-panes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.program-page .collection-pane {
+  flex: 1 1 320px;
+  margin: 0;
+}
+/* Keeps Save and Discard reachable while a long member list scrolls. */
+.save-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+.bulk-actions {
+  align-items: center;
+  margin: 6px 0;
+}
+.program-page .position-input {
+  width: 64px;
+}
+/*
+ * Window dialogs dim and block only their own window's content. The layer
+ * collapses when empty so it never intercepts pointer input.
+ */
+.window-dialog-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: color-mix(in srgb, var(--xp-shadow) 25%, transparent);
+}
+.window-dialog-layer:empty {
+  display: none;
+}
+.window-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100%);
+  max-height: 100%;
+  border: 2px solid var(--xp-title-primary);
+  border-top-width: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--xp-menu-surface);
+  box-shadow: 1px 3px 8px color-mix(in srgb, var(--xp-shadow) 40%, transparent);
+}
+.window-dialog:focus {
+  outline: none;
+}
+.window-dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 3px 3px 7px;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(
+    var(--xp-title-bright),
+    var(--xp-title-primary) 15%,
+    var(--xp-title-lower) 85%,
+    var(--xp-title-dark)
+  );
+  color: var(--xp-window-surface);
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 1px 1px var(--xp-shadow);
+}
+.window-dialog-title button {
+  width: var(--xp-window-control-size);
+  height: var(--xp-window-control-size);
+  padding: 0;
+  font:
+    bold 17px Arial,
+    sans-serif;
+  line-height: 16px;
+  color: var(--xp-window-surface);
+  border: 1px solid var(--xp-window-surface);
+  border-radius: 3px;
+  background: linear-gradient(135deg, var(--xp-accent-orange), var(--xp-error));
+}
+.window-dialog-body.program-page {
+  overflow: auto;
+  padding: 12px;
+}
+.window-dialog-body p:first-child {
+  margin-top: 0;
+}
+/* Dialog actions sit together at the end, in the order the dialog lists them. */
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
 }

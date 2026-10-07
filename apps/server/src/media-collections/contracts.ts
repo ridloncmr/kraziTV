@@ -12,6 +12,7 @@ export interface MediaCollectionMember {
   position: number;
   mediaItemId: string;
   title: string;
+  path: string;
   status: MediaItemStatus;
   durationMs: number | null;
 }

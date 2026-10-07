@@ -1,10 +1,10 @@
-import type { Kysely, Selectable } from "kysely";
+import { sql, type Kysely, type Selectable } from "kysely";
 
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { parameterChunks } from "../database/writes/parameter-chunks.js";
-import type { MediaItem } from "./contracts.js";
+import type { MediaItem, MediaItemPage, MediaItemQuery } from "./contracts.js";
 
 /** Reads committed catalog items; scans remain the only writer. */
 export class MediaItemRepository {
@@ -16,19 +16,36 @@ export class MediaItemRepository {
   }
 
   /**
-   * Lists every item grouped by root path identity, then item path identity,
-   * with ID as a stable tie-breaker so repeated reads return the same order.
+   * Lists one page of items grouped by root path identity, then item path
+   * identity, with ID as a stable tie-breaker so offsets address the same rows
+   * on repeated reads. `total` counts every match, so callers can page without
+   * loading the catalog. Exclusions bind as one JSON parameter, so any number
+   * of IDs stays under SQLite's parameter limit.
    */
-  async list(): Promise<MediaItem[]> {
-    const rows = await this.#db
+  async list(query: MediaItemQuery): Promise<MediaItemPage> {
+    const matching = this.#db
       .selectFrom("media_items")
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
+      .$if(query.search !== "", (builder) =>
+        builder.where(matchesSearch(query.search)),
+      )
+      .$if((query.excludeIds?.length ?? 0) > 0, (builder) =>
+        builder.where(
+          sql<boolean>`media_items.id not in (select value from json_each(${JSON.stringify(query.excludeIds)}))`,
+        ),
+      );
+    const rows = await matching
       .selectAll("media_items")
       .orderBy("media_roots.path_key")
       .orderBy("media_items.path_key")
       .orderBy("media_items.id")
+      .limit(query.limit)
+      .offset(query.offset)
       .execute();
-    return rows.map(toMediaItem);
+    const { total } = await matching
+      .select((eb) => eb.fn.countAll<number>().as("total"))
+      .executeTakeFirstOrThrow();
+    return { items: rows.map(toMediaItem), total };
   }
 
   /** Loads one item; returns undefined when the ID is unknown. */
@@ -62,6 +79,13 @@ export async function findUnknownMediaItemIds(
     for (const { id } of rows) known.add(id);
   }
   return requested.filter((id) => !known.has(id));
+}
+
+// Matches a title or path containing the search text. Both sides fold through
+// SQLite's lower(), which folds ASCII only, so the comparison stays consistent
+// for non-ASCII text; instr() avoids escaping LIKE wildcards in user input.
+function matchesSearch(search: string) {
+  return sql<boolean>`(instr(lower(media_items.title), lower(${search})) > 0 or instr(lower(media_items.path), lower(${search})) > 0)`;
 }
 
 // Keeps SQLite's integer booleans and internal identity key out of callers.

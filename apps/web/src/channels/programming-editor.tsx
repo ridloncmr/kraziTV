@@ -4,11 +4,11 @@ import { resourcePath } from "../http/api-client.js";
 import type {
   BlockSource,
   MediaCollection,
-  MediaItem,
   ProgrammingBlock,
   ScheduleWindow,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
+import { MediaItemPicker } from "../media-search/media-item-picker.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 
 /** Sends the explicit either/or source contract; the server regenerates and returns schedule observations. */
@@ -25,7 +25,6 @@ export function ProgrammingEditor({
     "/media-collections",
     visible,
   );
-  const media = useResource<MediaItem[]>("/media-items", visible);
   const mutation = useMutation();
   const [kind, setKind] = useState<BlockSource["kind"]>("collection");
   const [sourceId, setSourceId] = useState("");
@@ -55,15 +54,8 @@ export function ProgrammingEditor({
     <fieldset disabled={mutation.pending || blocks.loading}>
       <legend>Programming block</legend>
       <RequestFeedback
-        loading={
-          blocks.loading ||
-          collections.loading ||
-          media.loading ||
-          mutation.pending
-        }
-        error={
-          mutation.error ?? blocks.error ?? collections.error ?? media.error
-        }
+        loading={blocks.loading || collections.loading || mutation.pending}
+        error={mutation.error ?? blocks.error ?? collections.error}
         message={mutation.message}
       />
       {blocks.data?.length === 0 && (
@@ -106,26 +98,36 @@ export function ProgrammingEditor({
               <option value="media_item">Single media item</option>
             </select>
           </label>
-          <label>
-            Programming source
-            <select
-              required
-              value={sourceId}
-              onChange={(event) => {
-                dirty.current = true;
-                setSourceId(event.target.value);
-              }}
-            >
-              <option value="">Choose a source</option>
-              {(kind === "collection" ? collections.data : media.data)?.map(
-                (item) => (
+          {kind === "collection" ? (
+            <label>
+              Programming source
+              <select
+                required
+                value={sourceId}
+                onChange={(event) => {
+                  dirty.current = true;
+                  setSourceId(event.target.value);
+                }}
+              >
+                <option value="">Choose a source</option>
+                {collections.data?.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {"name" in item ? item.name : item.title}
+                    {item.name}
                   </option>
-                ),
-              )}
-            </select>
-          </label>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <MediaItemPicker
+              label="Programming source"
+              value={sourceId}
+              visible={visible}
+              onChange={(item) => {
+                dirty.current = true;
+                setSourceId(item?.id ?? "");
+              }}
+            />
+          )}
           {kind === "collection" && (
             <label>
               Playback mode

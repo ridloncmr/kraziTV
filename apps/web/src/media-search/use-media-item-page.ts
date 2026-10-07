@@ -1,0 +1,60 @@
+import { useCallback, useEffect, useState } from "react";
+import type { MediaItemPage } from "../http/contracts.js";
+import { useResource } from "../http/use-resource.js";
+
+const SEARCH_DELAY_MS = 250;
+
+/**
+ * Reads one server-side page of the catalog so no program loads every item.
+ * Typed search waits for a pause before it refetches, and a new search
+ * returns to the first page in the same update so no stale page is requested.
+ * Excluded IDs are left out of the page and its total by the server, so a
+ * picker never pages through items it hides.
+ */
+export function useMediaItemPage(
+  search: string,
+  limit: number,
+  active: boolean,
+  excludeIds?: readonly string[],
+) {
+  const [query, setQuery] = useState({ q: search.trim(), offset: 0 });
+  useEffect(() => {
+    const q = search.trim();
+    const timer = setTimeout(
+      () =>
+        setQuery((current) => (current.q === q ? current : { q, offset: 0 })),
+      SEARCH_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [search]);
+  const params = new URLSearchParams({
+    q: query.q,
+    limit: String(limit),
+    offset: String(query.offset),
+  });
+  const page = useResource<MediaItemPage>(
+    excludeIds ? "/media-items/search" : `/media-items?${params}`,
+    active,
+    0,
+    excludeIds && { q: query.q, limit, offset: query.offset, excludeIds },
+  );
+  // The last page stays on screen while the next one loads, so a list never
+  // empties mid-request and its scroll position survives paging and searching.
+  const [shown, setShown] = useState<MediaItemPage>();
+  useEffect(() => {
+    if (page.data) setShown(page.data);
+  }, [page.data]);
+  /** Keeps the current search while moving between pages. */
+  const setOffset = useCallback(
+    (offset: number) => setQuery((current) => ({ ...current, offset })),
+    [],
+  );
+  return {
+    ...page,
+    data: page.data ?? shown,
+    // The settled search the page answers, which typing may not have reached yet.
+    search: query.q,
+    offset: query.offset,
+    setOffset,
+  };
+}

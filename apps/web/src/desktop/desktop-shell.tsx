@@ -7,21 +7,20 @@ import { Taskbar } from "./chrome/taskbar.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { windowReducer } from "./windows/window-state.js";
-import type { WindowAction } from "./contracts.js";
+import type { DesktopViewport } from "./contracts.js";
+
+/** Reads the desktop area above the 32px taskbar from the browser window. */
+function usableViewport(): DesktopViewport {
+  return {
+    width: globalThis.innerWidth,
+    height: globalThis.innerHeight - 32,
+  };
+}
 
 /** Composes shell presentation with real programs, leaving domain state entirely API-backed. */
 export function DesktopShell() {
-  const [windows, reduce] = useReducer(windowReducer, []);
-  /** Opening cascades windows only within the current usable desktop bounds. */
-  function dispatch(action: WindowAction) {
-    reduce(action);
-    if (action.type === "open")
-      reduce({
-        type: "viewport",
-        width: globalThis.innerWidth,
-        height: globalThis.innerHeight - 32,
-      });
-  }
+  const [windows, dispatch] = useReducer(windowReducer, []);
+  const [viewport, setViewport] = useState(usableViewport);
   const [minimumElapsed, setMinimumElapsed] = useState(false);
   const [pageVisible, setPageVisible] = useState(
     document.visibilityState !== "hidden",
@@ -40,13 +39,8 @@ export function DesktopShell() {
     if (minimumElapsed && (health.data || health.error)) setBooted(true);
   }, [minimumElapsed, health.data, health.error]);
   useEffect(() => {
-    /** Viewport recovery uses actual available space rather than persisting a desktop layout. */
-    const resize = () =>
-      reduce({
-        type: "viewport",
-        width: globalThis.innerWidth,
-        height: globalThis.innerHeight - 32,
-      });
+    /** Windows clamp to the live viewport at render, so shrinking never loses their saved positions. */
+    const resize = () => setViewport(usableViewport());
     /** Background tabs suspend operational requests without inventing a connection result. */
     const visibility = () =>
       setPageVisible(document.visibilityState !== "hidden");
@@ -85,22 +79,26 @@ export function DesktopShell() {
         </strong>
         <span>Your television network.</span>
       </div>
-      {windows.map((window, index) => (
-        <AppWindow
-          key={window.id}
-          window={window}
-          program={programs.find((program) => program.id === window.id)!}
-          active={activeId === window.id}
-          index={index}
-          dispatch={dispatch}
-        >
-          <ProgramContents
-            id={window.id}
-            visible={!window.minimized && pageVisible}
-            connection={connection}
-          />
-        </AppWindow>
-      ))}
+      {/* DOM order stays fixed and z-index carries stacking: moving a pressed window's node would make the browser drop its click. */}
+      {[...windows]
+        .sort((a, b) => a.openedOrder - b.openedOrder)
+        .map((window) => (
+          <AppWindow
+            key={window.id}
+            window={window}
+            program={programs.find((program) => program.id === window.id)!}
+            active={activeId === window.id}
+            index={windows.indexOf(window)}
+            viewport={viewport}
+            dispatch={dispatch}
+          >
+            <ProgramContents
+              id={window.id}
+              visible={!window.minimized && pageVisible}
+              connection={connection}
+            />
+          </AppWindow>
+        ))}
       <Taskbar
         windows={windows}
         activeId={activeId}

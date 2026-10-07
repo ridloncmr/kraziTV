@@ -80,7 +80,7 @@ Common commands:
 ```bash
 npm install
 npm run dev
-npm run dev --workspace @krazitv/web
+npm run dev:web
 npm run typecheck
 npm test
 npm run build
@@ -93,7 +93,8 @@ ffprobe. It needs `ffmpeg` and `ffprobe` on `PATH`, or `FFMPEG_PATH` and
 `FFPROBE_PATH` set to their executables, and it fails rather than skips when
 they are missing. `npm test` and CI do not run it.
 
-`npm run dev` starts the API at `http://127.0.0.1:3000`. The Web Admin runs separately during development.
+`npm run dev` starts the API at `http://127.0.0.1:3000`. During development the
+Web Admin runs separately: start it with `npm run dev:web` in a second terminal.
 
 The Web Admin at `http://127.0.0.1:5173` is an XP-inspired kraziTV desktop.
 Open Media Library to add and scan server paths, Collections to arrange media,

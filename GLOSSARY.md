@@ -68,6 +68,7 @@ file in the same change.
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | **Desktop shell**   | The browser presentation environment containing shortcuts, windows, Start, taskbar and system tray. Its state is transient and never decides broadcast behavior. See [spec 0008](docs/specs/features/001-mvp/specs/0008-web-admin.md). | operating-system framework |
 | **Desktop program** | A singleton administration interface opened through the desktop or Start, such as My Channels or Media Library.                                                                                                                        | fake process               |
+| **Window dialog**   | A dialog owned by one desktop program's window: it covers and blocks only that window's content and cannot leave it. Code name `WindowDialog`.                                                                                         | modal, popup               |
 | **Cleanup retry**   | A browser-held reference to a failed administrative runtime stop, retained until the server confirms cleanup succeeded. It never recreates deleted channel configuration.                                                              | rollback                   |
 
 ## Media Catalog

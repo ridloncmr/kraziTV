@@ -78,7 +78,7 @@ async function scan(
 async function listItems({ server }: RunningServer) {
   const response = await server.inject({ method: "GET", url: "/media-items" });
   expect(response.statusCode).toBe(200);
-  return response.json();
+  return response.json().items;
 }
 
 // Reads the public root projection, including each root's last successful scan time.

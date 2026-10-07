@@ -6,8 +6,10 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
@@ -21,7 +23,7 @@ it("shows scan pending state and the actual returned counts", async () => {
   api.reply("/media-roots", [
     { id: "root", path: "/media", enabled: true, lastScannedAt: null },
   ]);
-  api.reply("/media-items", []);
+  api.reply("/media-items", { items: [], total: 0 });
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(MediaLibraryApp, { visible: true }));
@@ -42,4 +44,97 @@ it("shows scan pending state and the actual returned counts", async () => {
   expect(screen.getByText("Completed scan")).toBeTruthy();
   expect(screen.getByText("17")).toBeTruthy();
   expect(screen.getByText("3")).toBeTruthy();
+});
+
+it("pages the catalog on the server and restarts at the first page for a new search", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.handle("/media-items", ({ query }) =>
+    api.response({
+      items: [{ ...adminFixtures.media[0], id: `at-${query.get("offset")}` }],
+      total: 120,
+    }),
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const lastQuery = () =>
+    api.requests.filter((request) => request.path === "/media-items").at(-1)
+      ?.query;
+  render(createElement(MediaLibraryApp, { visible: true }));
+
+  await screen.findByText("1–50 of 120");
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("51–100 of 120");
+  expect(lastQuery()?.get("offset")).toBe("50");
+  expect(lastQuery()?.get("limit")).toBe("50");
+
+  fireEvent.change(screen.getByLabelText("Find media"), {
+    target: { value: "  pilot " },
+  });
+  await waitFor(() => expect(lastQuery()?.get("q")).toBe("pilot"));
+  expect(lastQuery()?.get("offset")).toBe("0");
+});
+
+it("keeps the current rows on screen while the next page loads", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  await screen.findByText("Alpha");
+
+  api.hold("/media-items");
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("51–100 of 120");
+  expect(screen.getByText("Alpha")).toBeTruthy();
+
+  await act(async () => {
+    api.release("/media-items", {
+      items: [adminFixtures.media[1]],
+      total: 120,
+    });
+  });
+  expect(screen.getByText("Zulu")).toBeTruthy();
+  expect(screen.queryByText("Alpha")).toBeNull();
+});
+
+it("keeps a rejected path in its dialog, then lists the added root", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply(
+    "/media-roots",
+    { error: { code: "invalid_path", message: "Path is not a directory" } },
+    "POST",
+    400,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a media root…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add media root" });
+  fireEvent.change(screen.getByLabelText("Absolute server path"), {
+    target: { value: "/media" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+  expect(
+    (await screen.findByText("Path is not a directory")).closest(
+      '[role="dialog"]',
+    ),
+  ).toBe(dialog);
+
+  const root = {
+    id: "root",
+    path: "/media",
+    enabled: true,
+    lastScannedAt: null,
+  };
+  api.reply("/media-roots", root, "POST");
+  api.reply("/media-roots", [root]);
+  fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await screen.findByRole("button", { name: "Scan" });
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({ path: "/media" });
 });

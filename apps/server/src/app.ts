@@ -62,8 +62,10 @@ function registerRoutes(
   plex: PlexSettings,
 ): void {
   registerApiErrorHandlers(server);
+  // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also edits and deletes.
   void server.register(cors, {
     origin: corsOrigins,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
   });
 
   server.get("/health", async () => ({ status: "ok" }));

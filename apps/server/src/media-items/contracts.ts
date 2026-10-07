@@ -16,3 +16,20 @@ export interface MediaItem {
   lastSeenAt: number;
   lastProbedAt: number | null;
 }
+
+/**
+ * One page of the catalog listing; an empty `search` matches every item.
+ * Excluded IDs are left out of both the page and `total`.
+ */
+export interface MediaItemQuery {
+  search: string;
+  limit: number;
+  offset: number;
+  excludeIds?: readonly string[];
+}
+
+/** The requested page plus the count of every item the search matches. */
+export interface MediaItemPage {
+  items: MediaItem[];
+  total: number;
+}

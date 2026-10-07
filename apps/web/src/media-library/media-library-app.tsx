@@ -1,18 +1,25 @@
-import { formText } from "../controls/form-text.js";
 import { useState } from "react";
+import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type { MediaItem, MediaRoot, ScanSummary } from "../http/contracts.js";
+import { Pager } from "../controls/pager.js";
+import type { MediaRoot, ScanSummary } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
+import { useMediaItemPage } from "../media-search/use-media-item-page.js";
+import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+
+const PAGE_SIZE = 50;
 
 /** Configures discovery locations and displays real synchronous scan outcomes and catalog facts. */
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
-  const media = useResource<MediaItem[]>("/media-items", visible);
+  const [search, setSearch] = useState("");
+  const media = useMediaItemPage(search, PAGE_SIZE, visible);
   const mutation = useMutation();
   const [summary, setSummary] = useState<ScanSummary>();
   const [scanning, setScanning] = useState("");
+  const [adding, setAdding] = useState(false);
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
     roots.refresh();
@@ -22,13 +29,16 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
     <div className="program-page">
       <div className="program-toolbar">
         <span>Media Library</span>
-        <button onClick={refresh}>Refresh</button>
+        <div className="row-actions">
+          <button onClick={() => setAdding(true)}>Add media root…</button>
+          <button onClick={refresh}>Refresh</button>
+        </div>
       </div>
       <p className="program-intro">
         Tell kraziTV where your media lives, then scan it into the catalog.
       </p>
       <RequestFeedback
-        loading={roots.loading || media.loading || mutation.pending}
+        loading={roots.loading || mutation.pending}
         error={mutation.error ?? roots.error ?? media.error}
         message={mutation.message}
       />
@@ -39,32 +49,14 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
       )}
       <fieldset disabled={mutation.pending}>
         <legend>Media roots</legend>
-        <form
-          className="inline-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            void mutation.run(
-              "/media-roots",
-              "POST",
-              { path: formText(new FormData(form), "path") },
-              () => {
-                form.reset();
-                refresh();
-              },
-            );
-          }}
-        >
-          <label>
-            Absolute server path
-            <input name="path" required placeholder="C:\Media or /srv/media" />
-          </label>
-          <button type="submit">Add root</button>
-        </form>
         {roots.data?.length === 0 && (
-          <p className="empty-state">
-            No media roots yet. Add a path on the kraziTV server to get started.
-          </p>
+          <div className="empty-state">
+            <p>
+              No media roots yet. Add a path on the kraziTV server to get
+              started.
+            </p>
+            <button onClick={() => setAdding(true)}>Add a media root…</button>
+          </div>
         )}
         {roots.data && roots.data.length > 0 && (
           <div className="table-scroll">
@@ -140,16 +132,37 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           </dl>
         </fieldset>
       )}
-      <h2>
-        Cataloged media <small>({media.data?.length ?? 0})</small>
-      </h2>
-      {media.data?.length === 0 && (
+      <div className="sticky-list-header">
+        <h2>
+          Cataloged media <small>({media.data?.total ?? 0})</small>
+        </h2>
+        <label className="search-field">
+          Find media
+          <input
+            type="search"
+            value={search}
+            placeholder="Title or path"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        {media.data && (
+          <Pager
+            offset={media.offset}
+            limit={PAGE_SIZE}
+            total={media.data.total}
+            onChange={media.setOffset}
+          />
+        )}
+      </div>
+      {media.data?.total === 0 && (
         <p className="empty-state">
-          The catalog is empty. Scan an enabled media root to discover media.
+          {search.trim()
+            ? "No cataloged media matches this search."
+            : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
       )}
-      {media.data && media.data.length > 0 && (
-        <div className="table-scroll">
+      {media.data && media.data.items.length > 0 && (
+        <div className="table-scroll" aria-busy={media.loading}>
           <table>
             <thead>
               <tr>
@@ -159,7 +172,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {media.data.map((item) => (
+              {media.data.items.map((item) => (
                 <tr key={item.id}>
                   <td>
                     {item.title}
@@ -169,16 +182,21 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                     )}
                   </td>
                   <td>{item.status}</td>
-                  <td>
-                    {item.durationMs === null
-                      ? "Unknown"
-                      : `${(item.durationMs / 1000).toFixed(1)} s`}
-                  </td>
+                  <td>{displayDuration(item.durationMs)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {adding && (
+        <AddMediaRootDialog
+          added={() => {
+            setAdding(false);
+            refresh();
+          }}
+          onClose={() => setAdding(false)}
+        />
       )}
     </div>
   );

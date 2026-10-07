@@ -48,6 +48,24 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/web/src/collections/"],
+      "reason": "Every file serves one capability, the Collections program's draft membership editor, so the domain stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/channels/"],
+      "reason": "Every file serves one capability, the My Channels program's channel identity, programming, and lifecycle UI, so the domain stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/controls/"],
+      "reason": "Every file is a shared presentation control or display formatter used across programs, one capability, so the folder stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/server/src/config/"],
       "reason": "Every file parses startup environment settings, one capability, so the folder stays flat.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
