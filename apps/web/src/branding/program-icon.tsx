@@ -1,8 +1,11 @@
-import { useId } from "react";
+import { memo, useId } from "react";
 import type { ProgramId } from "../desktop/contracts.js";
 
-/** Original dimensional vector artwork shares a silhouette language at every shell size. */
-export function ProgramIcon({
+/**
+ * Original dimensional vector artwork shares a silhouette language at every shell size.
+ * Memoized because the shortcuts, title bars and taskbar draw it many times and re-render on every window move.
+ */
+export const ProgramIcon = memo(function ProgramIcon({
   program = "channels",
   size = 48,
 }: {
@@ -181,4 +184,4 @@ export function ProgramIcon({
       )}
     </svg>
   );
-}
+});

@@ -27,6 +27,20 @@ describe("desktop windows", () => {
     expect(state.map((item) => item.id)).toEqual(["channels"]);
   });
 
+  it("keeps the same state when focusing the visible top window, so the desktop need not re-render", () => {
+    let state = windowReducer([], { type: "open", id: "channels" });
+    state = windowReducer(state, { type: "open", id: "media" });
+    expect(windowReducer(state, { type: "focus", id: "media" })).toBe(state);
+    expect(windowReducer(state, { type: "open", id: "media" })).toBe(state);
+    expect(
+      windowReducer(state, { type: "focus", id: "channels" }).at(-1)?.id,
+    ).toBe("channels");
+    const minimized = windowReducer(state, { type: "minimize", id: "media" });
+    const restored = windowReducer(minimized, { type: "focus", id: "media" });
+    expect(restored).not.toBe(minimized);
+    expect(restored.at(-1)).toMatchObject({ id: "media", minimized: false });
+  });
+
   it("preserves the normal rectangle across maximize and restore", () => {
     let state = windowReducer([], { type: "open", id: "guide" });
     state = windowReducer(state, { type: "move", id: "guide", x: 100, y: 150 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MediaItemPage } from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
 
@@ -32,11 +32,16 @@ export function useMediaItemPage(
     limit: String(limit),
     offset: String(query.offset),
   });
+  // Stable between renders so the resource re-serializes the excluded IDs only when they or the query change.
+  const body = useMemo(
+    () => excludeIds && { q: query.q, limit, offset: query.offset, excludeIds },
+    [excludeIds, query, limit],
+  );
   const page = useResource<MediaItemPage>(
     excludeIds ? "/media-items/search" : `/media-items?${params}`,
     active,
     0,
-    excludeIds && { q: query.q, limit, offset: query.offset, excludeIds },
+    body,
   );
   // The last page stays on screen while the next one loads, so a list never
   // empties mid-request and its scroll position survives paging and searching.

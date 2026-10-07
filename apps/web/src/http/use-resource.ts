@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "./api-client.js";
 
 /**
@@ -12,7 +12,12 @@ export function useResource<T>(
   intervalMs = 0,
   body?: unknown,
 ) {
-  const json = body === undefined ? undefined : JSON.stringify(body);
+  // A body can hold thousands of IDs, so it is serialized only when the caller
+  // passes a new one; callers keep its identity stable between renders.
+  const json = useMemo(
+    () => (body === undefined ? undefined : JSON.stringify(body)),
+    [body],
+  );
   const key = path === null ? null : `${path} ${json ?? ""}`;
   const [result, setResult] = useState<{ key: string; data: T }>();
   const [failure, setFailure] = useState<{ key: string; error: Error }>();

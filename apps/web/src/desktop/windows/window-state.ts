@@ -14,6 +14,10 @@ export function windowReducer(
   const existing = state.find((item) => item.id === action.id);
   if (action.type === "open" || action.type === "focus") {
     if (!existing && action.type === "focus") return state;
+    // Every pointer press in a window focuses it; keeping the state when it is
+    // already the visible top window lets React skip re-rendering the desktop.
+    if (existing && !existing.minimized && state.at(-1) === existing)
+      return state;
     const offset = 24 * state.length;
     const item = existing ?? {
       id: action.id,
