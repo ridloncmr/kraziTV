@@ -32,7 +32,10 @@ import {
   runningFfmpegProcesses,
 } from "../src/testing/real-ffmpeg.js";
 import { RecordingSignalPackager } from "../src/testing/recording-signal-packager.js";
-import { seedScheduleScenario } from "../src/testing/schedule-fixtures.js";
+import {
+  seedScheduleScenario,
+  type ScheduleItemSpec,
+} from "../src/testing/schedule-fixtures.js";
 import { settleWithin } from "../src/testing/settle-within.js";
 import {
   listenOnLoopback,
@@ -46,19 +49,28 @@ import {
 import { TrackedRuntime } from "../src/testing/tracked-runtime.js";
 
 const MEDIA_DURATION_MS = 6_000;
-// The last item airs for an hour on its six-second file, behind a black tail.
-// Uniform six-second airtimes would materialize 43,200 entries over the
-// horizon, and regenerating them holds write authority long enough under load
-// to push a boundary past the worker's recovery deadline.
+// The last item is cataloged as an hour long, so it airs for an hour, though
+// its file holds six seconds: FFmpeg ends there and the signal goes quiet. No
+// test reaches it. Uniform six-second airtimes would materialize 43,200
+// entries over the horizon, and regenerating them holds write authority long
+// enough under load to push a boundary past the worker's recovery deadline.
 const LAST_AIRTIME_MS = 60 * 60_000;
 const CHANNEL_ID = "channel-fixture-001";
 const STREAM_URL = `/channels/${CHANNEL_ID}/stream`;
 // Spec 0006's ceiling on initial tune drift at first usable output.
 const DRIFT_CEILING_MS = 2_000;
 const TEST_TIMEOUT_MS = 60_000;
+// Cleanup tests check the teardown of one live FFmpeg child, so their first
+// item is a real minute-long file. A six-second one ended on its own before a
+// slow leak check could see it, and a boundary would start a second child
+// before stopping the first. Their startup budget covers a busy machine, where
+// production's 2s answers 503; startup latency is not under test there.
+const CLEANUP_MEDIA_DURATION_MS = 60_000;
+const CLEANUP_STARTUP_TIMEOUT_MS = 10_000;
 
 let fixtureDirectory: string;
 const mediaPaths: string[] = [];
+let cleanupMediaPath: string;
 const managers: ChannelStreamManagerContract[] = [];
 
 beforeAll(async () => {
@@ -68,14 +80,21 @@ beforeAll(async () => {
       generateMediaFile(fixtureDirectory, name, MEDIA_DURATION_MS),
     );
   }
+  cleanupMediaPath = generateMediaFile(
+    fixtureDirectory,
+    "cleanup",
+    CLEANUP_MEDIA_DURATION_MS,
+  );
 }, TEST_TIMEOUT_MS);
 
+// Shutdown plus the seconds-long process listing outgrew the 10s hook default
+// under load, and a timed-out cleanup left children for the next test to count.
 afterEach(async () => {
   await Promise.all(managers.splice(0).map((manager) => manager.shutdown()));
   await cleanUpTestEnvironment();
   // A child that outlives its channel is a leak, whatever the test checked.
-  expect(runningFfmpegProcesses(fixtureDirectory)).toEqual([]);
-});
+  expect(await runningFfmpegProcesses(fixtureDirectory)).toEqual([]);
+}, TEST_TIMEOUT_MS);
 
 afterAll(async () => {
   if (fixtureDirectory !== undefined) {
@@ -84,11 +103,22 @@ afterAll(async () => {
 });
 
 /**
- * Boots the production composition over three real media files programmed
- * chronologically, so the schedule anchors at server startup on the wall
- * clock. Returns the first entries so tests can time tunes to boundaries.
+ * Boots the production composition over real media files programmed
+ * chronologically, by default the three six-second files, so the schedule
+ * anchors at server startup on the wall clock. The startup timeout defaults to
+ * production's. Returns the first entries so tests can time tunes to boundaries.
  */
-async function startRealChannel() {
+async function startRealChannel({
+  items = mediaPaths.map((path, index) => ({
+    durationMs:
+      index === mediaPaths.length - 1 ? LAST_AIRTIME_MS : MEDIA_DURATION_MS,
+    path,
+  })),
+  startupTimeoutMs,
+}: {
+  items?: readonly ScheduleItemSpec[];
+  startupTimeoutMs?: number;
+} = {}) {
   const runtime = new TrackedRuntime();
   const silent = pino({ level: "silent" });
   const packager = new RecordingSignalPackager(
@@ -100,16 +130,7 @@ async function startRealChannel() {
   );
   const { server, db } = await startTestServer({
     seed: async (db) => {
-      await seedScheduleScenario(db, {
-        items: mediaPaths.map((path, index) => ({
-          durationMs:
-            index === mediaPaths.length - 1
-              ? LAST_AIRTIME_MS
-              : MEDIA_DURATION_MS,
-          path,
-        })),
-        source: "chronological",
-      });
+      await seedScheduleScenario(db, { items, source: "chronological" });
     },
     overrides: (db, defaults) => {
       const schedules = new ScheduleService(db);
@@ -121,6 +142,7 @@ async function startRealChannel() {
         log: silent,
         packager,
         runtime,
+        startupTimeoutMs,
       });
       managers.push(manager);
       return {
@@ -162,8 +184,12 @@ async function tune(baseUrl: string) {
   };
 }
 
-/** Resolves once a viewer has received broadcast bytes. */
+/**
+ * Resolves once a viewer has received broadcast bytes. Checks the status
+ * first: a refused tune also delivers bytes, its JSON error body.
+ */
 async function receivesBytes(viewer: Awaited<ReturnType<typeof tune>>) {
+  expect(viewer.response.statusCode, "stream status").toBe(200);
   await vi.waitFor(
     () => expect(viewer.capture().byteLength).toBeGreaterThan(0),
     {
@@ -239,6 +265,8 @@ describe("real FFmpeg channel stream", () => {
       const stale = entryAt(entries, 1);
       await sleepUntil(first.starts_at + 1_000);
       const viewer = await tune(baseUrl);
+      // A refused tune has no worker, so say so instead of timing out below.
+      expect(viewer.response.statusCode, "stream status").toBe(200);
       // Wait until the worker holds the old following entry as its preparation.
       await vi.waitFor(
         () =>
@@ -291,11 +319,19 @@ describe("real FFmpeg runtime cleanup", () => {
 
   /** Starts a channel with one viewer receiving bytes from a live FFmpeg child. */
   async function startWatchedChannel() {
-    const channel = await startRealChannel();
+    const channel = await startRealChannel({
+      items: [
+        { durationMs: CLEANUP_MEDIA_DURATION_MS, path: cleanupMediaPath },
+        ...mediaPaths
+          .slice(-1)
+          .map((path) => ({ durationMs: LAST_AIRTIME_MS, path })),
+      ],
+      startupTimeoutMs: CLEANUP_STARTUP_TIMEOUT_MS,
+    });
     const viewer = await tune(channel.baseUrl);
     await receivesBytes(viewer);
     // Proves the leak check can see this suite's children at all.
-    expect(runningFfmpegProcesses(fixtureDirectory)).toHaveLength(1);
+    expect(await runningFfmpegProcesses(fixtureDirectory)).toHaveLength(1);
     return { ...channel, viewer };
   }
 
@@ -305,7 +341,7 @@ describe("real FFmpeg runtime cleanup", () => {
     viewers: readonly Awaited<ReturnType<typeof tune>>[],
   ) {
     expect(channel.packager.sessions.every((s) => s.stopped)).toBe(true);
-    expect(runningFfmpegProcesses(fixtureDirectory)).toEqual([]);
+    expect(await runningFfmpegProcesses(fixtureDirectory)).toEqual([]);
     expect(channel.runtime.pendingTimerCount).toBe(0);
     for (const viewer of viewers) {
       await settleWithin(responseFinished(viewer.response), 2_000, "viewer");

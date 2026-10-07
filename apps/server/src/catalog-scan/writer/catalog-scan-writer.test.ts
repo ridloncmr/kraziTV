@@ -3,11 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FIXTURE_TIME,
+  insertTitledItems,
   itemFixture,
   rootFixture,
-  titledItemFixture,
 } from "../../testing/catalog-fixtures.js";
-import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { CatalogCandidate } from "../contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 import {
@@ -213,12 +212,13 @@ describe("CatalogScanWriter", () => {
   it("marks more items missing at once than SQLite binds parameters in one statement", async () => {
     const { db, writer } = await setup();
     const count = 33_000;
-    const rows = Array.from({ length: count }, (_, index) =>
-      titledItemFixture(`bulk-${String(index).padStart(5, "0")}`),
+    await insertTitledItems(
+      db,
+      Array.from(
+        { length: count },
+        (_, index) => `bulk-${String(index).padStart(5, "0")}`,
+      ),
     );
-    for (const chunk of parameterChunks(rows)) {
-      await db.insertInto("media_items").values(chunk).execute();
-    }
 
     const result = await writer.commit({
       rootId: rootFixture.id,

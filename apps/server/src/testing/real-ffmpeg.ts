@@ -1,6 +1,9 @@
 // FFmpeg CLI helpers for the server's opt-in real-FFmpeg suite only.
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 /** The binary the suite and the packager under test both run. */
 export const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
@@ -80,26 +83,34 @@ export function decodedVideoMs(capture: Buffer): number {
 /**
  * Lists the command lines of running FFmpeg processes that reference
  * `pathFragment`, so a suite can prove a stopped channel left no child behind.
+ * Asynchronous because the Windows query takes seconds: a synchronous one froze
+ * the event loop that runs the server, worker timers, and viewer sockets, so
+ * observing a live channel delayed its transitions.
  */
-export function runningFfmpegProcesses(pathFragment: string): string[] {
-  const listing =
+export async function runningFfmpegProcesses(
+  pathFragment: string,
+): Promise<string[]> {
+  const [command, args] =
     process.platform === "win32"
-      ? spawnSync(
+      ? [
           "powershell.exe",
           [
             "-NoProfile",
             "-Command",
             "Get-CimInstance Win32_Process -Filter \"Name like 'ffmpeg%'\" | ForEach-Object { $_.CommandLine }",
           ],
-          { encoding: "utf8", windowsHide: true },
-        )
-      : spawnSync("ps", ["-eo", "args="], { encoding: "utf8" });
-  if (listing.error || listing.status !== 0) {
-    throw new Error(`Could not list processes: ${listing.stderr}`, {
-      cause: listing.error,
-    });
+        ]
+      : ["ps", ["-eo", "args="]];
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(command, args, {
+      encoding: "utf8",
+      windowsHide: true,
+    }));
+  } catch (cause) {
+    throw new Error("Could not list processes", { cause });
   }
-  return listing.stdout
+  return stdout
     .split(/\r?\n/)
     .filter((line) => line.includes(pathFragment) && /ffmpeg/i.test(line));
 }

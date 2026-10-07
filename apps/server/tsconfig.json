@@ -4,5 +4,5 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "integration/**/*.ts"]
+  "include": ["src/**/*.ts", "integration/**/*.ts", "vitest.config.ts"]
 }

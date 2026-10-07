@@ -76,6 +76,28 @@ it("does not abort a slow current-state read at each polling tick", async () => 
   expect(view.result.current.data?.offsetMs).toBe(99);
 });
 
+it("re-reads when a body's content changes but not when only its identity does", async () => {
+  const api = new BrowserApi();
+  api.handle(
+    "/search",
+    (request) => api.response({ q: (request.body as { q: string }).q }),
+    "POST",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(
+    ({ body }) => useResource<{ q: string }>("/search", true, 0, body),
+    { initialProps: { body: { q: "a" } } },
+  );
+  await waitFor(() => expect(view.result.current.data?.q).toBe("a"));
+  view.rerender({ body: { q: "a" } });
+  view.rerender({ body: { q: "b" } });
+  await waitFor(() => expect(view.result.current.data?.q).toBe("b"));
+  expect(api.requests.map((request) => request.body)).toEqual([
+    { q: "a" },
+    { q: "b" },
+  ]);
+});
+
 it("closing an owner cancels its write and prevents a late success callback", async () => {
   const api = new BrowserApi();
   api.hold("/scan", "POST");
