@@ -190,3 +190,68 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
     "random",
   );
 });
+
+it("keeps a rejected create in its dialog, then selects the created channel", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", []);
+  api.reply(
+    "/channels",
+    {
+      error: { code: "validation_failed", message: "Channel number is taken" },
+    },
+    "POST",
+    409,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Create a channel…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "New channel" });
+  fireEvent.change(screen.getByLabelText("Channel number"), {
+    target: { value: "69" },
+  });
+  fireEvent.change(screen.getByLabelText("Channel name"), {
+    target: { value: "Northwoods TV" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
+  expect(
+    (await screen.findByText("Channel number is taken")).closest(
+      '[role="dialog"]',
+    ),
+  ).toBe(dialog);
+
+  api.reply("/channels", adminFixtures.channels[0], "POST");
+  api.reply("/channels", [adminFixtures.channels[0]]);
+  fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Northwoods TV" }).closest("tr")
+        ?.className,
+    ).toBe("selected-row"),
+  );
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({ number: "69", name: "Northwoods TV" });
+});
+
+it("opens a delete confirmation without an earlier action's error", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply(
+    "/channels/one",
+    { error: { code: "offline", message: "Disable failed" } },
+    "PATCH",
+    503,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Disable" }));
+  await screen.findByText("Disable failed");
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
+  const dialog = screen.getByRole("dialog", { name: "Delete channel" });
+  expect(dialog.textContent).not.toContain("Disable failed");
+  expect(screen.queryByText("Disable failed")).toBeNull();
+});

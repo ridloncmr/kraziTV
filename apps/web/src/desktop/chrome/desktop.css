@@ -224,6 +224,14 @@ button:disabled {
 .inactive .window-controls {
   opacity: 0.8;
 }
+/* Positions the dialog layer over the content without scrolling with it. */
+.window-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .window-content {
   overflow: auto;
   flex: 1;

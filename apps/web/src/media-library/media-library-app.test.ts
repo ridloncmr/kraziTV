@@ -96,3 +96,45 @@ it("keeps the current rows on screen while the next page loads", async () => {
   expect(screen.getByText("Zulu")).toBeTruthy();
   expect(screen.queryByText("Alpha")).toBeNull();
 });
+
+it("keeps a rejected path in its dialog, then lists the added root", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply(
+    "/media-roots",
+    { error: { code: "invalid_path", message: "Path is not a directory" } },
+    "POST",
+    400,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a media root…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add media root" });
+  fireEvent.change(screen.getByLabelText("Absolute server path"), {
+    target: { value: "/media" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+  expect(
+    (await screen.findByText("Path is not a directory")).closest(
+      '[role="dialog"]',
+    ),
+  ).toBe(dialog);
+
+  const root = {
+    id: "root",
+    path: "/media",
+    enabled: true,
+    lastScannedAt: null,
+  };
+  api.reply("/media-roots", root, "POST");
+  api.reply("/media-roots", [root]);
+  fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await screen.findByRole("button", { name: "Scan" });
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({ path: "/media" });
+});

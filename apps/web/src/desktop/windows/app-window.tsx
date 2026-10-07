@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { ProgramIcon } from "../../branding/program-icon.js";
+import { WindowDialogFrame } from "../../controls/window-dialog.js";
 import type {
   DesktopViewport,
   DesktopWindow,
@@ -202,7 +203,7 @@ export function AppWindow({
           </button>
         </span>
       </div>
-      <div className="window-content">{children}</div>
+      <WindowDialogFrame>{children}</WindowDialogFrame>
       <div className="window-status">kraziTV · {program.description}</div>
       {!window.maximized && (
         <div

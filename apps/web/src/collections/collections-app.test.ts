@@ -44,14 +44,16 @@ it("blocks switching or creating collections until an unsaved draft is saved or 
   fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
 
   expect(disabled("Cartoons")).toBe(true);
-  expect(disabled("Create collection")).toBe(true);
+  expect(disabled("New collection…")).toBe(true);
   expect(
-    screen.getByText("Save or discard changes before switching collections."),
+    screen.getByText(
+      "Save or discard changes before switching or creating collections.",
+    ),
   ).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
   await waitFor(() => expect(disabled("Cartoons")).toBe(false));
-  expect(disabled("Create collection")).toBe(false);
+  expect(disabled("New collection…")).toBe(false);
 });
 
 it("deletes a collection only after confirmation and returns to the list", async () => {
@@ -73,4 +75,59 @@ it("deletes a collection only after confirmation and returns to the list", async
   expect(
     api.requests.find((request) => request.method === "DELETE")?.path,
   ).toBe("/media-collections/favorites");
+});
+
+it("creates a collection in a dialog and opens it for editing", async () => {
+  const api = renderApp();
+  api.reply("/media-collections", { id: "news", name: "News" }, "POST");
+  serveCollection(api, "news", []);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "New collection…" }),
+  );
+  fireEvent.change(screen.getByLabelText("Collection name"), {
+    target: { value: "News" },
+  });
+  api.reply("/media-collections", [
+    ...collections,
+    { id: "news", name: "News" },
+  ]);
+  fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(
+    (await screen.findByRole("button", { name: "News" })).getAttribute(
+      "aria-current",
+    ),
+  ).toBe("true");
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({ name: "News" });
+});
+
+it("reports a rejected delete inside its confirmation", async () => {
+  const api = renderApp();
+  api.reply(
+    "/media-collections/favorites",
+    {
+      error: {
+        code: "collection_in_use",
+        message: "A channel programs from this collection",
+      },
+    },
+    "DELETE",
+    409,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Delete collection" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Delete collection permanently" }),
+  );
+
+  expect(
+    (
+      await screen.findByText("A channel programs from this collection")
+    ).closest('[role="dialog"]'),
+  ).toBe(screen.getByRole("dialog", { name: "Delete collection" }));
 });

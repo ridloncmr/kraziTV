@@ -2,6 +2,7 @@ import { formText } from "../controls/form-text.js";
 import { useEffect, useMemo, useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { WindowDialog } from "../controls/window-dialog.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
   CollectionMember,
@@ -32,7 +33,8 @@ export function CollectionEditor({
   const members = useResource<CollectionMember[]>(`${path}/items`, visible);
   const status = useResource<CollectionStatus>(`${path}/status`, visible);
   const mutation = useMutation();
-  const [deleting, setDeleting] = useState(false);
+  // `attempted` keeps an earlier rename or save error out of a newly opened confirmation.
+  const [deleting, setDeleting] = useState<{ attempted: boolean }>();
   // Unsaved edits, or the order a save returned until the refetch replaces it,
   // so a save never flashes the old order back.
   const [local, setLocal] = useState<{
@@ -72,10 +74,17 @@ export function CollectionEditor({
 
   return (
     <>
+      {/* An open confirmation reports its own request, so the editor does not repeat it. */}
       <RequestFeedback
-        loading={members.loading || status.loading || mutation.pending}
-        error={mutation.error ?? members.error ?? status.error}
-        message={mutation.message}
+        loading={
+          members.loading || status.loading || (!deleting && mutation.pending)
+        }
+        error={
+          (deleting ? undefined : mutation.error) ??
+          members.error ??
+          status.error
+        }
+        message={deleting ? undefined : mutation.message}
       />
       <form
         className="inline-form"
@@ -104,33 +113,44 @@ export function CollectionEditor({
         <button
           disabled={mutation.pending}
           type="button"
-          onClick={() => setDeleting(true)}
+          onClick={() => setDeleting({ attempted: false })}
         >
           Delete collection
         </button>
       </form>
       {deleting && (
-        <div className="destructive-confirmation">
+        <WindowDialog
+          title="Delete collection"
+          busy={mutation.pending}
+          onClose={() => setDeleting(undefined)}
+        >
           <p>
             Delete collection <strong>{collection.name}</strong>? Its media stay
             in the catalog. A collection a channel programs from cannot be
             deleted.
           </p>
-          <button
-            disabled={mutation.pending}
-            onClick={() => {
-              void mutation.run(path, "DELETE", undefined, deleted);
-            }}
-          >
-            Delete collection permanently
-          </button>
-          <button
-            disabled={mutation.pending}
-            onClick={() => setDeleting(false)}
-          >
-            Cancel
-          </button>
-        </div>
+          <RequestFeedback
+            loading={mutation.pending}
+            error={deleting.attempted ? mutation.error : undefined}
+          />
+          <div className="dialog-actions">
+            <button
+              disabled={mutation.pending}
+              onClick={() => {
+                setDeleting({ attempted: true });
+                void mutation.run(path, "DELETE", undefined, deleted);
+              }}
+            >
+              Delete collection permanently
+            </button>
+            <button
+              disabled={mutation.pending}
+              onClick={() => setDeleting(undefined)}
+            >
+              Cancel
+            </button>
+          </div>
+        </WindowDialog>
       )}
       {status.data && (
         <p className="info-strip">

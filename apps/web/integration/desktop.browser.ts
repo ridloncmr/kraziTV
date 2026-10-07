@@ -98,8 +98,13 @@ for (const viewport of [
       name: "Media Library",
       exact: true,
     });
-    await media.getByLabel("Absolute server path").fill(directory);
-    await media.getByRole("button", { name: "Add root", exact: true }).click();
+    await media.getByRole("button", { name: "Add a media root…" }).click();
+    const addRoot = media.getByRole("dialog", { name: "Add media root" });
+    await addRoot.getByLabel("Absolute server path").fill(directory);
+    await addRoot
+      .getByRole("button", { name: "Add root", exact: true })
+      .click();
+    await expect(addRoot).toBeHidden();
     await expect(
       media.getByRole("button", { name: "Scan", exact: true }),
     ).toBeVisible();
@@ -124,11 +129,18 @@ for (const viewport of [
       exact: true,
     });
     await collections
-      .getByLabel("New collection name")
+      .getByRole("button", { name: "Create a collection…" })
+      .click();
+    const newCollection = collections.getByRole("dialog", {
+      name: "New collection",
+    });
+    await newCollection
+      .getByLabel("Collection name")
       .fill("Northwoods collection");
-    await collections
+    await newCollection
       .getByRole("button", { name: "Create collection" })
       .click();
+    await expect(newCollection).toBeHidden();
     await collections
       .getByRole("checkbox", { name: /^Select Northwoods/ })
       .check();
@@ -151,13 +163,16 @@ for (const viewport of [
       name: "My Channels",
       exact: true,
     });
-    await channels.getByLabel("Channel number", { exact: true }).fill("69");
-    await channels
+    await channels.getByRole("button", { name: "New channel…" }).click();
+    const newChannel = channels.getByRole("dialog", { name: "New channel" });
+    await newChannel.getByLabel("Channel number", { exact: true }).fill("69");
+    await newChannel
       .getByLabel("Channel name", { exact: true })
       .fill("Northwoods TV");
-    await channels
+    await newChannel
       .getByRole("button", { name: "Create channel", exact: true })
       .click();
+    await expect(newChannel).toBeHidden();
     await channels
       .getByLabel("Programming source")
       .selectOption({ label: "Northwoods collection" });
