@@ -72,14 +72,18 @@ assume catalog rows are permanent:
 
 ### Starting a removal
 
-- Each row in the Media Library's media roots table gains a **Remove** action
-  beside **Disable** and **Scan**.
-- The cataloged media table gains row and range selection, using the controls
-  collections already use (`row-click.ts`, `use-range-toggle.ts`). A
-  **Remove…** button above the table is enabled while at least one row is
-  selected.
+The Media Library labels catalog removal **Delete**, as My Channels labels
+channel deletion. The API, code, and docs keep the domain term **catalog
+removal**.
 
-Either opens a **Remove media root** or **Remove media** window dialog, which
+- Each row in the Media Library's media roots table gains a **Delete…**
+  action beside **Disable** and **Scan**.
+- The cataloged media table gains row and range selection, using the controls
+  collections already use (`row-click.ts`, `use-range-toggle.ts`). On the
+  pager's line, right-aligned, a **Delete…** button is enabled while at least
+  one row is selected, and **Clear selection** releases every selected row.
+
+Either opens a **Delete media root** or **Delete media** window dialog, which
 first asks the server for a removal preview and shows `Checking…` until it
 answers.
 
@@ -102,9 +106,9 @@ The dialog shows, from the preview:
 4. **Channels left with nothing to play**, only when the removal leaves an
    enabled channel without schedulable media. It names each channel and says
    it goes off air after its current program, or right away when **Stop it
-   now** is selected. The confirm button then reads **Remove anyway**.
+   now** is selected. The confirm button then reads **Delete anyway**.
 
-**Remove** (or **Remove anyway**) sends the removal with the chosen airing
+**Delete** (or **Delete anyway**) sends the removal with the chosen airing
 option. **Cancel** closes the dialog and changes nothing.
 
 A refusal in the preview shows its message in place of the sections above,
@@ -122,7 +126,7 @@ The block message lists every channel number involved.
 
 - On success the dialog closes, the removed media leaves both tables, item
   selection is cleared, and the request feedback reports the result, for
-  example `Removed /media/tv and 1,204 media items.`
+  example `Deleted /media/tv and 1,204 media items.`
 - With **Let it finish** and media still airing, the feedback adds
   `Channel 69 finishes its current program first.`
 - With **Stop it now**, the feedback adds `Channel 69 restarted on its new
@@ -424,7 +428,7 @@ Resolved on 2026-10-07:
   viewers connected is separate stream worker and FFmpeg work for a later
   spec.
 - **Channels left unschedulable warn but do not block.** The preview lists
-  them and the user can proceed with **Remove anyway**.
+  them and the user can proceed with **Delete anyway**.
 
 ## Acceptance Criteria
 
@@ -473,12 +477,12 @@ Server:
 
 Web:
 
-- **Remove** on a root, or **Remove…** with catalog rows selected, opens the
-  dialog and shows the preview.
+- **Delete…** on a root, or **Delete…** with catalog rows selected, opens
+  the dialog and shows the preview.
 - The **Now airing** section appears only when removed media is airing, with
   **Let it finish** selected by default.
 - The unschedulable warning appears only when the preview lists channels, and
-  the button then reads **Remove anyway**.
+  the button then reads **Delete anyway**.
 - A preview refusal shows its message with only **Close**.
 - A `channels_left_unschedulable` response keeps the dialog open with the new
   impact.
