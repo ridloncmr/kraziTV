@@ -98,6 +98,25 @@ describe("MediaItemRepository.list", () => {
     expect(page.total).toBe(2);
   });
 
+  it("leaves excluded IDs out of the page and the total, beyond SQLite's parameter limit", async () => {
+    const repository = await setup(
+      ["a", "b", "c", "d"].map((name) =>
+        itemFixtureAt(`item-${name}`, `/media/movies/${name}.mkv`),
+      ),
+    );
+    const unknown = Array.from({ length: 40_000 }, (_, i) => `absent-${i}`);
+
+    const page = await repository.list({
+      ...EVERYTHING,
+      limit: 1,
+      offset: 1,
+      excludeIds: ["item-a", "item-c", ...unknown],
+    });
+
+    expect(page.items.map((entry) => entry.id)).toEqual(["item-d"]);
+    expect(page.total).toBe(2);
+  });
+
   it("treats LIKE wildcards in the search as literal text", async () => {
     const repository = await setup([
       itemFixtureAt("item-percent", "/media/movies/100%.mkv"),

@@ -21,7 +21,21 @@ const listQuery = z.strictObject({
 // and `total` tells the caller when the search must be narrowed first.
 const MAX_MATCHES = 5000;
 
-const matchesQuery = z.strictObject({ q: z.string().trim().default("") });
+// Searches that exclude IDs travel in a body, because a large collection's
+// member IDs would overflow a query string.
+const excludeIds = z.array(z.string()).default([]);
+
+const searchBody = z.strictObject({
+  q: z.string().trim().default(""),
+  limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+  offset: z.number().int().min(0).default(0),
+  excludeIds,
+});
+
+const matchesBody = z.strictObject({
+  q: z.string().trim().default(""),
+  excludeIds,
+});
 
 /** Registers read-only catalog routes; status mapping and projection live only here. */
 export function registerMediaItemRoutes(
@@ -38,15 +52,31 @@ export function registerMediaItemRoutes(
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });
 
-  server.get("/media-items/matches", async (request, reply) => {
-    const query = matchesQuery.safeParse(request.query);
-    if (!query.success) {
-      return sendInvalidRequest(reply, query.error);
+  server.post("/media-items/search", async (request, reply) => {
+    const body = searchBody.safeParse(request.body ?? {});
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+    const { q, limit, offset } = body.data;
+    const page = await mediaItems.list({
+      search: q,
+      limit,
+      offset,
+      excludeIds: body.data.excludeIds,
+    });
+    return { items: page.items.map(toApiMediaItem), total: page.total };
+  });
+
+  server.post("/media-items/matches", async (request, reply) => {
+    const body = matchesBody.safeParse(request.body ?? {});
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
     }
     const page = await mediaItems.list({
-      search: query.data.q,
+      search: body.data.q,
       limit: MAX_MATCHES,
       offset: 0,
+      excludeIds: body.data.excludeIds,
     });
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });

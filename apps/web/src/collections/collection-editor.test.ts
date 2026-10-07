@@ -59,9 +59,7 @@ it("adds picked catalog media in path order, moves a chosen block and saves the 
   await screen.findByText(/Schedulable · 1 eligible/);
   fireEvent.click(await screen.findByLabelText("Select Episode 10"));
   fireEvent.click(screen.getByLabelText("Select Episode 2"));
-  expect(screen.getByLabelText("Select Alpha").hasAttribute("disabled")).toBe(
-    true,
-  );
+  expect(screen.queryByLabelText("Select Alpha")).toBeNull();
   click("Add selected (2)");
   expect(memberOrder()).toEqual(["Alpha", "Zulu", "Episode 2", "Episode 10"]);
   expect(screen.getByText(/Unsaved changes/)).toBeTruthy();
@@ -87,23 +85,28 @@ it("adds every match of the settled search and refuses a capped match list", asy
   });
   await waitFor(() =>
     expect(
-      api.requests.some((request) => request.query.get("q") === "show"),
+      api.requests.some(
+        (request) => (request.body as { q?: string } | undefined)?.q === "show",
+      ),
     ).toBe(true),
   );
-  api.reply("/media-items/matches", { items: episodes, total: 2 });
-  click("Add all matches (4)");
+  api.reply("/media-items/matches", { items: episodes, total: 2 }, "POST");
+  click("Add all matches (3)");
 
   await waitFor(() =>
     expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]),
   );
   expect(
-    api.requests
-      .find((request) => request.path === "/media-items/matches")
-      ?.query.get("q"),
-  ).toBe("show");
+    api.requests.find((request) => request.path === "/media-items/matches")
+      ?.body,
+  ).toEqual({ q: "show", excludeIds: ["z"] });
 
-  api.reply("/media-items/matches", { items: [episodes[0]], total: 5001 });
-  click("Add all matches (4)");
+  api.reply(
+    "/media-items/matches",
+    { items: [episodes[0]], total: 5001 },
+    "POST",
+  );
+  await waitFor(() => click("Add all matches (1)"));
   expect((await screen.findByRole("alert")).textContent).toMatch(
     /5001 items match/,
   );
@@ -112,17 +115,35 @@ it("adds every match of the settled search and refuses a capped match list", asy
 
 it("keeps member edits made while an add-all request is pending", async () => {
   const { api } = renderEditor(["z", "a"]);
-  await screen.findByLabelText("Select member Zulu");
-  api.hold("/media-items/matches");
-  click("Add all matches (4)");
+  await screen.findByText("Add all matches (2)");
+  api.hold("/media-items/matches", "POST");
+  click("Add all matches (2)");
   fireEvent.click(screen.getByLabelText("Select member Zulu"));
   click("Move to top");
 
-  api.release("/media-items/matches", { items: episodes, total: 2 });
+  api.release("/media-items/matches", { items: episodes, total: 2 }, "POST");
 
   await waitFor(() =>
     expect(memberOrder()).toEqual(["Zulu", "Alpha", "Episode 2", "Episode 10"]),
   );
+});
+
+it("hides draft members from the catalog and clears an offset left past the last page", async () => {
+  const { api } = renderEditor(["z", "a"]);
+  await screen.findByText("Add all matches (2)");
+  expect(screen.queryByLabelText("Select Alpha")).toBeNull();
+
+  fireEvent.click(screen.getByLabelText("Select this page"));
+  click("Add selected (2)");
+
+  await screen.findByText(
+    "Every cataloged item is already in this collection.",
+  );
+  expect(
+    api.requests
+      .filter((request) => request.path === "/media-items/search")
+      .at(-1)?.body,
+  ).toMatchObject({ excludeIds: ["a", "e10", "e2", "z"], offset: 0 });
 });
 
 it("filters without renumbering, moves to a position, sorts and discards back to the saved order", async () => {

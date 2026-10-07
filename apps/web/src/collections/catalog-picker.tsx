@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
@@ -10,8 +10,8 @@ const PAGE_SIZE = 50;
 
 /**
  * Picks catalog media in bulk: checked items across pages, or every match of
- * the current search at once. Members already in the draft cannot be picked
- * again, so an addition never duplicates a member.
+ * the current search at once. The server leaves draft members out of results
+ * and counts, so an addition never duplicates a member.
  */
 export function CatalogPicker({
   memberIds,
@@ -23,17 +23,27 @@ export function CatalogPicker({
   onAdd: (media: MediaItem[]) => void;
 }) {
   const [search, setSearch] = useState("");
-  const results = useMediaItemPage(search, PAGE_SIZE, visible);
+  // Sorted so reordering members never changes the request and refetches.
+  const excludeIds = useMemo(() => [...memberIds].sort(), [memberIds]);
+  const results = useMediaItemPage(search, PAGE_SIZE, visible, excludeIds);
   const [picked, setPicked] = useState<ReadonlyMap<string, MediaItem>>(
     new Map(),
   );
   const matches = useMutation();
   const [overflow, setOverflow] = useState<Error>();
-  const items = results.data?.items ?? [];
+  // The previous page stays shown while the next loads, so drop media added since.
+  const items = (results.data?.items ?? []).filter(
+    (item) => !memberIds.has(item.id),
+  );
   const total = results.data?.total ?? 0;
-  const pickable = items.filter((item) => !memberIds.has(item.id));
+  const { offset, setOffset } = results;
+  // Adding the last rows of the final page leaves the offset past the end.
+  useEffect(() => {
+    if (results.data && offset > 0 && offset >= total)
+      setOffset(Math.max(0, Math.ceil(total / PAGE_SIZE) - 1) * PAGE_SIZE);
+  }, [results.data, offset, total, setOffset]);
   const pagePicked =
-    pickable.length > 0 && pickable.every((item) => picked.has(item.id));
+    items.length > 0 && items.every((item) => picked.has(item.id));
 
   /** Checks or unchecks items while keeping picks made on other pages. */
   function pick(media: MediaItem[], on: boolean) {
@@ -54,11 +64,10 @@ export function CatalogPicker({
 
   /** Adds every match in one step, refusing a capped response rather than adding part of it. */
   function addAllMatches() {
-    const params = new URLSearchParams({ q: results.search });
     void matches.run<MediaItemPage>(
-      `/media-items/matches?${params}`,
-      "GET",
-      undefined,
+      "/media-items/matches",
+      "POST",
+      { q: results.search, excludeIds },
       (page) => {
         if (page.total > page.items.length)
           setOverflow(
@@ -112,8 +121,10 @@ export function CatalogPicker({
       {results.data && total === 0 && (
         <p className="empty-state">
           {results.search
-            ? "No cataloged media matches this search."
-            : "The catalog is empty. Scan a media root in Media Library."}
+            ? "No cataloged media outside this collection matches this search."
+            : memberIds.size > 0
+              ? "Every cataloged item is already in this collection."
+              : "The catalog is empty. Scan a media root in Media Library."}
         </p>
       )}
       {items.length > 0 && (
@@ -126,8 +137,7 @@ export function CatalogPicker({
                     type="checkbox"
                     aria-label="Select this page"
                     checked={pagePicked}
-                    disabled={pickable.length === 0}
-                    onChange={() => pick(pickable, !pagePicked)}
+                    onChange={() => pick(items, !pagePicked)}
                   />
                 </th>
                 <th>Title / path</th>
@@ -135,30 +145,25 @@ export function CatalogPicker({
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
-                const member = memberIds.has(item.id);
-                return (
-                  <tr key={item.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${item.title}`}
-                        checked={member || picked.has(item.id)}
-                        disabled={member}
-                        onChange={(event) => pick([item], event.target.checked)}
-                      />
-                    </td>
-                    <td>
-                      {item.title}
-                      <small className="secondary path-cell">
-                        {member ? "In collection · " : ""}
-                        {item.status} · {item.path}
-                      </small>
-                    </td>
-                    <td>{displayDuration(item.durationMs)}</td>
-                  </tr>
-                );
-              })}
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${item.title}`}
+                      checked={picked.has(item.id)}
+                      onChange={(event) => pick([item], event.target.checked)}
+                    />
+                  </td>
+                  <td>
+                    {item.title}
+                    <small className="secondary path-cell">
+                      {item.status} · {item.path}
+                    </small>
+                  </td>
+                  <td>{displayDuration(item.durationMs)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -19,7 +19,8 @@ export class MediaItemRepository {
    * Lists one page of items grouped by root path identity, then item path
    * identity, with ID as a stable tie-breaker so offsets address the same rows
    * on repeated reads. `total` counts every match, so callers can page without
-   * loading the catalog.
+   * loading the catalog. Exclusions bind as one JSON parameter, so any number
+   * of IDs stays under SQLite's parameter limit.
    */
   async list(query: MediaItemQuery): Promise<MediaItemPage> {
     const matching = this.#db
@@ -27,6 +28,11 @@ export class MediaItemRepository {
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
       .$if(query.search !== "", (builder) =>
         builder.where(matchesSearch(query.search)),
+      )
+      .$if((query.excludeIds?.length ?? 0) > 0, (builder) =>
+        builder.where(
+          sql<boolean>`media_items.id not in (select value from json_each(${JSON.stringify(query.excludeIds)}))`,
+        ),
       );
     const rows = await matching
       .selectAll("media_items")

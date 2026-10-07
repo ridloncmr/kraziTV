@@ -1,35 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest } from "./api-client.js";
 
-/** Replaced reads cannot publish into another selection; hidden programs do not poll. */
+/**
+ * Replaced reads cannot publish into another selection; hidden programs do not
+ * poll. A body turns the read into a POST, and results are keyed by path and
+ * body together so a changed body never shows the previous answer.
+ */
 export function useResource<T>(
   path: string | null,
   active = true,
   intervalMs = 0,
+  body?: unknown,
 ) {
-  const [result, setResult] = useState<{ path: string; data: T }>();
-  const [failure, setFailure] = useState<{ path: string; error: Error }>();
+  const json = body === undefined ? undefined : JSON.stringify(body);
+  const key = path === null ? null : `${path} ${json ?? ""}`;
+  const [result, setResult] = useState<{ key: string; data: T }>();
+  const [failure, setFailure] = useState<{ key: string; error: Error }>();
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   useEffect(() => {
-    if (!path || !active) {
+    if (!path || !key || !active) {
       setLoading(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
-    void apiRequest<T>(path, { signal: controller.signal })
+    void apiRequest<T>(path, {
+      signal: controller.signal,
+      ...(json === undefined
+        ? {}
+        : { method: "POST", body: JSON.parse(json) as unknown }),
+    })
       .then((value) => {
         if (!controller.signal.aborted) {
-          setResult({ path, data: value });
+          setResult({ key, data: value });
           setFailure(undefined);
         }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
           setFailure({
-            path,
+            key,
             error: error instanceof Error ? error : new Error(String(error)),
           });
       })
@@ -37,15 +49,15 @@ export function useResource<T>(
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [path, active, revision]);
+  }, [path, key, json, active, revision]);
   useEffect(() => {
     if (!active || !path || !intervalMs || loading) return;
     const timer = setInterval(refresh, intervalMs);
     return () => clearInterval(timer);
   }, [active, path, intervalMs, refresh, loading]);
   return {
-    data: result?.path === path ? result.data : undefined,
-    error: failure?.path === path ? failure.error : undefined,
+    data: result?.key === key ? result.data : undefined,
+    error: failure?.key === key ? failure.error : undefined,
     loading,
     refresh,
   };

@@ -37,13 +37,21 @@ function disabled(name: string) {
   return screen.getByRole("button", { name }).matches(":disabled");
 }
 
+// Chooses a collection from the picker once the list has loaded.
+async function choose(name: string) {
+  await screen.findByRole("option", { name });
+  fireEvent.change(screen.getByLabelText("Collection"), {
+    target: { value: collections.find((item) => item.name === name)?.id },
+  });
+}
+
 it("blocks switching or creating collections until an unsaved draft is saved or discarded", async () => {
   renderApp();
-  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  await choose("Favorites");
   fireEvent.click(await screen.findByLabelText("Select member Zulu"));
   fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
 
-  expect(disabled("Cartoons")).toBe(true);
+  expect(screen.getByLabelText("Collection").matches(":disabled")).toBe(true);
   expect(disabled("New collection…")).toBe(true);
   expect(
     screen.getByText(
@@ -52,14 +60,18 @@ it("blocks switching or creating collections until an unsaved draft is saved or 
   ).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() => expect(disabled("Cartoons")).toBe(false));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Collection").matches(":disabled")).toBe(
+      false,
+    ),
+  );
   expect(disabled("New collection…")).toBe(false);
 });
 
-it("deletes a collection only after confirmation and returns to the list", async () => {
+it("deletes a collection only after confirmation and clears the selection", async () => {
   const api = renderApp();
   api.reply("/media-collections/favorites", null, "DELETE", 204);
-  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  await choose("Favorites");
   fireEvent.click(
     await screen.findByRole("button", { name: "Delete collection" }),
   );
@@ -94,11 +106,10 @@ it("creates a collection in a dialog and opens it for editing", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(
-    (await screen.findByRole("button", { name: "News" })).getAttribute(
-      "aria-current",
-    ),
-  ).toBe("true");
+  await screen.findByRole("option", { name: "News" });
+  expect(screen.getByLabelText<HTMLSelectElement>("Collection").value).toBe(
+    "news",
+  );
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ name: "News" });
@@ -117,7 +128,7 @@ it("reports a rejected delete inside its confirmation", async () => {
     "DELETE",
     409,
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  await choose("Favorites");
   fireEvent.click(
     await screen.findByRole("button", { name: "Delete collection" }),
   );

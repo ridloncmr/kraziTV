@@ -253,40 +253,12 @@
   width: auto;
   min-height: 0;
 }
-/*
- * Collections place the list beside the editor and the catalog beside the
- * members; both pairs wrap to one column when the window is narrow.
- */
-.collections-layout,
+/* The catalog sits beside the members and wraps below them when the window is narrow. */
 .program-page .collection-panes {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
-}
-.collection-list {
-  flex: 0 0 180px;
-  min-width: 0;
-}
-.collection-list fieldset {
-  margin-top: 0;
-}
-.collection-list ul {
-  list-style: none;
-  margin: 8px 0;
-  padding: 0;
-}
-.program-page .collection-list li button {
-  width: 100%;
-  margin-bottom: 2px;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.collection-detail {
-  flex: 1 1 480px;
-  min-width: 0;
-}
-.program-page .collection-panes {
   margin: 0;
   padding: 0;
   border: 0;
@@ -316,15 +288,6 @@
 }
 .program-page .position-input {
   width: 64px;
-}
-.program-page .collection-list button.selected-row {
-  background: color-mix(
-    in srgb,
-    var(--xp-selection) 30%,
-    var(--xp-window-surface)
-  );
-  border-color: var(--xp-title-primary);
-  font-weight: bold;
 }
 /*
  * Window dialogs dim and block only their own window's content. The layer

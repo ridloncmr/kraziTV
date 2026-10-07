@@ -147,8 +147,43 @@ describe("GET /media-items", () => {
   });
 });
 
-describe("GET /media-items/matches", () => {
-  it("returns every search match in catalog order with the full match count", async () => {
+describe("POST /media-items/search", () => {
+  it("pages the search without excluded IDs, counting only what remains", async () => {
+    const server = await startServer([
+      itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
+      itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
+      itemFixtureAt("item-c", "/media/movies/show-c.mkv"),
+      itemFixtureAt("item-x", "/media/movies/other.mkv"),
+    ]);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-items/search",
+      payload: { q: "show", limit: 1, offset: 1, excludeIds: ["item-a"] },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: "item-c" }],
+      total: 2,
+    });
+  });
+
+  it("rejects a page size above the cap", async () => {
+    const server = await startServer();
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-items/search",
+      payload: { limit: 201 },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+});
+
+describe("POST /media-items/matches", () => {
+  it("returns every non-excluded search match in catalog order with their count", async () => {
     const server = await startServer([
       itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
       itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
@@ -156,14 +191,15 @@ describe("GET /media-items/matches", () => {
     ]);
 
     const response = await server.inject({
-      method: "GET",
-      url: "/media-items/matches?q=show",
+      method: "POST",
+      url: "/media-items/matches",
+      payload: { q: "show", excludeIds: ["item-b"] },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      items: [{ id: "item-a" }, { id: "item-b" }],
-      total: 2,
+      items: [{ id: "item-a" }],
+      total: 1,
     });
   });
 
@@ -171,8 +207,9 @@ describe("GET /media-items/matches", () => {
     const server = await startServer();
 
     const response = await server.inject({
-      method: "GET",
-      url: "/media-items/matches?limit=10",
+      method: "POST",
+      url: "/media-items/matches",
+      payload: { limit: 10 },
     });
 
     expect(response.statusCode).toBe(400);

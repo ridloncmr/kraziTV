@@ -17,11 +17,15 @@ export interface MediaItem {
   lastProbedAt: number | null;
 }
 
-/** One page of the catalog listing; an empty `search` matches every item. */
+/**
+ * One page of the catalog listing; an empty `search` matches every item.
+ * Excluded IDs are left out of both the page and `total`.
+ */
 export interface MediaItemQuery {
   search: string;
   limit: number;
   offset: number;
+  excludeIds?: readonly string[];
 }
 
 /** The requested page plus the count of every item the search matches. */

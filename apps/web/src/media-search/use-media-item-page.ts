@@ -8,11 +8,14 @@ const SEARCH_DELAY_MS = 250;
  * Reads one server-side page of the catalog so no program loads every item.
  * Typed search waits for a pause before it refetches, and a new search
  * returns to the first page in the same update so no stale page is requested.
+ * Excluded IDs are left out of the page and its total by the server, so a
+ * picker never pages through items it hides.
  */
 export function useMediaItemPage(
   search: string,
   limit: number,
   active: boolean,
+  excludeIds?: readonly string[],
 ) {
   const [query, setQuery] = useState({ q: search.trim(), offset: 0 });
   useEffect(() => {
@@ -29,7 +32,12 @@ export function useMediaItemPage(
     limit: String(limit),
     offset: String(query.offset),
   });
-  const page = useResource<MediaItemPage>(`/media-items?${params}`, active);
+  const page = useResource<MediaItemPage>(
+    excludeIds ? "/media-items/search" : `/media-items?${params}`,
+    active,
+    0,
+    excludeIds && { q: query.q, limit, offset: query.offset, excludeIds },
+  );
   // The last page stays on screen while the next one loads, so a list never
   // empties mid-request and its scroll position survives paging and searching.
   const [shown, setShown] = useState<MediaItemPage>();

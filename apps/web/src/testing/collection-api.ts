@@ -27,7 +27,8 @@ const catalog = [...adminFixtures.media, ...episodes];
 /**
  * Serves one collection's members, status and the catalog search. Saved order
  * persists across reads and PUT echoes it like the server, so refetches after
- * a save see the committed order.
+ * a save see the committed order. Search leaves excluded IDs out of the items
+ * and the total, as the server does; it ignores the text and paging.
  */
 export function serveCollection(
   api: BrowserApi,
@@ -60,5 +61,13 @@ export function serveCollection(
       schedulableCount: 1,
     }),
   );
-  api.reply("/media-items", { items: catalog, total: catalog.length });
+  api.handle(
+    "/media-items/search",
+    (request) => {
+      const { excludeIds } = request.body as { excludeIds: string[] };
+      const items = catalog.filter((item) => !excludeIds.includes(item.id));
+      return api.response({ items, total: items.length });
+    },
+    "POST",
+  );
 }
