@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
@@ -171,6 +171,49 @@ test("removes selected media through the Media Library against real routes", asy
   await expect(
     db.selectFrom("media_items").select("title").execute(),
   ).resolves.toEqual([{ title: "Southwoods" }]);
+  expect(errors).toEqual([]);
+});
+
+test("picks a media root by browsing real server folders at narrow width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { server, db } = await startTestServer();
+  await injectBrowserApi(page, server);
+  const directory = await createTemporaryDirectory();
+  await mkdir(join(directory, "Shows"));
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("button", { name: "Add a media root…" }).click();
+  const addRoot = media.getByRole("dialog", { name: "Add media root" });
+  await addRoot.getByLabel("Absolute server path").fill(directory);
+
+  await addRoot.getByRole("button", { name: "Browse…" }).click();
+  const browser = addRoot.getByRole("group", { name: "Server folders" });
+  await browser.getByRole("button", { name: "Shows", exact: true }).click();
+  await expect(browser.getByText("No folders here.")).toBeVisible();
+  await expect(addRoot.getByLabel("Absolute server path")).toHaveValue(
+    join(directory, "Shows"),
+  );
+  // The whole dialog, Add root included, stays inside the narrow window.
+  await expect(
+    addRoot.getByRole("button", { name: "Add root", exact: true }),
+  ).toBeInViewport();
+  await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+
+  await expect(addRoot).toBeHidden();
+  await expect(
+    db.selectFrom("media_roots").select("path").execute(),
+  ).resolves.toEqual([{ path: join(directory, "Shows") }]);
   expect(errors).toEqual([]);
 });
 

@@ -10,6 +10,14 @@ export interface MediaRoot {
    */
   scan: ScanStatus | null;
 }
+/** One level of server folders offered when picking a media root. */
+export interface FolderListing {
+  /** The listed folder, or null for the server's top level (drives or `/`). */
+  path: string | null;
+  /** Where Up goes; null means the top level. */
+  parent: string | null;
+  folders: { name: string; path: string }[];
+}
 export interface MediaItem {
   id: string;
   title: string;
