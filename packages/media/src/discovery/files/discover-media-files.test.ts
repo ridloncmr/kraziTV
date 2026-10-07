@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   currentPathPlatform,
   normalizeMediaPath,
-} from "../paths/media-path.js";
+} from "../../paths/media-path.js";
 import { discoverMediaFiles } from "./discover-media-files.js";
 
 const isWindows = process.platform === "win32";

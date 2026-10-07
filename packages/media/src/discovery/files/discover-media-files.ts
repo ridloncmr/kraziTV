@@ -7,8 +7,9 @@ import {
   normalizeMediaPath,
   type NormalizedMediaPath,
   type PathPlatform,
-} from "../paths/media-path.js";
-import { MediaDiscoveryError } from "./media-discovery-error.js";
+} from "../../paths/media-path.js";
+import { compareOrdinal, isSkippedEntry } from "../directory-entries.js";
+import { MediaDiscoveryError } from "../media-discovery-error.js";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".mkv",
@@ -18,13 +19,6 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".mov",
   ".ts",
   ".webm",
-]);
-
-// Windows creates these at every volume root and restricts their contents, so
-// traversing them would fail any scan of a whole drive, even one mounted on POSIX.
-const OS_VOLUME_FOLDERS = new Set([
-  "system volume information",
-  "$recycle.bin",
 ]);
 
 export interface DiscoveredMediaFile extends NormalizedMediaPath {
@@ -111,10 +105,7 @@ async function collect(
   }
 
   for (const entry of entries) {
-    if (
-      entry.name.startsWith(".") ||
-      OS_VOLUME_FOLDERS.has(entry.name.toLowerCase())
-    ) {
+    if (isSkippedEntry(entry.name)) {
       continue;
     }
 
@@ -174,9 +165,4 @@ function traversalFailed(path: string, cause: unknown) {
     path,
     { cause },
   );
-}
-
-// Locale collation varies by environment; code-unit order does not.
-function compareOrdinal(a: string, b: string) {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
