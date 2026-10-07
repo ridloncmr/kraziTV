@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   startTestServer,
   cleanUpTestEnvironment,
@@ -8,15 +8,72 @@ import {
 } from "../../server/src/testing/test-environment.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
+import { recordingLog } from "../../server/src/testing/recording-log.js";
 import { injectBrowserApi } from "../src/testing/injected-api.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../../server/src/catalog-scan/writer/catalog-scan-writer.js";
+import {
+  createBarrier,
+  type TestBarrier,
+} from "../../server/src/testing/test-barrier.js";
 
 let prober: ControlledProber | undefined;
+let commit: TestBarrier | undefined;
 test.afterEach(async () => {
+  commit?.release();
   prober?.resolveAll(PROBE_RESULT);
   await cleanUpTestEnvironment();
 });
+
+/**
+ * Starts a real server whose scans probe through a `ControlledProber`, so
+ * the test settles each probe. With `holdCommit`, a completed commit waits
+ * in `committing` until the test releases `commit`.
+ */
+async function startScanServer(options: { holdCommit?: boolean } = {}) {
+  const controlled = new ControlledProber();
+  prober = controlled;
+  const held = options.holdCommit ? (commit = createBarrier()) : undefined;
+  const started = await startTestServer({
+    plex: { publicBaseUrl: "http://northwoods.lan:3000" },
+    overrides: (db, { mediaRoots, schedules }) => ({
+      scanner: new CatalogScanner({
+        roots: mediaRoots,
+        prober: controlled,
+        writer: new CatalogScanWriter(db),
+        schedules: {
+          ensureAllEnabled: async (log) => {
+            await held?.wait();
+            await schedules.ensureAllEnabled(log);
+          },
+        },
+        log: recordingLog(),
+      }),
+    }),
+  });
+  return { ...started, prober: controlled };
+}
+
+/** Adds `directory` as a media root in the Media Library and starts its scan. */
+async function scanNewRoot(page: Page, directory: string) {
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("button", { name: "Add a media root…" }).click();
+  const addRoot = media.getByRole("dialog", { name: "Add media root" });
+  await addRoot.getByLabel("Absolute server path").fill(directory);
+  await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+  await expect(addRoot).toBeHidden();
+  await media.getByRole("button", { name: "Scan", exact: true }).click();
+  const scanning = media.getByRole("dialog", { name: "Scanning media root" });
+  await expect(scanning).toBeVisible();
+  return { media, scanning };
+}
 
 test("operates title-bar controls on an inactive window with one click", async ({
   page,
@@ -65,18 +122,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    prober = new ControlledProber();
-    const controlled = prober;
-    const { server } = await startTestServer({
-      plex: { publicBaseUrl: "http://northwoods.lan:3000" },
-      overrides: (db, { mediaRoots }) => ({
-        scanner: new CatalogScanner({
-          roots: mediaRoots,
-          prober: controlled,
-          writer: new CatalogScanWriter(db),
-        }),
-      }),
-    });
+    const { server, prober: controlled } = await startScanServer();
     await injectBrowserApi(page, server);
     const directory = await createTemporaryDirectory();
     await writeFile(
@@ -90,30 +136,36 @@ for (const viewport of [
       page.getByRole("button", { name: "start", exact: true }),
     ).toBeVisible();
 
-    await page
-      .getByLabel("Desktop programs")
-      .getByRole("button", { name: "Media Library", exact: true })
-      .click();
-    const media = page.getByRole("region", {
-      name: "Media Library",
-      exact: true,
-    });
-    await media.getByRole("button", { name: "Add a media root…" }).click();
-    const addRoot = media.getByRole("dialog", { name: "Add media root" });
-    await addRoot.getByLabel("Absolute server path").fill(directory);
-    await addRoot
-      .getByRole("button", { name: "Add root", exact: true })
-      .click();
-    await expect(addRoot).toBeHidden();
-    await expect(
-      media.getByRole("button", { name: "Scan", exact: true }),
-    ).toBeVisible();
-    await media.getByRole("button", { name: "Scan", exact: true }).click();
+    const { media, scanning } = await scanNewRoot(page, directory);
     await controlled.waitForStarted(1);
-    controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
+    await expect(scanning.getByRole("status")).toHaveText(
+      "Probing media files…",
+    );
+    const bar = scanning.getByRole("progressbar");
+    await expect(bar).toHaveAttribute("aria-valuemax", "1");
+    await expect(bar).toHaveAttribute("aria-valuenow", "0");
+    await expect(scanning.getByText("0 of 1 files")).toBeVisible();
+    const close = scanning.getByRole("button", {
+      name: "Close Scanning media root",
+    });
+    await expect(close).toBeDisabled();
+    const busyClose = await closeButtonLook(close);
+    await expect(media.locator(".window-content")).toHaveAttribute("inert", "");
     await expect(
-      media.getByText("Completed scan", { exact: true }),
-    ).toBeVisible();
+      page
+        .getByLabel("Desktop programs")
+        .getByRole("button", { name: "Collections", exact: true }),
+    ).toBeEnabled();
+    controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
+    await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+    await expect(close).toBeEnabled();
+    // A disabled close button must not look like the one that works.
+    expect(await closeButtonLook(close)).not.toEqual(busyClose);
+    await expect(
+      scanning.locator(".facts dt", { hasText: "Discovered" }).locator("+ dd"),
+    ).toHaveText("1");
+    await scanning.getByRole("button", { name: "OK", exact: true }).click();
+    await expect(scanning).toBeHidden();
     await expect(
       media.getByRole("cell", { name: /^Northwoods / }),
     ).toBeVisible();
@@ -251,5 +303,99 @@ for (const viewport of [
     expect(errors).toEqual([]);
     const tray = await page.locator(".taskbar").boundingBox();
     expect(tray?.y).toBe(viewport.height - 32);
+  });
+}
+
+/** The computed styles that tell a disabled title-bar button from an enabled one. */
+function closeButtonLook(locator: Locator) {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundImage + style.backgroundColor,
+      filter: style.filter,
+      opacity: style.opacity,
+    };
+  });
+}
+
+/** The CSS animations running on an element; the stylesheet is the dialog's only motion. */
+function runningAnimations(locator: Locator): Promise<number> {
+  return locator.evaluate((element) => element.getAnimations().length);
+}
+
+for (const pass of [
+  { name: "wide", viewport: { width: 1280, height: 800 }, reduced: false },
+  { name: "narrow", viewport: { width: 390, height: 844 }, reduced: false },
+  {
+    name: "reduced-motion",
+    viewport: { width: 1280, height: 800 },
+    reduced: true,
+  },
+]) {
+  test(`draws the scan progress visuals in the ${pass.name} pass`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(pass.viewport);
+    await page.emulateMedia({
+      reducedMotion: pass.reduced ? "reduce" : "no-preference",
+    });
+    const { server, prober: controlled } = await startScanServer({
+      holdCommit: true,
+    });
+    await injectBrowserApi(page, server);
+    const directory = await createTemporaryDirectory();
+    const files = ["Alpha.mp4", "Beta.mp4", "Gamma.mp4"];
+    for (const file of files)
+      await writeFile(
+        join(directory, file),
+        "test media; probing is controlled",
+      );
+    await page.goto("/");
+    const { scanning } = await scanNewRoot(page, directory);
+    const bar = scanning.getByRole("progressbar");
+    const fill = bar.locator(".segmented-progress-fill");
+    const paper = scanning.locator(".scan-paper-x");
+
+    await controlled.waitForStarted(files.length);
+    controlled.started[0].resolve(PROBE_RESULT);
+    await expect(scanning.getByText("1 of 3 files")).toBeVisible();
+    await expect(bar).toHaveAttribute("aria-valuenow", "1");
+    // The fill snaps down to whole blocks of the track's content width.
+    const { filled, track } = await fill.evaluate((element) => ({
+      filled: element.getBoundingClientRect().width,
+      track: element.parentElement?.clientWidth ?? 0,
+    }));
+    expect(filled).toBe(Math.floor((track - 4) / 3 / 12) * 12);
+    const box = await scanning.boundingBox();
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+      pass.viewport.width,
+    );
+    expect(
+      await scanning.evaluate(
+        (dialog) => dialog.scrollWidth <= dialog.clientWidth,
+      ),
+    ).toBe(true);
+    expect(await runningAnimations(paper)).toBe(pass.reduced ? 0 : 1);
+    if (pass.name === "wide")
+      await scanning.screenshot({ path: "../../data/web-scan-probing.png" });
+
+    controlled.resolveAll(PROBE_RESULT);
+    await expect(scanning.getByRole("status")).toHaveText(
+      "Saving to the catalog…",
+    );
+    await expect(bar).not.toHaveAttribute("aria-valuenow");
+    expect(await runningAnimations(paper)).toBe(0);
+    expect(await runningAnimations(fill)).toBe(pass.reduced ? 0 : 1);
+    expect((await fill.boundingBox())?.width).toBeGreaterThan(0);
+    if (pass.name === "wide")
+      await scanning.screenshot({ path: "../../data/web-scan-committing.png" });
+
+    commit?.release();
+    await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+    await expect(scanning.locator(".scan-animation")).toBeVisible();
+    expect(await runningAnimations(paper)).toBe(0);
+    await scanning.getByRole("button", { name: "OK", exact: true }).click();
+    await expect(scanning).toBeHidden();
   });
 }

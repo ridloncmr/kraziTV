@@ -1,5 +1,6 @@
 import { memo, useId } from "react";
 import type { ProgramId } from "../desktop/contracts.js";
+import { IconGradients, iconGradient } from "./icon-gradients.js";
 
 /**
  * Original dimensional vector artwork shares a silhouette language at every shell size.
@@ -13,9 +14,9 @@ export const ProgramIcon = memo(function ProgramIcon({
   size?: number;
 }) {
   const id = useId();
-  const blue = `${id}-blue`,
-    gold = `${id}-gold`,
-    silver = `${id}-silver`;
+  const blue = iconGradient(id, "blue"),
+    gold = iconGradient(id, "gold"),
+    silver = iconGradient(id, "silver");
   return (
     <svg
       width={size}
@@ -24,23 +25,7 @@ export const ProgramIcon = memo(function ProgramIcon({
       aria-hidden="true"
       className="program-icon"
     >
-      <defs>
-        <linearGradient id={blue} x2=".3" y2="1">
-          <stop stopColor="#9dd9ff" />
-          <stop offset=".4" stopColor="#3988e2" />
-          <stop offset="1" stopColor="#114791" />
-        </linearGradient>
-        <linearGradient id={gold} x2=".2" y2="1">
-          <stop stopColor="#fff4a2" />
-          <stop offset=".45" stopColor="#f7c94b" />
-          <stop offset="1" stopColor="#c7811a" />
-        </linearGradient>
-        <linearGradient id={silver} x2=".2" y2="1">
-          <stop stopColor="#fafaff" />
-          <stop offset=".5" stopColor="#c7d7e5" />
-          <stop offset="1" stopColor="#6886a7" />
-        </linearGradient>
-      </defs>
+      <IconGradients id={id} />
       <ellipse cx="32" cy="58" rx="25" ry="4" fill="#14375e" opacity=".25" />
       {program === "logo" ||
       program === "channels" ||
@@ -59,7 +44,7 @@ export const ProgramIcon = memo(function ProgramIcon({
             width="54"
             height="41"
             rx="7"
-            fill={`url(#${blue})`}
+            fill={blue}
             stroke="#163c72"
             strokeWidth="2"
           />
@@ -107,11 +92,11 @@ export const ProgramIcon = memo(function ProgramIcon({
             width="44"
             height="46"
             rx="3"
-            fill={`url(#${silver})`}
+            fill={silver}
             stroke="#4b6682"
             strokeWidth="2"
           />
-          <path d="M11 11h42v12H11z" fill={`url(#${blue})`} />
+          <path d="M11 11h42v12H11z" fill={blue} />
           <path
             d="M21 5v12m22-12v12"
             stroke="#364963"
@@ -136,32 +121,26 @@ export const ProgramIcon = memo(function ProgramIcon({
           {program === "collections" && (
             <path
               d="M13 9h18l5 5h21v36H13z"
-              fill={`url(#${blue})`}
+              fill={blue}
               stroke="#245480"
               strokeWidth="2"
             />
           )}
           <path
             d="M6 19h19l5 5h25v30H6z"
-            fill={`url(#${gold})`}
+            fill={gold}
             stroke="#a77423"
             strokeWidth="2"
           />
           <path
             d="M7 27h49l-6 28H5z"
-            fill={`url(#${gold})`}
+            fill={gold}
             stroke="#ab7a2f"
             strokeWidth="2"
           />
           {program === "media" ? (
             <>
-              <circle
-                cx="40"
-                cy="39"
-                r="12"
-                fill={`url(#${silver})`}
-                stroke="#4a657e"
-              />
+              <circle cx="40" cy="39" r="12" fill={silver} stroke="#4a657e" />
               <circle cx="40" cy="39" r="3" fill="#617995" />
               {[0, 1, 2, 3].map((n) => (
                 <circle

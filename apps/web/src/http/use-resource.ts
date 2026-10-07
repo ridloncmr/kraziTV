@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "./api-client.js";
+import { toError } from "./to-error.js";
 
 /**
  * Replaced reads cannot publish into another selection; hidden programs do not
@@ -47,7 +48,7 @@ export function useResource<T>(
         if (!controller.signal.aborted)
           setFailure({
             key,
-            error: error instanceof Error ? error : new Error(String(error)),
+            error: toError(error),
           });
       })
       .finally(() => {
@@ -106,9 +107,7 @@ export function useMutation() {
       onSuccess?.(value);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)
-        setError(
-          failure instanceof Error ? failure : new Error(String(failure)),
-        );
+        setError(toError(failure));
     } finally {
       if (owner.current === controller) owner.current = null;
       if (mounted.current) setPending(false);

@@ -15,9 +15,7 @@ export function BootScreen() {
           role="status"
           aria-label="Connecting to kraziTV"
         >
-          <span />
-          <span />
-          <span />
+          <span className="progress-segments" />
         </div>
       </div>
       <small>Your television network.</small>

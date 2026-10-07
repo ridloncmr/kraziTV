@@ -4,21 +4,29 @@ import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import { Pager } from "../controls/pager.js";
-import type { MediaRoot, ScanSummary } from "../http/contracts.js";
+import type { MediaRoot } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
+import { useScanJob } from "./scan-progress/use-scan-job.js";
 
 const PAGE_SIZE = 50;
 
-/** Configures discovery locations and displays real synchronous scan outcomes and catalog facts. */
+/**
+ * Configures discovery locations, starts background scans, and displays
+ * catalog facts. A scan's progress and outcome show in its progress dialog,
+ * read from the server, never assumed here.
+ */
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   const [search, setSearch] = useState("");
   const media = useMediaItemPage(search, PAGE_SIZE, visible);
   const mutation = useMutation();
-  const [summary, setSummary] = useState<ScanSummary>();
-  const [scanning, setScanning] = useState("");
+  const scan = useScanJob(roots.data);
+  // Which request the feedback reports, so an earlier root write's success
+  // never reads as the result of a scan start.
+  const [lastRequest, setLastRequest] = useState<"root" | "scan">("root");
   const [adding, setAdding] = useState(false);
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
@@ -38,16 +46,15 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
         Tell kraziTV where your media lives, then scan it into the catalog.
       </p>
       <RequestFeedback
-        loading={roots.loading || mutation.pending}
-        error={mutation.error ?? roots.error ?? media.error}
-        message={mutation.message}
+        loading={roots.loading || mutation.pending || scan.starting}
+        error={
+          (lastRequest === "scan" ? scan.error : mutation.error) ??
+          roots.error ??
+          media.error
+        }
+        message={lastRequest === "root" ? mutation.message : undefined}
       />
-      {scanning && mutation.pending && (
-        <p role="status">
-          Scanning {scanning}. Closing this program cancels its scan request.
-        </p>
-      )}
-      <fieldset disabled={mutation.pending}>
+      <fieldset disabled={mutation.pending || scan.starting}>
         <legend>Media roots</legend>
         {roots.data?.length === 0 && (
           <div className="empty-state">
@@ -79,7 +86,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                       <div className="row-actions">
                         <button
                           onClick={() => {
-                            setScanning("");
+                            setLastRequest("root");
                             void mutation.run(
                               resourcePath("media-roots", root.id),
                               "PATCH",
@@ -93,17 +100,8 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                         <button
                           disabled={!root.enabled}
                           onClick={() => {
-                            setScanning(root.path);
-                            setSummary(undefined);
-                            void mutation.run<ScanSummary>(
-                              `${resourcePath("media-roots", root.id)}/scan`,
-                              "POST",
-                              undefined,
-                              (result) => {
-                                setSummary(result);
-                                refresh();
-                              },
-                            );
+                            setLastRequest("scan");
+                            void scan.start(root);
                           }}
                         >
                           Scan
@@ -117,21 +115,6 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           </div>
         )}
       </fieldset>
-      {summary && (
-        <fieldset>
-          <legend>Completed scan</legend>
-          <dl className="facts">
-            <dt>Discovered</dt>
-            <dd>{summary.discoveredCount}</dd>
-            <dt>Probed</dt>
-            <dd>{summary.probedCount}</dd>
-            <dt>Probe failures</dt>
-            <dd>{summary.probeFailedCount}</dd>
-            <dt>Missing</dt>
-            <dd>{summary.missingCount}</dd>
-          </dl>
-        </fieldset>
-      )}
       <div className="sticky-list-header">
         <h2>
           Cataloged media <small>({media.data?.total ?? 0})</small>
@@ -196,6 +179,17 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             refresh();
           }}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {scan.followed && (
+        <ScanProgressDialog
+          key={scan.followed.status.id}
+          job={scan.followed}
+          visible={visible}
+          onAcknowledge={() => {
+            scan.acknowledge();
+            refresh();
+          }}
         />
       )}
     </div>

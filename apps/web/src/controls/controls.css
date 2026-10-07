@@ -351,6 +351,12 @@
   border-radius: 3px;
   background: linear-gradient(135deg, var(--xp-accent-orange), var(--xp-error));
 }
+/* A busy dialog cannot close, so its close button greys out like other disabled controls. */
+.window-dialog-title button:disabled {
+  background: var(--xp-title-inactive);
+  filter: grayscale(1);
+  opacity: 0.55;
+}
 .window-dialog-body.program-page {
   overflow: auto;
   padding: 12px;
@@ -365,4 +371,143 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 12px;
+}
+/*
+ * The separated blue blocks of every segmented progress bar, the boot
+ * screen's included: the gradient shades each block and the mask cuts the
+ * strip into blocks one pitch apart.
+ */
+.progress-segments {
+  display: block;
+  background: linear-gradient(
+    var(--xp-boot-blue-light),
+    var(--xp-boot-blue-dark),
+    var(--xp-boot-blue-light)
+  );
+  mask-image: repeating-linear-gradient(
+    to right,
+    #000 0 var(--xp-progress-block),
+    transparent var(--xp-progress-block) var(--xp-progress-pitch)
+  );
+}
+/* A sunken track. It is a size container so the indeterminate sweep can measure it. */
+.segmented-progress {
+  container-type: inline-size;
+  height: 18px;
+  margin: 8px 0;
+  padding: 2px;
+  border: 1px solid var(--xp-menu-border);
+  border-radius: 3px;
+  background: var(--xp-window-surface);
+  box-shadow: inset 1px 1px 2px
+    color-mix(in srgb, var(--xp-shadow) 30%, transparent);
+  overflow: hidden;
+}
+/*
+ * Determinate progress fills its share of the track. Where CSS round() is
+ * supported, the rule below snaps it down to whole blocks.
+ */
+.segmented-progress-fill {
+  height: 100%;
+  width: calc(var(--progress, 0) * 100%);
+}
+/* Indeterminate progress runs a group of three blocks across the track and back. */
+.segmented-progress:not([aria-valuenow]) .segmented-progress-fill {
+  width: calc(2 * var(--xp-progress-pitch) + var(--xp-progress-block));
+  animation: segmented-progress-sweep 2s ease-in-out infinite alternate;
+}
+@keyframes segmented-progress-sweep {
+  to {
+    transform: translateX(calc(100cqw - 100%));
+  }
+}
+/* Sized for the dialog, and shrinks with a narrow window. */
+.scan-animation {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 8px;
+}
+/* At rest the paper leans beside the destination folder. */
+.scan-paper-x {
+  transform: translateX(88px);
+}
+.scan-paper-y {
+  transform: translateY(44px);
+}
+.scan-paper-tilt {
+  transform: rotate(8deg);
+}
+/*
+ * While animating, one group carries the paper across at a steady pace and
+ * another lifts and drops it, so together they trace an arc between folders.
+ */
+.scan-animation.animating .scan-paper-x {
+  animation: scan-paper-x 1.5s linear infinite;
+}
+.scan-animation.animating .scan-paper-y {
+  animation: scan-paper-y 1.5s infinite;
+}
+.scan-animation.animating .scan-paper-tilt {
+  animation: scan-paper-tilt 1.5s linear infinite;
+}
+@keyframes scan-paper-x {
+  from {
+    transform: translateX(32px);
+  }
+  to {
+    transform: translateX(128px);
+  }
+}
+@keyframes scan-paper-y {
+  0% {
+    transform: translateY(40px);
+    animation-timing-function: cubic-bezier(0.33, 0.67, 0.67, 1);
+  }
+  50% {
+    transform: translateY(14px);
+    animation-timing-function: cubic-bezier(0.33, 0, 0.67, 0.33);
+  }
+  100% {
+    transform: translateY(40px);
+  }
+}
+@keyframes scan-paper-tilt {
+  from {
+    transform: rotate(-15deg);
+  }
+  to {
+    transform: rotate(15deg);
+  }
+}
+/* Reduced motion keeps the paper at rest and shows a still, partial indeterminate bar. */
+@media (prefers-reduced-motion: reduce) {
+  .scan-animation.animating .scan-paper-x,
+  .scan-animation.animating .scan-paper-y,
+  .scan-animation.animating .scan-paper-tilt {
+    animation: none;
+  }
+  .segmented-progress:not([aria-valuenow]) .segmented-progress-fill {
+    width: 40%;
+    animation: none;
+  }
+}
+/*
+ * Snaps fills to whole blocks, never a sliver of one. Guarded, because a
+ * width holding var() that a browser cannot compute falls back to the full
+ * track rather than to an earlier declaration.
+ */
+@supports (width: round(down, 1px, 1px)) {
+  .segmented-progress-fill {
+    width: round(
+      down,
+      calc(var(--progress, 0) * 100%),
+      var(--xp-progress-pitch)
+    );
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmented-progress:not([aria-valuenow]) .segmented-progress-fill {
+      width: round(down, 40%, var(--xp-progress-pitch));
+    }
+  }
 }
