@@ -13,6 +13,7 @@ import {
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
+import { startScheduleScenarioServer } from "../../server/src/testing/schedule-server.js";
 import { injectBrowserApi } from "../src/testing/injected-api.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../../server/src/catalog-scan/writer/catalog-scan-writer.js";
@@ -80,6 +81,42 @@ async function scanNewRoot(page: Page, directory: string) {
   return { media, scanning };
 }
 
+test("lays each airing choice's radio beside its label", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Channel 69 airs "Item 1" now, so removing it offers the airing choice.
+  const { server } = await startScheduleScenarioServer();
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("checkbox", { name: "Select Item 1" }).check();
+  await media
+    .getByRole("group", { name: "Selected media" })
+    .getByRole("button", { name: "Delete…", exact: true })
+    .click();
+  const dialog = media.getByRole("dialog", { name: "Delete media" });
+
+  for (const label of [
+    "Let it finish",
+    "Stop it now and rebuild the schedule",
+  ]) {
+    const radio = await dialog
+      .getByRole("radio", { name: new RegExp(label) })
+      .boundingBox();
+    const text = await dialog.getByText(label, { exact: true }).boundingBox();
+    // Beside, not above: left of the label and level with its first line.
+    expect(radio!.x + radio!.width).toBeLessThanOrEqual(text!.x);
+    expect(radio!.y).toBeLessThan(text!.y + text!.height);
+    expect(radio!.y + radio!.height).toBeGreaterThan(text!.y);
+  }
+});
+
 test("removes selected media through the Media Library against real routes", async ({
   page,
 }) => {
@@ -109,18 +146,20 @@ test("removes selected media through the Media Library against real routes", asy
     exact: true,
   });
 
-  const remove = media.getByRole("button", { name: "Remove…", exact: true });
+  const remove = media
+    .getByRole("group", { name: "Selected media" })
+    .getByRole("button", { name: "Delete…", exact: true });
   await expect(remove).toBeDisabled();
   await media.getByRole("checkbox", { name: "Select Northwoods" }).check();
   await remove.click();
-  const dialog = media.getByRole("dialog", { name: "Remove media" });
+  const dialog = media.getByRole("dialog", { name: "Delete media" });
   await expect(
-    dialog.getByText("1 selected media item will be removed from the catalog."),
+    dialog.getByText("1 selected media item will be deleted from the catalog."),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(media.getByText("Removed 1 media item.")).toBeVisible();
+  await expect(media.getByText("Deleted 1 media item.")).toBeVisible();
   await expect(
     media.getByRole("checkbox", { name: "Select Northwoods" }),
   ).toHaveCount(0);

@@ -226,6 +226,23 @@
   gap: 8px;
   margin: 6px 0;
 }
+/*
+ * Puts a list's pager and its actions on one line, with the actions at the
+ * right edge even when a single page hides the pager, wrapping when narrow.
+ */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.list-toolbar .pager {
+  margin: 0;
+}
+.list-toolbar > .row-actions {
+  margin-left: auto;
+}
 /* Spaces the search from the grid even when no pager sits between them. */
 .search-field {
   margin-bottom: 6px;
@@ -252,10 +269,27 @@
 .table-scroll[aria-busy="true"] {
   opacity: 0.6;
 }
-/* Checkboxes keep their native size inside full-width form controls. */
-.program-page input[type="checkbox"] {
+/* Checkboxes and radios keep their native size inside full-width form controls. */
+.program-page input[type="checkbox"],
+.program-page input[type="radio"] {
   width: auto;
   min-height: 0;
+}
+/*
+ * An option's control sits beside its label, with any description beneath
+ * the label, unlike a form field whose caption stacks above its input.
+ */
+.program-page label.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 6px 0;
+}
+.program-page label.choice input {
+  grid-row: span 2;
+  margin: 2px 0 0;
 }
 /* The catalog sits beside the members and wraps below them when the window is narrow. */
 .program-page .collection-panes {

@@ -134,7 +134,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                         <button
                           onClick={() => setRemoving({ kind: "root", root })}
                         >
-                          Remove
+                          Delete…
                         </button>
                       </div>
                     </td>
@@ -158,22 +158,32 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <button
-          disabled={chosen.size === 0}
-          onClick={() =>
-            setRemoving({ kind: "items", mediaItemIds: [...chosen] })
-          }
-        >
-          Remove…
-        </button>
-        {media.data && (
-          <Pager
-            offset={media.offset}
-            limit={PAGE_SIZE}
-            total={media.data.total}
-            onChange={media.setOffset}
-          />
-        )}
+        <div className="list-toolbar">
+          {media.data && (
+            <Pager
+              offset={media.offset}
+              limit={PAGE_SIZE}
+              total={media.data.total}
+              onChange={media.setOffset}
+            />
+          )}
+          <div className="row-actions" role="group" aria-label="Selected media">
+            <button
+              disabled={chosen.size === 0}
+              onClick={() =>
+                setRemoving({ kind: "items", mediaItemIds: [...chosen] })
+              }
+            >
+              Delete…
+            </button>
+            <button
+              disabled={chosen.size === 0}
+              onClick={() => setChosen(new Set())}
+            >
+              Clear selection
+            </button>
+          </div>
+        </div>
       </div>
       {media.data?.total === 0 && (
         <p className="empty-state">

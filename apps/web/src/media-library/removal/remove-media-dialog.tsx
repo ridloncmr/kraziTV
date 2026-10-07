@@ -65,7 +65,7 @@ export function RemoveMediaDialog({
     failure instanceof ApiError && failure.code === "media_item_in_use";
   const channels = useResource<Channel[]>(inUse ? "/channels" : null);
   const impact = changed ?? preview.data;
-  const title = subject.kind === "root" ? "Remove media root" : "Remove media";
+  const title = subject.kind === "root" ? "Delete media root" : "Delete media";
 
   if (failure) {
     const numberOf = (id: string) =>
@@ -174,7 +174,7 @@ export function RemoveMediaDialog({
             );
           }}
         >
-          {anyway ? "Remove anyway" : "Remove"}
+          {anyway ? "Delete anyway" : "Delete"}
         </button>
         <button disabled={mutation.pending} onClick={onClose}>
           Cancel
@@ -199,7 +199,7 @@ function AiringChoice({
   effect: string;
 }) {
   return (
-    <label>
+    <label className="choice">
       <input
         type="radio"
         name="airing"

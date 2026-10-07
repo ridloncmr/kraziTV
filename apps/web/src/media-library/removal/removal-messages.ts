@@ -26,8 +26,8 @@ export function subjectSummary(
   itemCount: number,
 ): string {
   return subject.kind === "root"
-    ? `${subject.root.path} and its ${mediaItems(itemCount)} will be removed from the catalog.`
-    : `${COUNT.format(itemCount)} selected ${itemCount === 1 ? "media item" : "media items"} will be removed from the catalog.`;
+    ? `${subject.root.path} and its ${mediaItems(itemCount)} will be deleted from the catalog.`
+    : `${COUNT.format(itemCount)} selected ${itemCount === 1 ? "media item" : "media items"} will be deleted from the catalog.`;
 }
 
 // The refusals the server can answer a preview or removal with.
@@ -95,8 +95,8 @@ export function removalFeedback(
   const failed = new Set(result.stopFailedChannelIds);
   return [
     subject.kind === "root"
-      ? `Removed ${subject.root.path} and ${mediaItems(result.removedItemCount)}.`
-      : `Removed ${mediaItems(result.removedItemCount)}.`,
+      ? `Deleted ${subject.root.path} and ${mediaItems(result.removedItemCount)}.`
+      : `Deleted ${mediaItems(result.removedItemCount)}.`,
     ...result.finishing.map(
       ({ channelId }) =>
         `Channel ${numberOf(channelId)} finishes its current program first.`,
