@@ -9,6 +9,7 @@ import type { MediaRootRepository } from "./media-roots/media-root-repository.js
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { registerCatalogScanRoutes } from "./catalog-scan/routes/catalog-scan-routes.js";
+import { toApiScanStatus } from "./catalog-scan/routes/api-scan-status.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
@@ -69,11 +70,14 @@ function registerRoutes(
   });
 
   server.get("/health", async () => ({ status: "ok" }));
-  registerMediaRootRoutes(server, dependencies.mediaRoots);
+  registerMediaRootRoutes(server, dependencies.mediaRoots, (rootId) => {
+    const status = dependencies.scanner.status(rootId);
+    return status === undefined ? null : toApiScanStatus(status);
+  });
   registerCatalogScanRoutes(
     server,
     dependencies.scanner,
-    dependencies.schedules,
+    dependencies.mediaRoots,
   );
   registerMediaItemRoutes(server, dependencies.mediaItems);
   registerMediaCollectionRoutes(
@@ -118,8 +122,8 @@ export function buildServer(
   } = options;
   const server = Fastify(fastifyOptions);
 
-  // Scans are cancelled first so in-flight requests can answer and every ffprobe
-  // child closes before onClose releases the database they would commit to.
+  // Scan jobs are cancelled first so every ffprobe child closes, and a
+  // committing job finishes, before onClose releases the database.
   // Channel streams shut down here too: a live stream response never ends on
   // its own, so the server could not finish closing while one is open. Both
   // steps settle before the database closes, even when one fails; a failure

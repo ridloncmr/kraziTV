@@ -9,6 +9,7 @@ import {
 } from "../http/api-error.js";
 import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
+import type { ApiScanStatus } from "../catalog-scan/contracts.js";
 import type { MediaRoot } from "./contracts.js";
 import type { MediaRootRepository } from "./media-root-repository.js";
 
@@ -21,16 +22,24 @@ const updateBody = z.strictObject({
   enabled: z.boolean(),
 });
 
-/** Registers media-root HTTP routes; validation and status mapping live only here. */
+/**
+ * Registers media-root HTTP routes; validation and status mapping live only
+ * here. `scanStatus` answers each listed root's current or latest scan job,
+ * so this domain carries scan status without knowing how scans run.
+ */
 export function registerMediaRootRoutes(
   server: FastifyInstance,
   mediaRoots: MediaRootRepository,
+  scanStatus: (rootId: string) => ApiScanStatus | null,
 ): void {
   const platform = currentPathPlatform();
 
   server.get("/media-roots", async () => {
     const roots = await mediaRoots.list();
-    return roots.map(toApiMediaRoot);
+    return roots.map((root) => ({
+      ...toApiMediaRoot(root),
+      scan: scanStatus(root.id),
+    }));
   });
 
   server.post("/media-roots", async (request, reply) => {

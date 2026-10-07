@@ -4,6 +4,11 @@ export interface MediaRoot {
   path: string;
   enabled: boolean;
   lastScannedAt: string | null;
+  /**
+   * The root's running or latest scan job since the server started, if any.
+   * Only `GET /media-roots` carries it; POST and PATCH responses do not.
+   */
+  scan: ScanStatus | null;
 }
 export interface MediaItem {
   id: string;
@@ -73,11 +78,34 @@ export interface ChannelState {
   nextItem: CurrentItem | null;
   reason?: string;
 }
-export interface ScanSummary {
+interface ScanSummary {
   discoveredCount: number;
   probedCount: number;
   probeFailedCount: number;
   missingCount: number;
+}
+/** One scan job's status; every scan dialog state derives from it. */
+export interface ScanStatus {
+  id: string;
+  rootId: string;
+  phase:
+    | "discovering"
+    | "probing"
+    | "committing"
+    | "completed"
+    | "failed"
+    | "cancelled";
+  startedAt: string;
+  finishedAt: string | null;
+  discoveredCount: number;
+  settledCount: number;
+  probeFailedCount: number;
+  currentPath: string | null;
+  cancelRequested: boolean;
+  /** Non-null only when phase is `completed`. */
+  summary: ScanSummary | null;
+  /** Non-null only when phase is `failed`. */
+  error: { code: string; message: string } | null;
 }
 export interface PlexSetup {
   tunerBaseUrl: string;

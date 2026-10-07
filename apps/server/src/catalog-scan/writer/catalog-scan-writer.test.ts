@@ -6,6 +6,7 @@ import {
   insertTitledItems,
   itemFixture,
   rootFixture,
+  titledItemFixture,
 } from "../../testing/catalog-fixtures.js";
 import type { CatalogCandidate } from "../contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
@@ -13,6 +14,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
+import { countQueries } from "../../testing/query-counter.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;
@@ -321,17 +323,129 @@ describe("CatalogScanWriter", () => {
     ).resolves.toEqual({ kind: "root_not_found" });
   });
 
-  it("writes nothing when cancelled before the transaction starts", async () => {
-    const { db, writer } = await setup();
-
-    const result = await writer.commit(
-      { rootId: rootFixture.id, scannedAt: SCANNED_AT, candidates: [] },
-      AbortSignal.abort(),
+  describe("batched commit", () => {
+    // Three 1,000-row chunks, with the last chunk partly full so a writer
+    // that only flushes full chunks would visibly drop rows.
+    const CANDIDATE_COUNT = 2_500;
+    const CHUNK_COUNT = 3;
+    const names = Array.from(
+      { length: CANDIDATE_COUNT },
+      (_, index) => `batch-${String(index).padStart(5, "0")}`,
     );
 
-    expect(result).toEqual({ kind: "cancelled" });
-    expect(await items(db)).toEqual([itemFixture]);
-    expect(await lastScannedAt(db)).toBeNull();
+    it("yields to the event loop between chunks inside the one transaction", async () => {
+      const { db } = await setup();
+      let upserts = 0;
+      let upsertsWhenEventLoopRan: number | undefined;
+      const counter = countQueries(db, (node) => {
+        if (node.kind !== "InsertQueryNode") {
+          return;
+        }
+        upserts += 1;
+        if (upserts === 1) {
+          setImmediate(() => {
+            upsertsWhenEventLoopRan = upserts;
+          });
+        }
+      });
+      const writer = new CatalogScanWriter(counter.db, {
+        createId: sequentialIds("item"),
+      });
+
+      await writer.commit({
+        rootId: rootFixture.id,
+        scannedAt: SCANNED_AT,
+        candidates: names.map((name) => available(name)),
+      });
+
+      expect(upserts).toBe(CHUNK_COUNT);
+      expect(upsertsWhenEventLoopRan).toBeLessThan(CHUNK_COUNT);
+    });
+
+    it("rolls back every earlier chunk when a later chunk fails", async () => {
+      const { db, writer } = await setup();
+      const lastPath = `/media/movies/${names.at(-1)}.mkv`;
+      await sql`
+        create trigger fail_last_chunk
+        before insert on media_items
+        when new.path_key = ${sql.lit(lastPath)}
+        begin
+          select raise(abort, 'simulated chunk failure');
+        end
+      `.execute(db);
+
+      await expect(
+        writer.commit({
+          rootId: rootFixture.id,
+          scannedAt: SCANNED_AT,
+          candidates: names.map((name) => available(name)),
+        }),
+      ).rejects.toThrow(/simulated chunk failure/);
+
+      expect(await items(db)).toEqual([itemFixture]);
+      expect(await lastScannedAt(db)).toBeNull();
+    });
+
+    it("runs a number of statements bounded by chunk count, not candidate count", async () => {
+      const { db } = await setup();
+      await insertTitledItems(db, names.slice(0, 1_200));
+      const counter = countQueries(db);
+      const writer = new CatalogScanWriter(counter.db, {
+        createId: sequentialIds("item"),
+      });
+
+      const result = await writer.commit({
+        rootId: rootFixture.id,
+        scannedAt: SCANNED_AT,
+        candidates: names.map((name) => available(name)),
+      });
+
+      expect(result).toEqual({ kind: "committed", missingCount: 1 });
+      // Root re-check, existing-row read, one upsert per chunk, one missing
+      // update, and the root's scan time.
+      expect(counter.count()).toBe(2 + CHUNK_COUNT + 1 + 1);
+    });
+
+    it("updates existing rows in place across chunks and keeps metadata when a probe fails", async () => {
+      const { db, writer } = await setup();
+      await insertTitledItems(db, names.slice(0, 1_500));
+      const failedName = names[1_400];
+      const updatedName = names[10];
+      const newName = names[2_000];
+
+      await writer.commit({
+        rootId: rootFixture.id,
+        scannedAt: SCANNED_AT,
+        candidates: names.map((name) =>
+          name === failedName ? failed(name) : available(name),
+        ),
+      });
+
+      const rows = await items(db);
+      const byTitle = new Map(rows.map((row) => [row.title, row]));
+      expect(rows).toHaveLength(CANDIDATE_COUNT + 1);
+      expect(byTitle.get(failedName)).toEqual({
+        ...titledItemFixture(failedName),
+        status: "probe_failed",
+        probe_error: "ffprobe timed out",
+        updated_at: SCANNED_AT,
+        last_seen_at: SCANNED_AT,
+        last_probed_at: PROBED_AT,
+      });
+      expect(byTitle.get(updatedName)).toEqual({
+        ...titledItemFixture(updatedName),
+        duration_ms: 1_234,
+        has_audio: 0,
+        has_video: 1,
+        updated_at: SCANNED_AT,
+        last_seen_at: SCANNED_AT,
+        last_probed_at: PROBED_AT,
+      });
+      // IDs are drawn only for the 1,000 new path keys, in candidate order.
+      expect(byTitle.get(names[1_500])?.id).toBe("item-001");
+      expect(byTitle.get(newName)?.id).toBe("item-501");
+      expect(byTitle.get(names.at(-1) ?? "")?.id).toBe("item-1000");
+    });
   });
 
   it("rolls back item changes and lastScannedAt together when the transaction fails", async () => {

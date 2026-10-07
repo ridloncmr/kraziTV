@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { Pager } from "../controls/pager.js";
+import { useRangeToggle } from "../controls/use-range-toggle.js";
 import type { DraftMember } from "./contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
 
@@ -48,6 +49,23 @@ export function MemberList({
     setChosen(next);
   }
 
+  // Ranges follow the filtered order across pages, never members the filter hides.
+  const range = useRangeToggle(
+    shown.map(({ item }) => item.mediaItemId),
+    (id) => chosen.has(id),
+    choose,
+  );
+
+  /**
+   * Drops members from the draft and releases their choices. Other choices
+   * stay, and the view returns to the first page so it never sits past the end.
+   */
+  function remove(ids: ReadonlySet<string>) {
+    onChange(members.filter((item) => !ids.has(item.mediaItemId)));
+    setChosen(new Set([...chosen].filter((id) => !ids.has(id))));
+    setOffset(0);
+  }
+
   /** Moves the chosen block so it starts at a zero-based index of the final order. */
   function moveChosen(index: number) {
     onChange(moveMembers(members, chosen, index));
@@ -69,15 +87,25 @@ export function MemberList({
         />
       </label>
       <div className="row-actions">
-        <button onClick={() => onChange(sortMembers(members, "path"))}>
-          Sort all by path
+        <button disabled={chosenCount === 0} onClick={() => remove(chosen)}>
+          Remove selected ({chosenCount})
         </button>
-        <button onClick={() => onChange(sortMembers(members, "title"))}>
-          Sort all by title
+        <button
+          disabled={shown.length === 0}
+          onClick={() =>
+            remove(new Set(shown.map(({ item }) => item.mediaItemId)))
+          }
+        >
+          Remove all ({shown.length})
+        </button>
+        <button
+          disabled={chosenCount === 0}
+          onClick={() => setChosen(new Set())}
+        >
+          Clear selection
         </button>
       </div>
       <div className="row-actions bulk-actions">
-        <span>{chosenCount} selected</span>
         <button disabled={chosenCount === 0} onClick={() => moveChosen(0)}>
           Move to top
         </button>
@@ -108,20 +136,11 @@ export function MemberList({
             Move to position
           </button>
         </form>
-        <button
-          disabled={chosenCount === 0}
-          onClick={() => {
-            onChange(members.filter((item) => !chosen.has(item.mediaItemId)));
-            setChosen(new Set());
-          }}
-        >
-          Remove
+        <button onClick={() => onChange(sortMembers(members, "path"))}>
+          Sort all by path
         </button>
-        <button
-          disabled={chosenCount === 0}
-          onClick={() => setChosen(new Set())}
-        >
-          Clear selection
+        <button onClick={() => onChange(sortMembers(members, "title"))}>
+          Sort all by title
         </button>
       </div>
       <Pager
@@ -166,16 +185,15 @@ export function MemberList({
               {page.map(({ item, position }) => (
                 <tr
                   key={item.mediaItemId}
-                  className={chosen.has(item.mediaItemId) ? "selected-row" : ""}
+                  className={`clickable-row${chosen.has(item.mediaItemId) ? " selected-row" : ""}`}
+                  {...range.row(item.mediaItemId)}
                 >
                   <td>
                     <input
                       type="checkbox"
                       aria-label={`Select member ${item.title}`}
                       checked={chosen.has(item.mediaItemId)}
-                      onChange={(event) =>
-                        choose([item.mediaItemId], event.target.checked)
-                      }
+                      onChange={range.checkbox(item.mediaItemId)}
                     />
                   </td>
                   <td>{position}</td>

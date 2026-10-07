@@ -15,6 +15,36 @@ export async function send(
   };
 }
 
+/**
+ * Polls a root's scan job until it reaches a terminal phase and returns that
+ * status, failing on a 404 or when the job is still running after `timeoutMs`.
+ */
+export async function waitForScan(
+  server: FastifyInstance,
+  rootId: string,
+  timeoutMs = 5_000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const { status, body } = await send(
+      server,
+      "GET",
+      `/media-roots/${rootId}/scan`,
+    );
+    if (status !== 200) {
+      throw new Error(
+        `Scan of ${rootId} read ${status}: ${JSON.stringify(body)}`,
+      );
+    }
+    const { phase } = body as { phase: string };
+    if (["completed", "failed", "cancelled"].includes(phase)) return body;
+    if (Date.now() > deadline) {
+      throw new Error(`Scan of ${rootId} still ${phase} after ${timeoutMs} ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+}
+
 /** Creates a channel and returns Fastify's raw response, for tests asserting headers or exact JSON. */
 export function createChannel(
   server: FastifyInstance,

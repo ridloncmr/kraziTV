@@ -41,7 +41,17 @@ const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
 const mediaRoots = new MediaRootRepository(database.db);
+const mediaItems = new MediaItemRepository(database.db);
+const mediaCollections = new MediaCollectionRepository(database.db);
+const channels = new ChannelRepository(database.db);
+const programmingBlocks = new ProgrammingBlockRepository(database.db);
+const schedules = new ScheduleService(database.db);
+const playout = new PlayoutService(database.db, schedules);
+
+// Created before Fastify so the stream runtime and scan jobs log through the same logger.
+const logger = pino();
 // One limited prober serves every scan so the ffprobe budget is process-wide.
+// Built after schedules and the logger: each completed scan job ensures schedules.
 const scanner = new CatalogScanner({
   roots: mediaRoots,
   prober: new ConcurrencyLimitedProber(
@@ -52,17 +62,9 @@ const scanner = new CatalogScanner({
     probeConfig.concurrency,
   ),
   writer: new CatalogScanWriter(database.db),
+  schedules,
+  log: logger,
 });
-
-const mediaItems = new MediaItemRepository(database.db);
-const mediaCollections = new MediaCollectionRepository(database.db);
-const channels = new ChannelRepository(database.db);
-const programmingBlocks = new ProgrammingBlockRepository(database.db);
-const schedules = new ScheduleService(database.db);
-const playout = new PlayoutService(database.db, schedules);
-
-// Created before Fastify so the stream runtime logs through the same logger.
-const logger = pino();
 const runtime = new SystemRuntime();
 const channelStreams = composeChannelStreamManager({
   db: database.db,

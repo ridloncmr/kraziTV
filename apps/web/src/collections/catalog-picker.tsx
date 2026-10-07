@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { useRangeToggle } from "../controls/use-range-toggle.js";
 import type { MediaItem, MediaItemPage } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
@@ -44,6 +45,16 @@ export function CatalogPicker({
   }, [results.data, offset, total, setOffset]);
   const pagePicked =
     items.length > 0 && items.every((item) => picked.has(item.id));
+  // Results arrive a page at a time, so Shift ranges stay within this page.
+  const range = useRangeToggle(
+    items.map((item) => item.id),
+    (id) => picked.has(id),
+    (ids, on) =>
+      pick(
+        items.filter((item) => ids.includes(item.id)),
+        on,
+      ),
+  );
 
   /** Checks or unchecks items while keeping picks made on other pages. */
   function pick(media: MediaItem[], on: boolean) {
@@ -103,7 +114,13 @@ export function CatalogPicker({
           disabled={total === 0 || matches.pending}
           onClick={addAllMatches}
         >
-          Add all matches ({total})
+          Add all ({total})
+        </button>
+        <button
+          disabled={picked.size === 0}
+          onClick={() => setPicked(new Map())}
+        >
+          Clear selection
         </button>
       </div>
       <RequestFeedback
@@ -146,13 +163,17 @@ export function CatalogPicker({
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id}>
+                <tr
+                  key={item.id}
+                  className={`clickable-row${picked.has(item.id) ? " selected-row" : ""}`}
+                  {...range.row(item.id)}
+                >
                   <td>
                     <input
                       type="checkbox"
                       aria-label={`Select ${item.title}`}
                       checked={picked.has(item.id)}
-                      onChange={(event) => pick([item], event.target.checked)}
+                      onChange={range.checkbox(item.id)}
                     />
                   </td>
                   <td>

@@ -1,11 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  discoverMediaFiles,
-  MediaDiscoveryError,
-  MediaProbeError,
-} from "@krazitv/media";
+import { discoverMediaFiles, MediaProbeError } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,8 +11,10 @@ import {
 } from "../../testing/catalog-fixtures.js";
 import { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
+import type { ScanStatus } from "../contracts.js";
 import { CatalogScanner } from "./catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./concurrency-limited-prober.js";
+import { isRunning } from "./scan-job.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import {
   discoveredFiles,
@@ -29,6 +27,8 @@ import {
 } from "../../testing/test-environment.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 import { flushMicrotasks } from "../../testing/flush-microtasks.js";
+import { recordingLog } from "../../testing/recording-log.js";
+import { createBarrier } from "../../testing/test-barrier.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 
@@ -38,11 +38,12 @@ function path(name: string): string {
   return `/media/movies/${name}.mkv`;
 }
 
-// Lets queued promise continuations run so assertions see settled scheduling.
 interface SetupOptions {
   /** A fake discovery function, or "real" to walk the actual filesystem. */
   discover?: Discover | "real";
   concurrency?: number;
+  /** Replaces the schedule pass that follows a completed commit. */
+  ensureAllEnabled?: () => Promise<void>;
 }
 
 // Wires the real writer and repository against a seeded temporary database.
@@ -70,16 +71,22 @@ async function setup(options: SetupOptions = {}) {
       ? discoverMediaFiles
       : (options.discover ?? (async () => discoveredFiles("a", "b", "c"))),
   );
+  const schedules = {
+    ensureAllEnabled: vi.fn(options.ensureAllEnabled ?? (async () => {})),
+  };
+  const log = recordingLog();
   const scanner = new CatalogScanner({
     roots: new MediaRootRepository(database.db),
     prober: new ConcurrencyLimitedProber(prober, options.concurrency ?? 4),
     writer: new CatalogScanWriter(database.db, {
       createId: sequentialIds("item"),
     }),
+    schedules,
+    log,
     discover,
     now: () => (time += 1_000),
   });
-  return { db: database.db, scanner, prober, discover };
+  return { db: database.db, scanner, prober, discover, schedules, log };
 }
 
 type Db = Awaited<ReturnType<typeof setup>>["db"];
@@ -99,11 +106,37 @@ async function catalogSnapshot(db: Db) {
   };
 }
 
+// Starts a job and fails the test unless the scanner accepted it.
+async function start(scanner: CatalogScanner, rootId = rootFixture.id) {
+  const result = await scanner.start(rootId);
+  if (result.kind !== "started") {
+    throw new Error(`Scan refused: ${result.kind}`);
+  }
+  return result.status;
+}
+
+// Waits until the root's job is terminal and returns that status.
+function finished(
+  scanner: CatalogScanner,
+  rootId = rootFixture.id,
+): Promise<ScanStatus> {
+  return vi.waitFor(
+    () => {
+      const status = scanner.status(rootId);
+      if (status === undefined || isRunning(status)) {
+        throw new Error(`Scan of ${rootId} is ${status?.phase ?? "absent"}`);
+      }
+      return status;
+    },
+    { interval: 1, timeout: 2_000 },
+  );
+}
+
 describe("CatalogScanner", () => {
   it("probes every discovered file and commits one generation with a summary", async () => {
-    const { db, scanner, prober } = await setup();
+    const { db, scanner, prober, schedules } = await setup();
 
-    const scan = scanner.scan(rootFixture.id);
+    await start(scanner);
     await prober.waitForStarted(3);
     // Completion order differs from identity order on purpose.
     prober.get(path("c")).resolve(PROBE_RESULT);
@@ -118,8 +151,17 @@ describe("CatalogScanner", () => {
       hasVideo: true,
     });
 
-    await expect(scan).resolves.toEqual({
-      kind: "completed",
+    expect(await finished(scanner)).toEqual({
+      id: expect.any(String),
+      rootId: rootFixture.id,
+      phase: "completed",
+      startedAt: FIXTURE_TIME + 1_000,
+      finishedAt: FIXTURE_TIME + 6_000,
+      discoveredCount: 3,
+      settledCount: 3,
+      probeFailedCount: 1,
+      currentPath: null,
+      cancelRequested: false,
       summary: {
         rootId: rootFixture.id,
         startedAt: FIXTURE_TIME + 1_000,
@@ -129,7 +171,9 @@ describe("CatalogScanner", () => {
         probeFailedCount: 1,
         missingCount: 1,
       },
+      error: null,
     });
+    expect(schedules.ensureAllEnabled).toHaveBeenCalledTimes(1);
 
     const rows = await db
       .selectFrom("media_items")
@@ -184,7 +228,7 @@ describe("CatalogScanner", () => {
     const { db, scanner, prober } = await setup();
     const before = await catalogSnapshot(db);
 
-    const scan = scanner.scan(rootFixture.id);
+    await start(scanner);
     await prober.waitForStarted(3);
     prober.get(path("a")).resolve(PROBE_RESULT);
     prober.get(path("b")).resolve(PROBE_RESULT);
@@ -192,16 +236,17 @@ describe("CatalogScanner", () => {
 
     expect(await catalogSnapshot(db)).toEqual(before);
     prober.get(path("c")).resolve(PROBE_RESULT);
-    await expect(scan).resolves.toMatchObject({ kind: "completed" });
+    expect(await finished(scanner)).toMatchObject({ phase: "completed" });
   });
 
-  it("reports an unknown root without discovery", async () => {
+  it("reports an unknown root without discovery or a job", async () => {
     const { scanner, discover } = await setup();
 
-    await expect(scanner.scan("root-unknown")).resolves.toEqual({
+    await expect(scanner.start("root-unknown")).resolves.toEqual({
       kind: "root_not_found",
     });
     expect(discover).not.toHaveBeenCalled();
+    expect(scanner.status("root-unknown")).toBeUndefined();
   });
 
   it("rejects a disabled root without traversing the filesystem", async () => {
@@ -212,31 +257,56 @@ describe("CatalogScanner", () => {
       .where("id", "=", rootFixture.id)
       .execute();
 
-    await expect(scanner.scan(rootFixture.id)).resolves.toEqual({
+    await expect(scanner.start(rootFixture.id)).resolves.toEqual({
       kind: "root_disabled",
     });
     expect(discover).not.toHaveBeenCalled();
+    expect(scanner.status(rootFixture.id)).toBeUndefined();
   });
 
-  it("rejects a second scan of the same root without discovery or probing", async () => {
+  it("rejects a second scan of a running root and accepts one after it ends", async () => {
     const { scanner, prober, discover } = await setup();
 
-    const first = scanner.scan(rootFixture.id);
+    const first = await start(scanner);
     await prober.waitForStarted(3);
 
-    await expect(scanner.scan(rootFixture.id)).resolves.toEqual({
+    await expect(scanner.start(rootFixture.id)).resolves.toEqual({
       kind: "scan_in_progress",
     });
     expect(discover).toHaveBeenCalledTimes(1);
     expect(prober.started).toHaveLength(3);
 
     prober.resolveAll(PROBE_RESULT);
-    await expect(first).resolves.toMatchObject({ kind: "completed" });
-    // The registry is released once the first scan settles.
-    const again = scanner.scan(rootFixture.id);
+    expect(await finished(scanner)).toMatchObject({
+      id: first.id,
+      phase: "completed",
+    });
+    // A terminal job no longer blocks the next scan of its root.
+    const again = await start(scanner);
+    expect(again.id).not.toBe(first.id);
     await prober.waitForStarted(6);
     prober.resolveAll(PROBE_RESULT);
-    await expect(again).resolves.toMatchObject({ kind: "completed" });
+    expect(await finished(scanner)).toMatchObject({
+      id: again.id,
+      phase: "completed",
+    });
+  });
+
+  it("returns copies, so a reader cannot change a job", async () => {
+    const { scanner, prober } = await setup();
+
+    const started = await start(scanner);
+    started.phase = "completed";
+    scanner.status(rootFixture.id)!.cancelRequested = true;
+
+    expect(scanner.status(rootFixture.id)).toMatchObject({
+      finishedAt: null,
+      cancelRequested: false,
+    });
+    expect(scanner.status(rootFixture.id)?.phase).not.toBe("completed");
+    await prober.waitForStarted(3);
+    prober.resolveAll(PROBE_RESULT);
+    await finished(scanner);
   });
 
   it("scans different roots concurrently within one shared probe limit", async () => {
@@ -250,8 +320,8 @@ describe("CatalogScanner", () => {
         })),
     });
 
-    const movies = scanner.scan(rootFixture.id);
-    const tv = scanner.scan(OTHER_ROOT_ID);
+    await start(scanner, rootFixture.id);
+    await start(scanner, OTHER_ROOT_ID);
     await prober.waitForStarted(2);
     await flushMicrotasks(10);
     expect(prober.active).toBe(2);
@@ -268,8 +338,12 @@ describe("CatalogScanner", () => {
       await flushMicrotasks(10);
     }
 
-    await expect(movies).resolves.toMatchObject({ kind: "completed" });
-    await expect(tv).resolves.toMatchObject({ kind: "completed" });
+    expect(await finished(scanner, rootFixture.id)).toMatchObject({
+      phase: "completed",
+    });
+    expect(await finished(scanner, OTHER_ROOT_ID)).toMatchObject({
+      phase: "completed",
+    });
     expect(prober.started).toHaveLength(6);
     expect(prober.maxActive).toBe(2);
   });
@@ -288,17 +362,13 @@ describe("CatalogScanner", () => {
     process.on("warning", onWarning);
 
     try {
-      let settled = false;
-      const scan = scanner.scan(rootFixture.id).finally(() => {
-        settled = true;
-      });
+      await start(scanner);
       // With one slot, each round finishes the running probe and lets the next start.
-      while (!settled) {
+      while (scanner.status(rootFixture.id)?.phase !== "completed") {
         prober.resolveAll(PROBE_RESULT);
         await new Promise((resolve) => setImmediate(resolve));
       }
-      await expect(scan).resolves.toMatchObject({
-        kind: "completed",
+      expect(scanner.status(rootFixture.id)).toMatchObject({
         summary: { discoveredCount: 20 },
       });
       // Process warnings are emitted on a later tick.
@@ -312,28 +382,6 @@ describe("CatalogScanner", () => {
     );
   });
 
-  it("preserves the previous catalog when the root cannot be traversed", async () => {
-    const { db, scanner, prober } = await setup({
-      discover: async (rootPath) => {
-        throw new MediaDiscoveryError(
-          "traversal_failed",
-          `Could not read media path: ${rootPath}/Season 1`,
-          `${rootPath}/Season 1`,
-        );
-      },
-    });
-    const before = await catalogSnapshot(db);
-
-    const result = await scanner.scan(rootFixture.id);
-
-    expect(result).toMatchObject({
-      kind: "root_unavailable",
-      error: { code: "traversal_failed" },
-    });
-    expect(prober.started).toHaveLength(0);
-    expect(await catalogSnapshot(db)).toEqual(before);
-  });
-
   it("reports an inaccessible root through real discovery without changing the catalog", async () => {
     const { db, scanner } = await setup({ discover: "real" });
     await db
@@ -343,94 +391,63 @@ describe("CatalogScanner", () => {
       .execute();
     const before = await catalogSnapshot(db);
 
-    await expect(scanner.scan(rootFixture.id)).resolves.toMatchObject({
-      kind: "root_unavailable",
-      error: { code: "root_not_found" },
+    await start(scanner);
+
+    expect(await finished(scanner)).toMatchObject({
+      phase: "failed",
+      error: {
+        code: "media_root_unavailable",
+        message: expect.stringContaining("Media root does not exist"),
+      },
     });
-    expect(await catalogSnapshot(db)).toEqual(before);
-  });
-
-  it("does nothing for a request that was cancelled before scanning began", async () => {
-    const { db, scanner, discover } = await setup();
-    const before = await catalogSnapshot(db);
-
-    await expect(
-      scanner.scan(rootFixture.id, { signal: AbortSignal.abort() }),
-    ).resolves.toEqual({ kind: "cancelled" });
-    expect(discover).not.toHaveBeenCalled();
-    expect(await catalogSnapshot(db)).toEqual(before);
-  });
-
-  it("cancels during discovery without probing or committing", async () => {
-    const { db, scanner, prober, discover } = await setup({
-      discover: (rootPath, options) =>
-        new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener("abort", () =>
-            reject(
-              new MediaDiscoveryError(
-                "cancelled",
-                "Media discovery was cancelled",
-                rootPath,
-              ),
-            ),
-          );
-        }),
-    });
-    const controller = new AbortController();
-    const before = await catalogSnapshot(db);
-
-    const scan = scanner.scan(rootFixture.id, { signal: controller.signal });
-    await vi.waitFor(() => expect(discover).toHaveBeenCalled());
-    controller.abort();
-
-    await expect(scan).resolves.toEqual({ kind: "cancelled" });
-    expect(prober.started).toHaveLength(0);
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
   it("cancels active and queued probes, waiting for active children to close", async () => {
     const { db, scanner, prober } = await setup({ concurrency: 1 });
-    const controller = new AbortController();
     const before = await catalogSnapshot(db);
 
-    const scan = scanner.scan(rootFixture.id, { signal: controller.signal });
+    await start(scanner);
     await prober.waitForStarted(1);
-    let settled = false;
-    void scan.then(() => {
-      settled = true;
-    });
 
-    controller.abort();
+    expect(scanner.cancel(rootFixture.id)).toMatchObject({
+      phase: "probing",
+      cancelRequested: true,
+    });
     await flushMicrotasks(10);
     expect(prober.get(path("a")).signal?.aborted).toBe(true);
-    // The active child has not closed yet, so the scan must not settle.
-    expect(settled).toBe(false);
+    // The active child has not closed yet, so the job must not be terminal.
+    expect(scanner.status(rootFixture.id)?.phase).toBe("probing");
 
     prober.rejectCancelled(path("a"));
-    await expect(scan).resolves.toEqual({ kind: "cancelled" });
+    expect(await finished(scanner)).toMatchObject({
+      phase: "cancelled",
+      settledCount: 0,
+      currentPath: null,
+    });
     // Queued files never started a child.
     expect(prober.started.map((probe) => probe.path)).toEqual([path("a")]);
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
   it("does not commit when cancelled after the last probe settles", async () => {
-    const { db, scanner, prober } = await setup();
-    const controller = new AbortController();
+    const { db, scanner, prober, schedules } = await setup();
     const before = await catalogSnapshot(db);
 
-    const scan = scanner.scan(rootFixture.id, { signal: controller.signal });
+    await start(scanner);
     await prober.waitForStarted(3);
     prober.resolveAll(PROBE_RESULT);
-    controller.abort();
+    scanner.cancel(rootFixture.id);
 
-    await expect(scan).resolves.toEqual({ kind: "cancelled" });
+    expect(await finished(scanner)).toMatchObject({ phase: "cancelled" });
+    expect(schedules.ensureAllEnabled).not.toHaveBeenCalled();
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
-  it("does not commit a generation for a root disabled during the scan", async () => {
+  it("fails without committing for a root disabled during the scan", async () => {
     const { db, scanner, prober } = await setup();
 
-    const scan = scanner.scan(rootFixture.id);
+    await start(scanner);
     await prober.waitForStarted(3);
     await db
       .updateTable("media_roots")
@@ -440,37 +457,50 @@ describe("CatalogScanner", () => {
     const before = await catalogSnapshot(db);
     prober.resolveAll(PROBE_RESULT);
 
-    await expect(scan).resolves.toEqual({ kind: "root_disabled" });
+    expect(await finished(scanner)).toMatchObject({
+      phase: "failed",
+      summary: null,
+      error: { code: "media_root_disabled" },
+    });
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
-  it("fails the scan on an unexpected probe error only after other probes settle", async () => {
-    const { db, scanner, prober } = await setup();
+  it("fails the job on an unexpected probe error only after other probes settle", async () => {
+    const { db, scanner, prober, log } = await setup();
     const before = await catalogSnapshot(db);
 
-    const scan = scanner.scan(rootFixture.id);
+    await start(scanner);
     await prober.waitForStarted(3);
-    let settled = false;
-    void scan.catch(() => {
-      settled = true;
-    });
 
     prober.get(path("a")).reject(new TypeError("adapter bug"));
     await flushMicrotasks(10);
     expect(prober.get(path("b")).signal?.aborted).toBe(true);
-    expect(settled).toBe(false);
+    expect(scanner.status(rootFixture.id)?.phase).toBe("probing");
 
     prober.rejectCancelled(path("b"));
     prober.rejectCancelled(path("c"));
-    await expect(scan).rejects.toThrow("adapter bug");
+    expect(await finished(scanner)).toMatchObject({
+      phase: "failed",
+      error: { code: "scan_failed" },
+    });
+    expect(log.lines).toEqual([
+      {
+        level: "error",
+        fields: expect.objectContaining({
+          rootId: rootFixture.id,
+          err: expect.objectContaining({ message: "adapter bug" }),
+        }),
+        message: expect.any(String),
+      },
+    ]);
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
-  it("shuts down by cancelling active scans, waiting for them, and refusing new scans", async () => {
+  it("shuts down by cancelling running jobs, waiting for them, and refusing new scans", async () => {
     const { db, scanner, prober } = await setup();
     const before = await catalogSnapshot(db);
 
-    const scan = scanner.scan(rootFixture.id);
+    await start(scanner);
     await prober.waitForStarted(3);
     let shutDown = false;
     const shutdown = scanner.shutdown().then(() => {
@@ -482,10 +512,39 @@ describe("CatalogScanner", () => {
 
     for (const name of ["a", "b", "c"]) prober.rejectCancelled(path(name));
     await shutdown;
-    await expect(scan).resolves.toEqual({ kind: "cancelled" });
-    await expect(scanner.scan(OTHER_ROOT_ID)).resolves.toEqual({
-      kind: "cancelled",
+    expect(scanner.status(rootFixture.id)).toMatchObject({
+      phase: "cancelled",
+      cancelRequested: true,
+    });
+    await expect(scanner.start(OTHER_ROOT_ID)).resolves.toEqual({
+      kind: "shutting_down",
     });
     expect(await catalogSnapshot(db)).toEqual(before);
+  });
+
+  it("lets a committing job finish its schedule pass before shutdown resolves", async () => {
+    const schedulePass = createBarrier();
+    const { scanner, prober } = await setup({
+      ensureAllEnabled: () => schedulePass.wait(),
+    });
+
+    await start(scanner);
+    await prober.waitForStarted(3);
+    prober.resolveAll(PROBE_RESULT);
+    await schedulePass.reached;
+    let shutDown = false;
+    const shutdown = scanner.shutdown().then(() => {
+      shutDown = true;
+    });
+    await flushMicrotasks(10);
+    expect(shutDown).toBe(false);
+    expect(scanner.status(rootFixture.id)).toMatchObject({
+      phase: "committing",
+      cancelRequested: false,
+    });
+
+    schedulePass.release();
+    await shutdown;
+    expect(scanner.status(rootFixture.id)?.phase).toBe("completed");
   });
 });

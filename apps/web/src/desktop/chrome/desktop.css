@@ -472,19 +472,12 @@ button:disabled {
   border-radius: 4px;
   margin: auto;
   padding: 2px;
-  display: flex;
-  gap: 2px;
   overflow: hidden;
 }
+/* Three blocks of the shared progress segments, marqueeing one way. */
 .boot-progress span {
-  width: 10px;
+  width: calc(2 * var(--xp-progress-pitch) + var(--xp-progress-block));
   height: 12px;
-  flex-shrink: 0;
-  background: linear-gradient(
-    var(--xp-boot-blue-light),
-    var(--xp-boot-blue-dark),
-    var(--xp-boot-blue-light)
-  );
   animation: boot-segments 1.6s linear infinite;
 }
 @keyframes boot-segments {

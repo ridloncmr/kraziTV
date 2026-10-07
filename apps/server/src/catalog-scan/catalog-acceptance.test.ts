@@ -7,7 +7,9 @@ import { MediaProbeError, type MediaProbeResult } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { send, waitForScan } from "../testing/api-requests.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { recordingLog } from "../testing/recording-log.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
@@ -40,11 +42,13 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
   const prober = new ControlledProber();
   const { server } = await startTestServer({
     dataDirectory,
-    overrides: (db, { mediaRoots }) => ({
+    overrides: (db, { mediaRoots, schedules }) => ({
       scanner: new CatalogScanner({
         roots: mediaRoots,
         prober: new ConcurrencyLimitedProber(prober, 4),
         writer: new CatalogScanWriter(db),
+        schedules,
+        log: recordingLog(),
       }),
     }),
   });
@@ -52,17 +56,16 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
   return { server, prober };
 }
 
-// Triggers a scan and settles each file's probe with the outcome chosen by filename.
+// Starts a scan job, settles each file's probe with the outcome chosen by
+// filename, and returns the job's terminal status, or the refusal when it never started.
 async function scan(
   { server, prober }: RunningServer,
   rootId: string,
   outcomes: Record<string, ProbeOutcome> = {},
 ) {
   const alreadyStarted = prober.started.length;
-  const response = server.inject({
-    method: "POST",
-    url: `/media-roots/${rootId}/scan`,
-  });
+  const started = await send(server, "POST", `/media-roots/${rootId}/scan`);
+  if (started.status !== 202) return started;
   await prober.waitForStarted(alreadyStarted + Object.keys(outcomes).length);
   for (const probe of prober.started.slice(alreadyStarted)) {
     const outcome = outcomes[basename(probe.path)];
@@ -71,7 +74,7 @@ async function scan(
     if (outcome instanceof MediaProbeError) probe.reject(outcome);
     else probe.resolve(outcome);
   }
-  return response;
+  return { status: 200, body: await waitForScan(server, rootId) };
 }
 
 // Reads the public catalog projection, which is what later slices will consume.
@@ -112,8 +115,8 @@ describe("media catalog acceptance", () => {
       "Bravo.mp4": { durationMs: 2_000, hasAudio: false, hasVideo: true },
       "Charlie.mkv": { durationMs: 3_000, hasAudio: true, hasVideo: false },
     });
-    expect(firstScan.statusCode).toBe(200);
-    expect(firstScan.json()).toMatchObject({
+    expect(firstScan.body).toMatchObject({ phase: "completed" });
+    expect(firstScan.body.summary).toMatchObject({
       rootId,
       discoveredCount: 3,
       probedCount: 3,
@@ -158,8 +161,7 @@ describe("media catalog acceptance", () => {
       "Alpha.mkv": { durationMs: 1_500, hasAudio: true, hasVideo: true },
       "Bravo.mp4": new MediaProbeError("timed_out", "ffprobe timed out"),
     });
-    expect(rescan.statusCode).toBe(200);
-    expect(rescan.json()).toMatchObject({
+    expect(rescan.body.summary).toMatchObject({
       discoveredCount: 2,
       probedCount: 1,
       probeFailedCount: 1,
@@ -210,8 +212,8 @@ describe("media catalog acceptance", () => {
       });
     expect((await setEnabled(false)).statusCode).toBe(200);
     const disabledScan = await scan(second, rootId);
-    expect(disabledScan.statusCode).toBe(409);
-    expect(disabledScan.json().error.code).toBe("media_root_disabled");
+    expect(disabledScan.status).toBe(409);
+    expect(disabledScan.body.error.code).toBe("media_root_disabled");
     expect(await listItems(second)).toEqual(reconciled);
 
     // A root that went offline fails its scan without marking anything missing.
@@ -220,9 +222,14 @@ describe("media catalog acceptance", () => {
     // Removed rather than renamed: rm retries while Windows briefly holds new files.
     await rm(mediaDirectory, { recursive: true, maxRetries: 5 });
     const offlineScan = await scan(second, rootId);
-    expect(offlineScan.statusCode).toBe(409);
-    expect(offlineScan.json().error.code).toBe("media_root_unavailable");
+    expect(offlineScan.body).toMatchObject({
+      phase: "failed",
+      error: { code: "media_root_unavailable" },
+    });
     expect(await listItems(second)).toEqual(reconciled);
-    expect(await listRoots(second)).toEqual(rootsBefore);
+    // Only the root's latest scan job changed; lastScannedAt did not.
+    expect(await listRoots(second)).toEqual(
+      rootsBefore.map((root: object) => ({ ...root, scan: offlineScan.body })),
+    );
   });
 });

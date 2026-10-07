@@ -36,5 +36,7 @@
   --xp-taskbar-height: 32px;
   --xp-titlebar-radius: 8px;
   --xp-window-control-size: 21px;
+  --xp-progress-block: 10px;
+  --xp-progress-pitch: 12px;
   --xp-font-ui: Tahoma, "Segoe UI", Arial, sans-serif;
 }

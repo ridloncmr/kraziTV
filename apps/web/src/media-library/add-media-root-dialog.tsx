@@ -1,7 +1,6 @@
 import { formText } from "../controls/form-text.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { WindowDialog } from "../controls/window-dialog.js";
-import type { MediaRoot } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
 
 /**
@@ -13,7 +12,8 @@ export function AddMediaRootDialog({
   added,
   onClose,
 }: {
-  added: (root: MediaRoot) => void;
+  /** Called once the server registered the root; the list refreshes itself. */
+  added: () => void;
   onClose: () => void;
 }) {
   const mutation = useMutation();
@@ -26,7 +26,7 @@ export function AddMediaRootDialog({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          void mutation.run<MediaRoot>(
+          void mutation.run(
             "/media-roots",
             "POST",
             { path: formText(new FormData(event.currentTarget), "path") },

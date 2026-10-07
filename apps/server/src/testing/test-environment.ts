@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import type { Kysely } from "kysely";
+import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
@@ -87,13 +88,21 @@ export async function startTestServer(
 
   const mediaRoots = new MediaRootRepository(database.db);
   const schedules = new ScheduleService(database.db);
-  const defaults: TestServerDependencies = {
-    mediaRoots,
-    scanner: new CatalogScanner({
-      roots: mediaRoots,
+  // Built per dependency set, so the default scanner can follow overrides.
+  const defaultScanner = (
+    roots: MediaRootRepository,
+    scheduleService: ScheduleService,
+  ) =>
+    new CatalogScanner({
+      roots,
       prober: new ControlledProber(),
       writer: new CatalogScanWriter(database.db),
-    }),
+      schedules: scheduleService,
+      log: pino({ level: "silent" }),
+    });
+  const defaults: TestServerDependencies = {
+    mediaRoots,
+    scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
     channels: new ChannelRepository(database.db),
@@ -105,11 +114,18 @@ export async function startTestServer(
   };
   const overridden = options.overrides?.(database.db, defaults) ?? {};
   const dependencies: TestServerDependencies = { ...defaults, ...overridden };
-  // A default playout service follows the final schedule service, so
-  // overriding `schedules` alone keeps the two on one clock.
+  // A default playout service and scanner follow the final schedule service
+  // (and the scanner the final roots), so overriding `schedules` alone keeps
+  // every consumer on one clock and one service.
   if (overridden.playout === undefined) {
     dependencies.playout = new PlayoutService(
       database.db,
+      dependencies.schedules,
+    );
+  }
+  if (overridden.scanner === undefined) {
+    dependencies.scanner = defaultScanner(
+      dependencies.mediaRoots,
       dependencies.schedules,
     );
   }

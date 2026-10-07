@@ -19,13 +19,7 @@ export async function apiRequest<T>(
   path: string,
   options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
-  const timeout = AbortSignal.timeout(
-    path === "/health"
-      ? 5_000
-      : options.method === "POST" && path.endsWith("/scan")
-        ? 3_600_000
-        : 45_000,
-  );
+  const timeout = AbortSignal.timeout(path === "/health" ? 5_000 : 45_000);
   const signal = options.signal
     ? AbortSignal.any([timeout, options.signal])
     : timeout;

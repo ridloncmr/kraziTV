@@ -123,6 +123,18 @@ describe("discoverMediaFiles", () => {
     expect(await discoverMediaFiles(sandbox)).toEqual(first);
   });
 
+  it("reports the running count of supported files as each is found", async () => {
+    await createFiles(sandbox, "x/1.mkv", "notes.txt", "y/2.mp4", "3.mkv");
+    const counts: number[] = [];
+
+    const files = await discoverMediaFiles(sandbox, {
+      onDiscovered: (count) => counts.push(count),
+    });
+
+    expect(counts).toEqual([1, 2, 3]);
+    expect(files).toHaveLength(3);
+  });
+
   it("returns an empty list for an empty root", async () => {
     expect(await discoverMediaFiles(sandbox)).toEqual([]);
   });

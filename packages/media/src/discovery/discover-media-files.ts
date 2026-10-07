@@ -34,6 +34,8 @@ export interface DiscoveredMediaFile extends NormalizedMediaPath {
 
 export interface DiscoverMediaFilesOptions {
   signal?: AbortSignal;
+  /** Called with the running count of supported files found so far, for progress only. */
+  onDiscovered?: (count: number) => void;
 }
 
 /**
@@ -58,7 +60,7 @@ export async function discoverMediaFiles(
   await assertDirectory(root.path, options.signal);
 
   const files: DiscoveredMediaFile[] = [];
-  await collect(root, platform, files, options.signal);
+  await collect(root, platform, files, options);
   // An abort during the last filesystem call must still reject.
   throwIfCancelled(options.signal, root.path);
   return files.sort((a, b) => compareOrdinal(a.pathKey, b.pathKey));
@@ -97,8 +99,9 @@ async function collect(
   directory: NormalizedMediaPath,
   platform: PathPlatform,
   files: DiscoveredMediaFile[],
-  signal?: AbortSignal,
+  options: DiscoverMediaFilesOptions,
 ) {
+  const { signal } = options;
   throwIfCancelled(signal, directory.path);
   let entries: Dirent[];
   try {
@@ -125,13 +128,14 @@ async function collect(
     }
 
     if (entry.isDirectory()) {
-      await collect(child, platform, files, signal);
+      await collect(child, platform, files, options);
     } else if (
       SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()) &&
       (entry.isFile() ||
         (entry.isSymbolicLink() && (await isFileLink(child.path, signal))))
     ) {
       files.push({ ...child, title: parse(entry.name).name });
+      options.onDiscovered?.(files.length);
     }
   }
 }
