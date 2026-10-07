@@ -3,20 +3,24 @@ import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
+import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
+import { useRangeToggle } from "../controls/use-range-toggle.js";
 import type { MediaRoot } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
+import type { RemovalSubject } from "./removal/removal-messages.js";
 import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
 import { useScanJob } from "./scan-progress/use-scan-job.js";
 
 const PAGE_SIZE = 50;
 
 /**
- * Configures discovery locations, starts background scans, and displays
- * catalog facts. A scan's progress and outcome show in its progress dialog,
- * read from the server, never assumed here.
+ * Configures discovery locations, starts background scans, displays catalog
+ * facts, and removes roots or selected items. A scan's progress and a
+ * removal's outcome come from the server, never assumed here.
  */
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
@@ -26,8 +30,23 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const scan = useScanJob(roots.data);
   // Which request the feedback reports, so an earlier root write's success
   // never reads as the result of a scan start.
-  const [lastRequest, setLastRequest] = useState<"root" | "scan">("root");
+  const [lastRequest, setLastRequest] = useState<"root" | "scan" | "removal">(
+    "root",
+  );
   const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<RemovalSubject>();
+  const [removalMessage, setRemovalMessage] = useState("");
+  // Selection is transient desktop shell state; it survives paging and search.
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const range = useRangeToggle(
+    media.data?.items.map((item) => item.id) ?? [],
+    (id) => chosen.has(id),
+    choose,
+  );
+  /** Chooses or releases catalog rows for removal. */
+  function choose(ids: string[], on: boolean) {
+    setChosen(withIds(chosen, ids, on));
+  }
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
     roots.refresh();
@@ -52,7 +71,13 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           roots.error ??
           media.error
         }
-        message={lastRequest === "root" ? mutation.message : undefined}
+        message={
+          lastRequest === "root"
+            ? mutation.message
+            : lastRequest === "removal"
+              ? removalMessage
+              : undefined
+        }
       />
       <fieldset disabled={mutation.pending || scan.starting}>
         <legend>Media roots</legend>
@@ -106,6 +131,11 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                         >
                           Scan
                         </button>
+                        <button
+                          onClick={() => setRemoving({ kind: "root", root })}
+                        >
+                          Remove
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -128,6 +158,14 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
+        <button
+          disabled={chosen.size === 0}
+          onClick={() =>
+            setRemoving({ kind: "items", mediaItemIds: [...chosen] })
+          }
+        >
+          Remove…
+        </button>
         {media.data && (
           <Pager
             offset={media.offset}
@@ -149,6 +187,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           <table>
             <thead>
               <tr>
+                <th>Select</th>
                 <th>Title / path</th>
                 <th>Availability</th>
                 <th>Duration</th>
@@ -156,7 +195,19 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             </thead>
             <tbody>
               {media.data.items.map((item) => (
-                <tr key={item.id}>
+                <tr
+                  key={item.id}
+                  className={`clickable-row${chosen.has(item.id) ? " selected-row" : ""}`}
+                  {...range.row(item.id)}
+                >
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${item.title}`}
+                      checked={chosen.has(item.id)}
+                      onChange={range.checkbox(item.id)}
+                    />
+                  </td>
                   <td>
                     {item.title}
                     <small className="secondary path-cell">{item.path}</small>
@@ -179,6 +230,19 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             refresh();
           }}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {removing && (
+        <RemoveMediaDialog
+          subject={removing}
+          removed={(feedback) => {
+            setRemoving(undefined);
+            setLastRequest("removal");
+            setRemovalMessage(feedback);
+            setChosen(new Set());
+            refresh();
+          }}
+          onClose={() => setRemoving(undefined)}
         />
       )}
       {scan.followed && (

@@ -107,6 +107,30 @@ export interface ScanStatus {
   /** Non-null only when phase is `failed`. */
   error: { code: string; message: string } | null;
 }
+/** What a catalog removal takes out: one root with its items, or listed items. */
+export type CatalogRemovalTarget =
+  { mediaRootId: string } | { mediaItemIds: string[] };
+/** What a removal would do, as `POST /catalog-removals/preview` reports it. */
+export interface CatalogRemovalImpact {
+  itemCount: number;
+  airing: {
+    channelId: string;
+    channelNumber: string;
+    mediaItemId: string;
+    title: string;
+    endsAt: string;
+  }[];
+  channelsLeftUnschedulable: { channelId: string; channelNumber: string }[];
+  affectedChannelIds: string[];
+}
+/** What a committed removal did, as `POST /catalog-removals` reports it. */
+export interface CatalogRemoval {
+  removedItemCount: number;
+  finishing: { channelId: string; endsAt: string }[];
+  interruptedChannelIds: string[];
+  stopFailedChannelIds: string[];
+  affectedChannelIds: string[];
+}
 export interface PlexSetup {
   tunerBaseUrl: string;
   xmltvUrl: string;

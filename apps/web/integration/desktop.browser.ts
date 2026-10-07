@@ -6,6 +6,10 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../../server/src/testing/test-environment.js";
+import {
+  rootFixture,
+  titledItemFixture,
+} from "../../server/src/testing/catalog-fixtures.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
@@ -36,7 +40,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   const held = options.holdCommit ? (commit = createBarrier()) : undefined;
   const started = await startTestServer({
     plex: { publicBaseUrl: "http://northwoods.lan:3000" },
-    overrides: (db, { mediaRoots, schedules }) => ({
+    overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
       scanner: new CatalogScanner({
         roots: mediaRoots,
         prober: controlled,
@@ -47,6 +51,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
             await schedules.ensureAllEnabled(log);
           },
         },
+        removals: catalogRemovals,
         log: recordingLog(),
       }),
     }),
@@ -74,6 +79,61 @@ async function scanNewRoot(page: Page, directory: string) {
   await expect(scanning).toBeVisible();
   return { media, scanning };
 }
+
+test("removes selected media through the Media Library against real routes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server, db } = await startTestServer({
+    seed: async (db) => {
+      await db.insertInto("media_roots").values(rootFixture).execute();
+      await db
+        .insertInto("media_items")
+        .values([
+          titledItemFixture("Northwoods"),
+          titledItemFixture("Southwoods"),
+        ])
+        .execute();
+    },
+  });
+  await injectBrowserApi(page, server);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+
+  const remove = media.getByRole("button", { name: "Remove…", exact: true });
+  await expect(remove).toBeDisabled();
+  await media.getByRole("checkbox", { name: "Select Northwoods" }).check();
+  await remove.click();
+  const dialog = media.getByRole("dialog", { name: "Remove media" });
+  await expect(
+    dialog.getByText("1 selected media item will be removed from the catalog."),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(media.getByText("Removed 1 media item.")).toBeVisible();
+  await expect(
+    media.getByRole("checkbox", { name: "Select Northwoods" }),
+  ).toHaveCount(0);
+  await expect(
+    media.getByRole("checkbox", { name: "Select Southwoods" }),
+  ).not.toBeChecked();
+  await expect(remove).toBeDisabled();
+  // Nothing airs it, so the removal purged the row in the same commit.
+  await expect(
+    db.selectFrom("media_items").select("title").execute(),
+  ).resolves.toEqual([{ title: "Southwoods" }]);
+  expect(errors).toEqual([]);
+});
 
 test("operates title-bar controls on an inactive window with one click", async ({
   page,
