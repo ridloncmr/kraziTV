@@ -372,6 +372,24 @@ it("cancels the scan, reads Cancelling… until the outcome, keeps focus in the 
   expect(count("/media-items")).toBe(media + 1);
 });
 
+it("aborts a pending cancel when the program closes, so its late answer speaks for no session", async () => {
+  const { api } = renderScanLibrary(
+    [mediaRoot()],
+    scanStatus({ phase: "probing", discoveredCount: 10 }),
+  );
+  api.hold(SCAN_PATH, "DELETE");
+  const dialog = await startScan();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  await advance();
+  const request = api.requests.find(
+    (sent) => sent.path === SCAN_PATH && sent.method === "DELETE",
+  );
+  expect(request?.signal?.aborted).toBe(false);
+
+  cleanup();
+  expect(request?.signal?.aborted).toBe(true);
+});
+
 it("disables Cancel without claiming Cancelling… while the scan commits", async () => {
   const { scan } = renderScanLibrary([mediaRoot()]);
   const dialog = await startScan();

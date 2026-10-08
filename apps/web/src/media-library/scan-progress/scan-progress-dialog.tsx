@@ -38,6 +38,10 @@ export function ScanProgressDialog({
   const [cancelReply, setCancelReply] = useState<ScanStatus | "sending">();
   const ok = useRef<HTMLButtonElement>(null);
   const [cancelError, setCancelError] = useState<Error>();
+  // Closing the dialog aborts a pending cancel, so its late answer, a 401
+  // after the session ended included, never speaks for a later session.
+  const cancelOwner = useRef<AbortController>(null);
+  useEffect(() => () => cancelOwner.current?.abort(), []);
   // Set once the job can no longer change, so polling stops for good.
   const [ended, setEnded] = useState(false);
   const poll = useResource<ScanStatus>(path, visible && !ended, 1_000);
@@ -70,10 +74,17 @@ export function ScanProgressDialog({
     button.closest<HTMLElement>(".window-dialog")?.focus();
     setCancelReply("sending");
     setCancelError(undefined);
+    const controller = new AbortController();
+    cancelOwner.current = controller;
     try {
-      const reply = await apiRequest<ScanStatus>(path, { method: "DELETE" });
+      const reply = await apiRequest<ScanStatus>(path, {
+        method: "DELETE",
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
       setCancelReply(reply.id === job.status.id ? reply : undefined);
     } catch (failure) {
+      if (controller.signal.aborted) return;
       setCancelReply(undefined);
       setCancelError(toError(failure));
     }

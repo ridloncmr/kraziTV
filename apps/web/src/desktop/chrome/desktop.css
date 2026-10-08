@@ -432,10 +432,107 @@ button:disabled {
   margin-top: 3px;
 }
 .start-menu-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   background: linear-gradient(var(--xp-taskbar-highlight), var(--xp-taskbar));
   color: var(--xp-window-surface);
   padding: 10px;
   font-size: 11px;
+}
+.start-menu-footer button {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.start-menu-footer button:hover,
+.start-menu-footer button:focus-visible {
+  border-color: var(--xp-window-surface);
+  background: var(--xp-taskbar-highlight);
+}
+/* The Log Off confirmation dims the whole desktop, taskbar included. */
+.log-off-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--xp-shadow) 45%, transparent);
+}
+.log-off-dialog {
+  width: min(320px, 100%);
+  border: 1px solid var(--xp-window-surface);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--xp-logon-middle);
+  color: var(--xp-window-surface);
+  box-shadow: 3px 4px 12px var(--xp-shadow);
+}
+.log-off-dialog h2 {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--xp-logon-band);
+  font-size: 15px;
+  font-weight: 400;
+}
+.log-off-choices {
+  display: flex;
+  justify-content: center;
+  padding: 20px 14px 14px;
+}
+.log-off-choice {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: 12px var(--xp-font-ui);
+}
+.log-off-choice:hover:not(:disabled),
+.log-off-choice:focus-visible {
+  border-color: var(--xp-window-surface);
+}
+.log-off-choice svg {
+  width: 36px;
+  height: 36px;
+}
+.log-off-choice rect {
+  fill: var(--xp-accent-orange);
+  stroke: var(--xp-window-surface);
+  stroke-width: 1.5;
+}
+.log-off-choice path {
+  fill: none;
+  stroke: var(--xp-window-surface);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.log-off-choice:disabled {
+  opacity: 0.6;
+}
+.log-off-error {
+  margin: 0 14px 12px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  background: var(--xp-balloon);
+  color: var(--xp-text);
+  font-size: 12px;
+}
+.log-off-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  background: var(--xp-logon-band);
 }
 .boot-screen {
   position: fixed;
@@ -519,4 +616,27 @@ button:disabled {
     gap: 3px;
     padding-right: 5px;
   }
+}
+.boot-failure p {
+  margin: 0 0 12px;
+  letter-spacing: normal;
+}
+/* Retry and the Log Off confirmation's Cancel share one plain XP button. */
+.boot-failure button,
+.log-off-footer button {
+  min-width: 76px;
+  min-height: 24px;
+  border: 1px solid var(--xp-menu-border);
+  border-radius: 3px;
+  background: linear-gradient(
+    var(--xp-control-top),
+    var(--xp-menu-surface) 70%,
+    var(--xp-control-bottom)
+  );
+  color: var(--xp-text);
+  font: 12px var(--xp-font-ui);
+}
+.boot-failure button:disabled,
+.log-off-footer button:disabled {
+  opacity: 0.55;
 }

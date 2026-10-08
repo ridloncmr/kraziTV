@@ -135,6 +135,18 @@
       "files": ["apps/server/src/reset-password.ts"],
       "reason": "A second process entry point beside index.ts: the reset-password command that an npm script runs directly, so it belongs at the src root like index.ts.",
       "source": "docs/implementation_plan/003-auth/0001-accounts-and-sessions.md (Reconnaissance: \"The reset command's entry point is apps/server/src/reset-password.ts at the src/ root, beside index.ts\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/branding/avatars/drawings/"],
+      "reason": "drawings/ is a kind folder holding one file per built-in avatar drawing; every file serves one capability.",
+      "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged)"
+    },
+    {
+      "rule": "nesting-depth",
+      "files": ["apps/web/src/branding/avatars/drawings/"],
+      "reason": "The avatars capability holds nine source files, the frame plus eight drawings, which meets the more-than-eight grouping rule, so its drawings nest one level further.",
+      "source": "AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
     }
   ]
 }
