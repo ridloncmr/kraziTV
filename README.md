@@ -87,6 +87,7 @@ npm test
 npm run build
 npm run format
 npm run test:ffprobe
+npm run reset-password
 ```
 
 `npm run test:ffprobe` is an opt-in check of media probing against real
@@ -96,6 +97,11 @@ they are missing. `npm test` and CI do not run it.
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. During development the
 Web Admin runs separately: start it with `npm run dev:web` in a second terminal.
+
+`npm run reset-password` sets a new password for the kraziTV account when the
+old one is forgotten. Run it in an interactive terminal on the server host, with
+the same `KRAZITV_DATA_DIR` the server uses; it prompts twice without echoing,
+replaces the password, and logs every browser out. The server may keep running.
 
 The Web Admin at `http://127.0.0.1:5173` is an XP-inspired kraziTV desktop.
 Open Media Library to add and scan server paths, Collections to arrange media,

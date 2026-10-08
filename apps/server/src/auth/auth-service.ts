@@ -13,6 +13,7 @@ import type {
   IssuedSession,
   IssuedSessionLifetime,
   LogInResult,
+  ResetPasswordResult,
   RequestAuthenticator,
   SetUpInput,
   SetUpResult,
@@ -179,6 +180,29 @@ export class AuthService implements RequestAuthenticator {
     this.#attempts.succeed();
     const session = await this.#startSession(this.#db, account.id, this.#now());
     return { kind: "logged_in", session };
+  }
+
+  /**
+   * Replaces the one account's password without the old one and ends every
+   * session, so whoever knew the old password is logged out everywhere. Only
+   * the server-host command calls this; there is no HTTP route. Like setup,
+   * it hashes before taking write authority, then checks and writes as one
+   * transaction. A server holding the write lock makes it throw
+   * `WriteAuthorityBusyError`, which the caller reports as retryable.
+   */
+  async resetPassword(password: string): Promise<ResetPasswordResult> {
+    if (!(await hasAccount(this.#db))) return { kind: "setup_required" };
+    const passwordHash = await hashPassword(password);
+    return runImmediateTransaction(this.#db, async (pinned) => {
+      if (!(await hasAccount(pinned)))
+        return { kind: "setup_required" } as const;
+      await pinned
+        .updateTable("accounts")
+        .set({ password_hash: passwordHash, updated_at: this.#now() })
+        .execute();
+      await pinned.deleteFrom("sessions").execute();
+      return { kind: "reset" } as const;
+    });
   }
 
   /** Ends the session `token` names; an absent or unknown token is already logged out. */

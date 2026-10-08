@@ -4,6 +4,8 @@ import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
+import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
@@ -482,6 +484,71 @@ describe("AuthService", () => {
     expect(log.lines).toMatchObject([
       { level: "warn", message: "Deleting expired sessions failed" },
     ]);
+  });
+
+  it("resets the password, so only the new one logs in, and ends every session", async () => {
+    const { auth, db, clock } = await openAuth();
+    const setupToken = await setUpOwner(auth);
+    await auth.logIn(owner.password);
+    clock.advance(HOUR_MS);
+
+    await expect(auth.resetPassword("brand new secret")).resolves.toEqual({
+      kind: "reset",
+    });
+
+    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(
+      auth.authenticate(setupToken, recordingLog()),
+    ).resolves.toEqual({ kind: "unauthenticated" });
+    await expect(auth.logIn(owner.password)).resolves.toEqual({
+      kind: "invalid_password",
+    });
+    await expect(auth.logIn("brand new secret")).resolves.toMatchObject({
+      kind: "logged_in",
+    });
+    await expect(
+      db
+        .selectFrom("accounts")
+        .select(["display_name", "created_at", "updated_at"])
+        .execute(),
+    ).resolves.toEqual([
+      { display_name: "Owner", created_at: START, updated_at: START + HOUR_MS },
+    ]);
+  });
+
+  it("refuses a reset before setup without writing", async () => {
+    const { auth, db } = await openAuth();
+
+    await expect(auth.resetPassword("brand new secret")).resolves.toEqual({
+      kind: "setup_required",
+    });
+    await expect(
+      db.selectFrom("accounts").select("id").execute(),
+    ).resolves.toEqual([]);
+  });
+
+  it("fails a reset retryably, changing nothing, while another connection holds the write lock", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const server = await openTestDatabase(dataDirectory);
+    const serverAuth = new AuthService(server.db);
+    const token = await setUpOwner(serverAuth);
+    const command = await openTestDatabase(dataDirectory);
+    const held = await holdWriteAuthority(server.db);
+
+    try {
+      await expect(
+        new AuthService(command.db).resetPassword("brand new secret"),
+      ).rejects.toBeInstanceOf(WriteAuthorityBusyError);
+    } finally {
+      await held.release();
+    }
+
+    await expect(
+      serverAuth.authenticate(token, recordingLog()),
+    ).resolves.toEqual({ kind: "authenticated" });
+    await expect(serverAuth.logIn(owner.password)).resolves.toMatchObject({
+      kind: "logged_in",
+    });
   });
 
   it("logs out only the given session", async () => {

@@ -38,6 +38,9 @@ export type LogInResult =
   | { kind: "invalid_password" }
   | { kind: "too_many_attempts"; retryAfterSeconds: number };
 
+export type ResetPasswordResult =
+  { kind: "reset" } | { kind: "setup_required" };
+
 /** How the auth gate must treat one request. */
 export type Authentication =
   // `renewal` is present only when this request extended the session, so

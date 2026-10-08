@@ -5,22 +5,19 @@ import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
 import { nameField } from "../../http/request-schemas.js";
 import type { AuthService } from "../auth-service.js";
 import {
+  newPasswordField,
+  passwordField,
+} from "../passwords/password-rules.js";
+import {
   readSessionCookie,
   sessionCookie,
 } from "../sessions/session-cookie.js";
 
-// Never trimmed: every character the owner typed is part of the password.
-// The cap bounds the scrypt work any request can ask for.
-const passwordField = z
-  .string()
-  .max(256, "password must be at most 256 characters");
-
 const setupBody = z.strictObject({
   displayName: nameField.max(40, "displayName must be at most 40 characters"),
-  password: passwordField.min(8, "password must be at least 8 characters"),
+  password: newPasswordField,
 });
 
-// No minimum: a short password simply fails to match, like any wrong one.
 const loginBody = z.strictObject({ password: passwordField });
 
 /** Cookie settings fixed at startup from parsed configuration. */
