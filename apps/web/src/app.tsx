@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BootScreen } from "./desktop/chrome/boot-screen.js";
 import { DesktopShell } from "./desktop/desktop-shell.js";
 import type { AuthState } from "./http/contracts.js";
 import { useResource } from "./http/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
-import { SetupPlaceholder } from "./logon/setup-placeholder.js";
+import { SetupScreen } from "./logon/setup-screen.js";
 
 // Long enough that the boot screen reads as a deliberate step, not a flicker.
 const MINIMUM_BOOT_MS = 650;
@@ -21,9 +21,12 @@ const RETRY_INTERVAL_MS = 10_000;
  */
 export function App() {
   const [state, setState] = useState<AuthState>();
+  // Clearing the state remounts the boot read, so a re-read is always fresh.
+  const reread = useCallback(() => setState(undefined), []);
   if (!state) return <BootRead onAnswer={setState} />;
   if (state.authenticated) return <DesktopShell />;
-  if (state.setupRequired || !state.account) return <SetupPlaceholder />;
+  if (state.setupRequired || !state.account)
+    return <SetupScreen onSetUp={setState} onAlreadySetUp={reread} />;
   return <LogonScreen account={state.account} onLoggedIn={setState} />;
 }
 

@@ -21,6 +21,11 @@ afterEach(() => {
 const account = { displayName: "Marguerite", avatarId: "duck" };
 const loggedOut = { setupRequired: false, account, authenticated: false };
 const loggedIn = { ...loggedOut, authenticated: true };
+const setupRequired = {
+  setupRequired: true,
+  account: null,
+  authenticated: false,
+};
 const offline = { error: { code: "offline", message: "Unavailable" } };
 
 /** A browser API whose `/auth/state` answers `state`, with a healthy desktop behind it. */
@@ -30,6 +35,17 @@ function apiAnswering(state: unknown, status = 200): BrowserApi {
   api.reply("/health", { status: "ok" });
   vi.stubGlobal("fetch", api.fetch);
   return api;
+}
+
+/** Completes the setup form with a valid name and password and presses Next. */
+function fillSetup() {
+  for (const [label, value] of [
+    ["Your name", "Bartholomew"],
+    ["Password", "correct horse"],
+    ["Confirm password", "correct horse"],
+  ] as const)
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
 }
 
 it("boots through the auth state and opens the desktop for a logged-in browser", async () => {
@@ -61,11 +77,35 @@ it("shows the logon screen with the account's tile when the browser has no sessi
   expect(screen.queryByRole("button", { name: "start" })).toBeNull();
 });
 
-it("shows the setup placeholder while the account is not set up", async () => {
-  apiAnswering({ setupRequired: true, account: null, authenticated: false });
+it("shows the setup screen while the account is not set up and opens the desktop once it is", async () => {
+  const api = apiAnswering(setupRequired);
+  api.reply("/auth/setup", loggedIn, "POST", 201);
   render(createElement(App));
-  expect(await screen.findByText(/Finish setup/)).toBeTruthy();
+  await screen.findByRole("main", { name: "Set up kraziTV" });
   expect(screen.queryByRole("button", { name: "start" })).toBeNull();
+  fillSetup();
+  expect(await screen.findByRole("button", { name: "start" })).toBeTruthy();
+});
+
+it("re-reads the auth state after a 409 and shows the logon screen it names", async () => {
+  const api = apiAnswering(setupRequired);
+  api.reply(
+    "/auth/setup",
+    { error: { code: "already_set_up", message: "Already set up" } },
+    "POST",
+    409,
+  );
+  render(createElement(App));
+  await screen.findByRole("main", { name: "Set up kraziTV" });
+  // Another browser finished setup first, as a different account name.
+  api.reply("/auth/state", loggedOut);
+  fillSetup();
+  expect(
+    await screen.findByRole("button", { name: "Marguerite" }),
+  ).toBeTruthy();
+  expect(
+    api.requests.filter((request) => request.path === "/auth/state"),
+  ).toHaveLength(2);
 });
 
 it("says the server is unreachable and opens the right screen after Retry", async () => {

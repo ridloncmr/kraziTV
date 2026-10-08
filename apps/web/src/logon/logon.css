@@ -141,20 +141,20 @@
   align-items: center;
   gap: 6px;
 }
-.logon-password input {
-  width: 170px;
+/* Logon and setup share one text box and one green button look. */
+.logon-password input,
+.logon-setup input {
   height: 24px;
   border: 1px solid var(--xp-shadow);
   border-radius: 3px;
   padding: 0 6px;
   font: 16px var(--xp-font-ui);
 }
-.logon-go {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
+.logon-password input {
+  width: 170px;
+}
+.logon-go,
+.logon-setup button {
   border: 1px solid var(--xp-window-surface);
   border-radius: 4px;
   background: linear-gradient(
@@ -164,13 +164,22 @@
   );
   cursor: pointer;
 }
+.logon-go {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
 .logon-go svg {
   width: 16px;
   height: 16px;
   fill: var(--xp-window-surface);
 }
 .logon-password input:disabled,
-.logon-go:disabled {
+.logon-go:disabled,
+.logon-setup input:disabled,
+.logon-setup button:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -214,7 +223,8 @@
 .logon-panel {
   grid-column: 1 / -1;
   justify-self: center;
-  max-width: 420px;
+  width: min(360px, 100%);
+  box-sizing: border-box;
   padding: 0 24px;
   text-align: center;
 }
@@ -258,4 +268,38 @@
   .logon-band-bottom {
     padding: 0 16px;
   }
+}
+.logon-setup fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+}
+.logon-setup label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+/* Next sits right, with the balloon tip pointing up at it from below. */
+.logon-setup-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+.logon-setup-actions .logon-balloon {
+  left: auto;
+  right: 0;
+}
+.logon-setup-actions .logon-balloon::before,
+.logon-setup-actions .logon-balloon::after {
+  left: auto;
+  right: 24px;
+}
+.logon-setup button {
+  min-width: 76px;
+  min-height: 26px;
+  color: var(--xp-window-surface);
+  font: 700 13px var(--xp-font-ui);
 }

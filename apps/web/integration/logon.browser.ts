@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "../../server/src/testing/api-requests.js";
 import {
   cleanUpTestEnvironment,
@@ -9,6 +9,25 @@ import { injectBrowserApi } from "../src/testing/injected-api.js";
 test.afterEach(async () => {
   await cleanUpTestEnvironment();
 });
+
+/**
+ * Waits for the desktop and opens Media Library, whose gated reads answer only
+ * when the session cookie the server set reached the browser.
+ */
+async function expectSignedInDesktop(page: Page) {
+  await expect(
+    page.getByRole("button", { name: "start", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("region", { name: "Media Library", exact: true })
+      .getByText(/No media roots yet/),
+  ).toBeVisible();
+}
 
 test("logs on from the keyboard against the real gate", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -37,17 +56,35 @@ test("logs on from the keyboard against the real gate", async ({ page }) => {
 
   await page.keyboard.type("correct horse");
   await page.keyboard.press("Enter");
+  await expectSignedInDesktop(page);
+});
+
+test("sets up the account on first run from the keyboard against the real gate", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { server } = await startTestServer({ auth: "real" });
+  await injectBrowserApi(page, server, { signedIn: false });
+  await page.goto("/");
+  const setup = page.getByRole("main", { name: "Set up kraziTV" });
+  await expect(setup.getByLabel("Your name")).toBeFocused();
+
+  await page.keyboard.type("  Marguerite  ");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("correct horse");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("correct horsf");
+  await page.keyboard.press("Enter");
+  await expect(setup.getByRole("alert")).toHaveText(
+    "The passwords you typed do not match.",
+  );
+
+  await setup.getByLabel("Confirm password").fill("correct horse");
+  await page.keyboard.press("Enter");
+  await expectSignedInDesktop(page);
   await expect(
-    page.getByRole("button", { name: "start", exact: true }),
-  ).toBeVisible();
-  // A gated route answers, so the login's cookie reached the browser.
-  await page
-    .getByLabel("Desktop programs")
-    .getByRole("button", { name: "Media Library", exact: true })
-    .click();
-  await expect(
-    page
-      .getByRole("region", { name: "Media Library", exact: true })
-      .getByText(/No media roots yet/),
-  ).toBeVisible();
+    server.inject("/auth/state").then((r) => r.json<unknown>()),
+  ).resolves.toMatchObject({
+    account: { displayName: "Marguerite" },
+  });
 });
