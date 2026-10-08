@@ -8,11 +8,13 @@ import { runImmediateTransaction } from "../database/writes/immediate-transactio
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { DEFAULT_AVATAR_ID } from "./avatars.js";
 import type {
+  AccountProfile,
   Authentication,
   AuthState,
   IssuedSession,
   IssuedSessionLifetime,
   LogInResult,
+  ProfileUpdate,
   ResetPasswordResult,
   RequestAuthenticator,
   SetUpInput,
@@ -236,6 +238,28 @@ export class AuthService implements RequestAuthenticator {
       await pinned.deleteFrom("sessions").execute();
       return { kind: "reset" } as const;
     });
+  }
+
+  /**
+   * Changes the one account's display name and/or avatar and returns the
+   * resulting profile. One statement on one row, so it needs no write
+   * authority; the auth gate already proved the account exists.
+   */
+  async updateProfile(update: ProfileUpdate): Promise<AccountProfile> {
+    const row = await this.#db
+      .updateTable("accounts")
+      .set({
+        ...(update.displayName === undefined
+          ? {}
+          : { display_name: update.displayName }),
+        ...(update.avatarId === undefined
+          ? {}
+          : { avatar_id: update.avatarId }),
+        updated_at: this.#now(),
+      })
+      .returning(["display_name", "avatar_id"])
+      .executeTakeFirstOrThrow();
+    return { displayName: row.display_name, avatarId: row.avatar_id };
   }
 
   /** Ends the session `token` names; an absent or unknown token is already logged out. */

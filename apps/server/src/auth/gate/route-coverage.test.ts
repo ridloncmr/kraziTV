@@ -22,6 +22,7 @@ afterEach(cleanUpTestEnvironment);
 
 // HEAD twins of these GET routes are covered by their GET entry.
 const GATED_ROUTES = [
+  "PATCH /account",
   "GET /media-roots",
   "POST /media-roots",
   "GET /media-roots/folders",

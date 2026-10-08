@@ -42,7 +42,8 @@ type ApiErrorCode =
   | "stream_startup_timeout"
   | "stream_unavailable"
   | "too_many_attempts"
-  | "unauthenticated";
+  | "unauthenticated"
+  | "unknown_avatar";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

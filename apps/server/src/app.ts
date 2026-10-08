@@ -8,6 +8,7 @@ import Fastify, {
 import type { AuthService } from "./auth/auth-service.js";
 import type { RequestAuthenticator } from "./auth/contracts.js";
 import { registerAuthGate } from "./auth/gate/auth-gate.js";
+import { registerAccountRoutes } from "./auth/routes/account-routes.js";
 import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
@@ -107,6 +108,7 @@ function registerRoutes(
 
   server.get("/health", async () => ({ status: "ok" }));
   registerAuthRoutes(server, dependencies.auth, { secureCookie });
+  registerAccountRoutes(server, dependencies.auth);
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,

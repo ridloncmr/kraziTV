@@ -49,7 +49,7 @@ at the top of each plan are generated from ticket Status blocks by
 
 - [Auth Spec 0001 Implementation Plan: Accounts And Sessions](003-auth/0001-accounts-and-sessions.md) - 6 of 6 tickets complete
 - [Auth Spec 0002 Implementation Plan: Logon Screen](003-auth/0002-logon-screen.md) - 6 of 6 tickets complete
-- [Auth Spec 0003 Implementation Plan: Account Settings](003-auth/0003-account-settings.md) - 0 of 5 tickets complete
+- [Auth Spec 0003 Implementation Plan: Account Settings](003-auth/0003-account-settings.md) - 1 of 5 tickets complete
 
 <!-- plan-index:end -->
 

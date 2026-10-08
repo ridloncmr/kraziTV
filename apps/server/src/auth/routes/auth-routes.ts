@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
-import { nameField } from "../../http/request-schemas.js";
 import type { AuthService } from "../auth-service.js";
 import {
   newPasswordField,
@@ -12,9 +11,10 @@ import {
   readSessionCookie,
   sessionCookie,
 } from "../sessions/session-cookie.js";
+import { displayNameField } from "./display-name-field.js";
 
 const setupBody = z.strictObject({
-  displayName: nameField.max(40, "displayName must be at most 40 characters"),
+  displayName: displayNameField,
   password: newPasswordField,
 });
 

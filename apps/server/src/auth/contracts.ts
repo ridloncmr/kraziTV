@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 
 /** What a logged-out browser may know about the account: enough to draw its tile. */
-interface AccountProfile {
+export interface AccountProfile {
   displayName: string;
   avatarId: string;
 }
@@ -17,6 +17,12 @@ export interface AuthState {
 export interface SetUpInput {
   displayName: string;
   password: string;
+}
+
+/** Validated profile changes; an absent field keeps its current value. */
+export interface ProfileUpdate {
+  displayName?: string;
+  avatarId?: string;
 }
 
 /** How long a reissued session cookie should live. */

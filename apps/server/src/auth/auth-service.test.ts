@@ -497,6 +497,30 @@ describe("AuthService", () => {
     ]);
   });
 
+  it("updates only the given profile fields and moves updated_at to now", async () => {
+    const { auth, db, clock } = await openAuth();
+    await setUpOwner(auth);
+    clock.advance(HOUR_MS);
+
+    await expect(auth.updateProfile({ avatarId: "chess" })).resolves.toEqual({
+      displayName: "Owner",
+      avatarId: "chess",
+    });
+    await expect(
+      db
+        .selectFrom("accounts")
+        .select(["display_name", "avatar_id", "created_at", "updated_at"])
+        .execute(),
+    ).resolves.toEqual([
+      {
+        display_name: "Owner",
+        avatar_id: "chess",
+        created_at: START,
+        updated_at: START + HOUR_MS,
+      },
+    ]);
+  });
+
   it("resets the password, so only the new one logs in, and ends every session", async () => {
     const { auth, db, clock } = await openAuth();
     const setupToken = await setUpOwner(auth);
