@@ -235,6 +235,86 @@ describe("AuthService", () => {
     ]);
   });
 
+  it("makes the sixth attempt after five wrong passwords wait, even with the right password", async () => {
+    const { auth, db } = await openAuth();
+    await setUpOwner(auth);
+    for (let i = 0; i < 5; i += 1) {
+      await expect(auth.logIn("wrong password")).resolves.toEqual({
+        kind: "invalid_password",
+      });
+    }
+
+    await expect(auth.logIn(owner.password)).resolves.toEqual({
+      kind: "too_many_attempts",
+      retryAfterSeconds: 1,
+    });
+    await expect(
+      db.selectFrom("sessions").select("id").execute(),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("rounds a partial wait up to whole seconds", async () => {
+    const { auth, clock } = await openAuth();
+    await setUpOwner(auth);
+    for (let i = 0; i < 6; i += 1) {
+      await auth.logIn("wrong password");
+      clock.advance(1000);
+    }
+
+    // The sixth failure began a 2-second wait; 1 second of it has passed.
+    clock.advance(1);
+    await expect(auth.logIn("wrong password")).resolves.toEqual({
+      kind: "too_many_attempts",
+      retryAfterSeconds: 1,
+    });
+  });
+
+  it("refuses wrong passwords sent together beyond the limit before checking them", async () => {
+    const { auth } = await openAuth();
+    await setUpOwner(auth);
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => auth.logIn("wrong password")),
+    );
+
+    expect(results.filter((r) => r.kind === "invalid_password")).toHaveLength(
+      5,
+    );
+    expect(results.filter((r) => r.kind === "too_many_attempts")).toHaveLength(
+      3,
+    );
+  });
+
+  it("logs in with the right password after the wait and forgives earlier failures", async () => {
+    const { auth, clock } = await openAuth();
+    await setUpOwner(auth);
+    for (let i = 0; i < 5; i += 1) await auth.logIn("wrong password");
+    clock.advance(1000);
+
+    await expect(auth.logIn(owner.password)).resolves.toMatchObject({
+      kind: "logged_in",
+    });
+    for (let i = 0; i < 5; i += 1) {
+      await expect(auth.logIn("wrong password")).resolves.toEqual({
+        kind: "invalid_password",
+      });
+    }
+  });
+
+  it("does not count a login attempt before setup as a failure", async () => {
+    const { auth } = await openAuth();
+    for (let i = 0; i < 6; i += 1) {
+      await expect(auth.logIn("anything at all")).resolves.toEqual({
+        kind: "setup_required",
+      });
+    }
+    await setUpOwner(auth);
+
+    await expect(auth.logIn(owner.password)).resolves.toMatchObject({
+      kind: "logged_in",
+    });
+  });
+
   it("logs out only the given session", async () => {
     const { auth } = await openAuth();
     const kept = await setUpOwner(auth);

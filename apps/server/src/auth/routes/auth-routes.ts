@@ -85,6 +85,16 @@ export function registerAuthRoutes(
         "The account is not set up yet",
       );
     }
+    if (result.kind === "too_many_attempts") {
+      // The header serves generic HTTP clients; the body field serves the web app.
+      return sendApiError(
+        reply.header("retry-after", String(result.retryAfterSeconds)),
+        429,
+        "too_many_attempts",
+        "Too many wrong passwords; wait before trying again",
+        { retryAfterSeconds: result.retryAfterSeconds },
+      );
+    }
     if (result.kind === "invalid_password") {
       return sendApiError(
         reply,

@@ -13,6 +13,7 @@ import type {
   SetUpInput,
   SetUpResult,
 } from "./contracts.js";
+import { PasswordAttemptThrottle } from "./passwords/password-attempt-throttle.js";
 import { hashPassword, verifyPassword } from "./passwords/password-hash.js";
 import {
   createSessionToken,
@@ -35,6 +36,8 @@ export class AuthService {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #createId: () => string;
   readonly #now: () => number;
+  // One counter per service, and one service per server: there is one account.
+  readonly #attempts = new PasswordAttemptThrottle();
 
   // Clock and ID sources are injectable so tests can step expiry and assert rows.
   constructor(db: Kysely<DatabaseSchema>, options: RecordSources = {}) {
@@ -101,8 +104,9 @@ export class AuthService {
   /**
    * Checks `password` against the one account and starts a new session on a
    * match. Every login gets its own session, so browsers log in and out
-   * independently. Failed-attempt throttling belongs here, not in the route,
-   * so every password check shares one counter.
+   * independently. The attempt throttle lives on the service, not the route,
+   * so every password check shares one counter; a throttled attempt is
+   * refused before its password is checked.
    */
   async logIn(password: string): Promise<LogInResult> {
     const account = await this.#db
@@ -110,9 +114,19 @@ export class AuthService {
       .select(["id", "password_hash"])
       .executeTakeFirst();
     if (account === undefined) return { kind: "setup_required" };
+    // Admitted synchronously after the last await, so attempts sent together
+    // each see the failures reserved by those before them.
+    const admission = this.#attempts.admit(this.#now());
+    if (!admission.admitted) {
+      return {
+        kind: "too_many_attempts",
+        retryAfterSeconds: Math.ceil(admission.retryAfterMs / 1000),
+      };
+    }
     if (!(await verifyPassword(password, account.password_hash))) {
       return { kind: "invalid_password" };
     }
+    this.#attempts.succeed();
     const session = await this.#startSession(this.#db, account.id, this.#now());
     return { kind: "logged_in", session };
   }

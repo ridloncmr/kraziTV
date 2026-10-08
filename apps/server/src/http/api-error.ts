@@ -39,7 +39,8 @@ type ApiErrorCode =
   | "setup_required"
   | "stream_failed"
   | "stream_startup_timeout"
-  | "stream_unavailable";
+  | "stream_unavailable"
+  | "too_many_attempts";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

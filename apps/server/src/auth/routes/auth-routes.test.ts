@@ -2,10 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { send } from "../../testing/api-requests.js";
+import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../testing/test-environment.js";
+import { AuthService } from "../auth-service.js";
 import { DEFAULT_AVATAR_ID } from "../avatars.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -291,5 +293,63 @@ describe("login and logout", () => {
 
     expect(response.statusCode).toBe(204);
     await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+  });
+});
+
+describe("login throttling", () => {
+  /** Starts a set-up server whose auth clock the test steps. */
+  async function startThrottledServer() {
+    const clock = manualClock(1_700_000_000_000);
+    const { server } = await startTestServer({
+      overrides: (db) => ({ auth: new AuthService(db, { now: clock.now }) }),
+    });
+    await setUp(server);
+    return { server, clock };
+  }
+
+  it("answers the sixth attempt after five wrong passwords with 429, even with the right password", async () => {
+    const { server } = await startThrottledServer();
+    for (let i = 0; i < 5; i += 1) {
+      expect((await logIn(server, "wrong password")).statusCode).toBe(401);
+    }
+
+    const response = await logIn(server, owner.password);
+
+    expect(response.statusCode).toBe(429);
+    expect(response.headers["retry-after"]).toBe("1");
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(response.json()).toEqual({
+      error: {
+        code: "too_many_attempts",
+        message: expect.any(String),
+        retryAfterSeconds: 1,
+      },
+    });
+  });
+
+  it("doubles the wait after a wrong password once the wait has passed", async () => {
+    const { server, clock } = await startThrottledServer();
+    for (let i = 0; i < 5; i += 1) await logIn(server, "wrong password");
+    clock.advance(1000);
+
+    expect((await logIn(server, "wrong password")).statusCode).toBe(401);
+
+    await expect(logIn(server, "wrong password")).resolves.toMatchObject({
+      statusCode: 429,
+      headers: { "retry-after": "2" },
+    });
+  });
+
+  it("logs in with the right password after the wait", async () => {
+    const { server, clock } = await startThrottledServer();
+    for (let i = 0; i < 5; i += 1) await logIn(server, "wrong password");
+    clock.advance(1000);
+
+    const response = await logIn(server, owner.password);
+
+    expect(response.statusCode).toBe(200);
+    await expect(readState(server, cookieOf(response))).resolves.toMatchObject({
+      body: { authenticated: true },
+    });
   });
 });

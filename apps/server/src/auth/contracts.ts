@@ -29,4 +29,5 @@ export type SetUpResult =
 export type LogInResult =
   | { kind: "logged_in"; session: IssuedSession }
   | { kind: "setup_required" }
-  | { kind: "invalid_password" };
+  | { kind: "invalid_password" }
+  | { kind: "too_many_attempts"; retryAfterSeconds: number };
