@@ -1,7 +1,10 @@
 // Resets the one account's password from a shell on the server host (ADR
-// 0012). Run with `npm run reset-password`. The prompt lives here; the reset
-// itself is AuthService.resetPassword, so it is testable without a terminal.
+// 0012). Run with `npm run reset-password`. The prompt is promptHidden and
+// the reset is AuthService.resetPassword, so both are testable without a
+// terminal; this file only orders the checks and reports each outcome.
 import { existsSync } from "node:fs";
+
+import { pino } from "pino";
 
 import { AuthService } from "./auth/auth-service.js";
 import { newPasswordField } from "./auth/passwords/password-rules.js";
@@ -11,57 +14,12 @@ import {
 } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { WriteAuthorityBusyError } from "./database/writes/immediate-transaction.js";
-
-const CTRL_C = "\u0003";
-const CTRL_D = "\u0004";
-const ESCAPE = "\u001b";
-const BACKSPACES = new Set(["\b", "\u007f"]);
-
-/** Thrown when the operator cancels a prompt with Ctrl+C or Ctrl+D. */
-class PromptCancelled extends Error {}
-
-/**
- * Reads one line from a terminal without echoing it, so the password never
- * appears on screen. Raw mode hands over every key, so this handles Enter,
- * Backspace, and Ctrl+C itself, the same way on Windows and POSIX terminals.
- * Arrow keys and other escape sequences are ignored, never typed.
- */
-function promptHidden(question: string): Promise<string> {
-  const input = process.stdin;
-  process.stdout.write(question);
-  input.setRawMode(true);
-  input.setEncoding("utf8");
-  input.resume();
-
-  return new Promise((resolve, reject) => {
-    let typed: string[] = [];
-    const finish = (error?: Error) => {
-      input.off("data", onKeys);
-      input.setRawMode(false);
-      input.pause();
-      process.stdout.write("\n");
-      if (error === undefined) resolve(typed.join(""));
-      else reject(error);
-    };
-    const onKeys = (keys: string) => {
-      if (keys.startsWith(ESCAPE)) return;
-      for (const key of keys) {
-        if (key === "\r" || key === "\n") return finish();
-        if (key === CTRL_C || (key === CTRL_D && typed.length === 0)) {
-          return finish(new PromptCancelled());
-        }
-        if (BACKSPACES.has(key)) typed = typed.slice(0, -1);
-        else if (key >= " ") typed.push(key);
-      }
-    };
-    input.on("data", onKeys);
-  });
-}
+import { PromptCancelled, promptHidden } from "./terminal/hidden-prompt.js";
 
 /**
  * Prompts twice and resets the password, reporting each refusal as one plain
  * line. Returns the exit code: 0 on success, 1 when nothing changed, 130 when
- * the operator cancelled.
+ * the operator cancelled or input ended before the password was entered.
  */
 async function main(): Promise<number> {
   const dataDirectory = resolveDataDirectory(
@@ -79,7 +37,7 @@ async function main(): Promise<number> {
   const database = await openDatabase({ dataDirectory });
   try {
     const auth = new AuthService(database.db);
-    if ((await auth.state(undefined)).setupRequired) {
+    if ((await auth.state(undefined, pino({ level: "warn" }))).setupRequired) {
       console.error(
         `No kraziTV account exists yet in ${dataDirectory}. Set up the account in the web app first.`,
       );
@@ -88,13 +46,21 @@ async function main(): Promise<number> {
     // A piped password could be logged or kept in shell history.
     if (!process.stdin.isTTY) {
       console.error(
-        "reset-password must run in an interactive terminal, so the new password is typed without being echoed or stored.",
+        "reset-password must run in an interactive terminal, so the new password is typed without being echoed or stored. On Windows, run it from PowerShell or Windows Terminal; Git Bash in mintty may not report a terminal to Node.",
       );
       return 1;
     }
 
-    const password = await promptHidden("New password: ");
-    const repeated = await promptHidden("Repeat the new password: ");
+    const password = await promptHidden(
+      "New password: ",
+      process.stdin,
+      process.stdout,
+    );
+    const repeated = await promptHidden(
+      "Repeat the new password: ",
+      process.stdin,
+      process.stdout,
+    );
     if (password !== repeated) {
       console.error("The passwords do not match; nothing was changed.");
       return 1;

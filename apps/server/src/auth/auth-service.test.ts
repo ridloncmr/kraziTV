@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 
-import type { Kysely } from "kysely";
+import type { Kysely, RootOperationNode } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { manualClock } from "../testing/manual-clock.js";
+import { countQueries } from "../testing/query-counter.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
   cleanUpTestEnvironment,
@@ -15,7 +16,7 @@ import {
 } from "../testing/test-environment.js";
 import { AuthService } from "./auth-service.js";
 import { DEFAULT_AVATAR_ID } from "./avatars.js";
-import { verifyPassword } from "./passwords/password-hash.js";
+import { hashPassword, verifyPassword } from "./passwords/password-hash.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -45,6 +46,14 @@ async function readExpiry(db: Kysely<DatabaseSchema>): Promise<number[]> {
   return rows.map((row) => row.expires_at);
 }
 
+/** Recognizes the statement that asks SQLite for write authority. */
+function isBeginImmediate(node: RootOperationNode): boolean {
+  return (
+    node.kind === "RawNode" &&
+    node.sqlFragments.join("").trim().toLowerCase() === "begin immediate"
+  );
+}
+
 /** Sets up the owner account and returns the issued session token. */
 async function setUpOwner(auth: AuthService): Promise<string> {
   const result = await auth.setUp(owner);
@@ -56,7 +65,7 @@ describe("AuthService", () => {
   it("reports that a fresh server needs setup and has no account", async () => {
     const { auth } = await openAuth();
 
-    await expect(auth.state(undefined)).resolves.toEqual({
+    await expect(auth.state(undefined, recordingLog())).resolves.toEqual({
       setupRequired: true,
       account: null,
       authenticated: false,
@@ -99,15 +108,17 @@ describe("AuthService", () => {
     const { auth } = await openAuth();
     const token = await setUpOwner(auth);
 
-    await expect(auth.state(token)).resolves.toEqual({
+    await expect(auth.state(token, recordingLog())).resolves.toEqual({
       setupRequired: false,
       account: { displayName: "Owner", avatarId: DEFAULT_AVATAR_ID },
       authenticated: true,
     });
-    await expect(auth.state(undefined)).resolves.toMatchObject({
+    await expect(auth.state(undefined, recordingLog())).resolves.toMatchObject({
       authenticated: false,
     });
-    await expect(auth.state(`${token}x`)).resolves.toMatchObject({
+    await expect(
+      auth.state(`${token}x`, recordingLog()),
+    ).resolves.toMatchObject({
       authenticated: false,
     });
   });
@@ -177,12 +188,12 @@ describe("AuthService", () => {
     const token = await setUpOwner(auth);
 
     clock.advance(30 * DAY_MS - 1);
-    await expect(auth.state(token)).resolves.toMatchObject({
+    await expect(auth.state(token, recordingLog())).resolves.toMatchObject({
       authenticated: true,
     });
 
     clock.advance(1);
-    await expect(auth.state(token)).resolves.toEqual({
+    await expect(auth.state(token, recordingLog())).resolves.toEqual({
       setupRequired: false,
       account: { displayName: "Owner", avatarId: DEFAULT_AVATAR_ID },
       authenticated: false,
@@ -235,7 +246,7 @@ describe("AuthService", () => {
       first.session.token,
       second.session.token,
     ]) {
-      await expect(auth.state(token)).resolves.toMatchObject({
+      await expect(auth.state(token, recordingLog())).resolves.toMatchObject({
         authenticated: true,
       });
     }
@@ -527,6 +538,40 @@ describe("AuthService", () => {
     ).resolves.toEqual([]);
   });
 
+  it("starts no session for a login whose password was reset while it was being checked", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const server = await openTestDatabase(dataDirectory);
+    const command = await openTestDatabase(dataDirectory);
+    await setUpOwner(new AuthService(server.db));
+    const newHash = await hashPassword("brand new secret");
+    // The reset command holds write authority, its writes queued until released.
+    const reset = await holdWriteAuthority(command.db, async (pinned) => {
+      await pinned
+        .updateTable("accounts")
+        .set({ password_hash: newHash })
+        .execute();
+      await pinned.deleteFrom("sessions").execute();
+    });
+    // The login read and verified the old hash; as it asks for write
+    // authority to start its session, the reset commits first.
+    const watched = countQueries(server.db, (node) => {
+      if (isBeginImmediate(node)) void reset.release();
+    });
+
+    try {
+      await expect(
+        new AuthService(watched.db).logIn(owner.password),
+      ).resolves.toEqual({ kind: "invalid_password" });
+    } finally {
+      await reset.release();
+    }
+
+    await expect(readExpiry(server.db)).resolves.toEqual([]);
+    await expect(
+      new AuthService(server.db).logIn("brand new secret"),
+    ).resolves.toMatchObject({ kind: "logged_in" });
+  });
+
   it("fails a reset retryably, changing nothing, while another connection holds the write lock", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const server = await openTestDatabase(dataDirectory);
@@ -559,10 +604,12 @@ describe("AuthService", () => {
 
     await auth.logOut(login.session.token);
 
-    await expect(auth.state(login.session.token)).resolves.toMatchObject({
+    await expect(
+      auth.state(login.session.token, recordingLog()),
+    ).resolves.toMatchObject({
       authenticated: false,
     });
-    await expect(auth.state(kept)).resolves.toMatchObject({
+    await expect(auth.state(kept, recordingLog())).resolves.toMatchObject({
       authenticated: true,
     });
   });

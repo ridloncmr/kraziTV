@@ -55,8 +55,12 @@ export class AuthService implements RequestAuthenticator {
   /**
    * Reports whether setup is still needed, the account's public profile, and
    * whether `token` names a live session. A token is never valid before setup.
+   * `log` reports best-effort cleanup of an expired session.
    */
-  async state(token: string | undefined): Promise<AuthState> {
+  async state(
+    token: string | undefined,
+    log: Pick<FastifyBaseLogger, "warn">,
+  ): Promise<AuthState> {
     const account = await this.#db
       .selectFrom("accounts")
       .select(["display_name", "avatar_id"])
@@ -72,7 +76,7 @@ export class AuthService implements RequestAuthenticator {
       },
       authenticated:
         token !== undefined &&
-        (await this.#findLiveSession(token, this.#now())) !== undefined,
+        (await this.#findLiveSession(token, this.#now(), log)) !== undefined,
     };
   }
 
@@ -89,7 +93,9 @@ export class AuthService implements RequestAuthenticator {
   ): Promise<Authentication> {
     const now = this.#now();
     const session =
-      token === undefined ? undefined : await this.#findLiveSession(token, now);
+      token === undefined
+        ? undefined
+        : await this.#findLiveSession(token, now, log);
     if (session !== undefined) {
       const renewal = await this.#renew(session, now, log);
       return renewal === undefined
@@ -177,9 +183,36 @@ export class AuthService implements RequestAuthenticator {
     if (!(await verifyPassword(password, account.password_hash))) {
       return { kind: "invalid_password" };
     }
+    const session = await this.#startSessionForVerifiedHash(
+      account.id,
+      account.password_hash,
+    );
+    // A password changed during the check leaves the reserved failure counted.
+    if (session === undefined) return { kind: "invalid_password" };
     this.#attempts.succeed();
-    const session = await this.#startSession(this.#db, account.id, this.#now());
     return { kind: "logged_in", session };
+  }
+
+  /**
+   * Starts a session only if the account still has the password hash that
+   * was just verified. The check is slow and runs without write authority,
+   * so a password reset or change may commit meanwhile and end every session;
+   * re-checking under write authority keeps the old password from opening a
+   * new one afterwards. Returns undefined when the password changed.
+   */
+  async #startSessionForVerifiedHash(
+    accountId: string,
+    verifiedHash: string,
+  ): Promise<IssuedSession | undefined> {
+    return runImmediateTransaction(this.#db, async (pinned) => {
+      const current = await pinned
+        .selectFrom("accounts")
+        .select("password_hash")
+        .where("id", "=", accountId)
+        .executeTakeFirst();
+      if (current?.password_hash !== verifiedHash) return undefined;
+      return this.#startSession(pinned, accountId, this.#now());
+    });
   }
 
   /**
@@ -241,11 +274,14 @@ export class AuthService implements RequestAuthenticator {
   /**
    * Finds the unexpired session `token` names at `now`. An expired one is
    * deleted as it is found, only while still expired, so a concurrent
-   * extension is never undone.
+   * extension is never undone. The delete is best-effort: an expired session
+   * is refused either way, so a failed delete, such as another process
+   * holding the write lock, is logged and left to a later read or startup.
    */
   async #findLiveSession(
     token: string,
     now: number,
+    log: Pick<FastifyBaseLogger, "warn">,
   ): Promise<{ id: string; expires_at: number } | undefined> {
     const session = await this.#db
       .selectFrom("sessions")
@@ -255,11 +291,15 @@ export class AuthService implements RequestAuthenticator {
     if (session === undefined) return undefined;
     if (session.expires_at > now) return session;
 
-    await this.#db
-      .deleteFrom("sessions")
-      .where("id", "=", session.id)
-      .where("expires_at", "<=", now)
-      .execute();
+    try {
+      await this.#db
+        .deleteFrom("sessions")
+        .where("id", "=", session.id)
+        .where("expires_at", "<=", now)
+        .execute();
+    } catch (err) {
+      log.warn({ err }, "Deleting an expired session failed");
+    }
     return undefined;
   }
 

@@ -146,6 +146,46 @@ describe("sliding session expiry", () => {
     });
   });
 
+  it("answers an expired cookie 401, not 500, when its row cannot be deleted, and warns", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const { lines, stream } = captureLogLines();
+    const { server, db, clock } = await startClockedServer({
+      dataDirectory,
+      logger: { level: "warn", stream },
+    });
+    const { cookie } = await signIn(server);
+    clock.advance(30 * DAY_MS);
+    const other = await openTestDatabase(dataDirectory);
+    const held = await holdWriteAuthority(other.db);
+
+    let gated;
+    let state;
+    try {
+      gated = await server.inject({
+        method: "GET",
+        url: "/channels",
+        headers: { cookie },
+      });
+      state = await server.inject({
+        method: "GET",
+        url: "/auth/state",
+        headers: { cookie },
+      });
+    } finally {
+      await held.release();
+    }
+
+    expect(gated.statusCode).toBe(401);
+    expect(gated.json()).toMatchObject({ error: { code: "unauthenticated" } });
+    expect(state.statusCode).toBe(200);
+    expect(state.json()).toMatchObject({ authenticated: false });
+    expect(
+      lines.filter((line) => line.msg === "Deleting an expired session failed"),
+    ).toHaveLength(2);
+    // The row stays until a later read or startup cleanup can delete it.
+    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+  });
+
   it("answers a session idle for 30 days 401 and deletes its row", async () => {
     const { server, db, clock } = await startClockedServer();
     const { cookie } = await signIn(server);

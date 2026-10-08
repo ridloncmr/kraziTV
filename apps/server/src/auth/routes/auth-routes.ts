@@ -41,7 +41,7 @@ export function registerAuthRoutes(
     sessionCookie(token, maxAgeSeconds, settings.secureCookie);
 
   server.get("/auth/state", async (request) =>
-    auth.state(readSessionCookie(request.headers.cookie)),
+    auth.state(readSessionCookie(request.headers.cookie), request.log),
   );
 
   server.post("/auth/setup", async (request, reply) => {
@@ -64,7 +64,7 @@ export function registerAuthRoutes(
     return reply
       .status(201)
       .header("set-cookie", cookie(token, maxAgeSeconds))
-      .send(await auth.state(token));
+      .send(await auth.state(token, request.log));
   });
 
   server.post("/auth/login", async (request, reply) => {
@@ -104,7 +104,7 @@ export function registerAuthRoutes(
     const { token, maxAgeSeconds } = result.session;
     return reply
       .header("set-cookie", cookie(token, maxAgeSeconds))
-      .send(await auth.state(token));
+      .send(await auth.state(token, request.log));
   });
 
   // Always succeeds: a browser with no session, or a stale one, is already
