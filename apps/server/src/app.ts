@@ -2,8 +2,13 @@ import cors from "@fastify/cors";
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
+  type RouteOptions,
 } from "fastify";
 
+import type { AuthService } from "./auth/auth-service.js";
+import type { RequestAuthenticator } from "./auth/contracts.js";
+import { registerAuthGate } from "./auth/gate/auth-gate.js";
+import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
@@ -36,11 +41,17 @@ import type { ScheduleService } from "./schedules/schedule-service.js";
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
 type BuildServerOptions = FastifyServerOptions & {
+  /** Normalized browser origins, as parseCorsOrigins returns them. */
   corsOrigins?: string[];
   /** How long a channel disable, delete, re-enable, or interrupt waits for its runtime stop. */
   channelStopTimeoutMs?: number | undefined;
   /** Required so Plex URLs always come from parsed configuration, never a second default. */
   plex: PlexSettings;
+  /**
+   * Observes every route as it registers, before the first one, so a test can
+   * prove each route was decided public or gated.
+   */
+  onRoute?: ((route: RouteOptions) => void) | undefined;
 };
 
 export type ServerDatabaseLifecycle = {
@@ -49,6 +60,9 @@ export type ServerDatabaseLifecycle = {
 
 export type ServerDependencies = {
   database: ServerDatabaseLifecycle;
+  auth: AuthService;
+  /** What the auth gate asks; production passes the same service as `auth`. */
+  authenticator: RequestAuthenticator;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -74,13 +88,25 @@ function registerRoutes(
   // One lock per server, so every route that stops a channel's runtime
   // serializes with every other lifecycle change of that channel.
   const lifecycle = new ChannelLifecycleLock();
-  // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also edits and deletes.
+  // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also
+  // edits and deletes. Credentials let the web app send its session cookie.
   void server.register(cors, {
     origin: corsOrigins,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  });
+  // The public base URL is the origin browsers reach kraziTV at too, so it
+  // decides the cookie's Secure flag and is always an allowed write origin.
+  const publicOrigin = new URL(plex.publicBaseUrl);
+  const secureCookie = publicOrigin.protocol === "https:";
+  // After CORS and before every route; see registerAuthGate.
+  registerAuthGate(server, dependencies.authenticator, {
+    allowedOrigins: new Set([publicOrigin.origin, ...corsOrigins]),
+    secureCookie,
   });
 
   server.get("/health", async () => ({ status: "ok" }));
+  registerAuthRoutes(server, dependencies.auth, { secureCookie });
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,
@@ -147,9 +173,11 @@ export function buildServer(
     corsOrigins = DEFAULT_CORS_ORIGINS,
     channelStopTimeoutMs = DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
     plex,
+    onRoute,
     ...fastifyOptions
   } = options;
   const server = Fastify(fastifyOptions);
+  if (onRoute !== undefined) server.addHook("onRoute", onRoute);
 
   // Scan jobs are cancelled first so every ffprobe child closes, and a
   // committing job finishes, before onClose releases the database.
@@ -169,10 +197,11 @@ export function buildServer(
     }
   });
 
-  // Purges removed media whose airing ended while the server was down, then
-  // repairs schedules that lapsed, before it serves traffic. Both log
-  // failures instead of blocking startup.
+  // Deletes sessions that expired while the server was down, purges removed
+  // media whose airing ended meanwhile, then repairs schedules that lapsed,
+  // before it serves traffic. Each logs failures instead of blocking startup.
   server.addHook("onReady", async () => {
+    await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
   });

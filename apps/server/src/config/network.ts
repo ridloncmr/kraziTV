@@ -37,7 +37,23 @@ export function parsePublicBaseUrl(
     return `http://${DEFAULT_HOST}:${port}`;
   }
 
-  const url = URL.canParse(trimmed) ? new URL(trimmed) : null;
+  const origin = toHttpOrigin(trimmed);
+  if (origin === undefined) {
+    throw new Error(
+      `PUBLIC_BASE_URL must be an absolute http: or https: URL with no credentials, path, query, or fragment; received "${value}"`,
+    );
+  }
+  // The origin drops the trailing slash, so paths append with no double slash.
+  return origin;
+}
+
+/**
+ * Normalizes a configured value that must name exactly one http(s) origin,
+ * or returns undefined when it names anything else: a path, query, fragment,
+ * credentials, another scheme, or no URL at all.
+ */
+function toHttpOrigin(value: string): string | undefined {
+  const url = URL.canParse(value) ? new URL(value) : null;
   if (
     url === null ||
     (url.protocol !== "http:" && url.protocol !== "https:") ||
@@ -47,33 +63,34 @@ export function parsePublicBaseUrl(
     url.search !== "" ||
     url.hash !== ""
   ) {
-    throw new Error(
-      `PUBLIC_BASE_URL must be an absolute http: or https: URL with no credentials, path, query, or fragment; received "${value}"`,
-    );
+    return undefined;
   }
-  // The origin drops the trailing slash, so paths append with no double slash.
   return url.origin;
 }
 
-/** Decides whether the bind address stays on this machine, which gates the no-auth warning. */
-export function isLoopbackHost(host: string): boolean {
-  const normalizedHost = host.trim().toLowerCase();
-
-  return (
-    normalizedHost === "localhost" ||
-    normalizedHost === "::1" ||
-    normalizedHost.startsWith("127.")
-  );
-}
-
-/** Returns undefined for an empty setting so the server keeps its local Web UI default. */
+/**
+ * Parses the browser origins allowed to call the API with credentials,
+ * normalized so they compare equal to a request's `Origin`. A wildcard or
+ * `null` would let any site act with the session cookie, so every entry must
+ * be one http(s) origin. Returns undefined for an empty setting so the server
+ * keeps its local Web UI default.
+ */
 export function parseCorsOrigins(
   value: string | undefined,
 ): string[] | undefined {
-  const origins = value
+  const entries = value
     ?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+  if (!entries?.length) return undefined;
 
-  return origins?.length ? origins : undefined;
+  return entries.map((entry) => {
+    const origin = toHttpOrigin(entry);
+    if (origin === undefined) {
+      throw new Error(
+        `CORS_ORIGINS entries must be absolute http: or https: origins with no credentials, path, query, or fragment; received "${entry}"`,
+      );
+    }
+    return origin;
+  });
 }

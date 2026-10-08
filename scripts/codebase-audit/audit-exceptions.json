@@ -32,7 +32,7 @@
       "rule": "grouping",
       "files": ["packages/krazi-brain/src/schedule/"],
       "reason": "Every file serves one capability, pure schedule generation, so the domain stays flat.",
-      "source": "docs/implementation_plan/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
+      "source": "docs/implementation_plan/001-mvp/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
     },
     {
       "rule": "grouping",
@@ -103,6 +103,7 @@
     {
       "rule": "duplicate-code",
       "files": [
+        "apps/server/src/auth/auth-service.ts",
         "apps/server/src/catalog-scan/writer/catalog-scan-writer.ts",
         "apps/server/src/channels/repository/channel-repository.ts",
         "apps/server/src/media-collections/media-collection-repository.ts",
@@ -128,6 +129,12 @@
       ],
       "reason": "POST and PATCH share only param and body parsing before running different input changes; a helper would hide two lines behind indirection.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
+    },
+    {
+      "rule": "src-root",
+      "files": ["apps/server/src/reset-password.ts"],
+      "reason": "A second process entry point beside index.ts: the reset-password command that an npm script runs directly, so it belongs at the src root like index.ts.",
+      "source": "docs/implementation_plan/003-auth/0001-accounts-and-sessions.md (Reconnaissance: \"The reset command's entry point is apps/server/src/reset-password.ts at the src/ root, beside index.ts\")"
     }
   ]
 }

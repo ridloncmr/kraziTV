@@ -2,11 +2,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { FastifyInstance, FastifyServerOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyServerOptions,
+  RouteOptions,
+} from "fastify";
 import type { Kysely } from "kysely";
 import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
+import { AuthService } from "../auth/auth-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -28,6 +33,7 @@ import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
+import { SignedInAuthenticator } from "./signed-in-authenticator.js";
 
 /** Every server dependency except the database, which the helper always opens. */
 export type TestServerDependencies = Omit<ServerDependencies, "database">;
@@ -48,6 +54,14 @@ export interface StartTestServerOptions {
   plex?: Partial<PlexSettings>;
   /** Fastify logger options; defaults to silent so test output stays clean. */
   logger?: FastifyServerOptions["logger"];
+  /**
+   * Who the auth gate asks. `signed-in` (the default) admits every request,
+   * so suites about other domains need no cookies; `real` gates with the
+   * final `auth` service, for suites about authentication and public routes.
+   */
+  auth?: "signed-in" | "real";
+  /** Observes every route as the server registers it, for route coverage tests. */
+  onRoute?: ((route: RouteOptions) => void) | undefined;
 }
 
 export interface TestServer {
@@ -118,7 +132,10 @@ export async function startTestServer(
       schedules: scheduleService,
       isScanning,
     });
+  const auth = new AuthService(database.db);
   const defaults: TestServerDependencies = {
+    auth,
+    authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),
@@ -151,6 +168,11 @@ export async function startTestServer(
   if (overridden.catalogRemovals === undefined) {
     dependencies.catalogRemovals = defaultRemovals(dependencies.schedules);
   }
+  // Real gating follows an overridden auth service, so a test that steps the
+  // auth clock gates on that same clock.
+  if (options.auth === "real" && overridden.authenticator === undefined) {
+    dependencies.authenticator = dependencies.auth;
+  }
   wired.dependencies = dependencies;
   const server = buildServer(
     { database, ...dependencies },
@@ -158,6 +180,7 @@ export async function startTestServer(
       logger: options.logger ?? false,
       channelStopTimeoutMs: options.channelStopTimeoutMs,
       plex: { ...plexSettingsFixture, ...options.plex },
+      onRoute: options.onRoute,
     },
   );
   servers.push(server);

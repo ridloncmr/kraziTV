@@ -5,6 +5,7 @@ import {
   type ServerDependencies,
   type ServerDatabaseLifecycle,
 } from "./app.js";
+import type { AuthService } from "./auth/auth-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
@@ -19,6 +20,7 @@ import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
 import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
 import { plexSettingsFixture } from "./testing/plex-fixtures.js";
+import { SignedInAuthenticator } from "./testing/signed-in-authenticator.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -33,6 +35,10 @@ function createDependencies(
   // enough; schedules still answers the startup ensure.
   return {
     database,
+    auth: {
+      deleteExpiredSessions: async () => undefined,
+    } as Partial<AuthService> as AuthService,
+    authenticator: new SignedInAuthenticator(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ScheduleService } from "../schedules/schedule-service.js";
-import { createChannel, send } from "../testing/api-requests.js";
+import { createChannel, send, signIn } from "../testing/api-requests.js";
 import {
   collectionFixture,
   collectionItemFixture,
@@ -31,7 +31,10 @@ describe("Plex adapter acceptance", () => {
   it("maps enabled channels and schedules to Plex while delegating its stream URL", async () => {
     const clock = manualClock(FIXTURE_TIME);
     const streams = new ControlledChannelStreams();
+    // Real auth: admin setup carries the session cookie, and every Plex
+    // request below carries none, because Plex never authenticates.
     const { server, db } = await startTestServer({
+      auth: "real",
       plex: { publicBaseUrl: PUBLIC_BASE_URL, deviceId: DEVICE_ID },
       seed: async (db) => {
         await db.insertInto("media_roots").values(rootFixture).execute();
@@ -54,16 +57,17 @@ describe("Plex adapter acceptance", () => {
       }),
     });
     await server.ready();
+    const admin = await signIn(server);
 
     const enabled = (
-      await createChannel(server, { number: "69", name: "Krazi Comedy" })
+      await createChannel(server, { number: "69", name: "Krazi Comedy" }, admin)
     ).json<{ id: string }>();
     const disabled = (
-      await createChannel(server, {
-        number: "70",
-        name: "Dark Channel",
-        enabled: false,
-      })
+      await createChannel(
+        server,
+        { number: "70", name: "Dark Channel", enabled: false },
+        admin,
+      )
     ).json<{ id: string }>();
     const block = await send(
       server,
@@ -76,6 +80,7 @@ describe("Plex adapter acceptance", () => {
           playbackMode: "chronological",
         },
       },
+      admin,
     );
     expect(block.status).toBe(201);
 

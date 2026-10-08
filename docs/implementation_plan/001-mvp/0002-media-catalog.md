@@ -17,7 +17,7 @@ Progress: 8 of 8 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../specs/features/001-mvp/specs/0002-media-catalog.md)
+Source: [`docs/specs/features/001-mvp/specs/0002-media-catalog.md`](../../specs/features/001-mvp/specs/0002-media-catalog.md)
 
 This plan delivers the first persistence-backed product slice: configured local
 media roots, deterministic discovery, bounded ffprobe inspection, durable

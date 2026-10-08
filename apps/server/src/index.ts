@@ -3,6 +3,7 @@ import { createFfmpegSignalPackager, SystemRuntime } from "@krazitv/signal";
 import { pino } from "pino";
 
 import { buildServer } from "./app.js";
+import { AuthService } from "./auth/auth-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
@@ -22,7 +23,6 @@ import { parseProbeConfig } from "./config/probe.js";
 import { parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
 import {
-  isLoopbackHost,
   parseCorsOrigins,
   parseListenConfig,
   parsePublicBaseUrl,
@@ -41,6 +41,7 @@ const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
+const auth = new AuthService(database.db);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -90,6 +91,9 @@ const channelStreams = composeChannelStreamManager({
 const server = buildServer(
   {
     database,
+    auth,
+    // The gate checks sessions against the same service that issues them.
+    authenticator: auth,
     mediaRoots,
     scanner,
     mediaItems,
@@ -109,12 +113,6 @@ const server = buildServer(
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );
-
-if (!isLoopbackHost(host)) {
-  server.log.warn(
-    "SECURITY WARNING: kraziTV has no authentication. Bind only on a trusted network; connected clients can access mutable administration APIs and local-media scan capabilities.",
-  );
-}
 
 try {
   await server.listen({ host, port });

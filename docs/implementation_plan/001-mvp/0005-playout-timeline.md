@@ -17,7 +17,7 @@ Progress: 8 of 8 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0005-playout-timeline.md`](../specs/features/001-mvp/specs/0005-playout-timeline.md)
+Source: [`docs/specs/features/001-mvp/specs/0005-playout-timeline.md`](../../specs/features/001-mvp/specs/0005-playout-timeline.md)
 
 This plan delivers the derived playout timeline and channel state.
 kraziBrain decides which playout item is current, the join offset, and which
@@ -98,7 +98,7 @@ Modified files: `packages/krazi-brain/src/index.ts` (PLY-002, PLY-003);
 `testing/test-environment.ts` (PLY-006); `http/request-schemas.ts` and
 `schedules/schedule-routes.ts` (PLY-007).
 
-Grouping rule ([ADR 0010](../adrs/0010-source-layout.md)):
+Grouping rule ([ADR 0010](../../adrs/0010-source-layout.md)):
 `krazi-brain/src/playout/` holds three source files serving one capability,
 playout derivation, so it stays flat. `apps/server/src/playout/` holds four
 source files plus `contracts.ts`, all serving playout reads, so it stays flat.

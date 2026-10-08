@@ -5,6 +5,7 @@ import {
   PLAN_START,
   describeProgress,
   parseTickets,
+  renderIndexBlock,
   upsertBlock,
 } from "./plan-progress.mjs";
 
@@ -97,5 +98,27 @@ describe("upsertBlock", () => {
         isTitle,
       ),
     ).toThrow(/end marker/);
+  });
+});
+
+describe("renderIndexBlock", () => {
+  it("groups plans under one heading per feature folder", () => {
+    const tickets = parseTickets(plan);
+    const block = renderIndexBlock([
+      { title: "A", feature: "001-mvp", file: "001-mvp/0002-a.md", tickets },
+      { title: "B", feature: "001-mvp", file: "001-mvp/0003-b.md", tickets },
+      { title: "C", feature: "003-auth", file: "003-auth/0001-c.md", tickets },
+    ]);
+    expect(block.split("\n").slice(2, -1)).toEqual([
+      "### 001-mvp",
+      "",
+      "- [A](001-mvp/0002-a.md) - 1 of 3 tickets complete",
+      "- [B](001-mvp/0003-b.md) - 1 of 3 tickets complete",
+      "",
+      "### 003-auth",
+      "",
+      "- [C](003-auth/0001-c.md) - 1 of 3 tickets complete",
+      "",
+    ]);
   });
 });

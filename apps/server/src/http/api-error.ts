@@ -5,6 +5,7 @@ import { WriteAuthorityBusyError } from "../database/writes/immediate-transactio
 import { toApiTimestamp } from "./api-timestamp.js";
 
 type ApiErrorCode =
+  | "already_set_up"
   | "channel_disabled"
   | "channel_not_found"
   | "channel_number_duplicate"
@@ -12,7 +13,9 @@ type ApiErrorCode =
   | "channels_left_unschedulable"
   | "channel_unschedulable"
   | "folder_not_found"
+  | "forbidden_origin"
   | "folder_unreadable"
+  | "invalid_password"
   | "invalid_request"
   | "internal_error"
   | "media_collection_in_use"
@@ -34,9 +37,12 @@ type ApiErrorCode =
   | "scan_in_progress"
   | "scan_not_found"
   | "schedule_busy"
+  | "setup_required"
   | "stream_failed"
   | "stream_startup_timeout"
-  | "stream_unavailable";
+  | "stream_unavailable"
+  | "too_many_attempts"
+  | "unauthenticated";
 
 /**
  * Sends the one error envelope every API client can rely on. Details add

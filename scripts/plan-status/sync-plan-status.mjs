@@ -1,12 +1,14 @@
 // Regenerates the progress block in every implementation plan and the plan
 // list in `docs/implementation_plan/README.md` from ticket Status blocks.
+// Plans live in feature folders that mirror `docs/specs/features/`, such as
+// `docs/implementation_plan/001-mvp/0002-media-catalog.md`.
 //
 // Usage:
 //   node scripts/plan-status/sync-plan-status.mjs          Write generated blocks.
 //   node scripts/plan-status/sync-plan-status.mjs --check  Exit non-zero if stale.
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as prettier from "prettier";
 
@@ -25,6 +27,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const planRoot = join(repoRoot, "docs", "implementation_plan");
 const indexFile = join(planRoot, "README.md");
 const PLAN_FILE = /^\d{4}-.+\.md$/;
+const FEATURE_FOLDER = /^\d{3}-.+$/;
 
 /**
  * Formats with the repository Prettier config so generated output already
@@ -45,8 +48,8 @@ function read(file) {
 }
 
 /** Renders a plan's progress block and its index entry from its tickets. */
-async function syncPlan(name) {
-  const file = join(planRoot, name);
+async function syncPlan({ feature, name }) {
+  const file = join(planRoot, feature, name);
   const { text, eol } = read(file);
   const tickets = parseTickets(text);
   const block = renderPlanBlock(tickets);
@@ -60,7 +63,7 @@ async function syncPlan(name) {
     before: text,
     after: next,
     eol,
-    entry: { title, file: name, tickets },
+    entry: { title, feature, file: posix.join(feature, name), tickets },
   };
 }
 
@@ -74,13 +77,37 @@ function isPlanListHeading(line) {
   return line === "## Detailed Plans";
 }
 
+/**
+ * Lists plans feature folder by feature folder. A plan left at the root is an
+ * error, so plans cannot pile up there again.
+ */
+function listPlans() {
+  const entries = readdirSync(planRoot, { withFileTypes: true });
+  const strays = entries.filter(
+    (entry) => entry.isFile() && PLAN_FILE.test(entry.name),
+  );
+  if (strays.length > 0)
+    throw new Error(
+      `Move these plans into a feature folder such as 001-mvp/: ${strays
+        .map((entry) => entry.name)
+        .join(", ")}`,
+    );
+  return entries
+    .filter((entry) => entry.isDirectory() && FEATURE_FOLDER.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+    .flatMap((feature) =>
+      readdirSync(join(planRoot, feature))
+        .filter((name) => PLAN_FILE.test(name))
+        .sort()
+        .map((name) => ({ feature, name })),
+    );
+}
+
 /** Writes or checks every generated block, reporting each stale file. */
 async function main() {
   const check = process.argv.includes("--check");
-  const names = readdirSync(planRoot)
-    .filter((name) => PLAN_FILE.test(name))
-    .sort();
-  const results = await Promise.all(names.map(syncPlan));
+  const results = await Promise.all(listPlans().map(syncPlan));
 
   const index = read(indexFile);
   const indexBlock = renderIndexBlock(results.map((result) => result.entry));

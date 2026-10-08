@@ -14,7 +14,7 @@ Progress: 5 of 5 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0007-plex-adapter.md`](../specs/features/001-mvp/specs/0007-plex-adapter.md)
+Source: [`docs/specs/features/001-mvp/specs/0007-plex-adapter.md`](../../specs/features/001-mvp/specs/0007-plex-adapter.md)
 
 This plan replaces the disposable `apps/plex-spike` tuner harness with the
 formal Plex adapter: HDHomeRun-compatible tuner endpoints and XMLTV guide data
