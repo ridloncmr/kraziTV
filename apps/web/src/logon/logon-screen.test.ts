@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -13,6 +14,7 @@ import { LogonScreen } from "./logon-screen.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -120,4 +122,74 @@ it("never reports a login that finishes after the screen unmounts", async () => 
   api.release("/auth/login", loggedIn, "POST");
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(onLoggedIn).not.toHaveBeenCalled();
+});
+
+/** A login API that refuses with `429 too_many_attempts` and the given extra fields. */
+function throttledApi(fields: Record<string, unknown>): BrowserApi {
+  const api = new BrowserApi();
+  api.reply(
+    "/auth/login",
+    {
+      error: {
+        code: "too_many_attempts",
+        message: "Too many wrong passwords; wait before trying again",
+        ...fields,
+      },
+    },
+    "POST",
+    429,
+  );
+  return api;
+}
+
+/** Advances fake time and lets React apply what the timers changed. */
+function elapse(ms: number) {
+  return act(() => vi.advanceTimersByTimeAsync(ms));
+}
+
+it("counts a throttled logon down each second with the box disabled, then re-enables it", async () => {
+  vi.useFakeTimers();
+  renderLogon(throttledApi({ retryAfterSeconds: 3 }));
+  const box = openAndType("correct horse");
+  const arrow = screen.getByRole<HTMLButtonElement>("button", {
+    name: "Log on",
+  });
+  fireEvent.submit(box.form!);
+  await elapse(0);
+  const balloon = () => screen.getByRole("alert").textContent;
+  expect(balloon()).toContain("try again in 3 seconds");
+  expect(box.disabled).toBe(true);
+  expect(arrow.disabled).toBe(true);
+  await elapse(1_000);
+  expect(balloon()).toContain("try again in 2 seconds");
+  expect(box.disabled).toBe(true);
+  await elapse(1_000);
+  expect(balloon()).toContain("try again in 1 second.");
+  expect(box.disabled).toBe(true);
+  expect(arrow.disabled).toBe(true);
+  await elapse(1_000);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(box.disabled).toBe(false);
+  expect(arrow.disabled).toBe(false);
+  expect(document.activeElement).toBe(box);
+});
+
+it("leaves no countdown timer running after the screen unmounts", async () => {
+  vi.useFakeTimers();
+  renderLogon(throttledApi({ retryAfterSeconds: 30 }));
+  fireEvent.submit(openAndType("correct horse").form!);
+  await elapse(0);
+  expect(vi.getTimerCount()).toBeGreaterThan(0);
+  cleanup();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("shows the server's message and keeps the box usable when the wait is missing", async () => {
+  renderLogon(throttledApi({}));
+  const box = openAndType("correct horse");
+  fireEvent.submit(box.form!);
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Too many wrong passwords; wait before trying again",
+  );
+  expect(box.disabled).toBe(false);
 });
