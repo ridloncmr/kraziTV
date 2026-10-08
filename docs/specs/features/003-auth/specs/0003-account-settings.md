@@ -1,6 +1,6 @@
 # Account Settings
 
-Status: Draft
+Status: Implemented
 
 This spec adds an **Account Settings** desktop program for changing the
 account's password, display name, and avatar. It builds on
