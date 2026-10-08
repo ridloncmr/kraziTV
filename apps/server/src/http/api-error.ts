@@ -5,6 +5,7 @@ import { WriteAuthorityBusyError } from "../database/writes/immediate-transactio
 import { toApiTimestamp } from "./api-timestamp.js";
 
 type ApiErrorCode =
+  | "already_set_up"
   | "channel_disabled"
   | "channel_not_found"
   | "channel_number_duplicate"

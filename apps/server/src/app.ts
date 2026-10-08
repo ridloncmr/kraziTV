@@ -4,6 +4,8 @@ import Fastify, {
   type FastifyServerOptions,
 } from "fastify";
 
+import type { AuthService } from "./auth/auth-service.js";
+import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
@@ -49,6 +51,7 @@ export type ServerDatabaseLifecycle = {
 
 export type ServerDependencies = {
   database: ServerDatabaseLifecycle;
+  auth: AuthService;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -81,6 +84,10 @@ function registerRoutes(
   });
 
   server.get("/health", async () => ({ status: "ok" }));
+  registerAuthRoutes(server, dependencies.auth, {
+    // The public base URL is the origin browsers reach kraziTV at too.
+    secureCookie: new URL(plex.publicBaseUrl).protocol === "https:",
+  });
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,

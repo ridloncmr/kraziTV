@@ -7,6 +7,7 @@ import type { Kysely } from "kysely";
 import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
+import { AuthService } from "../auth/auth-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -119,6 +120,7 @@ export async function startTestServer(
       isScanning,
     });
   const defaults: TestServerDependencies = {
+    auth: new AuthService(database.db),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

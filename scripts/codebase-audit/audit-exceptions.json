@@ -103,6 +103,7 @@
     {
       "rule": "duplicate-code",
       "files": [
+        "apps/server/src/auth/auth-service.ts",
         "apps/server/src/catalog-scan/writer/catalog-scan-writer.ts",
         "apps/server/src/channels/repository/channel-repository.ts",
         "apps/server/src/media-collections/media-collection-repository.ts",

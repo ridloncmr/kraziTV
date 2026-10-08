@@ -5,6 +5,7 @@ import {
   type ServerDependencies,
   type ServerDatabaseLifecycle,
 } from "./app.js";
+import type { AuthService } from "./auth/auth-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
@@ -33,6 +34,7 @@ function createDependencies(
   // enough; schedules still answers the startup ensure.
   return {
     database,
+    auth: {} as AuthService,
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,

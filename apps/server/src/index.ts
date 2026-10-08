@@ -3,6 +3,7 @@ import { createFfmpegSignalPackager, SystemRuntime } from "@krazitv/signal";
 import { pino } from "pino";
 
 import { buildServer } from "./app.js";
+import { AuthService } from "./auth/auth-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
@@ -41,6 +42,7 @@ const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
+const auth = new AuthService(database.db);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -90,6 +92,7 @@ const channelStreams = composeChannelStreamManager({
 const server = buildServer(
   {
     database,
+    auth,
     mediaRoots,
     scanner,
     mediaItems,
