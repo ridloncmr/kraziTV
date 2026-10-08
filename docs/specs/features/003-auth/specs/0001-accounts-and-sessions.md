@@ -107,10 +107,12 @@ not a login credential.
 ### Cross-site requests
 
 - CORS is credentialed (`credentials: true`) for the configured web origins.
-- Every gated request with a method other than `GET` or `HEAD` must carry an
-  `Origin` header equal to the server's own origin or a configured CORS origin;
-  otherwise it answers `403 forbidden_origin`. With `SameSite=Strict` this
-  blocks cross-site request forgery.
+- A request with a method other than `GET` or `HEAD` whose `Origin` header is
+  present and is neither the public base URL's origin nor a configured CORS
+  origin answers `403 forbidden_origin`. Browsers always send `Origin` on such
+  requests, and only browsers carry the session cookie, so a request without
+  one is not a cross-site forgery. With `SameSite=Strict` this blocks
+  cross-site request forgery.
 
 ### Login throttling
 
