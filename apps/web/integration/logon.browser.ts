@@ -80,6 +80,22 @@ test("sets up the account on first run from the keyboard against the real gate",
   );
 
   await setup.getByLabel("Confirm password").fill("correct horse");
+  // A server refusal re-enables the form with focus back in it, not on <body>.
+  const refuseSetup = "http://127.0.0.1:3000/auth/setup";
+  await page.route(refuseSetup, (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "invalid_request", message: "Refused for the test" },
+      }),
+    }),
+  );
+  await page.keyboard.press("Enter");
+  await expect(setup.getByRole("alert")).toHaveText("Refused for the test");
+  await expect(setup.getByLabel("Your name")).toBeFocused();
+  await page.unroute(refuseSetup);
+
   await page.keyboard.press("Enter");
   await expectSignedInDesktop(page);
   await expect(
@@ -160,4 +176,37 @@ test("logs off from Start and stays logged off after a reload", async ({
   // The server cleared the cookie, so a reload asks again and is still out.
   await page.reload();
   await expect(tile).toBeVisible();
+});
+
+test("keeps a failed log off dismissable from the keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer({ auth: "real" });
+  await injectBrowserApi(page, server);
+  // Registered after the transport, so this route answers logout first.
+  await page.route("http://127.0.0.1:3000/auth/logout", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "offline", message: "Down" } }),
+    }),
+  );
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "start", exact: true });
+  await start.click();
+  await page
+    .getByRole("navigation", { name: "Start programs" })
+    .getByRole("button", { name: "Log Off" })
+    .click();
+  const confirmation = page.getByRole("dialog", { name: "Log Off kraziTV" });
+  await page.keyboard.press("Enter");
+  await expect(confirmation.getByRole("alert")).toBeVisible();
+  // Disabling the pressed button dropped focus; it must come back to it.
+  await expect(
+    confirmation.getByRole("button", { name: "Log Off" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirmation).toBeHidden();
+  await expect(start).toBeFocused();
 });

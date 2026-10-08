@@ -19,12 +19,18 @@ export function LogOffDialog({
   const titleId = useId();
   const logout = useMutation();
   useEffect(() => {
+    // Captured before the effect below moves focus into the dialog.
     const opener = document.activeElement;
-    logOff.current?.focus();
     return () => {
       if (opener instanceof HTMLElement) opener.focus();
     };
   }, []);
+  useEffect(() => {
+    // Log Off has focus whenever it can: at first, and again after a failed
+    // logout, because disabling the pressed button dropped focus to the page,
+    // where Escape would never reach this dialog.
+    if (!logout.pending) logOff.current?.focus();
+  }, [logout.pending]);
   return (
     <div className="log-off-layer">
       <div

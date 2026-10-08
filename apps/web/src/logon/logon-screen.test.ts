@@ -192,3 +192,15 @@ it("shows the server's message and keeps the box usable when the wait is missing
   );
   expect(box.disabled).toBe(false);
 });
+
+it("draws the account's own avatar on its tile", () => {
+  vi.stubGlobal("fetch", new BrowserApi().fetch);
+  render(
+    createElement(LogonScreen, {
+      account: { ...account, avatarId: "crt-tv" },
+      onLoggedIn: vi.fn(),
+    }),
+  );
+  const tile = screen.getByRole("button", { name: "Marguerite" });
+  expect(tile.querySelector('[data-avatar="crt-tv"]')).not.toBeNull();
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
 import type { AuthState } from "../http/contracts.js";
@@ -51,8 +51,12 @@ export function SetupScreen({
 }) {
   const [refusal, setRefusal] = useState<string>();
   const setup = useMutation();
+  const nameField = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (isAlreadySetUp(setup.error)) onAlreadySetUp();
+    // The disabled fieldset dropped focus to the page; a refusal brings it
+    // back to the first field so the owner can correct and resend.
+    else if (setup.error) nameField.current?.focus();
   }, [setup.error, onAlreadySetUp]);
   const message =
     refusal ?? (isAlreadySetUp(setup.error) ? undefined : setup.error?.message);
@@ -87,7 +91,12 @@ export function SetupScreen({
           <fieldset disabled={setup.pending}>
             <label>
               Your name
-              <input name="displayName" autoComplete="name" autoFocus />
+              <input
+                ref={nameField}
+                name="displayName"
+                autoComplete="name"
+                autoFocus
+              />
             </label>
             <label>
               Password
