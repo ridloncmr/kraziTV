@@ -1,3 +1,5 @@
+import type { FastifyBaseLogger } from "fastify";
+
 /** What a logged-out browser may know about the account: enough to draw its tile. */
 interface AccountProfile {
   displayName: string;
@@ -17,10 +19,14 @@ export interface SetUpInput {
   password: string;
 }
 
-/** A new session's token, which leaves the server only in the cookie, and the cookie's lifetime. */
-export interface IssuedSession {
-  token: string;
+/** How long a reissued session cookie should live. */
+export interface IssuedSessionLifetime {
   maxAgeSeconds: number;
+}
+
+/** A new session's token, which leaves the server only in the cookie, and the cookie's lifetime. */
+export interface IssuedSession extends IssuedSessionLifetime {
+  token: string;
 }
 
 export type SetUpResult =
@@ -34,7 +40,9 @@ export type LogInResult =
 
 /** How the auth gate must treat one request. */
 export type Authentication =
-  | { kind: "authenticated" }
+  // `renewal` is present only when this request extended the session, so
+  // the gate reissues the cookie it already carries.
+  | { kind: "authenticated"; renewal?: IssuedSessionLifetime }
   | { kind: "unauthenticated" }
   | { kind: "setup_required" };
 
@@ -43,6 +51,12 @@ export type Authentication =
  * signs every request in must change whenever the gate's needs do.
  */
 export interface RequestAuthenticator {
-  /** Classifies a request by the session token its cookie carries, if any. */
-  authenticate(token: string | undefined): Promise<Authentication>;
+  /**
+   * Classifies a request by the session token its cookie carries, if any.
+   * `log` reports best-effort work, such as a renewal that could not write.
+   */
+  authenticate(
+    token: string | undefined,
+    log: Pick<FastifyBaseLogger, "warn">,
+  ): Promise<Authentication>;
 }

@@ -45,6 +45,28 @@ describe("parseCorsOrigins", () => {
   it("uses the server default when no origins are configured", () => {
     expect(parseCorsOrigins("  ")).toBeUndefined();
   });
+
+  it("normalizes each origin, so case and a trailing slash never matter", () => {
+    expect(
+      parseCorsOrigins("HTTP://Admin.Example:8080/, https://tv.lan:443"),
+    ).toEqual(["http://admin.example:8080", "https://tv.lan"]);
+  });
+
+  it.each([
+    "*",
+    "null",
+    "http://admin.example/app",
+    "http://admin.example/?x=1",
+    "http://admin.example/#top",
+    "http://user:pw@admin.example",
+    "ftp://admin.example",
+    "admin.example",
+    "http://127.0.0.1:5173, *",
+  ])("rejects CORS_ORIGINS=%s", (value) => {
+    expect(() => parseCorsOrigins(value)).toThrow(
+      /CORS_ORIGINS entries must be absolute http: or https: origins/,
+    );
+  });
 });
 
 describe("parsePublicBaseUrl", () => {

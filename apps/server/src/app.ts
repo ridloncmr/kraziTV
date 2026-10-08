@@ -41,6 +41,7 @@ import type { ScheduleService } from "./schedules/schedule-service.js";
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
 type BuildServerOptions = FastifyServerOptions & {
+  /** Normalized browser origins, as parseCorsOrigins returns them. */
   corsOrigins?: string[];
   /** How long a channel disable, delete, re-enable, or interrupt waits for its runtime stop. */
   channelStopTimeoutMs?: number | undefined;
@@ -94,14 +95,18 @@ function registerRoutes(
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   });
+  // The public base URL is the origin browsers reach kraziTV at too, so it
+  // decides the cookie's Secure flag and is always an allowed write origin.
+  const publicOrigin = new URL(plex.publicBaseUrl);
+  const secureCookie = publicOrigin.protocol === "https:";
   // After CORS and before every route; see registerAuthGate.
-  registerAuthGate(server, dependencies.authenticator);
+  registerAuthGate(server, dependencies.authenticator, {
+    allowedOrigins: new Set([publicOrigin.origin, ...corsOrigins]),
+    secureCookie,
+  });
 
   server.get("/health", async () => ({ status: "ok" }));
-  registerAuthRoutes(server, dependencies.auth, {
-    // The public base URL is the origin browsers reach kraziTV at too.
-    secureCookie: new URL(plex.publicBaseUrl).protocol === "https:",
-  });
+  registerAuthRoutes(server, dependencies.auth, { secureCookie });
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,
@@ -192,10 +197,11 @@ export function buildServer(
     }
   });
 
-  // Purges removed media whose airing ended while the server was down, then
-  // repairs schedules that lapsed, before it serves traffic. Both log
-  // failures instead of blocking startup.
+  // Deletes sessions that expired while the server was down, purges removed
+  // media whose airing ended meanwhile, then repairs schedules that lapsed,
+  // before it serves traffic. Each logs failures instead of blocking startup.
   server.addHook("onReady", async () => {
+    await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
   });

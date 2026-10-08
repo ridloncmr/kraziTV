@@ -35,7 +35,9 @@ function createDependencies(
   // enough; schedules still answers the startup ensure.
   return {
     database,
-    auth: {} as AuthService,
+    auth: {
+      deleteExpiredSessions: async () => undefined,
+    } as Partial<AuthService> as AuthService,
     authenticator: new SignedInAuthenticator(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,

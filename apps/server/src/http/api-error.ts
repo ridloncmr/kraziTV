@@ -13,6 +13,7 @@ type ApiErrorCode =
   | "channels_left_unschedulable"
   | "channel_unschedulable"
   | "folder_not_found"
+  | "forbidden_origin"
   | "folder_unreadable"
   | "invalid_password"
   | "invalid_request"

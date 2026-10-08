@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -10,6 +11,7 @@ import type {
   Authentication,
   AuthState,
   IssuedSession,
+  IssuedSessionLifetime,
   LogInResult,
   RequestAuthenticator,
   SetUpInput,
@@ -21,6 +23,7 @@ import {
   createSessionToken,
   hashSessionToken,
   SESSION_LIFETIME_MS,
+  SESSION_RENEWAL_INTERVAL_MS,
 } from "./sessions/session-token.js";
 
 /** Reports whether the one account exists, on whichever connection the caller holds. */
@@ -66,22 +69,53 @@ export class AuthService implements RequestAuthenticator {
         displayName: account.display_name,
         avatarId: account.avatar_id,
       },
-      authenticated: token !== undefined && (await this.#isLive(token)),
+      authenticated:
+        token !== undefined &&
+        (await this.#findLiveSession(token, this.#now())) !== undefined,
     };
   }
 
   /**
-   * Answers the auth gate for a request carrying `token`. A live session
-   * implies the account exists, so the common signed-in path is one query;
-   * only a request without one asks whether setup is still needed.
+   * Answers the auth gate for a request carrying `token`, sliding the
+   * session's expiry when it is due (ADR 0012). A live session implies the
+   * account exists, so the common signed-in path is one query, plus one write
+   * at most once a day; only a request without one asks whether setup is
+   * still needed.
    */
-  async authenticate(token: string | undefined): Promise<Authentication> {
-    if (token !== undefined && (await this.#isLive(token))) {
-      return { kind: "authenticated" };
+  async authenticate(
+    token: string | undefined,
+    log: Pick<FastifyBaseLogger, "warn">,
+  ): Promise<Authentication> {
+    const now = this.#now();
+    const session =
+      token === undefined ? undefined : await this.#findLiveSession(token, now);
+    if (session !== undefined) {
+      const renewal = await this.#renew(session, now, log);
+      return renewal === undefined
+        ? { kind: "authenticated" }
+        : { kind: "authenticated", renewal };
     }
     return (await hasAccount(this.#db))
       ? { kind: "unauthenticated" }
       : { kind: "setup_required" };
+  }
+
+  /**
+   * Deletes every session already expired, so rows of browsers that never
+   * return do not pile up. Runs at startup; never throws, because a failure
+   * only delays cleanup and expired sessions are refused anyway.
+   */
+  async deleteExpiredSessions(
+    log: Pick<FastifyBaseLogger, "warn">,
+  ): Promise<void> {
+    try {
+      await this.#db
+        .deleteFrom("sessions")
+        .where("expires_at", "<=", this.#now())
+        .execute();
+    } catch (err) {
+      log.warn({ err }, "Deleting expired sessions failed");
+    }
   }
 
   /**
@@ -181,25 +215,63 @@ export class AuthService implements RequestAuthenticator {
   }
 
   /**
-   * Decides whether `token` names an unexpired session. An expired one is
+   * Finds the unexpired session `token` names at `now`. An expired one is
    * deleted as it is found, only while still expired, so a concurrent
    * extension is never undone.
    */
-  async #isLive(token: string): Promise<boolean> {
+  async #findLiveSession(
+    token: string,
+    now: number,
+  ): Promise<{ id: string; expires_at: number } | undefined> {
     const session = await this.#db
       .selectFrom("sessions")
       .select(["id", "expires_at"])
       .where("token_hash", "=", hashSessionToken(token))
       .executeTakeFirst();
-    if (session === undefined) return false;
+    if (session === undefined) return undefined;
+    if (session.expires_at > now) return session;
 
-    const now = this.#now();
-    if (session.expires_at > now) return true;
     await this.#db
       .deleteFrom("sessions")
       .where("id", "=", session.id)
       .where("expires_at", "<=", now)
       .execute();
-    return false;
+    return undefined;
+  }
+
+  /**
+   * Moves a session's expiry to one lifetime from `now` once a day has
+   * passed since its last extension, and returns the cookie lifetime to
+   * reissue. The last extension is `expires_at` minus one lifetime, so no
+   * extra column is needed. The write applies only while `expires_at` is
+   * still the value read: a concurrent renewal wins once, and a session
+   * logged out meanwhile stays deleted and gets no cookie.
+   *
+   * Best-effort: a failed write, such as another process holding the write
+   * lock, is logged and the request stays signed in without a new cookie;
+   * the session is still valid, and the next request retries.
+   */
+  async #renew(
+    session: { id: string; expires_at: number },
+    now: number,
+    log: Pick<FastifyBaseLogger, "warn">,
+  ): Promise<IssuedSessionLifetime | undefined> {
+    const lastExtension = session.expires_at - SESSION_LIFETIME_MS;
+    if (now - lastExtension < SESSION_RENEWAL_INTERVAL_MS) return undefined;
+
+    try {
+      const result = await this.#db
+        .updateTable("sessions")
+        .set({ expires_at: now + SESSION_LIFETIME_MS })
+        .where("id", "=", session.id)
+        .where("expires_at", "=", session.expires_at)
+        .executeTakeFirst();
+      return result.numUpdatedRows === 0n
+        ? undefined
+        : { maxAgeSeconds: SESSION_LIFETIME_MS / 1000 };
+    } catch (err) {
+      log.warn({ err }, "Renewing a session failed");
+      return undefined;
+    }
   }
 }

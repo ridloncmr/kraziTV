@@ -3,6 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 /** How long a session lives after it is created or last extended. */
 export const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long after its last extension a used session is extended again. Daily,
+ * so an active session never expires while the table is written at most once
+ * a day per session, not on every request.
+ */
+export const SESSION_RENEWAL_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 const TOKEN_BYTES = 32;
 
 /** Creates an unguessable session token, base64url so it fits a cookie value unescaped. */

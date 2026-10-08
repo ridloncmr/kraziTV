@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
 
+import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { manualClock } from "../testing/manual-clock.js";
+import { recordingLog } from "../testing/recording-log.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
@@ -15,7 +18,8 @@ import { verifyPassword } from "./passwords/password-hash.js";
 afterEach(cleanUpTestEnvironment);
 
 const START = 1_700_000_000_000;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const owner = { displayName: "Owner", password: "correct horse" };
 
 /** Opens a fresh database with an auth service on a clock the test steps. */
@@ -27,6 +31,16 @@ async function openAuth() {
     clock,
     auth: new AuthService(database.db, { now: clock.now }),
   };
+}
+
+/** Reads every session's expiry, oldest first. */
+async function readExpiry(db: Kysely<DatabaseSchema>): Promise<number[]> {
+  const rows = await db
+    .selectFrom("sessions")
+    .select("expires_at")
+    .orderBy("expires_at")
+    .execute();
+  return rows.map((row) => row.expires_at);
 }
 
 /** Sets up the owner account and returns the issued session token. */
@@ -318,10 +332,14 @@ describe("AuthService", () => {
   it("authenticates nothing before setup, whatever the token", async () => {
     const { auth } = await openAuth();
 
-    await expect(auth.authenticate(undefined)).resolves.toEqual({
-      kind: "setup_required",
-    });
-    await expect(auth.authenticate("any-token")).resolves.toEqual({
+    await expect(auth.authenticate(undefined, recordingLog())).resolves.toEqual(
+      {
+        kind: "setup_required",
+      },
+    );
+    await expect(
+      auth.authenticate("any-token", recordingLog()),
+    ).resolves.toEqual({
       kind: "setup_required",
     });
   });
@@ -330,20 +348,140 @@ describe("AuthService", () => {
     const { auth, clock } = await openAuth();
     const token = await setUpOwner(auth);
 
-    await expect(auth.authenticate(token)).resolves.toEqual({
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
       kind: "authenticated",
     });
-    await expect(auth.authenticate(undefined)).resolves.toEqual({
-      kind: "unauthenticated",
-    });
-    await expect(auth.authenticate(`${token}x`)).resolves.toEqual({
+    await expect(auth.authenticate(undefined, recordingLog())).resolves.toEqual(
+      {
+        kind: "unauthenticated",
+      },
+    );
+    await expect(
+      auth.authenticate(`${token}x`, recordingLog()),
+    ).resolves.toEqual({
       kind: "unauthenticated",
     });
 
     clock.advance(30 * DAY_MS);
-    await expect(auth.authenticate(token)).resolves.toEqual({
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
       kind: "unauthenticated",
     });
+  });
+
+  it("does not renew a session used within a day of its last extension", async () => {
+    const { auth, db, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+
+    clock.advance(12 * HOUR_MS);
+
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "authenticated",
+    });
+    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+  });
+
+  it("renews a session used a day or more after its last extension", async () => {
+    const { auth, db, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+
+    clock.advance(DAY_MS - 1);
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "authenticated",
+    });
+    clock.advance(1);
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "authenticated",
+      renewal: { maxAgeSeconds: 30 * 24 * 60 * 60 },
+    });
+    await expect(readExpiry(db)).resolves.toEqual([START + 31 * DAY_MS]);
+
+    // The next renewal waits a day from this extension, not from creation.
+    clock.advance(DAY_MS - 1);
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "authenticated",
+    });
+  });
+
+  it("keeps an active session alive past its first 30 days", async () => {
+    const { auth, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+
+    for (let day = 0; day < 40; day += 1) {
+      clock.advance(DAY_MS);
+      await expect(
+        auth.authenticate(token, recordingLog()),
+      ).resolves.toMatchObject({
+        kind: "authenticated",
+      });
+    }
+  });
+
+  it("renews once when two requests race past the renewal point", async () => {
+    const { auth, db, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+    clock.advance(25 * HOUR_MS);
+
+    const results = await Promise.all([
+      auth.authenticate(token, recordingLog()),
+      auth.authenticate(token, recordingLog()),
+    ]);
+
+    expect(results.filter((result) => "renewal" in result)).toHaveLength(1);
+    await expect(readExpiry(db)).resolves.toEqual([
+      START + 25 * HOUR_MS + 30 * DAY_MS,
+    ]);
+  });
+
+  it("never resurrects or reissues a session logged out during its renewal", async () => {
+    const { auth, db, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+    clock.advance(25 * HOUR_MS);
+
+    const [authentication] = await Promise.all([
+      auth.authenticate(token, recordingLog()),
+      auth.logOut(token),
+    ]);
+
+    expect(authentication).not.toHaveProperty("renewal");
+    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "unauthenticated",
+    });
+  });
+
+  it("deletes an idle session's row when it is used after 30 days", async () => {
+    const { auth, db, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+    clock.advance(30 * DAY_MS);
+
+    await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
+      kind: "unauthenticated",
+    });
+    await expect(readExpiry(db)).resolves.toEqual([]);
+  });
+
+  it("deletes every expired session and keeps live ones", async () => {
+    const { auth, db, clock } = await openAuth();
+    await setUpOwner(auth);
+    clock.advance(DAY_MS);
+    await auth.logIn(owner.password);
+    clock.advance(30 * DAY_MS - DAY_MS);
+
+    await auth.deleteExpiredSessions(recordingLog());
+
+    await expect(readExpiry(db)).resolves.toEqual([START + 31 * DAY_MS]);
+  });
+
+  it("logs instead of throwing when expired-session cleanup fails", async () => {
+    const database = await openTestDatabase();
+    const auth = new AuthService(database.db);
+    const log = recordingLog();
+    await database.close();
+
+    await expect(auth.deleteExpiredSessions(log)).resolves.toBeUndefined();
+    expect(log.lines).toMatchObject([
+      { level: "warn", message: "Deleting expired sessions failed" },
+    ]);
   });
 
   it("logs out only the given session", async () => {
