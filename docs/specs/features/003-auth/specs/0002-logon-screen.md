@@ -1,6 +1,6 @@
 # Logon Screen
 
-Status: Draft
+Status: Implemented
 
 This spec puts an XP-style setup and logon screen in front of the desktop
 shell and makes the web app send its session cookie. It builds on the API in
