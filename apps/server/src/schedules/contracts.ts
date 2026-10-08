@@ -17,16 +17,32 @@ export type ScheduleChangeReason =
   | "block_changed"
   | "block_deleted"
   | "membership_changed"
+  | "media_removed"
   | "manual";
 
 /**
  * Writes a scheduling input inside the schedule transaction at its effective
  * time, and names the channels whose schedules the write affects.
+ * `interruptedChannelIds` names the affected channels whose airing entry
+ * the user explicitly chose to interrupt; ADR 0003 allows nothing else to.
+ * `afterRegeneration` runs in the same transaction once every affected
+ * channel's first chunk is written, for work that needs the regenerated
+ * schedule, such as purging media no entry holds any more. It receives the
+ * channels whose revision this commit already advanced, so it never
+ * advances one twice (ADR 0003).
  */
 export type ScheduleInputChange<T> = (
   trx: Kysely<DatabaseSchema>,
   effectiveNow: number,
-) => Promise<{ value: T; affectedChannelIds: readonly string[] }>;
+) => Promise<{
+  value: T;
+  affectedChannelIds: readonly string[];
+  interruptedChannelIds?: readonly string[];
+  afterRegeneration?: (
+    trx: Kysely<DatabaseSchema>,
+    advancedChannelIds: ReadonlySet<string>,
+  ) => Promise<void>;
+}>;
 
 /** A channel's persisted schedule bookkeeping. */
 export interface ScheduleState {
@@ -88,7 +104,10 @@ export type WrittenChunk =
 
 /** What one regeneration removed and rebuilt; logged once it commits. */
 interface Regeneration {
+  /** Where the rebuilt entries start. */
   boundary: number;
+  /** The start of the airing entry an interrupt deleted, when one did. */
+  interruptedFrom?: number | undefined;
   deletedEntryCount: number;
   insertedEntryCount: number;
   /** Where coverage had already ended, when the regeneration repaired a gap. */
@@ -99,6 +118,8 @@ interface Regeneration {
 export interface ChannelChunk {
   channelId: string;
   result: ChunkResult;
+  /** Whether the chunk advanced the channel's schedule revision. */
+  revisionAdvanced?: boolean | undefined;
   regeneration?: Regeneration | undefined;
 }
 

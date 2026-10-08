@@ -113,6 +113,7 @@ describe("CatalogScanWriter", () => {
         updated_at: SCANNED_AT,
         last_seen_at: SCANNED_AT,
         last_probed_at: PROBED_AT,
+        removed_at: null,
       },
       {
         ...itemFixture,
@@ -139,6 +140,7 @@ describe("CatalogScanWriter", () => {
         updated_at: SCANNED_AT,
         last_seen_at: SCANNED_AT,
         last_probed_at: PROBED_AT,
+        removed_at: null,
       },
     ]);
   });
@@ -290,6 +292,69 @@ describe("CatalogScanWriter", () => {
         status: "available",
       },
     ]);
+  });
+
+  it("returns a removed item whose file still exists to the catalog under its ID", async () => {
+    const { db, writer } = await setup();
+    await db
+      .updateTable("media_items")
+      .set({ removed_at: FIXTURE_TIME })
+      .where("id", "=", itemFixture.id)
+      .execute();
+
+    await writer.commit({
+      rootId: rootFixture.id,
+      scannedAt: SCANNED_AT,
+      candidates: [available("example")],
+    });
+
+    await expect(
+      db
+        .selectFrom("media_items")
+        .select(["id", "status", "removed_at"])
+        .execute(),
+    ).resolves.toEqual([
+      { id: itemFixture.id, status: "available", removed_at: null },
+    ]);
+  });
+
+  it("leaves a removed item whose file is gone removed, not missing", async () => {
+    const { db, writer } = await setup();
+    await db
+      .updateTable("media_items")
+      .set({ removed_at: FIXTURE_TIME })
+      .where("id", "=", itemFixture.id)
+      .execute();
+
+    const result = await writer.commit({
+      rootId: rootFixture.id,
+      scannedAt: SCANNED_AT,
+      candidates: [],
+    });
+
+    expect(result).toEqual({ kind: "committed", missingCount: 0 });
+    expect(await items(db)).toEqual([
+      { ...itemFixture, removed_at: FIXTURE_TIME },
+    ]);
+  });
+
+  it("refuses to commit for a root removed before finalization", async () => {
+    const { db, writer } = await setup();
+    await db
+      .updateTable("media_roots")
+      .set({ removed_at: FIXTURE_TIME })
+      .where("id", "=", rootFixture.id)
+      .execute();
+
+    await expect(
+      writer.commit({
+        rootId: rootFixture.id,
+        scannedAt: SCANNED_AT,
+        candidates: [available("new-film")],
+      }),
+    ).resolves.toEqual({ kind: "root_not_found" });
+    expect(await items(db)).toEqual([itemFixture]);
+    expect(await lastScannedAt(db)).toBeNull();
   });
 
   it("refuses to commit for a root disabled before finalization", async () => {

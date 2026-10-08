@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { WindowDialogFrame } from "../controls/window-dialog.js";
-import type { MediaRoot } from "../http/contracts.js";
+import type { FolderListing, MediaRoot } from "../http/contracts.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { mediaRoot, scanStatus } from "../testing/scan-fixtures.js";
@@ -114,6 +114,47 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ path: "/media" });
+});
+
+it("fills the path by browsing server folders from the typed path", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  const listings: Record<string, FolderListing> = {
+    "": {
+      path: null,
+      parent: null,
+      folders: [{ name: "D:\\", path: "D:\\" }],
+    },
+    "D:\\": {
+      path: "D:\\",
+      parent: null,
+      folders: [{ name: "TV", path: "D:\\TV" }],
+    },
+    "D:\\TV": { path: "D:\\TV", parent: "D:\\", folders: [] },
+  };
+  api.handle("/media-roots/folders", ({ query }) =>
+    api.response(listings[query.get("path") ?? ""]),
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a media root…" }),
+  );
+  const field = screen.getByLabelText<HTMLInputElement>("Absolute server path");
+  fireEvent.change(field, { target: { value: "D:\\" } });
+
+  fireEvent.click(screen.getByRole("button", { name: "Browse…" }));
+  const browser = screen.getByRole("group", { name: "Server folders" });
+  fireEvent.click(await within(browser).findByRole("button", { name: "TV" }));
+  await within(browser).findByText("No folders here.");
+  expect(field.value).toBe("D:\\TV");
+
+  fireEvent.click(within(browser).getByRole("button", { name: "Up" }));
+  await within(browser).findByRole("button", { name: "TV" });
+  fireEvent.click(within(browser).getByRole("button", { name: "Up" }));
+  await within(browser).findByText("This server");
+  expect(field.value).toBe("D:\\");
 });
 
 const SCAN_PATH = "/media-roots/root/scan";

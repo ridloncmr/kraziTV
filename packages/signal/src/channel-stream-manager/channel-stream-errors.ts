@@ -100,22 +100,36 @@ export function cleanupFailed(
   );
 }
 
-/** Maps an administrative race to the state already committed by persistence. */
+/**
+ * Maps an administrative race to the state already committed by persistence.
+ * An interrupted channel is still enabled with new programming, so a racing
+ * tune is told to retry rather than that the channel is gone.
+ */
 export function administrativeStop(
   channelId: ChannelId,
   reason: ChannelStopReason,
 ): SignalError {
-  return reason === "disabled"
-    ? new SignalError(
+  const details = { channelId, stopReason: reason };
+  switch (reason) {
+    case "disabled":
+      return new SignalError(
         "channel_disabled",
         `Channel ${channelId} was disabled before the subscription completed`,
-        { channelId, stopReason: reason },
-      )
-    : new SignalError(
+        details,
+      );
+    case "deleted":
+      return new SignalError(
         "channel_not_found",
         `Channel ${channelId} was deleted before the subscription completed`,
-        { channelId, stopReason: reason },
+        details,
       );
+    case "interrupted":
+      return new SignalError(
+        "playout_unavailable",
+        `Channel ${channelId} was interrupted before the subscription completed; tune again`,
+        details,
+      );
+  }
 }
 
 /**

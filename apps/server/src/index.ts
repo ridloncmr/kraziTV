@@ -17,6 +17,7 @@ import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
+import { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import { parseProbeConfig } from "./config/probe.js";
 import { parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
@@ -50,6 +51,12 @@ const playout = new PlayoutService(database.db, schedules);
 
 // Created before Fastify so the stream runtime and scan jobs log through the same logger.
 const logger = pino();
+// Removal asks the scanner whether a root is scanning, and every completed
+// scan purges; the closure resolves the scanner when a removal runs.
+const catalogRemovals = new CatalogRemovalService(database.db, {
+  schedules,
+  isScanning: (rootId): boolean => scanner.isScanning(rootId),
+});
 // One limited prober serves every scan so the ffprobe budget is process-wide.
 // Built after schedules and the logger: each completed scan job ensures schedules.
 const scanner = new CatalogScanner({
@@ -63,6 +70,7 @@ const scanner = new CatalogScanner({
   ),
   writer: new CatalogScanWriter(database.db),
   schedules,
+  removals: catalogRemovals,
   log: logger,
 });
 const runtime = new SystemRuntime();
@@ -86,6 +94,7 @@ const server = buildServer(
     scanner,
     mediaItems,
     mediaCollections,
+    catalogRemovals,
     channels,
     // Disable and delete stop the same workers that serve tunes.
     channelRuntime: channelStreams,

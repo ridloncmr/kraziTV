@@ -21,9 +21,9 @@ import { toProgrammingBlockSource } from "../programming-blocks/programming-bloc
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 
 // Every function here takes the caller's executor: schedule mutations run
-// only inside ScheduleService's immediate transactions, so each
-// read-modify-write sees and commits one consistent state, and window reads
-// run inside its deferred read snapshot.
+// only inside immediate transactions, ScheduleService's or catalog purge's,
+// so each read-modify-write sees and commits one consistent state, and window
+// reads run inside a deferred read snapshot.
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -183,15 +183,17 @@ export async function findEntryAiringAt(
   trx: Executor,
   channelId: string,
   at: number,
-): Promise<{ endsAt: number } | undefined> {
+): Promise<{ startsAt: number; endsAt: number } | undefined> {
   const row = await trx
     .selectFrom("schedule_entries")
-    .select("ends_at")
+    .select(["starts_at", "ends_at"])
     .where("channel_id", "=", channelId)
     .where("starts_at", "<=", at)
     .where("ends_at", ">", at)
     .executeTakeFirst();
-  return row === undefined ? undefined : { endsAt: row.ends_at };
+  return row === undefined
+    ? undefined
+    : { startsAt: row.starts_at, endsAt: row.ends_at };
 }
 
 /**

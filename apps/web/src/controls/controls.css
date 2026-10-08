@@ -226,6 +226,23 @@
   gap: 8px;
   margin: 6px 0;
 }
+/*
+ * Puts a list's pager and its actions on one line, with the actions at the
+ * right edge even when a single page hides the pager, wrapping when narrow.
+ */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.list-toolbar .pager {
+  margin: 0;
+}
+.list-toolbar > .row-actions {
+  margin-left: auto;
+}
 /* Spaces the search from the grid even when no pager sits between them. */
 .search-field {
   margin-bottom: 6px;
@@ -252,10 +269,27 @@
 .table-scroll[aria-busy="true"] {
   opacity: 0.6;
 }
-/* Checkboxes keep their native size inside full-width form controls. */
-.program-page input[type="checkbox"] {
+/* Checkboxes and radios keep their native size inside full-width form controls. */
+.program-page input[type="checkbox"],
+.program-page input[type="radio"] {
   width: auto;
   min-height: 0;
+}
+/*
+ * An option's control sits beside its label, with any description beneath
+ * the label, unlike a form field whose caption stacks above its input.
+ */
+.program-page label.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 6px 0;
+}
+.program-page label.choice input {
+  grid-row: span 2;
+  margin: 2px 0 0;
 }
 /* The catalog sits beside the members and wraps below them when the window is narrow. */
 .program-page .collection-panes {
@@ -367,6 +401,57 @@
 }
 .window-dialog-body p:first-child {
   margin-top: 0;
+}
+/* A sunken, scrolling folder list, so a large folder never grows the dialog past its window. */
+.folder-browser {
+  margin-top: 8px;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--xp-window-surface);
+}
+.folder-browser-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-bottom: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+  overflow-wrap: anywhere;
+}
+/* A long path wraps beside Up instead of squeezing it. */
+.folder-browser-location button {
+  flex: none;
+}
+.folder-browser-location span {
+  min-width: 0;
+}
+.folder-browser > .secondary,
+.folder-browser > .request-feedback {
+  padding: 0 6px;
+}
+.folder-list {
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+/* Rows read as a list, not a stack of raised buttons. */
+.program-page .folder-list button {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.program-page .folder-list button:hover:not(:disabled),
+.program-page .folder-list button:focus-visible {
+  background: var(--xp-selection);
+  box-shadow: none;
 }
 /* Dialog actions sit together at the end, in the order the dialog lists them. */
 .dialog-actions {

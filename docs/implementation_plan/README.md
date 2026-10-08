@@ -38,6 +38,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0007 Implementation Plan: Plex Adapter](0007-plex-adapter.md) - 5 of 5 tickets complete
 - [Spec 0008 Implementation Plan: XP Desktop Web Admin](0008-web-admin.md) - 4 of 4 tickets complete
 - [Spec 0009 Implementation Plan: Background Catalog Scans](0009-background-catalog-scans.md) - 4 of 4 tickets complete
+- [Spec 0010 Implementation Plan: Catalog Removal](0010-catalog-removal.md) - 5 of 5 tickets complete
 
 <!-- plan-index:end -->
 
@@ -71,3 +72,6 @@ Each milestone links to the spec that owns its scope and status.
 9. Run catalog scans as background scan jobs with a progress dialog:
    [spec 0009](../specs/features/001-mvp/specs/0009-background-catalog-scans.md)
    and [plan 0009](0009-background-catalog-scans.md).
+10. Remove media roots and media items from the catalog:
+    [spec 0010](../specs/features/001-mvp/specs/0010-catalog-removal.md)
+    and [plan 0010](0010-catalog-removal.md).

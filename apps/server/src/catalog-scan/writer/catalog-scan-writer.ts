@@ -46,8 +46,9 @@ export class CatalogScanWriter {
 
   /**
    * Upserts candidates, marks unseen items missing, and records the scan time.
-   * The root is re-read inside the transaction so a root disabled or deleted
-   * during the scan can never receive a late generation.
+   * The root is re-read inside the transaction so a root disabled, deleted,
+   * or removed during the scan can never receive a late generation; a removed
+   * root reads as not found.
    */
   async commit(generation: CatalogGeneration): Promise<CommitGenerationResult> {
     return this.#db.transaction().execute(async (trx) => {
@@ -55,6 +56,7 @@ export class CatalogScanWriter {
         .selectFrom("media_roots")
         .select("enabled")
         .where("id", "=", generation.rootId)
+        .where("removed_at", "is", null)
         .executeTakeFirst();
       const admission = admitRoot(
         row && { enabled: fromSqliteBoolean(row.enabled) },
@@ -78,7 +80,8 @@ export class CatalogScanWriter {
    * transitions. Each chunk is one statement preceded by one macrotask yield,
    * so the existing-row read and each chunk hold the event loop separately and
    * timers and socket I/O stay responsive while the transaction stays open.
-   * IDs are drawn only for path keys not yet cataloged.
+   * IDs are drawn only for path keys not yet cataloged. A removed item whose
+   * file is gone stays removed rather than becoming missing.
    */
   async #applyGeneration(
     trx: Transaction<DatabaseSchema>,
@@ -86,7 +89,7 @@ export class CatalogScanWriter {
   ): Promise<number> {
     const existing = await trx
       .selectFrom("media_items")
-      .select(["id", "path_key", "status"])
+      .select(["id", "path_key", "status", "removed_at"])
       .where("media_root_id", "=", rootId)
       .execute();
     const existingByKey = new Map(
@@ -105,7 +108,7 @@ export class CatalogScanWriter {
 
     // Whatever remains was not discovered; metadata stays for history.
     const newlyMissing = [...existingByKey.values()]
-      .filter((item) => item.status !== "missing")
+      .filter((item) => item.status !== "missing" && item.removed_at === null)
       .map((item) => item.id);
     for (const chunk of parameterChunks(newlyMissing)) {
       await yieldToEventLoop();
@@ -149,6 +152,8 @@ function toItemRow(
  * Inserts new items and updates rediscovered ones in one statement. A
  * rediscovered item keeps its `id` and `created_at`, and a later probe failure
  * keeps the last known metadata for diagnostics; status stays authoritative.
+ * A removed item that is rediscovered before purge returns to the catalog,
+ * with no collection memberships, as if newly discovered.
  */
 async function upsertItems(
   trx: Transaction<DatabaseSchema>,
@@ -186,6 +191,7 @@ async function upsertItems(
           updated_at: eb.ref("excluded.updated_at"),
           last_seen_at: eb.ref("excluded.last_seen_at"),
           last_probed_at: eb.ref("excluded.last_probed_at"),
+          removed_at: null,
         };
       }),
     )

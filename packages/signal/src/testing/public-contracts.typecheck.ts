@@ -113,7 +113,7 @@ const subscribe: (channelId: string) => Promise<ChannelSubscription> =
   manager.subscribe.bind(manager);
 const stopChannel: (
   channelId: string,
-  reason: "disabled" | "deleted",
+  reason: "disabled" | "deleted" | "interrupted",
 ) => Promise<void> = manager.stopChannel.bind(manager);
 
 void [

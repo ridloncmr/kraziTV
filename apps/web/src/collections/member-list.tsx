@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
+import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
 import type { DraftMember } from "./contracts.js";
@@ -41,12 +42,7 @@ export function MemberList({
 
   /** Chooses or releases members without touching choices hidden by the filter. */
   function choose(ids: string[], on: boolean) {
-    const next = new Set(chosen);
-    for (const id of ids) {
-      if (on) next.add(id);
-      else next.delete(id);
-    }
-    setChosen(next);
+    setChosen(withIds(chosen, ids, on));
   }
 
   // Ranges follow the filtered order across pages, never members the filter hides.

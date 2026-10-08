@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
@@ -6,9 +6,14 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../../server/src/testing/test-environment.js";
+import {
+  rootFixture,
+  titledItemFixture,
+} from "../../server/src/testing/catalog-fixtures.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
+import { startScheduleScenarioServer } from "../../server/src/testing/schedule-server.js";
 import { injectBrowserApi } from "../src/testing/injected-api.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../../server/src/catalog-scan/writer/catalog-scan-writer.js";
@@ -36,7 +41,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   const held = options.holdCommit ? (commit = createBarrier()) : undefined;
   const started = await startTestServer({
     plex: { publicBaseUrl: "http://northwoods.lan:3000" },
-    overrides: (db, { mediaRoots, schedules }) => ({
+    overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
       scanner: new CatalogScanner({
         roots: mediaRoots,
         prober: controlled,
@@ -47,6 +52,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
             await schedules.ensureAllEnabled(log);
           },
         },
+        removals: catalogRemovals,
         log: recordingLog(),
       }),
     }),
@@ -74,6 +80,142 @@ async function scanNewRoot(page: Page, directory: string) {
   await expect(scanning).toBeVisible();
   return { media, scanning };
 }
+
+test("lays each airing choice's radio beside its label", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Channel 69 airs "Item 1" now, so removing it offers the airing choice.
+  const { server } = await startScheduleScenarioServer();
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("checkbox", { name: "Select Item 1" }).check();
+  await media
+    .getByRole("group", { name: "Selected media" })
+    .getByRole("button", { name: "Delete…", exact: true })
+    .click();
+  const dialog = media.getByRole("dialog", { name: "Delete media" });
+
+  for (const label of [
+    "Let it finish",
+    "Stop it now and rebuild the schedule",
+  ]) {
+    const radio = await dialog
+      .getByRole("radio", { name: new RegExp(label) })
+      .boundingBox();
+    const text = await dialog.getByText(label, { exact: true }).boundingBox();
+    // Beside, not above: left of the label and level with its first line.
+    expect(radio!.x + radio!.width).toBeLessThanOrEqual(text!.x);
+    expect(radio!.y).toBeLessThan(text!.y + text!.height);
+    expect(radio!.y + radio!.height).toBeGreaterThan(text!.y);
+  }
+});
+
+test("removes selected media through the Media Library against real routes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server, db } = await startTestServer({
+    seed: async (db) => {
+      await db.insertInto("media_roots").values(rootFixture).execute();
+      await db
+        .insertInto("media_items")
+        .values([
+          titledItemFixture("Northwoods"),
+          titledItemFixture("Southwoods"),
+        ])
+        .execute();
+    },
+  });
+  await injectBrowserApi(page, server);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+
+  const remove = media
+    .getByRole("group", { name: "Selected media" })
+    .getByRole("button", { name: "Delete…", exact: true });
+  await expect(remove).toBeDisabled();
+  await media.getByRole("checkbox", { name: "Select Northwoods" }).check();
+  await remove.click();
+  const dialog = media.getByRole("dialog", { name: "Delete media" });
+  await expect(
+    dialog.getByText("1 selected media item will be deleted from the catalog."),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(media.getByText("Deleted 1 media item.")).toBeVisible();
+  await expect(
+    media.getByRole("checkbox", { name: "Select Northwoods" }),
+  ).toHaveCount(0);
+  await expect(
+    media.getByRole("checkbox", { name: "Select Southwoods" }),
+  ).not.toBeChecked();
+  await expect(remove).toBeDisabled();
+  // Nothing airs it, so the removal purged the row in the same commit.
+  await expect(
+    db.selectFrom("media_items").select("title").execute(),
+  ).resolves.toEqual([{ title: "Southwoods" }]);
+  expect(errors).toEqual([]);
+});
+
+test("picks a media root by browsing real server folders at narrow width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { server, db } = await startTestServer();
+  await injectBrowserApi(page, server);
+  const directory = await createTemporaryDirectory();
+  await mkdir(join(directory, "Shows"));
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("button", { name: "Add a media root…" }).click();
+  const addRoot = media.getByRole("dialog", { name: "Add media root" });
+  await addRoot.getByLabel("Absolute server path").fill(directory);
+
+  await addRoot.getByRole("button", { name: "Browse…" }).click();
+  const browser = addRoot.getByRole("group", { name: "Server folders" });
+  await browser.getByRole("button", { name: "Shows", exact: true }).click();
+  await expect(browser.getByText("No folders here.")).toBeVisible();
+  await expect(addRoot.getByLabel("Absolute server path")).toHaveValue(
+    join(directory, "Shows"),
+  );
+  // The whole dialog, Add root included, stays inside the narrow window.
+  await expect(
+    addRoot.getByRole("button", { name: "Add root", exact: true }),
+  ).toBeInViewport();
+  await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+
+  await expect(addRoot).toBeHidden();
+  await expect(
+    db.selectFrom("media_roots").select("path").execute(),
+  ).resolves.toEqual([{ path: join(directory, "Shows") }]);
+  expect(errors).toEqual([]);
+});
 
 test("operates title-bar controls on an inactive window with one click", async ({
   page,

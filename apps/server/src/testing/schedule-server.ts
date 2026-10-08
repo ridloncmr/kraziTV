@@ -14,6 +14,7 @@ import {
 import {
   createTemporaryDirectory,
   startTestServer,
+  type StartTestServerOptions,
 } from "./test-environment.js";
 
 const MINUTE = 60_000;
@@ -69,15 +70,20 @@ export async function startScheduleServer(
  * three chronological episodes, on a manual clock at FIXTURE_TIME. Only
  * `schedules` is overridden, so the default playout service shares its
  * clock. The data directory is returned so a test can open a second
- * connection to the same file.
+ * connection to the same file, and the dependencies so a test can reach
+ * the default recording runtime. Pass a logger to assert what the server
+ * logs, or a stop deadline for hung-stop tests.
  */
 export async function startScheduleScenarioServer(
   scenario: Partial<ScheduleScenarioOptions> = {},
+  options: Pick<StartTestServerOptions, "logger" | "channelStopTimeoutMs"> = {},
 ) {
   const dataDirectory = await createTemporaryDirectory();
   const clock = manualClock(FIXTURE_TIME);
-  const { server, db } = await startTestServer({
+  const { server, db, dependencies } = await startTestServer({
     dataDirectory,
+    logger: options.logger,
+    channelStopTimeoutMs: options.channelStopTimeoutMs,
     seed: async (db) => {
       await seedScheduleScenario(db, { ...EPISODE_SCENARIO, ...scenario });
     },
@@ -89,5 +95,5 @@ export async function startScheduleScenarioServer(
     }),
   });
   await server.ready();
-  return { server, db, clock, dataDirectory };
+  return { server, db, clock, dataDirectory, dependencies };
 }

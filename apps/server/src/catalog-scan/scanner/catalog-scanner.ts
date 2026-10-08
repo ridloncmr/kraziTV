@@ -11,6 +11,7 @@ import {
 } from "@krazitv/media";
 import type { FastifyBaseLogger } from "fastify";
 
+import type { CatalogRemovalService } from "../../catalog-removal/catalog-removal-service.js";
 import type { MediaRoot } from "../../media-roots/contracts.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
@@ -39,6 +40,8 @@ interface CatalogScannerOptions {
   writer: Pick<CatalogScanWriter, "commit">;
   /** Runs after every completed commit, because a scan may make a channel schedulable. */
   schedules: Pick<ScheduleService, "ensureAllEnabled">;
+  /** Purges removed media after every completed commit, before the schedule pass. */
+  removals: Pick<CatalogRemovalService, "purge">;
   /** The process logger; a job outlives the request that started it. */
   log: Pick<FastifyBaseLogger, "info" | "warn" | "error">;
   discover?: (
@@ -60,6 +63,7 @@ export class CatalogScanner {
   readonly #prober: MediaProber;
   readonly #writer: CatalogScannerOptions["writer"];
   readonly #schedules: CatalogScannerOptions["schedules"];
+  readonly #removals: CatalogScannerOptions["removals"];
   readonly #log: CatalogScannerOptions["log"];
   readonly #discover: NonNullable<CatalogScannerOptions["discover"]>;
   readonly #now: () => number;
@@ -73,6 +77,7 @@ export class CatalogScanner {
     this.#prober = options.prober;
     this.#writer = options.writer;
     this.#schedules = options.schedules;
+    this.#removals = options.removals;
     this.#log = options.log;
     this.#discover = options.discover ?? discoverMediaFiles;
     this.#now = options.now ?? Date.now;
@@ -123,6 +128,15 @@ export class CatalogScanner {
   }
 
   /**
+   * Reports whether the root has a job that has not finished, for actions
+   * such as catalog removal that must not race that job's commit.
+   */
+  isScanning(rootId: string): boolean {
+    const job = this.#jobs.get(rootId);
+    return job !== undefined && isRunning(job.status);
+  }
+
+  /**
    * Requests cancellation of the root's job and returns its status. Only a
    * discovering or probing job is cancelled; a committing job finishes.
    */
@@ -163,9 +177,7 @@ export class CatalogScanner {
     if (this.#closing) return { kind: "shutting_down" };
     const admission = admitRoot(found);
     if (admission.kind !== "admitted") return admission;
-    const current = this.#jobs.get(rootId);
-    if (current && isRunning(current.status))
-      return { kind: "scan_in_progress" };
+    if (this.isScanning(rootId)) return { kind: "scan_in_progress" };
     return admission;
   }
 
@@ -253,7 +265,10 @@ export class CatalogScanner {
         `Media root ${root.id} was disabled before the scan committed; the catalog is unchanged`,
       );
     }
-    // Logs its own failures, so a completed commit is never reported as failed.
+    // Both log their own failures, so a completed commit is never reported
+    // as failed. Purging first keeps the schedule pass from regenerating
+    // around rows that are about to go.
+    await this.#removals.purge(this.#log);
     await this.#schedules.ensureAllEnabled(this.#log);
 
     return {

@@ -44,6 +44,8 @@ interface SetupOptions {
   concurrency?: number;
   /** Replaces the schedule pass that follows a completed commit. */
   ensureAllEnabled?: () => Promise<void>;
+  /** Replaces the purge that follows a completed commit. */
+  purge?: () => Promise<void>;
 }
 
 // Wires the real writer and repository against a seeded temporary database.
@@ -74,6 +76,7 @@ async function setup(options: SetupOptions = {}) {
   const schedules = {
     ensureAllEnabled: vi.fn(options.ensureAllEnabled ?? (async () => {})),
   };
+  const removals = { purge: vi.fn(options.purge ?? (async () => {})) };
   const log = recordingLog();
   const scanner = new CatalogScanner({
     roots: new MediaRootRepository(database.db),
@@ -82,11 +85,20 @@ async function setup(options: SetupOptions = {}) {
       createId: sequentialIds("item"),
     }),
     schedules,
+    removals,
     log,
     discover,
     now: () => (time += 1_000),
   });
-  return { db: database.db, scanner, prober, discover, schedules, log };
+  return {
+    db: database.db,
+    scanner,
+    prober,
+    discover,
+    schedules,
+    removals,
+    log,
+  };
 }
 
 type Db = Awaited<ReturnType<typeof setup>>["db"];
@@ -442,6 +454,44 @@ describe("CatalogScanner", () => {
     expect(await finished(scanner)).toMatchObject({ phase: "cancelled" });
     expect(schedules.ensureAllEnabled).not.toHaveBeenCalled();
     expect(await catalogSnapshot(db)).toEqual(before);
+  });
+
+  it("purges removed media after a completed commit, before the schedule pass", async () => {
+    const calls: string[] = [];
+    const { scanner, prober } = await setup({
+      purge: async () => void calls.push("purge"),
+      ensureAllEnabled: async () => void calls.push("schedules"),
+    });
+
+    await start(scanner);
+    await prober.waitForStarted(3);
+    prober.resolveAll(PROBE_RESULT);
+
+    expect(await finished(scanner)).toMatchObject({ phase: "completed" });
+    expect(calls).toEqual(["purge", "schedules"]);
+  });
+
+  it("fails without committing or purging for a root removed during the scan", async () => {
+    const { db, scanner, prober, removals } = await setup();
+
+    await start(scanner);
+    await prober.waitForStarted(3);
+    // A removal that passed its scan check before this scan was admitted.
+    await db
+      .updateTable("media_roots")
+      .set({ removed_at: FIXTURE_TIME })
+      .where("id", "=", rootFixture.id)
+      .execute();
+    const before = await catalogSnapshot(db);
+    prober.resolveAll(PROBE_RESULT);
+
+    expect(await finished(scanner)).toMatchObject({
+      phase: "failed",
+      summary: null,
+      error: { code: "media_root_not_found" },
+    });
+    expect(await catalogSnapshot(db)).toEqual(before);
+    expect(removals.purge).not.toHaveBeenCalled();
   });
 
   it("fails without committing for a root disabled during the scan", async () => {

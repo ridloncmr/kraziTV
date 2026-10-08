@@ -5,7 +5,11 @@ export type ChannelSubscribeOptions = {
   signal?: AbortSignal;
 };
 
-export type ChannelStopReason = "disabled" | "deleted";
+/**
+ * Why an administrative stop ended a channel's runtime. `interrupted` means
+ * the user chose to replace what was airing; the channel stays enabled.
+ */
+export type ChannelStopReason = "disabled" | "deleted" | "interrupted";
 
 export interface ChannelStreamManagerContract {
   /** Joins one viewer to the channel's shared broadcast signal. */

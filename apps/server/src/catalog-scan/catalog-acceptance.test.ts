@@ -42,12 +42,13 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
   const prober = new ControlledProber();
   const { server } = await startTestServer({
     dataDirectory,
-    overrides: (db, { mediaRoots, schedules }) => ({
+    overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
       scanner: new CatalogScanner({
         roots: mediaRoots,
         prober: new ConcurrencyLimitedProber(prober, 4),
         writer: new CatalogScanWriter(db),
         schedules,
+        removals: catalogRemovals,
         log: recordingLog(),
       }),
     }),
