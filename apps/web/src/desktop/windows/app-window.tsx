@@ -5,7 +5,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { ProgramIcon } from "../../branding/program-icon.js";
+import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { WindowDialogFrame } from "../../controls/window-dialog.js";
 import type {
   DesktopViewport,
@@ -42,6 +42,7 @@ function withinViewport(
 export function AppWindow({
   window,
   program,
+  avatarId,
   active,
   index,
   viewport,
@@ -50,6 +51,8 @@ export function AppWindow({
 }: {
   window: DesktopWindow;
   program: ProgramDefinition;
+  /** The account's picture, which Account Settings' title bar draws. */
+  avatarId: string;
   active: boolean;
   index: number;
   viewport: DesktopViewport;
@@ -178,7 +181,11 @@ export function AppWindow({
         {...tracking}
       >
         <span className="window-caption">
-          <ProgramIcon program={program.id} size={19} />
+          <DesktopProgramIcon
+            program={program.id}
+            avatarId={avatarId}
+            size={19}
+          />
           {program.name}
         </span>
         <span className="window-controls">

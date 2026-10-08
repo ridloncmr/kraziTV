@@ -1,0 +1,37 @@
+/* The account's picture beside its name, as XP User Accounts heads each page. */
+.account-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.account-settings-header h2 {
+  margin: 0;
+}
+.account-settings h3 {
+  font-size: 13px;
+  color: var(--xp-title-dark);
+  margin: 12px 0 8px;
+}
+.account-settings label {
+  display: grid;
+  gap: 4px;
+  max-width: 320px;
+}
+.account-settings-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Task links read as XP hyperlinks, not buttons. */
+.program-page .account-settings-tasks button {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 4px 0;
+  color: var(--xp-focus);
+  cursor: pointer;
+}
+.program-page .account-settings-tasks button:hover {
+  text-decoration: underline;
+}

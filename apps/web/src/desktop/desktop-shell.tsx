@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
-import { ProgramIcon } from "../branding/program-icon.js";
+import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
+import type { AccountProfile } from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
@@ -21,9 +22,19 @@ function usableViewport(): DesktopViewport {
  * Composes shell presentation with real programs, leaving domain state
  * entirely API-backed. The app root renders it only for a logged-in browser;
  * its `/health` poll drives the tray connection indicator alone. While the
- * Log Off confirmation is open, the desktop behind it is inert.
+ * Log Off confirmation is open, the desktop behind it is inert. The account
+ * comes from the app root, which alone holds it, so a change made in Account
+ * Settings goes back up through `onAccountChanged` and redraws everything.
  */
-export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
+export function DesktopShell({
+  account,
+  onAccountChanged,
+  onLoggedOff,
+}: {
+  account: AccountProfile;
+  onAccountChanged: (account: AccountProfile) => void;
+  onLoggedOff: () => void;
+}) {
   const [windows, dispatch] = useReducer(windowReducer, []);
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
@@ -65,7 +76,11 @@ export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
               title={program.description}
               onClick={() => dispatch({ type: "open", id: program.id })}
             >
-              <ProgramIcon program={program.id} size={54} />
+              <DesktopProgramIcon
+                program={program.id}
+                avatarId={account.avatarId}
+                size={54}
+              />
               <span>{program.name}</span>
             </button>
           ))}
@@ -84,6 +99,7 @@ export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
               key={window.id}
               window={window}
               program={programs.find((program) => program.id === window.id)!}
+              avatarId={account.avatarId}
               active={activeId === window.id}
               index={windows.indexOf(window)}
               viewport={viewport}
@@ -93,6 +109,8 @@ export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
                 id={window.id}
                 visible={!window.minimized && pageVisible}
                 connection={connection}
+                account={account}
+                onAccountChanged={onAccountChanged}
               />
             </AppWindow>
           ))}
@@ -101,6 +119,7 @@ export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
           activeId={activeId}
           dispatch={dispatch}
           connection={connection}
+          avatarId={account.avatarId}
           logOff={() => setLoggingOff(true)}
         />
       </main>

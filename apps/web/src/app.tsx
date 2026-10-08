@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BootScreen } from "./desktop/chrome/boot-screen.js";
 import { DesktopShell } from "./desktop/desktop-shell.js";
 import { onUnauthorized } from "./http/api-client.js";
-import type { AuthState } from "./http/contracts.js";
+import type { AccountProfile, AuthState } from "./http/contracts.js";
 import { useResource } from "./http/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
 import { SetupScreen } from "./logon/setup-screen.js";
@@ -40,6 +40,17 @@ export function App() {
       ),
     [],
   );
+  // A change from Account Settings replaces the profile the root holds, so the
+  // desktop redraws it and the next logon screen shows it without a re-read.
+  // Like a logout it applies only to an authenticated state: a late answer
+  // after the desktop closed changes nothing.
+  const accountChanged = useCallback(
+    (account: AccountProfile) =>
+      setState((current) =>
+        current?.authenticated ? { ...current, account } : current,
+      ),
+    [],
+  );
   const authenticated = state?.authenticated === true;
   useEffect(() => {
     if (!authenticated) return;
@@ -48,7 +59,15 @@ export function App() {
     );
   }, [authenticated]);
   if (!state) return <BootRead onAnswer={setState} />;
-  if (state.authenticated) return <DesktopShell onLoggedOff={loggedOff} />;
+  // A logged-in browser always has an account; the guard only narrows the type.
+  if (state.authenticated && state.account)
+    return (
+      <DesktopShell
+        account={state.account}
+        onAccountChanged={accountChanged}
+        onLoggedOff={loggedOff}
+      />
+    );
   if (state.setupRequired || !state.account)
     return <SetupScreen onSetUp={setState} onAlreadySetUp={reread} />;
   return <LogonScreen account={state.account} onLoggedIn={setState} />;

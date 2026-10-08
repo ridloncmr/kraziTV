@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type { ProgramId } from "../contracts.js";
 import { programs } from "../programs.js";
@@ -8,9 +9,12 @@ import { programs } from "../programs.js";
  * this browser's session. It has no pretend OS actions such as Turn Off.
  */
 export function StartMenu({
+  avatarId,
   openProgram,
   logOff,
 }: {
+  /** The account's picture, which the Account Settings entry draws. */
+  avatarId: string;
   openProgram: (id: ProgramId) => void;
   logOff: () => void;
 }) {
@@ -41,7 +45,11 @@ export function StartMenu({
                   ref={program.id === "channels" ? first : undefined}
                   onClick={() => openProgram(program.id)}
                 >
-                  <ProgramIcon program={program.id} size={34} />
+                  <DesktopProgramIcon
+                    program={program.id}
+                    avatarId={avatarId}
+                    size={34}
+                  />
                   <span>
                     <strong>{program.name}</strong>
                     <small>{program.description}</small>

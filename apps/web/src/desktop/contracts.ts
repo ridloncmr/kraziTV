@@ -1,6 +1,12 @@
 /** Stable singleton program identities; the shell stores presentation only. */
 export type ProgramId =
-  "channels" | "media" | "collections" | "guide" | "plex" | "monitor";
+  | "channels"
+  | "media"
+  | "collections"
+  | "guide"
+  | "plex"
+  | "monitor"
+  | "account";
 
 export interface DesktopWindow {
   id: ProgramId;

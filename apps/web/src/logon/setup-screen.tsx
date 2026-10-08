@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { displayNameRefusal } from "../account-fields/display-name-refusal.js";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
 import type { AuthState } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 
-// Mirror the server's setup rules (spec 0001) so a mistake is caught before
-// sending; the server still decides, and its refusal is shown as it comes.
-const MAX_NAME_LENGTH = 40;
+// Mirror the server's setup password rules (spec 0001) so a mistake is caught
+// before sending; the server still decides, and its refusal is shown as it comes.
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 256;
 
@@ -20,9 +20,8 @@ function setupRefusal(
   password: string,
   confirm: string,
 ): string | undefined {
-  if (name === "") return "Type your name.";
-  if (name.length > MAX_NAME_LENGTH)
-    return `Your name must be ${MAX_NAME_LENGTH} characters or fewer.`;
+  const nameProblem = displayNameRefusal(name);
+  if (nameProblem) return nameProblem;
   if (password.length < MIN_PASSWORD_LENGTH)
     return `Your password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
   if (password.length > MAX_PASSWORD_LENGTH)

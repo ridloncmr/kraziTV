@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch } from "react";
+import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type { DesktopWindow, ProgramId, WindowAction } from "../contracts.js";
 import { programs } from "../programs.js";
@@ -10,12 +11,15 @@ export function Taskbar({
   activeId,
   dispatch,
   connection,
+  avatarId,
   logOff,
 }: {
   windows: DesktopWindow[];
   activeId?: ProgramId;
   dispatch: Dispatch<WindowAction>;
   connection: string;
+  /** The account's picture, which Account Settings' button and Start entry draw. */
+  avatarId: string;
   /** Opens the Log Off confirmation, which returns focus to Start when it closes. */
   logOff: () => void;
 }) {
@@ -63,6 +67,7 @@ export function Taskbar({
         </button>
         {startOpen && (
           <StartMenu
+            avatarId={avatarId}
             openProgram={(id) => {
               dispatch({ type: "open", id });
               setStartOpen(false);
@@ -87,7 +92,11 @@ export function Taskbar({
               onClick={() => dispatch({ type: "focus", id: window.id })}
               title={programs.find((program) => program.id === window.id)?.name}
             >
-              <ProgramIcon program={window.id} size={18} />
+              <DesktopProgramIcon
+                program={window.id}
+                avatarId={avatarId}
+                size={18}
+              />
               <span>
                 {programs.find((program) => program.id === window.id)?.name}
               </span>
