@@ -9,6 +9,21 @@ const baseUrl = (
   (environment.DEV ? "http://127.0.0.1:3000" : "")
 ).replace(/\/$/, "");
 
+// The one place a `401` is reported; the app root owns it (spec 0002).
+let unauthorizedListener: (() => void) | undefined;
+
+/**
+ * Registers the one listener told about every `401` answer, replacing any
+ * earlier one. The returned function unregisters it, unless a newer
+ * listener has taken the slot since.
+ */
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListener = listener;
+  return () => {
+    if (unauthorizedListener === listener) unauthorizedListener = undefined;
+  };
+}
+
 /** Public paths use encoded IDs so user-controlled identity never changes routing. */
 export function resourcePath(area: string, id: string): string {
   return `/${area}/${encodeURIComponent(id)}`;
@@ -18,6 +33,8 @@ export function resourcePath(area: string, id: string): string {
  * All requests share JSON errors, bounded waits, and caller-owned cancellation.
  * Every request carries the session cookie, which the server gate requires;
  * the dev web app and API share a host name, so `SameSite=Strict` allows it.
+ * A `401` is reported to the unauthorized listener and still thrown, unless
+ * the caller aborted the request: an abandoned request speaks for no one.
  */
 export async function apiRequest<T>(
   path: string,
@@ -39,6 +56,8 @@ export async function apiRequest<T>(
         }),
   });
   if (!response.ok) {
+    if (response.status === 401 && !options.signal?.aborted)
+      unauthorizedListener?.();
     let value: unknown;
     try {
       value = await response.json();

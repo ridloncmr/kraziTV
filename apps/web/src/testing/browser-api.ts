@@ -40,10 +40,10 @@ export class BrowserApi {
   }
 
   /** Resolves the held transport even after abort, proving callers discard stale completions. */
-  release(path: string, value: unknown, method = "GET"): void {
+  release(path: string, value: unknown, method = "GET", status = 200): void {
     const resolve = this.#held.get(`${method}:${path}`);
     if (!resolve) throw new Error(`No held request for ${method}:${path}`);
-    resolve(this.response(value));
+    resolve(this.response(value, status));
     this.#held.delete(`${method}:${path}`);
   }
 

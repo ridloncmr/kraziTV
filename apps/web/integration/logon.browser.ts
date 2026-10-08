@@ -88,3 +88,37 @@ test("sets up the account on first run from the keyboard against the real gate",
     account: { displayName: "Marguerite" },
   });
 });
+
+test("returns to the logon screen when the session ends while the desktop is open", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer({ auth: "real" });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "start", exact: true }),
+  ).toBeVisible();
+
+  // Another browser logs this session out, so the next gated read answers 401.
+  const [session] = await page.context().cookies("http://127.0.0.1:3000");
+  const logout = await server.inject({
+    method: "POST",
+    url: "/auth/logout",
+    headers: { cookie: `${session.name}=${session.value}` },
+  });
+  expect(logout.statusCode).toBe(204);
+
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("main", { name: "Log on to kraziTV" })
+      .getByRole("button", { name: "Owner" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Media Library", exact: true }),
+  ).toBeHidden();
+});

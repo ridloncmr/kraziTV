@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { loggedIn } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { SetupScreen } from "./setup-screen.js";
 
@@ -15,12 +16,6 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-const created = {
-  setupRequired: false,
-  account: { displayName: "Marguerite", avatarId: "duck" },
-  authenticated: true,
-};
 
 /** Renders the setup screen over `api` and returns its callbacks. */
 function renderSetup(api: BrowserApi) {
@@ -94,11 +89,11 @@ it.each([
 
 it("accepts a 40-character name once trimmed and an 8-character password", async () => {
   const api = new BrowserApi();
-  api.reply("/auth/setup", created, "POST", 201);
+  api.reply("/auth/setup", loggedIn, "POST", 201);
   const { onSetUp } = renderSetup(api);
   const name = "n".repeat(40);
   submitSetup(`  ${name}  `, "eight888");
-  await waitFor(() => expect(onSetUp).toHaveBeenCalledWith(created));
+  await waitFor(() => expect(onSetUp).toHaveBeenCalledWith(loggedIn));
   expect(setupRequests(api)[0]?.body).toEqual({
     displayName: name,
     password: "eight888",

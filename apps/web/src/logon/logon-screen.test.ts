@@ -9,6 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { account, loggedIn } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { LogonScreen } from "./logon-screen.js";
 
@@ -18,8 +19,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const account = { displayName: "Marguerite", avatarId: "duck" };
-const loggedIn = { setupRequired: false, account, authenticated: true };
 const BALLOON =
   "Did you forget your password? Please type your password again. Be sure to use the correct uppercase and lowercase letters.";
 

@@ -9,7 +9,12 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { BrowserApi } from "./testing/browser-api.js";
+import {
+  loggedIn,
+  loggedOut,
+  setupRequired,
+  stubAuthApi,
+} from "./testing/auth-fixtures.js";
 import { App } from "./app.js";
 
 afterEach(() => {
@@ -18,24 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const account = { displayName: "Marguerite", avatarId: "duck" };
-const loggedOut = { setupRequired: false, account, authenticated: false };
-const loggedIn = { ...loggedOut, authenticated: true };
-const setupRequired = {
-  setupRequired: true,
-  account: null,
-  authenticated: false,
-};
 const offline = { error: { code: "offline", message: "Unavailable" } };
-
-/** A browser API whose `/auth/state` answers `state`, with a healthy desktop behind it. */
-function apiAnswering(state: unknown, status = 200): BrowserApi {
-  const api = new BrowserApi();
-  api.reply("/auth/state", state, "GET", status);
-  api.reply("/health", { status: "ok" });
-  vi.stubGlobal("fetch", api.fetch);
-  return api;
-}
 
 /** Completes the setup form with a valid name and password and presses Next. */
 function fillSetup() {
@@ -49,7 +37,7 @@ function fillSetup() {
 }
 
 it("boots through the auth state and opens the desktop for a logged-in browser", async () => {
-  apiAnswering(loggedIn);
+  stubAuthApi(loggedIn);
   render(createElement(App));
   expect(screen.getByLabelText("kraziTV starting")).toBeTruthy();
   expect(await screen.findByRole("button", { name: "start" })).toBeTruthy();
@@ -58,7 +46,7 @@ it("boots through the auth state and opens the desktop for a logged-in browser",
 
 it("keeps the boot screen up for its minimum duration even when the state answers at once", async () => {
   vi.useFakeTimers();
-  apiAnswering(loggedIn);
+  stubAuthApi(loggedIn);
   render(createElement(App));
   await act(() => vi.advanceTimersByTimeAsync(600));
   expect(screen.getByLabelText("kraziTV starting")).toBeTruthy();
@@ -68,7 +56,7 @@ it("keeps the boot screen up for its minimum duration even when the state answer
 });
 
 it("shows the logon screen with the account's tile when the browser has no session", async () => {
-  apiAnswering(loggedOut);
+  stubAuthApi(loggedOut);
   render(createElement(App));
   const logon = await screen.findByRole("main", { name: "Log on to kraziTV" });
   expect(
@@ -78,7 +66,7 @@ it("shows the logon screen with the account's tile when the browser has no sessi
 });
 
 it("shows the setup screen while the account is not set up and opens the desktop once it is", async () => {
-  const api = apiAnswering(setupRequired);
+  const api = stubAuthApi(setupRequired);
   api.reply("/auth/setup", loggedIn, "POST", 201);
   render(createElement(App));
   await screen.findByRole("main", { name: "Set up kraziTV" });
@@ -88,7 +76,7 @@ it("shows the setup screen while the account is not set up and opens the desktop
 });
 
 it("re-reads the auth state after a 409 and shows the logon screen it names", async () => {
-  const api = apiAnswering(setupRequired);
+  const api = stubAuthApi(setupRequired);
   api.reply(
     "/auth/setup",
     { error: { code: "already_set_up", message: "Already set up" } },
@@ -109,7 +97,7 @@ it("re-reads the auth state after a 409 and shows the logon screen it names", as
 });
 
 it("says the server is unreachable and opens the right screen after Retry", async () => {
-  const api = apiAnswering(offline, 503);
+  const api = stubAuthApi(offline, 503);
   render(createElement(App));
   expect(
     await screen.findByText("kraziTV can't reach its server."),
@@ -124,7 +112,7 @@ it("says the server is unreachable and opens the right screen after Retry", asyn
 
 it("retries the unreachable server on its own every 10 seconds", async () => {
   vi.useFakeTimers();
-  const api = apiAnswering(offline, 503);
+  const api = stubAuthApi(offline, 503);
   render(createElement(App));
   await act(() => vi.advanceTimersByTimeAsync(700));
   expect(screen.getByText("kraziTV can't reach its server.")).toBeTruthy();
@@ -140,7 +128,7 @@ it("retries the unreachable server on its own every 10 seconds", async () => {
 });
 
 it("opens the desktop after a successful logon", async () => {
-  const api = apiAnswering(loggedOut);
+  const api = stubAuthApi(loggedOut);
   api.reply("/auth/login", loggedIn, "POST");
   render(createElement(App));
   fireEvent.click(await screen.findByRole("button", { name: "Marguerite" }));

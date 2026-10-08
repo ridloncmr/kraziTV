@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BootScreen } from "./desktop/chrome/boot-screen.js";
 import { DesktopShell } from "./desktop/desktop-shell.js";
+import { onUnauthorized } from "./http/api-client.js";
 import type { AuthState } from "./http/contracts.js";
 import { useResource } from "./http/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
@@ -18,11 +19,24 @@ const RETRY_INTERVAL_MS = 10_000;
  * an answer. A later answer, such as a login's, replaces the state; clearing
  * it re-reads `GET /auth/state`, because the boot read mounts afresh and can
  * never answer with an earlier result.
+ *
+ * A `401` matters only while the desktop shell is showing: the listener is
+ * registered only then, and it clears only an authenticated state, so the
+ * first `401` unmounts the desktop and starts one re-read, and every later
+ * one (from other programs, or late from the closed desktop) changes nothing.
+ * The logon and setup screens, and the boot read, answer their own `401`s.
  */
 export function App() {
   const [state, setState] = useState<AuthState>();
   // Clearing the state remounts the boot read, so a re-read is always fresh.
   const reread = useCallback(() => setState(undefined), []);
+  const authenticated = state?.authenticated === true;
+  useEffect(() => {
+    if (!authenticated) return;
+    return onUnauthorized(() =>
+      setState((current) => (current?.authenticated ? undefined : current)),
+    );
+  }, [authenticated]);
   if (!state) return <BootRead onAnswer={setState} />;
   if (state.authenticated) return <DesktopShell />;
   if (state.setupRequired || !state.account)

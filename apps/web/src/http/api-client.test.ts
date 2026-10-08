@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
-import { apiRequest } from "./api-client.js";
+import { apiRequest, onUnauthorized } from "./api-client.js";
 import { ApiError } from "./api-error.js";
 
 afterEach(() => {
@@ -64,4 +64,69 @@ it("keeps the HTTP status when the error body is not an API envelope", async () 
     code: "request_failed",
     status: 502,
   });
+});
+
+it("reports each 401 to the registered listener and still throws it", async () => {
+  const api = new BrowserApi();
+  const unauthenticated = {
+    error: { code: "unauthenticated", message: "Log in first" },
+  };
+  api.reply("/channels", unauthenticated, "GET", 401);
+  api.reply(
+    "/media-roots",
+    { error: { code: "forbidden_origin" } },
+    "GET",
+    403,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const listener = vi.fn();
+  const unregister = onUnauthorized(listener);
+
+  await expect(apiRequest("/channels")).rejects.toMatchObject({
+    code: "unauthenticated",
+    status: 401,
+  });
+  await expect(apiRequest("/media-roots")).rejects.toMatchObject({
+    status: 403,
+  });
+  expect(listener).toHaveBeenCalledTimes(1);
+
+  unregister();
+  await expect(apiRequest("/channels")).rejects.toMatchObject({ status: 401 });
+  expect(listener).toHaveBeenCalledTimes(1);
+});
+
+it("never reports a 401 its caller already aborted", async () => {
+  const api = new BrowserApi();
+  api.hold("/channels");
+  vi.stubGlobal("fetch", api.fetch);
+  const listener = vi.fn();
+  const unregister = onUnauthorized(listener);
+  const controller = new AbortController();
+
+  const request = apiRequest("/channels", { signal: controller.signal });
+  await vi.waitFor(() => expect(api.requests).toHaveLength(1));
+  controller.abort();
+  // The held transport ignores abort, like a reply already on its way.
+  api.release("/channels", { error: { code: "unauthenticated" } }, "GET", 401);
+
+  await expect(request).rejects.toMatchObject({ status: 401 });
+  expect(listener).not.toHaveBeenCalled();
+  unregister();
+});
+
+it("keeps a newer listener when an older one unregisters", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", { error: { code: "unauthenticated" } }, "GET", 401);
+  vi.stubGlobal("fetch", api.fetch);
+  const older = vi.fn();
+  const newer = vi.fn();
+  const unregisterOlder = onUnauthorized(older);
+  const unregisterNewer = onUnauthorized(newer);
+  unregisterOlder();
+
+  await expect(apiRequest("/channels")).rejects.toMatchObject({ status: 401 });
+  expect(older).not.toHaveBeenCalled();
+  expect(newer).toHaveBeenCalledTimes(1);
+  unregisterNewer();
 });
