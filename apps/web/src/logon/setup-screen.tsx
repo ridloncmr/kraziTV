@@ -1,34 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { displayNameRefusal } from "../account-fields/display-name-refusal.js";
+import { newPasswordRefusal } from "../account-fields/new-password-refusal.js";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
 import type { AuthState } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
-
-// Mirror the server's setup password rules (spec 0001) so a mistake is caught
-// before sending; the server still decides, and its refusal is shown as it comes.
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 256;
-
-/**
- * Explains why the server would refuse these fields, or returns undefined.
- * The name counts after trimming; a password is never trimmed.
- */
-function setupRefusal(
-  name: string,
-  password: string,
-  confirm: string,
-): string | undefined {
-  const nameProblem = displayNameRefusal(name);
-  if (nameProblem) return nameProblem;
-  if (password.length < MIN_PASSWORD_LENGTH)
-    return `Your password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-  if (password.length > MAX_PASSWORD_LENGTH)
-    return `Your password must be ${MAX_PASSWORD_LENGTH} characters or fewer.`;
-  if (password !== confirm) return "The passwords you typed do not match.";
-  return undefined;
-}
 
 /** True when another browser finished setup first. */
 function isAlreadySetUp(error: Error | undefined): boolean {
@@ -60,17 +37,18 @@ export function SetupScreen({
   const message =
     refusal ?? (isAlreadySetUp(setup.error) ? undefined : setup.error?.message);
 
-  /** Checks the fields first, so a refused form never reaches the server. */
+  /**
+   * Checks the fields first, so a refused form never reaches the server. The
+   * name counts after trimming, as the server counts it; a password never does.
+   */
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
     const displayName = formText(values, "displayName").trim();
     const password = formText(values, "password");
-    const problem = setupRefusal(
-      displayName,
-      password,
-      formText(values, "confirm"),
-    );
+    const problem =
+      displayNameRefusal(displayName) ??
+      newPasswordRefusal(password, formText(values, "confirm"));
     setRefusal(problem);
     if (problem) return;
     void setup.run<AuthState>(

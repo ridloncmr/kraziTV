@@ -4,7 +4,8 @@ import {
 } from "../branding/avatars/account-picture.js";
 import { formText } from "../controls/form-text.js";
 import type { AccountProfile } from "../http/contracts.js";
-import { ProfileChangeForm } from "./profile-change-form.js";
+import { AccountTaskForm } from "./account-task-form.js";
+import { useAccountTask } from "./use-account-task.js";
 
 /**
  * Account Settings' **Change my picture** task: every built-in drawing in a
@@ -24,15 +25,15 @@ export function ChangePictureView({
 }) {
   /** Sends the checked ID; one option always starts checked, so it is never empty. */
   function prepare(form: FormData) {
-    return { change: { avatarId: formText(form, "avatarId") } };
+    return { body: { avatarId: formText(form, "avatarId") } };
   }
+  const task = useAccountTask("/account", "PATCH", prepare, onChanged);
 
   return (
-    <ProfileChangeForm
+    <AccountTaskForm
       title="Change your picture"
       submitLabel="Change Picture"
-      prepare={prepare}
-      onChanged={onChanged}
+      task={task}
       onCancel={onCancel}
     >
       <div
@@ -53,6 +54,6 @@ export function ChangePictureView({
           </label>
         ))}
       </div>
-    </ProfileChangeForm>
+    </AccountTaskForm>
   );
 }

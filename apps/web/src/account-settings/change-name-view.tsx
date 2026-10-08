@@ -1,7 +1,8 @@
 import { displayNameRefusal } from "../account-fields/display-name-refusal.js";
 import { formText } from "../controls/form-text.js";
 import type { AccountProfile } from "../http/contracts.js";
-import { ProfileChangeForm } from "./profile-change-form.js";
+import { AccountTaskForm } from "./account-task-form.js";
+import { useAccountTask } from "./use-account-task.js";
 
 /**
  * Account Settings' **Change my name** task: one box filled with the current
@@ -21,15 +22,15 @@ export function ChangeNameView({
   function prepare(form: FormData) {
     const trimmed = formText(form, "displayName").trim();
     const refusal = displayNameRefusal(trimmed);
-    return refusal ? { refusal } : { change: { displayName: trimmed } };
+    return refusal ? { refusal } : { body: { displayName: trimmed } };
   }
+  const task = useAccountTask("/account", "PATCH", prepare, onChanged);
 
   return (
-    <ProfileChangeForm
+    <AccountTaskForm
       title="Change your name"
       submitLabel="Change Name"
-      prepare={prepare}
-      onChanged={onChanged}
+      task={task}
       onCancel={onCancel}
     >
       <label>
@@ -41,6 +42,6 @@ export function ChangeNameView({
           autoFocus
         />
       </label>
-    </ProfileChangeForm>
+    </AccountTaskForm>
   );
 }

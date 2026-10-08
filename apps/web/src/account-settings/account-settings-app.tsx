@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
 import type { AccountProfile } from "../http/contracts.js";
 import { ChangeNameView } from "./change-name-view.js";
+import { ChangePasswordView } from "./change-password-view.js";
 import { ChangePictureView } from "./change-picture-view.js";
 
 /** The program's pages: home, or one task, as XP User Accounts pages are. */
@@ -44,18 +45,7 @@ export function AccountSettingsApp({
       />
     );
   if (view === "password")
-    return (
-      <div className="program-page account-settings">
-        <p className="program-intro">
-          Changing your password is not available yet.
-        </p>
-        <div className="dialog-actions">
-          <button type="button" onClick={home}>
-            Back
-          </button>
-        </div>
-      </div>
-    );
+    return <ChangePasswordView onDone={home} onCancel={home} />;
   return (
     <div className="program-page account-settings">
       <header className="account-settings-header">

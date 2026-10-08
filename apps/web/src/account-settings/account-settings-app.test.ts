@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -17,6 +18,7 @@ import { AVATAR_IDS } from "../branding/avatars/account-picture.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -51,9 +53,14 @@ function submitName(window: HTMLElement, name: string) {
   fireEvent.click(within(window).getByRole("button", { name: "Change Name" }));
 }
 
-/** The profile changes the program sent, to prove a refused form sent none. */
-function profileChanges(api: BrowserApi) {
-  return api.requests.filter((request) => request.path === "/account");
+/** The changes the program sent to `path`, to prove a refused form sent none. */
+function changesSentTo(api: BrowserApi, path: string) {
+  return api.requests.filter((request) => request.path === path);
+}
+
+/** Advances fake time and lets React apply what the timers changed. */
+function elapse(ms: number) {
+  return act(() => vi.advanceTimersByTimeAsync(ms));
 }
 
 it("opens from the desktop shortcut showing the account and its three tasks", async () => {
@@ -109,7 +116,7 @@ it.each([
   const { api, window } = await openFromShortcut();
   submitName(window, name);
   expect(within(window).getByRole("alert").textContent).toBe(says);
-  expect(profileChanges(api)).toHaveLength(0);
+  expect(changesSentTo(api, "/account")).toHaveLength(0);
 });
 
 it("starts the name box filled with the current name", async () => {
@@ -133,9 +140,9 @@ it("sends the trimmed name, shows the answer, and returns home", async () => {
   expect(
     await within(window).findByRole("heading", { name: "Hortense" }),
   ).toBeTruthy();
-  expect(profileChanges(api).map((request) => request.body)).toEqual([
-    { displayName: "Hortense" },
-  ]);
+  expect(changesSentTo(api, "/account").map((request) => request.body)).toEqual(
+    [{ displayName: "Hortense" }],
+  );
   expect(within(window).queryByLabelText("Type a new name")).toBeNull();
 });
 
@@ -175,19 +182,162 @@ it("sends nothing on Cancel and returns home", async () => {
     target: { value: "Hortense" },
   });
   fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
-  expect(profileChanges(api)).toHaveLength(0);
+  expect(changesSentTo(api, "/account")).toHaveLength(0);
   expect(
     within(window).getByRole("heading", { name: "Marguerite" }),
   ).toBeTruthy();
 });
 
-it("shows a placeholder for the password task until it exists", async () => {
-  const { window } = await openFromShortcut();
+/** Opens the password view and fills its three boxes. */
+function fillPassword(
+  window: HTMLElement,
+  current: string,
+  next: string,
+  confirm = next,
+) {
   fireEvent.click(
     within(window).getByRole("button", { name: "Change my password" }),
   );
-  expect(within(window).getByText(/not available yet/)).toBeTruthy();
-  fireEvent.click(within(window).getByRole("button", { name: "Back" }));
+  for (const [label, value] of [
+    ["Current password", current],
+    ["New password", next],
+    ["Confirm new password", confirm],
+  ])
+    fireEvent.change(within(window).getByLabelText(label), {
+      target: { value },
+    });
+}
+
+/** Presses Change Password and returns the button. */
+function submitPassword(window: HTMLElement) {
+  const button = within(window).getByRole<HTMLButtonElement>("button", {
+    name: "Change Password",
+  });
+  fireEvent.click(button);
+  return button;
+}
+
+/** The password box with this label, for reading its value. */
+function passwordBox(window: HTMLElement, label: string) {
+  return within(window).getByLabelText<HTMLInputElement>(label);
+}
+
+it.each([
+  {
+    refusal: "a 7-character new password",
+    next: "seven77",
+    confirm: "seven77",
+    says: "Your password must be at least 8 characters.",
+  },
+  {
+    refusal: "a mismatched confirmation",
+    next: "correct horse",
+    confirm: "correct horsf",
+    says: "The passwords you typed do not match.",
+  },
+])("refuses $refusal without sending it", async ({ next, confirm, says }) => {
+  const { api, window } = await openFromShortcut();
+  fillPassword(window, "old password", next, confirm);
+  submitPassword(window);
+  expect(within(window).getByRole("alert").textContent).toBe(says);
+  expect(changesSentTo(api, "/account/password")).toHaveLength(0);
+});
+
+it("disables the password form while the change is pending", async () => {
+  const { api, window } = await openFromShortcut();
+  api.hold("/account/password", "PUT");
+  fillPassword(window, "old password", "correct horse");
+  const button = submitPassword(window);
+  await waitFor(() => expect(button.matches(":disabled")).toBe(true));
+  expect(passwordBox(window, "Current password").matches(":disabled")).toBe(
+    true,
+  );
+});
+
+it("shows a wrong current password and clears only that box, keeping the desktop", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply(
+    "/account/password",
+    {
+      error: {
+        code: "invalid_password",
+        message: "The current password is incorrect",
+      },
+    },
+    "PUT",
+    400,
+  );
+  fillPassword(window, "wrong password", "correct horse");
+  submitPassword(window);
+  expect((await within(window).findByRole("alert")).textContent).toBe(
+    "The password you typed is incorrect.",
+  );
+  const current = passwordBox(window, "Current password");
+  expect(current.value).toBe("");
+  expect(document.activeElement).toBe(current);
+  expect(passwordBox(window, "New password").value).toBe("correct horse");
+  expect(passwordBox(window, "Confirm new password").value).toBe(
+    "correct horse",
+  );
+  expect(screen.getByRole("button", { name: "start" })).toBeTruthy();
+});
+
+it("counts a throttled change down each second with Change Password disabled, then re-enables it", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply(
+    "/account/password",
+    {
+      error: {
+        code: "too_many_attempts",
+        message: "Too many wrong passwords; wait before trying again",
+        retryAfterSeconds: 3,
+      },
+    },
+    "PUT",
+    429,
+  );
+  vi.useFakeTimers();
+  fillPassword(window, "old password", "correct horse");
+  const button = submitPassword(window);
+  await elapse(0);
+  const alert = () => within(window).queryByRole("alert")?.textContent;
+  expect(alert()).toContain("try again in 3 seconds");
+  expect(button.disabled).toBe(true);
+  await elapse(1_000);
+  expect(alert()).toContain("try again in 2 seconds");
+  expect(button.disabled).toBe(true);
+  await elapse(1_000);
+  expect(alert()).toContain("try again in 1 second.");
+  expect(button.disabled).toBe(true);
+  await elapse(1_000);
+  expect(alert()).toBeUndefined();
+  expect(button.disabled).toBe(false);
+});
+
+it("sends the change, then returns home", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply("/account/password", undefined, "PUT", 204);
+  fillPassword(window, "old password", "correct horse");
+  submitPassword(window);
+  expect(
+    await within(window).findByRole("button", { name: "Change my password" }),
+  ).toBeTruthy();
+  expect(
+    changesSentTo(api, "/account/password").map((request) => request.body),
+  ).toEqual([
+    { currentPassword: "old password", newPassword: "correct horse" },
+  ]);
+  expect(within(window).queryByLabelText("Current password")).toBeNull();
+});
+
+it("sends no password on Cancel and returns home", async () => {
+  const { api, window } = await openFromShortcut();
+  fillPassword(window, "old password", "correct horse");
+  fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
+  expect(changesSentTo(api, "/account/password")).toHaveLength(0);
+  expect(
+    within(window).getByRole("heading", { name: "Marguerite" }),
+  ).toBeTruthy();
 });
 
 /** Opens the picture view, whose options are named by their avatar IDs. */
@@ -252,9 +402,9 @@ it("sends the chosen picture, redraws the program icon, and returns home", async
       "popcorn",
     ]),
   );
-  expect(profileChanges(api).map((request) => request.body)).toEqual([
-    { avatarId: "popcorn" },
-  ]);
+  expect(changesSentTo(api, "/account").map((request) => request.body)).toEqual(
+    [{ avatarId: "popcorn" }],
+  );
   expect(within(window).queryByRole("radiogroup")).toBeNull();
   expect(
     window.querySelector(".account-settings-header [data-avatar='popcorn']"),
@@ -266,7 +416,7 @@ it("sends no picture on Cancel and returns home", async () => {
   const picker = openPicker(window);
   fireEvent.click(within(picker).getByRole("radio", { name: "popcorn" }));
   fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
-  expect(profileChanges(api)).toHaveLength(0);
+  expect(changesSentTo(api, "/account")).toHaveLength(0);
   expect(within(window).queryByRole("radiogroup")).toBeNull();
   expect(programIconAvatars(window)).toEqual(["duck", "duck", "duck"]);
 });
