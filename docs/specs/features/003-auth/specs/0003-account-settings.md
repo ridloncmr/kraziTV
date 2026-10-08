@@ -57,12 +57,11 @@ All are gated.
 
 ### Built-in avatars
 
-- The set is a fixed list of IDs, such as `duck`, `chess`, `guitar`,
-  `skateboard`, `crt-tv`, `antenna`, `film-reel`, `remote`, drawn as original
-  SVG in `apps/web/src/branding/avatars/`. No Microsoft artwork.
+- [0002](0002-logon-screen.md#built-in-avatars) defines the set and ships its
+  drawings in `apps/web/src/branding/avatars/`.
 - The server holds the same ID list to validate `avatarId`. The ID list is the
   only thing both sides share; the web app owns the drawings.
-- The first ID is the default for a new account.
+- The first ID, `duck`, is the default for a new account.
 
 ## Data Model Impact
 
