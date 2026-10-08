@@ -1,6 +1,6 @@
 # Auth Feature
 
-Status: Planned
+Status: In Development
 
 This feature locks kraziTV's administration behind one account. The server
 denies every request without a session, the web app opens on an XP-style logon

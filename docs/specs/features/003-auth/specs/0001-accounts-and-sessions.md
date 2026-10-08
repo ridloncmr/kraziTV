@@ -1,6 +1,6 @@
 # Accounts And Sessions
 
-Status: Draft
+Status: Implemented
 
 This spec gives kraziTV one account, password login, sliding sessions, and a
 deny-by-default auth gate on the server, as
