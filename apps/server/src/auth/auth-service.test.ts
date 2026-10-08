@@ -637,6 +637,30 @@ describe("AuthService", () => {
     expect(account.password_hash).toBe(racingHash);
   });
 
+  it("changes the password and ends every session when no token is given", async () => {
+    const { auth, db } = await openAuth();
+    const setupToken = await setUpOwner(auth);
+    await auth.logIn(owner.password);
+
+    await expect(
+      auth.changePassword(undefined, {
+        currentPassword: owner.password,
+        newPassword: "brand new secret",
+      }),
+    ).resolves.toEqual({ kind: "changed" });
+
+    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(
+      auth.authenticate(setupToken, recordingLog()),
+    ).resolves.toEqual({ kind: "unauthenticated" });
+    await expect(auth.logIn(owner.password)).resolves.toEqual({
+      kind: "invalid_password",
+    });
+    await expect(auth.logIn("brand new secret")).resolves.toMatchObject({
+      kind: "logged_in",
+    });
+  });
+
   it("fails a reset retryably, changing nothing, while another connection holds the write lock", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const server = await openTestDatabase(dataDirectory);

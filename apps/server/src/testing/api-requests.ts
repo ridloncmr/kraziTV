@@ -59,6 +59,12 @@ export function createChannel(
 }
 
 /**
+ * The password `signIn` sets up the account with, exported so tests that log in
+ * again or change the password use the same value instead of copying it.
+ */
+export const SIGN_IN_PASSWORD = "correct horse";
+
+/**
  * Sets up the account on a server gated with real auth and returns the
  * `cookie` header its session cookie becomes, for admin requests.
  */
@@ -68,7 +74,7 @@ export async function signIn(
   const response = await server.inject({
     method: "POST",
     url: "/auth/setup",
-    payload: { displayName: "Owner", password: "correct horse" },
+    payload: { displayName: "Owner", password: SIGN_IN_PASSWORD },
   });
   if (response.statusCode !== 201) {
     throw new Error(`Setup answered ${response.statusCode}: ${response.body}`);

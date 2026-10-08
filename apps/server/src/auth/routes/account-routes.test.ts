@@ -1,7 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cookieOf, logIn, send, signIn } from "../../testing/api-requests.js";
+import {
+  cookieOf,
+  logIn,
+  send,
+  SIGN_IN_PASSWORD,
+  signIn,
+} from "../../testing/api-requests.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
@@ -147,17 +153,16 @@ describe("account routes", () => {
 });
 
 describe("password change route", () => {
-  const OLD_PASSWORD = "correct horse";
   const NEW_PASSWORD = "battery staple";
 
   it("replaces the password, keeps the changing session, and ends every other", async () => {
     const { server, cookie } = await startSignedIn();
-    const other = cookieOf(await logIn(server, OLD_PASSWORD));
+    const other = cookieOf(await logIn(server, SIGN_IN_PASSWORD));
 
     await expect(
       changePassword(
         server,
-        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+        { currentPassword: SIGN_IN_PASSWORD, newPassword: NEW_PASSWORD },
         cookie,
       ),
     ).resolves.toEqual({ status: 204, body: undefined });
@@ -169,7 +174,7 @@ describe("password change route", () => {
       send(server, "GET", "/channels", undefined, { cookie: other }),
     ).resolves.toMatchObject({ status: 401 });
     expect((await logIn(server, NEW_PASSWORD)).statusCode).toBe(200);
-    expect((await logIn(server, OLD_PASSWORD)).json()).toMatchObject({
+    expect((await logIn(server, SIGN_IN_PASSWORD)).json()).toMatchObject({
       error: { code: "invalid_password" },
     });
   });
@@ -187,19 +192,23 @@ describe("password change route", () => {
       status: 400,
       body: { error: { code: "invalid_password" } },
     });
-    expect((await logIn(server, OLD_PASSWORD)).statusCode).toBe(200);
+    expect((await logIn(server, SIGN_IN_PASSWORD)).statusCode).toBe(200);
     expect((await logIn(server, NEW_PASSWORD)).statusCode).toBe(401);
   });
 
   it.each([
     [
       "a short new password",
-      { currentPassword: OLD_PASSWORD, newPassword: "short" },
+      { currentPassword: SIGN_IN_PASSWORD, newPassword: "short" },
     ],
     ["a missing current password", { newPassword: NEW_PASSWORD }],
     [
       "an unknown field",
-      { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, hint: "x" },
+      {
+        currentPassword: SIGN_IN_PASSWORD,
+        newPassword: NEW_PASSWORD,
+        hint: "x",
+      },
     ],
   ])(
     "refuses %s as invalid_request and keeps the old password",
@@ -212,7 +221,7 @@ describe("password change route", () => {
           body: { error: { code: "invalid_request" } },
         },
       );
-      expect((await logIn(server, OLD_PASSWORD)).statusCode).toBe(200);
+      expect((await logIn(server, SIGN_IN_PASSWORD)).statusCode).toBe(200);
     },
   );
 
@@ -234,7 +243,7 @@ describe("password change route", () => {
     const throttled = await server.inject({
       method: "PUT",
       url: "/account/password",
-      payload: { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+      payload: { currentPassword: SIGN_IN_PASSWORD, newPassword: NEW_PASSWORD },
       headers: { cookie },
     });
 
@@ -253,7 +262,7 @@ describe("password change route", () => {
     await expect(
       changePassword(
         server,
-        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+        { currentPassword: SIGN_IN_PASSWORD, newPassword: NEW_PASSWORD },
         cookie,
       ),
     ).resolves.toMatchObject({ status: 204 });

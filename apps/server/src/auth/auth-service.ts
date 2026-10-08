@@ -263,8 +263,8 @@ export class AuthService implements RequestAuthenticator {
         .set({ password_hash: newHash, updated_at: this.#now() })
         .where("id", "=", account.id)
         .execute();
-      // A request without a session, possible only behind a test stand-in
-      // for the gate, has nothing to keep.
+      // The auth gate guarantees a token; without one no session is kept,
+      // the safe default.
       const ending = pinned.deleteFrom("sessions");
       await (
         token === undefined
