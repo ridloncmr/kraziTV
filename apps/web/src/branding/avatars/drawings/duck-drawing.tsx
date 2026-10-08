@@ -1,4 +1,4 @@
-import { iconGradient } from "../icon-gradients.js";
+import { iconGradient } from "../../icon-gradients.js";
 
 /**
  * A rubber duck bobbing on a blue pool, the default account picture. Drawn in
