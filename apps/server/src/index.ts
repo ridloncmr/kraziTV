@@ -23,7 +23,6 @@ import { parseProbeConfig } from "./config/probe.js";
 import { parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
 import {
-  isLoopbackHost,
   parseCorsOrigins,
   parseListenConfig,
   parsePublicBaseUrl,
@@ -93,6 +92,8 @@ const server = buildServer(
   {
     database,
     auth,
+    // The gate checks sessions against the same service that issues them.
+    authenticator: auth,
     mediaRoots,
     scanner,
     mediaItems,
@@ -112,12 +113,6 @@ const server = buildServer(
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );
-
-if (!isLoopbackHost(host)) {
-  server.log.warn(
-    "SECURITY WARNING: kraziTV has no authentication. Bind only on a trusted network; connected clients can access mutable administration APIs and local-media scan capabilities.",
-  );
-}
 
 try {
   await server.listen({ host, port });

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { send } from "../../testing/api-requests.js";
+import { cookieOf, send } from "../../testing/api-requests.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
@@ -33,11 +33,6 @@ async function readState(server: FastifyInstance, cookie?: string) {
     ...(cookie === undefined ? {} : { headers: { cookie } }),
   });
   return { status: response.statusCode, body: response.json<unknown>() };
-}
-
-/** Returns the `name=value` pair a browser would send back from a `Set-Cookie` response. */
-function cookieOf(response: { headers: Record<string, unknown> }): string {
-  return String(response.headers["set-cookie"]).split(";")[0];
 }
 
 /** Logs in and returns the raw response, for header assertions. */

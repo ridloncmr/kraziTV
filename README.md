@@ -61,12 +61,13 @@ The MVP goal and its vertical-slice specs live in [`docs/specs/features/001-mvp/
 
 The MVP proves one complete Plex loop: configure local media and a channel, materialize deterministic guide data, join the channel in progress, and keep Plex playing across a real two-file boundary.
 
-Commercial insertion, advanced programming rules, Jellyfin, authentication, and production packaging are deferred.
+Commercial insertion, advanced programming rules, Jellyfin, and production packaging are deferred.
 
-> **Security warning:** The MVP has no authentication. Keep the API bound to the
-> default `127.0.0.1` unless every client on the network is trusted. A LAN-exposed
-> instance allows unauthenticated access to mutable administration APIs, including
-> local-media scan capabilities that accept absolute filesystem paths.
+> **Security note:** Administration needs the one account's session
+> ([ADR 0012](docs/adrs/0012-first-party-session-auth.md)). The health check,
+> the auth routes, and the Plex tuner, guide, and stream endpoints stay public, so
+> anyone who can reach the server can watch channels and read guide data. kraziTV
+> serves plain HTTP; keep it on a trusted network.
 
 ## Development
 

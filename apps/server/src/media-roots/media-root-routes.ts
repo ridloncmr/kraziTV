@@ -55,8 +55,8 @@ export function registerMediaRootRoutes(
     }));
   });
 
-  // Lists server folders for the root picker. The admin API has no auth and
-  // is trusted on the LAN, so browsing is deliberately not restricted.
+  // Lists server folders for the root picker. The auth gate admits only the
+  // signed-in account, which may browse any folder, so browsing is not restricted.
   server.get("/media-roots/folders", async (request, reply) => {
     const query = foldersQuery.safeParse(request.query);
     if (!query.success) {

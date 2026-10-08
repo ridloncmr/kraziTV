@@ -315,6 +315,37 @@ describe("AuthService", () => {
     });
   });
 
+  it("authenticates nothing before setup, whatever the token", async () => {
+    const { auth } = await openAuth();
+
+    await expect(auth.authenticate(undefined)).resolves.toEqual({
+      kind: "setup_required",
+    });
+    await expect(auth.authenticate("any-token")).resolves.toEqual({
+      kind: "setup_required",
+    });
+  });
+
+  it("authenticates only a live session after setup", async () => {
+    const { auth, clock } = await openAuth();
+    const token = await setUpOwner(auth);
+
+    await expect(auth.authenticate(token)).resolves.toEqual({
+      kind: "authenticated",
+    });
+    await expect(auth.authenticate(undefined)).resolves.toEqual({
+      kind: "unauthenticated",
+    });
+    await expect(auth.authenticate(`${token}x`)).resolves.toEqual({
+      kind: "unauthenticated",
+    });
+
+    clock.advance(30 * DAY_MS);
+    await expect(auth.authenticate(token)).resolves.toEqual({
+      kind: "unauthenticated",
+    });
+  });
+
   it("logs out only the given session", async () => {
     const { auth } = await openAuth();
     const kept = await setUpOwner(auth);

@@ -1,14 +1,18 @@
 // HTTP request helpers for route and acceptance tests only; production code must never import this module.
 import type { FastifyInstance, InjectOptions } from "fastify";
 
-/** Sends one JSON request and returns the status with the parsed body, if any. */
+/**
+ * Sends one JSON request and returns the status with the parsed body, if any.
+ * Pass headers such as a session `cookie` when the server gates with real auth.
+ */
 export async function send(
   server: FastifyInstance,
   method: InjectOptions["method"],
   url: string,
   payload?: InjectOptions["payload"],
+  headers: InjectOptions["headers"] = {},
 ) {
-  const response = await server.inject({ method, url, payload });
+  const response = await server.inject({ method, url, payload, headers });
   return {
     status: response.statusCode,
     body: response.body === "" ? undefined : response.json(),
@@ -49,8 +53,34 @@ export async function waitForScan(
 export function createChannel(
   server: FastifyInstance,
   payload: InjectOptions["payload"],
+  headers: InjectOptions["headers"] = {},
 ) {
-  return server.inject({ method: "POST", url: "/channels", payload });
+  return server.inject({ method: "POST", url: "/channels", payload, headers });
+}
+
+/**
+ * Sets up the account on a server gated with real auth and returns the
+ * `cookie` header its session cookie becomes, for admin requests.
+ */
+export async function signIn(
+  server: FastifyInstance,
+): Promise<{ cookie: string }> {
+  const response = await server.inject({
+    method: "POST",
+    url: "/auth/setup",
+    payload: { displayName: "Owner", password: "correct horse" },
+  });
+  if (response.statusCode !== 201) {
+    throw new Error(`Setup answered ${response.statusCode}: ${response.body}`);
+  }
+  return { cookie: cookieOf(response) };
+}
+
+/** Returns the `name=value` pair a browser would send back from a `Set-Cookie` response. */
+export function cookieOf(response: {
+  headers: Record<string, unknown>;
+}): string {
+  return String(response.headers["set-cookie"]).split(";")[0];
 }
 
 /** Patches a channel and returns Fastify's raw response; pending calls let tests race lifecycle changes. */

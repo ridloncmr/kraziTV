@@ -7,9 +7,11 @@ import { runImmediateTransaction } from "../database/writes/immediate-transactio
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { DEFAULT_AVATAR_ID } from "./avatars.js";
 import type {
+  Authentication,
   AuthState,
   IssuedSession,
   LogInResult,
+  RequestAuthenticator,
   SetUpInput,
   SetUpResult,
 } from "./contracts.js";
@@ -32,7 +34,7 @@ async function hasAccount(db: Kysely<DatabaseSchema>): Promise<boolean> {
  * leave only as plain strings; cookies and HTTP stay in the routes. The clock
  * is injectable so expiry is testable with a manual clock.
  */
-export class AuthService {
+export class AuthService implements RequestAuthenticator {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #createId: () => string;
   readonly #now: () => number;
@@ -66,6 +68,20 @@ export class AuthService {
       },
       authenticated: token !== undefined && (await this.#isLive(token)),
     };
+  }
+
+  /**
+   * Answers the auth gate for a request carrying `token`. A live session
+   * implies the account exists, so the common signed-in path is one query;
+   * only a request without one asks whether setup is still needed.
+   */
+  async authenticate(token: string | undefined): Promise<Authentication> {
+    if (token !== undefined && (await this.#isLive(token))) {
+      return { kind: "authenticated" };
+    }
+    return (await hasAccount(this.#db))
+      ? { kind: "unauthenticated" }
+      : { kind: "setup_required" };
   }
 
   /**

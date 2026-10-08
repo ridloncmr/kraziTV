@@ -31,3 +31,18 @@ export type LogInResult =
   | { kind: "setup_required" }
   | { kind: "invalid_password" }
   | { kind: "too_many_attempts"; retryAfterSeconds: number };
+
+/** How the auth gate must treat one request. */
+export type Authentication =
+  | { kind: "authenticated" }
+  | { kind: "unauthenticated" }
+  | { kind: "setup_required" };
+
+/**
+ * The one question the auth gate asks. Kept narrow so the test stand-in that
+ * signs every request in must change whenever the gate's needs do.
+ */
+export interface RequestAuthenticator {
+  /** Classifies a request by the session token its cookie carries, if any. */
+  authenticate(token: string | undefined): Promise<Authentication>;
+}

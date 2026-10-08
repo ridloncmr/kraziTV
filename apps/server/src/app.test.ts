@@ -20,6 +20,7 @@ import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
 import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
 import { plexSettingsFixture } from "./testing/plex-fixtures.js";
+import { SignedInAuthenticator } from "./testing/signed-in-authenticator.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -35,6 +36,7 @@ function createDependencies(
   return {
     database,
     auth: {} as AuthService,
+    authenticator: new SignedInAuthenticator(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,

@@ -2,9 +2,12 @@ import cors from "@fastify/cors";
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
+  type RouteOptions,
 } from "fastify";
 
 import type { AuthService } from "./auth/auth-service.js";
+import type { RequestAuthenticator } from "./auth/contracts.js";
+import { registerAuthGate } from "./auth/gate/auth-gate.js";
 import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
@@ -43,6 +46,11 @@ type BuildServerOptions = FastifyServerOptions & {
   channelStopTimeoutMs?: number | undefined;
   /** Required so Plex URLs always come from parsed configuration, never a second default. */
   plex: PlexSettings;
+  /**
+   * Observes every route as it registers, before the first one, so a test can
+   * prove each route was decided public or gated.
+   */
+  onRoute?: ((route: RouteOptions) => void) | undefined;
 };
 
 export type ServerDatabaseLifecycle = {
@@ -52,6 +60,8 @@ export type ServerDatabaseLifecycle = {
 export type ServerDependencies = {
   database: ServerDatabaseLifecycle;
   auth: AuthService;
+  /** What the auth gate asks; production passes the same service as `auth`. */
+  authenticator: RequestAuthenticator;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -77,11 +87,15 @@ function registerRoutes(
   // One lock per server, so every route that stops a channel's runtime
   // serializes with every other lifecycle change of that channel.
   const lifecycle = new ChannelLifecycleLock();
-  // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also edits and deletes.
+  // @fastify/cors allows only GET, HEAD and POST by default; the Web UI also
+  // edits and deletes. Credentials let the web app send its session cookie.
   void server.register(cors, {
     origin: corsOrigins,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
   });
+  // After CORS and before every route; see registerAuthGate.
+  registerAuthGate(server, dependencies.authenticator);
 
   server.get("/health", async () => ({ status: "ok" }));
   registerAuthRoutes(server, dependencies.auth, {
@@ -154,9 +168,11 @@ export function buildServer(
     corsOrigins = DEFAULT_CORS_ORIGINS,
     channelStopTimeoutMs = DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
     plex,
+    onRoute,
     ...fastifyOptions
   } = options;
   const server = Fastify(fastifyOptions);
+  if (onRoute !== undefined) server.addHook("onRoute", onRoute);
 
   // Scan jobs are cancelled first so every ffprobe child closes, and a
   // committing job finishes, before onClose releases the database.
