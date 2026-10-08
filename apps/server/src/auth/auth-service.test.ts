@@ -175,4 +175,91 @@ describe("AuthService", () => {
       db.selectFrom("sessions").select("id").execute(),
     ).resolves.toEqual([]);
   });
+
+  it("refuses login before setup without writing", async () => {
+    const { auth, db } = await openAuth();
+
+    await expect(auth.logIn(owner.password)).resolves.toEqual({
+      kind: "setup_required",
+    });
+    await expect(
+      db.selectFrom("sessions").select("id").execute(),
+    ).resolves.toEqual([]);
+  });
+
+  it("refuses a wrong password without starting a session", async () => {
+    const { auth, db } = await openAuth();
+    await setUpOwner(auth);
+
+    await expect(auth.logIn("correct horsf")).resolves.toEqual({
+      kind: "invalid_password",
+    });
+    await expect(
+      db.selectFrom("sessions").select("id").execute(),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("starts a separate 30-day session for each login", async () => {
+    const { auth, db, clock } = await openAuth();
+    const setupToken = await setUpOwner(auth);
+    clock.advance(DAY_MS);
+
+    const first = await auth.logIn(owner.password);
+    const second = await auth.logIn(owner.password);
+
+    if (first.kind !== "logged_in" || second.kind !== "logged_in") {
+      throw new Error(`login ${first.kind}, ${second.kind}`);
+    }
+    expect(first.session.maxAgeSeconds).toBe(30 * 24 * 60 * 60);
+    expect(
+      new Set([setupToken, first.session.token, second.session.token]).size,
+    ).toBe(3);
+    for (const token of [
+      setupToken,
+      first.session.token,
+      second.session.token,
+    ]) {
+      await expect(auth.state(token)).resolves.toMatchObject({
+        authenticated: true,
+      });
+    }
+    await expect(
+      db
+        .selectFrom("sessions")
+        .select("expires_at")
+        .where("created_at", "=", START + DAY_MS)
+        .execute(),
+    ).resolves.toEqual([
+      { expires_at: START + 31 * DAY_MS },
+      { expires_at: START + 31 * DAY_MS },
+    ]);
+  });
+
+  it("logs out only the given session", async () => {
+    const { auth } = await openAuth();
+    const kept = await setUpOwner(auth);
+    const login = await auth.logIn(owner.password);
+    if (login.kind !== "logged_in") throw new Error(`login ${login.kind}`);
+
+    await auth.logOut(login.session.token);
+
+    await expect(auth.state(login.session.token)).resolves.toMatchObject({
+      authenticated: false,
+    });
+    await expect(auth.state(kept)).resolves.toMatchObject({
+      authenticated: true,
+    });
+  });
+
+  it("logs out without a token or with an unknown one without failing", async () => {
+    const { auth, db } = await openAuth();
+    await setUpOwner(auth);
+
+    await auth.logOut(undefined);
+    await auth.logOut("not-a-session");
+
+    await expect(
+      db.selectFrom("sessions").select("id").execute(),
+    ).resolves.toHaveLength(1);
+  });
 });

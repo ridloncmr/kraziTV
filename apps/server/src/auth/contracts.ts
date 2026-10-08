@@ -25,3 +25,8 @@ export interface IssuedSession {
 
 export type SetUpResult =
   { kind: "created"; session: IssuedSession } | { kind: "already_set_up" };
+
+export type LogInResult =
+  | { kind: "logged_in"; session: IssuedSession }
+  | { kind: "setup_required" }
+  | { kind: "invalid_password" };

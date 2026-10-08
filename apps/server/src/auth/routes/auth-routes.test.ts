@@ -33,6 +33,29 @@ async function readState(server: FastifyInstance, cookie?: string) {
   return { status: response.statusCode, body: response.json<unknown>() };
 }
 
+/** Returns the `name=value` pair a browser would send back from a `Set-Cookie` response. */
+function cookieOf(response: { headers: Record<string, unknown> }): string {
+  return String(response.headers["set-cookie"]).split(";")[0];
+}
+
+/** Logs in and returns the raw response, for header assertions. */
+function logIn(server: FastifyInstance, password: unknown) {
+  return server.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: { password } as object,
+  });
+}
+
+/** Logs out the way a browser holding `cookie` would. */
+function logOut(server: FastifyInstance, cookie?: string) {
+  return server.inject({
+    method: "POST",
+    url: "/auth/logout",
+    ...(cookie === undefined ? {} : { headers: { cookie } }),
+  });
+}
+
 /** Counts rows so refusals can prove they wrote nothing. */
 async function countRows(
   db: Awaited<ReturnType<typeof startTestServer>>["db"],
@@ -68,8 +91,7 @@ describe("auth routes", () => {
 
   it("recognizes the setup cookie on later state reads", async () => {
     const { server } = await startTestServer();
-    const setCookie = String((await setUp(server)).headers["set-cookie"]);
-    const cookie = setCookie.split(";")[0];
+    const cookie = cookieOf(await setUp(server));
 
     await expect(readState(server, `theme=xp; ${cookie}`)).resolves.toEqual({
       status: 200,
@@ -160,5 +182,114 @@ describe("auth routes", () => {
     await expect(setUp(server, payload)).resolves.toMatchObject({
       statusCode: 201,
     });
+  });
+});
+
+describe("login and logout", () => {
+  it("refuses login before setup", async () => {
+    const { server, db } = await startTestServer();
+
+    const response = await logIn(server, owner.password);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      error: { code: "setup_required" },
+    });
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    await expect(countRows(db)).resolves.toEqual({ accounts: 0, sessions: 0 });
+  });
+
+  it("refuses a wrong password and sets no cookie", async () => {
+    const { server, db } = await startTestServer();
+    await setUp(server);
+
+    const response = await logIn(server, "correct horsf");
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      error: { code: "invalid_password" },
+    });
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+  });
+
+  it.each([
+    ["a missing password", {}],
+    ["a non-string password", { password: 12345678 }],
+    ["a 257-character password", { password: "p".repeat(257) }],
+    ["an unknown field", { password: "correct horse", displayName: "Owner" }],
+  ])("refuses %s as an invalid request", async (_, payload) => {
+    const { server } = await startTestServer();
+    await setUp(server);
+
+    await expect(
+      send(server, "POST", "/auth/login", payload),
+    ).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_request" } },
+    });
+  });
+
+  it("logs in with the right password and sets a cookie state accepts", async () => {
+    const { server } = await startTestServer();
+    await setUp(server);
+
+    const response = await logIn(server, owner.password);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      setupRequired: false,
+      account: { displayName: "Owner", avatarId: DEFAULT_AVATAR_ID },
+      authenticated: true,
+    });
+    expect(response.headers["set-cookie"]).toMatch(SESSION_COOKIE);
+    await expect(readState(server, cookieOf(response))).resolves.toMatchObject({
+      body: { authenticated: true },
+    });
+  });
+
+  it("logs out only the browser that asks, and clears its cookie", async () => {
+    const { server, db } = await startTestServer();
+    const firstBrowser = cookieOf(await setUp(server));
+    const secondBrowser = cookieOf(await logIn(server, owner.password));
+
+    const response = await logOut(server, firstBrowser);
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["set-cookie"]).toBe(
+      "krazitv_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
+    );
+    await expect(readState(server, firstBrowser)).resolves.toMatchObject({
+      body: { authenticated: false },
+    });
+    await expect(readState(server, secondBrowser)).resolves.toMatchObject({
+      body: { authenticated: true },
+    });
+    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+  });
+
+  it("clears a Secure cookie with the same attributes over https", async () => {
+    const { server } = await startTestServer({
+      plex: { publicBaseUrl: "https://krazitv.test" },
+    });
+
+    const response = await logOut(server);
+
+    expect(response.headers["set-cookie"]).toBe(
+      "krazitv_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict; Secure",
+    );
+  });
+
+  it.each([
+    ["no cookie", undefined],
+    ["an unknown session", "krazitv_session=not-a-session"],
+  ])("answers logout with %s as success", async (_, cookie) => {
+    const { server, db } = await startTestServer();
+    await setUp(server);
+
+    const response = await logOut(server, cookie);
+
+    expect(response.statusCode).toBe(204);
+    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
   });
 });

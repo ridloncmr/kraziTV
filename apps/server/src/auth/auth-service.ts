@@ -9,10 +9,11 @@ import { DEFAULT_AVATAR_ID } from "./avatars.js";
 import type {
   AuthState,
   IssuedSession,
+  LogInResult,
   SetUpInput,
   SetUpResult,
 } from "./contracts.js";
-import { hashPassword } from "./passwords/password-hash.js";
+import { hashPassword, verifyPassword } from "./passwords/password-hash.js";
 import {
   createSessionToken,
   hashSessionToken,
@@ -95,6 +96,34 @@ export class AuthService {
       const session = await this.#startSession(pinned, accountId, now);
       return { kind: "created", session } as const;
     });
+  }
+
+  /**
+   * Checks `password` against the one account and starts a new session on a
+   * match. Every login gets its own session, so browsers log in and out
+   * independently. Failed-attempt throttling belongs here, not in the route,
+   * so every password check shares one counter.
+   */
+  async logIn(password: string): Promise<LogInResult> {
+    const account = await this.#db
+      .selectFrom("accounts")
+      .select(["id", "password_hash"])
+      .executeTakeFirst();
+    if (account === undefined) return { kind: "setup_required" };
+    if (!(await verifyPassword(password, account.password_hash))) {
+      return { kind: "invalid_password" };
+    }
+    const session = await this.#startSession(this.#db, account.id, this.#now());
+    return { kind: "logged_in", session };
+  }
+
+  /** Ends the session `token` names; an absent or unknown token is already logged out. */
+  async logOut(token: string | undefined): Promise<void> {
+    if (token === undefined) return;
+    await this.#db
+      .deleteFrom("sessions")
+      .where("token_hash", "=", hashSessionToken(token))
+      .execute();
   }
 
   /**
