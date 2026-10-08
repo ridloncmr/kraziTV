@@ -71,6 +71,16 @@ file in the same change.
 | **Window dialog**   | A dialog owned by one desktop program's window: it covers and blocks only that window's content and cannot leave it. Code name `WindowDialog`.                                                                                         | modal, popup               |
 | **Cleanup retry**   | A browser-held reference to a failed administrative runtime stop, retained until the server confirms cleanup succeeded. It never recreates deleted channel configuration.                                                              | rollback                   |
 
+## Access
+
+| Term             | Definition                                                                                                                                                                    | Avoid                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| **Account**      | The one identity that may administer kraziTV: a display name, avatar, and password. See [ADR 0012](docs/adrs/0012-first-party-session-auth.md).                               | user, admin user, identity  |
+| **Session**      | A server-side record of one logged-in browser, carried by an `HttpOnly` cookie and renewed while used. See [ADR 0012](docs/adrs/0012-first-party-session-auth.md).            | token, JWT, login           |
+| **Auth gate**    | The server hook that rejects every request without a valid session unless its route is a public route.                                                                        | middleware, guard, firewall |
+| **Public route** | A route the auth gate lets through without a session: health, the auth routes a logged-out browser needs, and the provider endpoints Plex calls.                              | anonymous route, open route |
+| **Logon screen** | The XP-style screen the web app shows instead of the desktop shell when the browser has no session. See [spec 0002](docs/specs/features/003-auth/specs/0002-logon-screen.md). | login page, sign-in page    |
+
 ## Media Catalog
 
 | Term                     | Definition                                                                                                                                                                                                                                                                                                                                                      | Avoid                         |
