@@ -48,7 +48,7 @@ at the top of each plan are generated from ticket Status blocks by
 ### 003-auth
 
 - [Auth Spec 0001 Implementation Plan: Accounts And Sessions](003-auth/0001-accounts-and-sessions.md) - 6 of 6 tickets complete
-- [Auth Spec 0002 Implementation Plan: Logon Screen](003-auth/0002-logon-screen.md) - 0 of 6 tickets complete
+- [Auth Spec 0002 Implementation Plan: Logon Screen](003-auth/0002-logon-screen.md) - 1 of 6 tickets complete
 
 <!-- plan-index:end -->
 

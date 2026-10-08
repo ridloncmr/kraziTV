@@ -1,0 +1,261 @@
+/* Original welcome-screen styling: deep bands framing a lighter middle band,
+   edged by thin highlight lines that fade out toward the sides. */
+.logon-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(56px, 12vh) 1fr minmax(64px, 13vh);
+  background: var(--xp-logon-band);
+  color: var(--xp-window-surface);
+  font-family: var(--xp-font-ui);
+  overflow: hidden;
+}
+.logon-band-top,
+.logon-band-bottom {
+  position: relative;
+  background: var(--xp-logon-band);
+}
+.logon-band-top::after,
+.logon-band-bottom::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+.logon-band-top::after {
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--xp-logon-line-cool) 15%,
+    var(--xp-logon-line-cool) 60%,
+    transparent
+  );
+}
+.logon-band-bottom::before {
+  top: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--xp-logon-line-warm) 15%,
+    var(--xp-logon-line-warm) 65%,
+    transparent
+  );
+}
+.logon-middle {
+  display: grid;
+  grid-template-columns: 1fr 2px 1fr;
+  align-items: center;
+  background:
+    radial-gradient(
+      ellipse 55% 75% at 12% 8%,
+      var(--xp-logon-glow),
+      transparent 70%
+    ),
+    var(--xp-logon-middle);
+  min-height: 0;
+}
+.logon-brand {
+  justify-self: end;
+  padding: 0 48px;
+  text-align: right;
+}
+.logon-brand h1 {
+  margin: 4px 0 0;
+  font:
+    italic 700 48px Arial,
+    sans-serif;
+  letter-spacing: -2px;
+  text-shadow: 1px 2px 3px var(--xp-shadow);
+}
+.logon-brand h1 span {
+  color: var(--xp-accent-orange);
+}
+.logon-brand p {
+  margin: 18px 0 0;
+  font-size: 16px;
+}
+.logon-divider {
+  align-self: stretch;
+  margin: 8% 0;
+  background: linear-gradient(
+    transparent,
+    var(--xp-logon-line-cool) 30%,
+    var(--xp-logon-line-cool) 70%,
+    transparent
+  );
+  opacity: 0.6;
+}
+.logon-accounts {
+  padding: 0 32px;
+}
+.logon-account {
+  position: relative;
+  max-width: 360px;
+}
+.logon-account-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+.logon-account-tile .account-picture {
+  flex: none;
+  border-radius: 9px;
+  box-shadow: 0 0 0 2px transparent;
+  transition: box-shadow 0.12s;
+}
+.logon-account-tile:hover .account-picture,
+.logon-account-tile:focus-visible .account-picture,
+.logon-account.open .account-picture {
+  box-shadow: 0 0 0 2px var(--xp-logon-picture-ring);
+}
+.logon-account-tile:focus-visible {
+  outline: 1px dotted var(--xp-window-surface);
+  outline-offset: -3px;
+}
+.logon-account.open .logon-account-tile {
+  background: linear-gradient(90deg, var(--xp-logon-selected), transparent);
+}
+.logon-password {
+  position: relative;
+  margin: 2px 0 0 78px;
+}
+.logon-password label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.logon-password-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.logon-password input {
+  width: 170px;
+  height: 24px;
+  border: 1px solid var(--xp-shadow);
+  border-radius: 3px;
+  padding: 0 6px;
+  font: 16px var(--xp-font-ui);
+}
+.logon-go {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--xp-window-surface);
+  border-radius: 4px;
+  background: linear-gradient(
+    var(--xp-start-highlight),
+    var(--xp-start-light) 45%,
+    var(--xp-start-dark)
+  );
+  cursor: pointer;
+}
+.logon-go svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--xp-window-surface);
+}
+.logon-password input:disabled,
+.logon-go:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* A balloon tip below the box, its tail pointing up at it. */
+.logon-balloon {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  z-index: 1;
+  width: 260px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--xp-text);
+  border-radius: 7px;
+  background: var(--xp-balloon);
+  color: var(--xp-text);
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 2px 3px 6px var(--xp-shadow);
+}
+.logon-balloon strong {
+  display: block;
+  margin-bottom: 3px;
+}
+.logon-balloon::before,
+.logon-balloon::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  border: 8px solid transparent;
+  border-top: 0;
+}
+.logon-balloon::before {
+  top: -9px;
+  border-bottom-color: var(--xp-text);
+}
+.logon-balloon::after {
+  top: -7px;
+  border-bottom-color: var(--xp-balloon);
+}
+.logon-panel {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 420px;
+  padding: 0 24px;
+  text-align: center;
+}
+.logon-panel h1 {
+  font-size: 28px;
+  font-weight: 400;
+}
+.logon-band-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 32px;
+}
+.logon-hint {
+  max-width: 300px;
+  margin: 0;
+  font-size: 12px;
+  text-align: right;
+}
+@media (max-width: 620px) {
+  .logon-middle {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: 24px;
+  }
+  .logon-divider {
+    display: none;
+  }
+  .logon-brand {
+    justify-self: center;
+    text-align: center;
+    padding: 0 16px;
+  }
+  .logon-accounts {
+    padding: 0 16px;
+  }
+  .logon-password {
+    margin-left: 0;
+  }
+  .logon-band-bottom {
+    padding: 0 16px;
+  }
+}

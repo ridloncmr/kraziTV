@@ -20,6 +20,14 @@
   --xp-boot-text: #efefef;
   --xp-boot-blue-light: #708cf1;
   --xp-boot-blue-dark: #2838c7;
+  --xp-logon-band: #00309c;
+  --xp-logon-middle: #5a7edc;
+  --xp-logon-glow: #8eaaf0;
+  --xp-logon-line-cool: #e8f0ff;
+  --xp-logon-line-warm: #f8a65c;
+  --xp-logon-selected: #1d4fc4;
+  --xp-logon-picture-ring: #f7c94b;
+  --xp-balloon: #ffffe1;
   --xp-accent-orange: #ff6333;
   --xp-text: #20252c;
   --xp-muted: #5b6571;

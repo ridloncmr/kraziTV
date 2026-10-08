@@ -6,6 +6,8 @@ interface BrowserRequest {
   method: string;
   body: unknown;
   signal?: AbortSignal | null;
+  /** Whether the request asked the browser to send its session cookie. */
+  credentials?: RequestCredentials | undefined;
 }
 type Handler = (request: BrowserRequest) => Response | Promise<Response>;
 
@@ -72,6 +74,7 @@ export class BrowserApi {
           ? (JSON.parse(options.body) as unknown)
           : undefined,
       signal: options?.signal,
+      credentials: options?.credentials,
     };
     this.requests.push(request);
     const handler = this.#handlers.get(`${request.method}:${path}`);

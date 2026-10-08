@@ -520,3 +520,23 @@ button:disabled {
     padding-right: 5px;
   }
 }
+.boot-failure p {
+  margin: 0 0 12px;
+  letter-spacing: normal;
+}
+.boot-failure button {
+  min-width: 76px;
+  min-height: 24px;
+  border: 1px solid var(--xp-menu-border);
+  border-radius: 3px;
+  background: linear-gradient(
+    var(--xp-control-top),
+    var(--xp-menu-surface) 70%,
+    var(--xp-control-bottom)
+  );
+  color: var(--xp-text);
+  font: 12px var(--xp-font-ui);
+}
+.boot-failure button:disabled {
+  opacity: 0.55;
+}

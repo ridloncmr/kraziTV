@@ -2,7 +2,6 @@ import { useEffect, useReducer, useState } from "react";
 import { ProgramIcon } from "../branding/program-icon.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
-import { BootScreen } from "./chrome/boot-screen.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
@@ -17,11 +16,14 @@ function usableViewport(): DesktopViewport {
   };
 }
 
-/** Composes shell presentation with real programs, leaving domain state entirely API-backed. */
+/**
+ * Composes shell presentation with real programs, leaving domain state
+ * entirely API-backed. The app root renders it only for a logged-in browser;
+ * its `/health` poll drives the tray connection indicator alone.
+ */
 export function DesktopShell() {
   const [windows, dispatch] = useReducer(windowReducer, []);
   const [viewport, setViewport] = useState(usableViewport);
-  const [minimumElapsed, setMinimumElapsed] = useState(false);
   const [pageVisible, setPageVisible] = useState(
     document.visibilityState !== "hidden",
   );
@@ -30,14 +32,6 @@ export function DesktopShell() {
     pageVisible,
     10_000,
   );
-  const [booted, setBooted] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setMinimumElapsed(true), 650);
-    return () => clearTimeout(timer);
-  }, []);
-  useEffect(() => {
-    if (minimumElapsed && (health.data || health.error)) setBooted(true);
-  }, [minimumElapsed, health.data, health.error]);
   useEffect(() => {
     /** Windows clamp to the live viewport at render, so shrinking never loses their saved positions. */
     const resize = () => setViewport(usableViewport());
@@ -57,7 +51,6 @@ export function DesktopShell() {
       ? "API connected"
       : "Checking API connection";
   const activeId = windows.filter((window) => !window.minimized).at(-1)?.id;
-  if (!booted) return <BootScreen />;
   return (
     <main className="desktop-shell">
       <div className="desktop-shortcuts" aria-label="Desktop programs">

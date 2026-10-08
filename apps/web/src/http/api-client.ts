@@ -14,7 +14,11 @@ export function resourcePath(area: string, id: string): string {
   return `/${area}/${encodeURIComponent(id)}`;
 }
 
-/** All requests share JSON errors, bounded waits, and caller-owned cancellation. */
+/**
+ * All requests share JSON errors, bounded waits, and caller-owned cancellation.
+ * Every request carries the session cookie, which the server gate requires;
+ * the dev web app and API share a host name, so `SameSite=Strict` allows it.
+ */
 export async function apiRequest<T>(
   path: string,
   options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
@@ -25,6 +29,7 @@ export async function apiRequest<T>(
     : timeout;
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
+    credentials: "include",
     signal,
     ...(options.body === undefined
       ? {}
@@ -51,12 +56,14 @@ export async function apiRequest<T>(
       throw new ApiError(
         typeof error.code === "string" ? error.code : "request_failed",
         typeof error.message === "string" ? error.message : response.statusText,
+        response.status,
         error,
       );
     }
     throw new ApiError(
       "request_failed",
       `API request failed (${response.status} ${response.statusText})`,
+      response.status,
     );
   }
   return response.status === 204

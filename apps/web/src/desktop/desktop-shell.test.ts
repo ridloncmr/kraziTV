@@ -18,14 +18,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("boots, navigates Start, restores one singleton and synchronizes the taskbar through close", async () => {
+it("navigates Start, restores one singleton and synchronizes the taskbar through close", async () => {
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
   api.reply("/media-roots", []);
   api.reply("/media-items", { items: [], total: 0 });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(DesktopShell));
-  expect(screen.getByLabelText("kraziTV starting")).toBeTruthy();
   fireEvent.click(await screen.findByRole("button", { name: "start" }));
   const menu = screen.getByRole("navigation", { name: "Start programs" });
   fireEvent.click(within(menu).getByRole("button", { name: /Media Library/ }));
@@ -83,7 +82,7 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
   ).toBeNull();
   expect(document.activeElement).toBe(start);
   expect(
-    screen.getByRole("button", { name: "API connection failed" }),
+    await screen.findByRole("button", { name: "API connection failed" }),
   ).toBeTruthy();
 });
 
