@@ -15,13 +15,13 @@ Progress: 6 of 6 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../specs/features/001-mvp/specs/0003-channel-config.md)
+Source: [`docs/specs/features/001-mvp/specs/0003-channel-config.md`](../../specs/features/001-mvp/specs/0003-channel-config.md)
 
 This plan delivers persistent media collections, channel identity, and the
 channel lifecycle, including the administrative runtime stop that disable and
 delete require. Channels carry no programming fields; programming blocks and
 playback progress belong to spec 0004
-([ADR 0009](../adrs/0009-programming-blocks.md)).
+([ADR 0009](../../adrs/0009-programming-blocks.md)).
 
 ## Delivery Strategy
 

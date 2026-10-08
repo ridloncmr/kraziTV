@@ -25,7 +25,7 @@ Progress: 16 of 16 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0006-signal-packager.md`](../specs/features/001-mvp/specs/0006-signal-packager.md)
+Source: [`docs/specs/features/001-mvp/specs/0006-signal-packager.md`](../../specs/features/001-mvp/specs/0006-signal-packager.md)
 
 This plan breaks the SignalPackager MVP into production-intent slices. The
 compatibility spike uses the same `packages/signal` worker, broadcaster,

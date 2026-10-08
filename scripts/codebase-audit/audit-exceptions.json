@@ -32,7 +32,7 @@
       "rule": "grouping",
       "files": ["packages/krazi-brain/src/schedule/"],
       "reason": "Every file serves one capability, pure schedule generation, so the domain stays flat.",
-      "source": "docs/implementation_plan/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
+      "source": "docs/implementation_plan/001-mvp/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
     },
     {
       "rule": "grouping",

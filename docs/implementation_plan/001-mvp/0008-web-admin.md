@@ -13,7 +13,7 @@ Progress: 4 of 4 tickets complete.
 
 <!-- plan-progress:end -->
 
-Implements [spec 0008](../specs/features/001-mvp/specs/0008-web-admin.md).
+Implements [spec 0008](../../specs/features/001-mvp/specs/0008-web-admin.md).
 Source and executable tests are canonical after implementation.
 
 ## Reconnaissance

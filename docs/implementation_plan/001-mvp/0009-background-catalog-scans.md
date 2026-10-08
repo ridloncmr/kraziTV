@@ -14,7 +14,7 @@ Progress: 4 of 4 tickets complete.
 <!-- plan-progress:end -->
 
 Implements
-[spec 0009](../specs/features/001-mvp/specs/0009-background-catalog-scans.md).
+[spec 0009](../../specs/features/001-mvp/specs/0009-background-catalog-scans.md).
 Source and executable tests are canonical after implementation.
 
 ## Reconnaissance
@@ -61,8 +61,8 @@ Test doubles and helpers to reuse; do not write second copies:
 | `apps/web/src/testing/browser-api.ts`           | `BrowserApi`: canned and held responses through the real `apiRequest` envelope handling.  |
 | `apps/web/src/testing/injected-api.ts`          | `injectBrowserApi`: Chromium against real Fastify routes and SQLite.                      |
 
-Accepted ADRs need no change. [ADR 0006](../adrs/0006-media-roots-and-collections.md)
-and [ADR 0010](../adrs/0010-source-layout.md) constrain where files go; no
+Accepted ADRs need no change. [ADR 0006](../../adrs/0006-media-roots-and-collections.md)
+and [ADR 0010](../../adrs/0010-source-layout.md) constrain where files go; no
 ADR covers scan triggering. Glossary terms used: **Scan job** (added with the
 spec), **Catalog scan**, **Media root**, **Probe**, **Window dialog**,
 **Desktop program**, **Broadcast signal**, **Wall-clock time**. No new terms.
@@ -75,7 +75,7 @@ Complete on 2026-10-07. `CatalogScanWriter` now writes candidates as
 1,000-row upserts on `media_items_root_path_key_unique` and yields one
 macrotask before each chunk inside the one transaction; the chunk size and the
 measured holds are recorded in
-[spec 0009 Open Questions](../specs/features/001-mvp/specs/0009-background-catalog-scans.md#open-questions).
+[spec 0009 Open Questions](../../specs/features/001-mvp/specs/0009-background-catalog-scans.md#open-questions).
 
 **Goal**: Keep a large catalog commit from holding the event loop, and pick
 the chunk size from a measurement, before any scan job work depends on it.

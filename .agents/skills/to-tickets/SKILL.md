@@ -23,7 +23,11 @@ Use this skill to break work into small vertical slices.
 
 ## Output Location
 
-Use `docs/implementation_plan/` for milestone breakdowns.
+Save each plan in the feature folder that matches its spec, such as
+`docs/implementation_plan/003-auth/0001-accounts-and-sessions.md` for
+`docs/specs/features/003-auth/specs/0001-accounts-and-sessions.md`. Create the
+folder if it does not exist. `npm run plan:status` rejects plans left at the
+folder root.
 
 ## Ticket Shape
 

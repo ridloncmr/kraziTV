@@ -74,13 +74,22 @@ export function renderPlanBlock(tickets) {
   ].join("\n");
 }
 
-/** Renders the generated plan list for `docs/implementation_plan/README.md`. */
+/**
+ * Renders the generated plan list for `docs/implementation_plan/README.md`,
+ * one heading per feature folder so equal spec numbers in different features
+ * stay apart. Plans arrive sorted by feature.
+ */
 export function renderIndexBlock(plans) {
-  const entries = plans.map(
-    (plan) =>
+  const lines = [];
+  for (const [index, plan] of plans.entries()) {
+    if (plans[index - 1]?.feature !== plan.feature)
+      lines.push(`### ${plan.feature}`, "");
+    lines.push(
       `- [${plan.title}](${plan.file}) - ${describeProgress(plan.tickets)}`,
-  );
-  return [INDEX_START, "", ...entries, "", INDEX_END].join("\n");
+    );
+    if (plans[index + 1]?.feature !== plan.feature) lines.push("");
+  }
+  return [INDEX_START, "", ...lines, INDEX_END].join("\n");
 }
 
 /**

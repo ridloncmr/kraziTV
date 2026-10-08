@@ -15,7 +15,7 @@ Progress: 5 of 5 tickets complete.
 <!-- plan-progress:end -->
 
 Implements
-[spec 0010](../specs/features/001-mvp/specs/0010-catalog-removal.md).
+[spec 0010](../../specs/features/001-mvp/specs/0010-catalog-removal.md).
 Source and executable tests are canonical after implementation.
 
 ## Reconnaissance
@@ -60,7 +60,7 @@ Test doubles and helpers to reuse; do not write second copies:
 | `apps/web/src/testing/injected-api.ts`                     | Browser suite against real routes and SQLite.                               |
 
 ADR 0003 was amended on 2026-10-07 for the interrupt; no other ADR changes.
-[ADR 0010](../adrs/0010-source-layout.md) places the new domain at
+[ADR 0010](../../adrs/0010-source-layout.md) places the new domain at
 `apps/server/src/catalog-removal/`, grouped into `routes/` and the like once
 it meets the grouping rule. Glossary terms used: **Catalog removal**,
 **Purge**, **Regeneration**, **Regeneration boundary**, **Playback

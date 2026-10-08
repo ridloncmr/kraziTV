@@ -21,7 +21,7 @@ Progress: 12 of 12 tickets complete.
 
 <!-- plan-progress:end -->
 
-Source: [`docs/specs/features/001-mvp/specs/0004-schedule-generation.md`](../specs/features/001-mvp/specs/0004-schedule-generation.md)
+Source: [`docs/specs/features/001-mvp/specs/0004-schedule-generation.md`](../../specs/features/001-mvp/specs/0004-schedule-generation.md)
 
 This plan delivers programming blocks, deterministic schedule generation in
 kraziBrain, and persisted schedule entries that the server materializes with
@@ -118,7 +118,7 @@ apps/server
 | `apps/server/src/programming-blocks/block-change.ts`                   | SCH-009         |
 | `apps/server/src/schedules/schedule-acceptance.test.ts`                | SCH-012         |
 
-Grouping rule ([ADR 0010](../adrs/0010-source-layout.md)):
+Grouping rule ([ADR 0010](../../adrs/0010-source-layout.md)):
 `krazi-brain/src/schedule/` ends with five source files serving one capability,
 schedule generation, so it stays flat. `apps/server/src/schedules/` holds four
 source files plus `contracts.ts`, and `programming-blocks/` (four) and
@@ -409,7 +409,7 @@ work, options?)` pins one connection with `db.connection().execute()`, runs
 **Docs impact**
 
 - Resolve the busy-timeout, backoff, and WAL open questions in
-  [`sqlite-immediate-transactions.md`](../knowledge_base/sqlite-immediate-transactions.md).
+  [`sqlite-immediate-transactions.md`](../../knowledge_base/sqlite-immediate-transactions.md).
   ADR 0004 is unchanged.
 
 ### SCH-002: Add deterministic hashing and seed derivation to kraziBrain
