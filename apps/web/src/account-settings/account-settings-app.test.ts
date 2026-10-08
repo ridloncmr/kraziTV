@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
 import {
-  act,
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { account, loggedIn, stubAuthApi } from "../testing/auth-fixtures.js";
-import type { BrowserApi } from "../testing/browser-api.js";
+import {
+  account,
+  bootDesktop,
+  loggedIn,
+  tooManyAttempts,
+} from "../testing/auth-fixtures.js";
+import { elapse } from "../testing/fake-time.js";
 import type { AuthState } from "../http/contracts.js";
-import { App } from "../app.js";
 import { AVATAR_IDS } from "../branding/avatars/account-picture.js";
 
 afterEach(() => {
@@ -21,14 +22,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-
-/** Boots a logged-in desktop through the app root, which holds the account. */
-async function bootDesktop(state: AuthState = loggedIn) {
-  const api = stubAuthApi(state);
-  render(createElement(App));
-  await screen.findByRole("button", { name: "start" });
-  return api;
-}
 
 /** Opens Account Settings from its desktop shortcut and returns its window. */
 async function openFromShortcut(state?: AuthState) {
@@ -51,16 +44,6 @@ function submitName(window: HTMLElement, name: string) {
     target: { value: name },
   });
   fireEvent.click(within(window).getByRole("button", { name: "Change Name" }));
-}
-
-/** The changes the program sent to `path`, to prove a refused form sent none. */
-function changesSentTo(api: BrowserApi, path: string) {
-  return api.requests.filter((request) => request.path === path);
-}
-
-/** Advances fake time and lets React apply what the timers changed. */
-function elapse(ms: number) {
-  return act(() => vi.advanceTimersByTimeAsync(ms));
 }
 
 it("opens from the desktop shortcut showing the account and its three tasks", async () => {
@@ -116,7 +99,7 @@ it.each([
   const { api, window } = await openFromShortcut();
   submitName(window, name);
   expect(within(window).getByRole("alert").textContent).toBe(says);
-  expect(changesSentTo(api, "/account")).toHaveLength(0);
+  expect(api.requestsTo("/account")).toHaveLength(0);
 });
 
 it("starts the name box filled with the current name", async () => {
@@ -140,9 +123,9 @@ it("sends the trimmed name, shows the answer, and returns home", async () => {
   expect(
     await within(window).findByRole("heading", { name: "Hortense" }),
   ).toBeTruthy();
-  expect(changesSentTo(api, "/account").map((request) => request.body)).toEqual(
-    [{ displayName: "Hortense" }],
-  );
+  expect(api.requestsTo("/account").map((request) => request.body)).toEqual([
+    { displayName: "Hortense" },
+  ]);
   expect(within(window).queryByLabelText("Type a new name")).toBeNull();
 });
 
@@ -182,7 +165,7 @@ it("sends nothing on Cancel and returns home", async () => {
     target: { value: "Hortense" },
   });
   fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
-  expect(changesSentTo(api, "/account")).toHaveLength(0);
+  expect(api.requestsTo("/account")).toHaveLength(0);
   expect(
     within(window).getByRole("heading", { name: "Marguerite" }),
   ).toBeTruthy();
@@ -240,7 +223,7 @@ it.each([
   fillPassword(window, "old password", next, confirm);
   submitPassword(window);
   expect(within(window).getByRole("alert").textContent).toBe(says);
-  expect(changesSentTo(api, "/account/password")).toHaveLength(0);
+  expect(api.requestsTo("/account/password")).toHaveLength(0);
 });
 
 it("disables the password form while the change is pending", async () => {
@@ -284,18 +267,7 @@ it("shows a wrong current password and clears only that box, keeping the desktop
 
 it("counts a throttled change down each second with Change Password disabled, then re-enables it", async () => {
   const { api, window } = await openFromShortcut();
-  api.reply(
-    "/account/password",
-    {
-      error: {
-        code: "too_many_attempts",
-        message: "Too many wrong passwords; wait before trying again",
-        retryAfterSeconds: 3,
-      },
-    },
-    "PUT",
-    429,
-  );
+  api.reply("/account/password", tooManyAttempts(3), "PUT", 429);
   vi.useFakeTimers();
   fillPassword(window, "old password", "correct horse");
   const button = submitPassword(window);
@@ -323,7 +295,7 @@ it("sends the change, then returns home", async () => {
     await within(window).findByRole("button", { name: "Change my password" }),
   ).toBeTruthy();
   expect(
-    changesSentTo(api, "/account/password").map((request) => request.body),
+    api.requestsTo("/account/password").map((request) => request.body),
   ).toEqual([
     { currentPassword: "old password", newPassword: "correct horse" },
   ]);
@@ -334,7 +306,7 @@ it("sends no password on Cancel and returns home", async () => {
   const { api, window } = await openFromShortcut();
   fillPassword(window, "old password", "correct horse");
   fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
-  expect(changesSentTo(api, "/account/password")).toHaveLength(0);
+  expect(api.requestsTo("/account/password")).toHaveLength(0);
   expect(
     within(window).getByRole("heading", { name: "Marguerite" }),
   ).toBeTruthy();
@@ -402,9 +374,9 @@ it("sends the chosen picture, redraws the program icon, and returns home", async
       "popcorn",
     ]),
   );
-  expect(changesSentTo(api, "/account").map((request) => request.body)).toEqual(
-    [{ avatarId: "popcorn" }],
-  );
+  expect(api.requestsTo("/account").map((request) => request.body)).toEqual([
+    { avatarId: "popcorn" },
+  ]);
   expect(within(window).queryByRole("radiogroup")).toBeNull();
   expect(
     window.querySelector(".account-settings-header [data-avatar='popcorn']"),
@@ -416,7 +388,7 @@ it("sends no picture on Cancel and returns home", async () => {
   const picker = openPicker(window);
   fireEvent.click(within(picker).getByRole("radio", { name: "popcorn" }));
   fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
-  expect(changesSentTo(api, "/account")).toHaveLength(0);
+  expect(api.requestsTo("/account")).toHaveLength(0);
   expect(within(window).queryByRole("radiogroup")).toBeNull();
   expect(programIconAvatars(window)).toEqual(["duck", "duck", "duck"]);
 });
@@ -464,7 +436,5 @@ it("shows the new name on the logon screen after logging off, without a re-read"
     ),
   );
   expect(await screen.findByRole("button", { name: "Hortense" })).toBeTruthy();
-  expect(
-    api.requests.filter((request) => request.path === "/auth/state"),
-  ).toHaveLength(1);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
 });

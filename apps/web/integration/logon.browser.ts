@@ -57,7 +57,7 @@ test("logs on from the keyboard against the real gate", async ({ page }) => {
   await expect(box).toHaveValue("");
   await expect(box).toBeFocused();
 
-  await page.keyboard.type("correct horse");
+  await page.keyboard.type(SIGN_IN_PASSWORD);
   await page.keyboard.press("Enter");
   await expectSignedInDesktop(page);
 });

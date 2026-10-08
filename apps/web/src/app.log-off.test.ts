@@ -10,7 +10,6 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { loggedIn, stubAuthApi } from "./testing/auth-fixtures.js";
-import type { BrowserApi } from "./testing/browser-api.js";
 import { App } from "./app.js";
 
 afterEach(() => {
@@ -32,11 +31,6 @@ async function openLogOff() {
   );
   const dialog = screen.getByRole("dialog", { name: "Log Off kraziTV" });
   return { api, dialog };
-}
-
-/** The logout requests the app sent. */
-function logouts(api: BrowserApi) {
-  return api.requests.filter((request) => request.path === "/auth/logout");
 }
 
 it("opens a modal confirmation over the whole desktop with focus on Log Off", async () => {
@@ -61,20 +55,18 @@ it("logs off through the server and shows the logon screen", async () => {
   expect(
     await screen.findByRole("button", { name: "Marguerite" }),
   ).toBeTruthy();
-  expect(logouts(api)).toHaveLength(1);
-  expect(logouts(api)[0]?.method).toBe("POST");
+  expect(api.requestsTo("/auth/logout")).toHaveLength(1);
+  expect(api.requestsTo("/auth/logout")[0]?.method).toBe("POST");
   expect(screen.queryByRole("button", { name: "start" })).toBeNull();
   // The answer names the screen; no state re-read is needed.
-  expect(
-    api.requests.filter((request) => request.path === "/auth/state"),
-  ).toHaveLength(1);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
 });
 
 it("changes nothing on Cancel and returns focus to Start", async () => {
   const { api, dialog } = await openLogOff();
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("dialog", { name: "Log Off kraziTV" })).toBeNull();
-  expect(logouts(api)).toHaveLength(0);
+  expect(api.requestsTo("/auth/logout")).toHaveLength(0);
   const start = screen.getByRole("button", { name: "start" });
   expect(document.activeElement).toBe(start);
   expect(document.querySelector(".desktop-shell")?.hasAttribute("inert")).toBe(
@@ -86,7 +78,7 @@ it("closes on Escape like Cancel", async () => {
   const { api, dialog } = await openLogOff();
   fireEvent.keyDown(dialog, { key: "Escape" });
   expect(screen.queryByRole("dialog", { name: "Log Off kraziTV" })).toBeNull();
-  expect(logouts(api)).toHaveLength(0);
+  expect(api.requestsTo("/auth/logout")).toHaveLength(0);
   expect(document.activeElement).toBe(
     screen.getByRole("button", { name: "start" }),
   );

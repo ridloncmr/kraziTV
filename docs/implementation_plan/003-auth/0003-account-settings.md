@@ -235,8 +235,9 @@ account, and changes the display name.
 
 Complete on 2026-10-08. **Change my picture** in
 `account-settings/change-picture-view.tsx` picks from a native radio grid of
-every `AVATAR_IDS` drawing, sharing `profile-change-form.tsx` with the name
-task; `account-picture.test.ts` fails if the web and server ID lists differ.
+every `AVATAR_IDS` drawing, sharing `account-task-form.tsx` and
+`use-account-task.ts` with the other tasks; `account-picture.test.ts` fails
+if the web and server ID lists differ.
 
 **Goal**: The owner picks a built-in avatar, and every place that draws the
 account shows it.

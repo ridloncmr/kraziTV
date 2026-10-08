@@ -23,7 +23,11 @@ export function ChangePictureView({
   onChanged: (account: AccountProfile) => void;
   onCancel: () => void;
 }) {
-  /** Sends the checked ID; one option always starts checked, so it is never empty. */
+  /**
+   * Sends the checked ID. Nothing starts checked when the stored avatar is not
+   * a built-in one; the empty ID then goes out and the server's
+   * `unknown_avatar` refusal is shown.
+   */
   function prepare(form: FormData) {
     return { body: { avatarId: formText(form, "avatarId") } };
   }
