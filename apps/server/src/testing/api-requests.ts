@@ -76,6 +76,15 @@ export async function signIn(
   return { cookie: cookieOf(response) };
 }
 
+/** Logs in with `password` and returns the raw response, for header and cookie assertions. */
+export function logIn(server: FastifyInstance, password: unknown) {
+  return server.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: { password } as object,
+  });
+}
+
 /** Returns the `name=value` pair a browser would send back from a `Set-Cookie` response. */
 export function cookieOf(response: {
   headers: Record<string, unknown>;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { cookieOf, send } from "../../testing/api-requests.js";
+import { cookieOf, logIn, send } from "../../testing/api-requests.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
@@ -33,15 +33,6 @@ async function readState(server: FastifyInstance, cookie?: string) {
     ...(cookie === undefined ? {} : { headers: { cookie } }),
   });
   return { status: response.statusCode, body: response.json<unknown>() };
-}
-
-/** Logs in and returns the raw response, for header assertions. */
-function logIn(server: FastifyInstance, password: unknown) {
-  return server.inject({
-    method: "POST",
-    url: "/auth/login",
-    payload: { password } as object,
-  });
 }
 
 /** Logs out the way a browser holding `cookie` would. */

@@ -11,14 +11,17 @@ import type {
   AccountProfile,
   Authentication,
   AuthState,
+  ChangePasswordResult,
   IssuedSession,
   IssuedSessionLifetime,
   LogInResult,
+  PasswordChange,
   ProfileUpdate,
   ResetPasswordResult,
   RequestAuthenticator,
   SetUpInput,
   SetUpResult,
+  TooManyAttempts,
 } from "./contracts.js";
 import { PasswordAttemptThrottle } from "./passwords/password-attempt-throttle.js";
 import { hashPassword, verifyPassword } from "./passwords/password-hash.js";
@@ -33,6 +36,24 @@ import {
 async function hasAccount(db: Kysely<DatabaseSchema>): Promise<boolean> {
   const row = await db.selectFrom("accounts").select("id").executeTakeFirst();
   return row !== undefined;
+}
+
+/**
+ * Reports whether the account still has the password hash a caller verified
+ * without write authority. Callers ask on their pinned connection, so a
+ * password reset or change that committed meanwhile is seen before they write.
+ */
+async function hasPasswordHash(
+  db: Kysely<DatabaseSchema>,
+  accountId: string,
+  verifiedHash: string,
+): Promise<boolean> {
+  const current = await db
+    .selectFrom("accounts")
+    .select("password_hash")
+    .where("id", "=", accountId)
+    .executeTakeFirst();
+  return current?.password_hash === verifiedHash;
 }
 
 /**
@@ -173,15 +194,8 @@ export class AuthService implements RequestAuthenticator {
       .select(["id", "password_hash"])
       .executeTakeFirst();
     if (account === undefined) return { kind: "setup_required" };
-    // Admitted synchronously after the last await, so attempts sent together
-    // each see the failures reserved by those before them.
-    const admission = this.#attempts.admit(this.#now());
-    if (!admission.admitted) {
-      return {
-        kind: "too_many_attempts",
-        retryAfterSeconds: Math.ceil(admission.retryAfterMs / 1000),
-      };
-    }
+    const refusal = this.#admitAttempt();
+    if (refusal !== undefined) return refusal;
     if (!(await verifyPassword(password, account.password_hash))) {
       return { kind: "invalid_password" };
     }
@@ -207,14 +221,77 @@ export class AuthService implements RequestAuthenticator {
     verifiedHash: string,
   ): Promise<IssuedSession | undefined> {
     return runImmediateTransaction(this.#db, async (pinned) => {
-      const current = await pinned
-        .selectFrom("accounts")
-        .select("password_hash")
-        .where("id", "=", accountId)
-        .executeTakeFirst();
-      if (current?.password_hash !== verifiedHash) return undefined;
+      if (!(await hasPasswordHash(pinned, accountId, verifiedHash))) {
+        return undefined;
+      }
       return this.#startSession(pinned, accountId, this.#now());
     });
+  }
+
+  /**
+   * Replaces the password for an owner who proves the current one. The
+   * session `token` names stays and every other ends, so a browser that knew
+   * the old password is logged out everywhere but here. Shares login's
+   * throttle and race rules: admitted after the last await, verified and
+   * hashed outside write authority, and written only while the account still
+   * has the verified hash, so a reset or another change that committed
+   * meanwhile wins and this one answers `invalid_password`. The auth gate
+   * already proved the account exists.
+   */
+  async changePassword(
+    token: string | undefined,
+    change: PasswordChange,
+  ): Promise<ChangePasswordResult> {
+    const account = await this.#db
+      .selectFrom("accounts")
+      .select(["id", "password_hash"])
+      .executeTakeFirstOrThrow();
+    const refusal = this.#admitAttempt();
+    if (refusal !== undefined) return refusal;
+    if (
+      !(await verifyPassword(change.currentPassword, account.password_hash))
+    ) {
+      return { kind: "invalid_password" };
+    }
+    const newHash = await hashPassword(change.newPassword);
+    const changed = await runImmediateTransaction(this.#db, async (pinned) => {
+      if (!(await hasPasswordHash(pinned, account.id, account.password_hash))) {
+        return false;
+      }
+      await pinned
+        .updateTable("accounts")
+        .set({ password_hash: newHash, updated_at: this.#now() })
+        .where("id", "=", account.id)
+        .execute();
+      // A request without a session, possible only behind a test stand-in
+      // for the gate, has nothing to keep.
+      const ending = pinned.deleteFrom("sessions");
+      await (
+        token === undefined
+          ? ending
+          : ending.where("token_hash", "!=", hashSessionToken(token))
+      ).execute();
+      return true;
+    });
+    // A password changed during the check leaves the reserved failure counted.
+    if (!changed) return { kind: "invalid_password" };
+    this.#attempts.succeed();
+    return { kind: "changed" };
+  }
+
+  /**
+   * Admits one password check through the shared throttle at once, reserving
+   * its failure, or returns the refusal. Callers run it synchronously after
+   * their last await, so checks sent together each see the failures reserved
+   * by those before them.
+   */
+  #admitAttempt(): TooManyAttempts | undefined {
+    const admission = this.#attempts.admit(this.#now());
+    if (admission.admitted) return undefined;
+    return {
+      kind: "too_many_attempts",
+      retryAfterSeconds: Math.ceil(admission.retryAfterMs / 1000),
+    };
   }
 
   /**

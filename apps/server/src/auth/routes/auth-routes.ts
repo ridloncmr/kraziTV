@@ -12,6 +12,7 @@ import {
   sessionCookie,
 } from "../sessions/session-cookie.js";
 import { displayNameField } from "./display-name-field.js";
+import { sendTooManyAttempts } from "./too-many-attempts.js";
 
 const setupBody = z.strictObject({
   displayName: displayNameField,
@@ -83,14 +84,7 @@ export function registerAuthRoutes(
       );
     }
     if (result.kind === "too_many_attempts") {
-      // The header serves generic HTTP clients; the body field serves the web app.
-      return sendApiError(
-        reply.header("retry-after", String(result.retryAfterSeconds)),
-        429,
-        "too_many_attempts",
-        "Too many wrong passwords; wait before trying again",
-        { retryAfterSeconds: result.retryAfterSeconds },
-      );
+      return sendTooManyAttempts(reply, result.retryAfterSeconds);
     }
     if (result.kind === "invalid_password") {
       return sendApiError(

@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { send, signIn } from "../../testing/api-requests.js";
+import { cookieOf, logIn, send, signIn } from "../../testing/api-requests.js";
+import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../testing/test-environment.js";
+import { AuthService } from "../auth-service.js";
 import { DEFAULT_AVATAR_ID } from "../avatars.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -30,6 +32,15 @@ function patchAccount(
     payload,
     cookie === undefined ? {} : { cookie },
   );
+}
+
+/** Changes the password the way a browser holding `cookie` would. */
+function changePassword(
+  server: FastifyInstance,
+  payload: object,
+  cookie: string,
+) {
+  return send(server, "PUT", "/account/password", payload, { cookie });
 }
 
 /** Reads the account profile `GET /auth/state` reports. */
@@ -132,5 +143,122 @@ describe("account routes", () => {
     await expect(readProfile(server)).resolves.toMatchObject({
       displayName: "Owner",
     });
+  });
+});
+
+describe("password change route", () => {
+  const OLD_PASSWORD = "correct horse";
+  const NEW_PASSWORD = "battery staple";
+
+  it("replaces the password, keeps the changing session, and ends every other", async () => {
+    const { server, cookie } = await startSignedIn();
+    const other = cookieOf(await logIn(server, OLD_PASSWORD));
+
+    await expect(
+      changePassword(
+        server,
+        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+        cookie,
+      ),
+    ).resolves.toEqual({ status: 204, body: undefined });
+
+    await expect(
+      send(server, "GET", "/channels", undefined, { cookie }),
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      send(server, "GET", "/channels", undefined, { cookie: other }),
+    ).resolves.toMatchObject({ status: 401 });
+    expect((await logIn(server, NEW_PASSWORD)).statusCode).toBe(200);
+    expect((await logIn(server, OLD_PASSWORD)).json()).toMatchObject({
+      error: { code: "invalid_password" },
+    });
+  });
+
+  it("refuses a wrong current password with 400 and keeps the old password", async () => {
+    const { server, cookie } = await startSignedIn();
+
+    const response = await changePassword(
+      server,
+      { currentPassword: "wrong password", newPassword: NEW_PASSWORD },
+      cookie,
+    );
+
+    expect(response).toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_password" } },
+    });
+    expect((await logIn(server, OLD_PASSWORD)).statusCode).toBe(200);
+    expect((await logIn(server, NEW_PASSWORD)).statusCode).toBe(401);
+  });
+
+  it.each([
+    [
+      "a short new password",
+      { currentPassword: OLD_PASSWORD, newPassword: "short" },
+    ],
+    ["a missing current password", { newPassword: NEW_PASSWORD }],
+    [
+      "an unknown field",
+      { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, hint: "x" },
+    ],
+  ])(
+    "refuses %s as invalid_request and keeps the old password",
+    async (_, body) => {
+      const { server, cookie } = await startSignedIn();
+
+      await expect(changePassword(server, body, cookie)).resolves.toMatchObject(
+        {
+          status: 400,
+          body: { error: { code: "invalid_request" } },
+        },
+      );
+      expect((await logIn(server, OLD_PASSWORD)).statusCode).toBe(200);
+    },
+  );
+
+  it("throttles wrong current passwords like logins, and a success forgives them", async () => {
+    const clock = manualClock(1_700_000_000_000);
+    const { server } = await startTestServer({
+      auth: "real",
+      overrides: (db) => ({ auth: new AuthService(db, { now: clock.now }) }),
+    });
+    const { cookie } = await signIn(server);
+    const wrong = {
+      currentPassword: "wrong password",
+      newPassword: NEW_PASSWORD,
+    };
+    for (let i = 0; i < 5; i += 1) {
+      expect((await changePassword(server, wrong, cookie)).status).toBe(400);
+    }
+
+    const throttled = await server.inject({
+      method: "PUT",
+      url: "/account/password",
+      payload: { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+      headers: { cookie },
+    });
+
+    expect(throttled.statusCode).toBe(429);
+    expect(throttled.headers["retry-after"]).toBe("1");
+    expect(throttled.json()).toEqual({
+      error: {
+        code: "too_many_attempts",
+        message: expect.any(String),
+        retryAfterSeconds: 1,
+      },
+    });
+    expect((await logIn(server, NEW_PASSWORD)).statusCode).toBe(429);
+
+    clock.advance(1000);
+    await expect(
+      changePassword(
+        server,
+        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD },
+        cookie,
+      ),
+    ).resolves.toMatchObject({ status: 204 });
+    for (let i = 0; i < 5; i += 1) {
+      expect((await logIn(server, "wrong password")).statusCode).toBe(401);
+    }
   });
 });
