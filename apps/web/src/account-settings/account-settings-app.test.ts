@@ -9,9 +9,11 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { loggedIn, stubAuthApi } from "../testing/auth-fixtures.js";
+import { account, loggedIn, stubAuthApi } from "../testing/auth-fixtures.js";
 import type { BrowserApi } from "../testing/browser-api.js";
+import type { AuthState } from "../http/contracts.js";
 import { App } from "../app.js";
+import { AVATAR_IDS } from "../branding/avatars/account-picture.js";
 
 afterEach(() => {
   cleanup();
@@ -19,16 +21,16 @@ afterEach(() => {
 });
 
 /** Boots a logged-in desktop through the app root, which holds the account. */
-async function bootDesktop() {
-  const api = stubAuthApi(loggedIn);
+async function bootDesktop(state: AuthState = loggedIn) {
+  const api = stubAuthApi(state);
   render(createElement(App));
   await screen.findByRole("button", { name: "start" });
   return api;
 }
 
 /** Opens Account Settings from its desktop shortcut and returns its window. */
-async function openFromShortcut() {
-  const api = await bootDesktop();
+async function openFromShortcut(state?: AuthState) {
+  const api = await bootDesktop(state);
   fireEvent.click(
     within(screen.getByLabelText("Desktop programs")).getByRole("button", {
       name: "Account Settings",
@@ -179,13 +181,114 @@ it("sends nothing on Cancel and returns home", async () => {
   ).toBeTruthy();
 });
 
-it("shows a placeholder for the picture and password tasks until they exist", async () => {
+it("shows a placeholder for the password task until it exists", async () => {
   const { window } = await openFromShortcut();
-  for (const task of ["Change my picture", "Change my password"]) {
-    fireEvent.click(within(window).getByRole("button", { name: task }));
-    expect(within(window).getByText(/not available yet/)).toBeTruthy();
-    fireEvent.click(within(window).getByRole("button", { name: "Back" }));
-  }
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Change my password" }),
+  );
+  expect(within(window).getByText(/not available yet/)).toBeTruthy();
+  fireEvent.click(within(window).getByRole("button", { name: "Back" }));
+});
+
+/** Opens the picture view, whose options are named by their avatar IDs. */
+function openPicker(window: HTMLElement) {
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Change my picture" }),
+  );
+  return within(window).getByRole("radiogroup", { name: "Pick a new picture" });
+}
+
+/** The avatar each place that names the program draws, outside the picker. */
+function programIconAvatars(window: HTMLElement) {
+  const avatarIn = (element: Element) =>
+    element.querySelector("[data-avatar]")?.getAttribute("data-avatar");
+  return [
+    avatarIn(window.querySelector(".title-bar")!),
+    avatarIn(
+      within(
+        screen.getByRole("navigation", { name: "Open programs" }),
+      ).getByRole("button", { name: "Account Settings" }),
+    ),
+    avatarIn(
+      within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+        name: "Account Settings",
+      }),
+    ),
+  ];
+}
+
+it("starts the picker with the current picture selected among every avatar", async () => {
+  // Not the first avatar, so a picker that checks the first option fails.
+  const { window } = await openFromShortcut({
+    ...loggedIn,
+    account: { ...account, avatarId: "guitar" },
+  });
+  const picker = openPicker(window);
+  const options = within(picker).getAllByRole<HTMLInputElement>("radio");
+  expect(options.map((option) => option.getAttribute("aria-label"))).toEqual(
+    AVATAR_IDS,
+  );
+  expect(
+    options.filter((option) => option.checked).map((option) => option.value),
+  ).toEqual(["guitar"]);
+});
+
+it("sends the chosen picture, redraws the program icon, and returns home", async () => {
+  const { api, window } = await openFromShortcut();
+  api.handle(
+    "/account",
+    () => api.response({ displayName: "Marguerite", avatarId: "popcorn" }),
+    "PATCH",
+  );
+  const picker = openPicker(window);
+  fireEvent.click(within(picker).getByRole("radio", { name: "popcorn" }));
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Change Picture" }),
+  );
+  await waitFor(() =>
+    expect(programIconAvatars(window)).toEqual([
+      "popcorn",
+      "popcorn",
+      "popcorn",
+    ]),
+  );
+  expect(profileChanges(api).map((request) => request.body)).toEqual([
+    { avatarId: "popcorn" },
+  ]);
+  expect(within(window).queryByRole("radiogroup")).toBeNull();
+  expect(
+    window.querySelector(".account-settings-header [data-avatar='popcorn']"),
+  ).not.toBeNull();
+});
+
+it("sends no picture on Cancel and returns home", async () => {
+  const { api, window } = await openFromShortcut();
+  const picker = openPicker(window);
+  fireEvent.click(within(picker).getByRole("radio", { name: "popcorn" }));
+  fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
+  expect(profileChanges(api)).toHaveLength(0);
+  expect(within(window).queryByRole("radiogroup")).toBeNull();
+  expect(programIconAvatars(window)).toEqual(["duck", "duck", "duck"]);
+});
+
+it("shows the server's unknown_avatar message and stays on the picker", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply(
+    "/account",
+    { error: { code: "unknown_avatar", message: "That picture is unknown." } },
+    "PATCH",
+    400,
+  );
+  const picker = openPicker(window);
+  fireEvent.click(within(picker).getByRole("radio", { name: "popcorn" }));
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Change Picture" }),
+  );
+  expect((await within(window).findByRole("alert")).textContent).toBe(
+    "That picture is unknown.",
+  );
+  expect(within(window).getByRole("radiogroup")).toBeTruthy();
+  expect(programIconAvatars(window)).toEqual(["duck", "duck", "duck"]);
 });
 
 it("shows the new name on the logon screen after logging off, without a re-read", async () => {

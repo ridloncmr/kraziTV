@@ -35,3 +35,41 @@
 .program-page .account-settings-tasks button:hover {
   text-decoration: underline;
 }
+/*
+ * The picture grid is native radios, so the browser handles arrow keys; the
+ * radio itself is hidden but stays focusable, and the picture shows the
+ * selection and focus as XP's picture picker does.
+ */
+.avatar-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 320px;
+  margin-bottom: 8px;
+}
+.account-settings label.avatar-option {
+  display: block;
+  position: relative;
+  cursor: pointer;
+}
+.avatar-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.avatar-option .account-picture {
+  display: block;
+  border-radius: 8px;
+  outline: 3px solid transparent;
+  outline-offset: 1px;
+}
+.avatar-option input:checked + .account-picture {
+  outline-color: var(--xp-focus);
+}
+.avatar-option input:focus-visible + .account-picture {
+  box-shadow:
+    0 0 0 1px #fff,
+    0 0 0 2px #000;
+}

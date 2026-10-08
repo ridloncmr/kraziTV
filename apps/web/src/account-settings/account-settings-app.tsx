@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
 import type { AccountProfile } from "../http/contracts.js";
 import { ChangeNameView } from "./change-name-view.js";
+import { ChangePictureView } from "./change-picture-view.js";
 
 /** The program's pages: home, or one task, as XP User Accounts pages are. */
 type View = "home" | "name" | "picture" | "password";
@@ -21,22 +22,32 @@ export function AccountSettingsApp({
 }) {
   const [view, setView] = useState<View>("home");
   const home = () => setView("home");
+  /** A task's success hands the server's profile to the app root, then goes home. */
+  const changed = (changedAccount: AccountProfile) => {
+    onAccountChanged(changedAccount);
+    home();
+  };
   if (view === "name")
     return (
       <ChangeNameView
         displayName={account.displayName}
-        onChanged={(changed) => {
-          onAccountChanged(changed);
-          home();
-        }}
+        onChanged={changed}
         onCancel={home}
       />
     );
-  if (view === "picture" || view === "password")
+  if (view === "picture")
+    return (
+      <ChangePictureView
+        avatarId={account.avatarId}
+        onChanged={changed}
+        onCancel={home}
+      />
+    );
+  if (view === "password")
     return (
       <div className="program-page account-settings">
         <p className="program-intro">
-          Changing your {view} is not available yet.
+          Changing your password is not available yet.
         </p>
         <div className="dialog-actions">
           <button type="button" onClick={home}>
