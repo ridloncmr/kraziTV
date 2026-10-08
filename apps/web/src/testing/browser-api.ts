@@ -17,6 +17,11 @@ export class BrowserApi {
   readonly #handlers = new Map<string, Handler>();
   readonly #held = new Map<string, (response: Response) => void>();
 
+  /** The requests sent to `path`, in order, so a test can count them or prove a refused form sent none. */
+  requestsTo(path: string): BrowserRequest[] {
+    return this.requests.filter((request) => request.path === path);
+  }
+
   /** Canned replies still pass through production HTTP-status and JSON-envelope handling. */
   reply(path: string, value: unknown, method = "GET", status = 200): void {
     this.handle(path, () => this.response(value, status), method);

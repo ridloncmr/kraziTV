@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import type { AuthState } from "../http/contracts.js";
+import { App } from "../app.js";
 import { BrowserApi } from "./browser-api.js";
 
 /** The one account the web tests log on as; its name differs from every label. */
@@ -32,4 +35,29 @@ export function stubAuthApi(state: unknown, status = 200): BrowserApi {
   api.reply("/health", { status: "ok" });
   vi.stubGlobal("fetch", api.fetch);
   return api;
+}
+
+/**
+ * Boots the app root on `state` and waits for the desktop, so a test starts
+ * from the logged-in desktop the app root holds the account for.
+ */
+export async function bootDesktop(state: AuthState = loggedIn) {
+  const api = stubAuthApi(state);
+  render(createElement(App));
+  await screen.findByRole("button", { name: "start" });
+  return api;
+}
+
+/**
+ * The server's `429 too_many_attempts` error body, carrying the wait only
+ * when given, so throttle tests can also cover an answer that omits it.
+ */
+export function tooManyAttempts(retryAfterSeconds?: number) {
+  return {
+    error: {
+      code: "too_many_attempts",
+      message: "Too many wrong passwords; wait before trying again",
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+    },
+  };
 }

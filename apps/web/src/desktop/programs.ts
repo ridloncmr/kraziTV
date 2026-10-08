@@ -38,4 +38,10 @@ export const programs: readonly ProgramDefinition[] = [
     description: "Inspect current channel state",
     group: "Server",
   },
+  {
+    id: "account",
+    name: "Account Settings",
+    description: "Change your name, picture, or password",
+    group: "Server",
+  },
 ];

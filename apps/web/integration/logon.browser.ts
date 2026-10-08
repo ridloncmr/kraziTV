@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { signIn } from "../../server/src/testing/api-requests.js";
+import {
+  SIGN_IN_PASSWORD,
+  signIn,
+} from "../../server/src/testing/api-requests.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
@@ -54,7 +57,7 @@ test("logs on from the keyboard against the real gate", async ({ page }) => {
   await expect(box).toHaveValue("");
   await expect(box).toBeFocused();
 
-  await page.keyboard.type("correct horse");
+  await page.keyboard.type(SIGN_IN_PASSWORD);
   await page.keyboard.press("Enter");
   await expectSignedInDesktop(page);
 });
@@ -176,6 +179,49 @@ test("logs off from Start and stays logged off after a reload", async ({
   // The server cleared the cookie, so a reload asks again and is still out.
   await page.reload();
   await expect(tile).toBeVisible();
+});
+
+test("changes the password from Account Settings, then logs on with it after logging off", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer({ auth: "real" });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Account Settings", exact: true })
+    .click();
+  const settings = page.getByRole("region", {
+    name: "Account Settings",
+    exact: true,
+  });
+  await settings.getByRole("button", { name: "Change my password" }).click();
+  await settings.getByLabel("Current password").fill(SIGN_IN_PASSWORD);
+  await settings
+    .getByLabel("New password", { exact: true })
+    .fill("battery staple");
+  await settings.getByLabel("Confirm new password").fill("battery staple");
+  await settings.getByRole("button", { name: "Change Password" }).click();
+  // Success returns home, and the desktop stays: this session survived.
+  await expect(
+    settings.getByRole("button", { name: "Change my password" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "start", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Start programs" })
+    .getByRole("button", { name: "Log Off" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Log Off kraziTV" })
+    .getByRole("button", { name: "Log Off" })
+    .click();
+  const logon = page.getByRole("main", { name: "Log on to kraziTV" });
+  await logon.getByRole("button", { name: "Owner" }).click();
+  await logon.getByLabel("Type your password").fill("battery staple");
+  await page.keyboard.press("Enter");
+  await expectSignedInDesktop(page);
 });
 
 test("keeps a failed log off dismissable from the keyboard", async ({

@@ -10,8 +10,10 @@ import { PopcornDrawing } from "./drawings/popcorn-drawing.js";
 import { RemoteDrawing } from "./drawings/remote-drawing.js";
 
 /**
- * Every built-in drawing in picker order. The web app owns this list (spec
- * 0002); `duck` comes first because it is the server's default.
+ * Every built-in drawing in picker order. The web app owns the drawings (spec
+ * 0002); the server keeps the same IDs in `apps/server/src/auth/avatars.ts`
+ * to validate a change, and `account-picture.test.ts` fails if the two lists
+ * differ (spec 0003). `duck` comes first because it is the server's default.
  */
 const DRAWINGS: [string, ComponentType<{ id: string }>][] = [
   ["duck", DuckDrawing],

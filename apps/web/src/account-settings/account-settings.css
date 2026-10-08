@@ -1,0 +1,75 @@
+/* The account's picture beside its name, as XP User Accounts heads each page. */
+.account-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.account-settings-header h2 {
+  margin: 0;
+}
+.account-settings h3 {
+  font-size: 13px;
+  color: var(--xp-title-dark);
+  margin: 12px 0 8px;
+}
+.account-settings label {
+  display: grid;
+  gap: 4px;
+  max-width: 320px;
+}
+.account-settings-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Task links read as XP hyperlinks, not buttons. */
+.program-page .account-settings-tasks button {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 4px 0;
+  color: var(--xp-focus);
+  cursor: pointer;
+}
+.program-page .account-settings-tasks button:hover {
+  text-decoration: underline;
+}
+/*
+ * The picture grid is native radios, so the browser handles arrow keys; the
+ * radio itself is hidden but stays focusable, and the picture shows the
+ * selection and focus as XP's picture picker does.
+ */
+.avatar-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 320px;
+  margin-bottom: 8px;
+}
+.account-settings label.avatar-option {
+  display: block;
+  position: relative;
+  cursor: pointer;
+}
+.avatar-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.avatar-option .account-picture {
+  display: block;
+  border-radius: 8px;
+  outline: 3px solid transparent;
+  outline-offset: 1px;
+}
+.avatar-option input:checked + .account-picture {
+  outline-color: var(--xp-focus);
+}
+.avatar-option input:focus-visible + .account-picture {
+  box-shadow:
+    0 0 0 1px #fff,
+    0 0 0 2px #000;
+}

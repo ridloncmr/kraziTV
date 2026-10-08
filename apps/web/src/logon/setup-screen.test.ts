@@ -37,11 +37,6 @@ function submitSetup(name: string, password: string, confirm = password) {
   );
 }
 
-/** The setup requests the screen sent, to prove a refused form sent none. */
-function setupRequests(api: BrowserApi) {
-  return api.requests.filter((request) => request.path === "/auth/setup");
-}
-
 it("shows one welcome panel with the three fields, the name focused", () => {
   renderSetup(new BrowserApi());
   expect(
@@ -84,7 +79,7 @@ it.each([
   const [name, password, confirm] = fields as [string, string, string?];
   submitSetup(name, password, confirm);
   expect(screen.getByRole("alert").textContent).toBe(says);
-  expect(setupRequests(api)).toHaveLength(0);
+  expect(api.requestsTo("/auth/setup")).toHaveLength(0);
 });
 
 it("accepts a 40-character name once trimmed and an 8-character password", async () => {
@@ -94,7 +89,7 @@ it("accepts a 40-character name once trimmed and an 8-character password", async
   const name = "n".repeat(40);
   submitSetup(`  ${name}  `, "eight888");
   await waitFor(() => expect(onSetUp).toHaveBeenCalledWith(loggedIn));
-  expect(setupRequests(api)[0]?.body).toEqual({
+  expect(api.requestsTo("/auth/setup")[0]?.body).toEqual({
     displayName: name,
     password: "eight888",
   });

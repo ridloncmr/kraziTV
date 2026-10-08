@@ -10,12 +10,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import {
-  loggedIn,
+  bootDesktop,
   loggedOut,
   setupRequired,
   stubAuthApi,
 } from "./testing/auth-fixtures.js";
-import type { BrowserApi } from "./testing/browser-api.js";
 import { App } from "./app.js";
 
 afterEach(() => {
@@ -27,20 +26,6 @@ const unauthenticated = {
   error: { code: "unauthenticated", message: "Log in first" },
 };
 
-/** How many times the app has read `GET /auth/state`. */
-function stateReads(api: BrowserApi): number {
-  return api.requests.filter((request) => request.path === "/auth/state")
-    .length;
-}
-
-/** Boots a logged-in desktop and returns the API, ready to open a program. */
-async function openDesktop() {
-  const api = stubAuthApi(loggedIn);
-  render(createElement(App));
-  await screen.findByRole("button", { name: "start" });
-  return api;
-}
-
 /** Opens Media Library from its desktop shortcut; it reads roots and items at once. */
 function openMediaLibrary() {
   fireEvent.click(
@@ -51,7 +36,7 @@ function openMediaLibrary() {
 }
 
 it("closes every program and shows the logon screen once, however many reads answer 401", async () => {
-  const api = await openDesktop();
+  const api = await bootDesktop();
   api.reply("/media-roots", unauthenticated, "GET", 401);
   api.reply("/media-items", unauthenticated, "GET", 401);
   api.reply("/auth/state", loggedOut);
@@ -67,11 +52,11 @@ it("closes every program and shows the logon screen once, however many reads ans
       ["/media-roots", "/media-items"].includes(request.path),
     ),
   ).toHaveLength(2);
-  expect(stateReads(api)).toBe(2);
+  expect(api.requestsTo("/auth/state")).toHaveLength(2);
 });
 
 it("shows the setup screen when the re-read says the account is gone", async () => {
-  const api = await openDesktop();
+  const api = await bootDesktop();
   api.reply("/media-roots", unauthenticated, "GET", 401);
   api.reply("/media-items", { items: [], total: 0 });
   api.reply("/auth/state", setupRequired);
@@ -82,7 +67,7 @@ it("shows the setup screen when the re-read says the account is gone", async () 
 });
 
 it("ignores a late 401 from the closed desktop once the logon screen is up", async () => {
-  const api = await openDesktop();
+  const api = await bootDesktop();
   api.reply("/media-roots", unauthenticated, "GET", 401);
   api.hold("/media-items");
   api.reply("/auth/state", loggedOut);
@@ -94,25 +79,25 @@ it("ignores a late 401 from the closed desktop once the logon screen is up", asy
   // The unmounted program's aborted read still comes back 401.
   api.release("/media-items", unauthenticated, "GET", 401);
   await new Promise((resolve) => setTimeout(resolve, 50));
-  expect(stateReads(api)).toBe(2);
+  expect(api.requestsTo("/auth/state")).toHaveLength(2);
   expect(
     screen.getByLabelText<HTMLInputElement>("Type your password").value,
   ).toBe("half typed");
 });
 
 it("ignores a 401 that answers after the re-read has started", async () => {
-  const api = await openDesktop();
+  const api = await bootDesktop();
   api.reply("/media-roots", unauthenticated, "GET", 401);
   api.hold("/media-items");
   api.hold("/auth/state");
   openMediaLibrary();
-  await waitFor(() => expect(stateReads(api)).toBe(2));
+  await waitFor(() => expect(api.requestsTo("/auth/state")).toHaveLength(2));
   api.release("/media-items", unauthenticated, "GET", 401);
   api.release("/auth/state", loggedOut);
   expect(
     await screen.findByRole("button", { name: "Marguerite" }),
   ).toBeTruthy();
-  expect(stateReads(api)).toBe(2);
+  expect(api.requestsTo("/auth/state")).toHaveLength(2);
 });
 
 it("leaves a wrong password on the logon screen to the logon screen", async () => {
@@ -134,7 +119,7 @@ it("leaves a wrong password on the logon screen to the logon screen", async () =
   expect((await screen.findByRole("alert")).textContent).toContain(
     "Did you forget your password?",
   );
-  expect(stateReads(api)).toBe(1);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
   expect(screen.getByRole("main", { name: "Log on to kraziTV" })).toBeTruthy();
 });
 
@@ -145,5 +130,5 @@ it("does not loop when the state read itself answers 401", async () => {
     await screen.findByText("kraziTV can't reach its server."),
   ).toBeTruthy();
   await new Promise((resolve) => setTimeout(resolve, 50));
-  expect(stateReads(api)).toBe(1);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
 });

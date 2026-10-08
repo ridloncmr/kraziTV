@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -15,6 +14,7 @@ import {
   setupRequired,
   stubAuthApi,
 } from "./testing/auth-fixtures.js";
+import { elapse } from "./testing/fake-time.js";
 import { App } from "./app.js";
 
 afterEach(() => {
@@ -48,9 +48,9 @@ it("keeps the boot screen up for its minimum duration even when the state answer
   vi.useFakeTimers();
   stubAuthApi(loggedIn);
   render(createElement(App));
-  await act(() => vi.advanceTimersByTimeAsync(600));
+  await elapse(600);
   expect(screen.getByLabelText("kraziTV starting")).toBeTruthy();
-  await act(() => vi.advanceTimersByTimeAsync(100));
+  await elapse(100);
   expect(screen.queryByLabelText("kraziTV starting")).toBeNull();
   expect(screen.getByRole("button", { name: "start" })).toBeTruthy();
 });
@@ -91,9 +91,7 @@ it("re-reads the auth state after a 409 and shows the logon screen it names", as
   expect(
     await screen.findByRole("button", { name: "Marguerite" }),
   ).toBeTruthy();
-  expect(
-    api.requests.filter((request) => request.path === "/auth/state"),
-  ).toHaveLength(2);
+  expect(api.requestsTo("/auth/state")).toHaveLength(2);
 });
 
 it("says the server is unreachable and opens the right screen after Retry", async () => {
@@ -114,16 +112,14 @@ it("retries the unreachable server on its own every 10 seconds", async () => {
   vi.useFakeTimers();
   const api = stubAuthApi(offline, 503);
   render(createElement(App));
-  await act(() => vi.advanceTimersByTimeAsync(700));
+  await elapse(700);
   expect(screen.getByText("kraziTV can't reach its server.")).toBeTruthy();
-  const stateReads = () =>
-    api.requests.filter((request) => request.path === "/auth/state").length;
-  expect(stateReads()).toBe(1);
-  await act(() => vi.advanceTimersByTimeAsync(9_000));
-  expect(stateReads()).toBe(1);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
+  await elapse(9_000);
+  expect(api.requestsTo("/auth/state")).toHaveLength(1);
   api.reply("/auth/state", loggedIn);
-  await act(() => vi.advanceTimersByTimeAsync(1_000));
-  expect(stateReads()).toBe(2);
+  await elapse(1_000);
+  expect(api.requestsTo("/auth/state")).toHaveLength(2);
   expect(screen.getByRole("button", { name: "start" })).toBeTruthy();
 });
 

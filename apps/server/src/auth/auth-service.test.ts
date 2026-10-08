@@ -497,6 +497,30 @@ describe("AuthService", () => {
     ]);
   });
 
+  it("updates only the given profile fields and moves updated_at to now", async () => {
+    const { auth, db, clock } = await openAuth();
+    await setUpOwner(auth);
+    clock.advance(HOUR_MS);
+
+    await expect(auth.updateProfile({ avatarId: "chess" })).resolves.toEqual({
+      displayName: "Owner",
+      avatarId: "chess",
+    });
+    await expect(
+      db
+        .selectFrom("accounts")
+        .select(["display_name", "avatar_id", "created_at", "updated_at"])
+        .execute(),
+    ).resolves.toEqual([
+      {
+        display_name: "Owner",
+        avatar_id: "chess",
+        created_at: START,
+        updated_at: START + HOUR_MS,
+      },
+    ]);
+  });
+
   it("resets the password, so only the new one logs in, and ends every session", async () => {
     const { auth, db, clock } = await openAuth();
     const setupToken = await setUpOwner(auth);
@@ -570,6 +594,71 @@ describe("AuthService", () => {
     await expect(
       new AuthService(server.db).logIn("brand new secret"),
     ).resolves.toMatchObject({ kind: "logged_in" });
+  });
+
+  it("changes nothing and ends no session when the password was replaced while the current one was being checked", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const server = await openTestDatabase(dataDirectory);
+    const other = await openTestDatabase(dataDirectory);
+    const serverAuth = new AuthService(server.db);
+    const token = await setUpOwner(serverAuth);
+    await serverAuth.logIn(owner.password);
+    const racingHash = await hashPassword("racing secret");
+    // Another writer holds write authority with a new hash queued, but ends
+    // no session, so any session this change deletes would show.
+    const race = await holdWriteAuthority(other.db, async (pinned) => {
+      await pinned
+        .updateTable("accounts")
+        .set({ password_hash: racingHash })
+        .execute();
+    });
+    // The change verified the old hash; as it asks for write authority to
+    // write, the racing replacement commits first.
+    const watched = countQueries(server.db, (node) => {
+      if (isBeginImmediate(node)) void race.release();
+    });
+
+    try {
+      await expect(
+        new AuthService(watched.db).changePassword(token, {
+          currentPassword: owner.password,
+          newPassword: "brand new secret",
+        }),
+      ).resolves.toEqual({ kind: "invalid_password" });
+    } finally {
+      await race.release();
+    }
+
+    await expect(readExpiry(server.db)).resolves.toHaveLength(2);
+    const account = await server.db
+      .selectFrom("accounts")
+      .select("password_hash")
+      .executeTakeFirstOrThrow();
+    expect(account.password_hash).toBe(racingHash);
+  });
+
+  it("changes the password and ends every session when no token is given", async () => {
+    const { auth, db } = await openAuth();
+    const setupToken = await setUpOwner(auth);
+    await auth.logIn(owner.password);
+
+    await expect(
+      auth.changePassword(undefined, {
+        currentPassword: owner.password,
+        newPassword: "brand new secret",
+      }),
+    ).resolves.toEqual({ kind: "changed" });
+
+    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(
+      auth.authenticate(setupToken, recordingLog()),
+    ).resolves.toEqual({ kind: "unauthenticated" });
+    await expect(auth.logIn(owner.password)).resolves.toEqual({
+      kind: "invalid_password",
+    });
+    await expect(auth.logIn("brand new secret")).resolves.toMatchObject({
+      kind: "logged_in",
+    });
   });
 
   it("fails a reset retryably, changing nothing, while another connection holds the write lock", async () => {

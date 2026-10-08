@@ -6,29 +6,14 @@ import {
   type ReactNode,
 } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
-import { ApiError } from "../http/api-error.js";
 import type { AccountProfile, AuthState } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
-
-/** True when the login's answer was a wrong password, which clears the box. */
-function isWrongPassword(error: Error | undefined): boolean {
-  return error instanceof ApiError && error.code === "invalid_password";
-}
-
-/**
- * The whole seconds a throttled login must wait, from the `429` envelope's
- * `retryAfterSeconds`. Zero when the answer is not a throttle or carries no
- * usable wait: then the server's message shows and the box stays usable,
- * because the server refuses an early try anyway.
- */
-function throttleSeconds(error: Error | undefined): number {
-  if (!(error instanceof ApiError) || error.code !== "too_many_attempts")
-    return 0;
-  const seconds = error.details.retryAfterSeconds;
-  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
-    ? Math.ceil(seconds)
-    : 0;
-}
+import {
+  isWrongPassword,
+  throttleSeconds,
+  throttleWaitMessage,
+} from "../password-check/password-check-refusals.js";
+import { useThrottleCountdown } from "../password-check/use-throttle-countdown.js";
 
 /**
  * What the balloon tip says about the latest refusal, if anything. A finished
@@ -46,9 +31,7 @@ function balloonFor(error: Error | undefined, waitSeconds: number): ReactNode {
   if (waitSeconds > 0)
     return (
       <>
-        <strong>Please wait.</strong> Too many wrong passwords were typed. You
-        can try again in {waitSeconds}{" "}
-        {waitSeconds === 1 ? "second" : "seconds"}.
+        <strong>Please wait.</strong> {throttleWaitMessage(waitSeconds)}
       </>
     );
   return throttleSeconds(error) > 0 ? undefined : error.message;
@@ -70,9 +53,9 @@ export function AccountTile({
 }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
-  const [waitSeconds, setWaitSeconds] = useState(0);
   const box = useRef<HTMLInputElement>(null);
   const login = useMutation();
+  const waitSeconds = useThrottleCountdown(login.error);
   const disabled = login.pending || waitSeconds > 0;
   useEffect(() => {
     // The box is disabled while a login runs or a wait counts down, so focus
@@ -82,14 +65,7 @@ export function AccountTile({
   useEffect(() => {
     // A wrong password is retyped from scratch, as on XP.
     if (isWrongPassword(login.error)) setPassword("");
-    setWaitSeconds(throttleSeconds(login.error));
   }, [login.error]);
-  useEffect(() => {
-    // One tick per second; unmounting or a new answer clears the pending one.
-    if (waitSeconds <= 0) return;
-    const timer = setTimeout(() => setWaitSeconds((left) => left - 1), 1_000);
-    return () => clearTimeout(timer);
-  }, [waitSeconds]);
 
   /** Sends the typed password; the server's new auth state goes to the app root. */
   function submit(event: FormEvent) {

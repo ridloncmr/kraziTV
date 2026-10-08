@@ -2,6 +2,10 @@
 import { createElement } from "react";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
+import {
+  AVATAR_IDS as SERVER_AVATAR_IDS,
+  DEFAULT_AVATAR_ID,
+} from "../../../../server/src/auth/avatars.js";
 import { AVATAR_IDS, AccountPicture } from "./account-picture.js";
 
 afterEach(cleanup);
@@ -18,17 +22,11 @@ function drawingOf(avatarId: string): string {
   return `${drawing.getAttribute("data-avatar")}|${drawing.innerHTML.replaceAll(id, "ID")}`;
 }
 
-it("lists the eight built-in avatars with duck, the server default, first", () => {
-  expect(AVATAR_IDS).toEqual([
-    "duck",
-    "crt-tv",
-    "antenna",
-    "remote",
-    "film-reel",
-    "popcorn",
-    "guitar",
-    "chess",
-  ]);
+// The server validates avatarId against its own copy of the IDs (spec 0003),
+// so a gained, lost, or reordered ID on either side fails here.
+it("lists the server's avatar IDs in order, with duck, the server default, first", () => {
+  expect(AVATAR_IDS).toEqual(SERVER_AVATAR_IDS);
+  expect(AVATAR_IDS[0]).toBe(DEFAULT_AVATAR_ID);
 });
 
 it("draws a different picture for every built-in avatar", () => {

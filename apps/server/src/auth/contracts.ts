@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 
 /** What a logged-out browser may know about the account: enough to draw its tile. */
-interface AccountProfile {
+export interface AccountProfile {
   displayName: string;
   avatarId: string;
 }
@@ -19,6 +19,18 @@ export interface SetUpInput {
   password: string;
 }
 
+/** Validated profile changes; an absent field keeps its current value. */
+export interface ProfileUpdate {
+  displayName?: string;
+  avatarId?: string;
+}
+
+/** A validated password change: the password the owner proves, and the one replacing it. */
+export interface PasswordChange {
+  currentPassword: string;
+  newPassword: string;
+}
+
 /** How long a reissued session cookie should live. */
 export interface IssuedSessionLifetime {
   maxAgeSeconds: number;
@@ -32,11 +44,20 @@ export interface IssuedSession extends IssuedSessionLifetime {
 export type SetUpResult =
   { kind: "created"; session: IssuedSession } | { kind: "already_set_up" };
 
+/** A password check the shared attempt throttle refused before checking it. */
+export interface TooManyAttempts {
+  kind: "too_many_attempts";
+  retryAfterSeconds: number;
+}
+
 export type LogInResult =
   | { kind: "logged_in"; session: IssuedSession }
   | { kind: "setup_required" }
   | { kind: "invalid_password" }
-  | { kind: "too_many_attempts"; retryAfterSeconds: number };
+  | TooManyAttempts;
+
+export type ChangePasswordResult =
+  { kind: "changed" } | { kind: "invalid_password" } | TooManyAttempts;
 
 export type ResetPasswordResult =
   { kind: "reset" } | { kind: "setup_required" };

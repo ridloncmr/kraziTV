@@ -5,12 +5,13 @@ import { IconGradients, iconGradient } from "./icon-gradients.js";
 /**
  * Original dimensional vector artwork shares a silhouette language at every shell size.
  * Memoized because the shortcuts, title bars and taskbar draw it many times and re-render on every window move.
+ * Account Settings has no artwork here; `DesktopProgramIcon` draws the account's picture for it.
  */
 export const ProgramIcon = memo(function ProgramIcon({
   program = "channels",
   size = 48,
 }: {
-  program?: ProgramId | "logo";
+  program?: Exclude<ProgramId, "account"> | "logo";
   size?: number;
 }) {
   const id = useId();
