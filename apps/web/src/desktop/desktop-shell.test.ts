@@ -24,7 +24,7 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
   api.reply("/media-roots", []);
   api.reply("/media-items", { items: [], total: 0 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(DesktopShell));
+  render(createElement(DesktopShell, { onLoggedOff: () => {} }));
   fireEvent.click(await screen.findByRole("button", { name: "start" }));
   const menu = screen.getByRole("navigation", { name: "Start programs" });
   fireEvent.click(within(menu).getByRole("button", { name: /Media Library/ }));
@@ -70,7 +70,7 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
     503,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(DesktopShell));
+  render(createElement(DesktopShell, { onLoggedOff: () => {} }));
   const start = await screen.findByRole("button", { name: "start" });
   fireEvent.click(start);
   await waitFor(() =>
@@ -94,7 +94,7 @@ it("keeps windows on screen while the browser shrinks and restores their places 
   vi.stubGlobal("fetch", api.fetch);
   vi.stubGlobal("innerWidth", 1280);
   vi.stubGlobal("innerHeight", 800);
-  render(createElement(DesktopShell));
+  render(createElement(DesktopShell, { onLoggedOff: () => {} }));
   const shortcuts = await screen.findByLabelText("Desktop programs");
   fireEvent.click(
     within(shortcuts).getByRole("button", { name: "Media Library" }),
@@ -128,7 +128,7 @@ it("focuses inactive windows by pointer and moves the focused title with the key
   api.reply("/media-items", { items: [], total: 0 });
   api.reply("/media-collections", []);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(DesktopShell));
+  render(createElement(DesktopShell, { onLoggedOff: () => {} }));
   const shortcuts = await screen.findByLabelText("Desktop programs");
   fireEvent.click(
     within(shortcuts).getByRole("button", { name: "Media Library" }),
@@ -169,7 +169,7 @@ it("resizes by grip and keyboard within the space below and right of the window"
   vi.stubGlobal("fetch", api.fetch);
   vi.stubGlobal("innerWidth", 1280);
   vi.stubGlobal("innerHeight", 800);
-  render(createElement(DesktopShell));
+  render(createElement(DesktopShell, { onLoggedOff: () => {} }));
   const shortcuts = await screen.findByLabelText("Desktop programs");
   fireEvent.click(
     within(shortcuts).getByRole("button", { name: "Media Library" }),

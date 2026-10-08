@@ -2,6 +2,7 @@ import { useEffect, useReducer, useState } from "react";
 import { ProgramIcon } from "../branding/program-icon.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
+import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
@@ -19,11 +20,13 @@ function usableViewport(): DesktopViewport {
 /**
  * Composes shell presentation with real programs, leaving domain state
  * entirely API-backed. The app root renders it only for a logged-in browser;
- * its `/health` poll drives the tray connection indicator alone.
+ * its `/health` poll drives the tray connection indicator alone. While the
+ * Log Off confirmation is open, the desktop behind it is inert.
  */
-export function DesktopShell() {
+export function DesktopShell({ onLoggedOff }: { onLoggedOff: () => void }) {
   const [windows, dispatch] = useReducer(windowReducer, []);
   const [viewport, setViewport] = useState(usableViewport);
+  const [loggingOff, setLoggingOff] = useState(false);
   const [pageVisible, setPageVisible] = useState(
     document.visibilityState !== "hidden",
   );
@@ -52,52 +55,61 @@ export function DesktopShell() {
       : "Checking API connection";
   const activeId = windows.filter((window) => !window.minimized).at(-1)?.id;
   return (
-    <main className="desktop-shell">
-      <div className="desktop-shortcuts" aria-label="Desktop programs">
-        {programs.map((program) => (
-          <button
-            key={program.id}
-            className="desktop-shortcut"
-            title={program.description}
-            onClick={() => dispatch({ type: "open", id: program.id })}
-          >
-            <ProgramIcon program={program.id} size={54} />
-            <span>{program.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className="desktop-brand" aria-hidden="true">
-        <strong>
-          krazi<span>TV</span>
-        </strong>
-        <span>Your television network.</span>
-      </div>
-      {/* DOM order stays fixed and z-index carries stacking: moving a pressed window's node would make the browser drop its click. */}
-      {[...windows]
-        .sort((a, b) => a.openedOrder - b.openedOrder)
-        .map((window) => (
-          <AppWindow
-            key={window.id}
-            window={window}
-            program={programs.find((program) => program.id === window.id)!}
-            active={activeId === window.id}
-            index={windows.indexOf(window)}
-            viewport={viewport}
-            dispatch={dispatch}
-          >
-            <ProgramContents
-              id={window.id}
-              visible={!window.minimized && pageVisible}
-              connection={connection}
-            />
-          </AppWindow>
-        ))}
-      <Taskbar
-        windows={windows}
-        activeId={activeId}
-        dispatch={dispatch}
-        connection={connection}
-      />
-    </main>
+    <>
+      <main className="desktop-shell" inert={loggingOff}>
+        <div className="desktop-shortcuts" aria-label="Desktop programs">
+          {programs.map((program) => (
+            <button
+              key={program.id}
+              className="desktop-shortcut"
+              title={program.description}
+              onClick={() => dispatch({ type: "open", id: program.id })}
+            >
+              <ProgramIcon program={program.id} size={54} />
+              <span>{program.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="desktop-brand" aria-hidden="true">
+          <strong>
+            krazi<span>TV</span>
+          </strong>
+          <span>Your television network.</span>
+        </div>
+        {/* DOM order stays fixed and z-index carries stacking: moving a pressed window's node would make the browser drop its click. */}
+        {[...windows]
+          .sort((a, b) => a.openedOrder - b.openedOrder)
+          .map((window) => (
+            <AppWindow
+              key={window.id}
+              window={window}
+              program={programs.find((program) => program.id === window.id)!}
+              active={activeId === window.id}
+              index={windows.indexOf(window)}
+              viewport={viewport}
+              dispatch={dispatch}
+            >
+              <ProgramContents
+                id={window.id}
+                visible={!window.minimized && pageVisible}
+                connection={connection}
+              />
+            </AppWindow>
+          ))}
+        <Taskbar
+          windows={windows}
+          activeId={activeId}
+          dispatch={dispatch}
+          connection={connection}
+          logOff={() => setLoggingOff(true)}
+        />
+      </main>
+      {loggingOff && (
+        <LogOffDialog
+          onCancel={() => setLoggingOff(false)}
+          onLoggedOff={onLoggedOff}
+        />
+      )}
+    </>
   );
 }

@@ -30,6 +30,16 @@ export function App() {
   const [state, setState] = useState<AuthState>();
   // Clearing the state remounts the boot read, so a re-read is always fresh.
   const reread = useCallback(() => setState(undefined), []);
+  // A logout's answer names the logon screen for the account already known.
+  // Like the 401 listener it changes only an authenticated state, so the two
+  // can never both act: whichever lands first leaves the desktop.
+  const loggedOff = useCallback(
+    () =>
+      setState((current) =>
+        current?.authenticated ? { ...current, authenticated: false } : current,
+      ),
+    [],
+  );
   const authenticated = state?.authenticated === true;
   useEffect(() => {
     if (!authenticated) return;
@@ -38,7 +48,7 @@ export function App() {
     );
   }, [authenticated]);
   if (!state) return <BootRead onAnswer={setState} />;
-  if (state.authenticated) return <DesktopShell />;
+  if (state.authenticated) return <DesktopShell onLoggedOff={loggedOff} />;
   if (state.setupRequired || !state.account)
     return <SetupScreen onSetUp={setState} onAlreadySetUp={reread} />;
   return <LogonScreen account={state.account} onLoggedIn={setState} />;

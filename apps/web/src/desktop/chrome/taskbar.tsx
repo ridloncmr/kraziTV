@@ -10,11 +10,14 @@ export function Taskbar({
   activeId,
   dispatch,
   connection,
+  logOff,
 }: {
   windows: DesktopWindow[];
   activeId?: ProgramId;
   dispatch: Dispatch<WindowAction>;
   connection: string;
+  /** Opens the Log Off confirmation, which returns focus to Start when it closes. */
+  logOff: () => void;
 }) {
   const [startOpen, setStartOpen] = useState(false);
   const [clock, setClock] = useState(new Date());
@@ -63,6 +66,12 @@ export function Taskbar({
             openProgram={(id) => {
               dispatch({ type: "open", id });
               setStartOpen(false);
+            }}
+            logOff={() => {
+              // Focus moves to Start first, so the confirmation returns it there.
+              setStartOpen(false);
+              trigger.current?.focus();
+              logOff();
             }}
           />
         )}

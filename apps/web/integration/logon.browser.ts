@@ -122,3 +122,42 @@ test("returns to the logon screen when the session ends while the desktop is ope
     page.getByRole("region", { name: "Media Library", exact: true }),
   ).toBeHidden();
 });
+
+test("logs off from Start and stays logged off after a reload", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer({ auth: "real" });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "start", exact: true });
+  const confirmation = page.getByRole("dialog", { name: "Log Off kraziTV" });
+
+  // Cancel first: the desktop stays and focus returns to Start.
+  await start.click();
+  await page
+    .getByRole("navigation", { name: "Start programs" })
+    .getByRole("button", { name: "Log Off" })
+    .click();
+  await expect(
+    confirmation.getByRole("button", { name: "Log Off" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirmation).toBeHidden();
+  await expect(start).toBeFocused();
+
+  await start.click();
+  await page
+    .getByRole("navigation", { name: "Start programs" })
+    .getByRole("button", { name: "Log Off" })
+    .click();
+  await page.keyboard.press("Enter");
+  const tile = page
+    .getByRole("main", { name: "Log on to kraziTV" })
+    .getByRole("button", { name: "Owner" });
+  await expect(tile).toBeVisible();
+
+  // The server cleared the cookie, so a reload asks again and is still out.
+  await page.reload();
+  await expect(tile).toBeVisible();
+});

@@ -3,11 +3,16 @@ import { ProgramIcon } from "../../branding/program-icon.js";
 import type { ProgramId } from "../contracts.js";
 import { programs } from "../programs.js";
 
-/** Start is complete navigation to real programs, with no pretend OS or authentication actions. */
+/**
+ * Start is complete navigation to real programs, plus Log Off, which ends
+ * this browser's session. It has no pretend OS actions such as Turn Off.
+ */
 export function StartMenu({
   openProgram,
+  logOff,
 }: {
   openProgram: (id: ProgramId) => void;
+  logOff: () => void;
 }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -47,7 +52,10 @@ export function StartMenu({
         ))}
       </div>
       <div className="start-menu-footer">
-        Local media. Your channels. Always on schedule.
+        <span>Local media. Your channels. Always on schedule.</span>
+        <button type="button" onClick={logOff}>
+          Log Off
+        </button>
       </div>
     </nav>
   );
