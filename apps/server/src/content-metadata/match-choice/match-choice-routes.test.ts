@@ -1,15 +1,17 @@
-import { join } from "node:path";
-
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { send, waitForScan } from "../../testing/api-requests.js";
+import { send } from "../../testing/api-requests.js";
 import {
   CHOICE_DOCTOR_WHO_1963 as DOCTOR_WHO_1963,
   CHOICE_DOCTOR_WHO_2005 as DOCTOR_WHO_2005,
 } from "../../testing/scan-metadata.js";
-import { rootFixture } from "../../testing/catalog-fixtures.js";
-import { ROOT, startEnrichmentServer } from "../../testing/enrichment-scan.js";
+import {
+  ROOT,
+  idOf,
+  scanThroughRoutes as scan,
+  startEnrichmentServer,
+} from "../../testing/enrichment-scan.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
@@ -18,17 +20,6 @@ afterEach(cleanUpTestEnvironment);
 const THE_THING_1982 = 1091;
 
 type Server = FastifyInstance;
-
-// Scans the fixture root through the routes and waits for the job to end.
-async function scan(server: Server) {
-  const started = await send(
-    server,
-    "POST",
-    `/media-roots/${rootFixture.id}/scan`,
-  );
-  expect(started.status).toBe(202);
-  return waitForScan(server, rootFixture.id);
-}
 
 // Lists items needing a choice, or every item, as `path below root: state`.
 async function states(server: Server, needsChoice = false) {
@@ -46,15 +37,6 @@ async function states(server: Server, needsChoice = false) {
       item.metadata.matchState,
     ]),
   );
-}
-
-// The ID of the item at `file` below the root.
-async function idOf(server: Server, file: string): Promise<string> {
-  const { body } = await send(server, "GET", "/media-items?limit=200");
-  const { items } = body as { items: { id: string; path: string }[] };
-  const item = items.find((candidate) => candidate.path === join(ROOT, file));
-  if (item === undefined) throw new Error(`${file} is not cataloged`);
-  return item.id;
 }
 
 // Boots a server over `files` with both Doctor Who series known, then scans.

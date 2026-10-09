@@ -50,7 +50,15 @@ export interface ContentMetadata {
   posterPath: string | null;
   /** When the TMDB facts were fetched; null when the item has none. */
   refreshedAt: number | null;
+  /** The owner's tags and themes; TMDB never sets them. */
+  tags: string[];
+  /** Fields whose value is the owner's correction, which TMDB never changes. */
+  correctedFields: CorrectableField[];
 }
+
+/** A content fact the owner can correct over what TMDB says. */
+export type CorrectableField =
+  "title" | "seriesName" | "seasonNumber" | "episodeNumber";
 
 /**
  * One page of the catalog listing; an empty `search` matches every item.

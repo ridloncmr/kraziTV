@@ -5,6 +5,7 @@ import {
   itemFixtureAt,
   rootFixture,
 } from "../../testing/catalog-fixtures.js";
+import { correctionRow } from "../../testing/metadata-match-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
@@ -110,5 +111,28 @@ describe("MetadataMatchRepository.findSettledPathKeys", () => {
     await expect(
       new MetadataMatchRepository(db).findSettledPathKeys(rootFixture.id),
     ).resolves.toEqual(new Set());
+  });
+
+  it("settles an item the owner corrected, even before any lookup, but not one only tagged", async () => {
+    const { db } = await openTestDatabase();
+    await db.insertInto("media_roots").values(rootFixture).execute();
+    await db
+      .insertInto("media_items")
+      .values([
+        itemFixtureAt("item-corrected", "/media/movies/corrected.mkv"),
+        itemFixtureAt("item-tagged", "/media/movies/tagged.mkv"),
+      ])
+      .execute();
+    await db
+      .insertInto("metadata_corrections")
+      .values([
+        correctionRow("item-corrected", { episode_number: 3 }),
+        correctionRow("item-tagged", { tags: '["space"]' }),
+      ])
+      .execute();
+
+    await expect(
+      new MetadataMatchRepository(db).findSettledPathKeys(rootFixture.id),
+    ).resolves.toEqual(new Set(["/media/movies/corrected.mkv"]));
   });
 });

@@ -1,23 +1,16 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { MediaItem } from "../../http/contracts.js";
 import {
   ALIEN,
   FIREFLY,
   OUTAGE,
   itemWith,
 } from "../../testing/admin-fixtures.js";
-import { openMediaDetails as openDetails } from "../../testing/media-library-actions.js";
-import { BrowserApi } from "../../testing/browser-api.js";
-import { MediaLibraryApp } from "../media-library-app.js";
+import {
+  openMediaDetails as openDetails,
+  showMediaLibrary as showCatalog,
+} from "../../testing/media-library-actions.js";
 
 afterEach(() => {
   cleanup();
@@ -26,16 +19,6 @@ afterEach(() => {
 
 const NOTICE =
   "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.";
-
-/** Renders Media Library over a catalog of `items` and no media roots. */
-async function showCatalog(items: MediaItem[]) {
-  const api = new BrowserApi();
-  api.reply("/media-roots", []);
-  api.reply("/media-items", { items, total: items.length });
-  vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
-  await screen.findByText(items[0].title);
-}
 
 /** The listed row showing `title`. */
 function rowOf(title: string) {

@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
 import {
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { MediaItem, ReviewStep } from "../../http/contracts.js";
 import {
   ALIEN,
   THING,
   WRONG,
   THE_THINGS,
 } from "../../testing/admin-fixtures.js";
-import { openMediaDetails } from "../../testing/media-library-actions.js";
-import { BrowserApi } from "../../testing/browser-api.js";
-import { MediaLibraryApp } from "../media-library-app.js";
+import {
+  openMediaDetails,
+  showMediaLibrary as showLibrary,
+} from "../../testing/media-library-actions.js";
 
 afterEach(() => {
   cleanup();
@@ -28,18 +26,6 @@ afterEach(() => {
 /** The match routes of one item. */
 function matchPath(id: string, action: string) {
   return `/metadata/matches/${encodeURIComponent(id)}/${action}`;
-}
-
-/** Renders Media Library over `items`, with `steps` waiting for review. */
-async function showLibrary(items: MediaItem[], steps: ReviewStep[] = []) {
-  const api = new BrowserApi();
-  api.reply("/media-roots", []);
-  api.reply("/media-items", { items, total: items.length });
-  api.reply("/metadata/match-reviews", { steps });
-  vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
-  await screen.findByText(items[0].title);
-  return api;
 }
 
 it("filters the list to items needing a choice, from the first page", async () => {

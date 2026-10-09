@@ -1,10 +1,13 @@
+import { openTestDatabase } from "./test-environment.js";
 import { derivePathHints } from "@krazitv/media";
 import type { HintedCandidate } from "../catalog-scan/contracts.js";
 import type { EpisodeLookup, MovieLookup, PathHints } from "@krazitv/media";
 import type { CatalogCandidate } from "../catalog-scan/contracts.js";
 import type { MetadataMatchRecord } from "../content-metadata/contracts.js";
+import type { Insertable } from "kysely";
+import type { MetadataCorrectionTable } from "../database/schema/metadata-correction-table.js";
 import type { ContentMetadata } from "../media-items/contracts.js";
-import { FIXTURE_TIME, itemFixture } from "./catalog-fixtures.js";
+import { FIXTURE_TIME, itemFixture, rootFixture } from "./catalog-fixtures.js";
 /** Lookup time shared by staged records and their expected persistence. */
 export const LOOKED_UP_AT = FIXTURE_TIME + 45_000;
 /** A matched movie and its path evidence for metadata writer tests. */
@@ -79,6 +82,8 @@ export const NO_CONTENT_METADATA: ContentMetadata = {
   description: null,
   posterPath: null,
   refreshedAt: null,
+  tags: [],
+  correctedFields: [],
 };
 
 /** Builds a schedulable candidate for metadata persistence tests. */
@@ -168,4 +173,37 @@ export function waiting(relativePath: string, rootId = "root-a") {
     title: relativePath,
     hints: derivePathHints(relativePath.split("/")),
   };
+}
+
+/** A corrections row for `mediaItemId` correcting only `fields`, with no tags by default. */
+export function correctionRow(
+  mediaItemId: string,
+  fields: Partial<Insertable<MetadataCorrectionTable>>,
+): Insertable<MetadataCorrectionTable> {
+  return {
+    media_item_id: mediaItemId,
+    title: null,
+    series_name: null,
+    season_number: null,
+    episode_number: null,
+    tags: "[]",
+    ...fields,
+  };
+}
+
+/** A correction with every editable field and one tag, for schema validation. */
+export const CORRECTION = correctionRow(itemFixture.id, {
+  title: "Serenity",
+  series_name: "Firefly",
+  season_number: 0,
+  episode_number: 1,
+  tags: '["space western"]',
+});
+
+// Opens a migrated database holding one root and one item to correct.
+export async function seededMetadataDatabase() {
+  const { db } = await openTestDatabase();
+  await db.insertInto("media_roots").values(rootFixture).execute();
+  await db.insertInto("media_items").values(itemFixture).execute();
+  return db;
 }

@@ -15,6 +15,8 @@ import { registerTmdbKeyRoutes } from "./content-metadata/tmdb-key/tmdb-key-rout
 import type { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import { registerMatchChoiceRoutes } from "./content-metadata/match-choice/match-choice-routes.js";
 import type { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
+import { registerCorrectionRoutes } from "./content-metadata/corrections/correction-routes.js";
+import type { CorrectionService } from "./content-metadata/corrections/correction-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
@@ -70,6 +72,7 @@ export type ServerDependencies = {
   authenticator: RequestAuthenticator;
   tmdbKeys: TmdbKeyService;
   matchChoices: MatchChoiceService;
+  corrections: CorrectionService;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -117,6 +120,11 @@ function registerRoutes(
   registerAccountRoutes(server, dependencies.auth);
   registerTmdbKeyRoutes(server, dependencies.tmdbKeys);
   registerMatchChoiceRoutes(server, dependencies.matchChoices);
+  registerCorrectionRoutes(
+    server,
+    dependencies.corrections,
+    dependencies.mediaItems,
+  );
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,

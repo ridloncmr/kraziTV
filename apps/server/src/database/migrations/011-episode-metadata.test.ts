@@ -1,3 +1,4 @@
+import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
 import {
   EPISODE_FACTS,
   EPISODE_REF as REF,
@@ -5,24 +6,13 @@ import {
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { itemFixture, rootFixture } from "../../testing/catalog-fixtures.js";
-import {
-  cleanUpTestEnvironment,
-  openTestDatabase,
-} from "../../testing/test-environment.js";
+import { itemFixture } from "../../testing/catalog-fixtures.js";
+import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 import { episodeMetadataMigration } from "./011-episode-metadata.js";
 
 afterEach(cleanUpTestEnvironment);
 
 const ITEM_ID = itemFixture.id;
-
-// Opens a migrated database holding one root and one item to attach metadata to.
-async function seeded() {
-  const { db } = await openTestDatabase();
-  await db.insertInto("media_roots").values(rootFixture).execute();
-  await db.insertInto("media_items").values(itemFixture).execute();
-  return db;
-}
 
 describe("011_episode_metadata", () => {
   it("stores an episode's series, season, and episode range with a TV reference", async () => {

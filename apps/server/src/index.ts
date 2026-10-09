@@ -6,6 +6,7 @@ import { buildServer } from "./app.js";
 import { AuthService } from "./auth/auth-service.js";
 import { MetadataMatchRepository } from "./content-metadata/persistence/metadata-match-repository.js";
 import { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
+import { CorrectionService } from "./content-metadata/corrections/correction-service.js";
 import { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
@@ -51,6 +52,7 @@ const auth = new AuthService(database.db);
 const tmdb = new TmdbClient({ timeoutMs: 10_000 });
 const tmdbKeys = new TmdbKeyService(database.db, tmdb);
 const matchChoices = new MatchChoiceService(database.db, tmdbKeys, tmdb);
+const corrections = new CorrectionService(database.db);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -110,6 +112,7 @@ const server = buildServer(
     authenticator: auth,
     tmdbKeys,
     matchChoices,
+    corrections,
     mediaRoots,
     scanner,
     mediaItems,

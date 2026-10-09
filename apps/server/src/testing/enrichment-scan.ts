@@ -2,8 +2,9 @@
 import { join, resolve } from "node:path";
 
 import { TmdbClient } from "@krazitv/media";
+import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -14,10 +15,12 @@ import type { ScanStatus } from "../catalog-scan/contracts.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { isRunning } from "../catalog-scan/scanner/scan-job.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
+import { send, waitForScan } from "./api-requests.js";
 import { rootFixture } from "./catalog-fixtures.js";
 import { recordingLog } from "./recording-log.js";
 import {
   SCAN_ALIEN as ALIEN,
+  SCAN_FIREFLY,
   SCAN_THE_THINGS as THE_THINGS,
   metadataProber,
 } from "./scan-metadata.js";
@@ -65,6 +68,29 @@ export async function startEnrichmentServer(options: SetupOptions) {
     }),
   });
   return { server, db, tmdb };
+}
+
+/** Scans the fixture root through the routes and waits for the job to end. */
+export async function scanThroughRoutes(server: FastifyInstance) {
+  const started = await send(
+    server,
+    "POST",
+    `/media-roots/${rootFixture.id}/scan`,
+  );
+  expect(started.status).toBe(202);
+  return waitForScan(server, rootFixture.id);
+}
+
+/** Reads the ID of the cataloged item at `file` below the root. */
+export async function idOf(
+  server: FastifyInstance,
+  file: string,
+): Promise<string> {
+  const { body } = await send(server, "GET", "/media-items?limit=200");
+  const { items } = body as { items: { id: string; path: string }[] };
+  const item = items.find((candidate) => candidate.path === join(ROOT, file));
+  if (item === undefined) throw new Error(`${file} is not cataloged`);
+  return item.id;
 }
 
 // Saves the fixture root at ROOT and, when `key` is set, the owner's key.
@@ -161,4 +187,26 @@ export async function matchDecisions({ db }: EnrichmentScan) {
     extra: row.extra === 1,
     lookupError: row.lookup_error,
   }));
+}
+
+// Patches one item's corrections and returns the status and answered item.
+export function correct(server: FastifyInstance, id: string, change: object) {
+  return send(server, "PATCH", `/metadata/corrections/${id}`, change);
+}
+
+// Reads one item's effective metadata through the item route.
+export async function metadataOf(server: FastifyInstance, id: string) {
+  const { body } = await send(server, "GET", `/media-items/${id}`);
+  return (body as { metadata: Record<string, unknown> }).metadata;
+}
+
+// Boots a server over `files`, with Firefly known to TMDB, and scans once.
+export async function scannedWithFirefly(
+  files: string[],
+  options: { key?: boolean } = {},
+) {
+  const context = await startEnrichmentServer({ files, ...options });
+  context.tmdb.series.push(SCAN_FIREFLY);
+  await scanThroughRoutes(context.server);
+  return context;
 }

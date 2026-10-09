@@ -50,7 +50,14 @@ export interface ContentMetadata {
   posterPath: string | null;
   /** When the TMDB facts were fetched; null when the item has none. */
   refreshedAt: string | null;
+  /** The owner's tags and themes; TMDB never sets them. */
+  tags: string[];
+  /** Fields showing the owner's correction, which TMDB never changes. */
+  correctedFields: CorrectableField[];
 }
+/** A content fact the owner can correct over what TMDB says. */
+export type CorrectableField =
+  "title" | "seriesName" | "seasonNumber" | "episodeNumber";
 export interface MediaItemPage {
   items: MediaItem[];
   total: number;

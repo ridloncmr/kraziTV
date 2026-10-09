@@ -48,6 +48,19 @@ export interface MatchCandidates {
   candidates: MatchCandidate[];
 }
 
+/**
+ * The owner's change to one item's corrections: a value corrects a field,
+ * null clears its correction so the provider's fact shows again, and an
+ * absent field is left as it is. Tags, when given, replace the item's tags.
+ */
+export interface CorrectionChange {
+  title?: string | null;
+  seriesName?: string | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  tags?: string[];
+}
+
 /** Why a choice, rejection, or candidate read changed nothing. */
 export type MatchChoiceRefusal =
   | { kind: "item_not_found" }

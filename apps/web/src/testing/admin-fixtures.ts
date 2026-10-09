@@ -22,6 +22,8 @@ export const noMetadata: ContentMetadata = {
   description: null,
   posterPath: null,
   refreshedAt: null,
+  tags: [],
+  correctedFields: [],
 };
 
 /** Wire fixtures contain ISO instants and milliseconds, with membership order distinct from title and ID order. */

@@ -5,6 +5,7 @@ import {
   HINTS,
   LOOKED_UP_AT,
   candidate,
+  correctionRow,
   lookedUp,
 } from "../../testing/metadata-match-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
@@ -322,6 +323,41 @@ describe("CatalogScanWriter metadata matches", () => {
       await expect(metadata(db)).resolves.toEqual(before);
     },
   );
+
+  it("never writes a lookup over an item the owner corrected while the scan ran", async () => {
+    const { db, writer } = await setup();
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow(itemFixture.id, { title: "Alien (1979)" }))
+      .execute();
+
+    await commit(writer, [lookedUp(itemFixture.path_key, ALIEN)]);
+
+    await expect(metadata(db)).resolves.toEqual({
+      matches: [],
+      facts: [],
+      refs: [],
+      candidates: [],
+    });
+  });
+
+  it("clears a removed item's corrections with its decision when a scan rediscovers it", async () => {
+    const { db, writer } = await setup();
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow(itemFixture.id, { tags: '["space"]' }))
+      .execute();
+    await db
+      .updateTable("media_items")
+      .set({ removed_at: SCANNED_AT })
+      .execute();
+
+    await commit(writer, []);
+
+    await expect(
+      db.selectFrom("metadata_corrections").selectAll().execute(),
+    ).resolves.toEqual([]);
+  });
 
   it("clears a removed item's old decision when a scan rediscovers it", async () => {
     const { db, writer } = await setup();

@@ -1,26 +1,12 @@
+import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  FIXTURE_TIME,
-  itemFixture,
-  rootFixture,
-} from "../../testing/catalog-fixtures.js";
-import {
-  cleanUpTestEnvironment,
-  openTestDatabase,
-} from "../../testing/test-environment.js";
+import { FIXTURE_TIME, itemFixture } from "../../testing/catalog-fixtures.js";
+import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
 afterEach(cleanUpTestEnvironment);
 
 const ITEM_ID = itemFixture.id;
-
-// Opens a migrated database holding one root and one item to attach metadata to.
-async function seeded() {
-  const { db } = await openTestDatabase();
-  await db.insertInto("media_roots").values(rootFixture).execute();
-  await db.insertInto("media_items").values(itemFixture).execute();
-  return db;
-}
 
 const MATCH = {
   media_item_id: ITEM_ID,

@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
 import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
@@ -6,19 +6,23 @@ import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts.js";
 import { useMutation } from "../../http/use-resource.js";
+import { CorrectDetailsDialog } from "./correct-details-dialog.js";
 import { matchStateLabel } from "./match-state-label.js";
 import { posterUrl } from "./poster-url.js";
 
 /**
- * Shows one item's match state and accepted content facts. Only facts the
- * server reports appear; the poster loads from TMDB, and TMDB's notice shows
- * whenever TMDB facts do. Offers the match decisions the item's state allows:
- * choosing among candidates, rejecting a match, or clearing a rejection.
+ * Shows one item's match state, effective content facts, and tags, marking
+ * the facts the owner corrected. Only facts the server reports appear; the
+ * poster loads from TMDB, and TMDB's notice shows whenever TMDB facts do.
+ * Offers the match decisions the item's state allows: choosing among
+ * candidates, rejecting a match, or clearing a rejection. Correcting details
+ * is offered in every state.
  */
 export function MediaDetailsDialog({
   item,
   onChooseMatch,
   onChanged,
+  onCorrected,
   onClose,
 }: {
   item: MediaItem;
@@ -26,21 +30,43 @@ export function MediaDetailsDialog({
   onChooseMatch: () => void;
   /** A rejection or its clearing committed; the listed item is now stale. */
   onChanged: () => void;
+  /** A correction committed; `corrected` is the item as now shown. */
+  onCorrected: (corrected: MediaItem) => void;
   onClose: () => void;
 }) {
   const { metadata } = item;
   const decision = useMutation();
   const rejection = `${resourcePath("metadata/matches", item.id)}/rejection`;
-  const facts: [string, string | null][] = [
+  const [correcting, setCorrecting] = useState(false);
+  const corrected = new Set(metadata.correctedFields);
+  // Each fact with whether the owner's correction decides it.
+  const facts: [string, string | null, boolean?][] = [
     ["Match", matchStateLabel(metadata)],
     ["Lookup error", metadata.lookupError],
-    ["Title", metadata.title],
-    ["Series", metadata.seriesName],
-    ["Episode", episodeLine(metadata)],
+    ["Title", metadata.title, corrected.has("title")],
+    ["Series", metadata.seriesName, corrected.has("seriesName")],
+    [
+      "Episode",
+      episodeLine(metadata),
+      corrected.has("seasonNumber") || corrected.has("episodeNumber"),
+    ],
     ["Released", metadata.releaseDate],
     ["Genres", metadata.genres.join(", ") || null],
     ["Franchise", metadata.franchiseName],
+    ["Tags", metadata.tags.join(", ") || null],
   ];
+  if (correcting) {
+    return (
+      <CorrectDetailsDialog
+        item={item}
+        onCorrected={(next) => {
+          setCorrecting(false);
+          onCorrected(next);
+        }}
+        onClose={() => setCorrecting(false)}
+      />
+    );
+  }
   return (
     <WindowDialog
       title="Media details"
@@ -62,10 +88,15 @@ export function MediaDetailsDialog({
         <dl className="facts">
           {facts
             .filter(([, value]) => value !== null)
-            .map(([label, value]) => (
+            .map(([label, value, byOwner]) => (
               <Fragment key={label}>
                 <dt>{label}</dt>
-                <dd>{value}</dd>
+                <dd>
+                  {value}
+                  {byOwner && (
+                    <small className="secondary"> (your correction)</small>
+                  )}
+                </dd>
               </Fragment>
             ))}
         </dl>
@@ -81,6 +112,9 @@ export function MediaDetailsDialog({
       )}
       <RequestFeedback loading={decision.pending} error={decision.error} />
       <div className="dialog-actions">
+        <button disabled={decision.pending} onClick={() => setCorrecting(true)}>
+          Correct details…
+        </button>
         {metadata.matchState === "ambiguous" && (
           <button disabled={decision.pending} onClick={onChooseMatch}>
             Choose match…

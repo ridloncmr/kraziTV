@@ -1,11 +1,11 @@
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
-import type { ContentMetadata } from "./contracts.js";
+import type { ContentMetadata, CorrectableField } from "./contracts.js";
 
 /**
  * The metadata columns item reads select beside each item, aliased where a
- * name clashes with an item column. Each comes from a left join, so it is
- * null when the item has no row in that table.
+ * name clashes with an item column or another table's. Each comes from a
+ * left join, so it is null when the item has no row in that table.
  */
 export const METADATA_COLUMNS = [
   "metadata_matches.state as match_state",
@@ -22,6 +22,11 @@ export const METADATA_COLUMNS = [
   "content_facts.description",
   "content_facts.poster_path",
   "metadata_provider_refs.fetched_at",
+  "metadata_corrections.title as corrected_title",
+  "metadata_corrections.series_name as corrected_series_name",
+  "metadata_corrections.season_number as corrected_season_number",
+  "metadata_corrections.episode_number as corrected_episode_number",
+  "metadata_corrections.tags",
 ] as const;
 
 /** One item's `METADATA_COLUMNS` as selected. */
@@ -40,15 +45,28 @@ export interface MetadataColumns {
   description: string | null;
   poster_path: string | null;
   fetched_at: number | null;
+  corrected_title: string | null;
+  corrected_series_name: string | null;
+  corrected_season_number: number | null;
+  corrected_episode_number: number | null;
+  tags: string | null;
 }
 
 /**
- * Decides the metadata an item shows from its match decision and accepted
- * facts. Every item read goes through here, so the rule for which facts win
- * lives in one place. An extra reports `extra` rather than its stored
- * `unmatched`, since it is never looked up.
+ * Decides the metadata an item shows from its match decision, accepted
+ * facts, and the owner's corrections. Every item read goes through here, so
+ * the rule for which facts win lives in one place: a correction wins over
+ * the provider's fact. A corrected episode is a single episode, so it also
+ * ends any multi-episode range the provider reported. An extra reports
+ * `extra` rather than its stored `unmatched`, since it is never looked up.
  */
 export function effectiveMetadata(row: MetadataColumns): ContentMetadata {
+  const corrected: [CorrectableField, unknown][] = [
+    ["title", row.corrected_title],
+    ["seriesName", row.corrected_series_name],
+    ["seasonNumber", row.corrected_season_number],
+    ["episodeNumber", row.corrected_episode_number],
+  ];
   return {
     matchState:
       row.match_state === null
@@ -57,16 +75,20 @@ export function effectiveMetadata(row: MetadataColumns): ContentMetadata {
           ? "extra"
           : row.match_state,
     lookupError: row.lookup_error,
-    title: row.fact_title,
-    seriesName: row.series_name,
-    seasonNumber: row.season_number,
-    episodeNumber: row.episode_number,
-    lastEpisodeNumber: row.last_episode_number,
+    title: row.corrected_title ?? row.fact_title,
+    seriesName: row.corrected_series_name ?? row.series_name,
+    seasonNumber: row.corrected_season_number ?? row.season_number,
+    episodeNumber: row.corrected_episode_number ?? row.episode_number,
+    lastEpisodeNumber: row.corrected_episode_number ?? row.last_episode_number,
     releaseDate: row.release_date,
     genres: row.genres === null ? [] : (JSON.parse(row.genres) as string[]),
     franchiseName: row.franchise_name,
     description: row.description,
     posterPath: row.poster_path,
     refreshedAt: row.fetched_at,
+    tags: row.tags === null ? [] : (JSON.parse(row.tags) as string[]),
+    correctedFields: corrected.flatMap(([field, value]) =>
+      value === null ? [] : [field],
+    ),
   };
 }

@@ -15,6 +15,7 @@ import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
 import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
+import { CorrectionService } from "../content-metadata/corrections/correction-service.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
@@ -156,6 +157,7 @@ export async function startTestServer(
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
     tmdbKeys,
     matchChoices,
+    corrections: new CorrectionService(database.db),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

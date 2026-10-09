@@ -12,10 +12,10 @@ import { jsonIdList } from "../../database/writes/parameter-chunks.js";
 /**
  * Writes each record's metadata rows inside the scan's commit. A removed item
  * the scan rediscovered returns as newly discovered (spec 0010), so its old
- * decision is cleared first. Otherwise only an item with no decision, or an
- * unmatched non-extra one, takes a record: the scan read match states before
- * its lookups, so this re-check inside the transaction keeps a choice or
- * match made meanwhile from being overwritten.
+ * decision and corrections are cleared first. Otherwise only an unsettled
+ * item takes a record: the scan read settled items before its lookups, so
+ * this re-check inside the transaction keeps a choice, match, or correction
+ * made meanwhile from being overwritten.
  */
 export async function writeMetadataMatches(
   trx: Transaction<DatabaseSchema>,
@@ -24,6 +24,12 @@ export async function writeMetadataMatches(
   rediscoveredIds: readonly string[],
 ): Promise<void> {
   await deleteMatchRows(trx, rediscoveredIds);
+  if (rediscoveredIds.length > 0) {
+    await trx
+      .deleteFrom("metadata_corrections")
+      .where("media_item_id", "in", jsonIdList(rediscoveredIds))
+      .execute();
+  }
   const staged = records.flatMap((record) => {
     const id = itemIds.get(record.pathKey);
     return id === undefined ? [] : [{ id, record }];
@@ -33,12 +39,17 @@ export async function writeMetadataMatches(
   const settled = new Set(
     (
       await trx
-        .selectFrom("metadata_matches")
-        .select("media_item_id")
-        .where("media_item_id", "in", jsonIdList(staged.map(({ id }) => id)))
+        .selectFrom("media_items")
+        .leftJoin(
+          "metadata_matches",
+          "metadata_matches.media_item_id",
+          "media_items.id",
+        )
+        .select("media_items.id")
+        .where("media_items.id", "in", jsonIdList(staged.map(({ id }) => id)))
         .where(isSettledMatch)
         .execute()
-    ).map((row) => row.media_item_id),
+    ).map((row) => row.id),
   );
   await replaceMatchRows(
     trx,

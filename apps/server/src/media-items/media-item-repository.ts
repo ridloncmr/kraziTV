@@ -98,6 +98,11 @@ export class MediaItemRepository {
         "metadata_provider_refs",
         "metadata_provider_refs.media_item_id",
         "media_items.id",
+      )
+      .leftJoin(
+        "metadata_corrections",
+        "metadata_corrections.media_item_id",
+        "media_items.id",
       );
   }
 }

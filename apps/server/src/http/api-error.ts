@@ -149,6 +149,19 @@ export function sendMediaRootNotFound(
   );
 }
 
+/** One 404 shape for every route that addresses a media item, in any domain. */
+export function sendMediaItemNotFound(
+  reply: FastifyReply,
+  id: string,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    404,
+    "media_item_not_found",
+    `Media item ${id} does not exist`,
+  );
+}
+
 /**
  * Lists every unknown media item ID a request referenced, so the client can
  * point at exactly what to fix. A 400, not a 404: the addressed resource

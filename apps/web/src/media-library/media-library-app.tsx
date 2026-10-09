@@ -313,6 +313,10 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             setDetailed(undefined);
             refresh();
           }}
+          onCorrected={(corrected) => {
+            setDetailed(corrected);
+            refresh();
+          }}
           onClose={() => setDetailed(undefined)}
         />
       )}

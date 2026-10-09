@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
+import {
+  sendApiError,
+  sendInvalidRequest,
+  sendMediaItemNotFound,
+} from "../../http/api-error.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { MatchChoiceRefusal } from "../contracts.js";
 import type { MatchChoiceService } from "./match-choice-service.js";
@@ -92,12 +96,7 @@ function sendRefusal(
 ): FastifyReply {
   switch (refusal.kind) {
     case "item_not_found":
-      return sendApiError(
-        reply,
-        404,
-        "media_item_not_found",
-        `Media item ${id} does not exist`,
-      );
+      return sendMediaItemNotFound(reply, id);
     case "not_ambiguous":
       return sendApiError(
         reply,

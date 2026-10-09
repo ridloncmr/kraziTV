@@ -13,17 +13,17 @@ export class MetadataMatchRepository {
   }
 
   /**
-   * Returns the path keys under a root whose match decision is settled, so
-   * a rescan of a matched library makes almost no TMDB calls. A removed
-   * item's decision never counts, since rediscovery treats it as new.
+   * Returns the path keys under a root whose match decision or corrections
+   * settle it, so a rescan of a matched library makes almost no TMDB calls.
+   * A removed item never counts, since rediscovery treats it as new.
    */
   async findSettledPathKeys(rootId: string): Promise<Set<string>> {
     const rows = await this.#db
-      .selectFrom("metadata_matches")
-      .innerJoin(
-        "media_items",
-        "media_items.id",
+      .selectFrom("media_items")
+      .leftJoin(
+        "metadata_matches",
         "metadata_matches.media_item_id",
+        "media_items.id",
       )
       .select("media_items.path_key")
       .where("media_items.media_root_id", "=", rootId)
