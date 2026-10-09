@@ -2,6 +2,11 @@ import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js
 import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
 import type { ContentMetadata, CorrectableField } from "./contracts.js";
 
+// How far a matched file's probed duration may drift from its match-time
+// duration before it reads as a different file; probes of one file vary
+// slightly, and a re-encode of the same episode needs no review.
+const FILE_CHANGE_TOLERANCE_MS = 2_000;
+
 /**
  * The metadata columns item reads select beside each item, aliased where a
  * name clashes with an item column or another table's. Each comes from a
@@ -11,6 +16,7 @@ export const METADATA_COLUMNS = [
   "metadata_matches.state as match_state",
   "metadata_matches.extra",
   "metadata_matches.lookup_error",
+  "metadata_matches.matched_duration_ms",
   "content_facts.title as fact_title",
   "content_facts.series_name",
   "content_facts.season_number",
@@ -36,6 +42,7 @@ export interface MetadataColumns {
   match_state: MetadataMatchTable["state"] | null;
   extra: number | null;
   lookup_error: string | null;
+  matched_duration_ms: number | null;
   fact_title: string | null;
   series_name: string | null;
   season_number: number | null;
@@ -63,8 +70,12 @@ export interface MetadataColumns {
  * the provider's fact. A corrected episode is a single episode, so it also
  * ends any multi-episode range the provider reported. An extra reports
  * `extra` rather than its stored `unmatched`, since it is never looked up.
+ * Takes the item's probed duration too, to tell whether its file changed
+ * since it was matched.
  */
-export function effectiveMetadata(row: MetadataColumns): ContentMetadata {
+export function effectiveMetadata(
+  row: MetadataColumns & { duration_ms: number | null },
+): ContentMetadata {
   const corrected: [CorrectableField, unknown][] = [
     ["title", row.corrected_title],
     ["seriesName", row.corrected_series_name],
@@ -79,6 +90,12 @@ export function effectiveMetadata(row: MetadataColumns): ContentMetadata {
           ? "extra"
           : row.match_state,
     lookupError: row.lookup_error,
+    fileChanged:
+      row.match_state === "matched" &&
+      row.duration_ms !== null &&
+      row.matched_duration_ms !== null &&
+      Math.abs(row.duration_ms - row.matched_duration_ms) >
+        FILE_CHANGE_TOLERANCE_MS,
     title: row.corrected_title ?? row.fact_title,
     seriesName: row.corrected_series_name ?? row.series_name,
     seasonNumber: row.corrected_season_number ?? row.season_number,

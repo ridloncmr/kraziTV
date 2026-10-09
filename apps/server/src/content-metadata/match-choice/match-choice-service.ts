@@ -21,6 +21,7 @@ import {
   deleteMatchRows,
   replaceMatchRows,
 } from "../persistence/match-rows.js";
+import { recordMatchedDuration } from "../persistence/matched-duration.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
 import {
   chosenRecord,
@@ -33,7 +34,8 @@ import { groupReviewSteps } from "./review-steps.js";
 
 /**
  * Applies the owner's match decisions: choosing a candidate, rejecting a
- * match, and clearing a rejection. TMDB is asked before any write, never
+ * match, clearing a rejection, and keeping a match whose file changed. TMDB
+ * is asked before any write, never
  * inside one (ADR 0013), so every write re-reads the items it changes under
  * write authority and changes only those still in the state it read.
  */
@@ -239,6 +241,24 @@ export class MatchChoiceService {
       }
       await deleteMatchRows(pinned, [mediaItemId]);
       return { kind: "cleared" as const };
+    });
+  }
+
+  /**
+   * Keeps a match the owner reviewed after its file changed, taking the
+   * file's current duration as its match-time duration, which clears the
+   * changed-file flag. Refused unless the item is still matched, so a
+   * delayed request never revives a match rejected or replaced meanwhile.
+   */
+  async keepMatch(
+    mediaItemId: string,
+  ): Promise<{ kind: "kept" } | MatchChoiceRefusal> {
+    return runImmediateTransaction(this.#db, async (pinned) => {
+      const decision = await readDecision(pinned, mediaItemId);
+      if (decision === undefined) return { kind: "item_not_found" as const };
+      if (decision.state !== "matched") return { kind: "not_matched" as const };
+      await recordMatchedDuration(pinned, mediaItemId);
+      return { kind: "kept" as const };
     });
   }
 

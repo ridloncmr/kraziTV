@@ -330,8 +330,8 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             setDetailed(undefined);
             refresh();
           }}
-          onCorrected={(corrected) => {
-            setDetailed(corrected);
+          onUpdated={(updated) => {
+            setDetailed(updated);
             refresh();
           }}
           onClose={() => setDetailed(undefined)}

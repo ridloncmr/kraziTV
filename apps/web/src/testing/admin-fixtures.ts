@@ -11,6 +11,7 @@ import type {
 export const noMetadata: ContentMetadata = {
   matchState: "not_looked_up",
   lookupError: null,
+  fileChanged: false,
   title: null,
   seriesName: null,
   seasonNumber: null,
@@ -141,4 +142,10 @@ export const THE_THINGS: MatchCandidates = {
       posterPath: null,
     },
   ],
+};
+
+/** A matched movie whose newly probed duration needs review. */
+export const CHANGED = {
+  ...ALIEN,
+  metadata: { ...ALIEN.metadata, fileChanged: true },
 };

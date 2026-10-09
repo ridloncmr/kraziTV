@@ -35,6 +35,11 @@ export interface ContentMetadata {
   matchState: MatchState;
   /** Why the last lookup failed; the item stays `unmatched`. */
   lookupError: string | null;
+  /**
+   * True for a matched item whose probed duration moved more than 2 seconds
+   * from its match-time duration; the match and corrections stay.
+   */
+  fileChanged: boolean;
   title: string | null;
   seriesName: string | null;
   seasonNumber: number | null;

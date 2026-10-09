@@ -37,6 +37,8 @@ export interface ContentMetadata {
     | "rejected"
     | "extra";
   lookupError: string | null;
+  /** The file's duration changed since it was matched; the match stays. */
+  fileChanged: boolean;
   title: string | null;
   seriesName: string | null;
   seasonNumber: number | null;

@@ -45,17 +45,27 @@ export const SCAN_THE_THINGS = [
   { id: 60935, title: "The Thing", releaseDate: "2011-10-12" },
 ];
 
-/** Settles probes immediately; controlled probing is unnecessary for metadata-only races. */
+/**
+ * Settles probes immediately; controlled probing is unnecessary for
+ * metadata-only races. `durations` is read at each probe, so a test can
+ * replace a file between scans by changing its entry.
+ */
 export function metadataProber(
   root: string,
   failures: readonly string[],
+  durations: ReadonlyMap<string, number> = new Map(),
 ): MediaProber {
   return {
     probe: async (path) => {
       if (failures.some((failure) => path === join(root, failure))) {
         throw new MediaProbeError("invalid_metadata", "not media");
       }
-      return PROBE_RESULT;
+      const file = [...durations.keys()].find(
+        (key) => path === join(root, key),
+      );
+      return file === undefined
+        ? PROBE_RESULT
+        : { ...PROBE_RESULT, durationMs: durations.get(file)! };
     },
   };
 }

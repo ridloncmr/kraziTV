@@ -24,6 +24,7 @@ type ApiErrorCode =
   | "match_not_ambiguous"
   | "match_not_rejectable"
   | "match_not_rejected"
+  | "match_not_matched"
   | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_in_use"

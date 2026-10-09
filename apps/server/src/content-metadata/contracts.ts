@@ -74,7 +74,9 @@ export type MatchChoiceRefusal =
   /** The chosen series has no episode where the file's hints place it. */
   | { kind: "episode_not_in_series" }
   | { kind: "not_rejectable" }
-  | { kind: "not_rejected" };
+  | { kind: "not_rejected" }
+  /** Only a matched item can keep its match. */
+  | { kind: "not_matched" };
 
 /**
  * Which cataloged items a lookup retry covers: one item, every item in the

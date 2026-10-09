@@ -40,6 +40,8 @@ interface SetupOptions {
   files: string[];
   /** Fails the probe of these paths below the root. */
   probeFailures?: string[];
+  /** Probed durations by path below the root, read at each probe. */
+  durations?: ReadonlyMap<string, number>;
   /** Wraps the real client, for a lookup that fails in a way TMDB cannot. */
   tmdb?: (client: TmdbClient) => Partial<TmdbClient>;
 }
@@ -52,7 +54,11 @@ export async function setupEnrichmentScan(options: SetupOptions) {
   const { db } = await openTestDatabase();
   await seedEnrichment(db, options.key ?? true);
   const { tmdb, client } = scriptedTmdb();
-  const prober = metadataProber(ROOT, options.probeFailures ?? []);
+  const prober = metadataProber(
+    ROOT,
+    options.probeFailures ?? [],
+    options.durations,
+  );
   const scanner = enrichmentScanner(db, client, options, prober);
   return { db, scanner, tmdb, prober };
 }
@@ -131,8 +137,8 @@ function scriptedTmdb() {
 function enrichmentScanner(
   db: Kysely<DatabaseSchema>,
   client: TmdbClient,
-  { files, probeFailures = [], tmdb: wrap }: SetupOptions,
-  prober: MediaProber = metadataProber(ROOT, probeFailures),
+  { files, probeFailures = [], durations, tmdb: wrap }: SetupOptions,
+  prober: MediaProber = metadataProber(ROOT, probeFailures, durations),
 ): CatalogScanner {
   let time = 1_704_067_200_000;
   return new CatalogScanner({
@@ -253,3 +259,29 @@ export async function scannedWithFailures(files: string[]) {
 
 /** A root-relative movie path shared by retry admission and enrichment cases. */
 export const ALIEN_PATH = "Alien (1979)/movie.mkv";
+
+// Scans `files` once with their fixture durations, then returns the server,
+// the durations map a test changes to replace a file, and the probe
+// failures list a test extends to break one.
+export async function scannedOnce(files: string[]) {
+  const durations = new Map<string, number>();
+  const probeFailures: string[] = [];
+  const { server } = await startEnrichmentServer({
+    files,
+    durations,
+    probeFailures,
+  });
+  await scanThroughRoutes(server);
+  return { server, durations, probeFailures };
+}
+
+// Asks to keep an item's match.
+export function keep(
+  server: Awaited<ReturnType<typeof scannedOnce>>["server"],
+  id: string,
+) {
+  return send(server, "POST", `/metadata/matches/${id}/keep`);
+}
+
+/** Bonus material whose duration never decides a movie or episode match. */
+export const EXTRA_PATH = "Alien (1979)/Featurettes/making-of.mkv";

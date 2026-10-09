@@ -33,6 +33,7 @@ const GATED_ROUTES = [
   "POST /metadata/matches/:id/choice",
   "POST /metadata/matches/:id/rejection",
   "DELETE /metadata/matches/:id/rejection",
+  "POST /metadata/matches/:id/keep",
   "PATCH /metadata/corrections/:id",
   "POST /metadata/lookup-retries",
   "GET /media-roots",

@@ -122,7 +122,11 @@ function registerRoutes(
   registerAuthRoutes(server, dependencies.auth, { secureCookie });
   registerAccountRoutes(server, dependencies.auth);
   registerTmdbKeyRoutes(server, dependencies.tmdbKeys);
-  registerMatchChoiceRoutes(server, dependencies.matchChoices);
+  registerMatchChoiceRoutes(
+    server,
+    dependencies.matchChoices,
+    dependencies.mediaItems,
+  );
   registerCorrectionRoutes(
     server,
     dependencies.corrections,

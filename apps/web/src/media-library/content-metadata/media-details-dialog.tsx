@@ -19,14 +19,16 @@ import { posterUrl } from "./poster-url.js";
  * Offers the match decisions the item's state allows: choosing among
  * candidates, rejecting a match, or clearing a rejection. Correcting details
  * is offered in every state, and a lookup retry for any available item that
- * is not an extra, which a retry never changes.
+ * is not an extra, which a retry never changes. A file changed since it was
+ * matched says so and offers keeping the match; correcting it also clears
+ * the flag.
  */
 export function MediaDetailsDialog({
   item,
   onChooseMatch,
   onRetry,
   onChanged,
-  onCorrected,
+  onUpdated,
   onClose,
 }: {
   item: MediaItem;
@@ -36,13 +38,14 @@ export function MediaDetailsDialog({
   onRetry: (scope: "item" | "folder") => void;
   /** A rejection or its clearing committed; the listed item is now stale. */
   onChanged: () => void;
-  /** A correction committed; `corrected` is the item as now shown. */
-  onCorrected: (corrected: MediaItem) => void;
+  /** A correction or kept match committed; `updated` is the item as now shown. */
+  onUpdated: (updated: MediaItem) => void;
   onClose: () => void;
 }) {
   const { metadata } = item;
   const decision = useMutation();
   const rejection = `${resourcePath("metadata/matches", item.id)}/rejection`;
+  const keep = `${resourcePath("metadata/matches", item.id)}/keep`;
   const [correcting, setCorrecting] = useState(false);
   const corrected = new Set(metadata.correctedFields);
   // Each fact with whether the owner's correction decides it.
@@ -68,7 +71,7 @@ export function MediaDetailsDialog({
         item={item}
         onCorrected={(next) => {
           setCorrecting(false);
-          onCorrected(next);
+          onUpdated(next);
         }}
         onClose={() => setCorrecting(false)}
       />
@@ -108,6 +111,9 @@ export function MediaDetailsDialog({
             ))}
         </dl>
       </div>
+      {metadata.fileChanged && (
+        <p role="status">File changed since it was matched</p>
+      )}
       {metadata.description && <p>{metadata.description}</p>}
       {metadata.refreshedAt && (
         <>
@@ -123,6 +129,16 @@ export function MediaDetailsDialog({
       )}
       <RequestFeedback loading={decision.pending} error={decision.error} />
       <div className="dialog-actions">
+        {metadata.fileChanged && (
+          <button
+            disabled={decision.pending}
+            onClick={() =>
+              void decision.run(keep, "POST", undefined, onUpdated)
+            }
+          >
+            Keep match
+          </button>
+        )}
         <button disabled={decision.pending} onClick={() => setCorrecting(true)}>
           Correct details…
         </button>

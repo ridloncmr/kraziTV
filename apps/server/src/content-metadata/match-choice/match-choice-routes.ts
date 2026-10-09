@@ -7,6 +7,8 @@ import {
   sendMediaItemNotFound,
 } from "../../http/api-error.js";
 import { idParams } from "../../http/request-schemas.js";
+import { toApiMediaItem } from "../../media-items/api-media-item.js";
+import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
 import type { MatchChoiceRefusal } from "../contracts.js";
 import type { MatchChoiceService } from "./match-choice-service.js";
 
@@ -27,6 +29,7 @@ const runtimeParams = z.object({
 export function registerMatchChoiceRoutes(
   server: FastifyInstance,
   choices: MatchChoiceService,
+  mediaItems: MediaItemRepository,
 ): void {
   server.get("/metadata/match-reviews", async () => ({
     steps: await choices.reviewSteps(),
@@ -81,6 +84,21 @@ export function registerMatchChoiceRoutes(
     return result.kind === "cleared"
       ? { matchState: "not_looked_up" }
       : sendRefusal(request, reply, id, result);
+  });
+
+  // Answers with the item as now shown, so the details view drops the
+  // changed-file flag without a second read.
+  server.post("/metadata/matches/:id/keep", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const result = await choices.keepMatch(id);
+    if (result.kind !== "kept") {
+      return sendRefusal(request, reply, id, result);
+    }
+    // A removal committed since keeping the match makes the item gone.
+    const item = await mediaItems.findById(id);
+    return item === undefined
+      ? sendMediaItemNotFound(reply, id)
+      : toApiMediaItem(item);
   });
 }
 
@@ -149,6 +167,13 @@ function sendRefusal(
         409,
         "match_not_rejected",
         "This item's match is not rejected.",
+      );
+    case "not_matched":
+      return sendApiError(
+        reply,
+        409,
+        "match_not_matched",
+        "This item's match has changed. Reopen it to see where it stands.",
       );
   }
 }

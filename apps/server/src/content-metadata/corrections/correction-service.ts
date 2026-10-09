@@ -6,6 +6,7 @@ import { runImmediateTransaction } from "../../database/writes/immediate-transac
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import type { CorrectionChange } from "../contracts.js";
 import { CORRECTED_COLUMNS } from "../persistence/corrected-columns.js";
+import { recordMatchedDuration } from "../persistence/matched-duration.js";
 
 /**
  * Stores the owner's corrections and tags. They live in their own table, so
@@ -26,7 +27,9 @@ export class CorrectionService {
    * Applies one change to a cataloged item's corrections. The merge reads the
    * stored row under write authority, so two changes to different fields both
    * land, and a removed item is refused rather than given corrections. A row
-   * left with nothing corrected and no tags is deleted.
+   * left with nothing corrected and no tags is deleted. Saving counts as the
+   * owner reviewing the file, so a matched item takes its current duration
+   * as its match-time duration.
    */
   async correct(
     mediaItemId: string,
@@ -48,6 +51,7 @@ export class CorrectionService {
       if (!isEmpty(next)) {
         await pinned.insertInto("metadata_corrections").values(next).execute();
       }
+      await recordMatchedDuration(pinned, mediaItemId);
       return "corrected";
     });
   }
