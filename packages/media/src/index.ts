@@ -1,8 +1,11 @@
 export {
   currentPathPlatform,
+  mediaPathSegments,
   normalizeMediaPath,
   type NormalizedMediaPath,
 } from "./paths/media-path.js";
+export { derivePathHints } from "./path-hints/derive-path-hints.js";
+export { fallbackTitle } from "./path-hints/fallback-title.js";
 export {
   discoverMediaFiles,
   type DiscoverMediaFilesOptions,

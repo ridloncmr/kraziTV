@@ -1,7 +1,11 @@
-import type {
-  DiscoveredMediaFile,
-  MediaProbeError,
-  MediaProbeResult,
+import {
+  currentPathPlatform,
+  derivePathHints,
+  fallbackTitle,
+  mediaPathSegments,
+  type DiscoveredMediaFile,
+  type MediaProbeError,
+  type MediaProbeResult,
 } from "@krazitv/media";
 
 import type { CatalogCandidate } from "../contracts.js";
@@ -11,15 +15,27 @@ export type ProbeOutcome =
   | { kind: "probed"; probedAt: number; result: MediaProbeResult }
   | { kind: "failed"; probedAt: number; error: MediaProbeError };
 
-/** Joins discovery and probe results into the scan's normalized candidate shape. */
+/**
+ * Joins discovery and probe results into the scan's normalized candidate
+ * shape. The title comes from the file's path hints below its media root, so
+ * every scan, including a rescan, refreshes it.
+ */
 export function createCatalogCandidate(
   file: Pick<DiscoveredMediaFile, "path" | "pathKey" | "title">,
   outcome: ProbeOutcome,
+  rootPath: string,
 ): CatalogCandidate {
+  const segments = mediaPathSegments(
+    rootPath,
+    file.path,
+    currentPathPlatform(),
+  );
   const identity = {
     path: file.path,
     pathKey: file.pathKey,
-    title: file.title,
+    title: segments
+      ? fallbackTitle(derivePathHints(segments), file.title)
+      : file.title,
     probedAt: outcome.probedAt,
   };
   if (outcome.kind === "probed") {

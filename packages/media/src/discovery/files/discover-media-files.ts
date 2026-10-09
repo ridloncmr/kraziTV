@@ -22,7 +22,10 @@ const SUPPORTED_EXTENSIONS = new Set([
 ]);
 
 export interface DiscoveredMediaFile extends NormalizedMediaPath {
-  /** MVP display title: the filename without its final extension. */
+  /**
+   * The filename without its final extension: the display title when path
+   * hints cannot name the file better.
+   */
   title: string;
 }
 

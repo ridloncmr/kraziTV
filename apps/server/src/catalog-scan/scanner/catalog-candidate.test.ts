@@ -1,3 +1,5 @@
+import { join, sep } from "node:path";
+
 import { MediaProbeError } from "@krazitv/media";
 import { describe, expect, it } from "vitest";
 
@@ -7,21 +9,46 @@ import {
   validateCatalogCandidate,
 } from "./catalog-candidate.js";
 
+// Built with the platform's separators, as discovery produces them.
+const ROOT = join(sep, "media", "TV");
+
 const FILE = {
-  path: "/media/Show.mkv",
-  pathKey: "/media/Show.mkv",
+  path: join(ROOT, "Show.mkv"),
+  pathKey: join(ROOT, "Show.mkv"),
   title: "Show",
 };
 
+const PROBED = {
+  kind: "probed",
+  probedAt: 5,
+  result: { durationMs: 1_500, hasAudio: true, hasVideo: false },
+} as const;
+
 describe("createCatalogCandidate", () => {
-  it("stages a successful probe as an available candidate", () => {
+  it("titles a file from its path hints below the media root", () => {
+    const path = join(ROOT, "Firefly", "Season 1", "s01e05.mp4");
     expect(
-      createCatalogCandidate(FILE, {
-        kind: "probed",
-        probedAt: 5,
-        result: { durationMs: 1_500, hasAudio: true, hasVideo: false },
-      }),
-    ).toEqual({
+      createCatalogCandidate(
+        { path, pathKey: path, title: "s01e05" },
+        PROBED,
+        ROOT,
+      ),
+    ).toMatchObject({ path, title: "Firefly – S01E05" });
+  });
+
+  it("keeps the filename title when the hints name nothing better", () => {
+    const path = join(ROOT, "s01e05.mp4");
+    expect(
+      createCatalogCandidate(
+        { path, pathKey: path, title: "s01e05" },
+        PROBED,
+        ROOT,
+      ),
+    ).toMatchObject({ title: "s01e05" });
+  });
+
+  it("stages a successful probe as an available candidate", () => {
+    expect(createCatalogCandidate(FILE, PROBED, ROOT)).toEqual({
       ...FILE,
       probedAt: 5,
       status: "available",
@@ -33,14 +60,18 @@ describe("createCatalogCandidate", () => {
 
   it("stages a probe failure with its code and sanitized message", () => {
     expect(
-      createCatalogCandidate(FILE, {
-        kind: "failed",
-        probedAt: 5,
-        error: new MediaProbeError(
-          "timed_out",
-          "ffprobe timed out after 30000 ms",
-        ),
-      }),
+      createCatalogCandidate(
+        FILE,
+        {
+          kind: "failed",
+          probedAt: 5,
+          error: new MediaProbeError(
+            "timed_out",
+            "ffprobe timed out after 30000 ms",
+          ),
+        },
+        ROOT,
+      ),
     ).toEqual({
       ...FILE,
       probedAt: 5,
