@@ -45,6 +45,10 @@ at the top of each plan are generated from ticket Status blocks by
 - [Spec 0009 Implementation Plan: Background Catalog Scans](001-mvp/0009-background-catalog-scans.md) - 4 of 4 tickets complete
 - [Spec 0010 Implementation Plan: Catalog Removal](001-mvp/0010-catalog-removal.md) - 5 of 5 tickets complete
 
+### 002-programming
+
+- [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 0 of 11 tickets complete
+
 ### 003-auth
 
 - [Auth Spec 0001 Implementation Plan: Accounts And Sessions](003-auth/0001-accounts-and-sessions.md) - 6 of 6 tickets complete
