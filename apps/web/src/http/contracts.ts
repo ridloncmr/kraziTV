@@ -25,6 +25,31 @@ export interface MediaItem {
   status: "available" | "missing" | "probe_failed";
   durationMs: number | null;
   probeError: string | null;
+  metadata: ContentMetadata;
+}
+/** An item's effective content metadata, as the server decided it; unknown facts are null. */
+export interface ContentMetadata {
+  matchState:
+    | "not_looked_up"
+    | "unmatched"
+    | "ambiguous"
+    | "matched"
+    | "rejected"
+    | "extra";
+  lookupError: string | null;
+  title: string | null;
+  seriesName: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  lastEpisodeNumber: number | null;
+  releaseDate: string | null;
+  genres: string[];
+  franchiseName: string | null;
+  description: string | null;
+  /** TMDB's image path, loaded straight from TMDB's image server. */
+  posterPath: string | null;
+  /** When the TMDB facts were fetched; null when the item has none. */
+  refreshedAt: string | null;
 }
 export interface MediaItemPage {
   items: MediaItem[];

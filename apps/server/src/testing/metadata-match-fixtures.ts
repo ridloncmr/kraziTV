@@ -5,6 +5,7 @@ import type {
   CatalogCandidate,
   MetadataMatchRecord,
 } from "../catalog-scan/contracts.js";
+import type { ContentMetadata } from "../media-items/contracts.js";
 import { FIXTURE_TIME, itemFixture } from "./catalog-fixtures.js";
 /** Lookup time shared by staged records and their expected persistence. */
 export const LOOKED_UP_AT = FIXTURE_TIME + 45_000;
@@ -60,6 +61,26 @@ export const FIREFLY_EPISODE: EpisodeLookup = {
     },
     { number: 6, title: "Our Mrs. Reynolds" },
   ],
+};
+
+/**
+ * An item's metadata before any lookup, in the internal and API shapes alike:
+ * every fact unknown. Tests spread it and override what a decision sets.
+ */
+export const NO_CONTENT_METADATA: ContentMetadata = {
+  matchState: "not_looked_up",
+  lookupError: null,
+  title: null,
+  seriesName: null,
+  seasonNumber: null,
+  episodeNumber: null,
+  lastEpisodeNumber: null,
+  releaseDate: null,
+  genres: [],
+  franchiseName: null,
+  description: null,
+  posterPath: null,
+  refreshedAt: null,
 };
 
 /** Builds a schedulable candidate for metadata persistence tests. */
@@ -128,3 +149,15 @@ export const EPISODE_REF = {
   external_id: 348,
   fetched_at: FIXTURE_TIME,
 } as const;
+
+// One file per decision the listing must report, under the fixture root.
+export const METADATA_PATHS = {
+  movie: "/media/movies/Alien (1979)/alien.mkv",
+  episode: "/media/movies/Firefly/Season 1/s01e05-e06.mkv",
+  ambiguous: "/media/movies/The Thing/movie.mkv",
+  unmatched: "/media/movies/Nothing/movie.mkv",
+  failed: "/media/movies/Outage/movie.mkv",
+  extra: "/media/movies/Alien (1979)/Featurettes/making-of.mkv",
+  rejected: "/media/movies/Wrong/movie.mkv",
+  notLookedUp: "/media/movies/New/movie.mkv",
+};

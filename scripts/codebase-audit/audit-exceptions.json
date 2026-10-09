@@ -20,6 +20,24 @@
       "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
     },
     {
+      "rule": "cross-package-copy",
+      "files": [
+        "apps/server/src/media-items/contracts.ts",
+        "apps/web/src/http/contracts.ts"
+      ],
+      "reason": "ContentMetadata is the media item listing's metadata wire shape. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives (an ISO refreshedAt where the server holds epoch milliseconds); the overlap is the field list itself.",
+      "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
+    },
+    {
+      "rule": "cross-package-copy",
+      "files": [
+        "apps/server/src/testing/metadata-match-fixtures.ts",
+        "apps/web/src/testing/admin-fixtures.ts"
+      ],
+      "reason": "Each package's tests need the no-metadata ContentMetadata fixture, and src/testing/ is not part of any package's build, so each consumer keeps its own.",
+      "source": "docs/adrs/0011-shared-process-package.md"
+    },
+    {
       "rule": "grouping",
       "files": ["packages/signal/src/channel-worker/"],
       "reason": "Every file serves the worker, so the domain stays flat.",

@@ -600,3 +600,32 @@
     }
   }
 }
+/*
+ * TMDB's terms require its logo and notice; the logo stays small so it is
+ * less prominent than kraziTV's own branding.
+ */
+.tmdb-attribution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.tmdb-attribution img {
+  height: 12px;
+}
+/* A media item's details: its TMDB poster beside the facts. */
+.media-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 560px;
+}
+.media-details .facts {
+  flex: 1;
+}
+.media-poster {
+  width: 120px;
+  flex: none;
+}

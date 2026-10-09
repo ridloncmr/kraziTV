@@ -1,5 +1,5 @@
 import type { MediaItem } from "../http/contracts.js";
-import { adminFixtures } from "./admin-fixtures.js";
+import { adminFixtures, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
 
 /** Episodes whose numeric path order (2 before 10) differs from plain text order. */
@@ -11,6 +11,7 @@ export const episodes: MediaItem[] = [
     status: "available",
     durationMs: 1_500_000,
     probeError: null,
+    metadata: noMetadata,
   },
   {
     id: "e2",
@@ -19,6 +20,7 @@ export const episodes: MediaItem[] = [
     status: "available",
     durationMs: 1_400_000,
     probeError: null,
+    metadata: noMetadata,
   },
 ];
 

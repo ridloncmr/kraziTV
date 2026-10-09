@@ -112,5 +112,9 @@ function toApiMediaItem(item: MediaItem) {
     updatedAt: toApiTimestamp(item.updatedAt),
     lastSeenAt: toApiTimestamp(item.lastSeenAt),
     lastProbedAt: toApiTimestampOrNull(item.lastProbedAt),
+    metadata: {
+      ...item.metadata,
+      refreshedAt: toApiTimestampOrNull(item.metadata.refreshedAt),
+    },
   };
 }

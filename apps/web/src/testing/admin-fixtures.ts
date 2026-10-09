@@ -1,9 +1,27 @@
 import type {
   Channel,
   ChannelState,
+  ContentMetadata,
   MediaCollection,
   MediaItem,
 } from "../http/contracts.js";
+
+/** A media item's metadata before any lookup: every fact unknown. */
+export const noMetadata: ContentMetadata = {
+  matchState: "not_looked_up",
+  lookupError: null,
+  title: null,
+  seriesName: null,
+  seasonNumber: null,
+  episodeNumber: null,
+  lastEpisodeNumber: null,
+  releaseDate: null,
+  genres: [],
+  franchiseName: null,
+  description: null,
+  posterPath: null,
+  refreshedAt: null,
+};
 
 /** Wire fixtures contain ISO instants and milliseconds, with membership order distinct from title and ID order. */
 export const adminFixtures: {
@@ -24,6 +42,7 @@ export const adminFixtures: {
       status: "available",
       durationMs: 1_200_000,
       probeError: null,
+      metadata: noMetadata,
     },
     {
       id: "a",
@@ -32,6 +51,7 @@ export const adminFixtures: {
       status: "missing",
       durationMs: 1_300_000,
       probeError: null,
+      metadata: noMetadata,
     },
   ],
   collections: [{ id: "favorites", name: "Favorites" }],
@@ -50,3 +70,41 @@ export const adminFixtures: {
     },
   },
 };
+
+/** A listed item titled `title` whose metadata overrides the unknown defaults. */
+export function itemWith(title: string, metadata: Partial<ContentMetadata>) {
+  return {
+    ...adminFixtures.media[0],
+    id: title,
+    title,
+    path: `/media/${title}.mkv`,
+    metadata: { ...noMetadata, ...metadata },
+  } satisfies MediaItem;
+}
+
+export const ALIEN = itemWith("Alien (1979)", {
+  matchState: "matched",
+  title: "Alien",
+  releaseDate: "1979-05-25",
+  genres: ["Horror", "Science Fiction"],
+  franchiseName: "Alien Collection",
+  description: "In space…",
+  posterPath: "/alien.jpg",
+  refreshedAt: "2026-10-09T12:00:00.000Z",
+});
+
+export const FIREFLY = itemWith("Firefly – S01E05–E06", {
+  matchState: "matched",
+  title: "Safe / Our Mrs. Reynolds",
+  seriesName: "Firefly",
+  seasonNumber: 1,
+  episodeNumber: 5,
+  lastEpisodeNumber: 6,
+  posterPath: "/firefly.jpg",
+  refreshedAt: "2026-10-09T12:00:00.000Z",
+});
+
+export const OUTAGE = itemWith("Outage", {
+  matchState: "unmatched",
+  lookupError: "TMDB answered HTTP 503",
+});

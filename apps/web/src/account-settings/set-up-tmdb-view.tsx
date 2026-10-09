@@ -1,3 +1,4 @@
+import { TmdbAttribution } from "../branding/tmdb-attribution.js";
 import { formText } from "../controls/form-text.js";
 import type { TmdbKeyStatus } from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
@@ -66,13 +67,7 @@ export function SetUpTmdbView({
           autoFocus
         />
       </label>
-      <div className="tmdb-attribution">
-        <img src="/tmdb-logo.svg" alt="TMDB" />
-        <p>
-          This application uses TMDB and the TMDB APIs but is not endorsed,
-          certified, or otherwise approved by TMDB.
-        </p>
-      </div>
+      <TmdbAttribution />
     </AccountTaskForm>
   );
 }

@@ -6,10 +6,12 @@ import { resourcePath } from "../http/api-client.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
-import type { MediaRoot } from "../http/contracts.js";
+import type { MediaItem, MediaRoot } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
+import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
 import type { RemovalSubject } from "./removal/removal-messages.js";
 import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
@@ -19,8 +21,9 @@ const PAGE_SIZE = 50;
 
 /**
  * Configures discovery locations, starts background scans, displays catalog
- * facts, and removes roots or selected items. A scan's progress and a
- * removal's outcome come from the server, never assumed here.
+ * facts and each item's content metadata, and removes roots or selected
+ * items. A scan's progress, a removal's outcome, and an item's match state
+ * come from the server, never assumed here.
  */
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
@@ -36,6 +39,8 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<RemovalSubject>();
   const [removalMessage, setRemovalMessage] = useState("");
+  // The listed item whose details are open, as the listing reported it.
+  const [detailed, setDetailed] = useState<MediaItem>();
   // Selection is transient desktop shell state; it survives paging and search.
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const range = useRangeToggle(
@@ -201,6 +206,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                 <th>Title / path</th>
                 <th>Availability</th>
                 <th>Duration</th>
+                <th>Match</th>
               </tr>
             </thead>
             <tbody>
@@ -227,6 +233,17 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                   </td>
                   <td>{item.status}</td>
                   <td>{displayDuration(item.durationMs)}</td>
+                  <td>
+                    <div className="row-actions">
+                      {matchStateLabel(item.metadata)}
+                      <button
+                        aria-label={`Details for ${item.title}`}
+                        onClick={() => setDetailed(item)}
+                      >
+                        Details…
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -253,6 +270,12 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             refresh();
           }}
           onClose={() => setRemoving(undefined)}
+        />
+      )}
+      {detailed && (
+        <MediaDetailsDialog
+          item={detailed}
+          onClose={() => setDetailed(undefined)}
         />
       )}
       {scan.followed && (
