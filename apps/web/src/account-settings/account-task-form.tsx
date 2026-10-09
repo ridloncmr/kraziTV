@@ -8,7 +8,8 @@ import type { AccountTask } from "./use-account-task.js";
  * first; otherwise `describeError` words the server's (its own message by
  * default), and may say nothing.
  * `submitDisabled` holds back only the submit button, so the owner can still
- * type or cancel.
+ * type or cancel. `otherAction` sits between submit and **Cancel**, for a
+ * task with a second submit button.
  */
 export function AccountTaskForm({
   title,
@@ -16,6 +17,7 @@ export function AccountTaskForm({
   task,
   describeError = (error) => error.message,
   submitDisabled = false,
+  otherAction,
   onCancel,
   children,
 }: {
@@ -24,6 +26,7 @@ export function AccountTaskForm({
   task: AccountTask;
   describeError?: (error: Error) => string | undefined;
   submitDisabled?: boolean;
+  otherAction?: ReactNode;
   onCancel: () => void;
   children: ReactNode;
 }) {
@@ -42,6 +45,7 @@ export function AccountTaskForm({
           <button type="submit" disabled={submitDisabled}>
             {submitLabel}
           </button>
+          {otherAction}
           <button type="button" onClick={onCancel}>
             Cancel
           </button>

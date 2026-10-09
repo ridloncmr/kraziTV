@@ -32,8 +32,9 @@ Useful programming should not require users to classify thousands of files.
 Depends on the existing catalog scan and normalized probe results. This capability
 has its own matching, correction, and failure lifecycle; downstream programming
 consumes accepted facts rather than performing lookups. The first provider is
-TMDB (see [Provider](#provider)); recheck TMDB's terms before implementation,
-because they can change without notice.
+TMDB (see [Provider](#provider)). TMDB's terms (last updated 2023-10-20) and
+authentication docs were rechecked on 2026-10-08; recheck them before each
+later provider ticket, because they can change without notice.
 
 ## Established Behavior And Proposed Policy
 
@@ -59,6 +60,10 @@ provider operations already exist, or supersede accepted architectural decisions
 6. The user can retry enrichment for existing catalog items without reprobe.
 7. For a folder of ambiguous disc-track files, the user can map every track to an
    episode in one **Map tracks to episodes** dialog instead of correcting each file.
+8. Without a key, the desktop reminds the owner that only generic probing
+   happens: a TMDB icon in the system tray and, at most once per reminder
+   period, a tray balloon offering **Set up TMDB** (see
+   [TMDB Setup Reminder](#tmdb-setup-reminder)).
 
 A provider outage reports enrichment failures without turning technically usable
 media into `probe_failed`. Unmatched media remains eligible for ordinary
@@ -82,14 +87,26 @@ IDs, and is free for non-commercial use.
   dialog, but the key's route belongs to the metadata domain, not `auth/`.
 - **Stored as a secret.** The server stores the key and never returns it. Reads
   report only whether a key is set; the dialog offers replace and remove.
-- **Validated on save.** Saving makes one test call to TMDB. A rejected key is not
-  stored and the dialog shows the error; an unreachable TMDB also stores nothing.
+- **API Read Access Token, sent as a Bearer header.** TMDB accepts either an
+  `api_key` query parameter or the account's API Read Access Token in an
+  `Authorization: Bearer` header, with identical access. Its docs make the token
+  the default; kraziTV asks for the token, and the header keeps the secret out of
+  request URLs and logs.
+- **Validated on save.** Saving makes one test call, `GET /3/authentication`. A
+  `401` means TMDB rejected the key: it is not stored and the dialog shows the
+  error. An unreachable TMDB also stores nothing.
+  A later save or removal supersedes an earlier validation still in flight; the
+  earlier request returns a conflict and cannot restore or overwrite the key.
 - **No key, no lookups.** Without a key the scan derives path hints and skips the
   lookup step entirely; nothing is reported as an enrichment error.
 - **Attribution.** The Set up TMDB dialog, and Media Library wherever it shows
-  TMDB facts, display the TMDB logo and the notice `This product uses the TMDB API
-but is not endorsed or certified by TMDB.` TMDB branding stays less prominent
-  than kraziTV's.
+  TMDB facts, display an official TMDB logo and the notice the terms require:
+  `This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.`
+  The logo is used unmodified, from TMDB's logos page, and stays less prominent
+  than kraziTV's branding.
+- **No AI use.** TMDB's terms forbid using its API with, or to train, an AI or
+  machine-learning application. Matching stays rule-based, and TMDB data is
+  never passed to a model.
 - **Rate limits.** TMDB's soft ceiling is about 40 requests per second and may
   change. Lookups use the bounded concurrency below and back off on HTTP `429`.
 - **Six-month cache limit.** TMDB's terms forbid caching its data longer than six
@@ -107,6 +124,37 @@ but is not endorsed or certified by TMDB.` TMDB branding stays less prominent
     refreshed before six months, drop the expired provider facts and keep the
     match reference; the item shows its path-hint fallback title until a later
     refresh refills it.
+
+### TMDB Setup Reminder
+
+Without a key the catalog still scans, but titles come only from path hints.
+The desktop shell says so where the owner will see it, without blocking any
+program:
+
+- **Tray icon.** While no key is set, the system tray shows a TMDB icon labeled
+  `TMDB isn't set up`. It stays even after the owner turns the reminder off,
+  so the setting is never lost. Clicking it opens the balloon.
+- **Tray balloon.** At desktop start, the balloon opens by itself when no key
+  is set, at least one media root exists, and the reminder is due. With no
+  media root there is nothing to enrich, so it stays closed. It reads:
+  `TMDB isn't set up` / `kraziTV can only read titles from file names. Set up
+TMDB to look up series, episodes, and movies.` Its actions:
+
+  | Action              | Effect                                                                    |
+  | ------------------- | ------------------------------------------------------------------------- |
+  | **Set up TMDB**     | Opens Account Settings on the Set up TMDB task; snoozes like Remind later |
+  | **Remind me later** | Closes the balloon; it opens by itself again after 7 days                 |
+  | **Don't remind me** | Closes the balloon; it never opens by itself again in this browser        |
+  | Close (**✕**)       | Same as **Remind me later**                                               |
+
+- **Reminder state is desktop shell state.** The browser keeps it in
+  `localStorage`, so each browser reminds on its own. Unreadable or missing
+  state counts as due. It never reaches the server or changes enrichment.
+- **A saved key ends the reminder at once.** Saving a key removes the icon and
+  closes the balloon; removing the key brings the icon back, and the balloon
+  follows the stored reminder state.
+- **Scan summary.** A completed scan without a key adds the line
+  `TMDB isn't set up, so titles come from file names.` to its summary.
 
 ### Normalized Facts
 
@@ -373,6 +421,9 @@ None.
   manually collected, and broadcast.
 - No route ever returns the TMDB key; a rejected key is never stored.
 - Without a TMDB key, a scan makes no TMDB calls and records no enrichment errors.
+- Without a TMDB key, the tray shows the TMDB icon; the balloon opens by itself
+  only when a media root exists and the reminder is due, and **Remind me later**
+  and **Don't remind me** hold for 7 days and for good in that browser.
 - Provider-sourced facts are refreshed in the background or dropped before they
   are six months old, without a catalog scan; user corrections are kept.
 - Lookups back off on HTTP `429` instead of failing the scan.

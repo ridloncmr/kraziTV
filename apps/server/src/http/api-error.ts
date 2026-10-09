@@ -17,6 +17,7 @@ type ApiErrorCode =
   | "folder_unreadable"
   | "invalid_password"
   | "invalid_request"
+  | "invalid_tmdb_key"
   | "internal_error"
   | "media_collection_in_use"
   | "media_collection_not_found"
@@ -41,6 +42,8 @@ type ApiErrorCode =
   | "stream_failed"
   | "stream_startup_timeout"
   | "stream_unavailable"
+  | "tmdb_unreachable"
+  | "tmdb_key_changed"
   | "too_many_attempts"
   | "unauthenticated"
   | "unknown_avatar";

@@ -329,6 +329,8 @@ button:disabled {
   outline-offset: -3px;
 }
 .system-tray {
+  /* Anchors tray balloons to the tray's right edge, not to their icon. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -639,4 +641,60 @@ button:disabled {
 .boot-failure button:disabled,
 .log-off-footer button:disabled {
   opacity: 0.55;
+}
+/*
+ * The TMDB reminder's tray icon and its XP balloon. The balloon rises above
+ * the tray, flush with its right edge as XP's were, and has its own close.
+ */
+.tmdb-tray {
+  display: flex;
+}
+.tmdb-tray-icon {
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  display: flex;
+  cursor: pointer;
+}
+.tmdb-tray-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.tray-balloon {
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 4px);
+  width: 280px;
+  padding: 10px 12px;
+  background: #ffffe1;
+  color: #000;
+  border: 1px solid #000;
+  border-radius: 8px;
+  box-shadow: 2px 2px 6px rgb(0 0 0 / 35%);
+  font-size: 11px;
+  /* The tray keeps its own items on one line; the balloon's text must wrap. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  z-index: 1000;
+}
+/* The title stops short of the close button instead of running under it. */
+.tray-balloon strong {
+  display: block;
+  padding-right: 16px;
+}
+.tray-balloon p {
+  margin: 6px 0 8px;
+}
+.tray-balloon-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tray-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

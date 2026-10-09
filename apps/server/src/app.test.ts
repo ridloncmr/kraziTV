@@ -6,6 +6,7 @@ import {
   type ServerDatabaseLifecycle,
 } from "./app.js";
 import type { AuthService } from "./auth/auth-service.js";
+import type { TmdbKeyService } from "./content-metadata/tmdb-key-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
@@ -39,6 +40,7 @@ function createDependencies(
       deleteExpiredSessions: async () => undefined,
     } as Partial<AuthService> as AuthService,
     authenticator: new SignedInAuthenticator(),
+    tmdbKeys: {} as TmdbKeyService,
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,

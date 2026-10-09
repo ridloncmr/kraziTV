@@ -24,6 +24,9 @@ afterEach(cleanUpTestEnvironment);
 const GATED_ROUTES = [
   "PATCH /account",
   "PUT /account/password",
+  "GET /metadata/tmdb-key",
+  "PUT /metadata/tmdb-key",
+  "DELETE /metadata/tmdb-key",
   "GET /media-roots",
   "POST /media-roots",
   "GET /media-roots/folders",

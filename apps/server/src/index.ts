@@ -1,9 +1,10 @@
-import { createMediaProber } from "@krazitv/media";
+import { createMediaProber, TmdbClient } from "@krazitv/media";
 import { createFfmpegSignalPackager, SystemRuntime } from "@krazitv/signal";
 import { pino } from "pino";
 
 import { buildServer } from "./app.js";
 import { AuthService } from "./auth/auth-service.js";
+import { TmdbKeyService } from "./content-metadata/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
@@ -42,6 +43,11 @@ const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
 const auth = new AuthService(database.db);
+// Long enough for a slow TMDB answer, short enough that a key save never hangs.
+const tmdbKeys = new TmdbKeyService(
+  database.db,
+  new TmdbClient({ timeoutMs: 10_000 }),
+);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -94,6 +100,7 @@ const server = buildServer(
     auth,
     // The gate checks sessions against the same service that issues them.
     authenticator: auth,
+    tmdbKeys,
     mediaRoots,
     scanner,
     mediaItems,

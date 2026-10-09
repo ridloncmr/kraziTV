@@ -11,6 +11,8 @@ import { registerAuthGate } from "./auth/gate/auth-gate.js";
 import { registerAccountRoutes } from "./auth/routes/account-routes.js";
 import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
+import { registerTmdbKeyRoutes } from "./content-metadata/tmdb-key-routes.js";
+import type { TmdbKeyService } from "./content-metadata/tmdb-key-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
@@ -64,6 +66,7 @@ export type ServerDependencies = {
   auth: AuthService;
   /** What the auth gate asks; production passes the same service as `auth`. */
   authenticator: RequestAuthenticator;
+  tmdbKeys: TmdbKeyService;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -109,6 +112,7 @@ function registerRoutes(
   server.get("/health", async () => ({ status: "ok" }));
   registerAuthRoutes(server, dependencies.auth, { secureCookie });
   registerAccountRoutes(server, dependencies.auth);
+  registerTmdbKeyRoutes(server, dependencies.tmdbKeys);
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,

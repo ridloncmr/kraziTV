@@ -20,3 +20,4 @@ export type {
   MediaProber,
 } from "./probe/contracts.js";
 export { MediaProbeError } from "./probe/media-probe-error.js";
+export { TmdbClient, type TmdbKeyCheck } from "./tmdb/tmdb-client.js";

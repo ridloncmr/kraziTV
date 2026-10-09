@@ -4,7 +4,7 @@ import { SegmentedProgressBar } from "../../controls/segmented-progress-bar.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { apiRequest } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type { ScanStatus } from "../../http/contracts.js";
+import type { ScanStatus, TmdbKeyStatus } from "../../http/contracts.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/use-resource.js";
 import { ScanAnimation } from "./scan-animation.js";
@@ -54,6 +54,12 @@ export function ScanProgressDialog({
         : null;
   const running = ending === null && isScanRunning(polled);
   if (!running && !ended) setEnded(true);
+  const completed = ending === null && polled.phase === "completed";
+  // Read once the scan completes, so its summary can say why titles come
+  // from file names; a failed read says nothing rather than guess.
+  const tmdbKey = useResource<TmdbKeyStatus>(
+    completed ? "/metadata/tmdb-key" : null,
+  );
 
   // An ending replaces Cancel with OK; it takes focus unless the user has
   // moved on to another window meanwhile.
@@ -116,7 +122,10 @@ export function ScanProgressDialog({
       {ending === null && polled.phase === "failed" && (
         <p>The catalog is unchanged.</p>
       )}
-      {ending === null && polled.phase === "completed" && polled.summary && (
+      {completed && tmdbKey.data?.configured === false && (
+        <p>TMDB isn&apos;t set up, so titles come from file names.</p>
+      )}
+      {completed && polled.summary && (
         <dl className="facts">
           <dt>Discovered</dt>
           <dd>{counts.format(polled.summary.discoveredCount)}</dd>

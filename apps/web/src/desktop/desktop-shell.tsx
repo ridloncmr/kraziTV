@@ -1,8 +1,13 @@
-import { useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
-import type { AccountProfile } from "../http/contracts.js";
+import type {
+  AccountProfile,
+  MediaRoot,
+  TmdbKeyStatus,
+} from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
+import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import { programs } from "./programs.js";
@@ -25,6 +30,8 @@ function usableViewport(): DesktopViewport {
  * Log Off confirmation is open, the desktop behind it is inert. The account
  * comes from the app root, which alone holds it, so a change made in Account
  * Settings goes back up through `onAccountChanged` and redraws everything.
+ * The shell also owns whether a TMDB key is set, for the tray reminder; a save
+ * in Account Settings re-reads it through `onTmdbKeyChanged`.
  */
 export function DesktopShell({
   account,
@@ -46,6 +53,22 @@ export function DesktopShell({
     pageVisible,
     10_000,
   );
+  const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", pageVisible);
+  const mediaRoots = useResource<MediaRoot[]>("/media-roots", pageVisible);
+  // Counts requests to open Account Settings on the TMDB task, so a repeat
+  // request still reaches a window that is already open. It restarts at 0
+  // when that window closes, so a later plain open shows its home page.
+  const [tmdbTaskRequest, setTmdbTaskRequest] = useState(0);
+  if (
+    tmdbTaskRequest !== 0 &&
+    !windows.some((window) => window.id === "account")
+  )
+    setTmdbTaskRequest(0);
+  /** Opens or focuses Account Settings and asks it for the Set up TMDB task. */
+  const openTmdbTask = useCallback(() => {
+    dispatch({ type: "open", id: "account" });
+    setTmdbTaskRequest((count) => count + 1);
+  }, []);
   useEffect(() => {
     /** Windows clamp to the live viewport at render, so shrinking never loses their saved positions. */
     const resize = () => setViewport(usableViewport());
@@ -111,6 +134,8 @@ export function DesktopShell({
                 connection={connection}
                 account={account}
                 onAccountChanged={onAccountChanged}
+                tmdbTaskRequest={tmdbTaskRequest}
+                onTmdbKeyChanged={tmdbKey.refresh}
               />
             </AppWindow>
           ))}
@@ -121,6 +146,17 @@ export function DesktopShell({
           connection={connection}
           avatarId={account.avatarId}
           logOff={() => setLoggingOff(true)}
+          tray={
+            <TmdbTrayReminder
+              configured={tmdbKey.data?.configured}
+              hasMediaRoots={
+                mediaRoots.data === undefined
+                  ? undefined
+                  : mediaRoots.data.length > 0
+              }
+              onSetUp={openTmdbTask}
+            />
+          }
         />
       </main>
       {loggingOff && (

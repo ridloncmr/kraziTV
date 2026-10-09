@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "test": "vitest run src",
-    "test:ffprobe": "vitest run integration/",
+    "test:ffprobe": "vitest run integration/real-ffprobe.test.ts",
+    "test:tmdb": "vitest run integration/real-tmdb.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

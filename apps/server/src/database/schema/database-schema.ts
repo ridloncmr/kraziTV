@@ -8,6 +8,7 @@ import type { MediaItemTable } from "./media-item-table.js";
 import type { MediaRootTable } from "./media-root-table.js";
 import type { ProgrammingBlockTable } from "./programming-block-table.js";
 import type { ScheduleEntryTable } from "./schedule-entry-table.js";
+import type { ServerSettingsTable } from "./server-settings-table.js";
 import type { SessionTable } from "./session-table.js";
 
 // Maps every table name to its row type so Kysely can type-check all queries.
@@ -23,4 +24,5 @@ export interface DatabaseSchema {
   channel_collection_progress: ChannelCollectionProgressTable;
   accounts: AccountTable;
   sessions: SessionTable;
+  server_settings: ServerSettingsTable;
 }

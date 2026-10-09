@@ -22,6 +22,7 @@
     "format:write": "prettier --write .",
     "test": "npm run test --workspaces --if-present && npm run test:audit",
     "test:ffprobe": "npm run test:ffprobe --workspace @krazitv/media",
+    "test:tmdb": "npm run test:tmdb --workspace @krazitv/media",
     "test:ffmpeg": "npm run test:ffmpeg --workspace @krazitv/signal --workspace @krazitv/server",
     "typecheck": "tsc -b tsconfig.build.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",

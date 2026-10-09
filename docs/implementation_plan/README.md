@@ -47,7 +47,7 @@ at the top of each plan are generated from ticket Status blocks by
 
 ### 002-programming
 
-- [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 1 of 11 tickets complete
+- [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 3 of 13 tickets complete
 
 ### 003-auth
 

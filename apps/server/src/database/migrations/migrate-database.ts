@@ -13,6 +13,7 @@ import { schedulesMigration } from "./005-schedules.js";
 import { mediaVideoMigration } from "./006-media-video.js";
 import { catalogRemovalMigration } from "./007-catalog-removal.js";
 import { accountsAndSessionsMigration } from "./008-accounts-and-sessions.js";
+import { serverSettingsMigration } from "./009-server-settings.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -24,6 +25,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "006_media_video": mediaVideoMigration,
   "007_catalog_removal": catalogRemovalMigration,
   "008_accounts_and_sessions": accountsAndSessionsMigration,
+  "009_server_settings": serverSettingsMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

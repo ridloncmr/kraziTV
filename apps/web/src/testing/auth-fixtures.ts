@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 import type { AuthState } from "../http/contracts.js";
 import { App } from "../app.js";
@@ -39,10 +39,16 @@ export function stubAuthApi(state: unknown, status = 200): BrowserApi {
 
 /**
  * Boots the app root on `state` and waits for the desktop, so a test starts
- * from the logged-in desktop the app root holds the account for.
+ * from the logged-in desktop the app root holds the account for. `script`
+ * adds replies before anything renders, for requests the desktop sends as it
+ * starts.
  */
-export async function bootDesktop(state: AuthState = loggedIn) {
+export async function bootDesktop(
+  state: AuthState = loggedIn,
+  script?: (api: BrowserApi) => void,
+) {
   const api = stubAuthApi(state);
+  script?.(api);
   render(createElement(App));
   await screen.findByRole("button", { name: "start" });
   return api;
@@ -60,4 +66,16 @@ export function tooManyAttempts(retryAfterSeconds?: number) {
       ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
     },
   };
+}
+
+/** Opens Account Settings from its desktop shortcut and returns its window. */
+export async function openFromShortcut(state?: AuthState) {
+  const api = await bootDesktop(state);
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "Account Settings",
+    }),
+  );
+  const window = screen.getByRole("region", { name: "Account Settings" });
+  return { api, window };
 }

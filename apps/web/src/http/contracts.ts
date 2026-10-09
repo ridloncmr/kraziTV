@@ -143,6 +143,10 @@ export interface PlexSetup {
   tunerBaseUrl: string;
   xmltvUrl: string;
 }
+/** `/metadata/tmdb-key`: whether a TMDB key is set; the key itself never leaves the server. */
+export interface TmdbKeyStatus {
+  configured: boolean;
+}
 /** The account's public profile: enough for a logged-out browser to draw its user tile. */
 export interface AccountProfile {
   displayName: string;

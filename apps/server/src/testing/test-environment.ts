@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { TmdbClient } from "@krazitv/media";
 import type {
   FastifyInstance,
   FastifyServerOptions,
@@ -12,6 +13,7 @@ import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
+import { TmdbKeyService } from "../content-metadata/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -33,6 +35,7 @@ import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
+import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 import { SignedInAuthenticator } from "./signed-in-authenticator.js";
 
 /** Every server dependency except the database, which the helper always opens. */
@@ -136,6 +139,14 @@ export async function startTestServer(
   const defaults: TestServerDependencies = {
     auth,
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
+    // A scripted TMDB that accepts no key, so no suite ever calls the real one.
+    tmdbKeys: new TmdbKeyService(
+      database.db,
+      new TmdbClient({
+        fetch: new ScriptedTmdbFetch().fetch,
+        timeoutMs: 1_000,
+      }),
+    ),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

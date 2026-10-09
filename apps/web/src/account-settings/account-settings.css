@@ -73,3 +73,18 @@
     0 0 0 1px #fff,
     0 0 0 2px #000;
 }
+/*
+ * TMDB's terms require its logo and notice; the logo stays small so it is
+ * less prominent than kraziTV's own branding.
+ */
+.tmdb-attribution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.tmdb-attribution img {
+  height: 12px;
+}

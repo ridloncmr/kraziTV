@@ -497,6 +497,35 @@ it.each([
   },
 );
 
+it.each([
+  { configured: false, shown: true },
+  { configured: true, shown: false },
+])(
+  "says titles come from file names after a scan only without a TMDB key (configured: $configured)",
+  async ({ configured, shown }) => {
+    const { api, scan } = renderScanLibrary([mediaRoot()]);
+    api.reply("/metadata/tmdb-key", { configured });
+    const dialog = await startScan();
+    scan.status = scanStatus({
+      phase: "completed",
+      summary: {
+        discoveredCount: 1,
+        probedCount: 1,
+        probeFailedCount: 0,
+        missingCount: 0,
+      },
+    });
+    await advance(1_000);
+    await advance();
+
+    expect(
+      within(dialog).queryByText(
+        "TMDB isn't set up, so titles come from file names.",
+      ) !== null,
+    ).toBe(shown);
+  },
+);
+
 it("attaches to another client's running scan when the start reports scan_in_progress", async () => {
   const { api, scan } = renderScanLibrary([mediaRoot()]);
   api.reply(
