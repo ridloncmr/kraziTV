@@ -11,6 +11,7 @@ import {
   titledItemFixture,
 } from "../../server/src/testing/catalog-fixtures.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
+import { IdleMetadataRefresh } from "../../server/src/testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
 import { withoutTmdbKey } from "../../server/src/testing/scan-metadata.js";
@@ -54,6 +55,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
           },
         },
         removals: catalogRemovals,
+        metadataRefresh: new IdleMetadataRefresh(),
         metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),

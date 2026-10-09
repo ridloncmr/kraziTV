@@ -14,6 +14,8 @@ import { posterUrl } from "./poster-url.js";
  * Shows one item's match state, effective content facts, and tags, marking
  * the facts the owner corrected. Only facts the server reports appear; the
  * poster loads from TMDB, and TMDB's notice shows whenever TMDB facts do.
+ * An item whose TMDB data expired says so, and a failed background refresh
+ * shows its error beside the match it keeps.
  * Offers the match decisions the item's state allows: choosing among
  * candidates, rejecting a match, or clearing a rejection. Correcting details
  * is offered in every state, and a lookup retry for any available item that
@@ -47,6 +49,7 @@ export function MediaDetailsDialog({
   const facts: [string, string | null, boolean?][] = [
     ["Match", matchStateLabel(metadata)],
     ["Lookup error", metadata.lookupError],
+    ["Refresh error", metadata.refreshError],
     ["Title", metadata.title, corrected.has("title")],
     ["Series", metadata.seriesName, corrected.has("seriesName")],
     [
@@ -109,7 +112,11 @@ export function MediaDetailsDialog({
       {metadata.refreshedAt && (
         <>
           <p className="secondary">
-            TMDB data refreshed {displayTime(metadata.refreshedAt)}
+            {metadata.tmdbDataExpired ? (
+              <>TMDB data expired. It will refresh when TMDB is reachable.</>
+            ) : (
+              <>TMDB data refreshed {displayTime(metadata.refreshedAt)}</>
+            )}
           </p>
           <TmdbAttribution />
         </>

@@ -82,6 +82,8 @@ export const NO_CONTENT_METADATA: ContentMetadata = {
   description: null,
   posterPath: null,
   refreshedAt: null,
+  refreshError: null,
+  tmdbDataExpired: false,
   tags: [],
   correctedFields: [],
 };

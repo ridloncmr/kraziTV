@@ -7,4 +7,8 @@ export interface MetadataProviderRefTable {
   external_id: number;
   /** When the facts were fetched; TMDB data must be refreshed within six months. */
   fetched_at: number;
+  /** Why the last background refresh failed; null after one that answered. */
+  refresh_error: string | null;
+  /** When expired provider facts were dropped; null while they are current. */
+  expired_at: number | null;
 }

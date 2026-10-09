@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { send } from "../../testing/api-requests.js";
 import {
   CHOICE_DOCTOR_WHO_1963 as DOCTOR_WHO_1963,
@@ -37,6 +39,16 @@ async function states(server: Server, needsChoice = false) {
       item.metadata.matchState,
     ]),
   );
+}
+
+// Reads which items still hold a stored candidate list.
+async function itemsWithCandidates(db: Kysely<DatabaseSchema>) {
+  const rows = await db
+    .selectFrom("metadata_match_candidates")
+    .select("media_item_id")
+    .distinct()
+    .execute();
+  return rows.map((row) => row.media_item_id);
 }
 
 // Boots a server over `files` with both Doctor Who series known, then scans.
@@ -109,6 +121,11 @@ describe("match choice routes", () => {
       "Doctor Who/Season 2/s02e03.mkv": "matched",
       "The Thing/movie.mkv": "ambiguous",
     });
+    // A choice deletes the candidate lists it settles; TMDB data is kept
+    // no longer than needed.
+    await expect(itemsWithCandidates(db)).resolves.toEqual([
+      await idOf(server, "The Thing/movie.mkv"),
+    ]);
     const facts = await db
       .selectFrom("content_facts")
       .innerJoin(
@@ -184,12 +201,13 @@ describe("match choice routes", () => {
   });
 
   it("keeps a rejection on rescans until it is cleared, and then looks the item up again", async () => {
-    const { server, tmdb } = await scanned(["The Thing/movie.mkv"]);
+    const { server, db, tmdb } = await scanned(["The Thing/movie.mkv"]);
     const thing = await idOf(server, "The Thing/movie.mkv");
 
     await expect(
       send(server, "POST", `/metadata/matches/${thing}/rejection`),
     ).resolves.toEqual({ status: 200, body: { matchState: "rejected" } });
+    await expect(itemsWithCandidates(db)).resolves.toEqual([]);
     const searches = tmdb.paths().length;
     await scan(server);
     await expect(states(server)).resolves.toEqual({

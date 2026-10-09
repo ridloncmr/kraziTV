@@ -1,5 +1,6 @@
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 
+import type { EpisodeLookup, MovieLookup } from "@krazitv/media";
 import type { Insertable, Kysely } from "kysely";
 
 import type { ContentFactsTable } from "../../database/schema/content-facts-table.js";
@@ -12,6 +13,9 @@ import {
   parameterChunks,
 } from "../../database/writes/parameter-chunks.js";
 import type { MetadataMatchRecord } from "../contracts.js";
+
+/** A lookup that found its movie, or its episodes in a series. */
+type MatchedLookup = Extract<MovieLookup | EpisodeLookup, { kind: "matched" }>;
 
 /** The rows one record becomes; only a match has facts and a reference. */
 interface MatchRows {
@@ -124,55 +128,64 @@ function toRows(id: string, record: MetadataMatchRecord): MatchRows {
     };
   }
   if (lookup.kind !== "matched") return { match, candidates: [] };
-  const ref = {
-    media_item_id: id,
-    provider: "tmdb" as const,
-    fetched_at: lookedUpAt,
+  const episode = "series" in lookup;
+  return {
+    match,
+    facts: contentFactsOf(id, lookup),
+    ref: {
+      media_item_id: id,
+      provider: "tmdb",
+      external_kind: episode ? "tv" : "movie",
+      external_id: episode ? lookup.series.id : lookup.movie.id,
+      fetched_at: lookedUpAt,
+    },
+    candidates: [],
   };
+}
+
+/**
+ * Maps a matched lookup to the item's content facts row. A lookup that
+ * settles a match and a background refresh of it both store facts this way,
+ * so the two never disagree on what TMDB's answer means.
+ */
+export function contentFactsOf(
+  id: string,
+  lookup: MatchedLookup,
+): Insertable<ContentFactsTable> {
   if ("series" in lookup) {
     const { series, season, episodes } = lookup;
     const [first] = episodes;
     const titles = episodes.flatMap((episode) => episode.title ?? []);
     return {
-      match,
-      facts: {
-        ...NO_MOVIE_FACTS,
-        media_item_id: id,
-        content_type: "episode",
-        // A multi-episode file is titled by every episode it holds; one
-        // untitled part leaves it unknown rather than reading as one episode.
-        title: titles.length === episodes.length ? titles.join(" / ") : null,
-        release_date: first?.airDate ?? null,
-        genres: JSON.stringify(series.genres),
-        description: first?.description ?? null,
-        poster_path: series.posterPath ?? null,
-        series_tmdb_id: series.id,
-        series_name: series.title,
-        season_number: season,
-        episode_number: first?.number ?? null,
-        last_episode_number: episodes.at(-1)?.number ?? null,
-      },
-      ref: { ...ref, external_kind: "tv", external_id: series.id },
-      candidates: [],
+      ...NO_MOVIE_FACTS,
+      media_item_id: id,
+      content_type: "episode",
+      // A multi-episode file is titled by every episode it holds; one
+      // untitled part leaves it unknown rather than reading as one episode.
+      title: titles.length === episodes.length ? titles.join(" / ") : null,
+      release_date: first?.airDate ?? null,
+      genres: JSON.stringify(series.genres),
+      description: first?.description ?? null,
+      poster_path: series.posterPath ?? null,
+      series_tmdb_id: series.id,
+      series_name: series.title,
+      season_number: season,
+      episode_number: first?.number ?? null,
+      last_episode_number: episodes.at(-1)?.number ?? null,
     };
   }
   const { movie } = lookup;
   return {
-    match,
-    facts: {
-      ...NO_EPISODE_FACTS,
-      media_item_id: id,
-      content_type: "movie",
-      title: movie.title,
-      release_date: movie.releaseDate ?? null,
-      genres: JSON.stringify(movie.genres),
-      franchise_tmdb_id: movie.franchise?.id ?? null,
-      franchise_name: movie.franchise?.name ?? null,
-      description: movie.description ?? null,
-      poster_path: movie.posterPath ?? null,
-    },
-    ref: { ...ref, external_kind: "movie", external_id: movie.id },
-    candidates: [],
+    ...NO_EPISODE_FACTS,
+    media_item_id: id,
+    content_type: "movie",
+    title: movie.title,
+    release_date: movie.releaseDate ?? null,
+    genres: JSON.stringify(movie.genres),
+    franchise_tmdb_id: movie.franchise?.id ?? null,
+    franchise_name: movie.franchise?.name ?? null,
+    description: movie.description ?? null,
+    poster_path: movie.posterPath ?? null,
   };
 }
 

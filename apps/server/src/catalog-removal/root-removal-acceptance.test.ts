@@ -12,6 +12,7 @@ import { ScheduleService } from "../schedules/schedule-service.js";
 import { iso, send, waitForScan } from "../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../testing/catalog-fixtures.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { IdleMetadataRefresh } from "../testing/idle-metadata-refresh.js";
 import {
   discoveredFiles,
   PROBE_RESULT,
@@ -106,6 +107,7 @@ describe("catalog removal of a media root", () => {
           discover: async () => discoveredFiles("a"),
           schedules,
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log: recordingLog(),
         }),
       }),

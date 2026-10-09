@@ -19,6 +19,7 @@ import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js
 import { send, waitForScan } from "./api-requests.js";
 import { rootFixture } from "./catalog-fixtures.js";
 import { recordingLog } from "./recording-log.js";
+import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
 import {
   SCAN_ALIEN as ALIEN,
   SCAN_FIREFLY,
@@ -140,6 +141,7 @@ function enrichmentScanner(
     writer: new CatalogScanWriter(db),
     schedules: { ensureAllEnabled: async () => {} },
     removals: { purge: async () => {} },
+    metadataRefresh: new IdleMetadataRefresh(),
     log: recordingLog(),
     metadata: {
       tmdbKeys: new TmdbKeyService(db, client),

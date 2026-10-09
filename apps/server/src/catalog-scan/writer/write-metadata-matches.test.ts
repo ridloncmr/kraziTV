@@ -117,6 +117,8 @@ describe("CatalogScanWriter metadata matches", () => {
           external_kind: "movie",
           external_id: 348,
           fetched_at: LOOKED_UP_AT,
+          refresh_error: null,
+          expired_at: null,
         },
       ],
       candidates: [],
@@ -166,6 +168,8 @@ describe("CatalogScanWriter metadata matches", () => {
         external_kind: "tv",
         external_id: 1437,
         fetched_at: LOOKED_UP_AT,
+        refresh_error: null,
+        expired_at: null,
       },
     ]);
   });

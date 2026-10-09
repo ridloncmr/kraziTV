@@ -17,6 +17,7 @@ import { serverSettingsMigration } from "./009-server-settings.js";
 import { contentMetadataMigration } from "./010-content-metadata.js";
 import { episodeMetadataMigration } from "./011-episode-metadata.js";
 import { metadataCorrectionsMigration } from "./012-metadata-corrections.js";
+import { metadataRefreshMigration } from "./013-metadata-refresh.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -32,6 +33,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "010_content_metadata": contentMetadataMigration,
   "011_episode_metadata": episodeMetadataMigration,
   "012_metadata_corrections": metadataCorrectionsMigration,
+  "013_metadata_refresh": metadataRefreshMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

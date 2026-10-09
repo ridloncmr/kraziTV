@@ -50,6 +50,10 @@ export interface ContentMetadata {
   posterPath: string | null;
   /** When the TMDB facts were fetched; null when the item has none. */
   refreshedAt: number | null;
+  /** Why the last background refresh failed; the match stays. */
+  refreshError: string | null;
+  /** True once TMDB facts went six months unrefreshed and were dropped. */
+  tmdbDataExpired: boolean;
   /** The owner's tags and themes; TMDB never sets them. */
   tags: string[];
   /** Fields whose value is the owner's correction, which TMDB never changes. */

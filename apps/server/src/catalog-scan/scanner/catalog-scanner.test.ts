@@ -79,7 +79,9 @@ async function setup(options: SetupOptions = {}) {
   };
   const removals = { purge: vi.fn(options.purge ?? (async () => {})) };
   const log = recordingLog();
-  const scanner = new CatalogScanner({
+  // Whether the root still read as scanning at each refresh check.
+  const refreshChecks: boolean[] = [];
+  const scanner: CatalogScanner = new CatalogScanner({
     metadata: withoutTmdbKey(),
     roots: new MediaRootRepository(database.db),
     prober: new ConcurrencyLimitedProber(prober, options.concurrency ?? 4),
@@ -88,6 +90,10 @@ async function setup(options: SetupOptions = {}) {
     }),
     schedules,
     removals,
+    metadataRefresh: {
+      checkNow: () =>
+        void refreshChecks.push(scanner.isScanning(rootFixture.id)),
+    },
     log,
     discover,
     now: () => (time += 1_000),
@@ -100,6 +106,7 @@ async function setup(options: SetupOptions = {}) {
     schedules,
     removals,
     log,
+    refreshChecks,
   };
 }
 
@@ -450,6 +457,32 @@ describe("CatalogScanner", () => {
     // Queued files never started a child.
     expect(prober.started.map((probe) => probe.path)).toEqual([path("a")]);
     expect(await catalogSnapshot(db)).toEqual(before);
+  });
+
+  it("asks the TMDB refresh to check once a job completes, after its root is free", async () => {
+    const { scanner, prober, refreshChecks } = await setup();
+
+    await start(scanner);
+    await prober.waitForStarted(3);
+    expect(refreshChecks).toEqual([]);
+    for (const name of ["a", "b", "c"]) {
+      prober.get(path(name)).resolve(PROBE_RESULT);
+    }
+
+    expect(await finished(scanner)).toMatchObject({ phase: "completed" });
+    expect(refreshChecks).toEqual([false]);
+  });
+
+  it("asks the TMDB refresh to check once a cancelled job ends", async () => {
+    const { scanner, prober, refreshChecks } = await setup({ concurrency: 1 });
+
+    await start(scanner);
+    await prober.waitForStarted(1);
+    scanner.cancel(rootFixture.id);
+    prober.rejectCancelled(path("a"));
+
+    expect(await finished(scanner)).toMatchObject({ phase: "cancelled" });
+    expect(refreshChecks).toEqual([false]);
   });
 
   it("does not commit when cancelled after the last probe settles", async () => {

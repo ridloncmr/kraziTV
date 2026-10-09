@@ -22,6 +22,8 @@ export const METADATA_COLUMNS = [
   "content_facts.description",
   "content_facts.poster_path",
   "metadata_provider_refs.fetched_at",
+  "metadata_provider_refs.refresh_error",
+  "metadata_provider_refs.expired_at",
   "metadata_corrections.title as corrected_title",
   "metadata_corrections.series_name as corrected_series_name",
   "metadata_corrections.season_number as corrected_season_number",
@@ -45,6 +47,8 @@ export interface MetadataColumns {
   description: string | null;
   poster_path: string | null;
   fetched_at: number | null;
+  refresh_error: string | null;
+  expired_at: number | null;
   corrected_title: string | null;
   corrected_series_name: string | null;
   corrected_season_number: number | null;
@@ -86,6 +90,8 @@ export function effectiveMetadata(row: MetadataColumns): ContentMetadata {
     description: row.description,
     posterPath: row.poster_path,
     refreshedAt: row.fetched_at,
+    refreshError: row.refresh_error,
+    tmdbDataExpired: row.expired_at !== null,
     tags: row.tags === null ? [] : (JSON.parse(row.tags) as string[]),
     correctedFields: corrected.flatMap(([field, value]) =>
       value === null ? [] : [field],

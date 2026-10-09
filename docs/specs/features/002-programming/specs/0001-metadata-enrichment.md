@@ -116,18 +116,38 @@ IDs, and is free for non-commercial use.
 - **Six-month cache limit.** TMDB's terms forbid caching its data longer than six
   months. A background refresh keeps stored TMDB data inside that limit without
   user action or a catalog scan:
-  - It runs on its own schedule, spreading work over time as items approach six
-    months old, and never runs file discovery, ffprobe, or a new search.
-  - It re-fetches by stored TMDB ID, one call per movie and one per TV season,
-    so a large library costs a few hundred calls spread across months.
+  - It checks at boot, as soon as any scan or retry job ends, and an hour
+    after each check, refreshing items whose provider facts were fetched more
+    than five months ago, oldest first. The month between five and six leaves
+    room to retry while TMDB is unreachable. It never runs file discovery,
+    ffprobe, or a new search.
+  - It refreshes only items under enabled roots, so a disabled root makes no
+    TMDB calls. Expiry covers every cataloged item, disabled roots included,
+    and a re-enabled root's items refresh at the next check.
+  - It re-fetches by stored TMDB ID: one call per movie, one per TV series for
+    its name and poster, and one per TV season, so a large library costs a few
+    hundred calls spread across months.
   - It replaces only provider facts. User corrections, rejections, and chosen
     matches are never touched; they are not TMDB data and never expire.
   - It never blocks or slows broadcasting, and commits through the same
     metadata-only path as a retry, revalidating item existence and corrections.
-  - A failed refresh keeps the match and retries later. If data cannot be
-    refreshed before six months, drop the expired provider facts and keep the
-    match reference; the item shows its path-hint fallback title until a later
-    refresh refills it.
+    Just before committing it checks again for a scan or retry job on the root;
+    if one started meanwhile, it discards its results and tries again when
+    that job ends.
+  - A failed refresh keeps the match, shows its error in the item's details,
+    and retries at the next check. A TMDB ID that TMDB no longer knows is a failed
+    refresh like any other, and its data expires on schedule.
+  - With no key set, refresh does not run, and stored data expires at six
+    months.
+- **Expiry.** Provider facts that cannot be refreshed before six months are
+  dropped: title, description, genres, release date, franchise name, poster,
+  and series name. The match, its TMDB IDs, the content type, and the season
+  and episode numbers are kept, so episode order survives. The item shows its
+  path-hint fallback title until a later refresh refills it.
+- **Candidates.** An ambiguous item's candidate list is TMDB data too.
+  Choosing or rejecting a candidate deletes the list. A list looked up more
+  than six months ago is deleted and the item returns to unmatched, so the
+  next scan looks it up again.
 
 ### TMDB Setup Reminder
 
@@ -296,9 +316,13 @@ a replaced file at an unchanged path would find the same answer; a change never
 resets a match automatically. Record the probed duration when a match is
 accepted. When a later scan probes a duration more than 2 seconds away from it,
 keep the match and corrections unchanged and flag the item in Media Library as
-`File changed since it was matched`, with **Keep match**, which records the new
-duration and clears the flag, and **Choose again**, which opens the candidate
-choice. Size and modification time are not signals: copies and backups change
+`File changed since it was matched`. The flag is derived on read from the two
+durations, never stored. It offers **Keep match**, which records the new
+duration as the match-time duration and so clears the flag, and **Correct
+details…**, which opens the correction dialog; saving a correction there also
+records the new duration. A matched item keeps no candidates, so the owner fixes
+a wrong episode by correcting it rather than choosing among candidates. Size and
+modification time are not signals: copies and backups change
 them, and a re-encode of the same episode needs no review. Playability still
 follows the new probe result. A renamed or moved file is a new path and so a new
 media item, matched from scratch; carrying corrections across paths is out of

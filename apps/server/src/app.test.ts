@@ -23,6 +23,7 @@ import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
 import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
 import { plexSettingsFixture } from "./testing/plex-fixtures.js";
+import { IdleMetadataRefresh } from "./testing/idle-metadata-refresh.js";
 import { SignedInAuthenticator } from "./testing/signed-in-authenticator.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
@@ -45,6 +46,7 @@ function createDependencies(
     tmdbKeys: {} as TmdbKeyService,
     matchChoices: {} as MatchChoiceService,
     corrections: {} as CorrectionService,
+    metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,
@@ -249,6 +251,27 @@ describe("buildServer", () => {
     await server.close();
 
     expect(events).toEqual(["scanner stopped", "database closed"]);
+  });
+
+  it("starts the TMDB refresh once ready and stops it before closing the database", async () => {
+    const events: string[] = [];
+    const dependencies = createDependencies({
+      close: async () => void events.push("database closed"),
+    });
+    dependencies.metadataRefresh = new IdleMetadataRefresh(events);
+    const server = buildServer(dependencies, {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
+
+    await server.ready();
+    await server.close();
+
+    expect(events).toEqual([
+      "refresh started",
+      "refresh stopped",
+      "database closed",
+    ]);
   });
 
   it("waits for scans and logs the failure when channel streams fail to shut down", async () => {

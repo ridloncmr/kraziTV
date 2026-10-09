@@ -17,6 +17,7 @@ import { registerMatchChoiceRoutes } from "./content-metadata/match-choice/match
 import type { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
 import { registerCorrectionRoutes } from "./content-metadata/corrections/correction-routes.js";
 import type { CorrectionService } from "./content-metadata/corrections/correction-service.js";
+import type { MetadataRefreshService } from "./content-metadata/refresh/metadata-refresh-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
@@ -73,6 +74,8 @@ export type ServerDependencies = {
   tmdbKeys: TmdbKeyService;
   matchChoices: MatchChoiceService;
   corrections: CorrectionService;
+  /** Started once the server is ready and shut down before the database closes. */
+  metadataRefresh: Pick<MetadataRefreshService, "checkNow" | "shutdown">;
   mediaRoots: MediaRootRepository;
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
@@ -198,7 +201,8 @@ export function buildServer(
   if (onRoute !== undefined) server.addHook("onRoute", onRoute);
 
   // Scan jobs are cancelled first so every ffprobe child closes, and a
-  // committing job finishes, before onClose releases the database.
+  // committing job finishes, before onClose releases the database. The TMDB
+  // refresh stops the same way, finishing a commit already under way.
   // Channel streams shut down here too: a live stream response never ends on
   // its own, so the server could not finish closing while one is open. Both
   // steps settle before the database closes, even when one fails; a failure
@@ -206,6 +210,7 @@ export function buildServer(
   server.addHook("preClose", async () => {
     const results = await Promise.allSettled([
       dependencies.scanner.shutdown(),
+      dependencies.metadataRefresh.shutdown(),
       dependencies.channelStreams.shutdown(),
     ]);
     for (const result of results) {
@@ -217,11 +222,14 @@ export function buildServer(
 
   // Deletes sessions that expired while the server was down, purges removed
   // media whose airing ended meanwhile, then repairs schedules that lapsed,
-  // before it serves traffic. Each logs failures instead of blocking startup.
+  // before it serves traffic, and starts the TMDB refresh. Each logs
+  // failures instead of blocking startup.
   server.addHook("onReady", async () => {
     await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
+    // Runs in the background, so a slow TMDB never delays startup.
+    dependencies.metadataRefresh.checkNow();
   });
 
   server.addHook("onClose", async () => {

@@ -94,6 +94,39 @@ it("shows a failed lookup's error without TMDB's notice, since no TMDB facts app
   expect(dialog.queryByRole("img")).toBeNull();
 });
 
+it("says when a matched item's TMDB data expired, and shows a failed refresh's error", async () => {
+  const expired = {
+    ...ALIEN,
+    metadata: {
+      ...ALIEN.metadata,
+      title: null,
+      refreshError: "TMDB answered HTTP 404",
+      tmdbDataExpired: true,
+    },
+  };
+  await showCatalog([expired]);
+
+  const dialog = within(openDetails("Alien (1979)"));
+
+  expect(dialog.getByText("Matched")).toBeTruthy();
+  expect(dialog.getByText("TMDB answered HTTP 404")).toBeTruthy();
+  expect(
+    dialog.getByText(
+      "TMDB data expired. It will refresh when TMDB is reachable.",
+    ),
+  ).toBeTruthy();
+  expect(dialog.queryByText(/TMDB data refreshed/)).toBeNull();
+});
+
+it("says when a matched item's TMDB data was last refreshed", async () => {
+  await showCatalog([ALIEN]);
+
+  const dialog = within(openDetails("Alien (1979)"));
+
+  expect(dialog.getByText(/TMDB data refreshed/)).toBeTruthy();
+  expect(dialog.queryByText(/TMDB data expired/)).toBeNull();
+});
+
 it("opens details without selecting the row, and Close returns to the list", async () => {
   await showCatalog([ALIEN]);
 

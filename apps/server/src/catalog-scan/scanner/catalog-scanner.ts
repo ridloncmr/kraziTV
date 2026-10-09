@@ -15,6 +15,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { CatalogRemovalService } from "../../catalog-removal/catalog-removal-service.js";
 import type { MetadataMatchRepository } from "../../content-metadata/persistence/metadata-match-repository.js";
 import type { TmdbKeyService } from "../../content-metadata/tmdb-key/tmdb-key-service.js";
+import type { MetadataRefreshService } from "../../content-metadata/refresh/metadata-refresh-service.js";
 import type { MediaRoot } from "../../media-roots/contracts.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
@@ -53,6 +54,11 @@ interface CatalogScannerOptions {
   schedules: Pick<ScheduleService, "ensureAllEnabled">;
   /** Purges removed media after every completed commit, before the schedule pass. */
   removals: Pick<CatalogRemovalService, "purge">;
+  /**
+   * Checked once every job ends, so the TMDB refresh reaches a root it
+   * skipped while the job held it without waiting for its next hourly pass.
+   */
+  metadataRefresh: Pick<MetadataRefreshService, "checkNow">;
   /** Where enrichment reads the owner's key, settled items, and a retry's items. */
   metadata: {
     tmdbKeys: Pick<TmdbKeyService, "readKey">;
@@ -87,6 +93,7 @@ export class CatalogScanner {
   readonly #writer: CatalogScannerOptions["writer"];
   readonly #schedules: CatalogScannerOptions["schedules"];
   readonly #removals: CatalogScannerOptions["removals"];
+  readonly #metadataRefresh: CatalogScannerOptions["metadataRefresh"];
   readonly #metadata: CatalogScannerOptions["metadata"];
   readonly #log: CatalogScannerOptions["log"];
   readonly #discover: NonNullable<CatalogScannerOptions["discover"]>;
@@ -102,6 +109,7 @@ export class CatalogScanner {
     this.#writer = options.writer;
     this.#schedules = options.schedules;
     this.#removals = options.removals;
+    this.#metadataRefresh = options.metadataRefresh;
     this.#metadata = options.metadata;
     this.#log = options.log;
     this.#discover = options.discover ?? discoverMediaFiles;
@@ -230,7 +238,8 @@ export class CatalogScanner {
 
   /**
    * Runs one job to its terminal phase. Every unexpected error becomes
-   * `scan_failed`, so the promise shutdown awaits always resolves.
+   * `scan_failed`, so the promise shutdown awaits always resolves. Once the
+   * job is terminal its root is free, so the TMDB refresh is asked to check.
    */
   async #run(
     job: ScanJob,
@@ -253,6 +262,7 @@ export class CatalogScanner {
       };
     }
     finishJob(job.status, outcome, this.#now());
+    this.#metadataRefresh.checkNow();
   }
 
   // Runs every stage in order, recording progress; each stage before the commit observes the job's signal.

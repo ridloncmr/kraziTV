@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, waitForScan } from "../testing/api-requests.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { IdleMetadataRefresh } from "../testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../testing/discovery-fixtures.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
@@ -54,6 +55,7 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
         writer: new CatalogScanWriter(db),
         schedules,
         removals: catalogRemovals,
+        metadataRefresh: new IdleMetadataRefresh(),
         metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),

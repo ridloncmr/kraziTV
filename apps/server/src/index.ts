@@ -7,6 +7,7 @@ import { AuthService } from "./auth/auth-service.js";
 import { MetadataMatchRepository } from "./content-metadata/persistence/metadata-match-repository.js";
 import { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
 import { CorrectionService } from "./content-metadata/corrections/correction-service.js";
+import { MetadataRefreshService } from "./content-metadata/refresh/metadata-refresh-service.js";
 import { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
@@ -69,6 +70,19 @@ const catalogRemovals = new CatalogRemovalService(database.db, {
   schedules,
   isScanning: (rootId): boolean => scanner.isScanning(rootId),
 });
+const runtime = new SystemRuntime();
+// Shares the TMDB client with scans and never refreshes a root a scan or
+// retry job holds; the closure resolves the scanner when a pass runs, and
+// the scanner asks for a pass whenever a job ends.
+const metadataRefresh = new MetadataRefreshService({
+  db: database.db,
+  tmdbKeys,
+  tmdb,
+  isScanning: (rootId): boolean => scanner.isScanning(rootId),
+  timers: runtime,
+  now: () => runtime.now(),
+  log: logger,
+});
 // One limited prober serves every scan so the ffprobe budget is process-wide.
 // Built after schedules and the logger: each completed scan job ensures schedules.
 const scanner = new CatalogScanner({
@@ -83,6 +97,7 @@ const scanner = new CatalogScanner({
   writer: new CatalogScanWriter(database.db),
   schedules,
   removals: catalogRemovals,
+  metadataRefresh,
   metadata: {
     tmdbKeys,
     metadataMatches: new MetadataMatchRepository(database.db),
@@ -90,7 +105,6 @@ const scanner = new CatalogScanner({
   },
   log: logger,
 });
-const runtime = new SystemRuntime();
 const channelStreams = composeChannelStreamManager({
   db: database.db,
   playout,
@@ -113,6 +127,7 @@ const server = buildServer(
     tmdbKeys,
     matchChoices,
     corrections,
+    metadataRefresh,
     mediaRoots,
     scanner,
     mediaItems,

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { send, waitForScan } from "../../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";
+import { IdleMetadataRefresh } from "../../testing/idle-metadata-refresh.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import {
   discoveredFiles,
@@ -90,6 +91,7 @@ async function startServer(options: ServerOptions = {}) {
               ((scheduleLog) => schedules.ensureAllEnabled(scheduleLog)),
           },
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log,
           now: () => (time += 1_000),
         }),
@@ -658,6 +660,7 @@ describe("scan schedule maintenance", () => {
           discover,
           schedules,
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log: recordingLog(),
         }),
       }),

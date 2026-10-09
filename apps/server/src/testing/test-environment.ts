@@ -38,6 +38,7 @@ import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
+import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
 import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 import { SignedInAuthenticator } from "./signed-in-authenticator.js";
 
@@ -137,6 +138,7 @@ export async function startTestServer(
       writer: new CatalogScanWriter(database.db),
       schedules: scheduleService,
       removals,
+      metadataRefresh: new IdleMetadataRefresh(),
       metadata: {
         tmdbKeys,
         metadataMatches: new MetadataMatchRepository(database.db),
@@ -158,6 +160,9 @@ export async function startTestServer(
     tmdbKeys,
     matchChoices,
     corrections: new CorrectionService(database.db),
+    // No background TMDB pass races what a suite asserts; refresh suites
+    // drive the real service directly.
+    metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),
