@@ -1,5 +1,7 @@
 import type { EpisodeLookup, MovieLookup, PathHints } from "@krazitv/media";
 
+import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
+
 /**
  * One item's match decision on its way to the database: what a scan's
  * enrichment decided, or what the owner chose. An extra is recorded without a
@@ -73,3 +75,34 @@ export type MatchChoiceRefusal =
   | { kind: "episode_not_in_series" }
   | { kind: "not_rejectable" }
   | { kind: "not_rejected" };
+
+/**
+ * Which cataloged items a lookup retry covers: one item, every item in the
+ * folder holding that item and the folders below it, or every item in a root
+ * whose last lookup failed.
+ */
+export type RetryScope =
+  | { scope: "item" | "folder"; mediaItemId: string }
+  | { scope: "failed"; mediaRootId: string };
+
+/** An item's match decision as a retry read it; null when it had none. */
+export type DecisionRead = {
+  state: MetadataMatchTable["state"];
+  lookedUpAt: number | null;
+} | null;
+
+/** One available, non-extra item a retry looks up, with the decision it read. */
+export interface RetryItem {
+  id: string;
+  path: string;
+  pathKey: string;
+  durationMs: number;
+  read: DecisionRead;
+}
+
+/** One retry lookup on its way to the database, with the decision it replaces. */
+export interface RetryEntry {
+  id: string;
+  record: MetadataMatchRecord;
+  read: DecisionRead;
+}

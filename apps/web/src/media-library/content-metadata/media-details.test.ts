@@ -11,6 +11,7 @@ import {
   openMediaDetails as openDetails,
   showMediaLibrary as showCatalog,
 } from "../../testing/media-library-actions.js";
+import { scanStatus } from "../../testing/scan-fixtures.js";
 
 afterEach(() => {
   cleanup();
@@ -106,4 +107,42 @@ it("opens details without selecting the row, and Close returns to the list", asy
     }).checked,
   ).toBe(false);
   expect(screen.queryByText(NOTICE)).toBeNull();
+});
+
+it("retries an item's lookup and opens the progress dialog at enriching", async () => {
+  const api = await showCatalog([OUTAGE]);
+  const retry = scanStatus({
+    kind: "retry",
+    phase: "enriching",
+    lookupCount: 1,
+  });
+  api.reply("/metadata/lookup-retries", retry, "POST", 202);
+  api.reply("/media-roots/root/scan", retry);
+
+  fireEvent.click(
+    within(openDetails("Outage")).getByRole("button", { name: "Retry lookup" }),
+  );
+  const progress = await screen.findByRole("dialog", {
+    name: "Retrying TMDB lookups",
+  });
+
+  expect(within(progress).getByRole("status").textContent).toBe(
+    "Looking up media on TMDB…",
+  );
+  expect(within(progress).getByText("0 of 1 looked up")).toBeTruthy();
+  expect(screen.queryByRole("dialog", { name: "Media details" })).toBeNull();
+  expect(api.requestsTo("/metadata/lookup-retries")).toMatchObject([
+    { method: "POST", body: { scope: "item", mediaItemId: OUTAGE.id } },
+  ]);
+});
+
+it("offers no lookup retry for an extra", async () => {
+  await showCatalog([itemWith("Making of", { matchState: "extra" })]);
+
+  const dialog = within(openDetails("Making of"));
+
+  expect(dialog.queryByRole("button", { name: "Retry lookup" })).toBeNull();
+  expect(
+    dialog.queryByRole("button", { name: "Retry folder lookups" }),
+  ).toBeNull();
 });

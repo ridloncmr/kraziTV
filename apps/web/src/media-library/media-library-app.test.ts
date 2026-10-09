@@ -859,3 +859,37 @@ it("follows a later scan of the same root without the earlier job's status", asy
   );
   expect(within(dialog).getByText("3 found")).toBeTruthy();
 });
+
+it("retries a root's failed lookups in the progress dialog, opening at enriching and summarizing lookups only", async () => {
+  const { api, scan } = renderScanLibrary([mediaRoot()]);
+  const retry = scanStatus({
+    kind: "retry",
+    phase: "enriching",
+    lookupCount: 4,
+  });
+  scan.status = retry;
+  api.reply("/metadata/lookup-retries", retry, "POST", 202);
+  await advance();
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry failed lookups" }));
+  await advance();
+  const dialog = screen.getByRole("dialog", { name: "Retrying TMDB lookups" });
+
+  expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
+  expect(within(dialog).getByText("0 of 4 looked up")).toBeTruthy();
+  expect(api.requestsTo("/metadata/lookup-retries")).toMatchObject([
+    { method: "POST", body: { scope: "failed", mediaRootId: "root" } },
+  ]);
+
+  scan.status = scanStatus({
+    ...retry,
+    phase: "completed",
+    lookedUpCount: 4,
+    summary: scanSummary({ matchedCount: 3, lookupErrorCount: 1 }),
+  });
+  await advance(1_000);
+  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(within(dialog).getByText("Matched")).toBeTruthy();
+  expect(within(dialog).queryByText("Discovered")).toBeNull();
+  expect(within(dialog).queryByText("Probed")).toBeNull();
+});

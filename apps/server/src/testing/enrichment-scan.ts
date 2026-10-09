@@ -1,7 +1,7 @@
 // Test-only scanner wiring for enrichment suites; production code must never import this module.
 import { join, resolve } from "node:path";
 
-import { TmdbClient } from "@krazitv/media";
+import { TmdbClient, type MediaProber } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { expect, vi } from "vitest";
@@ -12,6 +12,7 @@ import { MetadataMatchRepository } from "../content-metadata/persistence/metadat
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import type { ScanStatus } from "../catalog-scan/contracts.js";
+import type { RetryScope } from "../content-metadata/contracts.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { isRunning } from "../catalog-scan/scanner/scan-job.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
@@ -42,12 +43,17 @@ interface SetupOptions {
   tmdb?: (client: TmdbClient) => Partial<TmdbClient>;
 }
 
-// Wires a scanner with real persistence and the real TMDB client over a scripted TMDB.
+/**
+ * Wires a scanner with real persistence and the real TMDB client over a
+ * scripted TMDB. The prober is returned so a test can spy on its probes.
+ */
 export async function setupEnrichmentScan(options: SetupOptions) {
   const { db } = await openTestDatabase();
   await seedEnrichment(db, options.key ?? true);
   const { tmdb, client } = scriptedTmdb();
-  return { db, scanner: enrichmentScanner(db, client, options), tmdb };
+  const prober = metadataProber(ROOT, options.probeFailures ?? []);
+  const scanner = enrichmentScanner(db, client, options, prober);
+  return { db, scanner, tmdb, prober };
 }
 
 /**
@@ -125,11 +131,12 @@ function enrichmentScanner(
   db: Kysely<DatabaseSchema>,
   client: TmdbClient,
   { files, probeFailures = [], tmdb: wrap }: SetupOptions,
+  prober: MediaProber = metadataProber(ROOT, probeFailures),
 ): CatalogScanner {
   let time = 1_704_067_200_000;
   return new CatalogScanner({
     roots: new MediaRootRepository(db),
-    prober: metadataProber(ROOT, probeFailures),
+    prober,
     writer: new CatalogScanWriter(db),
     schedules: { ensureAllEnabled: async () => {} },
     removals: { purge: async () => {} },
@@ -167,6 +174,26 @@ export async function scanToEnd(context: EnrichmentScan): Promise<ScanStatus> {
   const started = await context.scanner.start(rootFixture.id);
   if (started.kind !== "started") throw new Error(started.kind);
   return waitForScanEnd(context);
+}
+
+// Starts a lookup retry over `scope` and waits for its terminal status.
+export async function retryToEnd(
+  context: EnrichmentScan,
+  scope: RetryScope,
+): Promise<ScanStatus> {
+  const started = await context.scanner.retry(scope);
+  if (started.kind !== "started") throw new Error(started.kind);
+  return waitForScanEnd(context);
+}
+
+// Reads the ID of the cataloged item at `file` below the root.
+export async function itemId({ db }: EnrichmentScan, file: string) {
+  const row = await db
+    .selectFrom("media_items")
+    .select("id")
+    .where("path", "=", join(ROOT, file))
+    .executeTakeFirstOrThrow();
+  return row.id;
 }
 
 // Reads each item's match decision by the item's path below the root.
@@ -210,3 +237,17 @@ export async function scannedWithFirefly(
   await scanThroughRoutes(context.server);
   return context;
 }
+
+// Scans `files` while TMDB is unreachable, so every lookup fails, then
+// brings TMDB back.
+export async function scannedWithFailures(files: string[]) {
+  const context = await setupEnrichmentScan({ files });
+  context.tmdb.series.push(SCAN_FIREFLY);
+  context.tmdb.unreachable = true;
+  await scanToEnd(context);
+  context.tmdb.unreachable = false;
+  return context;
+}
+
+/** A root-relative movie path shared by retry admission and enrichment cases. */
+export const ALIEN_PATH = "Alien (1979)/movie.mkv";

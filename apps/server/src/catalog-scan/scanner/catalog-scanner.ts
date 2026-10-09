@@ -26,13 +26,19 @@ import {
 } from "./catalog-candidate.js";
 import { countLookups, enrichCandidates } from "./enrich-candidates.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
+import type {
+  RetryItem,
+  RetryScope,
+} from "../../content-metadata/contracts.js";
 import { admitRoot } from "../root-admission.js";
-import type { ScanStart, ScanStatus } from "../contracts.js";
+import type { RetryStart, ScanStart, ScanStatus } from "../contracts.js";
 import {
   failed,
   finishJob,
   isCancellable,
   isRunning,
+  newScanStatus,
+  rootRejected,
   snapshot,
   type ScanJob,
   type ScanOutcome,
@@ -42,15 +48,18 @@ interface CatalogScannerOptions {
   roots: Pick<MediaRootRepository, "findById">;
   /** Must be the process-wide concurrency-limited prober. */
   prober: MediaProber;
-  writer: Pick<CatalogScanWriter, "commit">;
+  writer: Pick<CatalogScanWriter, "commit" | "commitRetry">;
   /** Runs after every completed commit, because a scan may make a channel schedulable. */
   schedules: Pick<ScheduleService, "ensureAllEnabled">;
   /** Purges removed media after every completed commit, before the schedule pass. */
   removals: Pick<CatalogRemovalService, "purge">;
-  /** Where enrichment reads the owner's key and which items are settled. */
+  /** Where enrichment reads the owner's key, settled items, and a retry's items. */
   metadata: {
     tmdbKeys: Pick<TmdbKeyService, "readKey">;
-    metadataMatches: Pick<MetadataMatchRepository, "findSettledPathKeys">;
+    metadataMatches: Pick<
+      MetadataMatchRepository,
+      "findSettledPathKeys" | "findRetryItems"
+    >;
     /** Must be the process's one TMDB client, whose queue every lookup shares. */
     tmdb: TmdbClient;
   };
@@ -65,7 +74,8 @@ interface CatalogScannerOptions {
 
 /**
  * Runs each root's scan as a background scan job: discover -> probe ->
- * candidate -> enrich -> validate -> commit -> schedule pass. Discovery,
+ * candidate -> enrich -> validate -> commit -> schedule pass. A lookup retry
+ * is a job of the same root that runs only enrich -> commit. Discovery,
  * probing, and TMDB lookups are persistence-free; only the writer touches
  * the database, once, after every probe and lookup has settled. Holds at
  * most one running job per root, and each root's latest terminal job until
@@ -111,32 +121,29 @@ export class CatalogScanner {
     if (admission.kind !== "admitted") {
       return admission;
     }
+    const { root } = admission;
+    return this.#register(root, "scan", (job) => this.#executeScan(job, root));
+  }
 
-    // Registered synchronously after the check so two requests cannot both pass it.
-    const job: ScanJob = {
-      status: {
-        id: randomUUID(),
-        rootId,
-        phase: "discovering",
-        startedAt: this.#now(),
-        finishedAt: null,
-        discoveredCount: 0,
-        settledCount: 0,
-        probeFailedCount: 0,
-        currentPath: null,
-        lookupCount: 0,
-        lookedUpCount: 0,
-        currentTitle: null,
-        cancelRequested: false,
-        summary: null,
-        error: null,
-      },
-      controller: new AbortController(),
-      done: Promise.resolve(),
-    };
-    this.#jobs.set(rootId, job);
-    job.done = this.#run(job, admission.root);
-    return { kind: "started", status: snapshot(job.status) };
+  /**
+   * Starts a retry job that looks up the scope's cataloged items again, with
+   * no discovery or probing, and returns its first status without waiting.
+   * Refuses what `start` refuses, plus an unknown scope item and a server
+   * with no TMDB key. The items and their decisions are read before the
+   * checks, since the commit revalidates each one anyway.
+   */
+  async retry(scope: RetryScope): Promise<RetryStart> {
+    const target = await this.#metadata.metadataMatches.findRetryItems(scope);
+    if (target === undefined) return { kind: "item_not_found" };
+    const found = await this.#roots.findById(target.rootId);
+    const apiKey = await this.#metadata.tmdbKeys.readKey();
+    const admission = this.#refuseScan(target.rootId, found);
+    if (admission.kind !== "admitted") return admission;
+    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
+    const { root } = admission;
+    return this.#register(root, "retry", (job) =>
+      this.#executeRetry(job, root, target.items, apiKey),
+    );
   }
 
   /** Reads the root's running or latest terminal job from memory only. */
@@ -202,16 +209,39 @@ export class CatalogScanner {
   }
 
   /**
+   * Registers a job for an admitted root and starts running it. Callers
+   * reach this synchronously after their last check, so two requests can
+   * never both pass the one-job-per-root rule.
+   */
+  #register(
+    root: MediaRoot,
+    kind: ScanStatus["kind"],
+    execute: (job: ScanJob) => Promise<ScanOutcome>,
+  ): { kind: "started"; status: ScanStatus } {
+    const job: ScanJob = {
+      status: newScanStatus(randomUUID(), root.id, kind, this.#now()),
+      controller: new AbortController(),
+      done: Promise.resolve(),
+    };
+    this.#jobs.set(root.id, job);
+    job.done = this.#run(job, execute);
+    return { kind: "started", status: snapshot(job.status) };
+  }
+
+  /**
    * Runs one job to its terminal phase. Every unexpected error becomes
    * `scan_failed`, so the promise shutdown awaits always resolves.
    */
-  async #run(job: ScanJob, root: MediaRoot): Promise<void> {
+  async #run(
+    job: ScanJob,
+    execute: (job: ScanJob) => Promise<ScanOutcome>,
+  ): Promise<void> {
     let outcome: ScanOutcome;
     try {
-      outcome = await this.#execute(job, root);
+      outcome = await execute(job);
     } catch (error) {
       this.#log.error(
-        { err: error, rootId: root.id, scanId: job.status.id },
+        { err: error, rootId: job.status.rootId, scanId: job.status.id },
         "Catalog scan failed unexpectedly",
       );
       outcome = {
@@ -226,7 +256,7 @@ export class CatalogScanner {
   }
 
   // Runs every stage in order, recording progress; each stage before the commit observes the job's signal.
-  async #execute(job: ScanJob, root: MediaRoot): Promise<ScanOutcome> {
+  async #executeScan(job: ScanJob, root: MediaRoot): Promise<ScanOutcome> {
     const { status } = job;
     const { signal } = job.controller;
 
@@ -293,18 +323,7 @@ export class CatalogScanner {
       candidates,
       metadataMatches,
     });
-    if (commit.kind === "root_not_found") {
-      return failed(
-        "media_root_not_found",
-        `Media root ${root.id} was removed before the scan committed; the catalog is unchanged`,
-      );
-    }
-    if (commit.kind === "root_disabled") {
-      return failed(
-        "media_root_disabled",
-        `Media root ${root.id} was disabled before the scan committed; the catalog is unchanged`,
-      );
-    }
+    if (commit.kind !== "committed") return rootRejected(root.id, commit);
     // Both log their own failures, so a completed commit is never reported
     // as failed. Purging first keeps the schedule pass from regenerating
     // around rows that are about to go.
@@ -322,6 +341,70 @@ export class CatalogScanner {
         probeFailedCount: status.probeFailedCount,
         missingCount: commit.missingCount,
         ...countLookups(metadataMatches),
+      },
+    };
+  }
+
+  /**
+   * Looks up a retry's items again and commits the answers. An item whose
+   * path hints mark it an extra is left out, so a retry never changes an
+   * extra. Nothing is discovered, probed, or marked missing, and no purge or
+   * schedule pass follows, since only metadata changes and schedules never
+   * read it.
+   */
+  async #executeRetry(
+    job: ScanJob,
+    root: MediaRoot,
+    items: readonly RetryItem[],
+    apiKey: string,
+  ): Promise<ScanOutcome> {
+    const { status } = job;
+    const { signal } = job.controller;
+    const byPathKey = new Map(items.map((item) => [item.pathKey, item]));
+    const records = await enrichCandidates({
+      items: items.flatMap((item) => {
+        const hints = pathHintsBelow(root.path, item.path);
+        if (hints === undefined || hints.extra) return [];
+        const { pathKey, durationMs } = item;
+        return [
+          { candidate: { pathKey, status: "available", durationMs }, hints },
+        ];
+      }),
+      apiKey,
+      settled: new Set(),
+      tmdb: this.#metadata.tmdb,
+      signal,
+      now: this.#now,
+      status,
+    });
+    // Re-checked after the await, as in a scan.
+    if (records === undefined || signal.aborted) {
+      return { phase: "cancelled" };
+    }
+    status.phase = "committing";
+    status.currentTitle = null;
+
+    const commit = await this.#writer.commitRetry(
+      root.id,
+      records.flatMap((record) => {
+        const item = byPathKey.get(record.pathKey);
+        return item === undefined
+          ? []
+          : [{ id: item.id, record, read: item.read }];
+      }),
+    );
+    if (commit.kind !== "committed") return rootRejected(root.id, commit);
+    return {
+      phase: "completed",
+      summary: {
+        rootId: root.id,
+        startedAt: status.startedAt,
+        completedAt: this.#now(),
+        discoveredCount: 0,
+        probedCount: 0,
+        probeFailedCount: 0,
+        missingCount: 0,
+        ...countLookups(records),
       },
     };
   }

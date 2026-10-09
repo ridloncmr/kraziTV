@@ -110,7 +110,11 @@ export function ScanProgressDialog({
     polled.phase === "committing" || reply?.phase === "committing";
   return (
     <WindowDialog
-      title="Scanning media root"
+      title={
+        job.status.kind === "retry"
+          ? "Retrying TMDB lookups"
+          : "Scanning media root"
+      }
       busy={running}
       onClose={onAcknowledge}
     >
@@ -132,16 +136,23 @@ export function ScanProgressDialog({
       {completed && tmdbKey.data?.configured === false && (
         <p>TMDB isn&apos;t set up, so titles come from file names.</p>
       )}
+      {completed && polled.kind === "retry" && polled.lookupCount === 0 && (
+        <p>Nothing here needed a lookup.</p>
+      )}
       {completed && polled.summary && (
         <dl className="facts">
-          <dt>Discovered</dt>
-          <dd>{counts.format(polled.summary.discoveredCount)}</dd>
-          <dt>Probed</dt>
-          <dd>{counts.format(polled.summary.probedCount)}</dd>
-          <dt>Probe failures</dt>
-          <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
-          <dt>Missing</dt>
-          <dd>{counts.format(polled.summary.missingCount)}</dd>
+          {polled.kind === "scan" && (
+            <>
+              <dt>Discovered</dt>
+              <dd>{counts.format(polled.summary.discoveredCount)}</dd>
+              <dt>Probed</dt>
+              <dd>{counts.format(polled.summary.probedCount)}</dd>
+              <dt>Probe failures</dt>
+              <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
+              <dt>Missing</dt>
+              <dd>{counts.format(polled.summary.missingCount)}</dd>
+            </>
+          )}
           {polled.lookupCount > 0 && (
             <>
               <dt>Matched</dt>
@@ -204,7 +215,9 @@ function statusLine(
     case "committing":
       return "Saving to the catalog…";
     case "completed":
-      return "Scan completed.";
+      return status.kind === "retry"
+        ? "Lookup retry completed."
+        : "Scan completed.";
     case "failed":
       return status.error?.message ?? "";
     case "cancelled":

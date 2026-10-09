@@ -168,6 +168,7 @@ describe("CatalogScanner", () => {
     expect(await finished(scanner)).toEqual({
       id: expect.any(String),
       rootId: rootFixture.id,
+      kind: "scan",
       phase: "completed",
       startedAt: FIXTURE_TIME + 1_000,
       finishedAt: FIXTURE_TIME + 6_000,

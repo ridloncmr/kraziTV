@@ -8,15 +8,23 @@ import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 
 /**
  * Scanner metadata as a server with no TMDB key has it: nothing is looked up
- * and nothing is settled, so scans record extras only. The client answers a
- * scripted TMDB, so no suite ever calls the real one.
+ * and nothing is settled, so scans record extras only and retries are
+ * refused for the missing key. A retry scope reads as the real repository
+ * reads an uncataloged item: unknown, or a root with nothing to retry. The
+ * client answers a scripted TMDB, so no suite ever calls the real one.
  */
 export function withoutTmdbKey(): ConstructorParameters<
   typeof CatalogScanner
 >[0]["metadata"] {
   return {
     tmdbKeys: { readKey: async () => undefined },
-    metadataMatches: { findSettledPathKeys: async () => new Set<string>() },
+    metadataMatches: {
+      findSettledPathKeys: async () => new Set<string>(),
+      findRetryItems: async (scope) =>
+        scope.scope === "failed"
+          ? { rootId: scope.mediaRootId, items: [] }
+          : undefined,
+    },
     tmdb: new TmdbClient({
       fetch: new ScriptedTmdbFetch().fetch,
       timeoutMs: 1_000,

@@ -29,6 +29,12 @@ export interface ScanStatus {
   /** Unique within the server process, so a client can tell its job from a newer one. */
   id: string;
   rootId: string;
+  /**
+   * A `scan` runs every phase; a `retry` repeats lookups for cataloged items
+   * through `enriching -> committing` only, so its discovery and probe counts
+   * stay zero.
+   */
+  kind: "scan" | "retry";
   phase:
     | "discovering"
     | "probing"
@@ -74,6 +80,13 @@ export type ScanStart =
   | { kind: "shutting_down" };
 
 /**
+ * Whether a retry job started, or why it did not: any reason a scan gives,
+ * an unknown or removed scope item, or no TMDB key to look anything up with.
+ */
+export type RetryStart =
+  ScanStart | { kind: "item_not_found" } | { kind: "tmdb_key_missing" };
+
+/**
  * The wire form of a scan status, with ISO 8601 timestamps. Defined here so
  * media-root routes can carry it without importing the scan routes.
  */
@@ -91,9 +104,14 @@ export interface ApiScanStatus extends Omit<
     | null;
 }
 
-/** One discovered file as enrichment sees it: its candidate and path hints. */
+/**
+ * One file as enrichment sees it: its identity, its probed duration when it
+ * probed, and its path hints. A scan's candidates and a retry's cataloged
+ * items both fit.
+ */
 export interface HintedCandidate {
-  candidate: CatalogCandidate;
+  candidate: Pick<CatalogCandidate, "pathKey"> &
+    ({ status: "available"; durationMs: number } | { status: "probe_failed" });
   hints: PathHints | undefined;
 }
 

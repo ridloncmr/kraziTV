@@ -16,11 +16,13 @@ import { posterUrl } from "./poster-url.js";
  * poster loads from TMDB, and TMDB's notice shows whenever TMDB facts do.
  * Offers the match decisions the item's state allows: choosing among
  * candidates, rejecting a match, or clearing a rejection. Correcting details
- * is offered in every state.
+ * is offered in every state, and a lookup retry for any available item that
+ * is not an extra, which a retry never changes.
  */
 export function MediaDetailsDialog({
   item,
   onChooseMatch,
+  onRetry,
   onChanged,
   onCorrected,
   onClose,
@@ -28,6 +30,8 @@ export function MediaDetailsDialog({
   item: MediaItem;
   /** Opens the candidate choice in place of this dialog. */
   onChooseMatch: () => void;
+  /** Looks this item, or every item in its folder, up on TMDB again. */
+  onRetry: (scope: "item" | "folder") => void;
   /** A rejection or its clearing committed; the listed item is now stale. */
   onChanged: () => void;
   /** A correction committed; `corrected` is the item as now shown. */
@@ -130,6 +134,19 @@ export function MediaDetailsDialog({
           >
             Reject match
           </button>
+        )}
+        {item.status === "available" && metadata.matchState !== "extra" && (
+          <>
+            <button disabled={decision.pending} onClick={() => onRetry("item")}>
+              Retry lookup
+            </button>
+            <button
+              disabled={decision.pending}
+              onClick={() => onRetry("folder")}
+            >
+              Retry folder lookups
+            </button>
+          </>
         )}
         {metadata.matchState === "rejected" && (
           <button

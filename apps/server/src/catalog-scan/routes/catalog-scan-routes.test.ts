@@ -72,12 +72,17 @@ async function startServer(options: ServerOptions = {}) {
     },
     overrides: (db, { mediaRoots, schedules, catalogRemovals }) => {
       const real = new CatalogScanWriter(db);
+      // A wrapper replaces only the scan's commit; retries keep the real one.
+      const scanWriter = options.writer?.(real) ?? real;
       return {
         scanner: new CatalogScanner({
           metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober: new ConcurrencyLimitedProber(prober, 4),
-          writer: options.writer?.(real) ?? real,
+          writer: {
+            commit: (generation) => scanWriter.commit(generation),
+            commitRetry: (rootId, entries) => real.commitRetry(rootId, entries),
+          },
           discover,
           schedules: {
             ensureAllEnabled:
@@ -134,6 +139,7 @@ describe("POST /media-roots/:id/scan", () => {
       body: {
         id: expect.any(String),
         rootId: rootFixture.id,
+        kind: "scan",
         phase: "discovering",
         startedAt: "2024-01-01T00:00:01.000Z",
         finishedAt: null,

@@ -1,4 +1,4 @@
-import type { ScanStatus, ScanSummary } from "../contracts.js";
+import type { RootRejection, ScanStatus, ScanSummary } from "../contracts.js";
 
 /**
  * The scanner's mutable record of one scan job. Only the job's own run
@@ -17,6 +17,36 @@ export type ScanOutcome =
   | { phase: "completed"; summary: ScanSummary }
   | { phase: "cancelled" }
   | { phase: "failed"; error: NonNullable<ScanStatus["error"]> };
+
+/**
+ * A new job's first status: a scan begins by discovering, while a retry has
+ * nothing to discover or probe and begins enriching.
+ */
+export function newScanStatus(
+  id: string,
+  rootId: string,
+  kind: ScanStatus["kind"],
+  startedAt: number,
+): ScanStatus {
+  return {
+    id,
+    rootId,
+    kind,
+    phase: kind === "scan" ? "discovering" : "enriching",
+    startedAt,
+    finishedAt: null,
+    discoveredCount: 0,
+    settledCount: 0,
+    probeFailedCount: 0,
+    currentPath: null,
+    lookupCount: 0,
+    lookedUpCount: 0,
+    currentTitle: null,
+    cancelRequested: false,
+    summary: null,
+    error: null,
+  };
+}
 
 /** True while the job can still change; at most one such job per root. */
 export function isRunning(status: ScanStatus): boolean {
@@ -54,6 +84,22 @@ export function finishJob(
   status.currentTitle = null;
   if (outcome.phase === "completed") status.summary = outcome.summary;
   if (outcome.phase === "failed") status.error = outcome.error;
+}
+
+/** The failed outcome of a job whose root its commit refused; nothing was written. */
+export function rootRejected(
+  rootId: string,
+  rejection: RootRejection,
+): ScanOutcome {
+  return rejection.kind === "root_not_found"
+    ? failed(
+        "media_root_not_found",
+        `Media root ${rootId} was removed before the scan committed; the catalog is unchanged`,
+      )
+    : failed(
+        "media_root_disabled",
+        `Media root ${rootId} was disabled before the scan committed; the catalog is unchanged`,
+      );
 }
 
 // Builds a failed outcome; the message is shown to the operator as-is.

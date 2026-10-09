@@ -150,6 +150,18 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
                           Scan
                         </button>
                         <button
+                          disabled={!root.enabled}
+                          onClick={() => {
+                            setLastRequest("scan");
+                            void scan.retry({
+                              scope: "failed",
+                              mediaRootId: root.id,
+                            });
+                          }}
+                        >
+                          Retry failed lookups
+                        </button>
+                        <button
                           onClick={() => setRemoving({ kind: "root", root })}
                         >
                           Delete…
@@ -308,6 +320,11 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           onChooseMatch={() => {
             setDetailed(undefined);
             setChoosing(detailed);
+          }}
+          onRetry={(scope) => {
+            setDetailed(undefined);
+            setLastRequest("scan");
+            void scan.retry({ scope, mediaItemId: detailed.id });
           }}
           onChanged={() => {
             setDetailed(undefined);

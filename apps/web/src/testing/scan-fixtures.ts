@@ -5,6 +5,7 @@ export function scanStatus(overrides: Partial<ScanStatus> = {}): ScanStatus {
   return {
     id: "scan-1",
     rootId: "root",
+    kind: "scan",
     phase: "discovering",
     startedAt: "2026-10-07T12:00:00.000Z",
     finishedAt: null,

@@ -196,6 +196,7 @@ describe("buildServer", () => {
     const status: ScanStatus = {
       id: "scan-1",
       rootId: "root-scanned",
+      kind: "scan",
       phase: "probing",
       startedAt: Date.UTC(2024, 0, 1),
       finishedAt: null,

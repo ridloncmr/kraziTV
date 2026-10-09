@@ -152,6 +152,8 @@ interface ScanSummary {
 export interface ScanStatus {
   id: string;
   rootId: string;
+  /** A `retry` repeats TMDB lookups only, so it never discovers or probes. */
+  kind: "scan" | "retry";
   phase:
     | "discovering"
     | "probing"
@@ -177,6 +179,13 @@ export interface ScanStatus {
   /** Non-null only when phase is `failed`. */
   error: { code: string; message: string } | null;
 }
+/**
+ * What `POST /metadata/lookup-retries` looks up again: one item, the folder
+ * holding one item, or every failed lookup in a root.
+ */
+export type RetryScope =
+  | { scope: "item" | "folder"; mediaItemId: string }
+  | { scope: "failed"; mediaRootId: string };
 /** What a catalog removal takes out: one root with its items, or listed items. */
 export type CatalogRemovalTarget =
   { mediaRootId: string } | { mediaItemIds: string[] };
