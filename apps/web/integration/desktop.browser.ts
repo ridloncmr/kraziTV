@@ -13,6 +13,7 @@ import {
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
+import { withoutTmdbKey } from "../../server/src/testing/scan-metadata.js";
 import { startScheduleScenarioServer } from "../../server/src/testing/schedule-server.js";
 import { injectBrowserApi } from "../src/testing/injected-api.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
@@ -53,6 +54,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
           },
         },
         removals: catalogRemovals,
+        metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),
     }),

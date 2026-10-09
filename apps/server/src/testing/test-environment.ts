@@ -13,6 +13,7 @@ import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
+import { MetadataMatchRepository } from "../content-metadata/metadata-match-repository.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
@@ -115,6 +116,13 @@ export async function startTestServer(
   const removals: Pick<CatalogRemovalService, "purge"> = {
     purge: async (log) => wired.dependencies?.catalogRemovals.purge(log),
   };
+  // A scripted TMDB that accepts no key, so no suite ever calls the real
+  // one. Key saves and scans share it, as they share one client in index.ts.
+  const tmdb = new TmdbClient({
+    fetch: new ScriptedTmdbFetch().fetch,
+    timeoutMs: 1_000,
+  });
+  const tmdbKeys = new TmdbKeyService(database.db, tmdb);
   // Built per dependency set, so the default scanner can follow overrides.
   const defaultScanner = (
     roots: MediaRootRepository,
@@ -126,6 +134,11 @@ export async function startTestServer(
       writer: new CatalogScanWriter(database.db),
       schedules: scheduleService,
       removals,
+      metadata: {
+        tmdbKeys,
+        metadataMatches: new MetadataMatchRepository(database.db),
+        tmdb,
+      },
       log: pino({ level: "silent" }),
     });
   // Built per dependency set, so default removals follow an overridden
@@ -139,14 +152,7 @@ export async function startTestServer(
   const defaults: TestServerDependencies = {
     auth,
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
-    // A scripted TMDB that accepts no key, so no suite ever calls the real one.
-    tmdbKeys: new TmdbKeyService(
-      database.db,
-      new TmdbClient({
-        fetch: new ScriptedTmdbFetch().fetch,
-        timeoutMs: 1_000,
-      }),
-    ),
+    tmdbKeys,
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

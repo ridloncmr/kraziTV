@@ -23,13 +23,18 @@ export function isRunning(status: ScanStatus): boolean {
   return (
     status.phase === "discovering" ||
     status.phase === "probing" ||
+    status.phase === "enriching" ||
     status.phase === "committing"
   );
 }
 
 /** True only in the phases cancellation can still stop; committing ignores it. */
 export function isCancellable(status: ScanStatus): boolean {
-  return status.phase === "discovering" || status.phase === "probing";
+  return (
+    status.phase === "discovering" ||
+    status.phase === "probing" ||
+    status.phase === "enriching"
+  );
 }
 
 /** A copy for readers, so nothing outside the scanner can change a job. */
@@ -37,7 +42,7 @@ export function snapshot(status: ScanStatus): ScanStatus {
   return { ...status };
 }
 
-/** Moves a job to its terminal phase in one step, clearing probing-only state. */
+/** Moves a job to its terminal phase in one step, clearing per-phase progress. */
 export function finishJob(
   status: ScanStatus,
   outcome: ScanOutcome,
@@ -46,6 +51,7 @@ export function finishJob(
   status.phase = outcome.phase;
   status.finishedAt = finishedAt;
   status.currentPath = null;
+  status.currentTitle = null;
   if (outcome.phase === "completed") status.summary = outcome.summary;
   if (outcome.phase === "failed") status.error = outcome.error;
 }

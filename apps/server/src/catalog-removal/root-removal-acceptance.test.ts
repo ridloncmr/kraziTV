@@ -25,6 +25,7 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../testing/test-environment.js";
+import { withoutTmdbKey } from "../testing/scan-metadata.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -98,6 +99,7 @@ describe("catalog removal of a media root", () => {
         }).then(() => undefined),
       overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),

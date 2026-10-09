@@ -14,7 +14,11 @@ import { WindowDialogFrame } from "../controls/window-dialog.js";
 import type { FolderListing, MediaRoot } from "../http/contracts.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { mediaRoot, scanStatus } from "../testing/scan-fixtures.js";
+import {
+  mediaRoot,
+  scanStatus,
+  scanSummary,
+} from "../testing/scan-fixtures.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
 afterEach(() => {
@@ -307,12 +311,12 @@ it("animates the decorative paper only while discovering or probing", async () =
 
   scan.status = scanStatus({
     phase: "completed",
-    summary: {
+    summary: scanSummary({
       discoveredCount: 3,
       probedCount: 3,
       probeFailedCount: 0,
       missingCount: 0,
-    },
+    }),
   });
   await advance(1_000);
   expect(animation()).not.toBeNull();
@@ -441,12 +445,12 @@ it.each([
   {
     outcome: scanStatus({
       phase: "completed",
-      summary: {
+      summary: scanSummary({
         discoveredCount: 7,
         probedCount: 5,
         probeFailedCount: 2,
         missingCount: 3,
-      },
+      }),
     }),
     line: "Scan completed.",
     facts: ["Discovered 7", "Probed 5", "Probe failures 2", "Missing 3"],
@@ -508,12 +512,12 @@ it.each([
     const dialog = await startScan();
     scan.status = scanStatus({
       phase: "completed",
-      summary: {
+      summary: scanSummary({
         discoveredCount: 1,
         probedCount: 1,
         probeFailedCount: 0,
         missingCount: 0,
-      },
+      }),
     });
     await advance(1_000);
     await advance();
@@ -523,6 +527,75 @@ it.each([
         "TMDB isn't set up, so titles come from file names.",
       ) !== null,
     ).toBe(shown);
+  },
+);
+
+it("shows lookup progress while the scan looks media up on TMDB", async () => {
+  const { scan } = renderScanLibrary([mediaRoot()]);
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    phase: "enriching",
+    discoveredCount: 300,
+    settledCount: 300,
+    lookupCount: 240,
+    lookedUpCount: 86,
+    currentTitle: "Alien",
+  });
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
+  expect(within(dialog).getByText("Last looked up: Alien")).toBeTruthy();
+  expect(within(dialog).getByText("86 of 240 looked up")).toBeTruthy();
+  const bar = within(dialog).getByRole("progressbar");
+  expect(bar.getAttribute("aria-valuenow")).toBe("86");
+  expect(bar.getAttribute("aria-valuemax")).toBe("240");
+  expect(
+    within(dialog).getByRole("button", { name: "Cancel" }).matches(":disabled"),
+  ).toBe(false);
+  expect(
+    dialog.querySelector("svg.scan-animation")?.classList.contains("animating"),
+  ).toBe(true);
+});
+
+it.each([
+  {
+    ambiguousCount: 2,
+    note: "2 need your choice. Review them in Media Library.",
+  },
+  { ambiguousCount: 0, note: null },
+])(
+  "adds lookup counts to a scan that looked media up (ambiguous: $ambiguousCount)",
+  async ({ ambiguousCount, note }) => {
+    const { api, scan } = renderScanLibrary([mediaRoot()]);
+    api.reply("/metadata/tmdb-key", { configured: true });
+    const dialog = await startScan();
+    scan.status = scanStatus({
+      phase: "completed",
+      lookupCount: 7,
+      lookedUpCount: 7,
+      summary: scanSummary({
+        discoveredCount: 7,
+        probedCount: 7,
+        matchedCount: 3,
+        ambiguousCount,
+        unmatchedCount: 1,
+        lookupErrorCount: 3 - ambiguousCount,
+      }),
+    });
+    await advance(1_000);
+
+    const shown = [...dialog.querySelectorAll(".facts dt")].map(
+      (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
+    );
+    expect(shown.slice(4)).toEqual([
+      "Matched 3",
+      `Ambiguous ${ambiguousCount}`,
+      "Unmatched 1",
+      `Lookup errors ${3 - ambiguousCount}`,
+    ]);
+    expect(
+      within(dialog).queryByText(/need your choice/)?.textContent ?? null,
+    ).toBe(note);
   },
 );
 

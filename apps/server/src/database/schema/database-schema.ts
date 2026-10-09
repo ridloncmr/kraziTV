@@ -2,6 +2,10 @@ import type { AccountTable } from "./account-table.js";
 import type { ChannelCollectionProgressTable } from "./channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "./channel-schedule-state-table.js";
 import type { ChannelTable } from "./channel-table.js";
+import type { ContentFactsTable } from "./content-facts-table.js";
+import type { MetadataMatchCandidateTable } from "./metadata-match-candidate-table.js";
+import type { MetadataMatchTable } from "./metadata-match-table.js";
+import type { MetadataProviderRefTable } from "./metadata-provider-ref-table.js";
 import type { MediaCollectionItemTable } from "./media-collection-item-table.js";
 import type { MediaCollectionTable } from "./media-collection-table.js";
 import type { MediaItemTable } from "./media-item-table.js";
@@ -25,4 +29,8 @@ export interface DatabaseSchema {
   accounts: AccountTable;
   sessions: SessionTable;
   server_settings: ServerSettingsTable;
+  metadata_matches: MetadataMatchTable;
+  content_facts: ContentFactsTable;
+  metadata_provider_refs: MetadataProviderRefTable;
+  metadata_match_candidates: MetadataMatchCandidateTable;
 }

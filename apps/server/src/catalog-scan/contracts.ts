@@ -1,3 +1,5 @@
+import type { MovieLookup, PathHints } from "@krazitv/media";
+
 /** The facts a completed scan reports; the summary of a `completed` scan job. */
 export interface ScanSummary {
   rootId: string;
@@ -8,6 +10,11 @@ export interface ScanSummary {
   probeFailedCount: number;
   /** Items that became `missing` in this scan. */
   missingCount: number;
+  /** This scan's lookups by outcome; each counts items, not TMDB calls. */
+  matchedCount: number;
+  ambiguousCount: number;
+  unmatchedCount: number;
+  lookupErrorCount: number;
 }
 
 /** Why a root may not receive a scan: it is gone or switched off. */
@@ -25,6 +32,7 @@ export interface ScanStatus {
   phase:
     | "discovering"
     | "probing"
+    | "enriching"
     | "committing"
     | "completed"
     | "failed"
@@ -38,6 +46,12 @@ export interface ScanStatus {
   probeFailedCount: number;
   /** The most recently settled probe's path; null outside `probing`. */
   currentPath: string | null;
+  /** Items this scan looks up on TMDB; final once `enriching` starts. */
+  lookupCount: number;
+  /** Items whose lookup settled, whatever its outcome. */
+  lookedUpCount: number;
+  /** The most recently settled lookup's title; null outside `enriching`. */
+  currentTitle: string | null;
   cancelRequested: boolean;
   /** Non-null only when phase is `completed`. */
   summary: ScanSummary | null;
@@ -76,6 +90,22 @@ export interface ApiScanStatus extends Omit<
       })
     | null;
 }
+
+/**
+ * What enrichment decided for one candidate, travelling beside it to the
+ * commit so the technical candidate stays about catalog invariants. An extra
+ * is recorded without a lookup; every other record is one lookup's outcome.
+ */
+export type MetadataMatchRecord = { pathKey: string; hints: PathHints } & (
+  | { kind: "extra" }
+  | {
+      kind: "looked_up";
+      lookedUpAt: number;
+      /** The probed duration, kept with a match to flag later file changes. */
+      durationMs: number;
+      lookup: MovieLookup;
+    }
+);
 
 interface CandidateIdentity {
   path: string;

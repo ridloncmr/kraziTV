@@ -91,6 +91,11 @@ interface ScanSummary {
   probedCount: number;
   probeFailedCount: number;
   missingCount: number;
+  /** This scan's TMDB lookups by outcome, counted in items. */
+  matchedCount: number;
+  ambiguousCount: number;
+  unmatchedCount: number;
+  lookupErrorCount: number;
 }
 /** One scan job's status; every scan dialog state derives from it. */
 export interface ScanStatus {
@@ -99,6 +104,7 @@ export interface ScanStatus {
   phase:
     | "discovering"
     | "probing"
+    | "enriching"
     | "committing"
     | "completed"
     | "failed"
@@ -109,6 +115,11 @@ export interface ScanStatus {
   settledCount: number;
   probeFailedCount: number;
   currentPath: string | null;
+  /** Items the scan looks up on TMDB; zero when it looked nothing up. */
+  lookupCount: number;
+  lookedUpCount: number;
+  /** The most recently looked-up title; null outside `enriching`. */
+  currentTitle: string | null;
   cancelRequested: boolean;
   /** Non-null only when phase is `completed`. */
   summary: ScanSummary | null;

@@ -29,6 +29,7 @@ import { sequentialIds } from "../../testing/record-sources.js";
 import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 import { recordingLog } from "../../testing/recording-log.js";
 import { createBarrier } from "../../testing/test-barrier.js";
+import { withoutTmdbKey } from "../../testing/scan-metadata.js";
 
 const OTHER_ROOT_ID = "root-fixture-002";
 
@@ -79,6 +80,7 @@ async function setup(options: SetupOptions = {}) {
   const removals = { purge: vi.fn(options.purge ?? (async () => {})) };
   const log = recordingLog();
   const scanner = new CatalogScanner({
+    metadata: withoutTmdbKey(),
     roots: new MediaRootRepository(database.db),
     prober: new ConcurrencyLimitedProber(prober, options.concurrency ?? 4),
     writer: new CatalogScanWriter(database.db, {
@@ -173,6 +175,9 @@ describe("CatalogScanner", () => {
       settledCount: 3,
       probeFailedCount: 1,
       currentPath: null,
+      lookupCount: 0,
+      lookedUpCount: 0,
+      currentTitle: null,
       cancelRequested: false,
       summary: {
         rootId: rootFixture.id,
@@ -182,6 +187,10 @@ describe("CatalogScanner", () => {
         probedCount: 2,
         probeFailedCount: 1,
         missingCount: 1,
+        matchedCount: 0,
+        ambiguousCount: 0,
+        unmatchedCount: 0,
+        lookupErrorCount: 0,
       },
       error: null,
     });

@@ -108,7 +108,11 @@ IDs, and is free for non-commercial use.
   machine-learning application. Matching stays rule-based, and TMDB data is
   never passed to a model.
 - **Rate limits.** TMDB's soft ceiling is about 40 requests per second and may
-  change. Lookups use the bounded concurrency below and back off on HTTP `429`.
+  change. Every TMDB request goes through one shared in-memory queue that caps
+  requests in flight and requests per second below that ceiling. Scans of every
+  root, metadata-only retries, and background refresh all use it, so running
+  more jobs never raises the request rate. A cancelled request leaves the queue
+  without calling TMDB. HTTP `429` still backs off, as a fallback.
 - **Six-month cache limit.** TMDB's terms forbid caching its data longer than six
   months. A background refresh keeps stored TMDB data inside that limit without
   user action or a catalog scan:
@@ -331,6 +335,8 @@ revalidates each item, so a track removed while the dialog was open is skipped.
 
 **Which items a scan looks up.** A rescan never searches again for an item whose
 match state is settled, so a rescan of a matched library makes almost no calls.
+A scan searches each movie title and year once, even when several files share
+it.
 
 | Item state                                 | Looked up on scan                                      |
 | ------------------------------------------ | ------------------------------------------------------ |
@@ -372,7 +378,7 @@ that root is active, so their commits never interleave.
 Path hints are derived first, so a scan without a provider still produces fallback
 titles. Wire enrichment explicitly after every probe settles and before candidate validation; operations
 return normalized values and never write SQLite themselves. External calls use
-bounded concurrency, timeouts, and cancellation outside database write authority.
+the shared TMDB queue (see Rate limits), timeouts, and cancellation outside database write authority.
 Restore discovery order before the scan's atomic catalog commit.
 
 Item lookup errors are optional failures. An unexpected processing or validation

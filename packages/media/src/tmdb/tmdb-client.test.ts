@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { TmdbClient } from "./tmdb-client.js";
-import { answering, hanging } from "../testing/tmdb-fetch.js";
+import { answering, hanging, heldMovieFetch } from "../testing/tmdb-fetch.js";
+import {
+  ALIEN_DETAILS,
+  routedFetch,
+  searchResult,
+} from "../testing/tmdb-movies.js";
 
 const TOKEN = "eyJ.read-access-token.sig";
 
@@ -101,5 +106,306 @@ describe("TmdbClient.checkKey", () => {
 
   it.each([0, -1, 1.5, Number.NaN])("refuses a timeout of %s", (timeoutMs) => {
     expect(() => new TmdbClient({ timeoutMs })).toThrow(/timeoutMs/);
+  });
+});
+
+describe("TmdbClient.searchMovies", () => {
+  it("searches by title and year hint and reads each result's first-release facts", async () => {
+    const { fetch, urls } = routedFetch({
+      "/3/search/movie": () =>
+        Response.json({
+          page: 1,
+          results: [
+            searchResult(348, "Alien", "1979-05-25"),
+            searchResult(9, "Alien Hunt", "", null),
+          ],
+        }),
+    });
+    const client = new TmdbClient({ fetch, timeoutMs: 1_000 });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien", year: 1979 }),
+    ).resolves.toEqual({
+      kind: "ok",
+      value: [
+        {
+          id: 348,
+          title: "Alien",
+          releaseDate: "1979-05-25",
+          posterPath: "/poster-348.jpg",
+        },
+        { id: 9, title: "Alien Hunt" },
+      ],
+    });
+    expect(urls.map(String)).toEqual([
+      "https://api.themoviedb.org/3/search/movie?query=Alien&include_adult=false&year=1979",
+    ]);
+  });
+
+  it("omits the year when there is no year hint", async () => {
+    const { fetch, urls } = routedFetch({
+      "/3/search/movie": () => Response.json({ results: [] }),
+    });
+    const client = new TmdbClient({ fetch, timeoutMs: 1_000 });
+
+    await client.searchMovies(TOKEN, { title: "The Thing & Co" });
+
+    expect(urls[0]?.searchParams.get("query")).toBe("The Thing & Co");
+    expect(urls[0]?.searchParams.has("year")).toBe(false);
+  });
+
+  it("reports a response it cannot read as a failure", async () => {
+    const client = new TmdbClient({
+      fetch: async () => Response.json({ results: [{ id: "x" }] }),
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "TMDB sent a response kraziTV could not read",
+    });
+  });
+
+  it.each([401, 404, 500])(
+    "reports HTTP %i as a failure naming the status",
+    async (status) => {
+      const client = new TmdbClient({
+        fetch: answering(status).fetch,
+        timeoutMs: 1_000,
+      });
+
+      await expect(
+        client.searchMovies(TOKEN, { title: "Alien" }),
+      ).resolves.toEqual({
+        kind: "failed",
+        reason: `TMDB answered HTTP ${status}`,
+      });
+    },
+  );
+
+  it("waits for TMDB's Retry-After and tries again after a 429", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const client = new TmdbClient({
+        fetch: async () => {
+          calls += 1;
+          return calls === 1
+            ? new Response(null, {
+                status: 429,
+                headers: { "retry-after": "2" },
+              })
+            : Response.json({ results: [] });
+        },
+        timeoutMs: 10_000,
+      });
+
+      const search = client.searchMovies(TOKEN, { title: "Alien" });
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(calls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(search).resolves.toEqual({ kind: "ok", value: [] });
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after three retries, reporting the 429", async () => {
+    let calls = 0;
+    const client = new TmdbClient({
+      fetch: async () => {
+        calls += 1;
+        return new Response(null, {
+          status: 429,
+          headers: { "retry-after": "0" },
+        });
+      },
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "TMDB answered HTTP 429",
+    });
+    expect(calls).toBe(4);
+  });
+
+  it("reports a 429 at once when TMDB asks for a wait longer than ten seconds", async () => {
+    let calls = 0;
+    const client = new TmdbClient({
+      fetch: async () => {
+        calls += 1;
+        return new Response(null, {
+          status: 429,
+          headers: { "retry-after": "3600" },
+        });
+      },
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({ kind: "failed", reason: "TMDB answered HTTP 429" });
+    expect(calls).toBe(1);
+  });
+
+  it("reports a failed answer even when its body cannot be discarded", async () => {
+    const client = new TmdbClient({
+      fetch: async () =>
+        new Response(
+          new ReadableStream({
+            cancel() {
+              throw new Error("connection reset");
+            },
+          }),
+          { status: 503 },
+        ),
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({ kind: "failed", reason: "TMDB answered HTTP 503" });
+  });
+
+  it("stops waiting out a 429 when the caller cancels", async () => {
+    const client = new TmdbClient({
+      fetch: async () =>
+        new Response(null, { status: 429, headers: { "retry-after": "5" } }),
+      timeoutMs: 1_000,
+    });
+    const controller = new AbortController();
+    const reason = new Error("scan cancelled");
+
+    const search = client.searchMovies(
+      TOKEN,
+      { title: "Alien" },
+      controller.signal,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    controller.abort(reason);
+
+    await expect(search).rejects.toBe(reason);
+  });
+
+  it("rethrows the caller's abort instead of reporting an outage", async () => {
+    const client = new TmdbClient({ fetch: hanging, timeoutMs: 1_000 });
+    const controller = new AbortController();
+    const reason = new Error("scan cancelled");
+
+    const search = client.searchMovies(
+      TOKEN,
+      { title: "Alien" },
+      controller.signal,
+    );
+    controller.abort(reason);
+
+    await expect(search).rejects.toBe(reason);
+  });
+});
+
+describe("TmdbClient request queue", () => {
+  it("holds an in-flight slot until the response body finishes", async () => {
+    const { fetch, releases, paths } = heldMovieFetch(true);
+    const client = new TmdbClient({ fetch, timeoutMs: 10_000 });
+    const searches = ["a", "b", "c", "d", "e", "f"].map((title) =>
+      client.searchMovies(TOKEN, { title }),
+    );
+    await vi.waitFor(() => expect(paths).toHaveLength(5));
+    expect(releases).toHaveLength(5);
+    releases[0]?.();
+    await vi.waitFor(() => expect(paths).toHaveLength(6));
+    for (const release of releases) release();
+    await expect(Promise.all(searches)).resolves.toHaveLength(6);
+  });
+
+  it("rethrows caller cancellation while reading a response body", async () => {
+    const { fetch, paths } = heldMovieFetch(true);
+    const client = new TmdbClient({ fetch, timeoutMs: 10_000 });
+    const controller = new AbortController();
+    const reason = new Error("scan cancelled during body read");
+    const search = client.searchMovies(
+      TOKEN,
+      { title: "Alien" },
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(paths).toHaveLength(1));
+    controller.abort(reason);
+    await expect(search).rejects.toBe(reason);
+  });
+
+  it("checks a key ahead of lookups already waiting in line", async () => {
+    const { fetch, releases, paths } = heldMovieFetch();
+    const client = new TmdbClient({
+      fetch,
+      timeoutMs: 1_000,
+    });
+
+    const searches = ["a", "b", "c", "d", "e", "f"].map((title) =>
+      client.searchMovies(TOKEN, { title }),
+    );
+    await vi.waitFor(() => expect(paths).toHaveLength(5));
+    const check = client.checkKey(TOKEN);
+    releases[0]?.();
+
+    await expect(check).resolves.toEqual({ kind: "valid" });
+    expect(paths.slice(5, 6)).toEqual(["/3/authentication"]);
+    for (const release of releases) release();
+    await vi.waitFor(() => expect(paths).toHaveLength(7));
+    releases.at(-1)?.();
+    await Promise.all(searches);
+  });
+});
+
+describe("TmdbClient.movieDetails", () => {
+  it("reads genres, franchise, description, and poster from a movie's details", async () => {
+    const { fetch, urls } = routedFetch({
+      "/3/movie/348": () => Response.json(ALIEN_DETAILS),
+    });
+    const client = new TmdbClient({ fetch, timeoutMs: 1_000 });
+
+    await expect(client.movieDetails(TOKEN, 348)).resolves.toEqual({
+      kind: "ok",
+      value: {
+        id: 348,
+        title: "Alien",
+        releaseDate: "1979-05-25",
+        posterPath: "/alien.jpg",
+        genres: ["Horror", "Science Fiction"],
+        franchise: { id: 8091, name: "Alien Collection" },
+        description:
+          "During its return to the earth, commercial spaceship Nostromo…",
+      },
+    });
+    expect(urls.map(String)).toEqual([
+      "https://api.themoviedb.org/3/movie/348",
+    ]);
+  });
+
+  it("leaves unknown facts absent rather than empty", async () => {
+    const client = new TmdbClient({
+      fetch: async () =>
+        Response.json({
+          id: 7,
+          title: "Untitled",
+          release_date: "",
+          overview: "",
+          poster_path: null,
+          genres: [],
+          belongs_to_collection: null,
+        }),
+      timeoutMs: 1_000,
+    });
+
+    await expect(client.movieDetails(TOKEN, 7)).resolves.toEqual({
+      kind: "ok",
+      value: { id: 7, title: "Untitled", genres: [] },
+    });
   });
 });

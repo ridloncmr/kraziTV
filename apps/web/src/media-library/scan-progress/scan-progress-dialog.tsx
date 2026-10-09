@@ -112,7 +112,9 @@ export function ScanProgressDialog({
       <ScanAnimation
         animating={
           ending === null &&
-          (polled.phase === "discovering" || polled.phase === "probing")
+          (polled.phase === "discovering" ||
+            polled.phase === "probing" ||
+            polled.phase === "enriching")
         }
       />
       <p role="status" aria-live="polite">
@@ -135,7 +137,25 @@ export function ScanProgressDialog({
           <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
           <dt>Missing</dt>
           <dd>{counts.format(polled.summary.missingCount)}</dd>
+          {polled.lookupCount > 0 && (
+            <>
+              <dt>Matched</dt>
+              <dd>{counts.format(polled.summary.matchedCount)}</dd>
+              <dt>Ambiguous</dt>
+              <dd>{counts.format(polled.summary.ambiguousCount)}</dd>
+              <dt>Unmatched</dt>
+              <dd>{counts.format(polled.summary.unmatchedCount)}</dd>
+              <dt>Lookup errors</dt>
+              <dd>{counts.format(polled.summary.lookupErrorCount)}</dd>
+            </>
+          )}
         </dl>
+      )}
+      {completed && (polled.summary?.ambiguousCount ?? 0) > 0 && (
+        <p>
+          {counts.format(polled.summary?.ambiguousCount ?? 0)} need your choice.
+          Review them in Media Library.
+        </p>
       )}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
@@ -174,6 +194,8 @@ function statusLine(
       return `Looking for media files in ${rootPath}…`;
     case "probing":
       return "Probing media files…";
+    case "enriching":
+      return "Looking up media on TMDB…";
     case "committing":
       return "Saving to the catalog…";
     case "completed":
@@ -187,33 +209,47 @@ function statusLine(
 
 /**
  * Counts and the progress bar of a running job, outside the live region.
- * Only probing knows its total, so the bar is determinate only then.
+ * Only probing and enriching know their totals, so the bar is determinate
+ * only then.
  */
 function ScanProgress({ status }: { status: ScanStatus }) {
-  const probing = status.phase === "probing";
+  const step = progressStep(status);
   return (
     <>
-      {probing && status.currentPath && (
-        <p className="path-cell">Last probed: {fileName(status.currentPath)}</p>
-      )}
+      {step?.last && <p className="path-cell">{step.last}</p>}
       <SegmentedProgressBar
         label="Scan progress"
-        progress={
-          probing
-            ? {
-                value: status.settledCount,
-                max: Math.max(status.discoveredCount, 1),
-              }
-            : undefined
-        }
+        progress={step && { value: step.done, max: Math.max(step.total, 1) }}
       />
       <p>
-        {probing
-          ? `${counts.format(status.settledCount)} of ${counts.format(status.discoveredCount)} files`
+        {step
+          ? `${counts.format(step.done)} of ${counts.format(step.total)} ${step.unit}`
           : `${counts.format(status.discoveredCount)} found`}
       </p>
     </>
   );
+}
+
+/** The determinate step a running job is in, or undefined while its total is unknown. */
+function progressStep(status: ScanStatus) {
+  if (status.phase === "probing") {
+    return {
+      done: status.settledCount,
+      total: status.discoveredCount,
+      unit: "files",
+      last:
+        status.currentPath && `Last probed: ${fileName(status.currentPath)}`,
+    };
+  }
+  if (status.phase === "enriching") {
+    return {
+      done: status.lookedUpCount,
+      total: status.lookupCount,
+      unit: "looked up",
+      last: status.currentTitle && `Last looked up: ${status.currentTitle}`,
+    };
+  }
+  return undefined;
 }
 
 /** The server reports full paths on either platform; the dialog names only the file. */

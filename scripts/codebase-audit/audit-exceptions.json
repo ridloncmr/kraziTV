@@ -11,6 +11,15 @@
       "source": "docs/adrs/0011-shared-process-package.md"
     },
     {
+      "rule": "cross-package-copy",
+      "files": [
+        "apps/server/src/catalog-scan/contracts.ts",
+        "apps/web/src/http/contracts.ts"
+      ],
+      "reason": "ScanStatus is the scan route's JSON wire shape. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives (ISO timestamps, a loose error code); the overlap is the field list itself.",
+      "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
+    },
+    {
       "rule": "grouping",
       "files": ["packages/signal/src/channel-worker/"],
       "reason": "Every file serves the worker, so the domain stays flat.",
@@ -95,7 +104,8 @@
       "files": [
         "apps/server/src/database/schema/channel-table.ts",
         "apps/server/src/database/schema/media-item-table.ts",
-        "apps/server/src/database/schema/media-root-table.ts"
+        "apps/server/src/database/schema/media-root-table.ts",
+        "apps/server/src/database/schema/metadata-match-table.ts"
       ],
       "reason": "SqliteBoolean is owned by columns/sqlite-boolean.ts, which implements its conversions; the reference layout places it there.",
       "source": "AGENTS.md (source layout reference tree for database/: \"columns/ sqlite-boolean.ts\")"

@@ -32,6 +32,7 @@ import type { ScheduleService } from "../../schedules/schedule-service.js";
 import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
+import { withoutTmdbKey } from "../../testing/scan-metadata.js";
 
 type Server = FastifyInstance;
 type Writer = Pick<CatalogScanWriter, "commit">;
@@ -73,6 +74,7 @@ async function startServer(options: ServerOptions = {}) {
       const real = new CatalogScanWriter(db);
       return {
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober: new ConcurrencyLimitedProber(prober, 4),
           writer: options.writer?.(real) ?? real,
@@ -139,6 +141,9 @@ describe("POST /media-roots/:id/scan", () => {
         settledCount: 0,
         probeFailedCount: 0,
         currentPath: null,
+        lookupCount: 0,
+        lookedUpCount: 0,
+        currentTitle: null,
         cancelRequested: false,
         summary: null,
         error: null,
@@ -224,6 +229,10 @@ describe("POST /media-roots/:id/scan", () => {
         probedCount: 1,
         probeFailedCount: 1,
         missingCount: 0,
+        matchedCount: 0,
+        ambiguousCount: 0,
+        unmatchedCount: 0,
+        lookupErrorCount: 0,
       },
     });
   });
@@ -636,6 +645,7 @@ describe("scan schedule maintenance", () => {
       },
       overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),

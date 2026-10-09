@@ -6,6 +6,7 @@ import {
   type DiscoveredMediaFile,
   type MediaProbeError,
   type MediaProbeResult,
+  type PathHints,
 } from "@krazitv/media";
 
 import type { CatalogCandidate } from "../contracts.js";
@@ -25,17 +26,11 @@ export function createCatalogCandidate(
   outcome: ProbeOutcome,
   rootPath: string,
 ): CatalogCandidate {
-  const segments = mediaPathSegments(
-    rootPath,
-    file.path,
-    currentPathPlatform(),
-  );
+  const hints = pathHintsBelow(rootPath, file.path);
   const identity = {
     path: file.path,
     pathKey: file.pathKey,
-    title: segments
-      ? fallbackTitle(derivePathHints(segments), file.title)
-      : file.title,
+    title: hints ? fallbackTitle(hints, file.title) : file.title,
     probedAt: outcome.probedAt,
   };
   if (outcome.kind === "probed") {
@@ -53,6 +48,18 @@ export function createCatalogCandidate(
     status: "probe_failed",
     probeError: `${outcome.error.code}: ${outcome.error.message}`,
   };
+}
+
+/**
+ * Reads a discovered file's path hints from the folders below its media root,
+ * or undefined when the path is not below it. Titles and lookups both use it.
+ */
+export function pathHintsBelow(
+  rootPath: string,
+  path: string,
+): PathHints | undefined {
+  const segments = mediaPathSegments(rootPath, path, currentPathPlatform());
+  return segments ? derivePathHints(segments) : undefined;
 }
 
 /**

@@ -8,18 +8,23 @@ import {
   type DiscoveredMediaFile,
   type DiscoverMediaFilesOptions,
   type MediaProber,
+  type TmdbClient,
 } from "@krazitv/media";
 import type { FastifyBaseLogger } from "fastify";
 
 import type { CatalogRemovalService } from "../../catalog-removal/catalog-removal-service.js";
+import type { MetadataMatchRepository } from "../../content-metadata/metadata-match-repository.js";
+import type { TmdbKeyService } from "../../content-metadata/tmdb-key-service.js";
 import type { MediaRoot } from "../../media-roots/contracts.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import {
   createCatalogCandidate,
+  pathHintsBelow,
   validateCatalogCandidate,
   type ProbeOutcome,
 } from "./catalog-candidate.js";
+import { countLookups, enrichCandidates } from "./enrich-candidates.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { admitRoot } from "../root-admission.js";
 import type { ScanStart, ScanStatus } from "../contracts.js";
@@ -42,6 +47,13 @@ interface CatalogScannerOptions {
   schedules: Pick<ScheduleService, "ensureAllEnabled">;
   /** Purges removed media after every completed commit, before the schedule pass. */
   removals: Pick<CatalogRemovalService, "purge">;
+  /** Where enrichment reads the owner's key and which items are settled. */
+  metadata: {
+    tmdbKeys: Pick<TmdbKeyService, "readKey">;
+    metadataMatches: Pick<MetadataMatchRepository, "findSettledPathKeys">;
+    /** Must be the process's one TMDB client, whose queue every lookup shares. */
+    tmdb: TmdbClient;
+  };
   /** The process logger; a job outlives the request that started it. */
   log: Pick<FastifyBaseLogger, "info" | "warn" | "error">;
   discover?: (
@@ -53,10 +65,11 @@ interface CatalogScannerOptions {
 
 /**
  * Runs each root's scan as a background scan job: discover -> probe ->
- * candidate -> validate -> commit -> schedule pass. Discovery and probing are
- * persistence-free; only the writer touches the database, once, after every
- * probe has settled. Holds at most one running job per root, and each root's
- * latest terminal job until that root's next scan.
+ * candidate -> enrich -> validate -> commit -> schedule pass. Discovery,
+ * probing, and TMDB lookups are persistence-free; only the writer touches
+ * the database, once, after every probe and lookup has settled. Holds at
+ * most one running job per root, and each root's latest terminal job until
+ * that root's next scan.
  */
 export class CatalogScanner {
   readonly #roots: CatalogScannerOptions["roots"];
@@ -64,6 +77,7 @@ export class CatalogScanner {
   readonly #writer: CatalogScannerOptions["writer"];
   readonly #schedules: CatalogScannerOptions["schedules"];
   readonly #removals: CatalogScannerOptions["removals"];
+  readonly #metadata: CatalogScannerOptions["metadata"];
   readonly #log: CatalogScannerOptions["log"];
   readonly #discover: NonNullable<CatalogScannerOptions["discover"]>;
   readonly #now: () => number;
@@ -78,6 +92,7 @@ export class CatalogScanner {
     this.#writer = options.writer;
     this.#schedules = options.schedules;
     this.#removals = options.removals;
+    this.#metadata = options.metadata;
     this.#log = options.log;
     this.#discover = options.discover ?? discoverMediaFiles;
     this.#now = options.now ?? Date.now;
@@ -109,6 +124,9 @@ export class CatalogScanner {
         settledCount: 0,
         probeFailedCount: 0,
         currentPath: null,
+        lookupCount: 0,
+        lookedUpCount: 0,
+        currentTitle: null,
         cancelRequested: false,
         summary: null,
         error: null,
@@ -138,7 +156,8 @@ export class CatalogScanner {
 
   /**
    * Requests cancellation of the root's job and returns its status. Only a
-   * discovering or probing job is cancelled; a committing job finishes.
+   * discovering, probing, or enriching job is cancelled; a committing job
+   * finishes.
    */
   cancel(rootId: string): ScanStatus | undefined {
     const job = this.#jobs.get(rootId);
@@ -152,7 +171,8 @@ export class CatalogScanner {
 
   /**
    * Cancels every running job and waits until each has settled, which includes
-   * every ffprobe child closing, so the database can be closed safely afterwards.
+   * every ffprobe child closing and every started TMDB lookup settling, so the
+   * database can be closed safely afterwards.
    */
   async shutdown(): Promise<void> {
     this.#closing = true;
@@ -236,15 +256,34 @@ export class CatalogScanner {
     if (outcomes === undefined || signal.aborted) {
       return { phase: "cancelled" };
     }
-    // From here on cancellation is ignored: the commit and schedule pass always finish.
-    status.phase = "committing";
-    status.currentPath = null;
 
     // Outcomes are indexed like `files`, so identity order survives out-of-order probes.
     const candidates = files.map((file, index) =>
       createCatalogCandidate(file, outcomes[index], root.path),
     );
-    // Future metadata enrichment transforms `candidates` here, before validation.
+    const metadataMatches = await enrichCandidates({
+      items: candidates.map((candidate) => ({
+        candidate,
+        hints: pathHintsBelow(root.path, candidate.path),
+      })),
+      // Read after probing, so a key saved during a long probe is used.
+      apiKey: await this.#metadata.tmdbKeys.readKey(),
+      settled: await this.#metadata.metadataMatches.findSettledPathKeys(
+        root.id,
+      ),
+      tmdb: this.#metadata.tmdb,
+      signal,
+      now: this.#now,
+      status,
+    });
+    // Re-checked after the await, as after probing.
+    if (metadataMatches === undefined || signal.aborted) {
+      return { phase: "cancelled" };
+    }
+    // From here on cancellation is ignored: the commit and schedule pass always finish.
+    status.phase = "committing";
+    status.currentPath = null;
+    status.currentTitle = null;
     candidates.forEach(validateCatalogCandidate);
 
     const completedAt = this.#now();
@@ -252,6 +291,7 @@ export class CatalogScanner {
       rootId: root.id,
       scannedAt: completedAt,
       candidates,
+      metadataMatches,
     });
     if (commit.kind === "root_not_found") {
       return failed(
@@ -281,6 +321,7 @@ export class CatalogScanner {
         probedCount: files.length - status.probeFailedCount,
         probeFailedCount: status.probeFailedCount,
         missingCount: commit.missingCount,
+        ...countLookups(metadataMatches),
       },
     };
   }

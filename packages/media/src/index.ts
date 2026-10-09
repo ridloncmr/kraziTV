@@ -5,6 +5,11 @@ export {
   type NormalizedMediaPath,
 } from "./paths/media-path.js";
 export { derivePathHints } from "./path-hints/derive-path-hints.js";
+export type { PathHints } from "./path-hints/contracts.js";
+export {
+  lookUpMovie,
+  type MovieLookup,
+} from "./metadata-matching/look-up-movie.js";
 export { fallbackTitle } from "./path-hints/fallback-title.js";
 export {
   discoverMediaFiles,

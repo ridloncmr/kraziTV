@@ -11,8 +11,13 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaItemTable } from "../../database/schema/media-item-table.js";
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
-import type { CatalogCandidate, RootRejection } from "../contracts.js";
+import type {
+  CatalogCandidate,
+  MetadataMatchRecord,
+  RootRejection,
+} from "../contracts.js";
 import { admitRoot } from "../root-admission.js";
+import { writeMetadataMatches } from "./write-metadata-matches.js";
 
 /** A fully staged scan of one root, ready to replace that root's catalog state. */
 interface CatalogGeneration {
@@ -21,6 +26,8 @@ interface CatalogGeneration {
   scannedAt: number;
   /** Every discovered file, in path-identity order. */
   candidates: readonly CatalogCandidate[];
+  /** Enrichment's records for some candidates; a scan without lookups has none. */
+  metadataMatches?: readonly MetadataMatchRecord[];
 }
 
 type CommitGenerationResult =
@@ -45,7 +52,8 @@ export class CatalogScanWriter {
   }
 
   /**
-   * Upserts candidates, marks unseen items missing, and records the scan time.
+   * Upserts candidates and their metadata matches, marks unseen items
+   * missing, and records the scan time.
    * The root is re-read inside the transaction so a root disabled, deleted,
    * or removed during the scan can never receive a late generation; a removed
    * root reads as not found.
@@ -85,7 +93,7 @@ export class CatalogScanWriter {
    */
   async #applyGeneration(
     trx: Transaction<DatabaseSchema>,
-    { rootId, scannedAt, candidates }: CatalogGeneration,
+    { rootId, scannedAt, candidates, metadataMatches = [] }: CatalogGeneration,
   ): Promise<number> {
     const existing = await trx
       .selectFrom("media_items")
@@ -96,8 +104,14 @@ export class CatalogScanWriter {
       existing.map((item) => [item.path_key, item]),
     );
 
+    // A removed item found again returns as if newly discovered.
+    const rediscoveredIds: string[] = [];
     const rows = candidates.map((candidate) => {
-      const id = existingByKey.get(candidate.pathKey)?.id ?? this.#createId();
+      const existingItem = existingByKey.get(candidate.pathKey);
+      if (existingItem?.removed_at != null) {
+        rediscoveredIds.push(existingItem.id);
+      }
+      const id = existingItem?.id ?? this.#createId();
       existingByKey.delete(candidate.pathKey);
       return toItemRow(id, rootId, scannedAt, candidate);
     });
@@ -105,6 +119,12 @@ export class CatalogScanWriter {
       await yieldToEventLoop();
       await upsertItems(trx, chunk);
     }
+    await writeMetadataMatches(
+      trx,
+      new Map(rows.map((row) => [row.path_key, row.id])),
+      metadataMatches,
+      rediscoveredIds,
+    );
 
     // Whatever remains was not discovered; metadata stays for history.
     const newlyMissing = [...existingByKey.values()]

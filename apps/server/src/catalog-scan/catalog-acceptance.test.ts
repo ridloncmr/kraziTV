@@ -21,6 +21,7 @@ import {
 import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./scanner/concurrency-limited-prober.js";
+import { withoutTmdbKey } from "../testing/scan-metadata.js";
 
 interface RunningServer {
   server: FastifyInstance;
@@ -53,6 +54,7 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
         writer: new CatalogScanWriter(db),
         schedules,
         removals: catalogRemovals,
+        metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),
     }),

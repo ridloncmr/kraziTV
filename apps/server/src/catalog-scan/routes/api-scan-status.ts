@@ -28,5 +28,9 @@ function toApiScanSummary(summary: ScanSummary): ApiScanStatus["summary"] {
     probedCount: summary.probedCount,
     probeFailedCount: summary.probeFailedCount,
     missingCount: summary.missingCount,
+    matchedCount: summary.matchedCount,
+    ambiguousCount: summary.ambiguousCount,
+    unmatchedCount: summary.unmatchedCount,
+    lookupErrorCount: summary.lookupErrorCount,
   };
 }

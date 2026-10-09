@@ -4,6 +4,7 @@ import { pino } from "pino";
 
 import { buildServer } from "./app.js";
 import { AuthService } from "./auth/auth-service.js";
+import { MetadataMatchRepository } from "./content-metadata/metadata-match-repository.js";
 import { TmdbKeyService } from "./content-metadata/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
@@ -43,11 +44,11 @@ const ffmpegPath = parseFfmpegPath(process.env);
 const database = await openDatabase({ dataDirectory });
 
 const auth = new AuthService(database.db);
-// Long enough for a slow TMDB answer, short enough that a key save never hangs.
-const tmdbKeys = new TmdbKeyService(
-  database.db,
-  new TmdbClient({ timeoutMs: 10_000 }),
-);
+// One client for the process: its request queue keeps key saves and every
+// scan's lookups together under TMDB's rate ceiling. The timeout is long
+// enough for a slow TMDB answer, short enough that a key save never hangs.
+const tmdb = new TmdbClient({ timeoutMs: 10_000 });
+const tmdbKeys = new TmdbKeyService(database.db, tmdb);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -78,6 +79,11 @@ const scanner = new CatalogScanner({
   writer: new CatalogScanWriter(database.db),
   schedules,
   removals: catalogRemovals,
+  metadata: {
+    tmdbKeys,
+    metadataMatches: new MetadataMatchRepository(database.db),
+    tmdb,
+  },
   log: logger,
 });
 const runtime = new SystemRuntime();

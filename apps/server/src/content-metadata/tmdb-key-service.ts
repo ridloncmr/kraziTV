@@ -5,7 +5,8 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 
 /**
  * Owns the owner's TMDB key (ADR 0013). The key goes in through `save` and
- * out only to TMDB; no method returns it, so no route can.
+ * out only to TMDB: `readKey` serves the catalog scan's lookups, and no
+ * route handler calls it, so no response can carry the key.
  */
 export class TmdbKeyService {
   readonly #db: Kysely<DatabaseSchema>;
@@ -20,11 +21,19 @@ export class TmdbKeyService {
 
   /** Reports whether a key is saved, never the key itself. */
   async isConfigured(): Promise<boolean> {
+    return (await this.readKey()) !== undefined;
+  }
+
+  /**
+   * Reads the saved key for a TMDB call, or undefined when none is set. Only
+   * TMDB lookups may use it; it must never reach a response or a log line.
+   */
+  async readKey(): Promise<string | undefined> {
     const row = await this.#db
       .selectFrom("server_settings")
       .select("tmdb_api_key")
       .executeTakeFirstOrThrow();
-    return row.tmdb_api_key !== null;
+    return row.tmdb_api_key ?? undefined;
   }
 
   /**
