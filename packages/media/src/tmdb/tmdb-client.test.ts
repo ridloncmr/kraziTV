@@ -365,7 +365,7 @@ describe("TmdbClient request queue", () => {
 });
 
 describe("TmdbClient.movieDetails", () => {
-  it("reads genres, franchise, description, and poster from a movie's details", async () => {
+  it("reads genres, franchise, description, poster, and runtime from a movie's details", async () => {
     const { fetch, urls } = routedFetch({
       "/3/movie/348": () => Response.json(ALIEN_DETAILS),
     });
@@ -382,6 +382,7 @@ describe("TmdbClient.movieDetails", () => {
         franchise: { id: 8091, name: "Alien Collection" },
         description:
           "During its return to the earth, commercial spaceship Nostromo…",
+        runtimeMs: 117 * 60_000,
       },
     });
     expect(urls.map(String)).toEqual([
@@ -400,6 +401,7 @@ describe("TmdbClient.movieDetails", () => {
           poster_path: null,
           genres: [],
           belongs_to_collection: null,
+          runtime: 0,
         }),
       timeoutMs: 1_000,
     });

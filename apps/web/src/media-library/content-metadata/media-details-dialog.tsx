@@ -1,26 +1,36 @@
 import { Fragment } from "react";
 import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
 import { displayTime } from "../../controls/display-time.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
+import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts.js";
+import { useMutation } from "../../http/use-resource.js";
 import { matchStateLabel } from "./match-state-label.js";
-
-// TMDB serves posters by size from this base; kraziTV stores only the path.
-const POSTER_BASE = "https://image.tmdb.org/t/p/w342";
+import { posterUrl } from "./poster-url.js";
 
 /**
- * Shows one item's match state and accepted content facts, read-only. Only
- * facts the server reports appear; the poster loads from TMDB, and TMDB's
- * notice shows whenever TMDB facts do.
+ * Shows one item's match state and accepted content facts. Only facts the
+ * server reports appear; the poster loads from TMDB, and TMDB's notice shows
+ * whenever TMDB facts do. Offers the match decisions the item's state allows:
+ * choosing among candidates, rejecting a match, or clearing a rejection.
  */
 export function MediaDetailsDialog({
   item,
+  onChooseMatch,
+  onChanged,
   onClose,
 }: {
   item: MediaItem;
+  /** Opens the candidate choice in place of this dialog. */
+  onChooseMatch: () => void;
+  /** A rejection or its clearing committed; the listed item is now stale. */
+  onChanged: () => void;
   onClose: () => void;
 }) {
   const { metadata } = item;
+  const decision = useMutation();
+  const rejection = `${resourcePath("metadata/matches", item.id)}/rejection`;
   const facts: [string, string | null][] = [
     ["Match", matchStateLabel(metadata)],
     ["Lookup error", metadata.lookupError],
@@ -32,7 +42,11 @@ export function MediaDetailsDialog({
     ["Franchise", metadata.franchiseName],
   ];
   return (
-    <WindowDialog title="Media details" onClose={onClose}>
+    <WindowDialog
+      title="Media details"
+      busy={decision.pending}
+      onClose={onClose}
+    >
       <p>
         {item.title}
         <small className="secondary path-cell">{item.path}</small>
@@ -41,7 +55,7 @@ export function MediaDetailsDialog({
         {metadata.posterPath && (
           <img
             className="media-poster"
-            src={`${POSTER_BASE}${metadata.posterPath}`}
+            src={posterUrl(metadata.posterPath, "w342")}
             alt={`Poster for ${metadata.seriesName ?? metadata.title ?? item.title}`}
           />
         )}
@@ -65,8 +79,37 @@ export function MediaDetailsDialog({
           <TmdbAttribution />
         </>
       )}
+      <RequestFeedback loading={decision.pending} error={decision.error} />
       <div className="dialog-actions">
-        <button onClick={onClose}>Close</button>
+        {metadata.matchState === "ambiguous" && (
+          <button disabled={decision.pending} onClick={onChooseMatch}>
+            Choose match…
+          </button>
+        )}
+        {(metadata.matchState === "ambiguous" ||
+          metadata.matchState === "matched") && (
+          <button
+            disabled={decision.pending}
+            onClick={() =>
+              void decision.run(rejection, "POST", undefined, onChanged)
+            }
+          >
+            Reject match
+          </button>
+        )}
+        {metadata.matchState === "rejected" && (
+          <button
+            disabled={decision.pending}
+            onClick={() =>
+              void decision.run(rejection, "DELETE", undefined, onChanged)
+            }
+          >
+            Clear rejection
+          </button>
+        )}
+        <button disabled={decision.pending} onClick={onClose}>
+          Close
+        </button>
       </div>
     </WindowDialog>
   );

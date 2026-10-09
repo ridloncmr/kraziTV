@@ -6,15 +6,19 @@ export {
 } from "./paths/media-path.js";
 export { derivePathHints } from "./path-hints/derive-path-hints.js";
 export type { PathHints } from "./path-hints/contracts.js";
+export { seriesEpisode } from "./path-hints/series-episode.js";
 export {
   lookUpEpisodes,
+  lookUpEpisodesInSeries,
   type EpisodeHints,
   type EpisodeLookup,
 } from "./metadata-matching/look-up-episodes.js";
 export {
   lookUpMovie,
+  lookUpMovieById,
   type MovieLookup,
 } from "./metadata-matching/look-up-movie.js";
+export { lookUpRuntimeMs } from "./metadata-matching/look-up-runtime.js";
 export { fallbackTitle } from "./path-hints/fallback-title.js";
 export {
   discoverMediaFiles,

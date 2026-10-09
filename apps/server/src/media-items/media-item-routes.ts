@@ -15,6 +15,8 @@ const listQuery = z.strictObject({
   q: z.string().trim().default(""),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  // Present only to filter, so any value but `true` is a caller error.
+  needsChoice: z.literal("true").optional(),
 });
 
 // Bulk selection takes every match at once; the cap keeps one response bounded
@@ -47,8 +49,13 @@ export function registerMediaItemRoutes(
     if (!query.success) {
       return sendInvalidRequest(reply, query.error);
     }
-    const { q, limit, offset } = query.data;
-    const page = await mediaItems.list({ search: q, limit, offset });
+    const { q, limit, offset, needsChoice } = query.data;
+    const page = await mediaItems.list({
+      search: q,
+      limit,
+      offset,
+      needsChoice: needsChoice !== undefined,
+    });
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });
 

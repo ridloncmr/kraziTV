@@ -5,6 +5,7 @@ import {
   readDate,
   readGenres,
   readResults,
+  readRuntimeMs,
   readTitleSummary,
   text,
   type TmdbTitleSummary,
@@ -31,6 +32,8 @@ export interface TmdbEpisode {
   /** First air date, keeping TMDB's precision. */
   airDate?: string;
   description?: string;
+  /** Shown beside a file's probed duration; never evidence for a match. */
+  runtimeMs?: number;
 }
 
 /** One season's episodes from TMDB, in TMDB's order. */
@@ -93,6 +96,8 @@ function readEpisode(value: unknown): TmdbEpisode | undefined {
   if (airDate !== undefined) episode.airDate = airDate;
   const description = text(value.overview);
   if (description !== undefined) episode.description = description;
+  const runtimeMs = readRuntimeMs(value.runtime);
+  if (runtimeMs !== undefined) episode.runtimeMs = runtimeMs;
   return episode;
 }
 

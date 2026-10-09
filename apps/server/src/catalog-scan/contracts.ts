@@ -1,9 +1,4 @@
-import type {
-  EpisodeHints,
-  EpisodeLookup,
-  MovieLookup,
-  PathHints,
-} from "@krazitv/media";
+import type { EpisodeHints, PathHints } from "@krazitv/media";
 
 /** The facts a completed scan reports; the summary of a `completed` scan job. */
 export interface ScanSummary {
@@ -95,22 +90,6 @@ export interface ApiScanStatus extends Omit<
       })
     | null;
 }
-
-/**
- * What enrichment decided for one candidate, travelling beside it to the
- * commit so the technical candidate stays about catalog invariants. An extra
- * is recorded without a lookup; every other record is one lookup's outcome.
- */
-export type MetadataMatchRecord = { pathKey: string; hints: PathHints } & (
-  | { kind: "extra" }
-  | {
-      kind: "looked_up";
-      lookedUpAt: number;
-      /** The probed duration, kept with a match to flag later file changes. */
-      durationMs: number;
-      lookup: MovieLookup | EpisodeLookup;
-    }
-);
 
 /** One discovered file as enrichment sees it: its candidate and path hints. */
 export interface HintedCandidate {

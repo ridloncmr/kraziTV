@@ -6,12 +6,14 @@ import { resourcePath } from "../http/api-client.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
-import type { MediaItem, MediaRoot } from "../http/contracts.js";
+import type { MediaItem, MediaRoot, ReviewStep } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
+import { ReviewMatchesDialog } from "./content-metadata/review-matches-dialog.js";
 import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
 import type { RemovalSubject } from "./removal/removal-messages.js";
 import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
@@ -28,7 +30,14 @@ const PAGE_SIZE = 50;
 export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   const [search, setSearch] = useState("");
-  const media = useMediaItemPage(search, PAGE_SIZE, visible);
+  const [needsChoice, setNeedsChoice] = useState(false);
+  const media = useMediaItemPage(search, PAGE_SIZE, visible, { needsChoice });
+  // Counts the Review matches steps; a failed read only hides the button.
+  const review = useResource<{ steps: ReviewStep[] }>(
+    "/metadata/match-reviews",
+    visible,
+  );
+  const reviewCount = review.data?.steps.length ?? 0;
   const mutation = useMutation();
   const scan = useScanJob(roots.data);
   // Which request the feedback reports, so an earlier root write's success
@@ -41,6 +50,9 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
   const [removalMessage, setRemovalMessage] = useState("");
   // The listed item whose details are open, as the listing reported it.
   const [detailed, setDetailed] = useState<MediaItem>();
+  // The listed item whose candidates are open, and whether Review matches is.
+  const [choosing, setChoosing] = useState<MediaItem>();
+  const [reviewing, setReviewing] = useState(false);
   // Selection is transient desktop shell state; it survives paging and search.
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const range = useRangeToggle(
@@ -56,6 +68,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
   function refresh() {
     roots.refresh();
     media.refresh();
+    review.refresh();
   }
   return (
     <div className="program-page">
@@ -163,6 +176,21 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
+        <div className="row-actions" role="group" aria-label="Matches">
+          <label>
+            <input
+              type="checkbox"
+              checked={needsChoice}
+              onChange={(event) => setNeedsChoice(event.target.checked)}
+            />
+            Needs your choice only
+          </label>
+          {reviewCount > 0 && (
+            <button onClick={() => setReviewing(true)}>
+              Review matches ({reviewCount})
+            </button>
+          )}
+        </div>
         <div className="list-toolbar">
           {media.data && (
             <Pager
@@ -194,7 +222,9 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
         <p className="empty-state">
           {search.trim()
             ? "No cataloged media matches this search."
-            : "The catalog is empty. Scan an enabled media root to discover media."}
+            : needsChoice
+              ? "Nothing needs your choice."
+              : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
       )}
       {media.data && media.data.items.length > 0 && (
@@ -275,7 +305,34 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
       {detailed && (
         <MediaDetailsDialog
           item={detailed}
+          onChooseMatch={() => {
+            setDetailed(undefined);
+            setChoosing(detailed);
+          }}
+          onChanged={() => {
+            setDetailed(undefined);
+            refresh();
+          }}
           onClose={() => setDetailed(undefined)}
+        />
+      )}
+      {choosing && (
+        <MatchChoiceDialog
+          mediaItemId={choosing.id}
+          title={choosing.title}
+          onDecided={() => {
+            setChoosing(undefined);
+            refresh();
+          }}
+          onClose={() => setChoosing(undefined)}
+        />
+      )}
+      {reviewing && (
+        <ReviewMatchesDialog
+          onClose={() => {
+            setReviewing(false);
+            refresh();
+          }}
         />
       )}
       {scan.followed && (
@@ -286,6 +343,11 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
           onAcknowledge={() => {
             scan.acknowledge();
             refresh();
+          }}
+          onReview={() => {
+            scan.acknowledge();
+            refresh();
+            setReviewing(true);
           }}
         />
       )}

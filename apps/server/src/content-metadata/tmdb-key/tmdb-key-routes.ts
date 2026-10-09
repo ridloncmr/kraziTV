@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
+import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
 import type { TmdbKeyService } from "./tmdb-key-service.js";
 
 // A pasted token often carries stray spaces; TMDB tokens never contain one.

@@ -1,7 +1,7 @@
 import type { TmdbClient, TmdbKeyCheck } from "@krazitv/media";
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 
 /**
  * Owns the owner's TMDB key (ADR 0013). The key goes in through `save` and

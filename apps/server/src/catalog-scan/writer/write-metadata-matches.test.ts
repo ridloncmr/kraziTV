@@ -19,7 +19,7 @@ import {
   openTestDatabase,
 } from "../../testing/test-environment.js";
 import { sequentialIds } from "../../testing/record-sources.js";
-import type { MetadataMatchRecord } from "../contracts.js";
+import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { TmdbClient } from "../tmdb/tmdb-client.js";
 import { searchResult, tmdb } from "../testing/tmdb-movies.js";
-import { lookUpMovie } from "./look-up-movie.js";
+import { lookUpMovie, lookUpMovieById } from "./look-up-movie.js";
 
 const TOKEN = "eyJ.read-access-token.sig";
 
@@ -131,5 +131,22 @@ describe("lookUpMovie", () => {
       query: { title: "Alien" },
       reason: "TMDB answered HTTP 503",
     });
+  });
+});
+
+describe("lookUpMovieById", () => {
+  it("reads a chosen movie without searching, keeping the original query as evidence", async () => {
+    const { client, urls } = tmdb({
+      Alien: [searchResult(348, "Alien", "1979")],
+    });
+
+    await expect(
+      lookUpMovieById(client, TOKEN, 348, { title: "Alien" }),
+    ).resolves.toMatchObject({
+      kind: "matched",
+      query: { title: "Alien" },
+      movie: { id: 348, runtimeMs: 117 * 60_000 },
+    });
+    expect(urls.map((url) => url.pathname)).toEqual(["/3/movie/348"]);
   });
 });

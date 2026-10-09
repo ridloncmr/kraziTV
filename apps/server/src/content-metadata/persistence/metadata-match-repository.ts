@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { isSettledMatch } from "./settled-match.js";
 
 /** Reads metadata match decisions for the catalog scan. */

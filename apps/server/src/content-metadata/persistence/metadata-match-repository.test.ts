@@ -4,14 +4,14 @@ import {
   FIXTURE_TIME,
   itemFixtureAt,
   rootFixture,
-} from "../testing/catalog-fixtures.js";
+} from "../../testing/catalog-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import type { Insertable } from "kysely";
 
-import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
+import type { MetadataMatchTable } from "../../database/schema/metadata-match-table.js";
 import { MetadataMatchRepository } from "./metadata-match-repository.js";
 
 afterEach(cleanUpTestEnvironment);

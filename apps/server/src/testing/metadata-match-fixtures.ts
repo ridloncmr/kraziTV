@@ -1,10 +1,8 @@
 import { derivePathHints } from "@krazitv/media";
 import type { HintedCandidate } from "../catalog-scan/contracts.js";
 import type { EpisodeLookup, MovieLookup, PathHints } from "@krazitv/media";
-import type {
-  CatalogCandidate,
-  MetadataMatchRecord,
-} from "../catalog-scan/contracts.js";
+import type { CatalogCandidate } from "../catalog-scan/contracts.js";
+import type { MetadataMatchRecord } from "../content-metadata/contracts.js";
 import type { ContentMetadata } from "../media-items/contracts.js";
 import { FIXTURE_TIME, itemFixture } from "./catalog-fixtures.js";
 /** Lookup time shared by staged records and their expected persistence. */
@@ -161,3 +159,13 @@ export const METADATA_PATHS = {
   rejected: "/media/movies/Wrong/movie.mkv",
   notLookedUp: "/media/movies/New/movie.mkv",
 };
+
+// An item waiting under `rootId` at a root-relative path, titled by its path.
+export function waiting(relativePath: string, rootId = "root-a") {
+  return {
+    id: `${rootId}:${relativePath}`,
+    rootId,
+    title: relativePath,
+    hints: derivePathHints(relativePath.split("/")),
+  };
+}

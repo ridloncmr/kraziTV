@@ -275,8 +275,8 @@ treat `&` and `and` as equal.
 
 Popularity never breaks a tie. Runtime is not acceptance evidence, because TMDB
 episode runtimes are often missing and extended cuts differ; the candidate
-choice shows each candidate's runtime beside the probed duration to help the
-user decide.
+choice can show each candidate's runtime beside the probed duration to help
+the user decide.
 
 **Shared series per folder.** The series folder is the folder an episode's series
 hint came from, such as `Firefly/` for `Firefly/Season 2/s02e01.mkv`, so it spans
@@ -303,6 +303,49 @@ them, and a re-encode of the same episode needs no review. Playability still
 follows the new probe result. A renamed or moved file is a new path and so a new
 media item, matched from scratch; carrying corrections across paths is out of
 scope.
+
+### Resolving Matches In Media Library
+
+The owner resolves items that need a choice in one of two ways: one at a time
+after filtering, or all at once in a walk-through.
+
+| Way                | How it starts                                                                     | Suits                                |
+| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------ |
+| Filter             | A **Needs your choice** filter on the Media Library list                          | Fixing one item and moving on        |
+| **Review matches** | A `Review matches (<n>)` button, or the scan summary's **Review matches…** button | Working through every waiting choice |
+
+**Filter.** Media Library's list can be narrowed to items whose match state is
+ambiguous. It combines with the text search and pages like the full list. The
+owner opens an item's **Media details** and chooses **Choose match**, which
+opens the candidate choice, or **Reject match**. A rejected item's details offer
+**Clear rejection**.
+
+**Candidate choice.** A window dialog lists each candidate's poster, title,
+and year beside the item's probed duration. Opening it calls TMDB for
+nothing; **Show runtime** on a candidate asks TMDB for that one runtime. The
+owner picks one, or chooses **None of these**, which rejects the match.
+
+**Review matches.** The button shows only while at least one item needs a
+choice; `<n>` counts steps, not files. It opens a window dialog that shows one
+step at a time:
+
+1. Each step is the candidate choice for one series folder, or for one movie
+   file. Forty ambiguous `Doctor Who` episodes are one step, because choosing a
+   series resolves every episode under that series folder.
+2. The step offers each candidate, **None of these**, and **Skip**, which leaves
+   the step's items unchanged for later.
+3. A choice or rejection commits immediately, then the next step shows. Closing
+   the dialog keeps every commit already made.
+4. After the last step the dialog shows `All done.` with counts of chosen,
+   rejected, and skipped steps, and a **Close** button.
+
+Steps are built when the dialog opens. A step whose items were resolved,
+removed, or changed meanwhile is dropped without a commit. Disc-track files are
+left out of the walk-through; [Disc-Track Mapping](#disc-track-mapping) resolves
+them.
+
+When a completed scan reports items needing a choice, its summary offers a
+**Review matches…** button beside **OK** that opens the walk-through.
 
 ### Disc-Track Mapping
 
@@ -358,7 +401,7 @@ cancellation leaves the catalog unchanged as it does during probing.
 The other phases keep their [spec 0009](../../001-mvp/specs/0009-background-catalog-scans.md)
 status lines. The `Scan completed.` summary adds matched, ambiguous, unmatched,
 and lookup-error counts; when any item is ambiguous it adds
-`<n> need your choice. Review them in Media Library.`
+`<n> need your choice.` and a **Review matches…** button.
 
 **Metadata-only retry.** A retry runs as a scan job of the root with only
 `enriching -> committing`, shown in the same progress dialog and subject to the
@@ -450,6 +493,10 @@ None.
   `Doctor Who` or `The Thing`, is ambiguous, never resolved by popularity.
 - Choosing a series for one episode resolves every other episode under the same
   series folder, across its season folders, to the same series.
+- Media Library filters its list to items needing a choice.
+- **Review matches** shows one step per series folder or movie file, commits
+  each choice as it is made, keeps earlier commits when closed early, and ends
+  with chosen, rejected, and skipped counts.
 - A bare `Series` folder is skipped; `Series 1` is a season folder.
 - Map tracks to episodes is offered only when a TMDB key is set.
 - A file whose name lacks the title, such as `Firefly/Season 1/s01e05.mp4`, is

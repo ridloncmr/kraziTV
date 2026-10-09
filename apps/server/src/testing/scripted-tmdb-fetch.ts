@@ -9,6 +9,8 @@ export interface ScriptedMovie {
   releaseDate?: string;
   genres?: string[];
   franchise?: { id: number; name: string };
+  /** Whole minutes; absent answers TMDB's `0` for an unknown runtime. */
+  runtime?: number;
 }
 
 /** A series the scripted TMDB knows, from which it answers searches, details, and seasons. */
@@ -19,6 +21,8 @@ export interface ScriptedSeries {
   firstAirDate?: string;
   /** Episodes per season number; season `0` holds specials. */
   episodeCounts: Record<number, number>;
+  /** Every episode's runtime in whole minutes; absent answers TMDB's null. */
+  episodeRuntime?: number;
 }
 
 /**
@@ -126,6 +130,7 @@ export class ScriptedTmdbFetch {
       poster_path: `/poster-${movie.id}.jpg`,
       genres: (movie.genres ?? []).map((name, index) => ({ id: index, name })),
       belongs_to_collection: movie.franchise ?? null,
+      runtime: movie.runtime ?? 0,
     });
   }
 
@@ -164,6 +169,7 @@ export class ScriptedTmdbFetch {
           name: `${series.name} ${season}x${index + 1}`,
           air_date: series.firstAirDate ?? "",
           overview: "",
+          runtime: series.episodeRuntime ?? null,
         })),
       });
     }

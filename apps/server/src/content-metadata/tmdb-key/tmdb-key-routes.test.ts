@@ -1,14 +1,14 @@
 import { TmdbClient } from "@krazitv/media";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { send } from "../testing/api-requests.js";
-import { captureLogLines } from "../testing/captured-log-lines.js";
-import { ScriptedTmdbFetch } from "../testing/scripted-tmdb-fetch.js";
-import { createBarrier } from "../testing/test-barrier.js";
+import { send } from "../../testing/api-requests.js";
+import { captureLogLines } from "../../testing/captured-log-lines.js";
+import { ScriptedTmdbFetch } from "../../testing/scripted-tmdb-fetch.js";
+import { createBarrier } from "../../testing/test-barrier.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import { TmdbKeyService } from "./tmdb-key-service.js";
 
 afterEach(cleanUpTestEnvironment);

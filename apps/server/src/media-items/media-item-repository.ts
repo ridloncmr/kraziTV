@@ -47,6 +47,9 @@ export class MediaItemRepository {
           "not in",
           jsonIdList(query.excludeIds ?? []),
         ),
+      )
+      .$if(query.needsChoice === true, (builder) =>
+        builder.where("metadata_matches.state", "=", "ambiguous"),
       );
     const rows = await matching
       .selectAll("media_items")

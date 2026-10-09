@@ -15,6 +15,7 @@ import {
   OUTAGE,
   itemWith,
 } from "../../testing/admin-fixtures.js";
+import { openMediaDetails as openDetails } from "../../testing/media-library-actions.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { MediaLibraryApp } from "../media-library-app.js";
 
@@ -39,12 +40,6 @@ async function showCatalog(items: MediaItem[]) {
 /** The listed row showing `title`. */
 function rowOf(title: string) {
   return screen.getByText(title).closest("tr")!;
-}
-
-/** Opens the details dialog for the listed item titled `title`. */
-function openDetails(title: string) {
-  fireEvent.click(screen.getByRole("button", { name: `Details for ${title}` }));
-  return screen.getByRole("dialog", { name: "Media details" });
 }
 
 it("labels each item's match state, naming a failed lookup apart from unmatched", async () => {

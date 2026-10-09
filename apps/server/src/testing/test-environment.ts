@@ -13,8 +13,9 @@ import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
-import { MetadataMatchRepository } from "../content-metadata/metadata-match-repository.js";
-import { TmdbKeyService } from "../content-metadata/tmdb-key-service.js";
+import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
+import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
+import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -123,6 +124,7 @@ export async function startTestServer(
     timeoutMs: 1_000,
   });
   const tmdbKeys = new TmdbKeyService(database.db, tmdb);
+  const matchChoices = new MatchChoiceService(database.db, tmdbKeys, tmdb);
   // Built per dependency set, so the default scanner can follow overrides.
   const defaultScanner = (
     roots: MediaRootRepository,
@@ -153,6 +155,7 @@ export async function startTestServer(
     auth,
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
     tmdbKeys,
+    matchChoices,
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

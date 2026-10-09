@@ -55,6 +55,25 @@ export interface MediaItemPage {
   items: MediaItem[];
   total: number;
 }
+/** One Review matches step: the item to choose for, and how many items its choice settles. */
+export interface ReviewStep {
+  mediaItemId: string;
+  title: string;
+  itemCount: number;
+}
+/** One TMDB result an ambiguous item offers; unknown facts are null. */
+interface MatchCandidate {
+  tmdbId: number;
+  title: string;
+  releaseDate: string | null;
+  posterPath: string | null;
+}
+/** An ambiguous item's candidates beside the file's own probed duration. */
+export interface MatchCandidates {
+  kind: "movie" | "series";
+  durationMs: number | null;
+  candidates: MatchCandidate[];
+}
 export interface MediaCollection {
   id: string;
   name: string;

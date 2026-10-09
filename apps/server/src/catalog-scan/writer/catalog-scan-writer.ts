@@ -11,11 +11,8 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaItemTable } from "../../database/schema/media-item-table.js";
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
-import type {
-  CatalogCandidate,
-  MetadataMatchRecord,
-  RootRejection,
-} from "../contracts.js";
+import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
+import type { CatalogCandidate, RootRejection } from "../contracts.js";
 import { admitRoot } from "../root-admission.js";
 import { writeMetadataMatches } from "./write-metadata-matches.js";
 

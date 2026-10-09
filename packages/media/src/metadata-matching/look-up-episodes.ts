@@ -25,17 +25,14 @@ export type EpisodeLookup = { query: TmdbTitleQuery } & (
 
 /** How a series folder's series resolved before any episode is checked. */
 type SeriesResolution =
-  | { kind: "series"; series: TmdbSeries }
-  | Exclude<EpisodeLookup, { kind: "matched" }>;
+  { kind: "series"; id: number } | Exclude<EpisodeLookup, { kind: "matched" }>;
 
 /**
  * Looks up the episodes under one series folder, returning one lookup per
  * file in `episodes` order. The folder's series is settled once by the
- * spec's episode rule: one search, and details for the one series it
- * matches. Each hinted season that series lists is then fetched once, and a
- * file matches only when its episodes are there; otherwise it is offered that
- * series. The caller's abort is rethrown once every started request has
- * settled.
+ * spec's episode rule: one search, then the one series it matches is read as
+ * `lookUpEpisodesInSeries` reads it. The caller's abort is rethrown once
+ * every started request has settled.
  */
 export async function lookUpEpisodes(
   client: TmdbClient,
@@ -47,8 +44,36 @@ export async function lookUpEpisodes(
   const query = titleQuery(hints);
   const resolution = await resolveSeries(client, apiKey, hints, query, signal);
   if (resolution.kind !== "series") return episodes.map(() => resolution);
+  return lookUpEpisodesInSeries(
+    client,
+    apiKey,
+    resolution.id,
+    query,
+    episodes,
+    signal,
+  );
+}
 
-  const { series } = resolution;
+/**
+ * Reads episodes of a series already identified, by the episode rule or by
+ * the owner's choice, returning one lookup per file in `episodes` order. Each
+ * hinted season the series lists is fetched once, and a file matches only
+ * when its episodes are there; otherwise it is offered that series. `query`
+ * stays as the evidence that led to the series.
+ */
+export async function lookUpEpisodesInSeries(
+  client: TmdbClient,
+  apiKey: string,
+  seriesId: number,
+  query: TmdbTitleQuery,
+  episodes: readonly EpisodeHints[],
+  signal?: AbortSignal,
+): Promise<EpisodeLookup[]> {
+  const details = await client.seriesDetails(apiKey, seriesId, signal);
+  if (details.kind === "failed") {
+    return episodes.map(() => ({ query, ...details }));
+  }
+  const series = details.value;
   const listed = [...new Set(episodes.map((hint) => hint.season))].filter(
     (season) => series.seasons.some((listed) => listed.number === season),
   );
@@ -96,10 +121,7 @@ async function resolveSeries(
   if (search.kind === "failed") return { query, ...search };
   const match = matchTitle(hints, search.value);
   if (match.kind !== "matched") return { query, ...match };
-  const details = await client.seriesDetails(apiKey, match.result.id, signal);
-  return details.kind === "ok"
-    ? { kind: "series", series: details.value }
-    : { query, ...details };
+  return { kind: "series", id: match.result.id };
 }
 
 // The candidate form of a series, as its search result offered it.

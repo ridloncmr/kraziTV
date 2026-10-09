@@ -41,7 +41,21 @@ export async function lookUpMovie(
 
   const match = matchTitle({ ...hints, ...query }, search.value);
   if (match.kind !== "matched") return { query, ...match };
-  const details = await client.movieDetails(apiKey, match.result.id, signal);
+  return lookUpMovieById(client, apiKey, match.result.id, query, signal);
+}
+
+/**
+ * Reads the facts of a movie already identified, by the movie rule or by the
+ * owner's choice, keeping `query` as the evidence that led to it.
+ */
+export async function lookUpMovieById(
+  client: TmdbClient,
+  apiKey: string,
+  id: number,
+  query: TmdbTitleQuery,
+  signal?: AbortSignal,
+): Promise<MovieLookup> {
+  const details = await client.movieDetails(apiKey, id, signal);
   return details.kind === "ok"
     ? { query, kind: "matched", movie: details.value }
     : { query, ...details };

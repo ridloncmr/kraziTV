@@ -26,12 +26,15 @@ export function ScanProgressDialog({
   job,
   visible,
   onAcknowledge,
+  onReview,
 }: {
   job: FollowedScan;
   /** False while the window is minimized or the page hidden, which pauses polling. */
   visible: boolean;
   /** OK, or closing a finished dialog: the page closes it and refreshes. */
   onAcknowledge: () => void;
+  /** Acknowledges a scan that left items needing a choice and opens Review matches. */
+  onReview: () => void;
 }) {
   const path = scanPath(job.status.rootId);
   // "sending" until the DELETE answers, then the status it answered with.
@@ -55,6 +58,8 @@ export function ScanProgressDialog({
   const running = ending === null && isScanRunning(polled);
   if (!running && !ended) setEnded(true);
   const completed = ending === null && polled.phase === "completed";
+  // Items this scan left needing the owner's choice; only a completed scan reports them.
+  const needChoice = completed ? (polled.summary?.ambiguousCount ?? 0) : 0;
   // Read once the scan completes, so its summary can say why titles come
   // from file names; a failed read says nothing rather than guess.
   const tmdbKey = useResource<TmdbKeyStatus>(
@@ -151,12 +156,7 @@ export function ScanProgressDialog({
           )}
         </dl>
       )}
-      {completed && (polled.summary?.ambiguousCount ?? 0) > 0 && (
-        <p>
-          {counts.format(polled.summary?.ambiguousCount ?? 0)} need your choice.
-          Review them in Media Library.
-        </p>
-      )}
+      {needChoice > 0 && <p>{counts.format(needChoice)} need your choice.</p>}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
         {running ? (
@@ -167,9 +167,14 @@ export function ScanProgressDialog({
             {cancelling ? "Cancelling…" : "Cancel"}
           </button>
         ) : (
-          <button ref={ok} onClick={onAcknowledge}>
-            OK
-          </button>
+          <>
+            {needChoice > 0 && (
+              <button onClick={onReview}>Review matches…</button>
+            )}
+            <button ref={ok} onClick={onAcknowledge}>
+              OK
+            </button>
+          </>
         )}
       </div>
     </WindowDialog>

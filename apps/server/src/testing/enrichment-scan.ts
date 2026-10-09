@@ -2,10 +2,13 @@
 import { join, resolve } from "node:path";
 
 import { TmdbClient } from "@krazitv/media";
+import type { Kysely } from "kysely";
 import { vi } from "vitest";
 
-import { MetadataMatchRepository } from "../content-metadata/metadata-match-repository.js";
-import { TmdbKeyService } from "../content-metadata/tmdb-key-service.js";
+import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
+import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import type { ScanStatus } from "../catalog-scan/contracts.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
@@ -19,7 +22,7 @@ import {
   metadataProber,
 } from "./scan-metadata.js";
 import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
-import { openTestDatabase } from "./test-environment.js";
+import { openTestDatabase, startTestServer } from "./test-environment.js";
 
 // A native root path, since path hints read folders with this platform's rules.
 export const ROOT = resolve(rootFixture.path);
@@ -37,32 +40,70 @@ interface SetupOptions {
 }
 
 // Wires a scanner with real persistence and the real TMDB client over a scripted TMDB.
-export async function setupEnrichmentScan({
-  key = true,
-  files,
-  probeFailures = [],
-  tmdb: wrap,
-}: SetupOptions) {
+export async function setupEnrichmentScan(options: SetupOptions) {
   const { db } = await openTestDatabase();
+  await seedEnrichment(db, options.key ?? true);
+  const { tmdb, client } = scriptedTmdb();
+  return { db, scanner: enrichmentScanner(db, client, options), tmdb };
+}
+
+/**
+ * Boots the real server composition with the enrichment scanner, and match
+ * choices asking the same scripted TMDB, so route tests scan real decisions.
+ */
+export async function startEnrichmentServer(options: SetupOptions) {
+  const { tmdb, client } = scriptedTmdb();
+  const { server, db } = await startTestServer({
+    seed: (db) => seedEnrichment(db, options.key ?? true),
+    overrides: (db) => ({
+      scanner: enrichmentScanner(db, client, options),
+      matchChoices: new MatchChoiceService(
+        db,
+        new TmdbKeyService(db, client),
+        client,
+      ),
+    }),
+  });
+  return { server, db, tmdb };
+}
+
+// Saves the fixture root at ROOT and, when `key` is set, the owner's key.
+async function seedEnrichment(
+  db: Kysely<DatabaseSchema>,
+  key: boolean,
+): Promise<void> {
   await db
     .insertInto("media_roots")
     .values({ ...rootFixture, path: ROOT, path_key: ROOT })
     .execute();
-  const tmdb = new ScriptedTmdbFetch();
-  tmdb.movies.push(ALIEN, ...THE_THINGS);
-  tmdb.validKeys.add(KEY);
   if (key) {
     await db
       .updateTable("server_settings")
       .set({ tmdb_api_key: KEY })
       .execute();
   }
+}
+
+// A scripted TMDB knowing the fixture movies and accepting the owner's key,
+// and the real client over it.
+function scriptedTmdb() {
+  const tmdb = new ScriptedTmdbFetch();
+  tmdb.movies.push(ALIEN, ...THE_THINGS);
+  tmdb.validKeys.add(KEY);
   const client = new TmdbClient({ fetch: tmdb.fetch, timeoutMs: 1_000 });
-  const prober = metadataProber(ROOT, probeFailures);
+  return { tmdb, client };
+}
+
+// A scanner with real persistence that discovers `files` below ROOT.
+function enrichmentScanner(
+  db: Kysely<DatabaseSchema>,
+  client: TmdbClient,
+  { files, probeFailures = [], tmdb: wrap }: SetupOptions,
+): CatalogScanner {
   let time = 1_704_067_200_000;
-  const scanner = new CatalogScanner({
+  return new CatalogScanner({
     roots: new MediaRootRepository(db),
-    prober,
+    prober: metadataProber(ROOT, probeFailures),
     writer: new CatalogScanWriter(db),
     schedules: { ensureAllEnabled: async () => {} },
     removals: { purge: async () => {} },
@@ -80,7 +121,6 @@ export async function setupEnrichmentScan({
       }),
     now: () => (time += 1_000),
   });
-  return { db, scanner, tmdb };
 }
 
 type EnrichmentScan = Awaited<ReturnType<typeof setupEnrichmentScan>>;

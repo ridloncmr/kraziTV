@@ -11,10 +11,10 @@ import {
 import type {
   HintedCandidate,
   LookupGroup,
-  MetadataMatchRecord,
   ScanStatus,
   ScanSummary,
 } from "../contracts.js";
+import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
 import { groupLookups } from "./group-lookups.js";
 
 interface EnrichCandidatesOptions {

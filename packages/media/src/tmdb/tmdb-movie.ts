@@ -2,6 +2,7 @@ import {
   isFields,
   readGenres,
   readResults,
+  readRuntimeMs,
   readTitleSummary,
   text,
   type TmdbTitleSummary,
@@ -13,6 +14,8 @@ export interface TmdbMovie extends TmdbTitleSummary {
   /** The TMDB collection the movie belongs to, kraziTV's franchise. */
   franchise?: { id: number; name: string };
   description?: string;
+  /** Shown beside a file's probed duration; never evidence for a match. */
+  runtimeMs?: number;
 }
 
 // Where a movie body names its title and first release.
@@ -41,5 +44,7 @@ export function readMovieDetails(body: unknown): TmdbMovie | undefined {
   }
   const description = text(body.overview);
   if (description !== undefined) movie.description = description;
+  const runtimeMs = readRuntimeMs(body.runtime);
+  if (runtimeMs !== undefined) movie.runtimeMs = runtimeMs;
   return movie;
 }

@@ -50,6 +50,7 @@ export function seasonDetails(season: number, count: number) {
       name: `Episode ${season}.${index + 1}`,
       air_date: `2002-09-${String(index + 1).padStart(2, "0")}`,
       overview: `What happens in ${season}.${index + 1}`,
+      runtime: 44,
     })),
   };
 }

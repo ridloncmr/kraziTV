@@ -111,7 +111,7 @@ describe("TmdbClient.seriesDetails", () => {
 });
 
 describe("TmdbClient.seasonDetails", () => {
-  it("reads each episode's number, title, air date, and description", async () => {
+  it("reads each episode's number, title, air date, description, and runtime", async () => {
     const { fetch, urls } = routedFetch({
       "/3/tv/1437/season/1": () => Response.json(seasonDetails(1, 2)),
     });
@@ -127,12 +127,14 @@ describe("TmdbClient.seasonDetails", () => {
             title: "Episode 1.1",
             airDate: "2002-09-01",
             description: "What happens in 1.1",
+            runtimeMs: 44 * 60_000,
           },
           {
             number: 2,
             title: "Episode 1.2",
             airDate: "2002-09-02",
             description: "What happens in 1.2",
+            runtimeMs: 44 * 60_000,
           },
         ],
       },
@@ -148,7 +150,13 @@ describe("TmdbClient.seasonDetails", () => {
         Response.json({
           season_number: 0,
           episodes: [
-            { episode_number: 1, name: "", air_date: null, overview: "" },
+            {
+              episode_number: 1,
+              name: "",
+              air_date: null,
+              overview: "",
+              runtime: null,
+            },
           ],
         }),
       timeoutMs: 1_000,

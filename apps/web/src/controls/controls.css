@@ -629,3 +629,25 @@
   width: 120px;
   flex: none;
 }
+/* A match's candidates: each poster, name, and runtime beside its Choose button. */
+.match-candidates {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-width: 560px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.match-candidates li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.match-candidates li > div {
+  flex: 1;
+}
+.match-candidates img {
+  width: 46px;
+  flex: none;
+}

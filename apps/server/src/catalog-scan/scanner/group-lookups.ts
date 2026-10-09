@@ -1,8 +1,7 @@
-import type {
-  HintedCandidate,
-  LookupGroup,
-  MetadataMatchRecord,
-} from "../contracts.js";
+import { seriesEpisode } from "@krazitv/media";
+
+import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
+import type { HintedCandidate, LookupGroup } from "../contracts.js";
 
 /** A scan's lookup plan: extras to record as they are, and the searches to run. */
 interface LookupPlan {
@@ -37,20 +36,17 @@ export function groupLookups(
       hints,
       durationMs: candidate.durationMs,
     };
-    const { series, seriesFolder, season, episode, title, year } = hints;
-    if (
-      series !== undefined &&
-      seriesFolder !== undefined &&
-      season !== undefined &&
-      episode !== undefined
-    ) {
-      const key = searchKey(["series", seriesFolder, series, year]);
+    const { series, title, year } = hints;
+    const shared = seriesEpisode(hints);
+    if (shared !== undefined) {
+      const key = `series\u0000${shared.key}`;
       const group = groups.get(key) ?? {
         kind: "series",
-        hints: searchHints(series, year, hints.strength),
+        hints: searchHints(shared.series, year, hints.strength),
         files: [],
       };
       if (group.kind === "series") {
+        const { season, episode } = shared;
         group.files.push({ ...file, episode: { season, episode } });
       }
       groups.set(key, group);

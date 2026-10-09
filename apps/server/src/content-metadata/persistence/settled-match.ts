@@ -1,6 +1,6 @@
 import type { ExpressionBuilder } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 
 /**
  * True for a match decision a scan must leave alone: matched, ambiguous,

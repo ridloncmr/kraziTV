@@ -12,7 +12,7 @@ import {
   seriesResult,
   tmdbSeries,
 } from "../testing/tmdb-series.js";
-import { lookUpEpisodes } from "./look-up-episodes.js";
+import { lookUpEpisodes, lookUpEpisodesInSeries } from "./look-up-episodes.js";
 
 const TOKEN = "eyJ.read-access-token.sig";
 
@@ -321,5 +321,32 @@ describe("lookUpEpisodes", () => {
       candidates: [{ id: 1437 }],
     });
     expect(urls).toHaveLength(1);
+  });
+});
+
+describe("lookUpEpisodesInSeries", () => {
+  it("reads a chosen series without searching, keeping the folder's query as evidence", async () => {
+    const { client, urls } = tmdbSeries({
+      "Doctor Who": [DOCTOR_WHO_1963, DOCTOR_WHO_2005],
+    });
+
+    const lookups = await lookUpEpisodesInSeries(
+      client,
+      TOKEN,
+      57243,
+      { title: "Doctor Who" },
+      [episode(1, 1), episode(2, 14), episode(2, 15)],
+    );
+
+    expect(lookups).toMatchObject([
+      { kind: "matched", query: { title: "Doctor Who" }, season: 1 },
+      { kind: "matched", season: 2, episodes: [{ number: 14 }] },
+      { kind: "ambiguous", candidates: [{ id: 57243 }] },
+    ]);
+    expect(urls.map((url) => url.pathname).sort()).toEqual([
+      "/3/tv/57243",
+      "/3/tv/57243/season/1",
+      "/3/tv/57243/season/2",
+    ]);
   });
 });

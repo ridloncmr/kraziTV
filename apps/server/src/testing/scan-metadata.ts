@@ -73,3 +73,14 @@ export const SCAN_DOCTOR_WHO = [
     episodeCounts: { 1: 13 },
   },
 ];
+
+/** Ambiguous series candidates with runtimes; only the newer series has season two. */
+export const CHOICE_DOCTOR_WHO_1963 = {
+  ...SCAN_DOCTOR_WHO[0],
+  episodeRuntime: 25,
+};
+export const CHOICE_DOCTOR_WHO_2005 = {
+  ...SCAN_DOCTOR_WHO[1],
+  episodeCounts: { 1: 13, 2: 13 },
+  episodeRuntime: 45,
+};

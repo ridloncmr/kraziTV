@@ -61,6 +61,8 @@ export interface MediaItemQuery {
   limit: number;
   offset: number;
   excludeIds?: readonly string[];
+  /** Keeps only items whose match needs the owner's choice. */
+  needsChoice?: boolean;
 }
 
 /** The requested page plus the count of every item the search matches. */

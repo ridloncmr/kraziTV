@@ -560,7 +560,7 @@ it("shows lookup progress while the scan looks media up on TMDB", async () => {
 it.each([
   {
     ambiguousCount: 2,
-    note: "2 need your choice. Review them in Media Library.",
+    note: "2 need your choice.",
   },
   { ambiguousCount: 0, note: null },
 ])(
@@ -596,8 +596,40 @@ it.each([
     expect(
       within(dialog).queryByText(/need your choice/)?.textContent ?? null,
     ).toBe(note);
+    expect(
+      within(dialog).queryByRole("button", { name: "Review matches…" }) !==
+        null,
+    ).toBe(note !== null);
   },
 );
+
+it("opens Review matches from a completed scan that left items needing a choice", async () => {
+  const { api, scan } = renderScanLibrary([mediaRoot()]);
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply("/metadata/match-reviews", { steps: [] });
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    phase: "completed",
+    lookupCount: 2,
+    lookedUpCount: 2,
+    summary: scanSummary({ ambiguousCount: 2 }),
+  });
+  await advance(1_000);
+
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Review matches…" }),
+  );
+  await advance();
+
+  expect(
+    screen.queryByRole("dialog", { name: "Scanning media root" }),
+  ).toBeNull();
+  expect(
+    within(screen.getByRole("dialog", { name: "Review matches" })).getByText(
+      "All done.",
+    ),
+  ).toBeTruthy();
+});
 
 it("attaches to another client's running scan when the start reports scan_in_progress", async () => {
   const { api, scan } = renderScanLibrary([mediaRoot()]);

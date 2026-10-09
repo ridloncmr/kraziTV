@@ -2,6 +2,7 @@ import type {
   Channel,
   ChannelState,
   ContentMetadata,
+  MatchCandidates,
   MediaCollection,
   MediaItem,
 } from "../http/contracts.js";
@@ -108,3 +109,32 @@ export const OUTAGE = itemWith("Outage", {
   matchState: "unmatched",
   lookupError: "TMDB answered HTTP 503",
 });
+
+export const THING = itemWith("The Thing", { matchState: "ambiguous" });
+export const WRONG = itemWith("Wrong", { matchState: "rejected" });
+
+/** The Thing's three candidates, one with no year or poster. */
+export const THE_THINGS: MatchCandidates = {
+  kind: "movie",
+  durationMs: 109 * 60_000,
+  candidates: [
+    {
+      tmdbId: 10785,
+      title: "The Thing",
+      releaseDate: "1951-04-06",
+      posterPath: "/thing-1951.jpg",
+    },
+    {
+      tmdbId: 1091,
+      title: "The Thing",
+      releaseDate: "1982-06-25",
+      posterPath: "/thing-1982.jpg",
+    },
+    {
+      tmdbId: 60935,
+      title: "The Thing",
+      releaseDate: null,
+      posterPath: null,
+    },
+  ],
+};

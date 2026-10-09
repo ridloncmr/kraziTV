@@ -13,8 +13,8 @@ import {
 import type { FastifyBaseLogger } from "fastify";
 
 import type { CatalogRemovalService } from "../../catalog-removal/catalog-removal-service.js";
-import type { MetadataMatchRepository } from "../../content-metadata/metadata-match-repository.js";
-import type { TmdbKeyService } from "../../content-metadata/tmdb-key-service.js";
+import type { MetadataMatchRepository } from "../../content-metadata/persistence/metadata-match-repository.js";
+import type { TmdbKeyService } from "../../content-metadata/tmdb-key/tmdb-key-service.js";
 import type { MediaRoot } from "../../media-roots/contracts.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";

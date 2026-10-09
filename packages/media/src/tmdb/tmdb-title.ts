@@ -69,6 +69,16 @@ export function readDate(value: unknown): string | undefined {
   return date !== undefined && PARTIAL_DATE.test(date) ? date : undefined;
 }
 
+/**
+ * Reads TMDB's runtime, in whole minutes, as milliseconds. TMDB sends `0` or
+ * null when it does not know one, so only a positive runtime is known.
+ */
+export function readRuntimeMs(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0
+    ? value * 60_000
+    : undefined;
+}
+
 /** TMDB sends an empty string or null for an unknown text fact. */
 export function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
