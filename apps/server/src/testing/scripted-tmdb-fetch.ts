@@ -11,19 +11,31 @@ export interface ScriptedMovie {
   franchise?: { id: number; name: string };
 }
 
+/** A series the scripted TMDB knows, from which it answers searches, details, and seasons. */
+export interface ScriptedSeries {
+  id: number;
+  name: string;
+  /** `YYYY-MM-DD`, or absent when TMDB does not know it. */
+  firstAirDate?: string;
+  /** Episodes per season number; season `0` holds specials. */
+  episodeCounts: Record<number, number>;
+}
+
 /**
  * Answers the real TmdbClient's requests the way TMDB would, so tests
  * exercise the client's own status mapping, retries, and response reading
  * instead of a looser fake. It accepts only `validKeys`, records the Bearer
  * token and URL of each call, and fails every call as a network error while
- * `unreachable` is set. A search finds every known movie whose title contains
- * the query, ignoring case, filtered by any year; details answer by ID. It
- * normally answers at once and ignores the abort signal; an optional barrier
- * models a delayed answer, but cannot model cancellation or a timeout.
+ * `unreachable` is set. A search finds every known movie or series whose name
+ * contains the query, ignoring case, filtered by any year; details and
+ * seasons answer by ID. It normally answers at once and ignores the abort
+ * signal; an optional barrier models a delayed answer, but cannot model
+ * cancellation or a timeout.
  */
 export class ScriptedTmdbFetch {
   readonly validKeys = new Set<string>();
   readonly movies: ScriptedMovie[] = [];
+  readonly series: ScriptedSeries[] = [];
   unreachable = false;
   /**
    * Statuses forced on the next lookups, in order, leaving key checks alone;
@@ -100,11 +112,12 @@ export class ScriptedTmdbFetch {
           })),
       });
     }
+    if (url.pathname === "/3/search/tv") return this.#searchSeries(url);
+    const tv = /^\/3\/tv\/(\d+)(?:\/season\/(\d+))?$/.exec(url.pathname);
+    if (tv) return this.#answerSeries(tv[1], tv[2]);
     const id = /^\/3\/movie\/(\d+)$/.exec(url.pathname)?.[1];
     const movie = this.movies.find((known) => String(known.id) === id);
-    if (movie === undefined) {
-      return Response.json({ status_code: 34 }, { status: 404 });
-    }
+    if (movie === undefined) return notFound();
     return Response.json({
       id: movie.id,
       title: movie.title,
@@ -115,4 +128,61 @@ export class ScriptedTmdbFetch {
       belongs_to_collection: movie.franchise ?? null,
     });
   }
+
+  // Answers a series search over known series, as a movie search does.
+  #searchSeries(url: URL): Response {
+    const query = (url.searchParams.get("query") ?? "").toLowerCase();
+    const year = url.searchParams.get("first_air_date_year");
+    return Response.json({
+      page: 1,
+      results: this.series
+        .filter(
+          (series) =>
+            series.name.toLowerCase().includes(query) &&
+            (year === null || series.firstAirDate?.startsWith(year)),
+        )
+        .map((series) => ({
+          id: series.id,
+          name: series.name,
+          first_air_date: series.firstAirDate ?? "",
+          poster_path: `/poster-${series.id}.jpg`,
+        })),
+    });
+  }
+
+  // Answers a series' details, or one season's numbered episodes.
+  #answerSeries(id: string | undefined, season: string | undefined): Response {
+    const series = this.series.find((known) => String(known.id) === id);
+    if (series === undefined) return notFound();
+    if (season !== undefined) {
+      const count = series.episodeCounts[Number(season)];
+      if (count === undefined) return notFound();
+      return Response.json({
+        season_number: Number(season),
+        episodes: Array.from({ length: count }, (_, index) => ({
+          episode_number: index + 1,
+          name: `${series.name} ${season}x${index + 1}`,
+          air_date: series.firstAirDate ?? "",
+          overview: "",
+        })),
+      });
+    }
+    return Response.json({
+      id: series.id,
+      name: series.name,
+      first_air_date: series.firstAirDate ?? "",
+      overview: `About ${series.name}`,
+      poster_path: `/poster-${series.id}.jpg`,
+      genres: [{ id: 18, name: "Drama" }],
+      seasons: Object.entries(series.episodeCounts).map(([number, count]) => ({
+        season_number: Number(number),
+        episode_count: count,
+      })),
+    });
+  }
+}
+
+// TMDB's answer for an ID it does not know.
+function notFound(): Response {
+  return Response.json({ status_code: 34 }, { status: 404 });
 }

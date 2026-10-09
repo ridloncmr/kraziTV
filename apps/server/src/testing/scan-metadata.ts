@@ -51,3 +51,25 @@ export function metadataProber(
     },
   };
 }
+
+/** Series facts for scanner episode enrichment, in the scripted provider shape. */
+export const SCAN_FIREFLY = {
+  id: 1437,
+  name: "Firefly",
+  firstAirDate: "2002-09-20",
+  episodeCounts: { 0: 1, 1: 14, 2: 10 },
+};
+export const SCAN_DOCTOR_WHO = [
+  {
+    id: 121,
+    name: "Doctor Who",
+    firstAirDate: "1963-11-23",
+    episodeCounts: { 1: 42 },
+  },
+  {
+    id: 57243,
+    name: "Doctor Who",
+    firstAirDate: "2005-03-26",
+    episodeCounts: { 1: 13 },
+  },
+];

@@ -1,4 +1,9 @@
-import type { MovieLookup, PathHints } from "@krazitv/media";
+import type {
+  EpisodeHints,
+  EpisodeLookup,
+  MovieLookup,
+  PathHints,
+} from "@krazitv/media";
 
 /** The facts a completed scan reports; the summary of a `completed` scan job. */
 export interface ScanSummary {
@@ -103,8 +108,33 @@ export type MetadataMatchRecord = { pathKey: string; hints: PathHints } & (
       lookedUpAt: number;
       /** The probed duration, kept with a match to flag later file changes. */
       durationMs: number;
-      lookup: MovieLookup;
+      lookup: MovieLookup | EpisodeLookup;
     }
+);
+
+/** One discovered file as enrichment sees it: its candidate and path hints. */
+export interface HintedCandidate {
+  candidate: CatalogCandidate;
+  hints: PathHints | undefined;
+}
+
+/** One available file a lookup group decides for. */
+interface LookupFile {
+  pathKey: string;
+  hints: PathHints;
+  durationMs: number;
+}
+
+/**
+ * Files that share one TMDB search: movies with the same title and year, or
+ * episodes under one series folder with the same series name and year. The
+ * hints are the search's own; a series' name is its title.
+ */
+export type LookupGroup = {
+  hints: { title: string; year?: number; strength: PathHints["strength"] };
+} & (
+  | { kind: "movie"; files: LookupFile[] }
+  | { kind: "series"; files: (LookupFile & { episode: EpisodeHints })[] }
 );
 
 interface CandidateIdentity {

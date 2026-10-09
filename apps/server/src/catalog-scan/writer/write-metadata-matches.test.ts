@@ -1,5 +1,7 @@
 import {
   ALIEN,
+  EPISODE_HINTS,
+  FIREFLY_EPISODE,
   HINTS,
   LOOKED_UP_AT,
   candidate,
@@ -100,6 +102,11 @@ describe("CatalogScanWriter metadata matches", () => {
           franchise_name: "Alien Collection",
           description: "In space…",
           poster_path: "/alien.jpg",
+          series_tmdb_id: null,
+          series_name: null,
+          season_number: null,
+          episode_number: null,
+          last_episode_number: null,
         },
       ],
       refs: [
@@ -113,6 +120,69 @@ describe("CatalogScanWriter metadata matches", () => {
       ],
       candidates: [],
     });
+  });
+
+  it("writes an episode's series, season, and episode range with its series as the reference", async () => {
+    const { db, writer } = await setup();
+
+    await commit(writer, [
+      lookedUp(itemFixture.path_key, FIREFLY_EPISODE, EPISODE_HINTS),
+    ]);
+
+    const written = await metadata(db);
+    expect(written.matches).toMatchObject([
+      {
+        state: "matched",
+        evidence: JSON.stringify({
+          hints: EPISODE_HINTS,
+          query: { title: "Firefly" },
+        }),
+        matched_duration_ms: 6_000_000,
+      },
+    ]);
+    expect(written.facts).toEqual([
+      {
+        media_item_id: itemFixture.id,
+        content_type: "episode",
+        title: "Safe / Our Mrs. Reynolds",
+        release_date: "2002-10-18",
+        genres: '["Drama","Sci-Fi & Fantasy"]',
+        franchise_tmdb_id: null,
+        franchise_name: null,
+        description: "Simon is kidnapped.",
+        poster_path: "/firefly.jpg",
+        series_tmdb_id: 1437,
+        series_name: "Firefly",
+        season_number: 1,
+        episode_number: 5,
+        last_episode_number: 6,
+      },
+    ]);
+    expect(written.refs).toEqual([
+      {
+        media_item_id: itemFixture.id,
+        provider: "tmdb",
+        external_kind: "tv",
+        external_id: 1437,
+        fetched_at: LOOKED_UP_AT,
+      },
+    ]);
+  });
+
+  it("leaves a multi-episode title unknown when TMDB has not named every part", async () => {
+    const { db, writer } = await setup();
+    const untitledFirst = {
+      ...FIREFLY_EPISODE,
+      episodes: [{ number: 5 }, { number: 6, title: "Our Mrs. Reynolds" }],
+    };
+
+    await commit(writer, [
+      lookedUp(itemFixture.path_key, untitledFirst, EPISODE_HINTS),
+    ]);
+
+    await expect(
+      db.selectFrom("content_facts").select("title").execute(),
+    ).resolves.toEqual([{ title: null }]);
   });
 
   it("writes an ambiguous item's candidates in TMDB's order", async () => {

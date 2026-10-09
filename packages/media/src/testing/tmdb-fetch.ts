@@ -60,3 +60,23 @@ export function heldMovieFetch(holdBody = false) {
   };
   return { fetch, releases, paths };
 }
+
+/** How a routed fetch answers one request path. */
+type Route = (url: URL) => Response | Promise<Response>;
+
+/**
+ * A fetch that answers by request path, as TMDB would, and records every URL
+ * it was asked for. An unrouted path answers TMDB's `404`.
+ */
+export function routedFetch(routes: Record<string, Route>) {
+  const urls: URL[] = [];
+  const fetch = async (input: string | URL | Request) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    urls.push(url);
+    const route = routes[url.pathname];
+    return route
+      ? route(url)
+      : Response.json({ status_code: 34 }, { status: 404 });
+  };
+  return { fetch, urls };
+}

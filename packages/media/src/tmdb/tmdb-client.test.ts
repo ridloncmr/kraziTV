@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { TmdbClient } from "./tmdb-client.js";
-import { answering, hanging, heldMovieFetch } from "../testing/tmdb-fetch.js";
 import {
-  ALIEN_DETAILS,
+  answering,
+  hanging,
+  heldMovieFetch,
   routedFetch,
-  searchResult,
-} from "../testing/tmdb-movies.js";
+} from "../testing/tmdb-fetch.js";
+import { ALIEN_DETAILS, searchResult } from "../testing/tmdb-movies.js";
 
 const TOKEN = "eyJ.read-access-token.sig";
 

@@ -7,6 +7,11 @@ export {
 export { derivePathHints } from "./path-hints/derive-path-hints.js";
 export type { PathHints } from "./path-hints/contracts.js";
 export {
+  lookUpEpisodes,
+  type EpisodeHints,
+  type EpisodeLookup,
+} from "./metadata-matching/look-up-episodes.js";
+export {
   lookUpMovie,
   type MovieLookup,
 } from "./metadata-matching/look-up-movie.js";

@@ -25,6 +25,8 @@ const GENERIC_STEMS = new Set([
 interface FolderHints {
   /** The nearest folder that names something; folders above it are ignored. */
   named?: ParsedName;
+  /** That folder's path below the media root, `/`-joined. */
+  namedPath?: string;
   season?: number;
   disc?: number;
   extra: boolean;
@@ -36,13 +38,16 @@ interface FolderHints {
  * the root can never become a series or title.
  */
 export function derivePathHints(segments: readonly string[]): PathHints {
-  const folders = readFolders(segments.slice(0, -1));
+  const folderNames = segments.slice(0, -1);
+  const folders = readFolders(folderNames);
   if (folders.extra) return { extra: true, strength: "weak" };
 
   const stem = stripExtension(segments.at(-1) ?? "");
   const spaced = stem.includes(" ") ? stem : stem.replace(/[._]/g, " ");
   const episode = EPISODE.exec(spaced);
-  if (episode) return episodeHints(folders, spaced, episode);
+  if (episode) {
+    return episodeHints(folders, folderNames.join("/"), spaced, episode);
+  }
 
   const track = TRACK.exec(stem);
   if (track) {
@@ -86,11 +91,13 @@ function readFolders(folders: readonly string[]): FolderHints {
       outermost !== -1 &&
       roles.some((role, index) => role.kind === "extras" && index > outermost),
   };
-  for (const role of roles.toReversed()) {
-    if (role.kind === "season") hints.season ??= role.season;
-    else if (role.kind === "disc") hints.disc ??= role.disc;
-    else if (role.kind === "named") {
+  for (let index = roles.length - 1; index >= 0; index -= 1) {
+    const role = roles[index];
+    if (role?.kind === "season") hints.season ??= role.season;
+    else if (role?.kind === "disc") hints.disc ??= role.disc;
+    else if (role?.kind === "named") {
       hints.named = role.named;
+      hints.namedPath = folders.slice(0, index + 1).join("/");
       hints.season ??= role.season;
       break;
     }
@@ -99,9 +106,14 @@ function readFolders(folders: readonly string[]): FolderHints {
 }
 
 // The filename's own text before SxxEyy names the series when present;
-// otherwise the series comes from the nearest naming folder.
+// otherwise the series comes from the nearest naming folder. The series
+// folder is that naming folder even when a scene-style filename spells the
+// series differently, as `Greys.Anatomy` under `Grey's Anatomy/`, so every
+// season beneath it shares a lookup; the scan still keeps differently named
+// series apart. Only without a naming folder is it the file's own folder.
 function episodeHints(
   folders: FolderHints,
+  fileFolder: string,
   spaced: string,
   match: RegExpExecArray,
 ): PathHints {
@@ -116,6 +128,10 @@ function episodeHints(
     { extra: false, strength: named?.name !== undefined ? "strong" : "weak" },
     {
       series: named?.name,
+      seriesFolder:
+        named?.name === undefined
+          ? undefined
+          : (folders.namedPath ?? fileFolder),
       year: named?.year,
       season: Number(match[1]),
       episode: { first, last: end > first ? end : first },

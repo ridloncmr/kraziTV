@@ -1,25 +1,21 @@
 import { setMaxListeners } from "node:events";
 
-import { lookUpMovie, type PathHints, type TmdbClient } from "@krazitv/media";
+import {
+  lookUpEpisodes,
+  lookUpMovie,
+  type EpisodeLookup,
+  type MovieLookup,
+  type TmdbClient,
+} from "@krazitv/media";
 
 import type {
-  CatalogCandidate,
+  HintedCandidate,
+  LookupGroup,
   MetadataMatchRecord,
   ScanStatus,
   ScanSummary,
 } from "../contracts.js";
-
-/** One discovered file as enrichment sees it: its candidate and path hints. */
-interface HintedCandidate {
-  candidate: CatalogCandidate;
-  hints: PathHints | undefined;
-}
-
-/** Files that share one movie search: the same title and year. */
-interface MovieSearch {
-  hints: { title: string; year?: number; strength: PathHints["strength"] };
-  files: { pathKey: string; hints: PathHints; durationMs: number }[];
-}
+import { groupLookups } from "./group-lookups.js";
 
 interface EnrichCandidatesOptions {
   /** Every candidate in discovery order, which the records keep. */
@@ -38,61 +34,34 @@ interface EnrichCandidatesOptions {
 
 /**
  * Builds the scan's metadata match records. An unsettled extra is recorded
- * without a lookup. With a key, each available movie file not yet settled is
- * looked up, one search per distinct title and year, and the job enters
- * `enriching`; episodes wait for their own lookup. The key is checked once
- * first, so a revoked key costs one call rather than one per title. Returns
- * undefined when cancelled, and rethrows an unexpected error, both only after
- * every started lookup has settled.
+ * without a lookup. With a key, each available file not yet settled is looked
+ * up, one search per movie title and year or per series folder, and the job
+ * enters `enriching`. The key is checked once first, so a revoked key costs
+ * one call rather than one per search. Returns undefined when cancelled, and
+ * rethrows an unexpected error, both only after every started lookup has
+ * settled.
  */
 export async function enrichCandidates(
   options: EnrichCandidatesOptions,
 ): Promise<MetadataMatchRecord[] | undefined> {
   const { items, apiKey, settled, status } = options;
   const records = new Map<string, MetadataMatchRecord>();
-  const searches = new Map<string, MovieSearch>();
-  for (const { candidate, hints } of items) {
-    if (hints === undefined || settled.has(candidate.pathKey)) continue;
-    if (hints.extra) {
-      records.set(candidate.pathKey, {
-        kind: "extra",
-        pathKey: candidate.pathKey,
-        hints,
-      });
-      continue;
-    }
-    if (apiKey === undefined || candidate.status !== "available") continue;
-    if (hints.series !== undefined || hints.title === undefined) continue;
-    const searchKey = `${hints.title.toLowerCase()}\u0000${hints.year ?? ""}`;
-    const search = searches.get(searchKey) ?? {
-      hints: {
-        title: hints.title,
-        strength: hints.strength,
-        ...(hints.year === undefined ? {} : { year: hints.year }),
-      },
-      files: [],
-    };
-    search.files.push({
-      pathKey: candidate.pathKey,
-      hints,
-      durationMs: candidate.durationMs,
-    });
-    searches.set(searchKey, search);
-  }
+  const { extras, groups } = groupLookups(items, settled, apiKey !== undefined);
+  for (const extra of extras) records.set(extra.pathKey, extra);
 
-  if (apiKey !== undefined && searches.size > 0) {
+  if (apiKey !== undefined && groups.length > 0) {
     status.phase = "enriching";
     status.currentPath = null;
-    status.lookupCount = [...searches.values()].reduce(
-      (count, search) => count + search.files.length,
+    status.lookupCount = groups.reduce(
+      (count, group) => count + group.files.length,
       0,
     );
     const check = await checkKey(apiKey, options);
     if (check === "cancelled") return undefined;
     const done =
       check === "rejected"
-        ? recordRejectedKey([...searches.values()], options, records)
-        : await lookUpAll([...searches.values()], apiKey, options, records);
+        ? recordRejectedKey(groups, options, records)
+        : await lookUpAll(groups, apiKey, options, records);
     if (!done) return undefined;
   }
   return items.flatMap(({ candidate }) => records.get(candidate.pathKey) ?? []);
@@ -140,20 +109,22 @@ async function checkKey(
 
 // Records every search's files as failed lookups without calling TMDB again.
 function recordRejectedKey(
-  searches: readonly MovieSearch[],
+  groups: readonly LookupGroup[],
   { now, status }: EnrichCandidatesOptions,
   records: Map<string, MetadataMatchRecord>,
 ): true {
   const lookedUpAt = now();
-  for (const search of searches) {
-    const { title, year } = search.hints;
+  for (const group of groups) {
+    const { title, year } = group.hints;
     const query = year === undefined ? { title } : { title, year };
-    for (const file of search.files) {
-      records.set(file.pathKey, {
+    for (const { pathKey, hints, durationMs } of group.files) {
+      records.set(pathKey, {
         kind: "looked_up",
+        pathKey,
+        hints,
+        durationMs,
         lookedUpAt,
         lookup: { kind: "failed", query, reason: "TMDB rejected the key" },
-        ...file,
       });
     }
   }
@@ -166,7 +137,7 @@ function recordRejectedKey(
  * file's outcome as its search settles. Returns false when cancelled.
  */
 async function lookUpAll(
-  searches: readonly MovieSearch[],
+  groups: readonly LookupGroup[],
   apiKey: string,
   { tmdb, signal, now, status }: EnrichCandidatesOptions,
   records: Map<string, MetadataMatchRecord>,
@@ -181,25 +152,24 @@ async function lookUpAll(
 
   let fatal: { error: unknown } | undefined;
   await Promise.all(
-    searches.map(async (search) => {
+    groups.map(async (group) => {
       try {
-        const lookup = await lookUpMovie(
-          tmdb,
-          apiKey,
-          search.hints,
-          stop.signal,
-        );
+        const lookups = await lookUpGroup(tmdb, apiKey, group, stop.signal);
         const lookedUpAt = now();
-        for (const file of search.files) {
-          records.set(file.pathKey, {
+        group.files.forEach(({ pathKey, hints, durationMs }, index) => {
+          const lookup = lookups[index];
+          if (lookup === undefined) return;
+          records.set(pathKey, {
             kind: "looked_up",
+            pathKey,
+            hints,
+            durationMs,
             lookedUpAt,
             lookup,
-            ...file,
           });
-        }
-        status.lookedUpCount += search.files.length;
-        status.currentTitle = search.hints.title;
+        });
+        status.lookedUpCount += group.files.length;
+        status.currentTitle = group.hints.title;
       } catch (error) {
         if (!stop.signal.aborted) {
           fatal = { error };
@@ -212,4 +182,28 @@ async function lookUpAll(
 
   if (fatal !== undefined) throw fatal.error;
   return !signal.aborted;
+}
+
+/**
+ * Runs one group's search, returning one lookup per file in the group's
+ * order: a movie's files share its one lookup, while each episode file gets
+ * its own against the folder's shared series.
+ */
+async function lookUpGroup(
+  tmdb: TmdbClient,
+  apiKey: string,
+  group: LookupGroup,
+  signal: AbortSignal,
+): Promise<(MovieLookup | EpisodeLookup)[]> {
+  if (group.kind === "series") {
+    return lookUpEpisodes(
+      tmdb,
+      apiKey,
+      group.hints,
+      group.files.map((file) => file.episode),
+      signal,
+    );
+  }
+  const lookup = await lookUpMovie(tmdb, apiKey, group.hints, signal);
+  return group.files.map(() => lookup);
 }

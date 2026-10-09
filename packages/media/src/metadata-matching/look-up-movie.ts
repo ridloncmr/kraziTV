@@ -1,14 +1,15 @@
-import type { TmdbClient, TmdbMovieQuery } from "../tmdb/tmdb-client.js";
-import type { TmdbMovie, TmdbMovieSummary } from "../tmdb/tmdb-movie.js";
-import { matchMovie, type MovieHints } from "./match-movie.js";
+import type { TmdbClient, TmdbTitleQuery } from "../tmdb/tmdb-client.js";
+import type { TmdbMovie } from "../tmdb/tmdb-movie.js";
+import type { TmdbTitleSummary } from "../tmdb/tmdb-title.js";
+import { matchTitle, titleQuery, type TitleHints } from "./match-title.js";
 
 /**
  * How one movie lookup ended, with the query that produced it as match
  * evidence. Only a match reads details, so an ambiguous title costs one call.
  */
-export type MovieLookup = { query: TmdbMovieQuery } & (
+export type MovieLookup = { query: TmdbTitleQuery } & (
   | { kind: "matched"; movie: TmdbMovie }
-  | { kind: "ambiguous"; candidates: TmdbMovieSummary[] }
+  | { kind: "ambiguous"; candidates: TmdbTitleSummary[] }
   | { kind: "unmatched" }
   | { kind: "failed"; reason: string }
 );
@@ -26,10 +27,10 @@ const TRAILING_YEAR = /^(.+?)\s+((?:19|20)\d{2})$/u;
 export async function lookUpMovie(
   client: TmdbClient,
   apiKey: string,
-  hints: MovieHints,
+  hints: TitleHints,
   signal?: AbortSignal,
 ): Promise<MovieLookup> {
-  let query = toQuery(hints);
+  let query = titleQuery(hints);
   let search = await client.searchMovies(apiKey, query, signal);
   const split = hints.year === undefined && TRAILING_YEAR.exec(hints.title);
   if (search.kind === "ok" && search.value.length === 0 && split) {
@@ -38,17 +39,10 @@ export async function lookUpMovie(
   }
   if (search.kind === "failed") return { query, ...search };
 
-  const match = matchMovie({ ...hints, ...query }, search.value);
+  const match = matchTitle({ ...hints, ...query }, search.value);
   if (match.kind !== "matched") return { query, ...match };
-  const details = await client.movieDetails(apiKey, match.movie.id, signal);
+  const details = await client.movieDetails(apiKey, match.result.id, signal);
   return details.kind === "ok"
     ? { query, kind: "matched", movie: details.value }
     : { query, ...details };
-}
-
-// The query carries only the hints TMDB is sent (ADR 0013).
-function toQuery(hints: MovieHints): TmdbMovieQuery {
-  return hints.year === undefined
-    ? { title: hints.title }
-    : { title: hints.title, year: hints.year };
 }

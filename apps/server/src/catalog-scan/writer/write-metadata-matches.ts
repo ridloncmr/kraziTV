@@ -130,21 +130,54 @@ function toRows(id: string, record: MetadataMatchRecord): MatchRows {
   if (lookup.kind === "ambiguous") {
     return {
       match,
-      candidates: lookup.candidates.map((movie, position) => ({
+      candidates: lookup.candidates.map((candidate, position) => ({
         media_item_id: id,
         position,
-        tmdb_id: movie.id,
-        title: movie.title,
-        release_date: movie.releaseDate ?? null,
-        poster_path: movie.posterPath ?? null,
+        tmdb_id: candidate.id,
+        title: candidate.title,
+        release_date: candidate.releaseDate ?? null,
+        poster_path: candidate.posterPath ?? null,
       })),
     };
   }
   if (lookup.kind !== "matched") return { match, candidates: [] };
+  const ref = {
+    media_item_id: id,
+    provider: "tmdb" as const,
+    fetched_at: lookedUpAt,
+  };
+  if ("series" in lookup) {
+    const { series, season, episodes } = lookup;
+    const [first] = episodes;
+    const titles = episodes.flatMap((episode) => episode.title ?? []);
+    return {
+      match,
+      facts: {
+        ...NO_MOVIE_FACTS,
+        media_item_id: id,
+        content_type: "episode",
+        // A multi-episode file is titled by every episode it holds; one
+        // untitled part leaves it unknown rather than reading as one episode.
+        title: titles.length === episodes.length ? titles.join(" / ") : null,
+        release_date: first?.airDate ?? null,
+        genres: JSON.stringify(series.genres),
+        description: first?.description ?? null,
+        poster_path: series.posterPath ?? null,
+        series_tmdb_id: series.id,
+        series_name: series.title,
+        season_number: season,
+        episode_number: first?.number ?? null,
+        last_episode_number: episodes.at(-1)?.number ?? null,
+      },
+      ref: { ...ref, external_kind: "tv", external_id: series.id },
+      candidates: [],
+    };
+  }
   const { movie } = lookup;
   return {
     match,
     facts: {
+      ...NO_EPISODE_FACTS,
       media_item_id: id,
       content_type: "movie",
       title: movie.title,
@@ -155,16 +188,22 @@ function toRows(id: string, record: MetadataMatchRecord): MatchRows {
       description: movie.description ?? null,
       poster_path: movie.posterPath ?? null,
     },
-    ref: {
-      media_item_id: id,
-      provider: "tmdb",
-      external_kind: "movie",
-      external_id: movie.id,
-      fetched_at: lookedUpAt,
-    },
+    ref: { ...ref, external_kind: "movie", external_id: movie.id },
     candidates: [],
   };
 }
+
+// The facts only a movie has, absent from an episode's.
+const NO_MOVIE_FACTS = { franchise_tmdb_id: null, franchise_name: null };
+
+// The facts only an episode has, absent from a movie's.
+const NO_EPISODE_FACTS = {
+  series_tmdb_id: null,
+  series_name: null,
+  season_number: null,
+  episode_number: null,
+  last_episode_number: null,
+};
 
 /**
  * Inserts rows a chunk per statement, yielding before each like the item

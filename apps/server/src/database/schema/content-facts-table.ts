@@ -11,6 +11,14 @@ export interface ContentFactsTable {
   franchise_tmdb_id: number | null;
   franchise_name: string | null;
   description: string | null;
-  /** TMDB's image path; kraziTV never stores the image. */
+  /** TMDB's image path, a series' own for an episode; kraziTV never stores the image. */
   poster_path: string | null;
+  /** An episode's TMDB series; null for a movie. */
+  series_tmdb_id: number | null;
+  series_name: string | null;
+  /** An episode's season; `0` is the specials season. */
+  season_number: number | null;
+  /** An episode's first episode number and, for a multi-episode file, its last. */
+  episode_number: number | null;
+  last_episode_number: number | null;
 }

@@ -2,7 +2,8 @@
 export interface MetadataProviderRefTable {
   media_item_id: string;
   provider: "tmdb";
-  external_kind: "movie";
+  /** A movie, or for an episode its TV series. */
+  external_kind: "movie" | "tv";
   external_id: number;
   /** When the facts were fetched; TMDB data must be refreshed within six months. */
   fetched_at: number;

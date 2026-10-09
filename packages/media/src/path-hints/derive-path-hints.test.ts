@@ -15,6 +15,7 @@ describe("derivePathHints", () => {
       "Firefly/Season 1/s01e05.mp4",
       {
         series: "Firefly",
+        seriesFolder: "Firefly",
         season: 1,
         episode: { first: 5, last: 5 },
         strength: "strong",
@@ -24,6 +25,7 @@ describe("derivePathHints", () => {
       "Firefly (2002)/s01e05.mp4",
       {
         series: "Firefly",
+        seriesFolder: "Firefly (2002)",
         year: 2002,
         season: 1,
         episode: { first: 5, last: 5 },
@@ -34,6 +36,7 @@ describe("derivePathHints", () => {
       "Show/s01e05-e06.mkv",
       {
         series: "Show",
+        seriesFolder: "Show",
         season: 1,
         episode: { first: 5, last: 6 },
         strength: "strong",
@@ -163,9 +166,40 @@ describe("derivePathHints", () => {
     });
   });
 
+  it.each([
+    ["Firefly/Season 1/s01e05.mp4", "Firefly"],
+    ["Firefly/Specials/s00e01.mp4", "Firefly"],
+    [
+      "Firefly (2002) [1080p BluRay x265]/Season 2/Disc 1/s02e01.mkv",
+      "Firefly (2002) [1080p BluRay x265]",
+    ],
+    ["TV/Firefly/Season 1/Firefly - s01e05.mkv", "TV/Firefly"],
+    ["TV/Random Stuff/Firefly.S01E05.mkv", "TV/Random Stuff"],
+    // Scene names that differ from their series folder still share it.
+    ["Grey's Anatomy/Season 2/Greys.Anatomy.S02E01.mkv", "Grey's Anatomy"],
+    ["The Office (US)/Season 1/The.Office.US.S01E01.mkv", "The Office (US)"],
+    [
+      "Doctor Who (2005)/Season 1/Doctor.Who.2005.S01E01.mkv",
+      "Doctor Who (2005)",
+    ],
+    ["Firefly.S01E05.mkv", ""],
+  ])("names the folder %s's series came from as %j", (path, seriesFolder) => {
+    expect(hintsFor(path)).toMatchObject({ seriesFolder });
+  });
+
+  it("names no series folder without a series", () => {
+    expect(hintsFor("TV/Downloads/s01e05.mp4")).not.toHaveProperty(
+      "seriesFolder",
+    );
+    expect(hintsFor("Alien (1979)/movie.mkv")).not.toHaveProperty(
+      "seriesFolder",
+    );
+  });
+
   it("takes the series from the filename when it carries more than numbering", () => {
     expect(hintsFor("Random Stuff/Firefly.S01E05.720p.HDTV.mkv")).toEqual({
       series: "Firefly",
+      seriesFolder: "Random Stuff",
       season: 1,
       episode: { first: 5, last: 5 },
       extra: false,

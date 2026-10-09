@@ -4,9 +4,16 @@ import {
   readMovieDetails,
   readMovieSearch,
   type TmdbMovie,
-  type TmdbMovieSummary,
 } from "./tmdb-movie.js";
 import { TmdbRequestQueue } from "./tmdb-request-queue.js";
+import {
+  readSeasonDetails,
+  readSeriesDetails,
+  readSeriesSearch,
+  type TmdbSeason,
+  type TmdbSeries,
+} from "./tmdb-series.js";
+import type { TmdbTitleSummary } from "./tmdb-title.js";
 
 // The one origin the client calls (ADR 0013); never built from user input.
 const TMDB_API_BASE = "https://api.themoviedb.org/3";
@@ -61,8 +68,8 @@ export type TmdbKeyCheck =
 type TmdbLookup<T> =
   { kind: "ok"; value: T } | { kind: "failed"; reason: string };
 
-/** What a movie search sends: path-hint terms only, never a file path (ADR 0013). */
-export interface TmdbMovieQuery {
+/** What a movie or series search sends: path-hint terms only, never a file path (ADR 0013). */
+export interface TmdbTitleQuery {
   title: string;
   year?: number;
 }
@@ -131,16 +138,11 @@ export class TmdbClient {
    */
   async searchMovies(
     apiKey: string,
-    query: TmdbMovieQuery,
+    query: TmdbTitleQuery,
     signal?: AbortSignal,
-  ): Promise<TmdbLookup<TmdbMovieSummary[]>> {
-    const params = new URLSearchParams({
-      query: query.title,
-      include_adult: "false",
-    });
-    if (query.year !== undefined) params.set("year", String(query.year));
+  ): Promise<TmdbLookup<TmdbTitleSummary[]>> {
     return this.#lookUp(
-      `/search/movie?${params.toString()}`,
+      searchPath("/search/movie", query, "year"),
       apiKey,
       readMovieSearch,
       signal,
@@ -154,6 +156,47 @@ export class TmdbClient {
     signal?: AbortSignal,
   ): Promise<TmdbLookup<TmdbMovie>> {
     return this.#lookUp(`/movie/${id}`, apiKey, readMovieDetails, signal);
+  }
+
+  /**
+   * Searches TMDB's series by name and, when hinted, first-air year. Callers
+   * still compare each result's own first-air year, as for movies.
+   */
+  async searchSeries(
+    apiKey: string,
+    query: TmdbTitleQuery,
+    signal?: AbortSignal,
+  ): Promise<TmdbLookup<TmdbTitleSummary[]>> {
+    return this.#lookUp(
+      searchPath("/search/tv", query, "first_air_date_year"),
+      apiKey,
+      readSeriesSearch,
+      signal,
+    );
+  }
+
+  /** Reads one series' first-air facts and season list by its TMDB ID. */
+  async seriesDetails(
+    apiKey: string,
+    id: number,
+    signal?: AbortSignal,
+  ): Promise<TmdbLookup<TmdbSeries>> {
+    return this.#lookUp(`/tv/${id}`, apiKey, readSeriesDetails, signal);
+  }
+
+  /** Reads one season's episodes; season `0` holds a series' specials. */
+  async seasonDetails(
+    apiKey: string,
+    seriesId: number,
+    season: number,
+    signal?: AbortSignal,
+  ): Promise<TmdbLookup<TmdbSeason>> {
+    return this.#lookUp(
+      `/tv/${seriesId}/season/${season}`,
+      apiKey,
+      readSeasonDetails,
+      signal,
+    );
   }
 
   /**
@@ -269,6 +312,21 @@ export class TmdbClient {
       return { kind: "unreachable", reason: fetchFailureReason(error) };
     }
   }
+}
+
+// Builds a search path from path-hint terms only, never adult results; the
+// year travels in whichever parameter that search filters by.
+function searchPath(
+  path: "/search/movie" | "/search/tv",
+  query: TmdbTitleQuery,
+  yearParam: "year" | "first_air_date_year",
+): string {
+  const params = new URLSearchParams({
+    query: query.title,
+    include_adult: "false",
+  });
+  if (query.year !== undefined) params.set(yearParam, String(query.year));
+  return `${path}?${params.toString()}`;
 }
 
 // TMDB's Retry-After is whole seconds; a missing or odd value waits the default.
