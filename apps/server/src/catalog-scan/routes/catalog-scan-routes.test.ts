@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { send, waitForScan } from "../../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";
+import { IdleMetadataRefresh } from "../../testing/idle-metadata-refresh.js";
 import { ControlledProber } from "../../testing/controlled-prober.js";
 import {
   discoveredFiles,
@@ -32,6 +33,7 @@ import type { ScheduleService } from "../../schedules/schedule-service.js";
 import { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "../scanner/concurrency-limited-prober.js";
+import { withoutTmdbKey } from "../../testing/scan-metadata.js";
 
 type Server = FastifyInstance;
 type Writer = Pick<CatalogScanWriter, "commit">;
@@ -71,11 +73,17 @@ async function startServer(options: ServerOptions = {}) {
     },
     overrides: (db, { mediaRoots, schedules, catalogRemovals }) => {
       const real = new CatalogScanWriter(db);
+      // A wrapper replaces only the scan's commit; retries keep the real one.
+      const scanWriter = options.writer?.(real) ?? real;
       return {
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober: new ConcurrencyLimitedProber(prober, 4),
-          writer: options.writer?.(real) ?? real,
+          writer: {
+            commit: (generation) => scanWriter.commit(generation),
+            commitRetry: (rootId, entries) => real.commitRetry(rootId, entries),
+          },
           discover,
           schedules: {
             ensureAllEnabled:
@@ -83,6 +91,7 @@ async function startServer(options: ServerOptions = {}) {
               ((scheduleLog) => schedules.ensureAllEnabled(scheduleLog)),
           },
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log,
           now: () => (time += 1_000),
         }),
@@ -132,6 +141,7 @@ describe("POST /media-roots/:id/scan", () => {
       body: {
         id: expect.any(String),
         rootId: rootFixture.id,
+        kind: "scan",
         phase: "discovering",
         startedAt: "2024-01-01T00:00:01.000Z",
         finishedAt: null,
@@ -139,6 +149,9 @@ describe("POST /media-roots/:id/scan", () => {
         settledCount: 0,
         probeFailedCount: 0,
         currentPath: null,
+        lookupCount: 0,
+        lookedUpCount: 0,
+        currentTitle: null,
         cancelRequested: false,
         summary: null,
         error: null,
@@ -224,6 +237,10 @@ describe("POST /media-roots/:id/scan", () => {
         probedCount: 1,
         probeFailedCount: 1,
         missingCount: 0,
+        matchedCount: 0,
+        ambiguousCount: 0,
+        unmatchedCount: 0,
+        lookupErrorCount: 0,
       },
     });
   });
@@ -636,12 +653,14 @@ describe("scan schedule maintenance", () => {
       },
       overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),
           discover,
           schedules,
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log: recordingLog(),
         }),
       }),

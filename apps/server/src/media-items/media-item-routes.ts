@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendInvalidRequest } from "../http/api-error.js";
-import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
+import {
+  sendInvalidRequest,
+  sendMediaItemNotFound,
+} from "../http/api-error.js";
 import { idParams } from "../http/request-schemas.js";
-import type { MediaItem } from "./contracts.js";
+import { toApiMediaItem } from "./api-media-item.js";
 import type { MediaItemRepository } from "./media-item-repository.js";
 
 // Bounds one response so a large catalog never ships in a single read.
@@ -15,6 +17,8 @@ const listQuery = z.strictObject({
   q: z.string().trim().default(""),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  // Present only to filter, so any value but `true` is a caller error.
+  needsChoice: z.literal("true").optional(),
 });
 
 // Bulk selection takes every match at once; the cap keeps one response bounded
@@ -47,8 +51,13 @@ export function registerMediaItemRoutes(
     if (!query.success) {
       return sendInvalidRequest(reply, query.error);
     }
-    const { q, limit, offset } = query.data;
-    const page = await mediaItems.list({ search: q, limit, offset });
+    const { q, limit, offset, needsChoice } = query.data;
+    const page = await mediaItems.list({
+      search: q,
+      limit,
+      offset,
+      needsChoice: needsChoice !== undefined,
+    });
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });
 
@@ -84,33 +93,8 @@ export function registerMediaItemRoutes(
   server.get("/media-items/:id", async (request, reply) => {
     const { id } = idParams.parse(request.params);
     const item = await mediaItems.findById(id);
-    if (item === undefined) {
-      return sendApiError(
-        reply,
-        404,
-        "media_item_not_found",
-        `Media item ${id} does not exist`,
-      );
-    }
-    return toApiMediaItem(item);
+    return item === undefined
+      ? sendMediaItemNotFound(reply, id)
+      : toApiMediaItem(item);
   });
-}
-
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
-function toApiMediaItem(item: MediaItem) {
-  return {
-    id: item.id,
-    mediaRootId: item.mediaRootId,
-    path: item.path,
-    title: item.title,
-    durationMs: item.durationMs,
-    hasAudio: item.hasAudio,
-    hasVideo: item.hasVideo,
-    status: item.status,
-    probeError: item.probeError,
-    createdAt: toApiTimestamp(item.createdAt),
-    updatedAt: toApiTimestamp(item.updatedAt),
-    lastSeenAt: toApiTimestamp(item.lastSeenAt),
-    lastProbedAt: toApiTimestampOrNull(item.lastProbedAt),
-  };
 }

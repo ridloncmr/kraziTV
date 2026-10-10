@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import type { MediaItemTable } from "../database/schema/media-item-table.js";
+import { iso } from "../testing/api-requests.js";
 import {
   animeRootFixture,
   FIXTURE_TIME,
@@ -10,6 +12,17 @@ import {
   itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
+import {
+  ALIEN,
+  candidate,
+  EPISODE_HINTS,
+  FIREFLY_EPISODE,
+  LOOKED_UP_AT,
+  lookedUp,
+  NO_CONTENT_METADATA,
+  METADATA_PATHS as PATHS,
+} from "../testing/metadata-match-fixtures.js";
+import { sequentialIds } from "../testing/record-sources.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
@@ -237,6 +250,7 @@ describe("GET /media-items/:id", () => {
       updatedAt: "2024-01-01T00:00:00.000Z",
       lastSeenAt: "2024-01-01T00:00:00.000Z",
       lastProbedAt: "2024-01-01T00:00:00.000Z",
+      metadata: NO_CONTENT_METADATA,
     });
   });
 
@@ -289,6 +303,127 @@ describe("GET /media-items/:id", () => {
     expect(response.statusCode).toBe(404);
     expect(response.json()).toEqual({
       error: { code: "media_item_not_found", message: expect.any(String) },
+    });
+  });
+});
+
+describe("content metadata", () => {
+  /**
+   * Boots a server whose catalog the real scan writer committed, so the
+   * listing reads the rows a scan writes rather than hand-built ones. A
+   * rejection has no writer yet, so it is set directly.
+   */
+  async function startWithMetadata() {
+    const { server } = await startTestServer({
+      seed: async (db) => {
+        await db.insertInto("media_roots").values(rootFixture).execute();
+        const query = { title: "Fixture" };
+        await new CatalogScanWriter(db, {
+          createId: sequentialIds("item"),
+        }).commit({
+          rootId: rootFixture.id,
+          scannedAt: LOOKED_UP_AT,
+          candidates: Object.values(PATHS).map(candidate),
+          metadataMatches: [
+            lookedUp(PATHS.movie, ALIEN),
+            lookedUp(PATHS.episode, FIREFLY_EPISODE, EPISODE_HINTS),
+            lookedUp(PATHS.ambiguous, {
+              kind: "ambiguous",
+              query,
+              candidates: [{ id: 1091, title: "The Thing" }],
+            }),
+            lookedUp(PATHS.unmatched, { kind: "unmatched", query }),
+            lookedUp(PATHS.failed, {
+              kind: "failed",
+              query,
+              reason: "TMDB answered HTTP 503",
+            }),
+            {
+              kind: "extra",
+              pathKey: PATHS.extra,
+              hints: { extra: true, strength: "weak" },
+            },
+            lookedUp(PATHS.rejected, { kind: "unmatched", query }),
+          ],
+        });
+        await db
+          .updateTable("metadata_matches")
+          .set({ state: "rejected" })
+          .where("media_item_id", "=", (eb) =>
+            eb
+              .selectFrom("media_items")
+              .select("id")
+              .where("path_key", "=", PATHS.rejected),
+          )
+          .execute();
+      },
+    });
+    return server;
+  }
+
+  it("lists each item's match state and accepted TMDB facts", async () => {
+    const server = await startWithMetadata();
+
+    const response = await list(server);
+
+    expect(response.statusCode).toBe(200);
+    const metadataAt = new Map(
+      response
+        .json<{ items: { path: string; metadata: unknown }[] }>()
+        .items.map((item) => [item.path, item.metadata]),
+    );
+    expect(Object.fromEntries(metadataAt)).toEqual({
+      [PATHS.movie]: {
+        ...NO_CONTENT_METADATA,
+        matchState: "matched",
+        title: "Alien",
+        releaseDate: "1979-05-25",
+        genres: ["Horror", "Science Fiction"],
+        franchiseName: "Alien Collection",
+        description: "In space…",
+        posterPath: "/alien.jpg",
+        refreshedAt: iso(LOOKED_UP_AT),
+      },
+      [PATHS.episode]: {
+        ...NO_CONTENT_METADATA,
+        matchState: "matched",
+        title: "Safe / Our Mrs. Reynolds",
+        seriesName: "Firefly",
+        seasonNumber: 1,
+        episodeNumber: 5,
+        lastEpisodeNumber: 6,
+        releaseDate: "2002-10-18",
+        genres: ["Drama", "Sci-Fi & Fantasy"],
+        description: "Simon is kidnapped.",
+        posterPath: "/firefly.jpg",
+        refreshedAt: iso(LOOKED_UP_AT),
+      },
+      [PATHS.ambiguous]: { ...NO_CONTENT_METADATA, matchState: "ambiguous" },
+      [PATHS.unmatched]: { ...NO_CONTENT_METADATA, matchState: "unmatched" },
+      [PATHS.failed]: {
+        ...NO_CONTENT_METADATA,
+        matchState: "unmatched",
+        lookupError: "TMDB answered HTTP 503",
+      },
+      [PATHS.extra]: { ...NO_CONTENT_METADATA, matchState: "extra" },
+      [PATHS.rejected]: { ...NO_CONTENT_METADATA, matchState: "rejected" },
+      [PATHS.notLookedUp]: {
+        ...NO_CONTENT_METADATA,
+        matchState: "not_looked_up",
+      },
+    });
+  });
+
+  it("returns the same metadata for one item as the listing", async () => {
+    const server = await startWithMetadata();
+    const listed = (
+      await list(server, `?q=${encodeURIComponent("Alien (1979)/alien")}`)
+    ).json<{ items: { id: string; metadata: unknown }[] }>().items;
+
+    expect(listed).toHaveLength(1);
+    const [item] = listed;
+    expect((await detail(server, item.id)).json()).toMatchObject({
+      metadata: item.metadata,
     });
   });
 });

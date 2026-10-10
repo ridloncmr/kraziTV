@@ -87,6 +87,7 @@ npm test
 npm run build
 npm run format
 npm run test:ffprobe
+npm run test:tmdb
 npm run reset-password
 ```
 
@@ -94,6 +95,10 @@ npm run reset-password
 ffprobe. It needs `ffmpeg` and `ffprobe` on `PATH`, or `FFMPEG_PATH` and
 `FFPROBE_PATH` set to their executables, and it fails rather than skips when
 they are missing. `npm test` and CI do not run it.
+
+`npm run test:tmdb` is an opt-in check of the TMDB client against the real
+TMDB API. Set `TMDB_API_KEY` to your TMDB API Read Access Token; it fails
+rather than skips without one. `npm test` and CI do not run it.
 
 `npm run dev` starts the API at `http://127.0.0.1:3000`. During development the
 Web Admin runs separately: start it with `npm run dev:web` in a second terminal.

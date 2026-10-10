@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import type { MediaItem } from "../http/contracts.js";
+import { noMetadata } from "../testing/admin-fixtures.js";
 import type { DraftMember } from "./contracts.js";
 import { appendMedia, moveMembers, sortMembers } from "./member-order.js";
 
@@ -79,6 +80,7 @@ it("appends only new media, in path order, after the existing members", () => {
     status: "available",
     durationMs: 1_000,
     probeError: null,
+    metadata: noMetadata,
   });
   const added = appendMedia(
     [member("a")],

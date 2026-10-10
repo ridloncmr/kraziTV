@@ -1,14 +1,18 @@
 // Spec 0002 acceptance: the whole catalog slice over HTTP, a real temporary
 // SQLite file, and a real media directory. Only ffprobe is replaced.
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, join, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 
 import { MediaProbeError, type MediaProbeResult } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
+import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, waitForScan } from "../testing/api-requests.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { IdleMetadataRefresh } from "../testing/idle-metadata-refresh.js";
+import { PROBE_RESULT } from "../testing/discovery-fixtures.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
   cleanUpTestEnvironment,
@@ -18,9 +22,11 @@ import {
 import { CatalogScanWriter } from "./writer/catalog-scan-writer.js";
 import { CatalogScanner } from "./scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./scanner/concurrency-limited-prober.js";
+import { withoutTmdbKey } from "../testing/scan-metadata.js";
 
 interface RunningServer {
   server: FastifyInstance;
+  db: Kysely<DatabaseSchema>;
   prober: ControlledProber;
 }
 
@@ -40,7 +46,7 @@ afterEach(async () => {
 // Composes the server the way index.ts does, swapping only ffprobe for a controlled double.
 async function startServer(dataDirectory: string): Promise<RunningServer> {
   const prober = new ControlledProber();
-  const { server } = await startTestServer({
+  const { server, db } = await startTestServer({
     dataDirectory,
     overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
       scanner: new CatalogScanner({
@@ -49,12 +55,14 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
         writer: new CatalogScanWriter(db),
         schedules,
         removals: catalogRemovals,
+        metadataRefresh: new IdleMetadataRefresh(),
+        metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),
     }),
   });
   probers.push(prober);
-  return { server, prober };
+  return { server, db, prober };
 }
 
 // Starts a scan job, settles each file's probe with the outcome chosen by
@@ -232,5 +240,61 @@ describe("media catalog acceptance", () => {
     expect(await listRoots(second)).toEqual(
       rootsBefore.map((root: object) => ({ ...root, scan: offlineScan.body })),
     );
+  });
+
+  // Programming spec 0001: unmatched media shows a fallback title from its path hints.
+  it("titles items from their folder hierarchy and refreshes older titles on rescan", async () => {
+    const workspace = await createTemporaryDirectory();
+    const mediaDirectory = join(workspace, "TV");
+    const files = [
+      join("Firefly", "Season 1", "s01e05.mp4"),
+      join("Alien (1979)", "movie.mkv"),
+      join("Downloads", "s02e01.mkv"),
+      join("Firefly", "Featurettes", "making-of.mkv"),
+    ];
+    for (const file of files) {
+      await mkdir(join(mediaDirectory, dirname(file)), { recursive: true });
+      await writeFile(join(mediaDirectory, file), "not really media");
+    }
+    const outcomes = Object.fromEntries(
+      files.map((file) => [basename(file), PROBE_RESULT]),
+    );
+    const running = await startServer(join(workspace, "data"));
+    const created = await send(running.server, "POST", "/media-roots", {
+      path: mediaDirectory,
+    });
+    const rootId = (created.body as { id: string }).id;
+    // Reads each item's title by its path below the root.
+    const titlesByPath = async () => {
+      const items = (await listItems(running)) as {
+        path: string;
+        title: string;
+      }[];
+      return Object.fromEntries(
+        items.map(({ path, title }) => [
+          path.slice(mediaDirectory.length + 1),
+          title,
+        ]),
+      );
+    };
+
+    await scan(running, rootId, outcomes);
+    const expected = {
+      [files[0]]: "Firefly – S01E05",
+      [files[1]]: "Alien (1979)",
+      [files[2]]: "s02e01",
+      [files[3]]: "making-of",
+    };
+    expect(await titlesByPath()).toEqual(expected);
+
+    // An item cataloged before path hints existed carries its filename title;
+    // the next scan replaces it.
+    await running.db
+      .updateTable("media_items")
+      .set({ title: "s01e05" })
+      .where("title", "=", "Firefly – S01E05")
+      .execute();
+    await scan(running, rootId, outcomes);
+    expect(await titlesByPath()).toEqual(expected);
   });
 });

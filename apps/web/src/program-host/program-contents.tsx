@@ -13,7 +13,8 @@ import type { AccountProfile } from "../http/contracts.js";
  * Application composition maps navigation identity to programs without teaching windows domain behavior.
  * Memoized because the shell re-renders on every window move, focus and health poll; a program
  * re-renders only when its own state or these props change. The account changes identity only
- * when it is edited, and the app root keeps `onAccountChanged` stable.
+ * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
+ * `onTmdbKeyChanged` stable and changes `tmdbTaskRequest` only when the tray asks.
  */
 export const ProgramContents = memo(function ProgramContents({
   id,
@@ -21,12 +22,16 @@ export const ProgramContents = memo(function ProgramContents({
   connection,
   account,
   onAccountChanged,
+  tmdbTaskRequest,
+  onTmdbKeyChanged,
 }: {
   id: ProgramId;
   visible: boolean;
   connection: string;
   account: AccountProfile;
   onAccountChanged: (account: AccountProfile) => void;
+  tmdbTaskRequest: number;
+  onTmdbKeyChanged: () => void;
 }) {
   switch (id) {
     case "channels":
@@ -46,6 +51,8 @@ export const ProgramContents = memo(function ProgramContents({
         <AccountSettingsApp
           account={account}
           onAccountChanged={onAccountChanged}
+          tmdbTaskRequest={tmdbTaskRequest}
+          onTmdbKeyChanged={onTmdbKeyChanged}
         />
       );
   }

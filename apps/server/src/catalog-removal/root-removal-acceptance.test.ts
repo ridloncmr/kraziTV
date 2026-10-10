@@ -12,6 +12,7 @@ import { ScheduleService } from "../schedules/schedule-service.js";
 import { iso, send, waitForScan } from "../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../testing/catalog-fixtures.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
+import { IdleMetadataRefresh } from "../testing/idle-metadata-refresh.js";
 import {
   discoveredFiles,
   PROBE_RESULT,
@@ -25,6 +26,7 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../testing/test-environment.js";
+import { withoutTmdbKey } from "../testing/scan-metadata.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -98,12 +100,14 @@ describe("catalog removal of a media root", () => {
         }).then(() => undefined),
       overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
         scanner: new CatalogScanner({
+          metadata: withoutTmdbKey(),
           roots: mediaRoots,
           prober,
           writer: new CatalogScanWriter(db),
           discover: async () => discoveredFiles("a"),
           schedules,
           removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
           log: recordingLog(),
         }),
       }),

@@ -41,3 +41,6 @@ export const uniqueMediaItemIds = z
 
 /** A display name: trimmed, and never empty once trimmed. */
 export const nameField = z.string().trim().min(1, "name must not be empty");
+
+/** A season or episode number as content facts store it; season 0 holds specials. */
+export const countField = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

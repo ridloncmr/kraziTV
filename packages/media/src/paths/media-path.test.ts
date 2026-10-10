@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeMediaPath } from "./media-path.js";
+import { mediaPathSegments, normalizeMediaPath } from "./media-path.js";
 
 describe("normalizeMediaPath on Windows", () => {
   it("gives drive-letter and case variants one identity", () => {
@@ -98,5 +98,42 @@ describe("normalizeMediaPath on POSIX", () => {
     ["NUL-containing", "/media\0/tv"],
   ])("rejects a %s path", (_label, path) => {
     expect(normalizeMediaPath(path, "posix")).toBeUndefined();
+  });
+});
+
+describe("mediaPathSegments", () => {
+  it("splits a Windows path below its root, matching the root without case", () => {
+    expect(
+      mediaPathSegments(
+        "C:\\Media\\TV",
+        "C:\\media\\tv\\Firefly\\Season 1\\s01e05.mp4",
+        "win32",
+      ),
+    ).toEqual(["Firefly", "Season 1", "s01e05.mp4"]);
+  });
+
+  it("splits below a bare drive root", () => {
+    expect(
+      mediaPathSegments("D:\\", "D:\\Alien (1979)\\movie.mkv", "win32"),
+    ).toEqual(["Alien (1979)", "movie.mkv"]);
+  });
+
+  it("splits a POSIX path below its root and below the filesystem root", () => {
+    expect(
+      mediaPathSegments("/mnt/tv", "/mnt/tv/Show/s01e05.mkv", "posix"),
+    ).toEqual(["Show", "s01e05.mkv"]);
+    expect(mediaPathSegments("/", "/Show/s01e05.mkv", "posix")).toEqual([
+      "Show",
+      "s01e05.mkv",
+    ]);
+  });
+
+  it.each([
+    ["outside the root", "/mnt/tv", "/mnt/movies/a.mkv"],
+    ["a sibling sharing the root's prefix", "/mnt/tv", "/mnt/tvx/a.mkv"],
+    ["the root itself", "/mnt/tv", "/mnt/tv"],
+    ["a case variant on POSIX", "/mnt/tv", "/mnt/TV/a.mkv"],
+  ])("returns undefined for a path %s", (_label, root, path) => {
+    expect(mediaPathSegments(root, path, "posix")).toBeUndefined();
   });
 });

@@ -8,6 +8,11 @@ import {
   parameterChunks,
 } from "../database/writes/parameter-chunks.js";
 import type { MediaItem, MediaItemPage, MediaItemQuery } from "./contracts.js";
+import {
+  effectiveMetadata,
+  METADATA_COLUMNS,
+  type MetadataColumns,
+} from "./effective-metadata.js";
 
 /**
  * Reads cataloged items. Items a user removed are invisible to every read
@@ -30,8 +35,7 @@ export class MediaItemRepository {
    * of IDs stays under SQLite's parameter limit.
    */
   async list(query: MediaItemQuery): Promise<MediaItemPage> {
-    const matching = this.#db
-      .selectFrom("media_items")
+    const matching = this.#withMetadata()
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
       .where("media_items.removed_at", "is", null)
       .$if(query.search !== "", (builder) =>
@@ -43,9 +47,13 @@ export class MediaItemRepository {
           "not in",
           jsonIdList(query.excludeIds ?? []),
         ),
+      )
+      .$if(query.needsChoice === true, (builder) =>
+        builder.where("metadata_matches.state", "=", "ambiguous"),
       );
     const rows = await matching
       .selectAll("media_items")
+      .select(METADATA_COLUMNS)
       .orderBy("media_roots.path_key")
       .orderBy("media_items.path_key")
       .orderBy("media_items.id")
@@ -60,13 +68,42 @@ export class MediaItemRepository {
 
   /** Loads one item; returns undefined when the ID is unknown or removed. */
   async findById(id: string): Promise<MediaItem | undefined> {
-    const row = await this.#db
-      .selectFrom("media_items")
-      .selectAll()
-      .where("id", "=", id)
-      .where("removed_at", "is", null)
+    const row = await this.#withMetadata()
+      .selectAll("media_items")
+      .select(METADATA_COLUMNS)
+      .where("media_items.id", "=", id)
+      .where("media_items.removed_at", "is", null)
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaItem(row);
+  }
+
+  /**
+   * Starts an item read with its metadata rows beside it. Each table holds at
+   * most one row per item, so the joins never repeat an item.
+   */
+  #withMetadata() {
+    return this.#db
+      .selectFrom("media_items")
+      .leftJoin(
+        "metadata_matches",
+        "metadata_matches.media_item_id",
+        "media_items.id",
+      )
+      .leftJoin(
+        "content_facts",
+        "content_facts.media_item_id",
+        "media_items.id",
+      )
+      .leftJoin(
+        "metadata_provider_refs",
+        "metadata_provider_refs.media_item_id",
+        "media_items.id",
+      )
+      .leftJoin(
+        "metadata_corrections",
+        "metadata_corrections.media_item_id",
+        "media_items.id",
+      );
   }
 }
 
@@ -102,7 +139,9 @@ function matchesSearch(search: string) {
 }
 
 // Keeps SQLite's integer booleans and internal identity key out of callers.
-function toMediaItem(row: Selectable<MediaItemTable>): MediaItem {
+function toMediaItem(
+  row: Selectable<MediaItemTable> & MetadataColumns,
+): MediaItem {
   return {
     id: row.id,
     mediaRootId: row.media_root_id,
@@ -117,5 +156,6 @@ function toMediaItem(row: Selectable<MediaItemTable>): MediaItem {
     updatedAt: row.updated_at,
     lastSeenAt: row.last_seen_at,
     lastProbedAt: row.last_probed_at,
+    metadata: effectiveMetadata(row),
   };
 }

@@ -9,6 +9,7 @@ import {
   itemFixtureAt,
   rootFixture,
 } from "../testing/catalog-fixtures.js";
+import { NO_CONTENT_METADATA } from "../testing/metadata-match-fixtures.js";
 import { MediaItemRepository } from "./media-item-repository.js";
 import {
   cleanUpTestEnvironment,
@@ -147,6 +148,7 @@ describe("MediaItemRepository.findById", () => {
       updatedAt: FIXTURE_TIME,
       lastSeenAt: FIXTURE_TIME,
       lastProbedAt: FIXTURE_TIME,
+      metadata: NO_CONTENT_METADATA,
     });
   });
 

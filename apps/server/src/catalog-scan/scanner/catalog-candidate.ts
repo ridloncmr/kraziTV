@@ -1,7 +1,12 @@
-import type {
-  DiscoveredMediaFile,
-  MediaProbeError,
-  MediaProbeResult,
+import {
+  currentPathPlatform,
+  derivePathHints,
+  fallbackTitle,
+  mediaPathSegments,
+  type DiscoveredMediaFile,
+  type MediaProbeError,
+  type MediaProbeResult,
+  type PathHints,
 } from "@krazitv/media";
 
 import type { CatalogCandidate } from "../contracts.js";
@@ -11,15 +16,21 @@ export type ProbeOutcome =
   | { kind: "probed"; probedAt: number; result: MediaProbeResult }
   | { kind: "failed"; probedAt: number; error: MediaProbeError };
 
-/** Joins discovery and probe results into the scan's normalized candidate shape. */
+/**
+ * Joins discovery and probe results into the scan's normalized candidate
+ * shape. The title comes from the file's path hints below its media root, so
+ * every scan, including a rescan, refreshes it.
+ */
 export function createCatalogCandidate(
   file: Pick<DiscoveredMediaFile, "path" | "pathKey" | "title">,
   outcome: ProbeOutcome,
+  rootPath: string,
 ): CatalogCandidate {
+  const hints = pathHintsBelow(rootPath, file.path);
   const identity = {
     path: file.path,
     pathKey: file.pathKey,
-    title: file.title,
+    title: hints ? fallbackTitle(hints, file.title) : file.title,
     probedAt: outcome.probedAt,
   };
   if (outcome.kind === "probed") {
@@ -37,6 +48,18 @@ export function createCatalogCandidate(
     status: "probe_failed",
     probeError: `${outcome.error.code}: ${outcome.error.message}`,
   };
+}
+
+/**
+ * Reads a discovered file's path hints from the folders below its media root,
+ * or undefined when the path is not below it. Titles and lookups both use it.
+ */
+export function pathHintsBelow(
+  rootPath: string,
+  path: string,
+): PathHints | undefined {
+  const segments = mediaPathSegments(rootPath, path, currentPathPlatform());
+  return segments ? derivePathHints(segments) : undefined;
 }
 
 /**

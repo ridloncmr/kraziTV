@@ -14,7 +14,11 @@ import { WindowDialogFrame } from "../controls/window-dialog.js";
 import type { FolderListing, MediaRoot } from "../http/contracts.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { mediaRoot, scanStatus } from "../testing/scan-fixtures.js";
+import {
+  mediaRoot,
+  scanStatus,
+  scanSummary,
+} from "../testing/scan-fixtures.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
 afterEach(() => {
@@ -307,12 +311,12 @@ it("animates the decorative paper only while discovering or probing", async () =
 
   scan.status = scanStatus({
     phase: "completed",
-    summary: {
+    summary: scanSummary({
       discoveredCount: 3,
       probedCount: 3,
       probeFailedCount: 0,
       missingCount: 0,
-    },
+    }),
   });
   await advance(1_000);
   expect(animation()).not.toBeNull();
@@ -441,12 +445,12 @@ it.each([
   {
     outcome: scanStatus({
       phase: "completed",
-      summary: {
+      summary: scanSummary({
         discoveredCount: 7,
         probedCount: 5,
         probeFailedCount: 2,
         missingCount: 3,
-      },
+      }),
     }),
     line: "Scan completed.",
     facts: ["Discovered 7", "Probed 5", "Probe failures 2", "Missing 3"],
@@ -496,6 +500,136 @@ it.each([
     expect(document.querySelector(".window-content[inert]")).toBeNull();
   },
 );
+
+it.each([
+  { configured: false, shown: true },
+  { configured: true, shown: false },
+])(
+  "says titles come from file names after a scan only without a TMDB key (configured: $configured)",
+  async ({ configured, shown }) => {
+    const { api, scan } = renderScanLibrary([mediaRoot()]);
+    api.reply("/metadata/tmdb-key", { configured });
+    const dialog = await startScan();
+    scan.status = scanStatus({
+      phase: "completed",
+      summary: scanSummary({
+        discoveredCount: 1,
+        probedCount: 1,
+        probeFailedCount: 0,
+        missingCount: 0,
+      }),
+    });
+    await advance(1_000);
+    await advance();
+
+    expect(
+      within(dialog).queryByText(
+        "TMDB isn't set up, so titles come from file names.",
+      ) !== null,
+    ).toBe(shown);
+  },
+);
+
+it("shows lookup progress while the scan looks media up on TMDB", async () => {
+  const { scan } = renderScanLibrary([mediaRoot()]);
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    phase: "enriching",
+    discoveredCount: 300,
+    settledCount: 300,
+    lookupCount: 240,
+    lookedUpCount: 86,
+    currentTitle: "Alien",
+  });
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
+  expect(within(dialog).getByText("Last looked up: Alien")).toBeTruthy();
+  expect(within(dialog).getByText("86 of 240 looked up")).toBeTruthy();
+  const bar = within(dialog).getByRole("progressbar");
+  expect(bar.getAttribute("aria-valuenow")).toBe("86");
+  expect(bar.getAttribute("aria-valuemax")).toBe("240");
+  expect(
+    within(dialog).getByRole("button", { name: "Cancel" }).matches(":disabled"),
+  ).toBe(false);
+  expect(
+    dialog.querySelector("svg.scan-animation")?.classList.contains("animating"),
+  ).toBe(true);
+});
+
+it.each([
+  {
+    ambiguousCount: 2,
+    note: "2 need your choice.",
+  },
+  { ambiguousCount: 0, note: null },
+])(
+  "adds lookup counts to a scan that looked media up (ambiguous: $ambiguousCount)",
+  async ({ ambiguousCount, note }) => {
+    const { api, scan } = renderScanLibrary([mediaRoot()]);
+    api.reply("/metadata/tmdb-key", { configured: true });
+    const dialog = await startScan();
+    scan.status = scanStatus({
+      phase: "completed",
+      lookupCount: 7,
+      lookedUpCount: 7,
+      summary: scanSummary({
+        discoveredCount: 7,
+        probedCount: 7,
+        matchedCount: 3,
+        ambiguousCount,
+        unmatchedCount: 1,
+        lookupErrorCount: 3 - ambiguousCount,
+      }),
+    });
+    await advance(1_000);
+
+    const shown = [...dialog.querySelectorAll(".facts dt")].map(
+      (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
+    );
+    expect(shown.slice(4)).toEqual([
+      "Matched 3",
+      `Ambiguous ${ambiguousCount}`,
+      "Unmatched 1",
+      `Lookup errors ${3 - ambiguousCount}`,
+    ]);
+    expect(
+      within(dialog).queryByText(/need your choice/)?.textContent ?? null,
+    ).toBe(note);
+    expect(
+      within(dialog).queryByRole("button", { name: "Review matches…" }) !==
+        null,
+    ).toBe(note !== null);
+  },
+);
+
+it("opens Review matches from a completed scan that left items needing a choice", async () => {
+  const { api, scan } = renderScanLibrary([mediaRoot()]);
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply("/metadata/match-reviews", { steps: [] });
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    phase: "completed",
+    lookupCount: 2,
+    lookedUpCount: 2,
+    summary: scanSummary({ ambiguousCount: 2 }),
+  });
+  await advance(1_000);
+
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Review matches…" }),
+  );
+  await advance();
+
+  expect(
+    screen.queryByRole("dialog", { name: "Scanning media root" }),
+  ).toBeNull();
+  expect(
+    within(screen.getByRole("dialog", { name: "Review matches" })).getByText(
+      "All done.",
+    ),
+  ).toBeTruthy();
+});
 
 it("attaches to another client's running scan when the start reports scan_in_progress", async () => {
   const { api, scan } = renderScanLibrary([mediaRoot()]);
@@ -724,4 +858,38 @@ it("follows a later scan of the same root without the earlier job's status", asy
     "Looking for media files in /media…",
   );
   expect(within(dialog).getByText("3 found")).toBeTruthy();
+});
+
+it("retries a root's failed lookups in the progress dialog, opening at enriching and summarizing lookups only", async () => {
+  const { api, scan } = renderScanLibrary([mediaRoot()]);
+  const retry = scanStatus({
+    kind: "retry",
+    phase: "enriching",
+    lookupCount: 4,
+  });
+  scan.status = retry;
+  api.reply("/metadata/lookup-retries", retry, "POST", 202);
+  await advance();
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry failed lookups" }));
+  await advance();
+  const dialog = screen.getByRole("dialog", { name: "Retrying TMDB lookups" });
+
+  expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
+  expect(within(dialog).getByText("0 of 4 looked up")).toBeTruthy();
+  expect(api.requestsTo("/metadata/lookup-retries")).toMatchObject([
+    { method: "POST", body: { scope: "failed", mediaRootId: "root" } },
+  ]);
+
+  scan.status = scanStatus({
+    ...retry,
+    phase: "completed",
+    lookedUpCount: 4,
+    summary: scanSummary({ matchedCount: 3, lookupErrorCount: 1 }),
+  });
+  await advance(1_000);
+  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(within(dialog).getByText("Matched")).toBeTruthy();
+  expect(within(dialog).queryByText("Discovered")).toBeNull();
+  expect(within(dialog).queryByText("Probed")).toBeNull();
 });

@@ -6,6 +6,10 @@ import {
   type ServerDatabaseLifecycle,
 } from "./app.js";
 import type { AuthService } from "./auth/auth-service.js";
+import type { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
+import type { CorrectionService } from "./content-metadata/corrections/correction-service.js";
+import type { TrackMappingService } from "./content-metadata/track-mapping/track-mapping-service.js";
+import type { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
@@ -20,6 +24,7 @@ import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
 import { ControlledChannelStreams } from "./testing/controlled-channel-streams.js";
 import { plexSettingsFixture } from "./testing/plex-fixtures.js";
+import { IdleMetadataRefresh } from "./testing/idle-metadata-refresh.js";
 import { SignedInAuthenticator } from "./testing/signed-in-authenticator.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
@@ -39,6 +44,11 @@ function createDependencies(
       deleteExpiredSessions: async () => undefined,
     } as Partial<AuthService> as AuthService,
     authenticator: new SignedInAuthenticator(),
+    tmdbKeys: {} as TmdbKeyService,
+    matchChoices: {} as MatchChoiceService,
+    corrections: {} as CorrectionService,
+    trackMappings: {} as TrackMappingService,
+    metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
     mediaItems: {} as MediaItemRepository,
@@ -190,6 +200,7 @@ describe("buildServer", () => {
     const status: ScanStatus = {
       id: "scan-1",
       rootId: "root-scanned",
+      kind: "scan",
       phase: "probing",
       startedAt: Date.UTC(2024, 0, 1),
       finishedAt: null,
@@ -197,6 +208,9 @@ describe("buildServer", () => {
       settledCount: 1,
       probeFailedCount: 0,
       currentPath: "/media/a/x.mkv",
+      lookupCount: 0,
+      lookedUpCount: 0,
+      currentTitle: null,
       cancelRequested: false,
       summary: null,
       error: null,
@@ -239,6 +253,27 @@ describe("buildServer", () => {
     await server.close();
 
     expect(events).toEqual(["scanner stopped", "database closed"]);
+  });
+
+  it("starts the TMDB refresh once ready and stops it before closing the database", async () => {
+    const events: string[] = [];
+    const dependencies = createDependencies({
+      close: async () => void events.push("database closed"),
+    });
+    dependencies.metadataRefresh = new IdleMetadataRefresh(events);
+    const server = buildServer(dependencies, {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
+
+    await server.ready();
+    await server.close();
+
+    expect(events).toEqual([
+      "refresh started",
+      "refresh stopped",
+      "database closed",
+    ]);
   });
 
   it("waits for scans and logs the failure when channel streams fail to shut down", async () => {

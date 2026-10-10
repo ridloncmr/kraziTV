@@ -40,6 +40,9 @@ it("closes every program and shows the logon screen once, however many reads ans
   api.reply("/media-roots", unauthenticated, "GET", 401);
   api.reply("/media-items", unauthenticated, "GET", 401);
   api.reply("/auth/state", loggedOut);
+  // The shell reads media roots as it starts, for the TMDB reminder; only
+  // Media Library's own reads count here.
+  const sentBefore = api.requests.length;
   openMediaLibrary();
   expect(
     await screen.findByRole("button", { name: "Marguerite" }),
@@ -48,9 +51,11 @@ it("closes every program and shows the logon screen once, however many reads ans
   expect(screen.queryByRole("button", { name: "start" })).toBeNull();
   // Both of Media Library's reads answered 401; the state was read once more.
   expect(
-    api.requests.filter((request) =>
-      ["/media-roots", "/media-items"].includes(request.path),
-    ),
+    api.requests
+      .slice(sentBefore)
+      .filter((request) =>
+        ["/media-roots", "/media-items"].includes(request.path),
+      ),
   ).toHaveLength(2);
   expect(api.requestsTo("/auth/state")).toHaveLength(2);
 });

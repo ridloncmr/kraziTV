@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { TmdbClient } from "@krazitv/media";
 import type {
   FastifyInstance,
   FastifyServerOptions,
@@ -12,6 +13,11 @@ import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
+import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
+import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
+import { CorrectionService } from "../content-metadata/corrections/correction-service.js";
+import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
+import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -33,6 +39,8 @@ import { ControlledChannelStreams } from "./controlled-channel-streams.js";
 import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
+import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
+import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 import { SignedInAuthenticator } from "./signed-in-authenticator.js";
 
 /** Every server dependency except the database, which the helper always opens. */
@@ -112,6 +120,14 @@ export async function startTestServer(
   const removals: Pick<CatalogRemovalService, "purge"> = {
     purge: async (log) => wired.dependencies?.catalogRemovals.purge(log),
   };
+  // A scripted TMDB that accepts no key, so no suite ever calls the real
+  // one. Key saves and scans share it, as they share one client in index.ts.
+  const tmdb = new TmdbClient({
+    fetch: new ScriptedTmdbFetch().fetch,
+    timeoutMs: 1_000,
+  });
+  const tmdbKeys = new TmdbKeyService(database.db, tmdb);
+  const matchChoices = new MatchChoiceService(database.db, tmdbKeys, tmdb);
   // Built per dependency set, so the default scanner can follow overrides.
   const defaultScanner = (
     roots: MediaRootRepository,
@@ -123,6 +139,12 @@ export async function startTestServer(
       writer: new CatalogScanWriter(database.db),
       schedules: scheduleService,
       removals,
+      metadataRefresh: new IdleMetadataRefresh(),
+      metadata: {
+        tmdbKeys,
+        metadataMatches: new MetadataMatchRepository(database.db),
+        tmdb,
+      },
       log: pino({ level: "silent" }),
     });
   // Built per dependency set, so default removals follow an overridden
@@ -136,6 +158,13 @@ export async function startTestServer(
   const defaults: TestServerDependencies = {
     auth,
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
+    tmdbKeys,
+    matchChoices,
+    corrections: new CorrectionService(database.db),
+    trackMappings: new TrackMappingService(database.db, tmdbKeys, tmdb),
+    // No background TMDB pass races what a suite asserts; refresh suites
+    // drive the real service directly.
+    metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots,
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),

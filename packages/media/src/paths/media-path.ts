@@ -40,6 +40,30 @@ export function normalizeMediaPath(
     : normalizePosixPath(input);
 }
 
+/**
+ * Splits a normalized media path into its folder and file names below a
+ * normalized root, so callers read the hierarchy without re-deriving platform
+ * separators. Matches the root by the platform's identity rules and returns
+ * undefined for any path that is not strictly below it.
+ */
+export function mediaPathSegments(
+  rootPath: string,
+  path: string,
+  platform: PathPlatform,
+): string[] | undefined {
+  const separator = platform === "win32" ? "\\" : "/";
+  const prefix = rootPath.endsWith(separator) ? rootPath : rootPath + separator;
+  const head = path.slice(0, prefix.length);
+  const matches =
+    platform === "win32"
+      ? head.toLowerCase() === prefix.toLowerCase()
+      : head === prefix;
+  if (!matches || path.length === prefix.length) {
+    return undefined;
+  }
+  return path.slice(prefix.length).split(separator);
+}
+
 // Rejects driveless, device, and aliasing paths so one directory has one identity key.
 function normalizeWindowsPath(input: string): NormalizedMediaPath | undefined {
   const normalized = win32.normalize(input);

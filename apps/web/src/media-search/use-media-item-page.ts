@@ -5,24 +5,44 @@ import { useResource } from "../http/use-resource.js";
 const SEARCH_DELAY_MS = 250;
 
 /**
+ * What a page leaves out: IDs a picker hides, or every item whose match does
+ * not need the owner's choice. The server applies either, never both.
+ */
+type PageFilter = { excludeIds: readonly string[] } | { needsChoice: boolean };
+
+/**
  * Reads one server-side page of the catalog so no program loads every item.
- * Typed search waits for a pause before it refetches, and a new search
- * returns to the first page in the same update so no stale page is requested.
- * Excluded IDs are left out of the page and its total by the server, so a
- * picker never pages through items it hides.
+ * Typed search waits for a pause before it refetches, and a new search or
+ * filter returns to the first page in the same update so no stale page is
+ * requested. The server applies the filter to the page and its total, so a
+ * list never pages through items it hides.
  */
 export function useMediaItemPage(
   search: string,
   limit: number,
   active: boolean,
-  excludeIds?: readonly string[],
+  filter?: PageFilter,
 ) {
-  const [query, setQuery] = useState({ q: search.trim(), offset: 0 });
+  const excludeIds =
+    filter && "excludeIds" in filter ? filter.excludeIds : undefined;
+  const needsChoice =
+    filter !== undefined && "needsChoice" in filter && filter.needsChoice;
+  const [query, setQuery] = useState({
+    q: search.trim(),
+    offset: 0,
+    needsChoice,
+  });
+  // Set during render, so the request after a filter change is already for page one.
+  if (query.needsChoice !== needsChoice) {
+    setQuery({ ...query, offset: 0, needsChoice });
+  }
   useEffect(() => {
     const q = search.trim();
     const timer = setTimeout(
       () =>
-        setQuery((current) => (current.q === q ? current : { q, offset: 0 })),
+        setQuery((current) =>
+          current.q === q ? current : { ...current, q, offset: 0 },
+        ),
       SEARCH_DELAY_MS,
     );
     return () => clearTimeout(timer);
@@ -32,10 +52,17 @@ export function useMediaItemPage(
     limit: String(limit),
     offset: String(query.offset),
   });
+  if (query.needsChoice) params.set("needsChoice", "true");
   // Stable between renders so the resource re-serializes the excluded IDs only when they or the query change.
   const body = useMemo(
-    () => excludeIds && { q: query.q, limit, offset: query.offset, excludeIds },
-    [excludeIds, query, limit],
+    () =>
+      excludeIds && {
+        q: query.q,
+        limit,
+        offset: query.offset,
+        excludeIds,
+      },
+    [excludeIds, query.q, query.offset, limit],
   );
   const page = useResource<MediaItemPage>(
     excludeIds ? "/media-items/search" : `/media-items?${params}`,

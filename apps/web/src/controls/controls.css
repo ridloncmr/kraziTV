@@ -600,3 +600,54 @@
     }
   }
 }
+/*
+ * TMDB's terms require its logo and notice; the logo stays small so it is
+ * less prominent than kraziTV's own branding.
+ */
+.tmdb-attribution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.tmdb-attribution img {
+  height: 12px;
+}
+/* A media item's details: its TMDB poster beside the facts. */
+.media-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 560px;
+}
+.media-details .facts {
+  flex: 1;
+}
+.media-poster {
+  width: 120px;
+  flex: none;
+}
+/* A match's candidates: each poster, name, and runtime beside its Choose button. */
+.match-candidates {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-width: 560px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.match-candidates li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.match-candidates li > div {
+  flex: 1;
+}
+.match-candidates img {
+  width: 46px;
+  flex: none;
+}

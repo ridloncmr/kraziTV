@@ -4,7 +4,7 @@ import { SegmentedProgressBar } from "../../controls/segmented-progress-bar.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { apiRequest } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type { ScanStatus } from "../../http/contracts.js";
+import type { ScanStatus, TmdbKeyStatus } from "../../http/contracts.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/use-resource.js";
 import { ScanAnimation } from "./scan-animation.js";
@@ -26,12 +26,15 @@ export function ScanProgressDialog({
   job,
   visible,
   onAcknowledge,
+  onReview,
 }: {
   job: FollowedScan;
   /** False while the window is minimized or the page hidden, which pauses polling. */
   visible: boolean;
   /** OK, or closing a finished dialog: the page closes it and refreshes. */
   onAcknowledge: () => void;
+  /** Acknowledges a scan that left items needing a choice and opens Review matches. */
+  onReview: () => void;
 }) {
   const path = scanPath(job.status.rootId);
   // "sending" until the DELETE answers, then the status it answered with.
@@ -54,6 +57,14 @@ export function ScanProgressDialog({
         : null;
   const running = ending === null && isScanRunning(polled);
   if (!running && !ended) setEnded(true);
+  const completed = ending === null && polled.phase === "completed";
+  // Items this scan left needing the owner's choice; only a completed scan reports them.
+  const needChoice = completed ? (polled.summary?.ambiguousCount ?? 0) : 0;
+  // Read once the scan completes, so its summary can say why titles come
+  // from file names; a failed read says nothing rather than guess.
+  const tmdbKey = useResource<TmdbKeyStatus>(
+    completed ? "/metadata/tmdb-key" : null,
+  );
 
   // An ending replaces Cancel with OK; it takes focus unless the user has
   // moved on to another window meanwhile.
@@ -99,14 +110,20 @@ export function ScanProgressDialog({
     polled.phase === "committing" || reply?.phase === "committing";
   return (
     <WindowDialog
-      title="Scanning media root"
+      title={
+        job.status.kind === "retry"
+          ? "Retrying TMDB lookups"
+          : "Scanning media root"
+      }
       busy={running}
       onClose={onAcknowledge}
     >
       <ScanAnimation
         animating={
           ending === null &&
-          (polled.phase === "discovering" || polled.phase === "probing")
+          (polled.phase === "discovering" ||
+            polled.phase === "probing" ||
+            polled.phase === "enriching")
         }
       />
       <p role="status" aria-live="polite">
@@ -116,18 +133,41 @@ export function ScanProgressDialog({
       {ending === null && polled.phase === "failed" && (
         <p>The catalog is unchanged.</p>
       )}
-      {ending === null && polled.phase === "completed" && polled.summary && (
+      {completed && tmdbKey.data?.configured === false && (
+        <p>TMDB isn&apos;t set up, so titles come from file names.</p>
+      )}
+      {completed && polled.kind === "retry" && polled.lookupCount === 0 && (
+        <p>Nothing here needed a lookup.</p>
+      )}
+      {completed && polled.summary && (
         <dl className="facts">
-          <dt>Discovered</dt>
-          <dd>{counts.format(polled.summary.discoveredCount)}</dd>
-          <dt>Probed</dt>
-          <dd>{counts.format(polled.summary.probedCount)}</dd>
-          <dt>Probe failures</dt>
-          <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
-          <dt>Missing</dt>
-          <dd>{counts.format(polled.summary.missingCount)}</dd>
+          {polled.kind === "scan" && (
+            <>
+              <dt>Discovered</dt>
+              <dd>{counts.format(polled.summary.discoveredCount)}</dd>
+              <dt>Probed</dt>
+              <dd>{counts.format(polled.summary.probedCount)}</dd>
+              <dt>Probe failures</dt>
+              <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
+              <dt>Missing</dt>
+              <dd>{counts.format(polled.summary.missingCount)}</dd>
+            </>
+          )}
+          {polled.lookupCount > 0 && (
+            <>
+              <dt>Matched</dt>
+              <dd>{counts.format(polled.summary.matchedCount)}</dd>
+              <dt>Ambiguous</dt>
+              <dd>{counts.format(polled.summary.ambiguousCount)}</dd>
+              <dt>Unmatched</dt>
+              <dd>{counts.format(polled.summary.unmatchedCount)}</dd>
+              <dt>Lookup errors</dt>
+              <dd>{counts.format(polled.summary.lookupErrorCount)}</dd>
+            </>
+          )}
         </dl>
       )}
+      {needChoice > 0 && <p>{counts.format(needChoice)} need your choice.</p>}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
         {running ? (
@@ -138,9 +178,14 @@ export function ScanProgressDialog({
             {cancelling ? "Cancelling…" : "Cancel"}
           </button>
         ) : (
-          <button ref={ok} onClick={onAcknowledge}>
-            OK
-          </button>
+          <>
+            {needChoice > 0 && (
+              <button onClick={onReview}>Review matches…</button>
+            )}
+            <button ref={ok} onClick={onAcknowledge}>
+              OK
+            </button>
+          </>
         )}
       </div>
     </WindowDialog>
@@ -165,10 +210,14 @@ function statusLine(
       return `Looking for media files in ${rootPath}…`;
     case "probing":
       return "Probing media files…";
+    case "enriching":
+      return "Looking up media on TMDB…";
     case "committing":
       return "Saving to the catalog…";
     case "completed":
-      return "Scan completed.";
+      return status.kind === "retry"
+        ? "Lookup retry completed."
+        : "Scan completed.";
     case "failed":
       return status.error?.message ?? "";
     case "cancelled":
@@ -178,33 +227,47 @@ function statusLine(
 
 /**
  * Counts and the progress bar of a running job, outside the live region.
- * Only probing knows its total, so the bar is determinate only then.
+ * Only probing and enriching know their totals, so the bar is determinate
+ * only then.
  */
 function ScanProgress({ status }: { status: ScanStatus }) {
-  const probing = status.phase === "probing";
+  const step = progressStep(status);
   return (
     <>
-      {probing && status.currentPath && (
-        <p className="path-cell">Last probed: {fileName(status.currentPath)}</p>
-      )}
+      {step?.last && <p className="path-cell">{step.last}</p>}
       <SegmentedProgressBar
         label="Scan progress"
-        progress={
-          probing
-            ? {
-                value: status.settledCount,
-                max: Math.max(status.discoveredCount, 1),
-              }
-            : undefined
-        }
+        progress={step && { value: step.done, max: Math.max(step.total, 1) }}
       />
       <p>
-        {probing
-          ? `${counts.format(status.settledCount)} of ${counts.format(status.discoveredCount)} files`
+        {step
+          ? `${counts.format(step.done)} of ${counts.format(step.total)} ${step.unit}`
           : `${counts.format(status.discoveredCount)} found`}
       </p>
     </>
   );
+}
+
+/** The determinate step a running job is in, or undefined while its total is unknown. */
+function progressStep(status: ScanStatus) {
+  if (status.phase === "probing") {
+    return {
+      done: status.settledCount,
+      total: status.discoveredCount,
+      unit: "files",
+      last:
+        status.currentPath && `Last probed: ${fileName(status.currentPath)}`,
+    };
+  }
+  if (status.phase === "enriching") {
+    return {
+      done: status.lookedUpCount,
+      total: status.lookupCount,
+      unit: "looked up",
+      last: status.currentTitle && `Last looked up: ${status.currentTitle}`,
+    };
+  }
+  return undefined;
 }
 
 /** The server reports full paths on either platform; the dialog names only the file. */

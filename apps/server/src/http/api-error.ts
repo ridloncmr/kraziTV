@@ -12,12 +12,20 @@ type ApiErrorCode =
   | "channel_runtime_cleanup_failed"
   | "channels_left_unschedulable"
   | "channel_unschedulable"
+  | "candidate_not_offered"
+  | "episode_not_in_series"
   | "folder_not_found"
   | "forbidden_origin"
   | "folder_unreadable"
   | "invalid_password"
   | "invalid_request"
+  | "invalid_tmdb_key"
   | "internal_error"
+  | "match_not_ambiguous"
+  | "match_not_rejectable"
+  | "match_not_rejected"
+  | "match_not_matched"
+  | "mapping_changed"
   | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_in_use"
@@ -29,6 +37,7 @@ type ApiErrorCode =
   | "media_root_removal_pending"
   | "media_root_unavailable"
   | "no_current_playout"
+  | "not_disc_track"
   | "not_found"
   | "playout_unavailable"
   | "programming_block_limit_reached"
@@ -36,12 +45,17 @@ type ApiErrorCode =
   | "scan_cancelled"
   | "scan_in_progress"
   | "scan_not_found"
+  | "season_not_in_series"
   | "schedule_busy"
   | "setup_required"
   | "stream_failed"
   | "stream_startup_timeout"
   | "stream_unavailable"
+  | "tmdb_unreachable"
+  | "tmdb_key_changed"
+  | "tmdb_key_required"
   | "too_many_attempts"
+  | "track_not_in_folder"
   | "unauthenticated"
   | "unknown_avatar";
 
@@ -137,6 +151,19 @@ export function sendMediaRootNotFound(
     404,
     "media_root_not_found",
     `Media root ${id} does not exist`,
+  );
+}
+
+/** One 404 shape for every route that addresses a media item, in any domain. */
+export function sendMediaItemNotFound(
+  reply: FastifyReply,
+  id: string,
+): FastifyReply {
+  return sendApiError(
+    reply,
+    404,
+    "media_item_not_found",
+    `Media item ${id} does not exist`,
   );
 }
 

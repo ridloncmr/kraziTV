@@ -26,7 +26,9 @@ export function CatalogPicker({
   const [search, setSearch] = useState("");
   // Sorted so reordering members never changes the request and refetches.
   const excludeIds = useMemo(() => [...memberIds].sort(), [memberIds]);
-  const results = useMediaItemPage(search, PAGE_SIZE, visible, excludeIds);
+  const results = useMediaItemPage(search, PAGE_SIZE, visible, {
+    excludeIds,
+  });
   const [picked, setPicked] = useState<ReadonlyMap<string, MediaItem>>(
     new Map(),
   );

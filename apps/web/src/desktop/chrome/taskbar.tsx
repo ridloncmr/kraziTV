@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type Dispatch } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+} from "react";
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type { DesktopWindow, ProgramId, WindowAction } from "../contracts.js";
@@ -13,6 +19,7 @@ export function Taskbar({
   connection,
   avatarId,
   logOff,
+  tray,
 }: {
   windows: DesktopWindow[];
   activeId?: ProgramId;
@@ -22,6 +29,8 @@ export function Taskbar({
   avatarId: string;
   /** Opens the Log Off confirmation, which returns focus to Start when it closes. */
   logOff: () => void;
+  /** Tray items the shell adds before the connection indicator, such as the TMDB reminder. */
+  tray?: ReactNode;
 }) {
   const [startOpen, setStartOpen] = useState(false);
   const [clock, setClock] = useState(new Date());
@@ -104,6 +113,7 @@ export function Taskbar({
           ))}
       </nav>
       <div className="system-tray">
+        {tray}
         <button
           className="connection-indicator"
           title={connection}

@@ -11,10 +11,10 @@ import {
   account,
   bootDesktop,
   loggedIn,
+  openFromShortcut,
   tooManyAttempts,
 } from "../testing/auth-fixtures.js";
 import { elapse } from "../testing/fake-time.js";
-import type { AuthState } from "../http/contracts.js";
 import { AVATAR_IDS } from "../branding/avatars/account-picture.js";
 
 afterEach(() => {
@@ -22,18 +22,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-
-/** Opens Account Settings from its desktop shortcut and returns its window. */
-async function openFromShortcut(state?: AuthState) {
-  const api = await bootDesktop(state);
-  fireEvent.click(
-    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
-      name: "Account Settings",
-    }),
-  );
-  const window = screen.getByRole("region", { name: "Account Settings" });
-  return { api, window };
-}
 
 /** Opens the name view, types `name`, and presses Change Name. */
 function submitName(window: HTMLElement, name: string) {
@@ -46,7 +34,7 @@ function submitName(window: HTMLElement, name: string) {
   fireEvent.click(within(window).getByRole("button", { name: "Change Name" }));
 }
 
-it("opens from the desktop shortcut showing the account and its three tasks", async () => {
+it("opens from the desktop shortcut showing the account and its four tasks", async () => {
   const { window } = await openFromShortcut();
   expect(
     within(window).getByRole("heading", { name: "Marguerite" }),
@@ -55,6 +43,7 @@ it("opens from the desktop shortcut showing the account and its three tasks", as
     "Change my name",
     "Change my picture",
     "Change my password",
+    "Set up TMDB",
   ])
     expect(within(window).getByRole("button", { name: task })).toBeTruthy();
   // Every place that names the program draws the account's picture instead.
