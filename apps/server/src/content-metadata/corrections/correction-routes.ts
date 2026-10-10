@@ -5,13 +5,10 @@ import {
   sendInvalidRequest,
   sendMediaItemNotFound,
 } from "../../http/api-error.js";
-import { idParams, nameField } from "../../http/request-schemas.js";
+import { countField, idParams, nameField } from "../../http/request-schemas.js";
 import { toApiMediaItem } from "../../media-items/api-media-item.js";
 import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
 import type { CorrectionService } from "./correction-service.js";
-
-// A season or episode number as content facts store it; season 0 holds specials.
-const countField = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 // Each field is optional, and null clears its correction. Tags are trimmed
 // and kept once each, in the owner's order.

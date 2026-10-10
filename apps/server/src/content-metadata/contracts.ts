@@ -34,8 +34,11 @@ export interface ReviewStep {
   itemCount: number;
 }
 
-/** One TMDB result an ambiguous item offers, as the candidate choice shows it. */
-interface MatchCandidate {
+/**
+ * One TMDB result an ambiguous item offers, or a series search finds, as the
+ * owner chooses among them.
+ */
+export interface MatchCandidate {
   tmdbId: number;
   title: string;
   /** First release as `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`. */
@@ -63,8 +66,8 @@ export interface CorrectionChange {
   tags?: string[];
 }
 
-/** Why a choice, rejection, or candidate read changed nothing. */
-export type MatchChoiceRefusal =
+/** Why a match decision, track mapping, or TMDB read changed or answered nothing. */
+export type MetadataRefusal =
   | { kind: "item_not_found" }
   /** The item's decision is not the ambiguous one read, so a choice would overwrite a newer one. */
   | { kind: "not_ambiguous" }
@@ -76,7 +79,14 @@ export type MatchChoiceRefusal =
   | { kind: "not_rejectable" }
   | { kind: "not_rejected" }
   /** Only a matched item can keep its match. */
-  | { kind: "not_matched" };
+  | { kind: "not_matched" }
+  /** Track mapping opens only from a disc-track file. */
+  | { kind: "not_disc_track" }
+  | { kind: "season_not_in_series" }
+  /** An applied row names an item outside the mapped folder. */
+  | { kind: "track_not_in_folder" }
+  /** An owner decision or catalog fact changed while Apply awaited TMDB. */
+  | { kind: "mapping_changed" };
 
 /**
  * Which cataloged items a lookup retry covers: one item, every item in the
@@ -107,4 +117,20 @@ export interface RetryEntry {
   id: string;
   record: MetadataMatchRecord;
   read: DecisionRead;
+}
+
+/** One disc-track file the owner maps, in the shape the proposal reads. */
+export interface FolderTrack {
+  mediaItemId: string;
+  path: string;
+  /** Null outside a disc folder. */
+  disc: number | null;
+  track: number;
+  durationMs: number | null;
+}
+
+/** One track's episode in a mapping; null skips it, making it an extra. */
+export interface ProposalRow {
+  mediaItemId: string;
+  episodeNumber: number | null;
 }

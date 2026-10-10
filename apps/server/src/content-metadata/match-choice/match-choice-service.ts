@@ -14,7 +14,7 @@ import { runImmediateTransaction } from "../../database/writes/immediate-transac
 import { jsonIdList } from "../../database/writes/parameter-chunks.js";
 import type {
   MatchCandidates,
-  MatchChoiceRefusal,
+  MetadataRefusal,
   ReviewStep,
 } from "../contracts.js";
 import {
@@ -89,7 +89,7 @@ export class MatchChoiceService {
    */
   async candidates(
     mediaItemId: string,
-  ): Promise<MatchCandidates | MatchChoiceRefusal> {
+  ): Promise<MatchCandidates | MetadataRefusal> {
     const waiting = await this.#readWaiting(mediaItemId);
     if ("kind" in waiting) return waiting;
     const rows = await this.#db
@@ -118,9 +118,7 @@ export class MatchChoiceService {
   async runtime(
     mediaItemId: string,
     tmdbId: number,
-  ): Promise<
-    { kind: "runtime"; runtimeMs: number | null } | MatchChoiceRefusal
-  > {
+  ): Promise<{ kind: "runtime"; runtimeMs: number | null } | MetadataRefusal> {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
     const offered = await this.#readOffered(mediaItemId, tmdbId);
@@ -146,7 +144,7 @@ export class MatchChoiceService {
   async choose(
     mediaItemId: string,
     tmdbId: number,
-  ): Promise<{ kind: "chosen"; resolvedCount: number } | MatchChoiceRefusal> {
+  ): Promise<{ kind: "chosen"; resolvedCount: number } | MetadataRefusal> {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
     const chosen = await this.#readOffered(mediaItemId, tmdbId);
@@ -199,7 +197,7 @@ export class MatchChoiceService {
    */
   async reject(
     mediaItemId: string,
-  ): Promise<{ kind: "rejected" } | MatchChoiceRefusal> {
+  ): Promise<{ kind: "rejected" } | MetadataRefusal> {
     return runImmediateTransaction(this.#db, async (pinned) => {
       const decision = await readDecision(pinned, mediaItemId);
       if (decision === undefined) return { kind: "item_not_found" as const };
@@ -232,7 +230,7 @@ export class MatchChoiceService {
    */
   async clearRejection(
     mediaItemId: string,
-  ): Promise<{ kind: "cleared" } | MatchChoiceRefusal> {
+  ): Promise<{ kind: "cleared" } | MetadataRefusal> {
     return runImmediateTransaction(this.#db, async (pinned) => {
       const decision = await readDecision(pinned, mediaItemId);
       if (decision === undefined) return { kind: "item_not_found" as const };
@@ -252,7 +250,7 @@ export class MatchChoiceService {
    */
   async keepMatch(
     mediaItemId: string,
-  ): Promise<{ kind: "kept" } | MatchChoiceRefusal> {
+  ): Promise<{ kind: "kept" } | MetadataRefusal> {
     return runImmediateTransaction(this.#db, async (pinned) => {
       const decision = await readDecision(pinned, mediaItemId);
       if (decision === undefined) return { kind: "item_not_found" as const };
@@ -311,7 +309,7 @@ export class MatchChoiceService {
   async #readOffered(
     mediaItemId: string,
     tmdbId: number,
-  ): Promise<Waiting | MatchChoiceRefusal> {
+  ): Promise<Waiting | MetadataRefusal> {
     const waiting = await this.#readWaiting(mediaItemId);
     if ("kind" in waiting) return waiting;
     const offered = await this.#db
@@ -324,9 +322,7 @@ export class MatchChoiceService {
   }
 
   /** Reads an item that needs a choice, or why it does not. */
-  async #readWaiting(
-    mediaItemId: string,
-  ): Promise<Waiting | MatchChoiceRefusal> {
+  async #readWaiting(mediaItemId: string): Promise<Waiting | MetadataRefusal> {
     const decision = await readDecision(this.#db, mediaItemId);
     if (decision === undefined) return { kind: "item_not_found" };
     if (decision.state !== "ambiguous") return { kind: "not_ambiguous" };

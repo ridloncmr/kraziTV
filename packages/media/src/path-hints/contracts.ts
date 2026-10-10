@@ -7,9 +7,10 @@ export interface PathHints {
   /** An episodic file's series name. */
   series?: string;
   /**
-   * An episode's series folder below the media root, `/`-joined: its nearest
-   * naming folder, or its own folder when no folder names anything (`""` at
-   * the root). Episodes sharing it and their series name share one series.
+   * An episode's or disc track's series folder below the media root,
+   * `/`-joined: its nearest naming folder, or its own folder when no folder
+   * names anything (`""` at the root). Episodes sharing it and their series
+   * name share one series; tracks sharing it and a season are mapped together.
    */
   seriesFolder?: string;
   /** A non-episodic file's movie title. */

@@ -25,6 +25,7 @@ type ApiErrorCode =
   | "match_not_rejectable"
   | "match_not_rejected"
   | "match_not_matched"
+  | "mapping_changed"
   | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_in_use"
@@ -36,6 +37,7 @@ type ApiErrorCode =
   | "media_root_removal_pending"
   | "media_root_unavailable"
   | "no_current_playout"
+  | "not_disc_track"
   | "not_found"
   | "playout_unavailable"
   | "programming_block_limit_reached"
@@ -43,6 +45,7 @@ type ApiErrorCode =
   | "scan_cancelled"
   | "scan_in_progress"
   | "scan_not_found"
+  | "season_not_in_series"
   | "schedule_busy"
   | "setup_required"
   | "stream_failed"
@@ -52,6 +55,7 @@ type ApiErrorCode =
   | "tmdb_key_changed"
   | "tmdb_key_required"
   | "too_many_attempts"
+  | "track_not_in_folder"
   | "unauthenticated"
   | "unknown_avatar";
 

@@ -31,15 +31,6 @@
     {
       "rule": "cross-package-copy",
       "files": [
-        "apps/server/src/content-metadata/contracts.ts",
-        "apps/web/src/http/contracts.ts"
-      ],
-      "reason": "ReviewStep and MatchCandidates are the match choice routes' JSON wire shapes. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives; the overlap is the field list itself.",
-      "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
-    },
-    {
-      "rule": "cross-package-copy",
-      "files": [
         "apps/server/src/testing/metadata-match-fixtures.ts",
         "apps/web/src/testing/admin-fixtures.ts"
       ],

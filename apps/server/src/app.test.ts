@@ -8,6 +8,7 @@ import {
 import type { AuthService } from "./auth/auth-service.js";
 import type { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
 import type { CorrectionService } from "./content-metadata/corrections/correction-service.js";
+import type { TrackMappingService } from "./content-metadata/track-mapping/track-mapping-service.js";
 import type { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
@@ -46,6 +47,7 @@ function createDependencies(
     tmdbKeys: {} as TmdbKeyService,
     matchChoices: {} as MatchChoiceService,
     corrections: {} as CorrectionService,
+    trackMappings: {} as TrackMappingService,
     metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,

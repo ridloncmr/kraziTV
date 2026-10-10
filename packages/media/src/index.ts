@@ -7,6 +7,7 @@ export {
 export { derivePathHints } from "./path-hints/derive-path-hints.js";
 export type { PathHints } from "./path-hints/contracts.js";
 export { seriesEpisode } from "./path-hints/series-episode.js";
+export { discTrack } from "./path-hints/disc-track.js";
 export {
   lookUpEpisodes,
   lookUpEpisodesInSeries,

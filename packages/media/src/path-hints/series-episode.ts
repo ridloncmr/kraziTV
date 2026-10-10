@@ -33,9 +33,18 @@ export function seriesEpisode(
     return undefined;
   }
   const key = [
-    platform === "win32" ? seriesFolder.toLowerCase() : seriesFolder,
+    folderIdentity(seriesFolder, platform),
     series.toLowerCase(),
     year ?? "",
   ].join("\u0000");
   return { key, series, season, episode };
+}
+
+/**
+ * A folder path as the filesystem identifies it: Windows folders ignore case,
+ * POSIX folders do not. Every grouping by series folder compares this, so two
+ * spellings of one Windows folder never split a show.
+ */
+export function folderIdentity(folder: string, platform: PathPlatform): string {
+  return platform === "win32" ? folder.toLowerCase() : folder;
 }

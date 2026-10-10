@@ -14,6 +14,7 @@ import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { ReviewMatchesDialog } from "./content-metadata/review-matches-dialog.js";
+import { TrackMappingDialog } from "./content-metadata/track-mapping-dialog.js";
 import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
 import type { RemovalSubject } from "./removal/removal-messages.js";
 import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
@@ -53,6 +54,8 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
   // The listed item whose candidates are open, and whether Review matches is.
   const [choosing, setChoosing] = useState<MediaItem>();
   const [reviewing, setReviewing] = useState(false);
+  // The listed disc-track item whose folder is being mapped to episodes.
+  const [mapping, setMapping] = useState<MediaItem>();
   // Selection is transient desktop shell state; it survives paging and search.
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const range = useRangeToggle(
@@ -321,6 +324,10 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             setDetailed(undefined);
             setChoosing(detailed);
           }}
+          onMapTracks={() => {
+            setDetailed(undefined);
+            setMapping(detailed);
+          }}
           onRetry={(scope) => {
             setDetailed(undefined);
             setLastRequest("scan");
@@ -346,6 +353,16 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             refresh();
           }}
           onClose={() => setChoosing(undefined)}
+        />
+      )}
+      {mapping && (
+        <TrackMappingDialog
+          mediaItemId={mapping.id}
+          onApplied={() => {
+            setMapping(undefined);
+            refresh();
+          }}
+          onClose={() => setMapping(undefined)}
         />
       )}
       {reviewing && (

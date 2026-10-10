@@ -376,27 +376,44 @@ When a completed scan reports items needing a choice, its summary offers a
 Disc rips such as MakeMKV output name files by track (`t_00.mkv`, `t_01.mkv`),
 restart track numbers on each disc, usually but not always follow episode order,
 and often include a play-all track and short extras. When a TMDB key is set,
-Media Library offers **Map tracks to episodes**, a window dialog, on any folder of
-ambiguous disc-track files. The dialog needs TMDB for the series choice and
-episode runtimes; without a key the user corrects each file's fields instead.
+Media Library offers **Map tracks to episodes**, a window dialog, from the
+details of a disc-track file that has no match decision and no corrections. The
+dialog needs TMDB for the series choice and episode runtimes; without a key the
+user corrects each file's fields instead.
 
-1. The user picks the series, or confirms the folder's shared series, and the season.
+**Which files the dialog maps.** Every cataloged disc-track file under the same
+series folder and season folder as the file it was opened from, across its disc
+folders: `Show/Season 1/Disc 1/t_00.mkv` and `Show/Season 1/Disc 2/t_00.mkv`
+map together, while `Show/Season 2/…` maps on its own. Files the owner already
+mapped or corrected are listed too, so Apply can redo them.
+
+1. The user searches TMDB for the series, starting from the folder's series name,
+   picks one, and enters the season, starting from the folder's season number.
 2. kraziTV proposes a mapping in disc-then-track order, continuing episode numbers
-   across discs: Disc 1 `t_00` → E1, `t_01` → E2, and so on.
+   across discs: Disc 1 `t_00` → E1, `t_01` → E2, and so on. Tracks without a
+   disc folder are ordered by track number, then file name. Tracks left over
+   after the season's last episode start as **Skip**.
 3. Each row shows the track's probed duration beside TMDB's runtime for the
    proposed episode, so mismatches are visible.
-4. Rows that do not fit start as **Skip**: a play-all track whose duration is close
-   to the sum of the folder's other tracks, and a track shorter than a third of the
-   folder's median track duration.
+4. Rows that do not fit start as **Skip**: a track shorter than a third of the
+   folder's median track duration, and a play-all track whose duration is within
+   5% of the sum of at least two other tracks on its disc, not counting short
+   ones. A track with no probed duration is never pre-skipped.
 5. The user changes any row to another episode or **Skip**, then chooses **Apply**.
    Nothing changes before Apply, and **Cancel** discards the proposal.
-6. Apply commits each mapped row as a user correction of series, season, and
-   episode, so the mapping survives rescans and refreshes. Skipped tracks become
-   extras: they stay in the catalog and are never matched as episodes.
+6. Apply links each mapped row to its TMDB episode as the owner's chosen match,
+   and stores its series, season, and episode as a user correction, clearing any
+   corrected title so TMDB's episode title shows. The mapping survives rescans,
+   retries, refreshes, and expiry. Skipped tracks become extras, with their
+   corrected title, series, season, and episode cleared: they stay in the catalog
+   and are never matched as episodes. Tags are kept either way.
 
 Runtime only shapes the proposal; it never accepts a match by itself, because
-the user confirms every row. Apply commits through the metadata-only path and
-revalidates each item, so a track removed while the dialog was open is skipped.
+the user confirms every row. Apply reads TMDB before it writes, then commits
+every row at once under write authority, revalidating each item, so a track
+removed while the dialog was open is skipped. A newer match decision, correction,
+or catalog fact changed while Apply waits for TMDB refuses the whole mapping
+without changing any rows; the owner reopens it before applying again.
 
 ### Scan Progress, Retry, And Refresh
 
@@ -533,8 +550,9 @@ None.
   movie.
 - A file under `Specials` carries a season 0 hint.
 - Map tracks to episodes proposes disc-then-track order, pre-skips play-all and
-  very short tracks, changes nothing before Apply, and stores each applied row as
-  a user correction that survives rescans; skipped tracks become extras.
+  very short tracks, changes nothing before Apply, and links each applied row to
+  its TMDB episode with a user correction that survives rescans; skipped tracks
+  become extras that rescans and retries keep.
 - A disc-track file such as `Some Show/t_01.mkv` is never automatically matched
   to an episode, and its track number never becomes an episode number.
 - A corrected series, episode, or title survives rescans and metadata retries.

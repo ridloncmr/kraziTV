@@ -74,7 +74,7 @@ export interface ReviewStep {
   title: string;
   itemCount: number;
 }
-/** One TMDB result an ambiguous item offers; unknown facts are null. */
+/** One TMDB result an ambiguous item offers or a series search finds; unknown facts are null. */
 interface MatchCandidate {
   tmdbId: number;
   title: string;
@@ -86,6 +86,39 @@ export interface MatchCandidates {
   kind: "movie" | "series";
   durationMs: number | null;
   candidates: MatchCandidate[];
+}
+/** `GET /metadata/series-search`: TMDB series whose names match the owner's text. */
+export interface SeriesSearch {
+  candidates: MatchCandidate[];
+}
+/**
+ * `GET /metadata/track-mappings/:id`: the disc tracks mapped together with
+ * one item, in disc-then-track order, and the folder's series and season.
+ */
+export interface TrackFolder {
+  series: string | null;
+  season: number | null;
+  tracks: {
+    mediaItemId: string;
+    path: string;
+    disc: number | null;
+    track: number;
+    durationMs: number | null;
+  }[];
+}
+/** One track's episode in a mapping; null skips the track, making it an extra. */
+interface TrackRow {
+  mediaItemId: string;
+  episodeNumber: number | null;
+}
+/** `GET /metadata/track-mappings/:id/proposal`: proposed rows and the season's episodes. */
+export interface TrackProposal {
+  rows: TrackRow[];
+  episodes: {
+    number: number;
+    title: string | null;
+    runtimeMs: number | null;
+  }[];
 }
 export interface MediaCollection {
   id: string;

@@ -4,8 +4,12 @@ import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
-import type { ContentMetadata, MediaItem } from "../../http/contracts.js";
-import { useMutation } from "../../http/use-resource.js";
+import type {
+  ContentMetadata,
+  MediaItem,
+  TrackFolder,
+} from "../../http/contracts.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { CorrectDetailsDialog } from "./correct-details-dialog.js";
 import { matchStateLabel } from "./match-state-label.js";
 import { posterUrl } from "./poster-url.js";
@@ -21,11 +25,14 @@ import { posterUrl } from "./poster-url.js";
  * is offered in every state, and a lookup retry for any available item that
  * is not an extra, which a retry never changes. A file changed since it was
  * matched says so and offers keeping the match; correcting it also clears
- * the flag.
+ * the flag. A disc-track file with no decision and no corrections offers
+ * mapping its folder's tracks to episodes when the server can: it refuses
+ * without a TMDB key, and for any file that is no disc track.
  */
 export function MediaDetailsDialog({
   item,
   onChooseMatch,
+  onMapTracks,
   onRetry,
   onChanged,
   onUpdated,
@@ -34,6 +41,8 @@ export function MediaDetailsDialog({
   item: MediaItem;
   /** Opens the candidate choice in place of this dialog. */
   onChooseMatch: () => void;
+  /** Opens the track mapping in place of this dialog. */
+  onMapTracks: () => void;
   /** Looks this item, or every item in its folder, up on TMDB again. */
   onRetry: (scope: "item" | "folder") => void;
   /** A rejection or its clearing committed; the listed item is now stale. */
@@ -47,6 +56,13 @@ export function MediaDetailsDialog({
   const rejection = `${resourcePath("metadata/matches", item.id)}/rejection`;
   const keep = `${resourcePath("metadata/matches", item.id)}/keep`;
   const [correcting, setCorrecting] = useState(false);
+  // Only a file nothing has decided yet asks; a refusal just hides the offer.
+  const unresolved =
+    metadata.matchState === "not_looked_up" &&
+    metadata.correctedFields.length === 0;
+  const trackFolder = useResource<TrackFolder>(
+    unresolved ? resourcePath("metadata/track-mappings", item.id) : null,
+  );
   const corrected = new Set(metadata.correctedFields);
   // Each fact with whether the owner's correction decides it.
   const facts: [string, string | null, boolean?][] = [
@@ -145,6 +161,11 @@ export function MediaDetailsDialog({
         {metadata.matchState === "ambiguous" && (
           <button disabled={decision.pending} onClick={onChooseMatch}>
             Choose match…
+          </button>
+        )}
+        {trackFolder.data && (
+          <button disabled={decision.pending} onClick={onMapTracks}>
+            Map tracks to episodes…
           </button>
         )}
         {(metadata.matchState === "ambiguous" ||

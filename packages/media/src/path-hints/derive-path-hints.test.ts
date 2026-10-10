@@ -46,7 +46,15 @@ describe("derivePathHints", () => {
       "Alien (1979)/movie.mkv",
       { title: "Alien", year: 1979, strength: "strong" },
     ],
-    ["Some Show/t_01.mkv", { series: "Some Show", track: 1, strength: "weak" }],
+    [
+      "Some Show/t_01.mkv",
+      {
+        series: "Some Show",
+        seriesFolder: "Some Show",
+        track: 1,
+        strength: "weak",
+      },
+    ],
     [
       "TV/Downloads/s01e05.mp4",
       { season: 1, episode: { first: 5, last: 5 }, strength: "weak" },
@@ -151,6 +159,7 @@ describe("derivePathHints", () => {
   it("keeps disc and track numbers apart from season and episode", () => {
     expect(hintsFor("Some Show/Season 1/Disc 2/title_t03.mkv")).toEqual({
       series: "Some Show",
+      seriesFolder: "Some Show",
       season: 1,
       disc: 2,
       track: 3,

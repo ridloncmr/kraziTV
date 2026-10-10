@@ -38,7 +38,6 @@ function rowOf(title: string) {
 it("labels each item's match state, naming a failed lookup apart from unmatched", async () => {
   await showCatalog([
     ALIEN,
-    CHANGED,
     OUTAGE,
     itemWith("The Thing", { matchState: "ambiguous" }),
     itemWith("Nothing", { matchState: "unmatched" }),

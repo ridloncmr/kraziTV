@@ -16,6 +16,7 @@ import { AuthService } from "../auth/auth-service.js";
 import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
 import { CorrectionService } from "../content-metadata/corrections/correction-service.js";
+import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
@@ -160,6 +161,7 @@ export async function startTestServer(
     tmdbKeys,
     matchChoices,
     corrections: new CorrectionService(database.db),
+    trackMappings: new TrackMappingService(database.db, tmdbKeys, tmdb),
     // No background TMDB pass races what a suite asserts; refresh suites
     // drive the real service directly.
     metadataRefresh: new IdleMetadataRefresh(),

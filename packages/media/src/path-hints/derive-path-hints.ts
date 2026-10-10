@@ -49,12 +49,15 @@ export function derivePathHints(segments: readonly string[]): PathHints {
     return episodeHints(folders, folderNames.join("/"), spaced, episode);
   }
 
+  // A track's series folder groups it with the other discs of its rip, so
+  // the owner can map them to episodes together.
   const track = TRACK.exec(stem);
   if (track) {
     return withFields(
       { extra: false, strength: "weak" },
       {
         series: folders.named?.name,
+        seriesFolder: folders.namedPath ?? folderNames.join("/"),
         year: folders.named?.year,
         season: folders.season,
         disc: folders.disc,

@@ -1,15 +1,14 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import {
-  sendApiError,
   sendInvalidRequest,
   sendMediaItemNotFound,
 } from "../../http/api-error.js";
 import { idParams } from "../../http/request-schemas.js";
 import { toApiMediaItem } from "../../media-items/api-media-item.js";
 import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
-import type { MatchChoiceRefusal } from "../contracts.js";
+import { sendMetadataRefusal } from "../metadata-refusal-reply.js";
 import type { MatchChoiceService } from "./match-choice-service.js";
 
 const choiceBody = z.strictObject({
@@ -40,7 +39,7 @@ export function registerMatchChoiceRoutes(
     const result = await choices.candidates(id);
     return "candidates" in result
       ? result
-      : sendRefusal(request, reply, id, result);
+      : sendMetadataRefusal(request, reply, id, result);
   });
 
   server.get(
@@ -54,7 +53,7 @@ export function registerMatchChoiceRoutes(
       const result = await choices.runtime(id, tmdbId);
       return result.kind === "runtime"
         ? { runtimeMs: result.runtimeMs }
-        : sendRefusal(request, reply, id, result);
+        : sendMetadataRefusal(request, reply, id, result);
     },
   );
 
@@ -67,7 +66,7 @@ export function registerMatchChoiceRoutes(
     const result = await choices.choose(id, body.data.tmdbId);
     return result.kind === "chosen"
       ? { resolvedCount: result.resolvedCount }
-      : sendRefusal(request, reply, id, result);
+      : sendMetadataRefusal(request, reply, id, result);
   });
 
   server.post("/metadata/matches/:id/rejection", async (request, reply) => {
@@ -75,7 +74,7 @@ export function registerMatchChoiceRoutes(
     const result = await choices.reject(id);
     return result.kind === "rejected"
       ? { matchState: "rejected" }
-      : sendRefusal(request, reply, id, result);
+      : sendMetadataRefusal(request, reply, id, result);
   });
 
   server.delete("/metadata/matches/:id/rejection", async (request, reply) => {
@@ -83,7 +82,7 @@ export function registerMatchChoiceRoutes(
     const result = await choices.clearRejection(id);
     return result.kind === "cleared"
       ? { matchState: "not_looked_up" }
-      : sendRefusal(request, reply, id, result);
+      : sendMetadataRefusal(request, reply, id, result);
   });
 
   // Answers with the item as now shown, so the details view drops the
@@ -92,7 +91,7 @@ export function registerMatchChoiceRoutes(
     const { id } = idParams.parse(request.params);
     const result = await choices.keepMatch(id);
     if (result.kind !== "kept") {
-      return sendRefusal(request, reply, id, result);
+      return sendMetadataRefusal(request, reply, id, result);
     }
     // A removal committed since keeping the match makes the item gone.
     const item = await mediaItems.findById(id);
@@ -100,80 +99,4 @@ export function registerMatchChoiceRoutes(
       ? sendMediaItemNotFound(reply, id)
       : toApiMediaItem(item);
   });
-}
-
-/**
- * Maps why a decision changed nothing to its answer. A TMDB failure's reason
- * is logged, not sent: it names the outage, which the owner cannot act on.
- */
-function sendRefusal(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  id: string,
-  refusal: MatchChoiceRefusal,
-): FastifyReply {
-  switch (refusal.kind) {
-    case "item_not_found":
-      return sendMediaItemNotFound(reply, id);
-    case "not_ambiguous":
-      return sendApiError(
-        reply,
-        409,
-        "match_not_ambiguous",
-        "This item's match has changed. Reopen it to see where it stands.",
-      );
-    case "candidate_not_offered":
-      return sendApiError(
-        reply,
-        400,
-        "candidate_not_offered",
-        "Choose one of the candidates this item offers.",
-      );
-    case "tmdb_key_missing":
-      return sendApiError(
-        reply,
-        409,
-        "tmdb_key_required",
-        "Set up TMDB in Account Settings first.",
-      );
-    case "lookup_failed":
-      request.log.warn(
-        { reason: refusal.reason },
-        "Could not read a chosen match from TMDB",
-      );
-      return sendApiError(
-        reply,
-        502,
-        "tmdb_unreachable",
-        "kraziTV could not read this match from TMDB. Try again later.",
-      );
-    case "episode_not_in_series":
-      return sendApiError(
-        reply,
-        409,
-        "episode_not_in_series",
-        "TMDB lists no such episode in that series. Choose another or reject the match.",
-      );
-    case "not_rejectable":
-      return sendApiError(
-        reply,
-        409,
-        "match_not_rejectable",
-        "Only a matched item or one that needs a choice can be rejected.",
-      );
-    case "not_rejected":
-      return sendApiError(
-        reply,
-        409,
-        "match_not_rejected",
-        "This item's match is not rejected.",
-      );
-    case "not_matched":
-      return sendApiError(
-        reply,
-        409,
-        "match_not_matched",
-        "This item's match has changed. Reopen it to see where it stands.",
-      );
-  }
 }

@@ -17,6 +17,8 @@ import { registerMatchChoiceRoutes } from "./content-metadata/match-choice/match
 import type { MatchChoiceService } from "./content-metadata/match-choice/match-choice-service.js";
 import { registerCorrectionRoutes } from "./content-metadata/corrections/correction-routes.js";
 import type { CorrectionService } from "./content-metadata/corrections/correction-service.js";
+import { registerTrackMappingRoutes } from "./content-metadata/track-mapping/track-mapping-routes.js";
+import type { TrackMappingService } from "./content-metadata/track-mapping/track-mapping-service.js";
 import type { MetadataRefreshService } from "./content-metadata/refresh/metadata-refresh-service.js";
 import type { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { registerMediaRootRoutes } from "./media-roots/media-root-routes.js";
@@ -74,6 +76,7 @@ export type ServerDependencies = {
   tmdbKeys: TmdbKeyService;
   matchChoices: MatchChoiceService;
   corrections: CorrectionService;
+  trackMappings: TrackMappingService;
   /** Started once the server is ready and shut down before the database closes. */
   metadataRefresh: Pick<MetadataRefreshService, "checkNow" | "shutdown">;
   mediaRoots: MediaRootRepository;
@@ -132,6 +135,7 @@ function registerRoutes(
     dependencies.corrections,
     dependencies.mediaItems,
   );
+  registerTrackMappingRoutes(server, dependencies.trackMappings);
   registerMediaRootRoutes(
     server,
     dependencies.mediaRoots,

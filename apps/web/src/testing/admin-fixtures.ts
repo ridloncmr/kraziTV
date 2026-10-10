@@ -5,6 +5,9 @@ import type {
   MatchCandidates,
   MediaCollection,
   MediaItem,
+  SeriesSearch,
+  TrackFolder,
+  TrackProposal,
 } from "../http/contracts.js";
 
 /** A media item's metadata before any lookup: every fact unknown. */
@@ -148,4 +151,54 @@ export const THE_THINGS: MatchCandidates = {
 export const CHANGED = {
   ...ALIEN,
   metadata: { ...ALIEN.metadata, fileChanged: true },
+};
+
+/** A disc-track file nothing has decided yet, and a second track on its disc. */
+export const DISC_TRACK = itemWith("Some Show – Disc 1 Track 0", {});
+const SECOND_TRACK = itemWith("Some Show – Disc 1 Track 1", {});
+
+/** The folder DISC_TRACK maps with: two tracks, the second a short extra. */
+export const TRACK_FOLDER: TrackFolder = {
+  series: "Some Show",
+  season: 1,
+  tracks: [
+    {
+      mediaItemId: DISC_TRACK.id,
+      path: DISC_TRACK.path,
+      disc: 1,
+      track: 0,
+      durationMs: 44 * 60_000,
+    },
+    {
+      mediaItemId: SECOND_TRACK.id,
+      path: SECOND_TRACK.path,
+      disc: 1,
+      track: 1,
+      durationMs: 3 * 60_000,
+    },
+  ],
+};
+
+/** The one TMDB series matching "Some Show". */
+export const SOME_SHOW_SEARCH: SeriesSearch = {
+  candidates: [
+    {
+      tmdbId: 4242,
+      title: "Some Show",
+      releaseDate: "2010-01-04",
+      posterPath: null,
+    },
+  ],
+};
+
+/** The proposal for TRACK_FOLDER: the first track as E1, the extra skipped. */
+export const TRACK_PROPOSAL: TrackProposal = {
+  rows: [
+    { mediaItemId: DISC_TRACK.id, episodeNumber: 1 },
+    { mediaItemId: SECOND_TRACK.id, episodeNumber: null },
+  ],
+  episodes: [
+    { number: 1, title: "Pilot", runtimeMs: 44 * 60_000 },
+    { number: 2, title: "Second", runtimeMs: null },
+  ],
 };

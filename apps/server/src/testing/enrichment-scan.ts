@@ -7,6 +7,7 @@ import type { Kysely } from "kysely";
 import { expect, vi } from "vitest";
 
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
+import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
@@ -65,20 +66,21 @@ export async function setupEnrichmentScan(options: SetupOptions) {
 
 /**
  * Boots the real server composition with the enrichment scanner, and match
- * choices asking the same scripted TMDB, so route tests scan real decisions.
+ * choices and track mappings asking the same scripted TMDB, so route tests
+ * scan real decisions.
  */
 export async function startEnrichmentServer(options: SetupOptions) {
   const { tmdb, client } = scriptedTmdb();
   const { server, db } = await startTestServer({
     seed: (db) => seedEnrichment(db, options.key ?? true),
-    overrides: (db) => ({
-      scanner: enrichmentScanner(db, client, options),
-      matchChoices: new MatchChoiceService(
-        db,
-        new TmdbKeyService(db, client),
-        client,
-      ),
-    }),
+    overrides: (db) => {
+      const tmdbKeys = new TmdbKeyService(db, client);
+      return {
+        scanner: enrichmentScanner(db, client, options),
+        matchChoices: new MatchChoiceService(db, tmdbKeys, client),
+        trackMappings: new TrackMappingService(db, tmdbKeys, client),
+      };
+    },
   });
   return { server, db, tmdb };
 }
