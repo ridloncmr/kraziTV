@@ -19,13 +19,23 @@ import type {
   MediaCollectionMember,
   MediaCollectionSummary,
 } from "../contracts.js";
+import { collectionCriterionSchema } from "../criteria/collection-criterion.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { membershipChange } from "../persistence/replace-collection-members.js";
 
-const createBody = z.strictObject({
-  name: nameField,
-  mediaItemIds: mediaItemIds.optional(),
-});
+// A collection starts from explicit members or from a criterion, never both.
+const createBody = z
+  .strictObject({
+    name: nameField,
+    mediaItemIds: mediaItemIds.optional(),
+    criterion: collectionCriterionSchema.optional(),
+  })
+  .refine(
+    (body) => body.mediaItemIds === undefined || body.criterion === undefined,
+    { message: "Give mediaItemIds or a criterion, not both" },
+  );
+
+const previewBody = z.strictObject({ criterion: collectionCriterionSchema });
 
 const renameBody = z.strictObject({ name: nameField });
 
@@ -48,6 +58,13 @@ export function registerMediaCollectionRoutes(
       return sendInvalidRequest(reply, body.error);
     }
 
+    if (body.data.criterion !== undefined) {
+      const collection = await mediaCollections.createAutomatic(
+        body.data.name,
+        body.data.criterion,
+      );
+      return reply.status(201).send(toApiMediaCollection(collection));
+    }
     const result = await mediaCollections.create(
       body.data.name,
       body.data.mediaItemIds,
@@ -57,6 +74,22 @@ export function registerMediaCollectionRoutes(
     }
 
     return reply.status(201).send(toApiMediaCollection(result.collection));
+  });
+
+  server.get("/media-collections/series", async () =>
+    mediaCollections.listCatalogSeries(),
+  );
+
+  // The browser shows this answer as the preview; it never matches itself.
+  server.post("/media-collections/previews", async (request, reply) => {
+    const body = previewBody.safeParse(request.body);
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+    const members = await mediaCollections.previewCriterion(
+      body.data.criterion,
+    );
+    return members.map(toApiMediaCollectionMember);
   });
 
   server.get("/media-collections/:id", async (request, reply) => {
@@ -139,6 +172,14 @@ export function registerMediaCollectionRoutes(
     if (result.kind === "not_found") {
       return sendCollectionNotFound(reply, id);
     }
+    if (result.kind === "automatic") {
+      return sendApiError(
+        reply,
+        409,
+        "media_collection_automatic",
+        `Media collection ${id} keeps its own members; convert it to manual to edit them`,
+      );
+    }
     if (result.kind === "unknown_media_items") {
       return sendUnknownMediaItems(reply, result.mediaItemIds);
     }
@@ -162,16 +203,19 @@ function toApiMediaCollection(collection: MediaCollection) {
     id: collection.id,
     name: collection.name,
     maintenanceMode: collection.maintenanceMode,
+    criterion: collection.criterion,
+    criterionLabel: collection.criterionLabel,
     createdAt: toApiTimestamp(collection.createdAt),
     updatedAt: toApiTimestamp(collection.updatedAt),
   };
 }
 
-// Adds the listing-only member count to the shared collection shape.
+// Adds the listing-only member counts to the shared collection shape.
 function toApiMediaCollectionSummary(collection: MediaCollectionSummary) {
   return {
     ...toApiMediaCollection(collection),
     memberCount: collection.memberCount,
+    missingCount: collection.missingCount,
   };
 }
 

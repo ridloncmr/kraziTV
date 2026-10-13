@@ -65,6 +65,12 @@ export interface ContentMetadata {
   correctedFields: CorrectableField[];
 }
 
+/** The TMDB series or franchise an item's content belongs to; null when none is known. */
+export interface ContentIdentity {
+  seriesTmdbId: number | null;
+  franchiseTmdbId: number | null;
+}
+
 /** A content fact the owner can correct over what TMDB says. */
 export type CorrectableField =
   "title" | "seriesName" | "seasonNumber" | "episodeNumber";

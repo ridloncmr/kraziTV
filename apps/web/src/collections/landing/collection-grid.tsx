@@ -3,6 +3,7 @@ import type {
   MediaCollection,
   MediaCollectionSummary,
 } from "../../http/contracts.js";
+import { criterionBasis } from "../automatic/criterion-basis.js";
 
 type MaintenanceMode = MediaCollection["maintenanceMode"];
 
@@ -27,7 +28,8 @@ export function CollectionGrid({
   tab: MaintenanceMode;
   onTabChange: (tab: MaintenanceMode) => void;
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  /** Opens the creation dialog for the shown tab's kind of collection. */
+  onCreate: (mode: MaintenanceMode) => void;
 }) {
   const shown = collections.filter(
     (collection) => collection.maintenanceMode === tab,
@@ -73,11 +75,9 @@ export function CollectionGrid({
         aria-labelledby={tabId(tab)}
         className="tab-panel"
       >
-        {tab === "manual" && (
-          <div className="row-actions">
-            <button onClick={onCreate}>New collection…</button>
-          </div>
-        )}
+        <div className="row-actions">
+          <button onClick={() => onCreate(tab)}>{CREATE_LABEL[tab]}</button>
+        </div>
         {shown.length === 0 ? (
           <p className="empty-state">{EMPTY_TEXT[tab]}</p>
         ) : (
@@ -92,8 +92,18 @@ export function CollectionGrid({
                 >
                   <strong>{collection.name}</strong>
                   <span className="secondary" id={countId(collection.id)}>
-                    {collection.memberCount}{" "}
-                    {collection.memberCount === 1 ? "item" : "items"}
+                    {criterionBasis(collection) !== null && (
+                      <span>{criterionBasis(collection)}</span>
+                    )}
+                    <span>
+                      {collection.memberCount}{" "}
+                      {collection.memberCount === 1 ? "item" : "items"}
+                    </span>
+                    {collection.missingCount > 0 && (
+                      <span className="missing-label">
+                        {missingText(collection.missingCount)}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
@@ -105,12 +115,24 @@ export function CollectionGrid({
   );
 }
 
+const CREATE_LABEL: Record<MaintenanceMode, string> = {
+  manual: "New collection…",
+  automatic: "New automatic collection…",
+};
+
 const EMPTY_TEXT: Record<MaintenanceMode, string> = {
   manual:
     "No manual collections yet. Create one, then add media from the catalog.",
   automatic:
     "No automatic collections yet. Automatic collections keep their members up to date as your catalog changes.",
 };
+
+// Counts missing members as not airing, in words, so the warning never relies on color.
+function missingText(count: number): string {
+  return count === 1
+    ? "1 missing — won't air until its file returns"
+    : `${count} missing — won't air until their files return`;
+}
 
 // Names a tab so its panel can point back to it with aria-labelledby.
 function tabId(mode: MaintenanceMode) {

@@ -11,7 +11,11 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
-import { serveCollection } from "../testing/collection-api.js";
+import {
+  catalogSeries,
+  officeCollection,
+  serveCollection,
+} from "../testing/collection-api.js";
 import { CollectionsApp } from "./collections-app.js";
 
 afterEach(() => {
@@ -54,7 +58,10 @@ it("lists manual collections as cards with their member counts and opens one for
     within(grid)
       .getAllByRole("button", { name: /^Open / })
       .map((card) => card.textContent),
-  ).toEqual(["Favorites2 items", "Cartoons1 item"]);
+  ).toEqual([
+    "Favorites2 items1 missing — won't air until its file returns",
+    "Cartoons1 item",
+  ]);
 
   // The count is announced with the card, not only shown.
   expect(
@@ -174,4 +181,79 @@ it("reports a rejected delete inside its confirmation", async () => {
       await screen.findByText("A channel programs from this collection")
     ).closest('[role="dialog"]'),
   ).toBe(screen.getByRole("dialog", { name: "Delete collection" }));
+});
+
+it("previews a series and creates an automatic collection listed under Automatic", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply(
+    "/media-collections/previews",
+    [
+      {
+        position: 0,
+        mediaItemId: "e2",
+        title: "Episode 2",
+        path: "/tv/show/episode 2.mkv",
+        status: "available",
+        durationMs: 1_400_000,
+      },
+      {
+        position: 1,
+        mediaItemId: "e10",
+        title: "Episode 10",
+        path: "/tv/show/episode 10.mkv",
+        status: "missing",
+        durationMs: 1_500_000,
+      },
+    ],
+    "POST",
+  );
+  const { memberCount: _, missingCount: __, ...created } = officeCollection;
+  api.reply("/media-collections", created, "POST");
+  serveCollection(api, "office", ["e2", "e10"]);
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+  expect(
+    within(dialog)
+      .getByRole("button", { name: "Create automatic collection" })
+      .matches(":disabled"),
+  ).toBe(true);
+
+  fireEvent.change(await within(dialog).findByLabelText("TV series"), {
+    target: { value: "2316" },
+  });
+
+  await within(dialog).findByText("Episode 10");
+  expect(
+    within(dialog).getByLabelText<HTMLInputElement>("Collection name").value,
+  ).toBe("The Office");
+  expect(within(dialog).getByText("2 episodes in this order")).toBeTruthy();
+  expect(api.requestsTo("/media-collections/previews").at(-1)?.body).toEqual({
+    criterion: { kind: "series", tmdbId: 2316 },
+  });
+  api.reply("/media-collections", [...collections, officeCollection]);
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create automatic collection" }),
+  );
+
+  await screen.findByRole("heading", { name: "The Office" });
+  expect(
+    api.requests.find(
+      (request) =>
+        request.method === "POST" && request.path === "/media-collections",
+    )?.body,
+  ).toEqual({
+    name: "The Office",
+    criterion: { kind: "series", tmdbId: 2316 },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "All collections" }));
+  const grid = await screen.findByRole("tabpanel", { name: "Automatic" });
+  expect(
+    within(grid).getByRole("button", { name: "Open The Office" }).textContent,
+  ).toBe("The OfficeTV series: The Office2 items");
 });

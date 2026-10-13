@@ -26,6 +26,7 @@ type ApiErrorCode =
   | "match_not_rejected"
   | "match_not_matched"
   | "mapping_changed"
+  | "media_collection_automatic"
   | "media_collection_in_use"
   | "media_collection_not_found"
   | "media_item_in_use"

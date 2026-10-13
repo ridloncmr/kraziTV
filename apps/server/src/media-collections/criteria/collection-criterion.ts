@@ -1,0 +1,29 @@
+import { z } from "zod";
+
+import type { CollectionCriterion } from "../contracts.js";
+
+/**
+ * What an automatic collection matches on. Validated here once, for request
+ * bodies and stored rows alike, so the two never disagree on what a
+ * criterion is.
+ */
+export const collectionCriterionSchema: z.ZodType<CollectionCriterion> =
+  z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("series"),
+      tmdbId: z.number().int().positive(),
+    }),
+  ]);
+
+/**
+ * The criterion's canonical JSON: fixed key order, so two equal criteria
+ * always store the same text, which is also a recommendation's identity.
+ */
+export function criterionKey(criterion: CollectionCriterion): string {
+  return JSON.stringify({ kind: criterion.kind, tmdbId: criterion.tmdbId });
+}
+
+/** Reads a stored criterion; the column's check already guarantees JSON. */
+export function parseStoredCriterion(stored: string): CollectionCriterion {
+  return collectionCriterionSchema.parse(JSON.parse(stored));
+}

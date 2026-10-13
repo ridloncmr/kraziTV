@@ -82,6 +82,8 @@ describe("MediaCollectionRepository", () => {
         id: "collection-001",
         name: "Halloween",
         maintenanceMode: "manual",
+        criterion: null,
+        criterionLabel: null,
         createdAt: FIXTURE_TIME,
         updatedAt: FIXTURE_TIME,
       },
@@ -175,6 +177,8 @@ describe("MediaCollectionRepository", () => {
       id: "collection-001",
       name: "New",
       maintenanceMode: "manual",
+      criterion: null,
+      criterionLabel: null,
       createdAt: FIXTURE_TIME,
       updatedAt: FIXTURE_TIME + 1_000,
     });

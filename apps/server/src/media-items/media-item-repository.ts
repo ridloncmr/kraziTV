@@ -35,7 +35,7 @@ export class MediaItemRepository {
    * of IDs stays under SQLite's parameter limit.
    */
   async list(query: MediaItemQuery): Promise<MediaItemPage> {
-    const matching = this.#withMetadata()
+    const matching = selectWithMetadata(this.#db)
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
       .where("media_items.removed_at", "is", null)
       .$if(query.search !== "", (builder) =>
@@ -68,7 +68,7 @@ export class MediaItemRepository {
 
   /** Loads one item; returns undefined when the ID is unknown or removed. */
   async findById(id: string): Promise<MediaItem | undefined> {
-    const row = await this.#withMetadata()
+    const row = await selectWithMetadata(this.#db)
       .selectAll("media_items")
       .select(METADATA_COLUMNS)
       .where("media_items.id", "=", id)
@@ -76,35 +76,33 @@ export class MediaItemRepository {
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaItem(row);
   }
+}
 
-  /**
-   * Starts an item read with its metadata rows beside it. Each table holds at
-   * most one row per item, so the joins never repeat an item.
-   */
-  #withMetadata() {
-    return this.#db
-      .selectFrom("media_items")
-      .leftJoin(
-        "metadata_matches",
-        "metadata_matches.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "content_facts",
-        "content_facts.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "metadata_provider_refs",
-        "metadata_provider_refs.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "metadata_corrections",
-        "metadata_corrections.media_item_id",
-        "media_items.id",
-      );
-  }
+/**
+ * Starts an item read with its metadata rows beside it, for selecting
+ * `METADATA_COLUMNS`. Each table holds at most one row per item, so the
+ * joins never repeat an item. Takes any executor, so a read inside a
+ * transaction sees the facts that transaction writes against.
+ */
+export function selectWithMetadata(executor: Kysely<DatabaseSchema>) {
+  return executor
+    .selectFrom("media_items")
+    .leftJoin(
+      "metadata_matches",
+      "metadata_matches.media_item_id",
+      "media_items.id",
+    )
+    .leftJoin("content_facts", "content_facts.media_item_id", "media_items.id")
+    .leftJoin(
+      "metadata_provider_refs",
+      "metadata_provider_refs.media_item_id",
+      "media_items.id",
+    )
+    .leftJoin(
+      "metadata_corrections",
+      "metadata_corrections.media_item_id",
+      "media_items.id",
+    );
 }
 
 /**

@@ -3,6 +3,20 @@ import type { Selectable } from "kysely";
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
 
+/**
+ * What an automatic collection matches on. `criteria/collection-criterion.ts`
+ * validates it for request bodies and stored rows alike.
+ */
+export type CollectionCriterion = { kind: "series"; tmdbId: number };
+
+/** One TMDB series with cataloged items, as the series picker lists it. */
+export interface CatalogSeries {
+  tmdbId: number;
+  name: string;
+  /** How many items a collection for this series would include. */
+  itemCount: number;
+}
+
 /** Whether a collection keeps its membership from a criterion or only by user edits. */
 type MaintenanceMode = Selectable<MediaCollectionTable>["maintenance_mode"];
 
@@ -10,6 +24,10 @@ export interface MediaCollection {
   id: string;
   name: string;
   maintenanceMode: MaintenanceMode;
+  /** What an automatic collection matches on; null for a manual one. */
+  criterion: CollectionCriterion | null;
+  /** The criterion's basis named for display, such as the series name. */
+  criterionLabel: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -17,6 +35,8 @@ export interface MediaCollection {
 /** A listed collection with how many members it includes, so a grid needs no per-card read. */
 export interface MediaCollectionSummary extends MediaCollection {
   memberCount: number;
+  /** Members whose file is missing; they stay included but cannot air until it returns. */
+  missingCount: number;
 }
 
 /** One membership with the item summary needed to judge whether it is schedulable. */
@@ -37,9 +57,11 @@ type UnknownMediaItemsResult = {
 export type CreateMediaCollectionResult =
   { kind: "created"; collection: MediaCollection } | UnknownMediaItemsResult;
 
+/** `automatic` refuses a user's replacement: only maintenance writes that membership. */
 export type ReplaceMediaCollectionMembersResult =
   | { kind: "replaced"; members: MediaCollectionMember[] }
   | { kind: "not_found" }
+  | { kind: "automatic" }
   | UnknownMediaItemsResult;
 
 /** `in_use` names every channel whose programming block still draws from the collection. */

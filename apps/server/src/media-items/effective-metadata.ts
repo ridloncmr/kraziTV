@@ -1,6 +1,10 @@
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
-import type { ContentMetadata, CorrectableField } from "./contracts.js";
+import type {
+  ContentIdentity,
+  ContentMetadata,
+  CorrectableField,
+} from "./contracts.js";
 
 // How far a matched file's probed duration may drift from its match-time
 // duration before it reads as a different file; probes of one file vary
@@ -27,6 +31,8 @@ export const METADATA_COLUMNS = [
   "content_facts.franchise_name",
   "content_facts.description",
   "content_facts.poster_path",
+  "content_facts.series_tmdb_id",
+  "content_facts.franchise_tmdb_id",
   "metadata_provider_refs.fetched_at",
   "metadata_provider_refs.refresh_error",
   "metadata_provider_refs.expired_at",
@@ -53,6 +59,8 @@ export interface MetadataColumns {
   franchise_name: string | null;
   description: string | null;
   poster_path: string | null;
+  series_tmdb_id: number | null;
+  franchise_tmdb_id: number | null;
   fetched_at: number | null;
   refresh_error: string | null;
   expired_at: number | null;
@@ -113,5 +121,22 @@ export function effectiveMetadata(
     correctedFields: corrected.flatMap(([field, value]) =>
       value === null ? [] : [field],
     ),
+  };
+}
+
+/**
+ * The TMDB identities an item's content belongs to, which collection
+ * criteria match on. Lives beside `effectiveMetadata` so the corrections
+ * rule stays in one place: an item whose series the owner corrected belongs
+ * to no TMDB series, since the corrected name has no identity yet, and
+ * guessing one from the name could match the wrong show.
+ */
+export function effectiveContentIdentity(
+  row: MetadataColumns,
+): ContentIdentity {
+  return {
+    seriesTmdbId:
+      row.corrected_series_name === null ? row.series_tmdb_id : null,
+    franchiseTmdbId: row.franchise_tmdb_id,
   };
 }

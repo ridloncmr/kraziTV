@@ -5,6 +5,7 @@ import type {
   MediaCollectionSummary,
 } from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
+import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
 import { CollectionEditor } from "./editor/collection-editor.js";
 import { CollectionGrid } from "./landing/collection-grid.js";
 import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
@@ -23,8 +24,18 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
   const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [creating, setCreating] = useState(false);
+  // Which kind of collection a creation dialog is open for, if any.
+  const [creating, setCreating] =
+    useState<MediaCollection["maintenanceMode"]>();
   const collection = collections.data?.find((item) => item.id === selected);
+
+  /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
+  function opened(created: MediaCollection) {
+    setCreating(undefined);
+    setTab(created.maintenanceMode);
+    setSelected(created.id);
+    collections.refresh();
+  }
   return (
     <div className="program-page">
       <div className="program-toolbar">
@@ -73,19 +84,20 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
             tab={tab}
             onTabChange={setTab}
             onOpen={setSelected}
-            onCreate={() => setCreating(true)}
+            onCreate={setCreating}
           />
         )
       )}
-      {creating && (
+      {creating === "manual" && (
         <CreateCollectionDialog
-          created={(result) => {
-            setCreating(false);
-            setTab(result.maintenanceMode);
-            setSelected(result.id);
-            collections.refresh();
-          }}
-          onClose={() => setCreating(false)}
+          created={opened}
+          onClose={() => setCreating(undefined)}
+        />
+      )}
+      {creating === "automatic" && (
+        <NewAutomaticCollectionDialog
+          created={opened}
+          onClose={() => setCreating(undefined)}
         />
       )}
     </div>

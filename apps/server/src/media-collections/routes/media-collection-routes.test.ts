@@ -88,6 +88,8 @@ const createdCollection = {
   id: "collection-001",
   name: "The Office",
   maintenanceMode: "manual",
+  criterion: null,
+  criterionLabel: null,
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z",
 };
@@ -223,11 +225,14 @@ describe("GET /media-collections", () => {
         id: "collection-002",
         name: "Scratch",
         maintenanceMode: "manual",
+        criterion: null,
+        criterionLabel: null,
         memberCount: 0,
+        missingCount: 0,
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z",
       },
-      { ...createdCollection, memberCount: 3 },
+      { ...createdCollection, memberCount: 3, missingCount: 1 },
     ]);
   });
 });

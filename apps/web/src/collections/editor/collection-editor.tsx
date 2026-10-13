@@ -10,12 +10,19 @@ import type {
   MediaCollection,
 } from "../../http/contracts.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
+import { criterionBasis } from "../automatic/criterion-basis.js";
+import { ReadOnlyMembers } from "../automatic/read-only-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import type { DraftMember } from "../contracts.js";
 import { MemberList } from "./member-list.js";
 import { appendMedia } from "./member-order.js";
 
-/** Draft order is form state; membership and schedulability become authoritative only after API writes. */
+/**
+ * Draft order is form state; membership and schedulability become
+ * authoritative only after API writes. An automatic collection shows its
+ * criterion and members read-only, since only the server maintains them;
+ * rename and delete stay available.
+ */
 export function CollectionEditor({
   collection,
   visible,
@@ -159,49 +166,61 @@ export function CollectionEditor({
           saved members
         </p>
       )}
-      <div className="save-bar">
-        <span>
-          {draft.length} {draft.length === 1 ? "item" : "items"} ·{" "}
-          {displayDuration(runtimeMs)} total
-          {dirty && <strong> · Unsaved changes</strong>}
-        </span>
-        <div className="row-actions">
-          <button
-            disabled={!dirty || mutation.pending}
-            onClick={() => setLocal(undefined)}
+      {collection.maintenanceMode === "automatic" ? (
+        <>
+          <p className="info-strip">
+            <strong>{criterionBasis(collection)}</strong> · Keeps every matching
+            cataloged item in its default order as your catalog changes.
+          </p>
+          {members.data && <ReadOnlyMembers members={members.data} />}
+        </>
+      ) : (
+        <>
+          <div className="save-bar">
+            <span>
+              {draft.length} {draft.length === 1 ? "item" : "items"} ·{" "}
+              {displayDuration(runtimeMs)} total
+              {dirty && <strong> · Unsaved changes</strong>}
+            </span>
+            <div className="row-actions">
+              <button
+                disabled={!dirty || mutation.pending}
+                onClick={() => setLocal(undefined)}
+              >
+                Discard changes
+              </button>
+              <button
+                disabled={!dirty || mutation.pending}
+                onClick={() => {
+                  void mutation.run<CollectionMember[]>(
+                    `${path}/items`,
+                    "PUT",
+                    { mediaItemIds: draft.map((item) => item.mediaItemId) },
+                    (saved) => {
+                      setLocal({ members: saved, dirty: false });
+                      members.refresh();
+                      status.refresh();
+                    },
+                  );
+                }}
+              >
+                Save changes
+              </button>
+            </div>
+          </div>
+          <fieldset
+            className="collection-panes"
+            disabled={mutation.pending || !members.data}
           >
-            Discard changes
-          </button>
-          <button
-            disabled={!dirty || mutation.pending}
-            onClick={() => {
-              void mutation.run<CollectionMember[]>(
-                `${path}/items`,
-                "PUT",
-                { mediaItemIds: draft.map((item) => item.mediaItemId) },
-                (saved) => {
-                  setLocal({ members: saved, dirty: false });
-                  members.refresh();
-                  status.refresh();
-                },
-              );
-            }}
-          >
-            Save changes
-          </button>
-        </div>
-      </div>
-      <fieldset
-        className="collection-panes"
-        disabled={mutation.pending || !members.data}
-      >
-        <CatalogPicker
-          memberIds={memberIds}
-          visible={visible}
-          onAdd={(media) => edit((current) => appendMedia(current, media))}
-        />
-        <MemberList members={draft} onChange={(next) => edit(() => next)} />
-      </fieldset>
+            <CatalogPicker
+              memberIds={memberIds}
+              visible={visible}
+              onAdd={(media) => edit((current) => appendMedia(current, media))}
+            />
+            <MemberList members={draft} onChange={(next) => edit(() => next)} />
+          </fieldset>
+        </>
+      )}
     </>
   );
 }

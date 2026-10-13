@@ -11,7 +11,11 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
-import { episodes, serveCollection } from "../../testing/collection-api.js";
+import {
+  episodes,
+  officeCollection,
+  serveCollection,
+} from "../../testing/collection-api.js";
 import { CollectionEditor } from "./collection-editor.js";
 
 afterEach(() => {
@@ -19,15 +23,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Serves the favorites collection with the given saved order and renders its editor.
-function renderEditor(memberIds: string[]) {
+// Serves a collection, favorites by default, with the given saved order and renders its editor.
+function renderEditor(
+  memberIds: string[],
+  collection = adminFixtures.collections[0],
+) {
   const api = new BrowserApi();
-  serveCollection(api, "favorites", memberIds);
+  serveCollection(api, collection.id, memberIds);
   vi.stubGlobal("fetch", api.fetch);
   const onDirtyChange = vi.fn();
   render(
     createElement(CollectionEditor, {
-      collection: adminFixtures.collections[0],
+      collection,
       visible: true,
       changed: vi.fn(),
       deleted: vi.fn(),
@@ -258,4 +265,34 @@ it("filters without renumbering, moves to a position, sorts and discards back to
   click("Discard changes");
   expect(memberOrder()).toEqual(["Episode 10", "Alpha", "Zulu", "Episode 2"]);
   expect(screen.queryByText(/Unsaved changes/)).toBeNull();
+});
+
+it("labels a missing member as not airing until its file returns, with an icon beside the text", async () => {
+  renderEditor(["z", "a"]);
+
+  const zulu = (await screen.findByLabelText("Select member Zulu")).closest(
+    "tr",
+  )!;
+  const alpha = screen.getByLabelText("Select member Alpha").closest("tr")!;
+
+  expect(
+    within(zulu).getByText("Missing — won't air until the file returns"),
+  ).toBeTruthy();
+  expect(within(zulu).getByRole("img", { name: "Warning" })).toBeTruthy();
+  expect(within(alpha).queryByText(/Missing/)).toBeNull();
+});
+
+it("shows an automatic collection's criterion and members read-only while allowing rename and delete", async () => {
+  renderEditor(["e2", "e10"], officeCollection);
+
+  await screen.findByText("Episode 10");
+
+  expect(screen.getByText("TV series: The Office")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  expect(screen.queryByLabelText(/^Select member /)).toBeNull();
+  expect(screen.queryByLabelText("Find media")).toBeNull();
+  expect(screen.getByRole("button", { name: "Rename" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Delete collection" }),
+  ).toBeTruthy();
 });

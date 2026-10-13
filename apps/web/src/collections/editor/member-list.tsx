@@ -5,6 +5,7 @@ import { Pager } from "../../controls/pager.js";
 import { useRangeToggle } from "../../controls/use-range-toggle.js";
 import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
+import { MissingLabel } from "./missing-label.js";
 
 const PAGE_SIZE = 100;
 
@@ -195,6 +196,7 @@ export function MemberList({
                   <td>{position}</td>
                   <td>
                     {item.title}
+                    {item.status === "missing" && <MissingLabel />}
                     <small className="secondary path-cell">
                       {item.status} · {item.path}
                     </small>

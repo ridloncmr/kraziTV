@@ -63,7 +63,12 @@ export const adminFixtures: {
       metadata: noMetadata,
     },
   ],
-  collections: [collectionWith("favorites", "Favorites", { memberCount: 2 })],
+  collections: [
+    collectionWith("favorites", "Favorites", {
+      memberCount: 2,
+      missingCount: 1,
+    }),
+  ],
   now: {
     evaluatedAt: "2026-10-05T15:00:00.000Z",
     currentItem: {
@@ -86,7 +91,16 @@ export function collectionWith(
   name: string,
   overrides: Partial<MediaCollectionSummary> = {},
 ): MediaCollectionSummary {
-  return { id, name, maintenanceMode: "manual", memberCount: 0, ...overrides };
+  return {
+    id,
+    name,
+    maintenanceMode: "manual",
+    criterion: null,
+    criterionLabel: null,
+    memberCount: 0,
+    missingCount: 0,
+    ...overrides,
+  };
 }
 
 /** A listed item titled `title` whose metadata overrides the unknown defaults. */

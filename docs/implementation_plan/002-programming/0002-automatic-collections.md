@@ -142,6 +142,12 @@ created collections, and every collection records whether it is maintained.
 
 ### COL-002: Create an automatic TV series collection on request
 
+**Status**: Complete on 2026-10-13. A pure series criterion orders matches
+from the same effective facts the Media Library shows; the series listing,
+preview, and automatic creation routes back a preview-and-confirm dialog,
+automatic editors are read-only apart from rename and delete, and missing
+members are counted and labelled in both modes.
+
 **Goal**: The owner picks a series from the catalog, previews its episodes in
 order, and creates an automatic collection that programming can use.
 

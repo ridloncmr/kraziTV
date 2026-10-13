@@ -47,17 +47,21 @@ export async function replaceCollectionMembers(
 }
 
 /**
- * Builds the schedule input change for a membership replacement: it writes
- * the new membership and names every channel drawing from the collection, so
- * each regenerates in the same transaction. A rejected replacement affects no
- * channel.
+ * Builds the schedule input change for a user's membership replacement: it
+ * writes the new membership and names every channel drawing from the
+ * collection, so each regenerates in the same transaction. An automatic
+ * collection is refused, read in the same transaction as the write, since
+ * only maintenance may write its membership. A rejected replacement affects
+ * no channel.
  */
 export function membershipChange(
   id: string,
   mediaItemIds: readonly string[],
 ): ScheduleInputChange<ReplaceMediaCollectionMembersResult> {
   return async (trx, now) => {
-    const value = await replaceCollectionMembers(trx, id, mediaItemIds, now);
+    const value = (await isAutomatic(trx, id))
+      ? ({ kind: "automatic" } as const)
+      : await replaceCollectionMembers(trx, id, mediaItemIds, now);
     return {
       value,
       affectedChannelIds:
@@ -66,4 +70,17 @@ export function membershipChange(
           : [],
     };
   };
+}
+
+// Whether the collection exists and keeps its membership from a criterion.
+async function isAutomatic(
+  trx: Kysely<DatabaseSchema>,
+  id: string,
+): Promise<boolean> {
+  const row = await trx
+    .selectFrom("media_collections")
+    .select("maintenance_mode")
+    .where("id", "=", id)
+    .executeTakeFirst();
+  return row?.maintenance_mode === "automatic";
 }

@@ -120,15 +120,31 @@ export interface TrackProposal {
     runtimeMs: number | null;
   }[];
 }
+/** What an automatic collection matches on: one TMDB series. */
+export interface CollectionCriterion {
+  kind: "series";
+  tmdbId: number;
+}
 export interface MediaCollection {
   id: string;
   name: string;
   /** `automatic` collections keep their own membership; `manual` ones change only by edits. */
   maintenanceMode: "manual" | "automatic";
+  criterion: CollectionCriterion | null;
+  /** The criterion's basis as the server names it, such as the series name. */
+  criterionLabel: string | null;
 }
 /** `GET /media-collections`: one listed collection with how many members it includes. */
 export interface MediaCollectionSummary extends MediaCollection {
   memberCount: number;
+  /** Members whose file is missing; they stay included but cannot air. */
+  missingCount: number;
+}
+/** `GET /media-collections/series`: one cataloged series a criterion can name. */
+export interface CatalogSeries {
+  tmdbId: number;
+  name: string;
+  itemCount: number;
 }
 export interface CollectionMember {
   mediaItemId: string;
