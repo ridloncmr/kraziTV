@@ -7,6 +7,7 @@ import type { MetadataCorrectionTable } from "./metadata-correction-table.js";
 import type { MetadataMatchCandidateTable } from "./metadata-match-candidate-table.js";
 import type { MetadataMatchTable } from "./metadata-match-table.js";
 import type { MetadataProviderRefTable } from "./metadata-provider-ref-table.js";
+import type { MediaCollectionExclusionTable } from "./media-collection-exclusion-table.js";
 import type { MediaCollectionItemTable } from "./media-collection-item-table.js";
 import type { MediaCollectionTable } from "./media-collection-table.js";
 import type { MediaItemTable } from "./media-item-table.js";
@@ -22,6 +23,7 @@ export interface DatabaseSchema {
   media_items: MediaItemTable;
   media_collections: MediaCollectionTable;
   media_collection_items: MediaCollectionItemTable;
+  media_collection_exclusions: MediaCollectionExclusionTable;
   channels: ChannelTable;
   programming_blocks: ProgrammingBlockTable;
   channel_schedule_states: ChannelScheduleStateTable;

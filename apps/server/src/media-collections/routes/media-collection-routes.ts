@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { isSchedulableMedia } from "@krazitv/krazi-brain";
 import { z } from "zod";
 
@@ -25,6 +25,7 @@ import type {
 import { collectionCriterionSchema } from "../criteria/collection-criterion.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { membershipChange } from "../persistence/replace-collection-members.js";
+import { sendCollectionNotFound } from "./collection-replies.js";
 
 // A collection starts from explicit members or from a criterion, never both.
 const createBody = z
@@ -192,16 +193,6 @@ export function registerMediaCollectionRoutes(
     }
     return result.members.map(toApiMediaCollectionMember);
   });
-}
-
-// One 404 shape for every collection route.
-function sendCollectionNotFound(reply: FastifyReply, id: string) {
-  return sendApiError(
-    reply,
-    404,
-    "media_collection_not_found",
-    `Media collection ${id} does not exist`,
-  );
 }
 
 // Converts internal epoch milliseconds to the ISO 8601 strings the API promises.

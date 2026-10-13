@@ -22,11 +22,13 @@ import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import { labelCriteria } from "./criterion-labels.js";
+import { readExcludedItems } from "../exclusions/excluded-items.js";
 import type {
   CatalogGroup,
   CollectionCriterion,
   CreateMediaCollectionResult,
   DeleteMediaCollectionResult,
+  ExcludedItem,
   MediaCollection,
   MediaCollectionMember,
   MediaCollectionSummary,
@@ -94,6 +96,7 @@ export class MediaCollectionRepository {
         criterion,
         await readMatchableItems(pinned),
         [],
+        [],
       );
       const now = this.#now();
       const row = await pinned
@@ -128,6 +131,7 @@ export class MediaCollectionRepository {
     const { members } = matchMembership(
       criterion,
       await readMatchableItems(this.#db),
+      [],
       [],
     );
     return members.map((item, position) => ({
@@ -231,6 +235,11 @@ export class MediaCollectionRepository {
       await trx.deleteFrom("media_collections").where("id", "=", id).execute();
       return { kind: "deleted" };
     });
+  }
+
+  /** Lists a collection's excluded items; undefined for an unknown collection. */
+  async listExclusions(id: string): Promise<ExcludedItem[] | undefined> {
+    return readExcludedItems(this.#db, id);
   }
 
   /** Lists members in position order; undefined distinguishes an unknown collection from an empty one. */

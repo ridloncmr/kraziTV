@@ -10,7 +10,7 @@ const OFFICE = { kind: "series", tmdbId: 2316 } as const;
 
 // Matches the Office criterion and reads back the ordered IDs.
 function officeOrder(...items: Parameters<typeof matchMembership>[1]) {
-  return matchMembership(OFFICE, items, []).members.map((item) => item.id);
+  return matchMembership(OFFICE, items, [], []).members.map((item) => item.id);
 }
 
 describe("matchMembership: series order", () => {
@@ -60,7 +60,7 @@ const INDIANA_JONES = { kind: "franchise", tmdbId: 84 } as const;
 
 // Matches the Indiana Jones criterion and reads back the ordered IDs.
 function franchiseOrder(...items: Parameters<typeof matchMembership>[1]) {
-  return matchMembership(INDIANA_JONES, items, []).members.map(
+  return matchMembership(INDIANA_JONES, items, [], []).members.map(
     (item) => item.id,
   );
 }
@@ -134,6 +134,7 @@ describe("matchMembership", () => {
         matchableEpisode("e1", 2316, { episode: 1, expired: true }),
       ],
       ["e1", "e2"],
+      [],
     );
 
     expect(ids(result)).toEqual(["e1", "e2"]);
@@ -148,6 +149,7 @@ describe("matchMembership", () => {
         matchableEpisode("e1", 2316, { episode: 1, expired: true }),
       ],
       ["e2"],
+      [],
     );
 
     expect(ids(result)).toEqual(["e2"]);
@@ -162,6 +164,23 @@ describe("matchMembership", () => {
         matchableEpisode("parks", 8592, { expired: true }),
       ],
       [],
+      [],
+    );
+
+    expect(ids(result)).toEqual(["e1"]);
+    expect(result.incomplete).toBe(false);
+  });
+
+  it("leaves out an excluded item even while it matches, and an excluded expired item never makes it incomplete", () => {
+    const result = matchMembership(
+      OFFICE,
+      [
+        matchableEpisode("e1", 2316, { episode: 1 }),
+        matchableEpisode("e2", 2316, { episode: 2 }),
+        matchableEpisode("e3", 2316, { episode: 3, expired: true }),
+      ],
+      ["e1", "e2", "e3"],
+      ["e2", "e3"],
     );
 
     expect(ids(result)).toEqual(["e1"]);

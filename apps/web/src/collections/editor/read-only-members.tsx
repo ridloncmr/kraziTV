@@ -2,19 +2,22 @@ import { useState } from "react";
 import { displayDuration } from "../../controls/display-duration.js";
 import { Pager } from "../../controls/pager.js";
 import type { CollectionMember } from "../../http/contracts.js";
-import { MissingLabel } from "../editor/missing-label.js";
+import { MissingLabel } from "./missing-label.js";
 
 const PAGE_SIZE = 100;
 
 /**
  * Lists members in saved order without editing controls: an automatic
  * collection's members and a criterion preview both come from the server,
- * which alone decides membership and order.
+ * which alone decides membership and order. `exclude`, when given, adds a
+ * per-row action that asks the server to keep the member out.
  */
 export function ReadOnlyMembers({
   members,
+  exclude,
 }: {
   members: readonly CollectionMember[];
+  exclude?: { run: (member: CollectionMember) => void; disabled: boolean };
 }) {
   const [offset, setOffset] = useState(0);
   const page = members.slice(offset, offset + PAGE_SIZE);
@@ -41,6 +44,7 @@ export function ReadOnlyMembers({
               <th>#</th>
               <th>Title / path</th>
               <th>Duration</th>
+              {exclude && <th>Membership</th>}
             </tr>
           </thead>
           <tbody>
@@ -53,6 +57,17 @@ export function ReadOnlyMembers({
                   <small className="secondary path-cell">{member.path}</small>
                 </td>
                 <td>{displayDuration(member.durationMs)}</td>
+                {exclude && (
+                  <td>
+                    <button
+                      aria-label={`Exclude ${member.title} from this collection`}
+                      disabled={exclude.disabled}
+                      onClick={() => exclude.run(member)}
+                    >
+                      Exclude from this collection
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

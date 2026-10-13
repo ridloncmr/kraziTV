@@ -8,7 +8,7 @@ import type {
   MediaCollection,
 } from "../../http/contracts.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
-import { ReadOnlyMembers } from "./read-only-members.js";
+import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];
 
@@ -124,7 +124,7 @@ export function NewAutomaticCollectionDialog({
         <fieldset>
           <legend>Matches</legend>
           {(Object.keys(KINDS) as Kind[]).map((option) => (
-            <label key={option}>
+            <label key={option} className="choice">
               <input
                 type="radio"
                 name="kind"

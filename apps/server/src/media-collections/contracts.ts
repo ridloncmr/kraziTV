@@ -2,6 +2,10 @@ import type { Selectable } from "kysely";
 
 import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
+import type {
+  ContentIdentity,
+  ContentMetadata,
+} from "../media-items/contracts.js";
 
 /**
  * What an automatic collection matches on. `criteria/collection-criterion.ts`
@@ -46,6 +50,20 @@ export interface MediaCollectionSummary extends MediaCollection {
   missingCount: number;
 }
 
+/**
+ * One cataloged item as criteria see it: the member summary a collection
+ * shows, plus the effective facts and identities matching reads.
+ */
+export interface MatchableItem {
+  id: string;
+  title: string;
+  path: string;
+  status: MediaItemStatus;
+  durationMs: number | null;
+  metadata: ContentMetadata;
+  identity: ContentIdentity;
+}
+
 /** One membership with the item summary needed to judge whether it is schedulable. */
 export interface MediaCollectionMember {
   position: number;
@@ -69,6 +87,18 @@ export type ReplaceMediaCollectionMembersResult =
   | { kind: "replaced"; members: MediaCollectionMember[] }
   | { kind: "not_found" }
   | { kind: "automatic" }
+  | UnknownMediaItemsResult;
+
+/** An item the owner keeps out of an automatic collection, and whether it would match if restored. */
+export interface ExcludedItem extends Omit<MediaCollectionMember, "position"> {
+  qualifies: boolean;
+}
+
+/** `manual` refuses: only an automatic collection has exclusions. */
+export type ExclusionChangeResult =
+  | { kind: "changed" }
+  | { kind: "not_found" }
+  | { kind: "manual" }
   | UnknownMediaItemsResult;
 
 /** `in_use` names every channel whose programming block still draws from the collection. */

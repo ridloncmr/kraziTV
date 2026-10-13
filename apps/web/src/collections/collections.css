@@ -52,3 +52,11 @@
   display: block;
   color: var(--xp-error);
 }
+/* An excluded item reads as excluded from its bold label; the tint only reinforces it. */
+.excluded-row td {
+  color: var(--xp-error);
+}
+.excluded-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

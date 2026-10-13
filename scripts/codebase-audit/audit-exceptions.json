@@ -76,7 +76,7 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/collections/editor/"],
-      "reason": "Every file serves one capability, the collection editor: the draft order, its catalog picker and member list, and the missing-member label those rows show.",
+      "reason": "Every file serves one capability, the collection editor: the manual draft order with its catalog picker and member list, the automatic read-only members with their exclusions, and the missing-member label their rows show.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
@@ -185,6 +185,15 @@
       ],
       "reason": "The repeat is each service's injected constructor (database, TMDB key reader, shared TMDB client, collection maintenance, clock) and its field assignments; a shared base class would add indirection for five fields.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/002-media-collections.ts",
+        "apps/server/src/database/migrations/015-collection-exclusions.ts"
+      ],
+      "reason": "Both migrations declare a collection-and-item foreign key pair; each migration keeps its own DDL so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     }
   ]
 }

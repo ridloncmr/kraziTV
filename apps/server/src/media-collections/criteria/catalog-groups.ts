@@ -1,7 +1,7 @@
 import type { CatalogGroup, CollectionCriterion } from "../contracts.js";
 import { compareExact, compareNames } from "../name-order.js";
 import { hasEvidence, matchedIdentity } from "./match-criterion.js";
-import type { MatchableItem } from "./matchable-items.js";
+import type { MatchableItem } from "../contracts.js";
 
 /**
  * Per criterion kind: the name items give the group they match, and the

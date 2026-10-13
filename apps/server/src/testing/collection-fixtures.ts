@@ -4,7 +4,7 @@ import type { Insertable, Kysely } from "kysely";
 import type { ContentFactsTable } from "../database/schema/content-facts-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
-import type { MatchableItem } from "../media-collections/criteria/matchable-items.js";
+import type { MatchableItem } from "../media-collections/contracts.js";
 import { rootFixture, titledItemFixture } from "./catalog-fixtures.js";
 import { NO_CONTENT_METADATA } from "./metadata-match-fixtures.js";
 

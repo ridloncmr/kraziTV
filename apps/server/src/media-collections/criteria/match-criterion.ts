@@ -1,6 +1,6 @@
 import type { CollectionCriterion } from "../contracts.js";
 import { compareExact, compareText } from "../name-order.js";
-import type { MatchableItem } from "./matchable-items.js";
+import type { MatchableItem } from "../contracts.js";
 
 type Order = (a: MatchableItem, b: MatchableItem) => number;
 
@@ -43,8 +43,9 @@ interface Membership {
 }
 
 /**
- * Decides a collection's membership from a criterion, cataloged facts, and
- * its current member IDs, in the collection's default saved order. An item
+ * Decides a collection's membership from a criterion, cataloged facts, its
+ * current member IDs, and its exclusions, in the collection's default saved
+ * order. An excluded item is never a member, whether or not it matches. An item
  * whose TMDB data expired is unknown, never a confirmed mismatch: a current
  * member stays and a non-member is not added, and either case reports the
  * membership incomplete. Pure, so a preview, a creation, and a maintenance
@@ -54,12 +55,15 @@ export function matchMembership(
   criterion: CollectionCriterion,
   items: readonly MatchableItem[],
   currentIds: readonly string[],
+  excludedIds: readonly string[],
 ): Membership {
   const current = new Set(currentIds);
+  const excluded = new Set(excludedIds);
   const { identity, order } = KINDS[criterion.kind];
   const members: MatchableItem[] = [];
   let incomplete = false;
   for (const item of items) {
+    if (excluded.has(item.id)) continue;
     const matches = identity(item) === criterion.tmdbId;
     if (hasEvidence(item)) {
       if (matches) members.push(item);

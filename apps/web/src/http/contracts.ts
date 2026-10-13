@@ -160,6 +160,10 @@ export interface CollectionMember {
   durationMs: number | null;
   position: number;
 }
+/** `GET /media-collections/:id/exclusions`: an item kept out, and whether it would match if restored. */
+export interface ExcludedItem extends Omit<CollectionMember, "position"> {
+  qualifies: boolean;
+}
 export interface CollectionStatus {
   schedulable: boolean;
   schedulableCount: number;

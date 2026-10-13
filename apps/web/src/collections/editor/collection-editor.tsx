@@ -12,7 +12,7 @@ import type {
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { criterionBasis } from "../automatic/criterion-basis.js";
 import { MaintenanceReport } from "../automatic/maintenance-status.js";
-import { ReadOnlyMembers } from "../automatic/read-only-members.js";
+import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import type { DraftMember } from "../contracts.js";
 import { MemberList } from "./member-list.js";
@@ -174,7 +174,18 @@ export function CollectionEditor({
             cataloged item in its default order as your catalog changes.
           </p>
           <MaintenanceReport collection={collection} />
-          {members.data && <ReadOnlyMembers members={members.data} />}
+          {members.data && (
+            <AutomaticMembers
+              path={path}
+              members={members.data}
+              visible={visible}
+              changed={() => {
+                members.refresh();
+                status.refresh();
+                changed();
+              }}
+            />
+          )}
         </>
       ) : (
         <>

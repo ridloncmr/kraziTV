@@ -1,16 +1,9 @@
 import type { Kysely } from "kysely";
 
-import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
-import { readStoredCriterion } from "../criteria/collection-criterion.js";
-import { matchMembership } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
-import { findChannelsUsingCollection } from "../persistence/channels-using-collection.js";
-import { replaceCollectionMembers } from "../persistence/replace-collection-members.js";
-
-const UNREADABLE_CRITERION =
-  "This collection's saved criterion cannot be read, so it is not maintained";
+import { reconcileCollection } from "./reconcile-collection.js";
 
 /**
  * One maintenance pass as a schedule input change. Mode, criteria, and facts
@@ -35,36 +28,9 @@ export function maintenanceChange(): ScheduleInputChange<void> {
     const items = await readMatchableItems(trx);
     const affectedChannelIds: string[] = [];
     for (const collection of collections) {
-      const criterion =
-        collection.criterion === null
-          ? undefined
-          : readStoredCriterion(collection.criterion);
-      if (criterion === undefined) {
-        await recordError(trx, collection.id, UNREADABLE_CRITERION);
-        continue;
-      }
-      const current = await memberIds(trx, collection.id);
-      const { members, incomplete } = matchMembership(
-        criterion,
-        items,
-        current,
+      affectedChannelIds.push(
+        ...(await reconcileCollection(trx, collection, items, now)),
       );
-      const matched = members.map((item) => item.id);
-      if (!sameOrder(current, matched)) {
-        await replaceCollectionMembers(trx, collection.id, matched, now);
-        affectedChannelIds.push(
-          ...(await findChannelsUsingCollection(trx, collection.id)),
-        );
-      }
-      await trx
-        .updateTable("media_collections")
-        .set({
-          maintained_at: now,
-          maintenance_error: null,
-          maintenance_incomplete: toSqliteBoolean(incomplete),
-        })
-        .where("id", "=", collection.id)
-        .execute();
     }
     return { value: undefined, affectedChannelIds };
   };
@@ -101,36 +67,4 @@ export async function recordMaintenanceFailure(
     .set({ maintenance_error: message })
     .where("maintenance_mode", "=", "automatic")
     .execute();
-}
-
-// Records one collection's own failure, leaving the others' passes alone.
-async function recordError(
-  trx: Kysely<DatabaseSchema>,
-  id: string,
-  message: string,
-): Promise<void> {
-  await trx
-    .updateTable("media_collections")
-    .set({ maintenance_error: message })
-    .where("id", "=", id)
-    .execute();
-}
-
-// A collection's current member IDs in position order.
-async function memberIds(
-  trx: Kysely<DatabaseSchema>,
-  id: string,
-): Promise<string[]> {
-  const rows = await trx
-    .selectFrom("media_collection_items")
-    .select("media_item_id")
-    .where("media_collection_id", "=", id)
-    .orderBy("position")
-    .execute();
-  return rows.map((row) => row.media_item_id);
-}
-
-// Whether two ordered ID lists hold the same IDs in the same order.
-function sameOrder(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((id, index) => id === b[index]);
 }

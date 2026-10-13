@@ -28,6 +28,7 @@ type ApiErrorCode =
   | "mapping_changed"
   | "media_collection_automatic"
   | "media_collection_in_use"
+  | "media_collection_manual"
   | "media_collection_not_found"
   | "media_item_in_use"
   | "media_item_not_found"

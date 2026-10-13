@@ -321,3 +321,38 @@ it("shows an automatic collection's criterion and members read-only while allowi
     screen.getByRole("button", { name: "Delete collection" }),
   ).toBeTruthy();
 });
+
+it("excludes a member, lists excluded items labelled with whether they still qualify, and restores one", async () => {
+  const { api } = renderEditor(["e2", "e10"], officeCollection);
+  const exclusions = "/media-collections/office/exclusions";
+  api.reply(`${exclusions}/e2`, null, "PUT", 204);
+  api.reply(`${exclusions}/z`, null, "DELETE", 204);
+  api.reply(exclusions, [
+    {
+      mediaItemId: "z",
+      title: "Alpha",
+      path: "/media/alpha.mp4",
+      status: "available",
+      durationMs: 1_200_000,
+      qualifies: false,
+    },
+  ]);
+  await screen.findByText("Episode 10");
+
+  click("Exclude Episode 2 from this collection");
+  await waitFor(() =>
+    expect(api.requestsTo(`${exclusions}/e2`)[0]?.method).toBe("PUT"),
+  );
+  fireEvent.click(screen.getByLabelText("Show excluded"));
+
+  const excluded = await screen.findByRole("table", { name: "Excluded media" });
+  const row = within(excluded).getByText("Alpha").closest("tr")!;
+  expect(within(row).getByText("Excluded")).toBeTruthy();
+  expect(within(row).getByText("No longer matches")).toBeTruthy();
+  fireEvent.click(
+    within(row).getByRole("button", { name: "Restore inclusion of Alpha" }),
+  );
+  await waitFor(() =>
+    expect(api.requestsTo(`${exclusions}/z`)[0]?.method).toBe("DELETE"),
+  );
+});

@@ -1,31 +1,13 @@
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import type { MediaItemStatus } from "../../database/schema/media-item-table.js";
-import type {
-  ContentIdentity,
-  ContentMetadata,
-} from "../../media-items/contracts.js";
 import {
   effectiveContentIdentity,
   effectiveMetadata,
   METADATA_COLUMNS,
 } from "../../media-items/effective-metadata.js";
 import { selectWithMetadata } from "../../media-items/media-item-repository.js";
-
-/**
- * One cataloged item as criteria see it: the member summary a collection
- * shows, plus the effective facts and identities matching reads.
- */
-export interface MatchableItem {
-  id: string;
-  title: string;
-  path: string;
-  status: MediaItemStatus;
-  durationMs: number | null;
-  metadata: ContentMetadata;
-  identity: ContentIdentity;
-}
+import type { MatchableItem } from "../contracts.js";
 
 /**
  * Reads every cataloged item's effective facts through the same join and

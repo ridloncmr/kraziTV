@@ -32,6 +32,7 @@ import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
 import type { CollectionMaintenance } from "./media-collections/maintenance/collection-maintenance.js";
 import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import { registerMediaCollectionRoutes } from "./media-collections/routes/media-collection-routes.js";
+import { registerCollectionExclusionRoutes } from "./media-collections/routes/collection-exclusion-routes.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
@@ -167,6 +168,11 @@ function registerRoutes(
       ),
   );
   registerMediaCollectionRoutes(
+    server,
+    dependencies.mediaCollections,
+    dependencies.schedules,
+  );
+  registerCollectionExclusionRoutes(
     server,
     dependencies.mediaCollections,
     dependencies.schedules,

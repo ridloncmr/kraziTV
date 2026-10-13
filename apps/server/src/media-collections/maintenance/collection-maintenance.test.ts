@@ -22,6 +22,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
+import { exclusionChange } from "../exclusions/exclusion-change.js";
 import { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { CollectionMaintenance } from "./collection-maintenance.js";
 
@@ -228,6 +229,23 @@ describe("CollectionMaintenance", () => {
         allowUnschedulable: false,
       },
       context.log,
+    );
+    barrier.release();
+    await pass;
+
+    expect(await memberIds(context, context.office)).toEqual(["e2"]);
+  });
+
+  it("does not undo an exclusion committed while a pass waited to run", async () => {
+    const barrier = createBarrier();
+    const context = await setup({ beforePass: () => barrier.wait() });
+
+    const pass = context.maintenance.request();
+    await barrier.reached;
+    await context.schedules.applyInputChange(
+      context.log,
+      "membership_changed",
+      exclusionChange(context.office, "e1", true),
     );
     barrier.release();
     await pass;
