@@ -7,7 +7,10 @@ import {
   sendInvalidRequest,
   sendUnknownMediaItems,
 } from "../../http/api-error.js";
-import { toApiTimestamp } from "../../http/api-timestamp.js";
+import {
+  toApiTimestamp,
+  toApiTimestampOrNull,
+} from "../../http/api-timestamp.js";
 import {
   idParams,
   nameField,
@@ -205,6 +208,8 @@ function toApiMediaCollection(collection: MediaCollection) {
     maintenanceMode: collection.maintenanceMode,
     criterion: collection.criterion,
     criterionLabel: collection.criterionLabel,
+    maintainedAt: toApiTimestampOrNull(collection.maintainedAt),
+    maintenanceError: collection.maintenanceError,
     createdAt: toApiTimestamp(collection.createdAt),
     updatedAt: toApiTimestamp(collection.updatedAt),
   };

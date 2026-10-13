@@ -31,6 +31,7 @@ import { ChannelRepository } from "../channels/repository/channel-repository.js"
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
+import { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -120,6 +121,11 @@ export async function startTestServer(
   const removals: Pick<CatalogRemovalService, "purge"> = {
     purge: async (log) => wired.dependencies?.catalogRemovals.purge(log),
   };
+  // Writers ask the final maintenance service, so an override is followed.
+  const collections: Pick<CollectionMaintenance, "request"> = {
+    request: () =>
+      wired.dependencies?.collectionMaintenance.request() ?? Promise.resolve(),
+  };
   // A scripted TMDB that accepts no key, so no suite ever calls the real
   // one. Key saves and scans share it, as they share one client in index.ts.
   const tmdb = new TmdbClient({
@@ -127,7 +133,12 @@ export async function startTestServer(
     timeoutMs: 1_000,
   });
   const tmdbKeys = new TmdbKeyService(database.db, tmdb);
-  const matchChoices = new MatchChoiceService(database.db, tmdbKeys, tmdb);
+  const matchChoices = new MatchChoiceService(
+    database.db,
+    tmdbKeys,
+    tmdb,
+    collections,
+  );
   // Built per dependency set, so the default scanner can follow overrides.
   const defaultScanner = (
     roots: MediaRootRepository,
@@ -140,6 +151,7 @@ export async function startTestServer(
       schedules: scheduleService,
       removals,
       metadataRefresh: new IdleMetadataRefresh(),
+      collections,
       metadata: {
         tmdbKeys,
         metadataMatches: new MetadataMatchRepository(database.db),
@@ -153,6 +165,15 @@ export async function startTestServer(
     new CatalogRemovalService(database.db, {
       schedules: scheduleService,
       isScanning,
+      collections,
+    });
+  // Built per dependency set, so maintenance follows an overridden schedule
+  // service. Real, so server suites see automatic collections maintained.
+  const defaultMaintenance = (scheduleService: ScheduleService) =>
+    new CollectionMaintenance({
+      db: database.db,
+      schedules: scheduleService,
+      log: pino({ level: "silent" }),
     });
   const auth = new AuthService(database.db);
   const defaults: TestServerDependencies = {
@@ -160,8 +181,13 @@ export async function startTestServer(
     authenticator: options.auth === "real" ? auth : new SignedInAuthenticator(),
     tmdbKeys,
     matchChoices,
-    corrections: new CorrectionService(database.db),
-    trackMappings: new TrackMappingService(database.db, tmdbKeys, tmdb),
+    corrections: new CorrectionService(database.db, collections),
+    trackMappings: new TrackMappingService(
+      database.db,
+      tmdbKeys,
+      tmdb,
+      collections,
+    ),
     // No background TMDB pass races what a suite asserts; refresh suites
     // drive the real service directly.
     metadataRefresh: new IdleMetadataRefresh(),
@@ -169,6 +195,7 @@ export async function startTestServer(
     scanner: defaultScanner(mediaRoots, schedules),
     mediaItems: new MediaItemRepository(database.db),
     mediaCollections: new MediaCollectionRepository(database.db),
+    collectionMaintenance: defaultMaintenance(schedules),
     catalogRemovals: defaultRemovals(schedules),
     channels: new ChannelRepository(database.db),
     channelRuntime: new RecordingChannelRuntime(),
@@ -196,6 +223,17 @@ export async function startTestServer(
   }
   if (overridden.catalogRemovals === undefined) {
     dependencies.catalogRemovals = defaultRemovals(dependencies.schedules);
+  }
+  // Rebuilt only for an overridden schedule service: maintenance holds
+  // pass state, so an override that took the default keeps the one instance
+  // the server stops.
+  if (
+    overridden.collectionMaintenance === undefined &&
+    overridden.schedules !== undefined
+  ) {
+    dependencies.collectionMaintenance = defaultMaintenance(
+      dependencies.schedules,
+    );
   }
   // Real gating follows an overridden auth service, so a test that steps the
   // auth clock gates on that same clock.

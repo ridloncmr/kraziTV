@@ -2,6 +2,7 @@
 // SQLite file, and a real media directory. Only ffprobe is replaced.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import { MediaProbeError, type MediaProbeResult } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
@@ -56,6 +57,7 @@ async function startServer(dataDirectory: string): Promise<RunningServer> {
         schedules,
         removals: catalogRemovals,
         metadataRefresh: new IdleMetadataRefresh(),
+        collections: new RecordingCollectionMaintenance(),
         metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),

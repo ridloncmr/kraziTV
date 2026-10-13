@@ -11,6 +11,7 @@ import type {
 } from "../../http/contracts.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { criterionBasis } from "../automatic/criterion-basis.js";
+import { MaintenanceReport } from "../automatic/maintenance-status.js";
 import { ReadOnlyMembers } from "../automatic/read-only-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import type { DraftMember } from "../contracts.js";
@@ -172,6 +173,7 @@ export function CollectionEditor({
             <strong>{criterionBasis(collection)}</strong> · Keeps every matching
             cataloged item in its default order as your catalog changes.
           </p>
+          <MaintenanceReport collection={collection} />
           {members.data && <ReadOnlyMembers members={members.data} />}
         </>
       ) : (

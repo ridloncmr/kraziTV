@@ -133,6 +133,10 @@ export interface MediaCollection {
   criterion: CollectionCriterion | null;
   /** The criterion's basis as the server names it, such as the series name. */
   criterionLabel: string | null;
+  /** When maintenance last brought membership up to date; null when manual. */
+  maintainedAt: string | null;
+  /** Why the latest maintenance failed; members are as of `maintainedAt`. */
+  maintenanceError: string | null;
 }
 /** `GET /media-collections`: one listed collection with how many members it includes. */
 export interface MediaCollectionSummary extends MediaCollection {

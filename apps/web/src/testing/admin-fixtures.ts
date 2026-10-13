@@ -97,6 +97,8 @@ export function collectionWith(
     maintenanceMode: "manual",
     criterion: null,
     criterionLabel: null,
+    maintainedAt: null,
+    maintenanceError: null,
     memberCount: 0,
     missingCount: 0,
     ...overrides,

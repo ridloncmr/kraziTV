@@ -14,6 +14,7 @@ import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
+import { CollectionMaintenance } from "./media-collections/maintenance/collection-maintenance.js";
 import { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
@@ -53,9 +54,6 @@ const auth = new AuthService(database.db);
 // enough for a slow TMDB answer, short enough that a key save never hangs.
 const tmdb = new TmdbClient({ timeoutMs: 10_000 });
 const tmdbKeys = new TmdbKeyService(database.db, tmdb);
-const matchChoices = new MatchChoiceService(database.db, tmdbKeys, tmdb);
-const corrections = new CorrectionService(database.db);
-const trackMappings = new TrackMappingService(database.db, tmdbKeys, tmdb);
 const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
@@ -66,11 +64,32 @@ const playout = new PlayoutService(database.db, schedules);
 
 // Created before Fastify so the stream runtime and scan jobs log through the same logger.
 const logger = pino();
+// Every writer of facts automatic collections match on asks this one
+// service for a pass after it commits.
+const collectionMaintenance = new CollectionMaintenance({
+  db: database.db,
+  schedules,
+  log: logger,
+});
+const matchChoices = new MatchChoiceService(
+  database.db,
+  tmdbKeys,
+  tmdb,
+  collectionMaintenance,
+);
+const corrections = new CorrectionService(database.db, collectionMaintenance);
+const trackMappings = new TrackMappingService(
+  database.db,
+  tmdbKeys,
+  tmdb,
+  collectionMaintenance,
+);
 // Removal asks the scanner whether a root is scanning, and every completed
 // scan purges; the closure resolves the scanner when a removal runs.
 const catalogRemovals = new CatalogRemovalService(database.db, {
   schedules,
   isScanning: (rootId): boolean => scanner.isScanning(rootId),
+  collections: collectionMaintenance,
 });
 const runtime = new SystemRuntime();
 // Shares the TMDB client with scans and never refreshes a root a scan or
@@ -84,6 +103,7 @@ const metadataRefresh = new MetadataRefreshService({
   timers: runtime,
   now: () => runtime.now(),
   log: logger,
+  collections: collectionMaintenance,
 });
 // One limited prober serves every scan so the ffprobe budget is process-wide.
 // Built after schedules and the logger: each completed scan job ensures schedules.
@@ -100,6 +120,7 @@ const scanner = new CatalogScanner({
   schedules,
   removals: catalogRemovals,
   metadataRefresh,
+  collections: collectionMaintenance,
   metadata: {
     tmdbKeys,
     metadataMatches: new MetadataMatchRepository(database.db),
@@ -135,6 +156,7 @@ const server = buildServer(
     scanner,
     mediaItems,
     mediaCollections,
+    collectionMaintenance,
     catalogRemovals,
     channels,
     // Disable and delete stop the same workers that serve tunes.

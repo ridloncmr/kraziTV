@@ -17,6 +17,7 @@ import type { MetadataMatchRepository } from "../../content-metadata/persistence
 import type { TmdbKeyService } from "../../content-metadata/tmdb-key/tmdb-key-service.js";
 import type { MetadataRefreshService } from "../../content-metadata/refresh/metadata-refresh-service.js";
 import type { MediaRoot } from "../../media-roots/contracts.js";
+import type { CollectionMaintenance } from "../../media-collections/maintenance/collection-maintenance.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import {
@@ -59,6 +60,11 @@ interface CatalogScannerOptions {
    * skipped while the job held it without waiting for its next hourly pass.
    */
   metadataRefresh: Pick<MetadataRefreshService, "checkNow">;
+  /**
+   * Asked for a pass once every job ends, since a scan or lookup retry may
+   * change the catalog and facts automatic collections match on.
+   */
+  collections: Pick<CollectionMaintenance, "request">;
   /** Where enrichment reads the owner's key, settled items, and a retry's items. */
   metadata: {
     tmdbKeys: Pick<TmdbKeyService, "readKey">;
@@ -94,6 +100,7 @@ export class CatalogScanner {
   readonly #schedules: CatalogScannerOptions["schedules"];
   readonly #removals: CatalogScannerOptions["removals"];
   readonly #metadataRefresh: CatalogScannerOptions["metadataRefresh"];
+  readonly #collections: CatalogScannerOptions["collections"];
   readonly #metadata: CatalogScannerOptions["metadata"];
   readonly #log: CatalogScannerOptions["log"];
   readonly #discover: NonNullable<CatalogScannerOptions["discover"]>;
@@ -110,6 +117,7 @@ export class CatalogScanner {
     this.#schedules = options.schedules;
     this.#removals = options.removals;
     this.#metadataRefresh = options.metadataRefresh;
+    this.#collections = options.collections;
     this.#metadata = options.metadata;
     this.#log = options.log;
     this.#discover = options.discover ?? discoverMediaFiles;
@@ -239,7 +247,8 @@ export class CatalogScanner {
   /**
    * Runs one job to its terminal phase. Every unexpected error becomes
    * `scan_failed`, so the promise shutdown awaits always resolves. Once the
-   * job is terminal its root is free, so the TMDB refresh is asked to check.
+   * job is terminal its root is free, so the TMDB refresh is asked to check,
+   * and collection maintenance is asked for a pass over what it committed.
    */
   async #run(
     job: ScanJob,
@@ -263,6 +272,7 @@ export class CatalogScanner {
     }
     finishJob(job.status, outcome, this.#now());
     this.#metadataRefresh.checkNow();
+    void this.#collections.request();
   }
 
   // Runs every stage in order, recording progress; each stage before the commit observes the job's signal.

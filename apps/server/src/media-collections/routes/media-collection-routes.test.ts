@@ -90,6 +90,8 @@ const createdCollection = {
   maintenanceMode: "manual",
   criterion: null,
   criterionLabel: null,
+  maintainedAt: null,
+  maintenanceError: null,
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z",
 };
@@ -227,6 +229,8 @@ describe("GET /media-collections", () => {
         maintenanceMode: "manual",
         criterion: null,
         criterionLabel: null,
+        maintainedAt: null,
+        maintenanceError: null,
         memberCount: 0,
         missingCount: 0,
         createdAt: "2024-01-01T00:00:00.000Z",

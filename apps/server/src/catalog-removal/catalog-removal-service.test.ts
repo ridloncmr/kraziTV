@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import {
   collectionFixture,
@@ -36,9 +37,46 @@ async function setup() {
   const removals = new CatalogRemovalService(db, {
     schedules,
     isScanning: (rootId) => rootId === rootFixture.id,
+    collections: new RecordingCollectionMaintenance(),
   });
   return { db, removals };
 }
+
+describe("CatalogRemovalService maintenance requests", () => {
+  it("asks for a collection maintenance pass after a removal commits, never after a refusal", async () => {
+    const { db } = await openTestDatabase();
+    await seedScheduleScenario(db, {
+      items: [{ durationMs: 60_000 }, { durationMs: 60_000 }],
+      source: "media_item",
+    });
+    const collections = new RecordingCollectionMaintenance();
+    const removals = new CatalogRemovalService(db, {
+      schedules: new ScheduleService(db, {
+        now: manualClock(FIXTURE_TIME).now,
+      }),
+      isScanning: () => false,
+      collections,
+    });
+    const remove = (mediaItemIds: string[]) =>
+      removals.remove(
+        {
+          target: { mediaItemIds },
+          airing: "finish",
+          allowUnschedulable: false,
+        },
+        recordingLog(),
+      );
+
+    await expect(remove(["unknown"])).resolves.toMatchObject({
+      kind: "unknown_media_items",
+    });
+    expect(collections.requests).toBe(0);
+    await expect(remove(["item-002"])).resolves.toMatchObject({
+      kind: "removed",
+    });
+    expect(collections.requests).toBe(1);
+  });
+});
 
 describe("CatalogRemovalService refusals", () => {
   it("refuses unknown items before a scan of their root", async () => {
@@ -102,6 +140,7 @@ describe("CatalogRemovalService root removal", () => {
         now: manualClock(FIXTURE_TIME).now,
       }),
       isScanning: () => false,
+      collections: new RecordingCollectionMaintenance(),
     });
 
     const outcome = await removals.remove(

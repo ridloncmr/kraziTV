@@ -28,6 +28,10 @@ export interface MediaCollection {
   criterion: CollectionCriterion | null;
   /** The criterion's basis named for display, such as the series name. */
   criterionLabel: string | null;
+  /** When maintenance last brought membership up to date; null for a manual collection. */
+  maintainedAt: number | null;
+  /** Why the latest maintenance failed; membership is as of `maintainedAt`. */
+  maintenanceError: string | null;
   createdAt: number;
   updatedAt: number;
 }

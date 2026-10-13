@@ -44,3 +44,11 @@
   text-align: left;
   overflow-wrap: anywhere;
 }
+.collection-card .secondary > span {
+  display: block;
+}
+/* Warnings, such as a missing member or failed maintenance, say so in text beside an icon; color only reinforces them. */
+.warning-label {
+  display: block;
+  color: var(--xp-error);
+}

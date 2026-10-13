@@ -282,12 +282,24 @@ it("labels a missing member as not airing until its file returns, with an icon b
   expect(within(alpha).queryByText(/Missing/)).toBeNull();
 });
 
+it("reports why an automatic collection's latest maintenance failed", async () => {
+  renderEditor(["e2", "e10"], {
+    ...officeCollection,
+    maintenanceError: "disk I/O error",
+  });
+
+  expect((await screen.findByRole("alert")).textContent).toMatch(
+    /Updating this collection failed: disk I\/O error\. Its members are as of /,
+  );
+});
+
 it("shows an automatic collection's criterion and members read-only while allowing rename and delete", async () => {
   renderEditor(["e2", "e10"], officeCollection);
 
   await screen.findByText("Episode 10");
 
   expect(screen.getByText("TV series: The Office")).toBeTruthy();
+  expect(screen.getByText(/^Last updated /)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
   expect(screen.queryByLabelText(/^Select member /)).toBeNull();
   expect(screen.queryByLabelText("Find media")).toBeNull();

@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { runImmediateTransaction } from "../database/writes/immediate-transaction.js";
+import type { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import type { ScheduleLog } from "../schedules/contracts.js";
 import { effectiveNow } from "../schedules/schedule-coverage.js";
 import { findLatestScheduleMutation } from "../schedules/schedule-repository.js";
@@ -24,6 +25,8 @@ interface CatalogRemovalServiceOptions {
   schedules: ScheduleService;
   /** Whether a root has a scan job that has not finished; read from the scanner's memory. */
   isScanning: (rootId: string) => boolean;
+  /** Asked for a pass after a removal commits; the removal itself already left every collection. */
+  collections: Pick<CollectionMaintenance, "request">;
 }
 
 /**
@@ -36,6 +39,7 @@ export class CatalogRemovalService {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #schedules: ScheduleService;
   readonly #isScanning: (rootId: string) => boolean;
+  readonly #collections: Pick<CollectionMaintenance, "request">;
 
   // The scan check is a function so this domain never depends on how scans run.
   constructor(
@@ -45,6 +49,7 @@ export class CatalogRemovalService {
     this.#db = db;
     this.#schedules = options.schedules;
     this.#isScanning = options.isScanning;
+    this.#collections = options.collections;
   }
 
   /**
@@ -138,37 +143,40 @@ export class CatalogRemovalService {
     request: CatalogRemovalRequest,
     log: ScheduleLog,
   ): Promise<CatalogRemovalOutcome> {
-    return this.#schedules.applyInputChange<CatalogRemovalOutcome>(
-      log,
-      "media_removed",
-      async (trx, effectiveNow) => {
-        const checked = checkRemoval(
-          await readRemovalImpact(
-            trx,
-            request.target,
-            effectiveNow,
-            this.#isScanning,
-          ),
-          request,
-        );
-        if (checked.kind !== "impact") {
-          return { value: checked, affectedChannelIds: [] };
-        }
+    const outcome =
+      await this.#schedules.applyInputChange<CatalogRemovalOutcome>(
+        log,
+        "media_removed",
+        async (trx, effectiveNow) => {
+          const checked = checkRemoval(
+            await readRemovalImpact(
+              trx,
+              request.target,
+              effectiveNow,
+              this.#isScanning,
+            ),
+            request,
+          );
+          if (checked.kind !== "impact") {
+            return { value: checked, affectedChannelIds: [] };
+          }
 
-        const { impact } = checked;
-        const removal = toRemoval(impact, request.airing);
-        await removeFromCatalog(trx, request.target, effectiveNow);
-        return {
-          value: { kind: "removed", removal },
-          affectedChannelIds: impact.affectedChannelIds,
-          interruptedChannelIds: removal.interruptedChannelIds,
-          // After an interrupt nothing holds the removed items, so this
-          // purge takes them at once.
-          afterRegeneration: (trx, advanced) =>
-            purgeRemovedMedia(trx, effectiveNow, advanced),
-        };
-      },
-    );
+          const { impact } = checked;
+          const removal = toRemoval(impact, request.airing);
+          await removeFromCatalog(trx, request.target, effectiveNow);
+          return {
+            value: { kind: "removed", removal },
+            affectedChannelIds: impact.affectedChannelIds,
+            interruptedChannelIds: removal.interruptedChannelIds,
+            // After an interrupt nothing holds the removed items, so this
+            // purge takes them at once.
+            afterRegeneration: (trx, advanced) =>
+              purgeRemovedMedia(trx, effectiveNow, advanced),
+          };
+        },
+      );
+    if (outcome.kind === "removed") void this.#collections.request();
+    return outcome;
   }
 }
 

@@ -5,7 +5,7 @@
  */
 export function MissingLabel() {
   return (
-    <span className="missing-label">
+    <span className="warning-label">
       <span role="img" aria-label="Warning">
         ⚠
       </span>{" "}

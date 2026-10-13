@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 
 import { discoverMediaFiles, MediaProbeError } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -81,6 +82,7 @@ async function setup(options: SetupOptions = {}) {
   const log = recordingLog();
   // Whether the root still read as scanning at each refresh check.
   const refreshChecks: boolean[] = [];
+  const collections = new RecordingCollectionMaintenance();
   const scanner: CatalogScanner = new CatalogScanner({
     metadata: withoutTmdbKey(),
     roots: new MediaRootRepository(database.db),
@@ -94,6 +96,7 @@ async function setup(options: SetupOptions = {}) {
       checkNow: () =>
         void refreshChecks.push(scanner.isScanning(rootFixture.id)),
     },
+    collections,
     log,
     discover,
     now: () => (time += 1_000),
@@ -107,6 +110,7 @@ async function setup(options: SetupOptions = {}) {
     removals,
     log,
     refreshChecks,
+    collections,
   };
 }
 
@@ -459,18 +463,20 @@ describe("CatalogScanner", () => {
     expect(await catalogSnapshot(db)).toEqual(before);
   });
 
-  it("asks the TMDB refresh to check once a job completes, after its root is free", async () => {
-    const { scanner, prober, refreshChecks } = await setup();
+  it("asks the TMDB refresh to check and collections for a pass once a job completes, after its root is free", async () => {
+    const { scanner, prober, refreshChecks, collections } = await setup();
 
     await start(scanner);
     await prober.waitForStarted(3);
     expect(refreshChecks).toEqual([]);
+    expect(collections.requests).toBe(0);
     for (const name of ["a", "b", "c"]) {
       prober.get(path(name)).resolve(PROBE_RESULT);
     }
 
     expect(await finished(scanner)).toMatchObject({ phase: "completed" });
     expect(refreshChecks).toEqual([false]);
+    expect(collections.requests).toBe(1);
   });
 
   it("asks the TMDB refresh to check once a cancelled job ends", async () => {

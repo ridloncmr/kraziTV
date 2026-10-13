@@ -1,4 +1,3 @@
-import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createChannel, send, windowUrl } from "../../testing/api-requests.js";
@@ -23,8 +22,8 @@ const OFFICE = { kind: "series", tmdbId: 2316 } as const;
  * episode order, one of them missing, a corrected and a removed Office
  * episode that never match, and one Parks episode.
  */
-async function startServer(): Promise<FastifyInstance> {
-  const { server } = await startTestServer({
+async function startServer() {
+  const { server, db } = await startTestServer({
     seed: async (db) => {
       await db.insertInto("media_roots").values(rootFixture).execute();
       await db
@@ -55,7 +54,7 @@ async function startServer(): Promise<FastifyInstance> {
         .execute();
     },
   });
-  return server;
+  return { server, db };
 }
 
 // Reads the member IDs of a member list response in position order.
@@ -67,7 +66,7 @@ function ids(members: unknown): string[] {
 
 describe("GET /media-collections/series", () => {
   it("lists cataloged series by name with the items each would include", async () => {
-    const server = await startServer();
+    const { server } = await startServer();
 
     const response = await send(server, "GET", "/media-collections/series");
 
@@ -81,7 +80,7 @@ describe("GET /media-collections/series", () => {
 
 describe("automatic series collections", () => {
   it("creates the membership its preview showed, in episode order", async () => {
-    const server = await startServer();
+    const { server } = await startServer();
 
     const preview = await send(server, "POST", "/media-collections/previews", {
       criterion: OFFICE,
@@ -104,12 +103,14 @@ describe("automatic series collections", () => {
       maintenanceMode: "automatic",
       criterion: OFFICE,
       criterionLabel: "The Office",
+      maintainedAt: expect.any(String),
+      maintenanceError: null,
     });
     expect(members.body).toEqual(preview.body);
   });
 
   it("counts its members, and missing ones, in the listing", async () => {
-    const server = await startServer();
+    const { server } = await startServer();
     await send(server, "POST", "/media-collections", {
       name: "The Office",
       criterion: OFFICE,
@@ -122,8 +123,29 @@ describe("automatic series collections", () => {
     ]);
   });
 
+  it("reports why its latest maintenance failed, keeping the time it last succeeded", async () => {
+    const { server, db } = await startServer();
+    const created = await send(server, "POST", "/media-collections", {
+      name: "The Office",
+      criterion: OFFICE,
+    });
+    await db
+      .updateTable("media_collections")
+      .set({ maintenance_error: "disk I/O error" })
+      .execute();
+
+    const listing = await send(server, "GET", "/media-collections");
+
+    expect(listing.body).toMatchObject([
+      {
+        maintainedAt: created.body.maintainedAt,
+        maintenanceError: "disk I/O error",
+      },
+    ]);
+  });
+
   it("refuses a direct membership replacement and keeps its members", async () => {
-    const server = await startServer();
+    const { server } = await startServer();
     const created = await send(server, "POST", "/media-collections", {
       name: "The Office",
       criterion: OFFICE,
@@ -144,7 +166,7 @@ describe("automatic series collections", () => {
   });
 
   it("is an ordinary source a programming block can draw from", async () => {
-    const server = await startServer();
+    const { server } = await startServer();
     const created = await send(server, "POST", "/media-collections", {
       name: "The Office",
       criterion: OFFICE,
@@ -192,7 +214,7 @@ describe("automatic series collections", () => {
       { name: "Odd", criterion: { ...OFFICE, name: "The Office" } },
     ],
   ])("rejects %s as invalid_request", async (_, payload) => {
-    const server = await startServer();
+    const { server } = await startServer();
 
     const response = await send(server, "POST", "/media-collections", payload);
 

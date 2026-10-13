@@ -18,6 +18,7 @@ export type ScheduleChangeReason =
   | "block_deleted"
   | "membership_changed"
   | "media_removed"
+  | "collection_maintained"
   | "manual";
 
 /**

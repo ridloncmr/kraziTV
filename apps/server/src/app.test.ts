@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { RecordingCollectionMaintenance } from "./testing/recording-collection-maintenance.js";
 
 import {
   buildServer,
@@ -48,6 +49,7 @@ function createDependencies(
     matchChoices: {} as MatchChoiceService,
     corrections: {} as CorrectionService,
     trackMappings: {} as TrackMappingService,
+    collectionMaintenance: new RecordingCollectionMaintenance(),
     metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
@@ -272,6 +274,29 @@ describe("buildServer", () => {
     expect(events).toEqual([
       "refresh started",
       "refresh stopped",
+      "database closed",
+    ]);
+  });
+
+  it("asks for a collection maintenance pass once ready and stops maintenance before closing the database", async () => {
+    const events: string[] = [];
+    const dependencies = createDependencies({
+      close: async () => void events.push("database closed"),
+    });
+    dependencies.collectionMaintenance = new RecordingCollectionMaintenance(
+      events,
+    );
+    const server = buildServer(dependencies, {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
+
+    await server.ready();
+    await server.close();
+
+    expect(events).toEqual([
+      "maintenance requested",
+      "maintenance stopped",
       "database closed",
     ]);
   });

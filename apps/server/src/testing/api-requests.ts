@@ -49,6 +49,37 @@ export async function waitForScan(
   }
 }
 
+/**
+ * Polls a collection's members until their IDs equal `expected` in order,
+ * failing with the last membership read after `timeoutMs`. Lets a test
+ * wait for maintenance a writer asked for without asking for a pass itself.
+ */
+export async function waitForMembers(
+  server: FastifyInstance,
+  collectionId: string,
+  expected: readonly string[],
+  timeoutMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const { body } = await send(
+      server,
+      "GET",
+      `/media-collections/${collectionId}/items`,
+    );
+    const ids = (body as { mediaItemId: string }[]).map(
+      (member) => member.mediaItemId,
+    );
+    if (JSON.stringify(ids) === JSON.stringify(expected)) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Collection ${collectionId} still holds ${JSON.stringify(ids)} after ${timeoutMs} ms`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+}
+
 /** Creates a channel and returns Fastify's raw response, for tests asserting headers or exact JSON. */
 export function createChannel(
   server: FastifyInstance,

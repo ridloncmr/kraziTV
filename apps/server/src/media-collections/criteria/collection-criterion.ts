@@ -23,7 +23,18 @@ export function criterionKey(criterion: CollectionCriterion): string {
   return JSON.stringify({ kind: criterion.kind, tmdbId: criterion.tmdbId });
 }
 
-/** Reads a stored criterion; the column's check already guarantees JSON. */
-export function parseStoredCriterion(stored: string): CollectionCriterion {
-  return collectionCriterionSchema.parse(JSON.parse(stored));
+/**
+ * Reads a stored criterion, or undefined when it is not one this version
+ * understands. Never throws, so one unreadable row cannot break a listing
+ * or a maintenance pass over every other collection.
+ */
+export function readStoredCriterion(
+  stored: string,
+): CollectionCriterion | undefined {
+  try {
+    const parsed = collectionCriterionSchema.safeParse(JSON.parse(stored));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }

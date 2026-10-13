@@ -4,6 +4,7 @@ import type {
   MediaCollectionSummary,
 } from "../../http/contracts.js";
 import { criterionBasis } from "../automatic/criterion-basis.js";
+import { CardMaintenanceStatus } from "../automatic/maintenance-status.js";
 
 type MaintenanceMode = MediaCollection["maintenanceMode"];
 
@@ -99,8 +100,11 @@ export function CollectionGrid({
                       {collection.memberCount}{" "}
                       {collection.memberCount === 1 ? "item" : "items"}
                     </span>
+                    {collection.maintenanceMode === "automatic" && (
+                      <CardMaintenanceStatus collection={collection} />
+                    )}
                     {collection.missingCount > 0 && (
-                      <span className="missing-label">
+                      <span className="warning-label">
                         {missingText(collection.missingCount)}
                       </span>
                     )}

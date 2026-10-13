@@ -9,6 +9,7 @@ import { expect, vi } from "vitest";
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
 import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
@@ -19,6 +20,7 @@ import { isRunning } from "../catalog-scan/scanner/scan-job.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { send, waitForScan } from "./api-requests.js";
 import { rootFixture } from "./catalog-fixtures.js";
+import { RecordingCollectionMaintenance } from "./recording-collection-maintenance.js";
 import { recordingLog } from "./recording-log.js";
 import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
 import {
@@ -60,29 +62,42 @@ export async function setupEnrichmentScan(options: SetupOptions) {
     options.probeFailures ?? [],
     options.durations,
   );
-  const scanner = enrichmentScanner(db, client, options, prober);
-  return { db, scanner, tmdb, prober };
+  const collections = new RecordingCollectionMaintenance();
+  const scanner = enrichmentScanner(db, client, options, prober, collections);
+  return { db, scanner, tmdb, prober, collections };
 }
 
 /**
  * Boots the real server composition with the enrichment scanner, and match
  * choices and track mappings asking the same scripted TMDB, so route tests
- * scan real decisions.
+ * scan real decisions. Each asks the server's real collection maintenance
+ * for its passes.
  */
 export async function startEnrichmentServer(options: SetupOptions) {
   const { tmdb, client } = scriptedTmdb();
-  const { server, db } = await startTestServer({
+  // Resolved once the server is built, before any scan or choice runs.
+  const wired: { maintenance?: Pick<CollectionMaintenance, "request"> } = {};
+  const collections: Pick<CollectionMaintenance, "request"> = {
+    request: () => wired.maintenance?.request() ?? Promise.resolve(),
+  };
+  const { server, db, dependencies } = await startTestServer({
     seed: (db) => seedEnrichment(db, options.key ?? true),
     overrides: (db) => {
       const tmdbKeys = new TmdbKeyService(db, client);
       return {
-        scanner: enrichmentScanner(db, client, options),
-        matchChoices: new MatchChoiceService(db, tmdbKeys, client),
-        trackMappings: new TrackMappingService(db, tmdbKeys, client),
+        scanner: enrichmentScanner(db, client, options, undefined, collections),
+        matchChoices: new MatchChoiceService(db, tmdbKeys, client, collections),
+        trackMappings: new TrackMappingService(
+          db,
+          tmdbKeys,
+          client,
+          collections,
+        ),
       };
     },
   });
-  return { server, db, tmdb };
+  wired.maintenance = dependencies.collectionMaintenance;
+  return { server, db, tmdb, maintenance: dependencies.collectionMaintenance };
 }
 
 /** Scans the fixture root through the routes and waits for the job to end. */
@@ -141,6 +156,10 @@ function enrichmentScanner(
   client: TmdbClient,
   { files, probeFailures = [], durations, tmdb: wrap }: SetupOptions,
   prober: MediaProber = metadataProber(ROOT, probeFailures, durations),
+  collections: Pick<
+    CollectionMaintenance,
+    "request"
+  > = new RecordingCollectionMaintenance(),
 ): CatalogScanner {
   let time = 1_704_067_200_000;
   return new CatalogScanner({
@@ -150,6 +169,7 @@ function enrichmentScanner(
     schedules: { ensureAllEnabled: async () => {} },
     removals: { purge: async () => {} },
     metadataRefresh: new IdleMetadataRefresh(),
+    collections,
     log: recordingLog(),
     metadata: {
       tmdbKeys: new TmdbKeyService(db, client),

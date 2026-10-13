@@ -183,6 +183,21 @@ it("reports a rejected delete inside its confirmation", async () => {
   ).toBe(screen.getByRole("dialog", { name: "Delete collection" }));
 });
 
+it("marks an automatic card whose latest maintenance failed", async () => {
+  const api = renderApp();
+  api.reply("/media-collections", [
+    { ...officeCollection, maintenanceError: "disk I/O error" },
+  ]);
+  fireEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+
+  const card = await screen.findByRole("button", { name: "Open The Office" });
+
+  expect(card.textContent).toMatch(
+    /Update failed — members may be out of date/,
+  );
+});
+
 it("previews a series and creates an automatic collection listed under Automatic", async () => {
   const api = renderApp();
   api.reply("/media-collections/series", catalogSeries);
@@ -255,5 +270,5 @@ it("previews a series and creates an automatic collection listed under Automatic
   const grid = await screen.findByRole("tabpanel", { name: "Automatic" });
   expect(
     within(grid).getByRole("button", { name: "Open The Office" }).textContent,
-  ).toBe("The OfficeTV series: The Office2 items");
+  ).toBe("The OfficeTV series: The Office2 itemsUp to date");
 });

@@ -11,7 +11,7 @@ import { findUnknownMediaItemIds } from "../../media-items/media-item-repository
 import { listCatalogSeries } from "../criteria/catalog-series.js";
 import {
   criterionKey,
-  parseStoredCriterion,
+  readStoredCriterion,
 } from "../criteria/collection-criterion.js";
 import { matchCriterion } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
@@ -308,7 +308,9 @@ async function toMediaCollections(
   rows: readonly Selectable<MediaCollectionTable>[],
 ): Promise<MediaCollection[]> {
   const criteria = rows.map((row) =>
-    row.criterion === null ? null : parseStoredCriterion(row.criterion),
+    row.criterion === null
+      ? null
+      : (readStoredCriterion(row.criterion) ?? null),
   );
   const labels = await labelCriteria(
     executor,
@@ -325,6 +327,8 @@ async function toMediaCollections(
         criterion === null
           ? null
           : (labels.get(criterionKey(criterion)) ?? null),
+      maintainedAt: row.maintained_at,
+      maintenanceError: row.maintenance_error,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

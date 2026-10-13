@@ -2,6 +2,7 @@
 // startup, and re-adding a path interact with removed rows.
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { afterEach, describe, expect, it } from "vitest";
@@ -108,6 +109,7 @@ describe("catalog removal of a media root", () => {
           schedules,
           removals: catalogRemovals,
           metadataRefresh: new IdleMetadataRefresh(),
+          collections: new RecordingCollectionMaintenance(),
           log: recordingLog(),
         }),
       }),
