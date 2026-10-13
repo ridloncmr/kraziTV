@@ -2,14 +2,19 @@
 const NAME_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
 
 /**
- * Orders names case- and accent-insensitively, then by ID, so every
- * collection-domain listing sorts names one way and never ties.
+ * Orders display text case- and accent-insensitively, the one way every
+ * collection-domain name or title sorts.
  */
+export function compareText(a: string, b: string): number {
+  return NAME_COLLATOR.compare(a, b);
+}
+
+/** Orders names by `compareText`, then by ID, so a listing never ties. */
 export function compareNames(
   a: { name: string; id: string | number },
   b: { name: string; id: string | number },
 ): number {
-  return NAME_COLLATOR.compare(a.name, b.name) || compareExact(a.id, b.id);
+  return compareText(a.name, b.name) || compareExact(a.id, b.id);
 }
 
 /**

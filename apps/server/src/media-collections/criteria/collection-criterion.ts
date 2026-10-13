@@ -13,6 +13,10 @@ export const collectionCriterionSchema: z.ZodType<CollectionCriterion> =
       kind: z.literal("series"),
       tmdbId: z.number().int().positive(),
     }),
+    z.strictObject({
+      kind: z.literal("franchise"),
+      tmdbId: z.number().int().positive(),
+    }),
   ]);
 
 /**

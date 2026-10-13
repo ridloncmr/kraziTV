@@ -40,6 +40,36 @@ export function matchableEpisode(
   };
 }
 
+/**
+ * A cataloged movie in the TMDB collection `franchiseTmdbId` (null for
+ * none), released `releaseDate` and titled `title` unless given.
+ */
+export function matchableMovie(
+  id: string,
+  franchiseTmdbId: number | null,
+  facts: {
+    releaseDate?: string | null;
+    title?: string | null;
+    path?: string;
+  } = {},
+): MatchableItem {
+  return {
+    id,
+    title: id,
+    path: facts.path ?? `/movies/${id}.mkv`,
+    status: "available",
+    durationMs: 7_200_000,
+    metadata: {
+      ...NO_CONTENT_METADATA,
+      matchState: "matched",
+      title: facts.title === undefined ? id : facts.title,
+      releaseDate: facts.releaseDate === undefined ? null : facts.releaseDate,
+      franchiseName: "Indiana Jones Collection",
+    },
+    identity: { seriesTmdbId: null, franchiseTmdbId },
+  };
+}
+
 /** Accepted facts for an episode of `seriesTmdbId`, as a scan stores them. */
 export function episodeFacts(
   mediaItemId: string,
@@ -90,4 +120,28 @@ export async function seedEpisodes(
       ),
     )
     .execute();
+}
+
+/** Accepted facts for a movie in the TMDB collection `franchiseTmdbId`, as a scan stores them. */
+export function movieFacts(
+  mediaItemId: string,
+  franchise: { tmdbId: number; name: string } | null,
+  releaseDate: string | null,
+): Insertable<ContentFactsTable> {
+  return {
+    media_item_id: mediaItemId,
+    content_type: "movie",
+    title: mediaItemId,
+    release_date: releaseDate,
+    genres: "[]",
+    franchise_tmdb_id: franchise?.tmdbId ?? null,
+    franchise_name: franchise?.name ?? null,
+    description: null,
+    poster_path: null,
+    series_tmdb_id: null,
+    series_name: null,
+    season_number: null,
+    episode_number: null,
+    last_episode_number: null,
+  };
 }

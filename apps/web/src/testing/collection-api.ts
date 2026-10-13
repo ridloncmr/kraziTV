@@ -1,4 +1,4 @@
-import type { CatalogSeries, MediaItem } from "../http/contracts.js";
+import type { CatalogGroup, MediaItem } from "../http/contracts.js";
 import { adminFixtures, collectionWith, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
 
@@ -27,9 +27,15 @@ export const episodes: MediaItem[] = [
 const catalog = [...adminFixtures.media, ...episodes];
 
 /** Cataloged series as the server lists them, by name. */
-export const catalogSeries: CatalogSeries[] = [
+export const catalogSeries: CatalogGroup[] = [
   { tmdbId: 8592, name: "Parks and Recreation", itemCount: 4 },
   { tmdbId: 2316, name: "The Office", itemCount: 2 },
+];
+
+/** Cataloged movie franchises as the server lists them, by name. */
+export const catalogFranchises: CatalogGroup[] = [
+  { tmdbId: 8091, name: "Alien Collection", itemCount: 4 },
+  { tmdbId: 84, name: "Indiana Jones Collection", itemCount: 3 },
 ];
 
 /** An automatic series collection holding both fixture episodes. */

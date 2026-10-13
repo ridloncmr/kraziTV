@@ -80,7 +80,11 @@ export function registerMediaCollectionRoutes(
   });
 
   server.get("/media-collections/series", async () =>
-    mediaCollections.listCatalogSeries(),
+    mediaCollections.listCatalogGroups("series"),
+  );
+
+  server.get("/media-collections/franchises", async () =>
+    mediaCollections.listCatalogGroups("franchise"),
   );
 
   // The browser shows this answer as the preview; it never matches itself.

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { matchableEpisode } from "../../testing/collection-fixtures.js";
+import {
+  matchableEpisode,
+  matchableMovie,
+} from "../../testing/collection-fixtures.js";
 import { matchCriterion } from "./match-criterion.js";
 
 const OFFICE = { kind: "series", tmdbId: 2316 } as const;
@@ -50,5 +53,69 @@ describe("matchCriterion: series", () => {
     expect(
       officeOrder(matchableEpisode("gone", 2316, { status: "missing" })),
     ).toEqual(["gone"]);
+  });
+});
+
+const INDIANA_JONES = { kind: "franchise", tmdbId: 84 } as const;
+
+// Matches the Indiana Jones criterion and reads back the ordered IDs.
+function franchiseOrder(...items: Parameters<typeof matchCriterion>[1]) {
+  return matchCriterion(INDIANA_JONES, items).map((item) => item.id);
+}
+
+describe("matchCriterion: franchise", () => {
+  it("orders movies by release, not by ID, title, or path", () => {
+    expect(
+      franchiseOrder(
+        matchableMovie("a", 84, {
+          releaseDate: "1989-05-24",
+          title: "Crusade",
+        }),
+        matchableMovie("b", 84, {
+          releaseDate: "1981-06-12",
+          title: "Raiders",
+        }),
+        matchableMovie("c", 84, { releaseDate: "1984-05-23", title: "Doom" }),
+      ),
+    ).toEqual(["b", "c", "a"]);
+  });
+
+  it("puts a year-only date before a full date that year, and unknown dates last", () => {
+    expect(
+      franchiseOrder(
+        matchableMovie("unknown", 84, { releaseDate: null }),
+        matchableMovie("full", 84, { releaseDate: "1981-06-12" }),
+        matchableMovie("month", 84, { releaseDate: "1981-03" }),
+        matchableMovie("year", 84, { releaseDate: "1981" }),
+      ),
+    ).toEqual(["year", "month", "full", "unknown"]);
+  });
+
+  it("breaks a release tie by title, then path", () => {
+    expect(
+      franchiseOrder(
+        matchableMovie("z", 84, { releaseDate: "2008", title: "beta" }),
+        matchableMovie("y", 84, {
+          releaseDate: "2008",
+          title: "Alpha",
+          path: "/movies/2.mkv",
+        }),
+        matchableMovie("x", 84, {
+          releaseDate: "2008",
+          title: "Alpha",
+          path: "/movies/1.mkv",
+        }),
+      ),
+    ).toEqual(["x", "y", "z"]);
+  });
+
+  it("stays a separate criterion from a series sharing the TMDB ID number", () => {
+    expect(
+      franchiseOrder(
+        matchableEpisode("episode", 84),
+        matchableMovie("movie", 84),
+        matchableMovie("other", 85),
+      ),
+    ).toEqual(["movie"]);
   });
 });

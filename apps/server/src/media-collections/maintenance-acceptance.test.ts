@@ -102,4 +102,50 @@ describe("automatic collection maintenance", () => {
       await idOf(server, TRACKS.third),
     ]);
   });
+
+  it("adds a newly matched franchise movie at its release position", async () => {
+    const indy = { id: 84, name: "Indiana Jones Collection" };
+    const files = [
+      "Indiana Jones and the Last Crusade (1989)/movie.mkv",
+      "Raiders of the Lost Ark (1981)/movie.mkv",
+    ];
+    const { server, tmdb } = await startEnrichmentServer({ files });
+    tmdb.movies.push(
+      {
+        id: 85,
+        title: "Raiders of the Lost Ark",
+        releaseDate: "1981-06-12",
+        franchise: indy,
+      },
+      {
+        id: 87,
+        title: "Indiana Jones and the Temple of Doom",
+        releaseDate: "1984-05-23",
+        franchise: indy,
+      },
+      {
+        id: 89,
+        title: "Indiana Jones and the Last Crusade",
+        releaseDate: "1989-05-24",
+        franchise: indy,
+      },
+    );
+    await scan(server);
+    const franchise = await create(server, {
+      name: "Indiana Jones",
+      criterion: { kind: "franchise", tmdbId: indy.id },
+    });
+    const raiders = await idOf(server, files[1]);
+    const crusade = await idOf(server, files[0]);
+    await waitForMembers(server, franchise, [raiders, crusade], 0);
+
+    files.push("Indiana Jones and the Temple of Doom (1984)/movie.mkv");
+    await scan(server);
+
+    await waitForMembers(server, franchise, [
+      raiders,
+      await idOf(server, files[2]),
+      crusade,
+    ]);
+  });
 });

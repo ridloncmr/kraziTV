@@ -7,13 +7,14 @@ import type { MediaItemStatus } from "../database/schema/media-item-table.js";
  * What an automatic collection matches on. `criteria/collection-criterion.ts`
  * validates it for request bodies and stored rows alike.
  */
-export type CollectionCriterion = { kind: "series"; tmdbId: number };
+export type CollectionCriterion =
+  { kind: "series"; tmdbId: number } | { kind: "franchise"; tmdbId: number };
 
-/** One TMDB series with cataloged items, as the series picker lists it. */
-export interface CatalogSeries {
+/** One TMDB series or franchise with cataloged items, as a criterion picker lists it. */
+export interface CatalogGroup {
   tmdbId: number;
   name: string;
-  /** How many items a collection for this series would include. */
+  /** How many items a collection for this series or franchise would include. */
   itemCount: number;
 }
 

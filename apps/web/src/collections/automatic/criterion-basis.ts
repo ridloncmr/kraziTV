@@ -5,6 +5,7 @@ const KIND_LABELS: Record<
   string
 > = {
   series: "TV series",
+  franchise: "Movie franchise",
 };
 
 /**

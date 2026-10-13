@@ -12,6 +12,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import {
+  catalogFranchises,
   catalogSeries,
   officeCollection,
   serveCollection,
@@ -198,6 +199,69 @@ it("marks an automatic card whose latest maintenance failed", async () => {
   );
 });
 
+it("previews a movie franchise and creates its automatic collection", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply("/media-collections/franchises", catalogFranchises);
+  api.reply(
+    "/media-collections/previews",
+    [
+      {
+        position: 0,
+        mediaItemId: "z",
+        title: "Alpha",
+        path: "/media/alpha.mp4",
+        status: "available",
+        durationMs: 1_200_000,
+      },
+    ],
+    "POST",
+  );
+  api.reply(
+    "/media-collections",
+    {
+      id: "indy",
+      name: "Indiana Jones Collection",
+      maintenanceMode: "automatic",
+      criterion: { kind: "franchise", tmdbId: 84 },
+      criterionLabel: "Indiana Jones Collection",
+      maintainedAt: "2026-10-13T12:00:00.000Z",
+      maintenanceError: null,
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+
+  fireEvent.click(
+    within(dialog).getByRole("radio", { name: "Movie franchise" }),
+  );
+  fireEvent.change(await within(dialog).findByLabelText("Franchise"), {
+    target: { value: "84" },
+  });
+  await within(dialog).findByText("1 movie in this order");
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create automatic collection" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      api.requests.find(
+        (request) =>
+          request.method === "POST" && request.path === "/media-collections",
+      )?.body,
+    ).toEqual({
+      name: "Indiana Jones Collection",
+      criterion: { kind: "franchise", tmdbId: 84 },
+    }),
+  );
+});
+
 it("previews a series and creates an automatic collection listed under Automatic", async () => {
   const api = renderApp();
   api.reply("/media-collections/series", catalogSeries);
@@ -239,7 +303,7 @@ it("previews a series and creates an automatic collection listed under Automatic
       .matches(":disabled"),
   ).toBe(true);
 
-  fireEvent.change(await within(dialog).findByLabelText("TV series"), {
+  fireEvent.change(await within(dialog).findByLabelText("Series"), {
     target: { value: "2316" },
   });
 

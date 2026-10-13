@@ -120,9 +120,9 @@ export interface TrackProposal {
     runtimeMs: number | null;
   }[];
 }
-/** What an automatic collection matches on: one TMDB series. */
+/** What an automatic collection matches on: one TMDB series or movie franchise. */
 export interface CollectionCriterion {
-  kind: "series";
+  kind: "series" | "franchise";
   tmdbId: number;
 }
 export interface MediaCollection {
@@ -144,8 +144,8 @@ export interface MediaCollectionSummary extends MediaCollection {
   /** Members whose file is missing; they stay included but cannot air. */
   missingCount: number;
 }
-/** `GET /media-collections/series`: one cataloged series a criterion can name. */
-export interface CatalogSeries {
+/** `GET /media-collections/series` or `/franchises`: one cataloged group a criterion can name. */
+export interface CatalogGroup {
   tmdbId: number;
   name: string;
   itemCount: number;

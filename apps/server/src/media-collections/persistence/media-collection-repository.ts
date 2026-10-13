@@ -8,7 +8,7 @@ import { runImmediateTransaction } from "../../database/writes/immediate-transac
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
-import { listCatalogSeries } from "../criteria/catalog-series.js";
+import { listCatalogGroups } from "../criteria/catalog-groups.js";
 import {
   criterionKey,
   readStoredCriterion,
@@ -19,7 +19,7 @@ import { compareNames } from "../name-order.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import { labelCriteria } from "./criterion-labels.js";
 import type {
-  CatalogSeries,
+  CatalogGroup,
   CollectionCriterion,
   CreateMediaCollectionResult,
   DeleteMediaCollectionResult,
@@ -133,9 +133,11 @@ export class MediaCollectionRepository {
     }));
   }
 
-  /** Lists the TMDB series cataloged items belong to, for choosing a series criterion. */
-  async listCatalogSeries(): Promise<CatalogSeries[]> {
-    return listCatalogSeries(await readMatchableItems(this.#db));
+  /** Lists the TMDB series or franchises cataloged items belong to, for choosing a criterion of `kind`. */
+  async listCatalogGroups(
+    kind: CollectionCriterion["kind"],
+  ): Promise<CatalogGroup[]> {
+    return listCatalogGroups(kind, await readMatchableItems(this.#db));
   }
 
   /**
