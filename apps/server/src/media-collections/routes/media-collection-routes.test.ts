@@ -6,18 +6,18 @@ import {
   FIXTURE_TIME,
   rootFixture,
   titledItemFixture,
-} from "../testing/catalog-fixtures.js";
+} from "../../testing/catalog-fixtures.js";
 import {
   channelFixture,
   programmingBlockFixture,
-} from "../testing/channel-fixtures.js";
+} from "../../testing/channel-fixtures.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
-} from "../testing/test-environment.js";
-import { MediaCollectionRepository } from "./media-collection-repository.js";
-import { scriptedClock } from "../testing/record-sources.js";
-import { ScheduleService } from "../schedules/schedule-service.js";
+} from "../../testing/test-environment.js";
+import { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
+import { scriptedClock } from "../../testing/record-sources.js";
+import { ScheduleService } from "../../schedules/schedule-service.js";
 
 type Server = FastifyInstance;
 
@@ -87,6 +87,7 @@ function replaceMembers(
 const createdCollection = {
   id: "collection-001",
   name: "The Office",
+  maintenanceMode: "manual",
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z",
 };
@@ -201,6 +202,32 @@ describe("GET /media-collections", () => {
       "Anime",
       "halloween Movies",
       "Holiday",
+    ]);
+  });
+
+  it("reports each collection's maintenance mode and member count", async () => {
+    const server = await startServer();
+    await create(server, {
+      name: "The Office",
+      mediaItemIds: ["finale", "pilot", "broken"],
+    });
+    await create(server, { name: "Scratch" });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/media-collections",
+    });
+
+    expect(response.json()).toEqual([
+      {
+        id: "collection-002",
+        name: "Scratch",
+        maintenanceMode: "manual",
+        memberCount: 0,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+      { ...createdCollection, memberCount: 3 },
     ]);
   });
 });

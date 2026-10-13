@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { displayDuration } from "../controls/display-duration.js";
-import { Pager } from "../controls/pager.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { useRangeToggle } from "../controls/use-range-toggle.js";
-import type { MediaItem, MediaItemPage } from "../http/contracts.js";
-import { useMutation } from "../http/use-resource.js";
-import { useMediaItemPage } from "../media-search/use-media-item-page.js";
+import { displayDuration } from "../../controls/display-duration.js";
+import { Pager } from "../../controls/pager.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { useRangeToggle } from "../../controls/use-range-toggle.js";
+import type { MediaItem, MediaItemPage } from "../../http/contracts.js";
+import { useMutation } from "../../http/use-resource.js";
+import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
 
 const PAGE_SIZE = 50;
 

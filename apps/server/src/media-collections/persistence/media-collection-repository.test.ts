@@ -1,23 +1,23 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { KraziDatabase } from "../database/database.js";
+import type { KraziDatabase } from "../../database/database.js";
 import {
   FIXTURE_TIME,
   insertTitledItems,
   itemFixture,
   rootFixture,
-} from "../testing/catalog-fixtures.js";
+} from "../../testing/catalog-fixtures.js";
 import {
   channelFixture,
   programmingBlockFixture,
-} from "../testing/channel-fixtures.js";
+} from "../../testing/channel-fixtures.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
   openTestDatabase,
-} from "../testing/test-environment.js";
-import { sequentialIds } from "../testing/record-sources.js";
+} from "../../testing/test-environment.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -81,6 +81,7 @@ describe("MediaCollectionRepository", () => {
       collection: {
         id: "collection-001",
         name: "Halloween",
+        maintenanceMode: "manual",
         createdAt: FIXTURE_TIME,
         updatedAt: FIXTURE_TIME,
       },
@@ -173,6 +174,7 @@ describe("MediaCollectionRepository", () => {
     await expect(repository.rename("collection-001", "New")).resolves.toEqual({
       id: "collection-001",
       name: "New",
+      maintenanceMode: "manual",
       createdAt: FIXTURE_TIME,
       updatedAt: FIXTURE_TIME + 1_000,
     });

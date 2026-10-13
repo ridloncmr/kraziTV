@@ -6,7 +6,7 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { isUniqueViolation } from "../database/writes/unique-violation.js";
-import { collectionExists } from "../media-collections/media-collection-repository.js";
+import { collectionExists } from "../media-collections/persistence/media-collection-repository.js";
 import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
 import type {
   CreateProgrammingBlockResult,

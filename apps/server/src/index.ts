@@ -14,7 +14,7 @@ import { resolveDataDirectory } from "./config/data-directory.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
-import { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
 import { toSignalLogger } from "./channels/runtime/signal-log.js";

@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 
 /**
  * Lists the channels whose programming block draws from a collection, in ID

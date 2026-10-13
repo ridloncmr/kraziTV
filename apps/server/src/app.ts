@@ -29,8 +29,8 @@ import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-se
 import { registerCatalogRemovalRoutes } from "./catalog-removal/routes/catalog-removal-routes.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
-import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
-import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
+import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
+import { registerMediaCollectionRoutes } from "./media-collections/routes/media-collection-routes.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";

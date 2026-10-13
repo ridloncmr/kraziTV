@@ -1,17 +1,17 @@
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { runImmediateTransaction } from "../database/writes/immediate-transaction.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import {
   FIXTURE_TIME,
   insertTitledItems,
-} from "../testing/catalog-fixtures.js";
-import { seedScheduleScenario } from "../testing/schedule-fixtures.js";
+} from "../../testing/catalog-fixtures.js";
+import { seedScheduleScenario } from "../../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import { replaceCollectionMembers } from "./replace-collection-members.js";
 
 afterEach(cleanUpTestEnvironment);

@@ -31,7 +31,7 @@ import { ChannelRepository } from "../channels/repository/channel-repository.js"
 import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
-import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
+import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
 import { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import type { PlexSettings } from "../plex/plex-routes.js";

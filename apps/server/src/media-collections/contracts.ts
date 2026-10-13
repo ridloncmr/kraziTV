@@ -1,10 +1,22 @@
+import type { Selectable } from "kysely";
+
+import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
+
+/** Whether a collection keeps its membership from a criterion or only by user edits. */
+type MaintenanceMode = Selectable<MediaCollectionTable>["maintenance_mode"];
 
 export interface MediaCollection {
   id: string;
   name: string;
+  maintenanceMode: MaintenanceMode;
   createdAt: number;
   updatedAt: number;
+}
+
+/** A listed collection with how many members it includes, so a grid needs no per-card read. */
+export interface MediaCollectionSummary extends MediaCollection {
+  memberCount: number;
 }
 
 /** One membership with the item summary needed to judge whether it is schedulable. */

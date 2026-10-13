@@ -6,10 +6,11 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
+import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { serveCollection } from "../testing/collection-api.js";
 import { CollectionsApp } from "./collections-app.js";
 
@@ -20,7 +21,7 @@ afterEach(() => {
 
 const collections = [
   ...adminFixtures.collections,
-  { id: "cartoons", name: "Cartoons" },
+  collectionWith("cartoons", "Cartoons", { memberCount: 1 }),
 ];
 
 // Serves two collections, favorites holding both fixture media, and renders the program.
@@ -37,41 +38,71 @@ function disabled(name: string) {
   return screen.getByRole("button", { name }).matches(":disabled");
 }
 
-// Chooses a collection from the picker once the list has loaded.
-async function choose(name: string) {
-  await screen.findByRole("option", { name });
-  fireEvent.change(screen.getByLabelText("Collection"), {
-    target: { value: collections.find((item) => item.name === name)?.id },
-  });
+// Opens a collection's card from the Manual grid once the list has loaded.
+async function open(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `Open ${name}` }));
+  await screen.findByRole("heading", { name });
 }
 
-it("blocks switching or creating collections until an unsaved draft is saved or discarded", async () => {
+it("lists manual collections as cards with their member counts and opens one for editing", async () => {
   renderApp();
-  await choose("Favorites");
+
+  const manual = await screen.findByRole("tab", { name: "Manual" });
+  expect(manual.getAttribute("aria-selected")).toBe("true");
+  const grid = screen.getByRole("tabpanel", { name: "Manual" });
+  expect(
+    within(grid)
+      .getAllByRole("button", { name: /^Open / })
+      .map((card) => card.textContent),
+  ).toEqual(["Favorites2 items", "Cartoons1 item"]);
+
+  // The count is announced with the card, not only shown.
+  expect(
+    screen.getByRole("button", {
+      name: "Open Cartoons",
+      description: "1 item",
+    }),
+  ).toBeTruthy();
+  await open("Favorites");
+
+  expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
+    "Favorites",
+  );
+  expect(screen.queryByRole("tablist")).toBeNull();
+});
+
+it("shows an empty Automatic tab without listing manual collections there", async () => {
+  renderApp();
+
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+
+  const grid = screen.getByRole("tabpanel", { name: "Automatic" });
+  expect(within(grid).queryByRole("button", { name: /^Open / })).toBeNull();
+  expect(within(grid).getByText(/No automatic collections yet/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "New collection…" })).toBeNull();
+});
+
+it("blocks leaving an unsaved draft until it is saved or discarded", async () => {
+  renderApp();
+  await open("Favorites");
   fireEvent.click(await screen.findByLabelText("Select member Zulu"));
   fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
 
-  expect(screen.getByLabelText("Collection").matches(":disabled")).toBe(true);
-  expect(disabled("New collection…")).toBe(true);
+  expect(disabled("All collections")).toBe(true);
   expect(
-    screen.getByText(
-      "Save or discard changes before switching or creating collections.",
-    ),
+    screen.getByText("Save or discard changes before leaving this collection."),
   ).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() =>
-    expect(screen.getByLabelText("Collection").matches(":disabled")).toBe(
-      false,
-    ),
-  );
-  expect(disabled("New collection…")).toBe(false);
+  await waitFor(() => expect(disabled("All collections")).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "All collections" }));
+  await screen.findByRole("tab", { name: "Manual" });
 });
 
-it("deletes a collection only after confirmation and clears the selection", async () => {
+it("deletes a collection only after confirmation and returns to the grid", async () => {
   const api = renderApp();
   api.reply("/media-collections/favorites", null, "DELETE", 204);
-  await choose("Favorites");
+  await open("Favorites");
   fireEvent.click(
     await screen.findByRole("button", { name: "Delete collection" }),
   );
@@ -83,7 +114,7 @@ it("deletes a collection only after confirmation and clears the selection", asyn
     screen.getByRole("button", { name: "Delete collection permanently" }),
   );
 
-  await screen.findByText("Choose a collection to edit its media.");
+  await screen.findByRole("tab", { name: "Manual" });
   expect(
     api.requests.find((request) => request.method === "DELETE")?.path,
   ).toBe("/media-collections/favorites");
@@ -91,7 +122,12 @@ it("deletes a collection only after confirmation and clears the selection", asyn
 
 it("creates a collection in a dialog and opens it for editing", async () => {
   const api = renderApp();
-  api.reply("/media-collections", { id: "news", name: "News" }, "POST");
+  // The create response carries no member count; only the listing does.
+  api.reply(
+    "/media-collections",
+    { id: "news", name: "News", maintenanceMode: "manual" },
+    "POST",
+  );
   serveCollection(api, "news", []);
   fireEvent.click(
     await screen.findByRole("button", { name: "New collection…" }),
@@ -101,15 +137,12 @@ it("creates a collection in a dialog and opens it for editing", async () => {
   });
   api.reply("/media-collections", [
     ...collections,
-    { id: "news", name: "News" },
+    collectionWith("news", "News"),
   ]);
   fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  await screen.findByRole("option", { name: "News" });
-  expect(screen.getByLabelText<HTMLSelectElement>("Collection").value).toBe(
-    "news",
-  );
+  await screen.findByRole("heading", { name: "News" });
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ name: "News" });
@@ -128,7 +161,7 @@ it("reports a rejected delete inside its confirmation", async () => {
     "DELETE",
     409,
   );
-  await choose("Favorites");
+  await open("Favorites");
   fireEvent.click(
     await screen.findByRole("button", { name: "Delete collection" }),
   );

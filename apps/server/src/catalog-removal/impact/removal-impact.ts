@@ -3,9 +3,9 @@ import type { Kysely } from "kysely";
 
 import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import { findChannelsUsingCollection } from "../../media-collections/channels-using-collection.js";
+import { findChannelsUsingCollection } from "../../media-collections/persistence/channels-using-collection.js";
 import type { MediaCollectionMember } from "../../media-collections/contracts.js";
-import { selectMembers } from "../../media-collections/media-collection-repository.js";
+import { selectMembers } from "../../media-collections/persistence/media-collection-repository.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import type {
   AiringRemovedMedia,

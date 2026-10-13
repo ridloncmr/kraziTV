@@ -2,8 +2,11 @@ import { afterEach, expect, it } from "vitest";
 import {
   cleanUpTestEnvironment,
   startTestServer,
-} from "../testing/test-environment.js";
-import { rootFixture, titledItemFixture } from "../testing/catalog-fixtures.js";
+} from "../../testing/test-environment.js";
+import {
+  rootFixture,
+  titledItemFixture,
+} from "../../testing/catalog-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 

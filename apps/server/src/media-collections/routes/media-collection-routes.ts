@@ -6,17 +6,21 @@ import {
   sendApiError,
   sendInvalidRequest,
   sendUnknownMediaItems,
-} from "../http/api-error.js";
-import { toApiTimestamp } from "../http/api-timestamp.js";
+} from "../../http/api-error.js";
+import { toApiTimestamp } from "../../http/api-timestamp.js";
 import {
   idParams,
   nameField,
   uniqueMediaItemIds as mediaItemIds,
-} from "../http/request-schemas.js";
-import type { ScheduleService } from "../schedules/schedule-service.js";
-import type { MediaCollection, MediaCollectionMember } from "./contracts.js";
-import type { MediaCollectionRepository } from "./media-collection-repository.js";
-import { membershipChange } from "./replace-collection-members.js";
+} from "../../http/request-schemas.js";
+import type { ScheduleService } from "../../schedules/schedule-service.js";
+import type {
+  MediaCollection,
+  MediaCollectionMember,
+  MediaCollectionSummary,
+} from "../contracts.js";
+import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
+import { membershipChange } from "../persistence/replace-collection-members.js";
 
 const createBody = z.strictObject({
   name: nameField,
@@ -35,7 +39,7 @@ export function registerMediaCollectionRoutes(
 ): void {
   server.get("/media-collections", async () => {
     const collections = await mediaCollections.list();
-    return collections.map(toApiMediaCollection);
+    return collections.map(toApiMediaCollectionSummary);
   });
 
   server.post("/media-collections", async (request, reply) => {
@@ -157,8 +161,17 @@ function toApiMediaCollection(collection: MediaCollection) {
   return {
     id: collection.id,
     name: collection.name,
+    maintenanceMode: collection.maintenanceMode,
     createdAt: toApiTimestamp(collection.createdAt),
     updatedAt: toApiTimestamp(collection.updatedAt),
+  };
+}
+
+// Adds the listing-only member count to the shared collection shape.
+function toApiMediaCollectionSummary(collection: MediaCollectionSummary) {
+  return {
+    ...toApiMediaCollection(collection),
+    memberCount: collection.memberCount,
   };
 }
 

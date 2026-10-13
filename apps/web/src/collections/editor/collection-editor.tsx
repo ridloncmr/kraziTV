@@ -1,17 +1,17 @@
-import { formText } from "../controls/form-text.js";
+import { formText } from "../../controls/form-text.js";
 import { useEffect, useMemo, useState } from "react";
-import { displayDuration } from "../controls/display-duration.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { WindowDialog } from "../controls/window-dialog.js";
-import { resourcePath } from "../http/api-client.js";
+import { displayDuration } from "../../controls/display-duration.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
+import { resourcePath } from "../../http/api-client.js";
 import type {
   CollectionMember,
   CollectionStatus,
   MediaCollection,
-} from "../http/contracts.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+} from "../../http/contracts.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { CatalogPicker } from "./catalog-picker.js";
-import type { DraftMember } from "./contracts.js";
+import type { DraftMember } from "../contracts.js";
 import { MemberList } from "./member-list.js";
 import { appendMedia } from "./member-order.js";
 

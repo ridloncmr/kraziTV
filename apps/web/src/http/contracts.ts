@@ -123,6 +123,12 @@ export interface TrackProposal {
 export interface MediaCollection {
   id: string;
   name: string;
+  /** `automatic` collections keep their own membership; `manual` ones change only by edits. */
+  maintenanceMode: "manual" | "automatic";
+}
+/** `GET /media-collections`: one listed collection with how many members it includes. */
+export interface MediaCollectionSummary extends MediaCollection {
+  memberCount: number;
 }
 export interface CollectionMember {
   mediaItemId: string;

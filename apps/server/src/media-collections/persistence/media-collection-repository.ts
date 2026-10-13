@@ -2,18 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely, Selectable } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { MediaCollectionTable } from "../database/schema/media-collection-table.js";
-import { parameterChunks } from "../database/writes/parameter-chunks.js";
-import type { RecordSources } from "../database/writes/record-sources.js";
-import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { MediaCollectionTable } from "../../database/schema/media-collection-table.js";
+import { parameterChunks } from "../../database/writes/parameter-chunks.js";
+import type { RecordSources } from "../../database/writes/record-sources.js";
+import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import type {
   CreateMediaCollectionResult,
   DeleteMediaCollectionResult,
   MediaCollection,
   MediaCollectionMember,
-} from "./contracts.js";
+  MediaCollectionSummary,
+} from "../contracts.js";
 
 // Fixed locale so list order never depends on the host's locale settings.
 const NAME_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
@@ -63,14 +64,32 @@ export class MediaCollectionRepository {
     });
   }
 
-  /** Lists every collection by case-folded name, with ID as a stable tie-breaker. */
-  async list(): Promise<MediaCollection[]> {
+  /**
+   * Lists every collection with its member count, by case-folded name with
+   * ID as a stable tie-breaker. One grouped query, so the count never needs
+   * a read per collection.
+   */
+  async list(): Promise<MediaCollectionSummary[]> {
     const rows = await this.#db
       .selectFrom("media_collections")
-      .selectAll()
+      .leftJoin(
+        "media_collection_items",
+        "media_collection_items.media_collection_id",
+        "media_collections.id",
+      )
+      .selectAll("media_collections")
+      .select((eb) =>
+        eb.fn
+          .count<number>("media_collection_items.media_item_id")
+          .as("member_count"),
+      )
+      .groupBy("media_collections.id")
       .execute();
     return rows
-      .map(toMediaCollection)
+      .map((row) => ({
+        ...toMediaCollection(row),
+        memberCount: row.member_count,
+      }))
       .sort(
         (a, b) =>
           NAME_COLLATOR.compare(a.name, b.name) ||
@@ -202,6 +221,7 @@ function toMediaCollection(
   return {
     id: row.id,
     name: row.name,
+    maintenanceMode: row.maintenance_mode,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

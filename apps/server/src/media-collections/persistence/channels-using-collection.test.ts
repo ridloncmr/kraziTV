@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { collectionFixture, rootFixture } from "../testing/catalog-fixtures.js";
+import {
+  collectionFixture,
+  rootFixture,
+} from "../../testing/catalog-fixtures.js";
 import {
   channelFixture,
   programmingBlockFixture,
-} from "../testing/channel-fixtures.js";
+} from "../../testing/channel-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 
 afterEach(cleanUpTestEnvironment);

@@ -100,6 +100,11 @@ needs COL-004 and COL-007. COL-012 needs nothing and blocks nothing.
 
 ### COL-001: Split Collections into Manual and Automatic tabs
 
+**Status**: Complete on 2026-10-13. Migration `014` adds the maintenance
+mode, criterion, and diagnostics columns; the listing reports mode and member
+count; Collections lands on Manual and Automatic card grids, and both
+collection domains are regrouped into capability folders.
+
 **Goal**: Collections opens on Manual and Automatic tabs, each a grid of
 created collections, and every collection records whether it is maintained.
 

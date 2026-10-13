@@ -9,9 +9,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { BrowserApi } from "../testing/browser-api.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
-import { episodes, serveCollection } from "../testing/collection-api.js";
+import { BrowserApi } from "../../testing/browser-api.js";
+import { adminFixtures } from "../../testing/admin-fixtures.js";
+import { episodes, serveCollection } from "../../testing/collection-api.js";
 import { CollectionEditor } from "./collection-editor.js";
 
 afterEach(() => {

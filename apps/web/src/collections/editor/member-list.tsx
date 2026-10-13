@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { displayDuration } from "../controls/display-duration.js";
-import { withIds } from "../controls/id-selection.js";
-import { Pager } from "../controls/pager.js";
-import { useRangeToggle } from "../controls/use-range-toggle.js";
-import type { DraftMember } from "./contracts.js";
+import { displayDuration } from "../../controls/display-duration.js";
+import { withIds } from "../../controls/id-selection.js";
+import { Pager } from "../../controls/pager.js";
+import { useRangeToggle } from "../../controls/use-range-toggle.js";
+import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
 
 const PAGE_SIZE = 100;
