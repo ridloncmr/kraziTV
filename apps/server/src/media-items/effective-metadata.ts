@@ -127,16 +127,20 @@ export function effectiveMetadata(
 /**
  * The TMDB identities an item's content belongs to, which collection
  * criteria match on. Lives beside `effectiveMetadata` so the corrections
- * rule stays in one place: an item whose series the owner corrected belongs
- * to no TMDB series, since the corrected name has no identity yet, and
- * guessing one from the name could match the wrong show.
+ * rule stays in one place: an item whose series the owner corrected to
+ * another name belongs to no TMDB series, since that name has no identity
+ * yet and guessing one could match the wrong show. A correction naming the
+ * provider's own series, as track mapping stores, keeps the identity.
  */
 export function effectiveContentIdentity(
   row: MetadataColumns,
 ): ContentIdentity {
   return {
     seriesTmdbId:
-      row.corrected_series_name === null ? row.series_tmdb_id : null,
+      row.corrected_series_name === null ||
+      row.corrected_series_name === row.series_name
+        ? row.series_tmdb_id
+        : null,
     franchiseTmdbId: row.franchise_tmdb_id,
   };
 }

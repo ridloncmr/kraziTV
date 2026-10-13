@@ -15,7 +15,7 @@ import { readMatchableItems } from "./matchable-items.js";
 
 afterEach(cleanUpTestEnvironment);
 
-it("reads cataloged items' effective facts, skipping removed items and unmatching a corrected series", async () => {
+it("reads cataloged items' effective facts, skipping removed items and unmatching a series corrected to another name", async () => {
   const { db } = await openTestDatabase();
   await db.insertInto("media_roots").values(rootFixture).execute();
   await db
@@ -25,6 +25,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       titledItemFixture("missing", { status: "missing" }),
       titledItemFixture("removed", { removed_at: FIXTURE_TIME }),
       titledItemFixture("corrected"),
+      titledItemFixture("mapped"),
     ])
     .execute();
   await db
@@ -34,6 +35,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       episodeFacts("missing", 2316, 1, 2),
       episodeFacts("removed", 2316, 1, 3),
       episodeFacts("corrected", 2316, 1, 4),
+      episodeFacts("mapped", 2316, 1, 6),
     ])
     .execute();
   await db
@@ -41,6 +43,8 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
     .values([
       correctionRow("pilot", { season_number: 3 }),
       correctionRow("corrected", { series_name: "Parks and Recreation" }),
+      // Track mapping stores the chosen series' own name as a correction.
+      correctionRow("mapped", { series_name: "The Office" }),
     ])
     .execute();
 
@@ -57,6 +61,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       .sort((a, b) => a.id.localeCompare(b.id)),
   ).toEqual([
     { id: "corrected", status: "available", season: 1, series: null },
+    { id: "mapped", status: "available", season: 1, series: 2316 },
     { id: "missing", status: "missing", season: 1, series: 2316 },
     { id: "pilot", status: "available", season: 3, series: 2316 },
   ]);
