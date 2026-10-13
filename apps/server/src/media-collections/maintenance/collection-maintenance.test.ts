@@ -253,6 +253,24 @@ describe("CollectionMaintenance", () => {
     expect(await memberIds(context, context.office)).toEqual(["e2"]);
   });
 
+  it("does not rewrite a collection converted to manual while a pass waited to run", async () => {
+    const barrier = createBarrier();
+    const context = await setup({ beforePass: () => barrier.wait() });
+    await seedEpisodes(context.db, [["e3", 1, 3]], { withRoot: false });
+
+    const pass = context.maintenance.request();
+    await barrier.reached;
+    await context.collections.convertToManual(context.office);
+    barrier.release();
+    await pass;
+
+    expect(await memberIds(context, context.office)).toEqual(["e1", "e2"]);
+    expect(await diagnostics(context, context.office)).toEqual({
+      maintained_at: null,
+      maintenance_error: null,
+    });
+  });
+
   it("logs and records a failed pass without throwing, and the next pass converges", async () => {
     const context = await setup();
     await seedEpisodes(context.db, [["e3", 1, 3]], { withRoot: false });

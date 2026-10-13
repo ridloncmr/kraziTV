@@ -216,6 +216,38 @@ export class MediaCollectionRepository {
   }
 
   /**
+   * Turns a collection manual, keeping its members and their order: its
+   * criterion, exclusions, and maintenance diagnostics go, so maintenance
+   * never reads it again. Membership is unchanged, so no schedule changes.
+   * Read and written under write authority, so a pass that commits first
+   * has already finished with it and one that commits later skips it.
+   * Converting a manual collection changes nothing.
+   */
+  async convertToManual(id: string): Promise<MediaCollection | undefined> {
+    return runImmediateTransaction(this.#db, async (pinned) => {
+      const row = await pinned
+        .updateTable("media_collections")
+        .set({
+          maintenance_mode: "manual",
+          criterion: null,
+          maintained_at: null,
+          maintenance_error: null,
+          maintenance_incomplete: null,
+        })
+        .where("id", "=", id)
+        .returningAll()
+        .executeTakeFirst();
+      if (row === undefined) return undefined;
+      await pinned
+        .deleteFrom("media_collection_exclusions")
+        .where("media_collection_id", "=", id)
+        .execute();
+      const [collection] = await toMediaCollections(pinned, [row]);
+      return collection;
+    });
+  }
+
+  /**
    * Deletes a collection no programming block uses; its membership cascades
    * and its media items remain. The block check shares the delete's
    * transaction, so its snapshot is the one the delete writes against. If

@@ -14,6 +14,7 @@ import { criterionBasis } from "../automatic/criterion-basis.js";
 import { MaintenanceReport } from "../automatic/maintenance-status.js";
 import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
+import { ConvertToManualDialog } from "./convert-to-manual-dialog.js";
 import type { DraftMember } from "../contracts.js";
 import { MemberList } from "./member-list.js";
 import { appendMedia } from "./member-order.js";
@@ -43,6 +44,7 @@ export function CollectionEditor({
   const mutation = useMutation();
   // `attempted` keeps an earlier rename or save error out of a newly opened confirmation.
   const [deleting, setDeleting] = useState<{ attempted: boolean }>();
+  const [converting, setConverting] = useState(false);
   // Unsaved edits, or the order a save returned until the refetch replaces it,
   // so a save never flashes the old order back.
   const [local, setLocal] = useState<{
@@ -125,7 +127,29 @@ export function CollectionEditor({
         >
           Delete collection
         </button>
+        {collection.maintenanceMode === "automatic" && (
+          <button
+            disabled={mutation.pending}
+            type="button"
+            onClick={() => setConverting(true)}
+          >
+            Convert to manual…
+          </button>
+        )}
       </form>
+      {converting && (
+        <ConvertToManualDialog
+          path={path}
+          name={collection.name}
+          converted={() => {
+            setConverting(false);
+            members.refresh();
+            status.refresh();
+            changed();
+          }}
+          onClose={() => setConverting(false)}
+        />
+      )}
       {deleting && (
         <WindowDialog
           title="Delete collection"
@@ -174,6 +198,9 @@ export function CollectionEditor({
             cataloged item in its default order as your catalog changes.
           </p>
           <MaintenanceReport collection={collection} />
+          <p className="secondary">
+            To add media or change the order, convert this collection to manual.
+          </p>
           {members.data && (
             <AutomaticMembers
               path={path}

@@ -356,3 +356,40 @@ it("excludes a member, lists excluded items labelled with whether they still qua
     expect(api.requestsTo(`${exclusions}/z`)[0]?.method).toBe("DELETE"),
   );
 });
+
+it("points to conversion for edits and converts an automatic collection to manual after confirmation", async () => {
+  const { api } = renderEditor(["e2", "e10"], officeCollection);
+  const conversion = "/media-collections/office/conversion";
+  api.reply(
+    conversion,
+    {
+      id: "office",
+      name: "The Office",
+      maintenanceMode: "manual",
+      criterion: null,
+      criterionLabel: null,
+      maintainedAt: null,
+      maintenanceError: null,
+      maintenanceIncomplete: null,
+    },
+    "POST",
+  );
+  await screen.findByText("Episode 10");
+  expect(
+    screen.getByText(
+      /To add media or change the order, convert this collection to manual/,
+    ),
+  ).toBeTruthy();
+
+  click("Convert to manual…");
+  const dialog = screen.getByRole("dialog", { name: "Convert to manual" });
+  expect(api.requestsTo(conversion)).toHaveLength(0);
+  fireEvent.click(
+    within(dialog).getByRole("button", {
+      name: "Convert to manual collection",
+    }),
+  );
+
+  await waitFor(() => expect(api.requestsTo(conversion)).toHaveLength(1));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});

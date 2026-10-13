@@ -76,7 +76,7 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/collections/editor/"],
-      "reason": "Every file serves one capability, the collection editor: the manual draft order with its catalog picker and member list, the automatic read-only members with their exclusions, and the missing-member label their rows show.",
+      "reason": "Every file serves one capability, the collection editor: the manual draft order with its catalog picker and member list, the automatic read-only members with their exclusions and conversion to manual, and the missing-member label their rows show.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {

@@ -141,6 +141,15 @@ export function registerMediaCollectionRoutes(
     return reply.status(204).send();
   });
 
+  server.post("/media-collections/:id/conversion", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const collection = await mediaCollections.convertToManual(id);
+    if (collection === undefined) {
+      return sendCollectionNotFound(reply, id);
+    }
+    return toApiMediaCollection(collection);
+  });
+
   server.get("/media-collections/:id/items", async (request, reply) => {
     const { id } = idParams.parse(request.params);
     const members = await mediaCollections.listMembers(id);
