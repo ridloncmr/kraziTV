@@ -21,6 +21,8 @@ export function matchableEpisode(
     seriesName?: string;
     path?: string;
     status?: MediaItemStatus;
+    /** Its TMDB facts expired: names dropped, identities and numbers kept. */
+    expired?: boolean;
   } = {},
 ): MatchableItem {
   return {
@@ -35,6 +37,7 @@ export function matchableEpisode(
       seriesName: facts.seriesName ?? "The Office",
       seasonNumber: facts.season === undefined ? 1 : facts.season,
       episodeNumber: facts.episode === undefined ? 1 : facts.episode,
+      tmdbDataExpired: facts.expired ?? false,
     },
     identity: { seriesTmdbId, franchiseTmdbId: null },
   };

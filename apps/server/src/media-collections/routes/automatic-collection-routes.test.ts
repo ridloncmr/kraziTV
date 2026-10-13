@@ -171,6 +171,7 @@ describe("automatic series collections", () => {
       criterionLabel: "The Office",
       maintainedAt: expect.any(String),
       maintenanceError: null,
+      maintenanceIncomplete: false,
     });
     expect(members.body).toEqual(preview.body);
   });

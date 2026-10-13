@@ -282,6 +282,19 @@ it("labels a missing member as not airing until its file returns, with an icon b
   expect(within(alpha).queryByText(/Missing/)).toBeNull();
 });
 
+it("explains incomplete maintenance in the automatic editor", async () => {
+  renderEditor(["e2", "e10"], {
+    ...officeCollection,
+    maintenanceIncomplete: true,
+  });
+
+  expect(
+    await screen.findByText(
+      /Some media's TMDB data expired, so their membership could not be checked/,
+    ),
+  ).toBeTruthy();
+});
+
 it("reports why an automatic collection's latest maintenance failed", async () => {
   renderEditor(["e2", "e10"], {
     ...officeCollection,

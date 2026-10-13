@@ -4,16 +4,16 @@ import {
   matchableEpisode,
   matchableMovie,
 } from "../../testing/collection-fixtures.js";
-import { matchCriterion } from "./match-criterion.js";
+import { matchMembership } from "./match-criterion.js";
 
 const OFFICE = { kind: "series", tmdbId: 2316 } as const;
 
 // Matches the Office criterion and reads back the ordered IDs.
-function officeOrder(...items: Parameters<typeof matchCriterion>[1]) {
-  return matchCriterion(OFFICE, items).map((item) => item.id);
+function officeOrder(...items: Parameters<typeof matchMembership>[1]) {
+  return matchMembership(OFFICE, items, []).members.map((item) => item.id);
 }
 
-describe("matchCriterion: series", () => {
+describe("matchMembership: series order", () => {
   it("orders episodes by season, then episode, then path, not by ID or title", () => {
     expect(
       officeOrder(
@@ -59,11 +59,13 @@ describe("matchCriterion: series", () => {
 const INDIANA_JONES = { kind: "franchise", tmdbId: 84 } as const;
 
 // Matches the Indiana Jones criterion and reads back the ordered IDs.
-function franchiseOrder(...items: Parameters<typeof matchCriterion>[1]) {
-  return matchCriterion(INDIANA_JONES, items).map((item) => item.id);
+function franchiseOrder(...items: Parameters<typeof matchMembership>[1]) {
+  return matchMembership(INDIANA_JONES, items, []).members.map(
+    (item) => item.id,
+  );
 }
 
-describe("matchCriterion: franchise", () => {
+describe("matchMembership: franchise order", () => {
   it("orders movies by release, not by ID, title, or path", () => {
     expect(
       franchiseOrder(
@@ -117,5 +119,52 @@ describe("matchCriterion: franchise", () => {
         matchableMovie("other", 85),
       ),
     ).toEqual(["movie"]);
+  });
+});
+
+describe("matchMembership", () => {
+  const ids = (result: ReturnType<typeof matchMembership>) =>
+    result.members.map((item) => item.id);
+
+  it("keeps a member whose TMDB data expired, in order, and reports maintenance incomplete", () => {
+    const result = matchMembership(
+      OFFICE,
+      [
+        matchableEpisode("e2", 2316, { episode: 2 }),
+        matchableEpisode("e1", 2316, { episode: 1, expired: true }),
+      ],
+      ["e1", "e2"],
+    );
+
+    expect(ids(result)).toEqual(["e1", "e2"]);
+    expect(result.incomplete).toBe(true);
+  });
+
+  it("does not add an item whose TMDB data expired, and reports maintenance incomplete", () => {
+    const result = matchMembership(
+      OFFICE,
+      [
+        matchableEpisode("e2", 2316, { episode: 2 }),
+        matchableEpisode("e1", 2316, { episode: 1, expired: true }),
+      ],
+      ["e2"],
+    );
+
+    expect(ids(result)).toEqual(["e2"]);
+    expect(result.incomplete).toBe(true);
+  });
+
+  it("is complete when no expired item belongs or would match", () => {
+    const result = matchMembership(
+      OFFICE,
+      [
+        matchableEpisode("e1", 2316),
+        matchableEpisode("parks", 8592, { expired: true }),
+      ],
+      [],
+    );
+
+    expect(ids(result)).toEqual(["e1"]);
+    expect(result.incomplete).toBe(false);
   });
 });

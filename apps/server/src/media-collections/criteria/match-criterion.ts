@@ -35,19 +35,47 @@ export function matchedIdentity(
   return KINDS[kind].identity(item);
 }
 
+/** The membership a criterion gives a collection, and whether part of it rests on unavailable evidence. */
+interface Membership {
+  members: MatchableItem[];
+  /** An item whose TMDB data expired belongs or would match, so membership could not be confirmed. */
+  incomplete: boolean;
+}
+
 /**
- * Returns the items a criterion matches, in the collection's default saved
- * order. Pure, so a preview, a creation, and a maintenance pass given the
- * same facts always agree on membership and order.
+ * Decides a collection's membership from a criterion, cataloged facts, and
+ * its current member IDs, in the collection's default saved order. An item
+ * whose TMDB data expired is unknown, never a confirmed mismatch: a current
+ * member stays and a non-member is not added, and either case reports the
+ * membership incomplete. Pure, so a preview, a creation, and a maintenance
+ * pass given the same facts always agree.
  */
-export function matchCriterion(
+export function matchMembership(
   criterion: CollectionCriterion,
   items: readonly MatchableItem[],
-): MatchableItem[] {
+  currentIds: readonly string[],
+): Membership {
+  const current = new Set(currentIds);
   const { identity, order } = KINDS[criterion.kind];
-  return items
-    .filter((item) => identity(item) === criterion.tmdbId)
-    .sort(order);
+  const members: MatchableItem[] = [];
+  let incomplete = false;
+  for (const item of items) {
+    const matches = identity(item) === criterion.tmdbId;
+    if (hasEvidence(item)) {
+      if (matches) members.push(item);
+    } else if (current.has(item.id)) {
+      members.push(item);
+      incomplete = true;
+    } else if (matches) {
+      incomplete = true;
+    }
+  }
+  return { members: members.sort(order), incomplete };
+}
+
+/** Whether an item's provider facts are current enough to confirm or rule out a match. */
+export function hasEvidence(item: MatchableItem): boolean {
+  return !item.metadata.tmdbDataExpired;
 }
 
 /**

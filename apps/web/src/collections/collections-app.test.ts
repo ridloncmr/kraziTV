@@ -184,6 +184,21 @@ it("reports a rejected delete inside its confirmation", async () => {
   ).toBe(screen.getByRole("dialog", { name: "Delete collection" }));
 });
 
+it("marks an automatic card kept incomplete by expired TMDB data", async () => {
+  const api = renderApp();
+  api.reply("/media-collections", [
+    { ...officeCollection, maintenanceIncomplete: true },
+  ]);
+  fireEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+
+  const card = await screen.findByRole("button", { name: "Open The Office" });
+
+  expect(card.textContent).toMatch(
+    /Incomplete — expired TMDB data kept members unchanged/,
+  );
+});
+
 it("marks an automatic card whose latest maintenance failed", async () => {
   const api = renderApp();
   api.reply("/media-collections", [

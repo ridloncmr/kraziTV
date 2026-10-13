@@ -214,6 +214,7 @@ function toApiMediaCollection(collection: MediaCollection) {
     criterionLabel: collection.criterionLabel,
     maintainedAt: toApiTimestampOrNull(collection.maintainedAt),
     maintenanceError: collection.maintenanceError,
+    maintenanceIncomplete: collection.maintenanceIncomplete,
     createdAt: toApiTimestamp(collection.createdAt),
     updatedAt: toApiTimestamp(collection.updatedAt),
   };

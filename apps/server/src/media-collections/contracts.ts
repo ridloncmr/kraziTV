@@ -33,6 +33,8 @@ export interface MediaCollection {
   maintainedAt: number | null;
   /** Why the latest maintenance failed; membership is as of `maintainedAt`. */
   maintenanceError: string | null;
+  /** Whether the last pass kept or skipped items whose TMDB data expired; null when manual. */
+  maintenanceIncomplete: boolean | null;
   createdAt: number;
   updatedAt: number;
 }

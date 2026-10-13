@@ -1,9 +1,10 @@
 import type { Kysely } from "kysely";
 
+import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
 import { readStoredCriterion } from "../criteria/collection-criterion.js";
-import { matchCriterion } from "../criteria/match-criterion.js";
+import { matchMembership } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { findChannelsUsingCollection } from "../persistence/channels-using-collection.js";
 import { replaceCollectionMembers } from "../persistence/replace-collection-members.js";
@@ -42,8 +43,14 @@ export function maintenanceChange(): ScheduleInputChange<void> {
         await recordError(trx, collection.id, UNREADABLE_CRITERION);
         continue;
       }
-      const matched = matchCriterion(criterion, items).map((item) => item.id);
-      if (!sameOrder(await memberIds(trx, collection.id), matched)) {
+      const current = await memberIds(trx, collection.id);
+      const { members, incomplete } = matchMembership(
+        criterion,
+        items,
+        current,
+      );
+      const matched = members.map((item) => item.id);
+      if (!sameOrder(current, matched)) {
         await replaceCollectionMembers(trx, collection.id, matched, now);
         affectedChannelIds.push(
           ...(await findChannelsUsingCollection(trx, collection.id)),
@@ -51,7 +58,11 @@ export function maintenanceChange(): ScheduleInputChange<void> {
       }
       await trx
         .updateTable("media_collections")
-        .set({ maintained_at: now, maintenance_error: null })
+        .set({
+          maintained_at: now,
+          maintenance_error: null,
+          maintenance_incomplete: toSqliteBoolean(incomplete),
+        })
         .where("id", "=", collection.id)
         .execute();
     }

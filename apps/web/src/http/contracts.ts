@@ -137,6 +137,8 @@ export interface MediaCollection {
   maintainedAt: string | null;
   /** Why the latest maintenance failed; members are as of `maintainedAt`. */
   maintenanceError: string | null;
+  /** True when the last update kept or skipped items whose TMDB data expired. */
+  maintenanceIncomplete: boolean | null;
 }
 /** `GET /media-collections`: one listed collection with how many members it includes. */
 export interface MediaCollectionSummary extends MediaCollection {

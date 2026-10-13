@@ -44,6 +44,7 @@ export const officeCollection = collectionWith("office", "The Office", {
   criterion: { kind: "series", tmdbId: 2316 },
   criterionLabel: "The Office",
   maintainedAt: "2026-10-13T12:00:00.000Z",
+  maintenanceIncomplete: false,
   memberCount: 2,
 });
 

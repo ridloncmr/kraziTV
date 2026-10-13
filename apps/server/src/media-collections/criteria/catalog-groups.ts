@@ -1,6 +1,6 @@
 import type { CatalogGroup, CollectionCriterion } from "../contracts.js";
 import { compareExact, compareNames } from "../name-order.js";
-import { matchedIdentity } from "./match-criterion.js";
+import { hasEvidence, matchedIdentity } from "./match-criterion.js";
 import type { MatchableItem } from "./matchable-items.js";
 
 /**
@@ -38,7 +38,8 @@ export function listCatalogGroups(
   const groups = new Map<number, { names: string[]; itemCount: number }>();
   for (const item of items) {
     const tmdbId = matchedIdentity(kind, item);
-    if (tmdbId === null) continue;
+    // Counted only where creation would include it.
+    if (tmdbId === null || !hasEvidence(item)) continue;
     const group = groups.get(tmdbId) ?? { names: [], itemCount: 0 };
     group.itemCount += 1;
     const itemName = name(item);

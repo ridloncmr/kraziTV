@@ -86,6 +86,7 @@ describe("MediaCollectionRepository", () => {
         criterionLabel: null,
         maintainedAt: null,
         maintenanceError: null,
+        maintenanceIncomplete: null,
         createdAt: FIXTURE_TIME,
         updatedAt: FIXTURE_TIME,
       },
@@ -183,6 +184,7 @@ describe("MediaCollectionRepository", () => {
       criterionLabel: null,
       maintainedAt: null,
       maintenanceError: null,
+      maintenanceIncomplete: null,
       createdAt: FIXTURE_TIME,
       updatedAt: FIXTURE_TIME + 1_000,
     });

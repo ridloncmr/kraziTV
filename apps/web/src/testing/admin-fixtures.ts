@@ -99,6 +99,7 @@ export function collectionWith(
     criterionLabel: null,
     maintainedAt: null,
     maintenanceError: null,
+    maintenanceIncomplete: null,
     memberCount: 0,
     missingCount: 0,
     ...overrides,

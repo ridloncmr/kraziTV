@@ -4,6 +4,10 @@ import { sql, type Kysely, type Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../../database/schema/media-collection-table.js";
+import {
+  fromNullableSqliteBoolean,
+  toSqliteBoolean,
+} from "../../database/columns/sqlite-boolean.js";
 import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
@@ -13,7 +17,7 @@ import {
   criterionKey,
   readStoredCriterion,
 } from "../criteria/collection-criterion.js";
-import { matchCriterion } from "../criteria/match-criterion.js";
+import { matchMembership } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
@@ -86,9 +90,10 @@ export class MediaCollectionRepository {
     criterion: CollectionCriterion,
   ): Promise<MediaCollection> {
     return runImmediateTransaction(this.#db, async (pinned) => {
-      const members = matchCriterion(
+      const { members, incomplete } = matchMembership(
         criterion,
         await readMatchableItems(pinned),
+        [],
       );
       const now = this.#now();
       const row = await pinned
@@ -101,6 +106,7 @@ export class MediaCollectionRepository {
           maintenance_mode: "automatic",
           criterion: criterionKey(criterion),
           maintained_at: now,
+          maintenance_incomplete: toSqliteBoolean(incomplete),
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -119,11 +125,12 @@ export class MediaCollectionRepository {
   async previewCriterion(
     criterion: CollectionCriterion,
   ): Promise<MediaCollectionMember[]> {
-    const matched = matchCriterion(
+    const { members } = matchMembership(
       criterion,
       await readMatchableItems(this.#db),
+      [],
     );
-    return matched.map((item, position) => ({
+    return members.map((item, position) => ({
       position,
       mediaItemId: item.id,
       title: item.title,
@@ -331,6 +338,9 @@ async function toMediaCollections(
           : (labels.get(criterionKey(criterion)) ?? null),
       maintainedAt: row.maintained_at,
       maintenanceError: row.maintenance_error,
+      maintenanceIncomplete: fromNullableSqliteBoolean(
+        row.maintenance_incomplete,
+      ),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
