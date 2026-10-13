@@ -37,8 +37,7 @@ export function MaintenanceReport({
   ) : (
     <p role="alert" className="error-message">
       Updating this collection failed: {collection.maintenanceError}. Its
-      members are as of {since}; kraziTV tries again after the next catalog or
-      metadata change.
+      members are as of {since}.
     </p>
   );
 }

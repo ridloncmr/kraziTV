@@ -70,19 +70,14 @@ export async function setupEnrichmentScan(options: SetupOptions) {
 /**
  * Boots the real server composition with the enrichment scanner, and match
  * choices and track mappings asking the same scripted TMDB, so route tests
- * scan real decisions. Each asks the server's real collection maintenance
- * for its passes.
+ * scan real decisions. Each asks the server's real collection maintenance,
+ * the one the server stops, for its passes.
  */
 export async function startEnrichmentServer(options: SetupOptions) {
   const { tmdb, client } = scriptedTmdb();
-  // Resolved once the server is built, before any scan or choice runs.
-  const wired: { maintenance?: Pick<CollectionMaintenance, "request"> } = {};
-  const collections: Pick<CollectionMaintenance, "request"> = {
-    request: () => wired.maintenance?.request() ?? Promise.resolve(),
-  };
-  const { server, db, dependencies } = await startTestServer({
+  const { server, db } = await startTestServer({
     seed: (db) => seedEnrichment(db, options.key ?? true),
-    overrides: (db) => {
+    overrides: (db, { collectionMaintenance: collections }) => {
       const tmdbKeys = new TmdbKeyService(db, client);
       return {
         scanner: enrichmentScanner(db, client, options, undefined, collections),
@@ -96,8 +91,7 @@ export async function startEnrichmentServer(options: SetupOptions) {
       };
     },
   });
-  wired.maintenance = dependencies.collectionMaintenance;
-  return { server, db, tmdb, maintenance: dependencies.collectionMaintenance };
+  return { server, db, tmdb };
 }
 
 /** Scans the fixture root through the routes and waits for the job to end. */

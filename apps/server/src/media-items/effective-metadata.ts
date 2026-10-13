@@ -130,7 +130,9 @@ export function effectiveMetadata(
  * rule stays in one place: an item whose series the owner corrected to
  * another name belongs to no TMDB series, since that name has no identity
  * yet and guessing one could match the wrong show. A correction naming the
- * provider's own series, as track mapping stores, keeps the identity.
+ * provider's own series, as track mapping stores, keeps the identity, and so
+ * does one whose provider name expired: an unknown name is missing
+ * evidence, never a confirmed mismatch.
  */
 export function effectiveContentIdentity(
   row: MetadataColumns,
@@ -138,6 +140,7 @@ export function effectiveContentIdentity(
   return {
     seriesTmdbId:
       row.corrected_series_name === null ||
+      row.series_name === null ||
       row.corrected_series_name === row.series_name
         ? row.series_tmdb_id
         : null,

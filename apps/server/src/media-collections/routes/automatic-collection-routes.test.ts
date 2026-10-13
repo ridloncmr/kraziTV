@@ -44,7 +44,11 @@ async function startServer() {
           episodeFacts("office-1", 2316, 1, 1),
           episodeFacts("office-2", 2316, 1, 2),
           episodeFacts("office-corrected", 2316, 1, 4),
-          episodeFacts("office-removed", 2316, 1, 5),
+          // A stale name only a removed item holds never names the series.
+          {
+            ...episodeFacts("office-removed", 2316, 1, 5),
+            series_name: "Zzz Stale Office",
+          },
           { ...episodeFacts("parks-1", 8592, 1, 1), series_name: "Parks" },
         ])
         .execute();

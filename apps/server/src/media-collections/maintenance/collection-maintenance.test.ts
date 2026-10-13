@@ -16,6 +16,7 @@ import { seedEpisodes } from "../../testing/collection-fixtures.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import { correctionRow } from "../../testing/metadata-match-fixtures.js";
 import { recordingLog } from "../../testing/recording-log.js";
+import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import {
   cleanUpTestEnvironment,
@@ -289,6 +290,30 @@ describe("CollectionMaintenance", () => {
     expect(
       (await diagnostics(context, collectionFixture.id)).maintenance_error,
     ).toMatch(/criterion/i);
+  });
+
+  it("lets a running pass finish at shutdown, settling waiting requests without another pass", async () => {
+    const barrier = createBarrier();
+    let passes = 0;
+    const context = await setup({
+      beforePass: async () => {
+        passes += 1;
+        await barrier.wait();
+      },
+    });
+
+    const running = context.maintenance.request();
+    await barrier.reached;
+    const waiting = context.maintenance.request();
+    const stopped = context.maintenance.shutdown();
+    let stoppedEarly = false;
+    void stopped.then(() => (stoppedEarly = true));
+    await flushMicrotasks(10);
+    expect(stoppedEarly).toBe(false);
+    barrier.release();
+    await Promise.all([running, waiting, stopped]);
+
+    expect(passes).toBe(1);
   });
 
   it("runs no pass once shut down, and a later request settles at once", async () => {

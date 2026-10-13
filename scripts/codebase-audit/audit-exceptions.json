@@ -176,6 +176,15 @@
       "files": ["apps/web/src/branding/avatars/drawings/"],
       "reason": "The avatars capability holds nine source files, the frame plus eight drawings, which meets the more-than-eight grouping rule, so its drawings nest one level further.",
       "source": "AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/content-metadata/match-choice/match-choice-service.ts",
+        "apps/server/src/content-metadata/track-mapping/track-mapping-service.ts"
+      ],
+      "reason": "The repeat is each service's injected constructor (database, TMDB key reader, shared TMDB client, collection maintenance, clock) and its field assignments; a shared base class would add indirection for five fields.",
+      "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     }
   ]
 }

@@ -26,6 +26,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       titledItemFixture("removed", { removed_at: FIXTURE_TIME }),
       titledItemFixture("corrected"),
       titledItemFixture("mapped"),
+      titledItemFixture("mapped-expired"),
     ])
     .execute();
   await db
@@ -36,6 +37,8 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       episodeFacts("removed", 2316, 1, 3),
       episodeFacts("corrected", 2316, 1, 4),
       episodeFacts("mapped", 2316, 1, 6),
+      // Expiry drops the series name but keeps its TMDB ID.
+      { ...episodeFacts("mapped-expired", 2316, 1, 7), series_name: null },
     ])
     .execute();
   await db
@@ -45,6 +48,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
       correctionRow("corrected", { series_name: "Parks and Recreation" }),
       // Track mapping stores the chosen series' own name as a correction.
       correctionRow("mapped", { series_name: "The Office" }),
+      correctionRow("mapped-expired", { series_name: "The Office" }),
     ])
     .execute();
 
@@ -62,6 +66,7 @@ it("reads cataloged items' effective facts, skipping removed items and unmatchin
   ).toEqual([
     { id: "corrected", status: "available", season: 1, series: null },
     { id: "mapped", status: "available", season: 1, series: 2316 },
+    { id: "mapped-expired", status: "available", season: 1, series: 2316 },
     { id: "missing", status: "missing", season: 1, series: 2316 },
     { id: "pilot", status: "available", season: 3, series: 2316 },
   ]);
