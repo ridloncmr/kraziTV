@@ -481,3 +481,103 @@ it("creates an automatic collection from a standard genre", async () => {
     ).toEqual({ name: "Action", criterion: { kind: "genre", name: "Action" } }),
   );
 });
+
+const officeRecommendation = {
+  criterion: { kind: "series", tmdbId: 2316 },
+  name: "The Office",
+  reason: "2 cataloged episodes of the TV series The Office",
+  memberCount: 2,
+  members: [
+    {
+      position: 0,
+      mediaItemId: "e2",
+      title: "Episode 2",
+      path: "/tv/show/episode 2.mkv",
+      status: "available",
+      durationMs: 1_400_000,
+    },
+    {
+      position: 1,
+      mediaItemId: "e10",
+      title: "Episode 10",
+      path: "/tv/show/episode 10.mkv",
+      status: "available",
+      durationMs: 1_500_000,
+    },
+  ],
+  collectionId: null,
+  decision: null,
+};
+
+it("discovers recommendations with reason and count, never listing them as collections before acceptance", async () => {
+  const api = renderApp();
+  const recommendations = "/media-collections/recommendations";
+  api.reply(recommendations, [officeRecommendation]);
+  api.reply(`${recommendations}/dismissal`, null, "POST", 204);
+  const { memberCount: _, missingCount: __, ...created } = officeCollection;
+  api.reply(`${recommendations}/acceptance`, created, "POST", 201);
+  serveCollection(api, "office", ["e2", "e10"]);
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discover collections…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+
+  const card = (await within(dialog).findByText("The Office")).closest("li")!;
+  expect(
+    within(card).getByText("2 cataloged episodes of the TV series The Office"),
+  ).toBeTruthy();
+  expect(within(card).getByText("2 items")).toBeTruthy();
+  expect(
+    within(screen.getByRole("tabpanel", { name: "Automatic" })).queryByRole(
+      "button",
+      { name: /^Open / },
+    ),
+  ).toBeNull();
+
+  api.reply("/media-collections", [...collections, officeCollection]);
+  fireEvent.click(
+    within(card).getByRole("button", {
+      name: "Create automatic collection from The Office",
+    }),
+  );
+
+  await screen.findByRole("heading", { name: "The Office" });
+  expect(api.requestsTo(`${recommendations}/acceptance`)[0]?.body).toEqual({
+    criterion: { kind: "series", tmdbId: 2316 },
+    mode: "automatic",
+  });
+});
+
+it("saves a recommendation as a manual collection, or dismisses it", async () => {
+  const api = renderApp();
+  const recommendations = "/media-collections/recommendations";
+  api.reply(recommendations, [officeRecommendation]);
+  api.reply(`${recommendations}/dismissal`, null, "POST", 204);
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discover collections…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+  const card = (await within(dialog).findByText("The Office")).closest("li")!;
+
+  expect(
+    within(card).getByRole("button", {
+      name: "Save The Office as a manual collection",
+    }),
+  ).toBeTruthy();
+  fireEvent.click(
+    within(card).getByRole("button", { name: "Dismiss The Office" }),
+  );
+
+  await waitFor(() =>
+    expect(api.requestsTo(`${recommendations}/dismissal`)[0]?.body).toEqual({
+      criterion: { kind: "series", tmdbId: 2316 },
+    }),
+  );
+});

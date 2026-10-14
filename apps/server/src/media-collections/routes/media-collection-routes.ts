@@ -8,17 +8,12 @@ import {
   sendUnknownMediaItems,
 } from "../../http/api-error.js";
 import {
-  toApiTimestamp,
-  toApiTimestampOrNull,
-} from "../../http/api-timestamp.js";
-import {
   idParams,
   nameField,
   uniqueMediaItemIds as mediaItemIds,
 } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type {
-  MediaCollection,
   MediaCollectionMember,
   MediaCollectionSummary,
 } from "../contracts.js";
@@ -29,6 +24,7 @@ import { criterionChange } from "../maintenance/criterion-change.js";
 import {
   sendCollectionNotFound,
   sendManualRefusal,
+  toApiMediaCollection,
 } from "./collection-replies.js";
 
 // A collection starts from explicit members or from a criterion, never both.
@@ -245,22 +241,6 @@ export function registerMediaCollectionRoutes(
     }
     return result.members.map(toApiMediaCollectionMember);
   });
-}
-
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
-function toApiMediaCollection(collection: MediaCollection) {
-  return {
-    id: collection.id,
-    name: collection.name,
-    maintenanceMode: collection.maintenanceMode,
-    criterion: collection.criterion,
-    criterionLabel: collection.criterionLabel,
-    maintainedAt: toApiTimestampOrNull(collection.maintainedAt),
-    maintenanceError: collection.maintenanceError,
-    maintenanceIncomplete: collection.maintenanceIncomplete,
-    createdAt: toApiTimestamp(collection.createdAt),
-    updatedAt: toApiTimestamp(collection.updatedAt),
-  };
 }
 
 // Adds the listing-only member counts to the shared collection shape.

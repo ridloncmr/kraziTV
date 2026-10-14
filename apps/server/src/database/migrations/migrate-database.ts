@@ -21,6 +21,7 @@ import { metadataRefreshMigration } from "./013-metadata-refresh.js";
 import { collectionMaintenanceMigration } from "./014-collection-maintenance.js";
 import { collectionExclusionsMigration } from "./015-collection-exclusions.js";
 import { tagsMigration } from "./016-tags.js";
+import { recommendationDecisionsMigration } from "./017-recommendation-decisions.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -40,6 +41,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "014_collection_maintenance": collectionMaintenanceMigration,
   "015_collection_exclusions": collectionExclusionsMigration,
   "016_tags": tagsMigration,
+  "017_recommendation_decisions": recommendationDecisionsMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

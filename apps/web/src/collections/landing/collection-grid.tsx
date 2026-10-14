@@ -26,6 +26,7 @@ export function CollectionGrid({
   onTabChange,
   onOpen,
   onCreate,
+  onDiscover,
 }: {
   collections: readonly MediaCollectionSummary[];
   tab: MaintenanceMode;
@@ -33,6 +34,8 @@ export function CollectionGrid({
   onOpen: (id: string) => void;
   /** Opens the creation dialog for the shown tab's kind of collection. */
   onCreate: (mode: MaintenanceMode) => void;
+  /** Opens the recommendations; offered on the Automatic tab. */
+  onDiscover: () => void;
 }) {
   const shown = collections.filter(
     (collection) => collection.maintenanceMode === tab,
@@ -80,6 +83,9 @@ export function CollectionGrid({
       >
         <div className="row-actions">
           <button onClick={() => onCreate(tab)}>{CREATE_LABEL[tab]}</button>
+          {tab === "automatic" && (
+            <button onClick={onDiscover}>Discover collections…</button>
+          )}
         </div>
         {shown.length === 0 ? (
           <p className="empty-state">{EMPTY_TEXT[tab]}</p>

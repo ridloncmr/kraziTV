@@ -29,6 +29,8 @@ type ApiErrorCode =
   | "media_collection_automatic"
   | "media_collection_in_use"
   | "media_collection_manual"
+  | "recommendation_decided"
+  | "recommendation_unavailable"
   | "media_collection_not_found"
   | "media_item_in_use"
   | "media_item_not_found"

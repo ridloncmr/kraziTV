@@ -6,6 +6,7 @@ import type {
 } from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
 import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
+import { DiscoverDialog } from "./discovery/discover-dialog.js";
 import { CollectionEditor } from "./editor/collection-editor.js";
 import { CollectionGrid } from "./landing/collection-grid.js";
 import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
@@ -27,11 +28,13 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
   // Which kind of collection a creation dialog is open for, if any.
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
+  const [discovering, setDiscovering] = useState(false);
   const collection = collections.data?.find((item) => item.id === selected);
 
   /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
   function opened(created: MediaCollection) {
     setCreating(undefined);
+    setDiscovering(false);
     setTab(created.maintenanceMode);
     setSelected(created.id);
     collections.refresh();
@@ -85,6 +88,7 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
             onTabChange={setTab}
             onOpen={setSelected}
             onCreate={setCreating}
+            onDiscover={() => setDiscovering(true)}
           />
         )
       )}
@@ -92,6 +96,12 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
         <CreateCollectionDialog
           created={opened}
           onClose={() => setCreating(undefined)}
+        />
+      )}
+      {discovering && (
+        <DiscoverDialog
+          created={opened}
+          onClose={() => setDiscovering(false)}
         />
       )}
       {creating === "automatic" && (

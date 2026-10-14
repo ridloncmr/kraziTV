@@ -175,6 +175,17 @@ export interface CollectionMember {
 export interface ExcludedItem extends Omit<CollectionMember, "position"> {
   qualifies: boolean;
 }
+/** `GET /media-collections/recommendations`: one suggested series or franchise collection. */
+export interface Recommendation {
+  criterion: { kind: "series" | "franchise"; tmdbId: number };
+  name: string;
+  reason: string;
+  memberCount: number;
+  members: CollectionMember[];
+  /** The collection already made with this criterion, if any. */
+  collectionId: string | null;
+  decision: "accepted" | "dismissed" | null;
+}
 export interface CollectionStatus {
   schedulable: boolean;
   schedulableCount: number;

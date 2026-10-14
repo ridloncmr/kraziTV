@@ -43,6 +43,37 @@ export interface CatalogGenre {
   itemCount: number;
 }
 
+/**
+ * A suggested series or franchise collection: why it was suggested, the
+ * members it would hold in order, any collection already made with its
+ * criterion, and the owner's decision on it.
+ */
+export interface Recommendation {
+  criterion: Extract<CollectionCriterion, { tmdbId: number }>;
+  name: string;
+  reason: string;
+  members: MediaCollectionMember[];
+  collectionId: string | null;
+  decision: "accepted" | "dismissed" | null;
+}
+
+/** The owner's acceptance of one recommendation, as an automatic or manual collection. */
+export interface RecommendationAcceptance {
+  criterion: Extract<CollectionCriterion, { tmdbId: number }>;
+  mode: "automatic" | "manual";
+  /** Defaults to the recommendation's name. */
+  name?: string | undefined;
+}
+
+/**
+ * `decided` refuses a second acceptance, or one after a dismissal;
+ * `unavailable` refuses a recommendation the catalog no longer supports.
+ */
+export type AcceptRecommendationResult =
+  | { kind: "created"; collection: MediaCollection }
+  | { kind: "decided" }
+  | { kind: "unavailable" };
+
 /** Whether a collection keeps its membership from a criterion or only by user edits. */
 type MaintenanceMode = Selectable<MediaCollectionTable>["maintenance_mode"];
 

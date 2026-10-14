@@ -1,6 +1,6 @@
 # Recommended And Automatic Collections
 
-Status: Accepted
+Status: Implemented
 
 ## Problem
 

@@ -33,6 +33,7 @@ import type { CollectionMaintenance } from "./media-collections/maintenance/coll
 import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import { registerMediaCollectionRoutes } from "./media-collections/routes/media-collection-routes.js";
 import { registerCollectionExclusionRoutes } from "./media-collections/routes/collection-exclusion-routes.js";
+import { registerRecommendationRoutes } from "./media-collections/routes/recommendation-routes.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
@@ -177,6 +178,7 @@ function registerRoutes(
     dependencies.mediaCollections,
     dependencies.schedules,
   );
+  registerRecommendationRoutes(server, dependencies.mediaCollections);
   registerChannelRoutes(
     server,
     dependencies.channels,

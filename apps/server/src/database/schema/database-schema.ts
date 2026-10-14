@@ -2,6 +2,7 @@ import type { AccountTable } from "./account-table.js";
 import type { ChannelCollectionProgressTable } from "./channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "./channel-schedule-state-table.js";
 import type { ChannelTable } from "./channel-table.js";
+import type { CollectionRecommendationDecisionTable } from "./collection-recommendation-decision-table.js";
 import type { ContentFactsTable } from "./content-facts-table.js";
 import type { MetadataCorrectionTable } from "./metadata-correction-table.js";
 import type { MetadataMatchCandidateTable } from "./metadata-match-candidate-table.js";
@@ -41,4 +42,5 @@ export interface DatabaseSchema {
   metadata_corrections: MetadataCorrectionTable;
   tags: TagTable;
   media_item_tags: MediaItemTagTable;
+  collection_recommendation_decisions: CollectionRecommendationDecisionTable;
 }

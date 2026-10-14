@@ -60,3 +60,18 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.recommendation-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.recommendation-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-window-surface);
+}

@@ -24,6 +24,11 @@ import {
 import { matchMembership } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
+import {
+  acceptRecommendation,
+  decideRecommendation,
+} from "../recommendations/recommendation-decisions.js";
+import { readRecommendations } from "../recommendations/recommendations.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import { labelCriteria } from "./criterion-labels.js";
 import {
@@ -31,6 +36,7 @@ import {
   readExcludedItems,
 } from "../exclusions/excluded-items.js";
 import type {
+  AcceptRecommendationResult,
   CatalogGenre,
   CatalogGroup,
   CatalogTag,
@@ -42,6 +48,8 @@ import type {
   MediaCollection,
   MediaCollectionMember,
   MediaCollectionSummary,
+  Recommendation,
+  RecommendationAcceptance,
 } from "../contracts.js";
 
 type Executor = Kysely<DatabaseSchema>;
@@ -73,19 +81,12 @@ export class MediaCollectionRepository {
         return { kind: "unknown_media_items", mediaItemIds: unknown };
       }
 
-      const now = this.#now();
-      const row = await trx
-        .insertInto("media_collections")
-        .values({
-          id: this.#createId(),
-          name,
-          created_at: now,
-          updated_at: now,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-      await insertMembers(trx, row.id, mediaItemIds, now);
-      const [collection] = await toMediaCollections(trx, [row]);
+      const collection = await insertCollection(trx, {
+        id: this.#createId(),
+        name,
+        now: this.#now(),
+        memberIds: mediaItemIds,
+      });
       return { kind: "created", collection };
     });
   }
@@ -108,29 +109,13 @@ export class MediaCollectionRepository {
         [],
         [],
       );
-      const now = this.#now();
-      const row = await pinned
-        .insertInto("media_collections")
-        .values({
-          id: this.#createId(),
-          name,
-          created_at: now,
-          updated_at: now,
-          maintenance_mode: "automatic",
-          criterion: criterionKey(criterion),
-          maintained_at: now,
-          maintenance_incomplete: toSqliteBoolean(incomplete),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-      await insertMembers(
-        pinned,
-        row.id,
-        members.map((member) => member.id),
-        now,
-      );
-      const [collection] = await toMediaCollections(pinned, [row]);
-      return collection;
+      return insertCollection(pinned, {
+        id: this.#createId(),
+        name,
+        now: this.#now(),
+        memberIds: members.map((member) => member.id),
+        automatic: { criterion, incomplete },
+      });
     });
   }
 
@@ -306,6 +291,34 @@ export class MediaCollectionRepository {
     return readExcludedItems(this.#db, id);
   }
 
+  /**
+   * Lists collection recommendations: by default those still undecided and
+   * those already created; with `dismissed`, those dismissed or whose
+   * accepted collection was deleted.
+   */
+  async listRecommendations(dismissed: boolean): Promise<Recommendation[]> {
+    return readRecommendations(this.#db, dismissed);
+  }
+
+  /** Accepts a recommendation as an automatic or manual collection; see `acceptRecommendation`. */
+  async acceptRecommendation(
+    acceptance: RecommendationAcceptance,
+  ): Promise<AcceptRecommendationResult> {
+    return acceptRecommendation(
+      this.#db,
+      { id: this.#createId(), now: this.#now() },
+      acceptance,
+    );
+  }
+
+  /** Records or clears the owner's dismissal of a recommendation; see `decideRecommendation`. */
+  async decideRecommendation(
+    criterion: CollectionCriterion,
+    decision: "dismissed" | undefined,
+  ): Promise<void> {
+    await decideRecommendation(this.#db, criterion, decision, this.#now());
+  }
+
   /** Lists members in position order; undefined distinguishes an unknown collection from an empty one. */
   async listMembers(id: string): Promise<MediaCollectionMember[] | undefined> {
     return this.#db
@@ -327,6 +340,47 @@ export async function collectionExists(
     .where("id", "=", id)
     .executeTakeFirst();
   return row !== undefined;
+}
+
+/**
+ * Inserts a collection and its members in order inside the caller's
+ * transaction: manual, or automatic with the criterion and maintenance
+ * result its membership came from. Every creation path goes through here,
+ * so a collection's mode, criterion, and diagnostics always start
+ * consistent.
+ */
+export async function insertCollection(
+  executor: Executor,
+  values: {
+    id: string;
+    name: string;
+    now: number;
+    memberIds: readonly string[];
+    automatic?: { criterion: CollectionCriterion; incomplete: boolean };
+  },
+): Promise<MediaCollection> {
+  const { id, name, now, memberIds, automatic } = values;
+  const row = await executor
+    .insertInto("media_collections")
+    .values({
+      id,
+      name,
+      created_at: now,
+      updated_at: now,
+      ...(automatic === undefined
+        ? {}
+        : {
+            maintenance_mode: "automatic" as const,
+            criterion: criterionKey(automatic.criterion),
+            maintained_at: now,
+            maintenance_incomplete: toSqliteBoolean(automatic.incomplete),
+          }),
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  await insertMembers(executor, row.id, memberIds, now);
+  const [collection] = await toMediaCollections(executor, [row]);
+  return collection;
 }
 
 // Writes contiguous zero-based positions in request order.
