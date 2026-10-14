@@ -2,7 +2,10 @@ import { findUnknownMediaItemIds } from "../../media-items/media-item-repository
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
 import type { ExclusionChangeResult } from "../contracts.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
-import { reconcileCollection } from "../maintenance/reconcile-collection.js";
+import {
+  findAutomaticCollection,
+  reconcileCollection,
+} from "../maintenance/reconcile-collection.js";
 
 /**
  * Builds the schedule input change that excludes an item from an automatic
@@ -18,16 +21,9 @@ export function exclusionChange(
   excluded: boolean,
 ): ScheduleInputChange<ExclusionChangeResult> {
   return async (trx, now) => {
-    const collection = await trx
-      .selectFrom("media_collections")
-      .select(["id", "criterion", "maintenance_mode"])
-      .where("id", "=", collectionId)
-      .executeTakeFirst();
-    if (collection === undefined) {
-      return { value: { kind: "not_found" }, affectedChannelIds: [] };
-    }
-    if (collection.maintenance_mode === "manual") {
-      return { value: { kind: "manual" }, affectedChannelIds: [] };
+    const collection = await findAutomaticCollection(trx, collectionId);
+    if ("kind" in collection) {
+      return { value: collection, affectedChannelIds: [] };
     }
     if (excluded) {
       const unknown = await findUnknownMediaItemIds(trx, [mediaItemId]);

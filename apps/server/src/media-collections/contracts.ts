@@ -94,12 +94,12 @@ export interface ExcludedItem extends Omit<MediaCollectionMember, "position"> {
   qualifies: boolean;
 }
 
-/** `manual` refuses: only an automatic collection has exclusions. */
+/** `manual` refuses: only an automatic collection has a criterion and exclusions. */
+export type AutomaticEditResult =
+  { kind: "changed" } | { kind: "not_found" } | { kind: "manual" };
+
 export type ExclusionChangeResult =
-  | { kind: "changed" }
-  | { kind: "not_found" }
-  | { kind: "manual" }
-  | UnknownMediaItemsResult;
+  AutomaticEditResult | UnknownMediaItemsResult;
 
 /** `in_use` names every channel whose programming block still draws from the collection. */
 export type DeleteMediaCollectionResult =

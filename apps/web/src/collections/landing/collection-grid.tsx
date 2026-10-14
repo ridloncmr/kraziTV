@@ -3,8 +3,10 @@ import type {
   MediaCollection,
   MediaCollectionSummary,
 } from "../../http/contracts.js";
-import { criterionBasis } from "../automatic/criterion-basis.js";
-import { CardMaintenanceStatus } from "../automatic/maintenance-status.js";
+import {
+  CardMaintenanceStatus,
+  criterionBasis,
+} from "../automatic/automatic-status.js";
 
 type MaintenanceMode = MediaCollection["maintenanceMode"];
 

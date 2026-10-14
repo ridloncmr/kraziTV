@@ -22,7 +22,10 @@ import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import { labelCriteria } from "./criterion-labels.js";
-import { readExcludedItems } from "../exclusions/excluded-items.js";
+import {
+  readExcludedIds,
+  readExcludedItems,
+} from "../exclusions/excluded-items.js";
 import type {
   CatalogGroup,
   CollectionCriterion,
@@ -124,15 +127,29 @@ export class MediaCollectionRepository {
     });
   }
 
-  /** Returns the ordered members a criterion would give a collection now, writing nothing. */
+  /**
+   * Returns the ordered members a criterion would give a collection now,
+   * writing nothing. Given a collection, its exclusions apply, so the
+   * preview equals what changing that collection's criterion applies;
+   * undefined when that collection is unknown.
+   */
   async previewCriterion(
     criterion: CollectionCriterion,
-  ): Promise<MediaCollectionMember[]> {
+    mediaCollectionId?: string,
+  ): Promise<MediaCollectionMember[] | undefined> {
+    if (
+      mediaCollectionId !== undefined &&
+      !(await collectionExists(this.#db, mediaCollectionId))
+    ) {
+      return undefined;
+    }
     const { members } = matchMembership(
       criterion,
       await readMatchableItems(this.#db),
       [],
-      [],
+      mediaCollectionId === undefined
+        ? []
+        : await readExcludedIds(this.#db, mediaCollectionId),
     );
     return members.map((item, position) => ({
       position,

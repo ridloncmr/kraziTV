@@ -25,7 +25,11 @@ import type {
 import { collectionCriterionSchema } from "../criteria/collection-criterion.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { membershipChange } from "../persistence/replace-collection-members.js";
-import { sendCollectionNotFound } from "./collection-replies.js";
+import { criterionChange } from "../maintenance/criterion-change.js";
+import {
+  sendCollectionNotFound,
+  sendManualRefusal,
+} from "./collection-replies.js";
 
 // A collection starts from explicit members or from a criterion, never both.
 const createBody = z
@@ -39,9 +43,21 @@ const createBody = z
     { message: "Give mediaItemIds or a criterion, not both" },
   );
 
-const previewBody = z.strictObject({ criterion: collectionCriterionSchema });
+// Naming a collection applies its exclusions, as changing its criterion would.
+const previewBody = z.strictObject({
+  criterion: collectionCriterionSchema,
+  mediaCollectionId: z.string().optional(),
+});
 
-const renameBody = z.strictObject({ name: nameField });
+// A rename, a criterion change, or both; renaming never changes the criterion.
+const patchBody = z
+  .strictObject({
+    name: nameField.optional(),
+    criterion: collectionCriterionSchema.optional(),
+  })
+  .refine((body) => body.name !== undefined || body.criterion !== undefined, {
+    message: "Give a name, a criterion, or both",
+  });
 
 const replaceMembersBody = z.strictObject({ mediaItemIds });
 
@@ -94,9 +110,14 @@ export function registerMediaCollectionRoutes(
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
+    const { criterion, mediaCollectionId } = body.data;
     const members = await mediaCollections.previewCriterion(
-      body.data.criterion,
+      criterion,
+      mediaCollectionId,
     );
+    if (members === undefined) {
+      return sendCollectionNotFound(reply, mediaCollectionId ?? "");
+    }
     return members.map(toApiMediaCollectionMember);
   });
 
@@ -111,12 +132,26 @@ export function registerMediaCollectionRoutes(
 
   server.patch("/media-collections/:id", async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const body = renameBody.safeParse(request.body);
+    const body = patchBody.safeParse(request.body);
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
+    const { name, criterion } = body.data;
 
-    const collection = await mediaCollections.rename(id, body.data.name);
+    if (criterion !== undefined) {
+      const result = await schedules.applyInputChange(
+        request.log,
+        "membership_changed",
+        criterionChange(id, criterion, name),
+      );
+      if (result.kind === "manual") {
+        return sendManualRefusal(reply, id);
+      }
+    }
+    const collection =
+      criterion === undefined && name !== undefined
+        ? await mediaCollections.rename(id, name)
+        : await mediaCollections.findById(id);
     if (collection === undefined) {
       return sendCollectionNotFound(reply, id);
     }

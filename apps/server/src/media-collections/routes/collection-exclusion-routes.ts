@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { sendApiError, sendUnknownMediaItems } from "../../http/api-error.js";
+import { sendUnknownMediaItems } from "../../http/api-error.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import { exclusionChange } from "../exclusions/exclusion-change.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
-import { sendCollectionNotFound } from "./collection-replies.js";
+import {
+  sendCollectionNotFound,
+  sendManualRefusal,
+} from "./collection-replies.js";
 
 const exclusionParams = idParams.extend({ mediaItemId: z.string() });
 
@@ -45,12 +48,7 @@ export function registerCollectionExclusionRoutes(
           return sendCollectionNotFound(reply, id);
         }
         if (result.kind === "manual") {
-          return sendApiError(
-            reply,
-            409,
-            "media_collection_manual",
-            `Media collection ${id} is manual; remove the item from its members instead`,
-          );
+          return sendManualRefusal(reply, id);
         }
         if (result.kind === "unknown_media_items") {
           return sendUnknownMediaItems(reply, result.mediaItemIds);

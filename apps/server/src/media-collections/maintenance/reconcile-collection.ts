@@ -4,7 +4,8 @@ import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { readStoredCriterion } from "../criteria/collection-criterion.js";
 import { matchMembership } from "../criteria/match-criterion.js";
-import type { MatchableItem } from "../contracts.js";
+import type { AutomaticEditResult, MatchableItem } from "../contracts.js";
+import { readExcludedIds } from "../exclusions/excluded-items.js";
 import { findChannelsUsingCollection } from "../persistence/channels-using-collection.js";
 import { replaceCollectionMembers } from "../persistence/replace-collection-members.js";
 
@@ -16,13 +17,16 @@ const UNREADABLE_CRITERION =
  * exclusions, and `items`, inside the caller's schedule transaction, and
  * records the result. Membership is written, and channels named, only when
  * it differs, so an unchanged collection regenerates nothing. Returns the
- * channels drawing from it whose schedules must regenerate.
+ * channels drawing from it whose schedules must regenerate. Without
+ * `keepUnknownMembers`, as after a criterion change, a member whose TMDB
+ * data expired is not kept merely because it was a member.
  */
 export async function reconcileCollection(
   trx: Kysely<DatabaseSchema>,
   collection: { id: string; criterion: string | null },
   items: readonly MatchableItem[],
   now: number,
+  options: { keepUnknownMembers: boolean } = { keepUnknownMembers: true },
 ): Promise<string[]> {
   const criterion =
     collection.criterion === null
@@ -36,8 +40,8 @@ export async function reconcileCollection(
   const { members, incomplete } = matchMembership(
     criterion,
     items,
-    current,
-    await excludedIds(trx, collection.id),
+    options.keepUnknownMembers ? current : [],
+    await readExcludedIds(trx, collection.id),
   );
   const matched = members.map((item) => item.id);
   const changed = !sameOrder(current, matched);
@@ -54,6 +58,29 @@ export async function reconcileCollection(
     .where("id", "=", collection.id)
     .execute();
   return changed ? findChannelsUsingCollection(trx, collection.id) : [];
+}
+
+/**
+ * Reads the automatic collection an owner's edit targets, or the refusal
+ * that edit answers with: unknown, or manual and so without a criterion or
+ * exclusions. Read inside the edit's transaction, so a deletion or
+ * conversion committed first always wins.
+ */
+export async function findAutomaticCollection(
+  trx: Kysely<DatabaseSchema>,
+  id: string,
+): Promise<
+  | { id: string; criterion: string | null }
+  | Exclude<AutomaticEditResult, { kind: "changed" }>
+> {
+  const collection = await trx
+    .selectFrom("media_collections")
+    .select(["id", "criterion", "maintenance_mode"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (collection === undefined) return { kind: "not_found" };
+  if (collection.maintenance_mode === "manual") return { kind: "manual" };
+  return { id: collection.id, criterion: collection.criterion };
 }
 
 // Records one collection's own failure, leaving the others' passes alone.
@@ -79,19 +106,6 @@ async function memberIds(
     .select("media_item_id")
     .where("media_collection_id", "=", id)
     .orderBy("position")
-    .execute();
-  return rows.map((row) => row.media_item_id);
-}
-
-// The items the owner keeps out of a collection.
-async function excludedIds(
-  trx: Kysely<DatabaseSchema>,
-  id: string,
-): Promise<string[]> {
-  const rows = await trx
-    .selectFrom("media_collection_exclusions")
-    .select("media_item_id")
-    .where("media_collection_id", "=", id)
     .execute();
   return rows.map((row) => row.media_item_id);
 }

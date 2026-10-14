@@ -7,6 +7,19 @@ import { matchMembership } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
 
+/** The IDs the owner keeps out of a collection, in no particular order. */
+export async function readExcludedIds(
+  executor: Kysely<DatabaseSchema>,
+  collectionId: string,
+): Promise<string[]> {
+  const rows = await executor
+    .selectFrom("media_collection_exclusions")
+    .select("media_item_id")
+    .where("media_collection_id", "=", collectionId)
+    .execute();
+  return rows.map((row) => row.media_item_id);
+}
+
 /**
  * Lists the cataloged items excluded from a collection by title, each with
  * whether its criterion would include it were it restored, decided by the
@@ -23,13 +36,8 @@ export async function readExcludedItems(
     .where("id", "=", collectionId)
     .executeTakeFirst();
   if (collection === undefined) return undefined;
-  const rows = await executor
-    .selectFrom("media_collection_exclusions")
-    .select("media_item_id")
-    .where("media_collection_id", "=", collectionId)
-    .execute();
-  if (rows.length === 0) return [];
-  const excluded = new Set(rows.map((row) => row.media_item_id));
+  const excluded = new Set(await readExcludedIds(executor, collectionId));
+  if (excluded.size === 0) return [];
   const items = await readMatchableItems(executor);
   const criterion =
     collection.criterion === null

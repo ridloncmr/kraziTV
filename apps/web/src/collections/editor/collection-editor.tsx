@@ -10,8 +10,11 @@ import type {
   MediaCollection,
 } from "../../http/contracts.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
-import { criterionBasis } from "../automatic/criterion-basis.js";
-import { MaintenanceReport } from "../automatic/maintenance-status.js";
+import {
+  criterionBasis,
+  MaintenanceReport,
+} from "../automatic/automatic-status.js";
+import { ChangeCriterionDialog } from "../automatic/change-criterion-dialog.js";
 import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import { ConvertToManualDialog } from "./convert-to-manual-dialog.js";
@@ -45,6 +48,7 @@ export function CollectionEditor({
   // `attempted` keeps an earlier rename or save error out of a newly opened confirmation.
   const [deleting, setDeleting] = useState<{ attempted: boolean }>();
   const [converting, setConverting] = useState(false);
+  const [changingCriterion, setChangingCriterion] = useState(false);
   // Unsaved edits, or the order a save returned until the refetch replaces it,
   // so a save never flashes the old order back.
   const [local, setLocal] = useState<{
@@ -128,15 +132,37 @@ export function CollectionEditor({
           Delete collection
         </button>
         {collection.maintenanceMode === "automatic" && (
-          <button
-            disabled={mutation.pending}
-            type="button"
-            onClick={() => setConverting(true)}
-          >
-            Convert to manual…
-          </button>
+          <>
+            <button
+              disabled={mutation.pending}
+              type="button"
+              onClick={() => setChangingCriterion(true)}
+            >
+              Change criterion…
+            </button>
+            <button
+              disabled={mutation.pending}
+              type="button"
+              onClick={() => setConverting(true)}
+            >
+              Convert to manual…
+            </button>
+          </>
         )}
       </form>
+      {changingCriterion && (
+        <ChangeCriterionDialog
+          path={path}
+          collection={collection}
+          changed={() => {
+            setChangingCriterion(false);
+            members.refresh();
+            status.refresh();
+            changed();
+          }}
+          onClose={() => setChangingCriterion(false)}
+        />
+      )}
       {converting && (
         <ConvertToManualDialog
           path={path}

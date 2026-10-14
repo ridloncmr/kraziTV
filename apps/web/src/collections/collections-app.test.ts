@@ -18,6 +18,7 @@ import {
   serveCollection,
 } from "../testing/collection-api.js";
 import { CollectionsApp } from "./collections-app.js";
+import { clickWhenEnabled } from "../testing/click-when-enabled.js";
 
 afterEach(() => {
   cleanup();
@@ -256,11 +257,14 @@ it("previews a movie franchise and creates its automatic collection", async () =
   fireEvent.click(
     within(dialog).getByRole("radio", { name: "Movie franchise" }),
   );
-  fireEvent.change(await within(dialog).findByLabelText("Franchise"), {
+  await within(dialog).findByRole("option", {
+    name: /^Indiana Jones Collection/,
+  });
+  fireEvent.change(within(dialog).getByLabelText("Franchise"), {
     target: { value: "84" },
   });
   await within(dialog).findByText("1 movie in this order");
-  fireEvent.click(
+  await clickWhenEnabled(
     within(dialog).getByRole("button", { name: "Create automatic collection" }),
   );
 
@@ -318,7 +322,8 @@ it("previews a series and creates an automatic collection listed under Automatic
       .matches(":disabled"),
   ).toBe(true);
 
-  fireEvent.change(await within(dialog).findByLabelText("Series"), {
+  await within(dialog).findByRole("option", { name: /^The Office/ });
+  fireEvent.change(within(dialog).getByLabelText("Series"), {
     target: { value: "2316" },
   });
 
@@ -331,7 +336,7 @@ it("previews a series and creates an automatic collection listed under Automatic
     criterion: { kind: "series", tmdbId: 2316 },
   });
   api.reply("/media-collections", [...collections, officeCollection]);
-  fireEvent.click(
+  await clickWhenEnabled(
     within(dialog).getByRole("button", { name: "Create automatic collection" }),
   );
 

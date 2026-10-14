@@ -1,5 +1,16 @@
 import { displayTime } from "../../controls/display-time.js";
 import type { MediaCollection } from "../../http/contracts.js";
+import { kindLabel } from "./criterion-picker.js";
+
+/**
+ * Names what an automatic collection matches on, as its card and editor
+ * show it; null for a manual collection, which matches on nothing.
+ */
+export function criterionBasis(collection: MediaCollection): string | null {
+  return collection.criterion === null
+    ? null
+    : `${kindLabel(collection.criterion.kind)}: ${collection.criterionLabel ?? ""}`;
+}
 
 /**
  * A card's one-line maintenance status. A failure or incomplete update is

@@ -12,11 +12,13 @@ import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import {
+  catalogSeries,
   episodes,
   officeCollection,
   serveCollection,
 } from "../../testing/collection-api.js";
 import { CollectionEditor } from "./collection-editor.js";
+import { clickWhenEnabled } from "../../testing/click-when-enabled.js";
 
 afterEach(() => {
   cleanup();
@@ -392,4 +394,46 @@ it("points to conversion for edits and converts an automatic collection to manua
 
   await waitFor(() => expect(api.requestsTo(conversion)).toHaveLength(1));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("changes an automatic collection's criterion after previewing it with the collection's exclusions", async () => {
+  const { api } = renderEditor(["e2", "e10"], officeCollection);
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply(
+    "/media-collections/previews",
+    [
+      {
+        position: 0,
+        mediaItemId: "z",
+        title: "Alpha",
+        path: "/media/alpha.mp4",
+        status: "available",
+        durationMs: 1_200_000,
+      },
+    ],
+    "POST",
+  );
+  api.reply("/media-collections/office", officeCollection, "PATCH");
+  await screen.findByText("Episode 10");
+
+  click("Change criterion…");
+  const dialog = screen.getByRole("dialog", { name: "Change criterion" });
+  await within(dialog).findByRole("option", { name: /^The Office/ });
+  fireEvent.change(within(dialog).getByLabelText("Series"), {
+    target: { value: "8592" },
+  });
+  await within(dialog).findByText("1 episode in this order");
+  await clickWhenEnabled(
+    within(dialog).getByRole("button", { name: "Apply criterion" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      api.requests.find((request) => request.method === "PATCH")?.body,
+    ).toEqual({ criterion: { kind: "series", tmdbId: 8592 } }),
+  );
+  expect(api.requestsTo("/media-collections/previews").at(-1)?.body).toEqual({
+    criterion: { kind: "series", tmdbId: 8592 },
+    mediaCollectionId: "office",
+  });
 });
