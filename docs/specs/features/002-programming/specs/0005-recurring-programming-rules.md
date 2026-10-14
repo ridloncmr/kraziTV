@@ -4,16 +4,17 @@ Status: Draft
 
 ## Problem
 
-An unchanging rotation cannot express prime-time preferences, Friday movies, or
+A shuffled rotation alone cannot express prime-time preferences, Friday movies, or
 seasonal programming. Users need recurring intent without maintaining daily schedules.
 
 ## Goals
 
-- Add a small, explainable calendar rule model over continuous source assignments.
+- Add a small, explainable calendar rule model over shuffled source rounds.
 - Support weekday, time-window, one-off date-range, and annual seasonal applicability.
 - Support seasonal sources joining normal rotation and featured sources taking over a window.
 - Preserve default programming outside applicable or usable special rules.
 - Keep selection deterministic and make its reason visible in backend previews.
+- Allow rule-specific ordinary and marathon sizes without changing assignment defaults.
 
 ## Non-goals
 
@@ -38,7 +39,15 @@ proposals requiring review before acceptance.
 
 A rule form selects its sources, behavior, priority, and optional date, weekday, and time
 conditions. Conditions in one rule are combined with AND; omitted conditions are
-unrestricted. Source rotation and airtime targets reuse source-assignment settings.
+unrestricted. Source ordering uses spec 0004's shuffled rounds. Stretch settings
+inherit source-assignment settings unless the rule explicitly overrides them.
+
+For each referenced source, optionally replace its ordinary stretch setting and
+choose whether its marathon setting is inherited, disabled, or replaced. For
+example, a movie collection may normally air one film, while a Friday feature
+uses a two-film ordinary stretch and an optional three-film marathon. These
+settings apply only while that rule wins, and never modify the assignment itself.
+Channel-wide marathon chance and cooldown still apply.
 
 Examples include Christmas sources during December, science fiction during a
 chosen month, preferred comedy sources during prime time, and movies on Friday
@@ -116,50 +125,92 @@ joins are deferred.
 
 ### Rotation Participation
 
-Join behavior reuses the default rotation continuation. Form its active source list
-in saved assignment order, including each assignment once even when both the defaults
-and the rule reference it. Reconcile changes to that list by continuing after the
-last retained assignment in saved order, wrapping as needed. Newly eligible seasonal
-sources join on their next turn rather than immediately preempting a default stretch.
-If no retained assignment exists, begin at the first usable active assignment.
+Use spec 0004's shuffled-round continuation and source-change policies. Saved
+assignment order supplies deterministic input, not a repeating broadcast order.
+Include an assignment once even when both defaults and the winning rule reference it.
 
-Feature behavior has its own suspended rotation continuation. Entering a winning
-feature takes effect at the next program boundary and ends the interrupted turn.
-Leaving it resumes the default or mixed rotation at its next saved-order turn,
-with a fresh airtime target. Collection playback progress
-remains shared per channel, collection, and mode, including when a collection appears
-in both behaviors. Rule-only sources are excluded when no active winning rule includes
-them. Removing an active source at a window's end ends its stretch at the next program
-boundary without resetting its collection progress.
+Join behavior shares the default round. Newly eligible seasonal sources enter
+seeded positions in the unplayed portion without reshuffling pending sources or
+preempting an eligible active stretch. A served/skipped source cannot receive
+another turn by leaving and rejoining. Remove ineligible pending sources while
+remembering unserved status; a source rejoining within that round may recover its
+one pending turn. Starting a new round shuffles the current usable eligible set.
 
-A featured rule ceasing to apply ends its selected stretch at the next program
-boundary. A join rule ceasing to apply does not end a default source's stretch;
-only a source losing eligibility must yield at that boundary.
-Do not cut the airing program to satisfy a window. Likewise, a higher-priority
-feature rule beginning during a stretch takes effect at the next program boundary.
-Retain the next rotation position for featured rules and the default/mixed rotation,
-but discard any unfulfilled target when a calendar window ends a turn. There is no
-airtime debt or later compensation. Recheck applicability after
-every whole program, including within an airtime-target stretch.
+Feature behavior owns separate round continuation per rule and suspends the
+default/mixed context. Higher-priority features likewise suspend lower features.
+Entering a feature takes effect at the next program boundary and ends the
+interrupted turn, marking it served. Leaving resumes the next eligible pending
+turn in the next winning context, reconciling eligibility before selection.
+Use spec 0004's repeat-avoidance policy; never reset collection playback progress.
+
+Collection progress remains shared per channel, collection, and mode. Rule-only
+sources stay excluded unless a winning rule includes them. Eligibility loss,
+feature takeover, or a feature ceasing to apply ends a started turn at the next
+program boundary, including a marathon. A join ending does not end a default
+source's stretch if it remains eligible. Discard interrupted remainder without
+airtime or program-count debt. Recheck rules after every whole program, never
+cutting a program to satisfy a soft calendar window.
+
+Round continuation is per context, but generated marathon chance and cooldown
+are channel-wide under spec 0004. Mid-round joins do not reroll chance; marathon
+eligibility is checked at round creation and again when a reserved opportunity
+starts. Automatic context changes cannot bypass cooldown. Only the user's explicit
+fresh-rebuild action resets it under spec 0004. Published deliberate events are
+exempt from generated marathon chance and cooldown.
 
 Rules do not execute collection criteria. A holiday rule selects a Christmas
 collection; its membership is owned by spec 0002 or manual collection editing.
 Do not compose competing rules by multiplying weights or merging priorities.
 
+### Rule-Specific Stretch Settings
+
+Store optional ordinary size replacement and marathon behavior per rule/source
+reference. Ordinary size inherits when absent. Marathon behavior is explicitly
+inherit, disabled, or replacement; absent means inherit. Replacements use spec
+0004's fixed airtime, fixed program count, or variable airtime settings, not a
+second sizing algorithm. Rules do not override playback mode or reset progress.
+
+Only the winning rule's settings apply, and only to sources it references. A
+default source included in a join but not referenced by that rule keeps assignment
+settings. Losing rules contribute no overrides. Resolve effective ordinary and
+marathon settings before selection and validate the resulting pair: same size
+kind, with marathon size strictly larger under spec 0004. If changing ordinary
+size makes an inherited marathon invalid, require an explicit replacement or
+disable it; do not silently coerce values. Validate rule edits and affected
+assignment edits, including inherited settings, before saving.
+
+At round creation, use effective settings to identify marathon-enabled candidates.
+At turn start, resolve and record the winning rule, setting origins, and chosen
+size once. If a reserved opportunity is no longer marathon-enabled, discard it
+without replacement and use ordinary settings. Calendar changes do not resize a
+retained turn whose source remains eligible; apply the next effective settings
+on its next turn. Explicit configuration edits follow the regeneration policy
+below, rather than masquerading as calendar transitions.
+
 ### Changes And Reproducibility
 
-Rule and programming-timezone edits are scheduling input changes. Preserve the
-airing entry and published manual reservations, regenerate eligible future blocks,
-and restore rule/collection continuation from retained decisions. Equivalent
+Rule and programming-timezone edits are scheduling input changes. Use spec 0004's
+existing administrative finish-or-interrupt choice. By default, preserve the
+airing entry and end an affected started turn after it; rebuild eligible future
+programming from that boundary with new settings. The explicit stop-and-rebuild
+option follows ADR 0003's from-now regeneration and after-commit worker stop,
+and spec 0004's fresh-slate policy: discard all round continuations and cooldown,
+then evaluate the current winning rule to form new programming decisions.
+Preserve unrelated published reservations and respect spec 0007's running-event
+editing lifecycle. Ordinary regeneration restores round/collection continuation
+and channel-wide cooldown from retained decisions. Explicit fresh rebuilding
+restores only collection progress from retained entries and starts new programming
+state; it does not reset assignments or rules. Equivalent
 configuration and catalog snapshots yield equivalent programming regardless of
 request order, restart, or generation chunk boundaries.
 
 ## Data Model Impact
 
 Add narrow rule records with channel ownership, behavior, priority, saved order,
-applicability, and references to source assignments. Record whether each assignment
+applicability, and references to source assignments with optional ordinary-size
+replacement and inherit/disable/replace marathon settings. Record whether each assignment
 participates in defaults or is rule-only. Store the programming timezone explicitly.
-Record winning-rule identity and restorable rotation decisions on generated blocks
+Record winning-rule identity, resolved size and setting origins, and restorable shuffled-round decisions on generated blocks
 or their associated continuation. Keep configuration revisions distinct from
 schedule revisions so previews can identify stale inputs.
 
@@ -180,26 +231,33 @@ persistence. The browser submits rules and displays backend eligibility/preview.
 ## Open Questions
 
 - Approve saved-order priority ties and fallback for both behaviors?
-- Approve saved-assignment-order insertion and retained-turn continuation for seasonal participation?
 - Should some rules reserve exclusivity and refuse fallback? Defer unless required.
 - Approve a single programming timezone rather than one per channel?
 - How should annual February 29 ranges behave in non-leap years?
-- Does a source need a rule-specific airtime target, or are assignment targets sufficient?
 
 ## Acceptance Criteria
 
 - December Christmas programming recurs across years and normal programming resumes afterward.
 - A December join rule rotates Christmas Movies alongside normal collections,
-  using their existing whole-program airtime targets without daily publication.
+  using shuffled rounds and inherited or explicit rule-specific stretch sizes
+  without daily publication.
 - Rule-only Christmas and Halloween sources stay out of normal rotation outside
   their respective annual windows, unless another applicable rule selects them.
 - A higher-priority December Friday-evening feature selects only Christmas Movies;
   the mixed December rotation resumes afterward and defaults resume after December.
 - A source referenced by both defaults and a join rule receives one rotation turn,
   not duplicate turns; seasonal activation does not restart normal collection progress.
-- Joining sources take their next saved-order turn; a feature interrupts a stretch
-  only at a program boundary, and leaving it resumes the next rotation turn without
-  making up the interrupted turn's unfulfilled target.
+- Joining sources enter the unplayed round without reshuffling pending sources;
+  a feature interrupts only at a program boundary, then suspended programming
+  resumes pending turns without replay or compensation for discarded remainder.
+- Optional rule-specific ordinary and marathon settings override only referenced
+  sources while that rule wins, leaving assignment defaults and playback modes intact.
+- Effective inherited/replaced size pairs must validate before edits are saved;
+  previews explain setting origins and resolved sizes.
+- A calendar transition does not resize an eligible retained turn; its next turn
+  uses the new effective settings. A disabled reserved marathon becomes ordinary.
+- Featured rules and default programming share cooldown; suspended opportunities
+  cannot start a marathon while channel-wide cooldown blocks them.
 - Friday-evening movies and weekday prime-time sources follow the configured timezone.
 - Overlapping rules select the documented winner and expose its reason.
 - Overlapping December, Winter, and Friday join rules contribute only the winning
@@ -210,5 +268,8 @@ persistence. The browser submits rules and displays backend eligibility/preview.
 - An airing movie finishes beyond the soft window; the next program follows current eligibility.
 - A higher-priority feature window beginning mid-stretch takes effect at the next program boundary.
 - Overnight, year-crossing, and daylight-saving windows satisfy the documented policies.
-- Rule edits preserve current airing and produce equivalent results after restart or chunked generation.
+- Rule edits preserve current airing by default; explicit stop-and-rebuild follows
+  ADR 0003 and starts fresh round/cooldown state under the current winning rule.
+  Finish-current-program edits retain continuation and count a shortened started
+  marathon. Each path produces equivalent decisions after restart or chunked generation.
 - Default programming needs no manual daily publication and resumes its own collection progress.

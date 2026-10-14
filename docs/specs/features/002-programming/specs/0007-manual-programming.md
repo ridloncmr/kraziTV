@@ -46,6 +46,30 @@ Drafts can be saved without affecting broadcast. Ordinary generated programming
 continues around them and requires no publishing action. A simple form/list editor
 is sufficient initially; direct manipulation of a guide grid is later UI work.
 
+### Full-Series Marathons From The Beginning
+
+For a deliberate full-series marathon, the user may select a collection and an
+ordered playback mode, then explicitly choose **Start from the beginning**.
+Resolve the collection into a finite ordered list of direct media placements
+for the draft. For example, an eight-film Harry Potter collection in release
+order produces eight placements starting with the first film, not the ordinary
+rotation's next film. Random playback is not offered for this ordered event.
+
+Preview every selected film and the resulting program-derived reservation end.
+Select each collection member once; do not wrap the collection or add movies to
+meet an airtime target. Report unavailable members for correction before publication,
+rather than silently skipping a film in a full-series event. The ordered placement
+list is the event's explicit selection snapshot; later collection membership or
+ordering changes do not silently change it. Item removal and changed durations
+follow the existing invalidation and revalidation policy.
+
+Because these are direct placements, starting from the beginning never resets or
+advances ordinary channel/collection/mode progress. Event continuation across
+generation chunks and restarts follows the saved placements and retained entries,
+not a second collection playback cursor. After the event, normal programming
+resumes under the existing displacement/restoration policy. These deliberate
+events do not consume or reset kraziPlan's generated marathon cooldown.
+
 ## Technical Behavior
 
 ### Validation And Publication
@@ -147,6 +171,12 @@ conflict decisions. Existing authentication gates these administrative operation
 
 - Saving an unpublished draft changes neither guide, channel state, nor progress.
 - Publishing a Saturday movie night affects only its validated future programming scope.
+- A full-series event explicitly starting from the beginning previews and publishes
+  each selected movie once in the chosen order, then ends without wrapping.
+- An unavailable series member prevents publication until corrected; membership
+  edits cannot silently replace the event's saved placements.
+- A full-series event leaves ordinary collection progress and generated marathon
+  cooldown unchanged; restart or chunked coverage resumes saved event placements.
 - Overlapping published specials and stale previews are rejected with actionable conflicts.
 - Retrying publication cannot duplicate the override or consume progress twice.
 - Publishing beyond the horizon preserves the reservation until generation reaches it.

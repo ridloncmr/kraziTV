@@ -55,6 +55,8 @@ continues at the reserved range's end.
 Treat reserved time ranges as half-open `[startsAt, endsAt)` UTC intervals. Normal
 generation may select a whole program only if it ends at or before the next hard
 boundary. Deferring a program consumes no playback progress or source rotation.
+How a reservation ends a started turn or retains an unstarted one follows
+[spec 0004's reservation integration](0004-kraziplan.md#recurring-rule-and-reservation-integration).
 A program ending exactly at the boundary needs no filler.
 
 Within a bounded collection block, include only whole programs that fit. A directly
