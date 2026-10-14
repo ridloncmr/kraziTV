@@ -123,7 +123,8 @@ export interface TrackProposal {
 /** What an automatic collection matches on: one TMDB series or movie franchise. */
 export type CollectionCriterion =
   | { kind: "series" | "franchise"; tmdbId: number }
-  | { kind: "tag"; tagId: string };
+  | { kind: "tag"; tagId: string }
+  | { kind: "genre"; name: string };
 export interface MediaCollection {
   id: string;
   name: string;
@@ -149,6 +150,11 @@ export interface MediaCollectionSummary extends MediaCollection {
 /** `GET /media-collections/tags`: one tag on cataloged items a criterion can name. */
 export interface CatalogTag {
   tagId: string;
+  name: string;
+  itemCount: number;
+}
+/** `GET /media-collections/genres`: one accepted standard genre a criterion can name. */
+export interface CatalogGenre {
   name: string;
   itemCount: number;
 }

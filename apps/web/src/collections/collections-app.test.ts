@@ -421,3 +421,63 @@ it("creates an automatic collection from a tag in use", async () => {
     }),
   );
 });
+
+it("creates an automatic collection from a standard genre", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply("/media-collections/genres", [{ name: "Action", itemCount: 2 }]);
+  api.reply(
+    "/media-collections/previews",
+    [
+      {
+        position: 0,
+        mediaItemId: "z",
+        title: "Alpha",
+        path: "/media/alpha.mp4",
+        status: "available",
+        durationMs: 1_200_000,
+      },
+    ],
+    "POST",
+  );
+  api.reply(
+    "/media-collections",
+    {
+      id: "action",
+      name: "Action",
+      maintenanceMode: "automatic",
+      criterion: { kind: "genre", name: "Action" },
+      criterionLabel: "Action",
+      maintainedAt: "2026-10-13T12:00:00.000Z",
+      maintenanceError: null,
+      maintenanceIncomplete: false,
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+
+  fireEvent.click(within(dialog).getByRole("radio", { name: "Genre" }));
+  await within(dialog).findByRole("option", { name: "Action (2 items)" });
+  fireEvent.change(within(dialog).getByLabelText("Genre name"), {
+    target: { value: "Action" },
+  });
+  await within(dialog).findByText("1 item in this order");
+  await clickWhenEnabled(
+    within(dialog).getByRole("button", { name: "Create automatic collection" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      api.requests.find(
+        (request) =>
+          request.method === "POST" && request.path === "/media-collections",
+      )?.body,
+    ).toEqual({ name: "Action", criterion: { kind: "genre", name: "Action" } }),
+  );
+});

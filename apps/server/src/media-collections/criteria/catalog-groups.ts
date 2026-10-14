@@ -1,10 +1,11 @@
 import type {
+  CatalogGenre,
   CatalogGroup,
   CatalogTag,
   MatchableItem,
   TmdbKind,
 } from "../contracts.js";
-import { compareExact, compareNames } from "../name-order.js";
+import { compareExact, compareNames, compareText } from "../name-order.js";
 import { hasEvidence, matchedIdentity } from "./match-criterion.js";
 
 /**
@@ -85,6 +86,28 @@ export function listCatalogTags(items: readonly MatchableItem[]): CatalogTag[] {
   return [...tags.values()].sort((a, b) =>
     compareNames({ name: a.name, id: a.tagId }, { name: b.name, id: b.tagId }),
   );
+}
+
+/**
+ * Lists the accepted genres on cataloged items with how many items each
+ * holds, counted where creation would include them, sorted by name. Genres
+ * come from TMDB, so an item whose data expired lists none until refreshed.
+ */
+export function listCatalogGenres(
+  items: readonly MatchableItem[],
+): CatalogGenre[] {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    if (!hasEvidence(item)) continue;
+    for (const genre of item.metadata.genres) {
+      counts.set(genre, (counts.get(genre) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .map(([name, itemCount]) => ({ name, itemCount }))
+    .sort(
+      (a, b) => compareText(a.name, b.name) || compareExact(a.name, b.name),
+    );
 }
 
 /** Names a group no cataloged item names any more, so it still reads as one. */

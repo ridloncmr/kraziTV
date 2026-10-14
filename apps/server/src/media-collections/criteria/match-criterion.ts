@@ -17,8 +17,8 @@ const TMDB_IDENTITY: Record<TmdbKind, (item: MatchableItem) => number | null> =
 /**
  * Per criterion kind: the collection's default saved order, and whether a
  * match rests on provider facts, which can expire. A tag is the owner's own
- * fact, so a tag collection never waits on TMDB. A tag can mix movies and
- * episodes, so it orders by release like a movie group.
+ * fact, so a tag collection never waits on TMDB. A tag or a genre can mix
+ * movies and episodes, so each orders by release like a movie group.
  */
 const KINDS: Record<
   CollectionCriterion["kind"],
@@ -27,6 +27,7 @@ const KINDS: Record<
   series: { order: episodeOrder, providerEvidence: true },
   franchise: { order: releaseOrder, providerEvidence: true },
   tag: { order: releaseOrder, providerEvidence: false },
+  genre: { order: releaseOrder, providerEvidence: true },
 };
 
 /**
@@ -42,10 +43,16 @@ export function matchedIdentity(
 }
 
 // Whether an item has what a criterion names, read from its effective facts.
+// A genre matches its exact accepted name, never a collection's own name.
 function matches(criterion: CollectionCriterion, item: MatchableItem): boolean {
-  return criterion.kind === "tag"
-    ? item.identity.tagIds.includes(criterion.tagId)
-    : TMDB_IDENTITY[criterion.kind](item) === criterion.tmdbId;
+  switch (criterion.kind) {
+    case "tag":
+      return item.identity.tagIds.includes(criterion.tagId);
+    case "genre":
+      return item.metadata.genres.includes(criterion.name);
+    default:
+      return TMDB_IDENTITY[criterion.kind](item) === criterion.tmdbId;
+  }
 }
 
 /** The membership a criterion gives a collection, and whether part of it rests on unavailable evidence. */

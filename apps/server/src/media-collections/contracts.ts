@@ -14,7 +14,8 @@ import type {
 export type CollectionCriterion =
   | { kind: "series"; tmdbId: number }
   | { kind: "franchise"; tmdbId: number }
-  | { kind: "tag"; tagId: string };
+  | { kind: "tag"; tagId: string }
+  | { kind: "genre"; name: string };
 
 /** The criterion kinds that match a TMDB series or franchise identity. */
 export type TmdbKind = Extract<CollectionCriterion, { tmdbId: number }>["kind"];
@@ -32,6 +33,13 @@ export interface CatalogTag {
   tagId: string;
   name: string;
   /** How many items a collection for this tag would include. */
+  itemCount: number;
+}
+
+/** One accepted standard genre on cataloged items, as the genre picker lists it. */
+export interface CatalogGenre {
+  name: string;
+  /** How many items a collection for this genre would include. */
   itemCount: number;
 }
 

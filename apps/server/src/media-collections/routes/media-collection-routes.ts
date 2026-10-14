@@ -108,6 +108,10 @@ export function registerMediaCollectionRoutes(
     mediaCollections.listCatalogTags(),
   );
 
+  server.get("/media-collections/genres", async () =>
+    mediaCollections.listCatalogGenres(),
+  );
+
   // The browser shows this answer as the preview; it never matches itself.
   server.post("/media-collections/previews", async (request, reply) => {
     const body = previewBody.safeParse(request.body);

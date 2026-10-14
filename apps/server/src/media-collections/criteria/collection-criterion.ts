@@ -18,6 +18,7 @@ export const collectionCriterionSchema: z.ZodType<CollectionCriterion> =
       tmdbId: z.number().int().positive(),
     }),
     z.strictObject({ kind: z.literal("tag"), tagId: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("genre"), name: z.string().min(1) }),
   ]);
 
 /**
@@ -25,9 +26,14 @@ export const collectionCriterionSchema: z.ZodType<CollectionCriterion> =
  * always store the same text, which is also a recommendation's identity.
  */
 export function criterionKey(criterion: CollectionCriterion): string {
-  return criterion.kind === "tag"
-    ? JSON.stringify({ kind: criterion.kind, tagId: criterion.tagId })
-    : JSON.stringify({ kind: criterion.kind, tmdbId: criterion.tmdbId });
+  switch (criterion.kind) {
+    case "tag":
+      return JSON.stringify({ kind: criterion.kind, tagId: criterion.tagId });
+    case "genre":
+      return JSON.stringify({ kind: criterion.kind, name: criterion.name });
+    default:
+      return JSON.stringify({ kind: criterion.kind, tmdbId: criterion.tmdbId });
+  }
 }
 
 /**

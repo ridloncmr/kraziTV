@@ -14,7 +14,7 @@ import { readMatchableItems } from "../criteria/matchable-items.js";
  * can show its basis without the browser knowing TMDB IDs. A series or
  * franchise is named by the same effective facts and rule as its picker, so
  * a card and the picker never disagree, or by its TMDB ID once no cataloged
- * item names it; a tag is named by its own name. Reads only what the given
+ * item names it; a tag or genre is named by its own name. Reads only what the given
  * criteria need.
  */
 export async function labelCriteria(
@@ -23,8 +23,14 @@ export async function labelCriteria(
 ): Promise<Map<string, string>> {
   const labels = new Map<string, string>();
   const tmdbCriteria = criteria.flatMap((criterion) =>
-    criterion.kind === "tag" ? [] : [criterion],
+    criterion.kind === "tag" || criterion.kind === "genre" ? [] : [criterion],
   );
+  // A genre is named by itself.
+  for (const criterion of criteria) {
+    if (criterion.kind === "genre") {
+      labels.set(criterionKey(criterion), criterion.name);
+    }
+  }
   if (tmdbCriteria.length > 0) {
     const items = await readMatchableItems(executor);
     for (const kind of new Set(

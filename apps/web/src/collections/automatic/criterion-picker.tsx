@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import type {
+  CatalogGenre,
   CatalogGroup,
   CatalogTag,
   CollectionCriterion,
@@ -11,8 +12,8 @@ import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];
 
-/** One row a criterion picker lists: a TMDB series or franchise, or a tag. */
-type CatalogOption = CatalogGroup | CatalogTag;
+/** One row a criterion picker lists: a TMDB series or franchise, a tag, or a genre. */
+type CatalogOption = CatalogGroup | CatalogTag | CatalogGenre;
 
 /**
  * What each criterion kind lists, how it is labelled, how its members are
@@ -68,11 +69,25 @@ const KINDS: Record<
       "No media is tagged yet. Add tags to media in the Media Library, then choose one here.",
     unit: ["item", "items"],
   },
+  genre: {
+    label: "Genre",
+    pick: "Genre name",
+    path: "/media-collections/genres",
+    criterion: (value) => ({ kind: "genre", name: value }),
+    choose: "Choose a genre",
+    explain:
+      "The collection keeps every cataloged item TMDB lists in the genre, in release order. It matches the genre alone, never the collection's name.",
+    empty:
+      "No genres are known yet. Genres appear once TMDB matches cataloged media.",
+    unit: ["item", "items"],
+  },
 };
 
-// The value a listed row selects by: its TMDB ID or tag ID, as text.
+// The value a listed row selects by: its TMDB ID, tag ID, or genre name, as text.
 function optionValue(row: CatalogOption): string {
-  return "tagId" in row ? row.tagId : String(row.tmdbId);
+  if ("tagId" in row) return row.tagId;
+  if ("tmdbId" in row) return String(row.tmdbId);
+  return row.name;
 }
 
 /** Names a criterion kind in the words the picker and every card use. */

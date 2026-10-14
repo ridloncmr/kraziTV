@@ -13,6 +13,7 @@ import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import {
+  listCatalogGenres,
   listCatalogGroups,
   listCatalogTags,
 } from "../criteria/catalog-groups.js";
@@ -30,6 +31,7 @@ import {
   readExcludedItems,
 } from "../exclusions/excluded-items.js";
 import type {
+  CatalogGenre,
   CatalogGroup,
   CatalogTag,
   TmdbKind,
@@ -169,6 +171,11 @@ export class MediaCollectionRepository {
   /** Lists the TMDB series or franchises cataloged items belong to, for choosing a criterion of `kind`. */
   async listCatalogGroups(kind: TmdbKind): Promise<CatalogGroup[]> {
     return listCatalogGroups(kind, await readMatchableItems(this.#db));
+  }
+
+  /** Lists the accepted genres on cataloged items, for choosing a genre criterion. */
+  async listCatalogGenres(): Promise<CatalogGenre[]> {
+    return listCatalogGenres(await readMatchableItems(this.#db));
   }
 
   /** Lists the tags on cataloged items, for choosing a tag criterion. */
