@@ -14,8 +14,10 @@ import type { MediaItemTable } from "./media-item-table.js";
 import type { MediaRootTable } from "./media-root-table.js";
 import type { ProgrammingBlockTable } from "./programming-block-table.js";
 import type { ScheduleEntryTable } from "./schedule-entry-table.js";
+import type { MediaItemTagTable } from "./media-item-tag-table.js";
 import type { ServerSettingsTable } from "./server-settings-table.js";
 import type { SessionTable } from "./session-table.js";
+import type { TagTable } from "./tag-table.js";
 
 // Maps every table name to its row type so Kysely can type-check all queries.
 export interface DatabaseSchema {
@@ -37,4 +39,6 @@ export interface DatabaseSchema {
   metadata_provider_refs: MetadataProviderRefTable;
   metadata_match_candidates: MetadataMatchCandidateTable;
   metadata_corrections: MetadataCorrectionTable;
+  tags: TagTable;
+  media_item_tags: MediaItemTagTable;
 }

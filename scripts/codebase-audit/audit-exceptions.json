@@ -194,6 +194,15 @@
       ],
       "reason": "Both migrations declare a collection-and-item foreign key pair; each migration keeps its own DDL so committed history never shifts under a shared edit.",
       "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/012-metadata-corrections.ts",
+        "apps/server/src/database/migrations/016-tags.ts"
+      ],
+      "reason": "Migration 016 rebuilds the corrections table 012 created, so it declares the same columns and checks; each migration keeps its own DDL so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     }
   ]
 }

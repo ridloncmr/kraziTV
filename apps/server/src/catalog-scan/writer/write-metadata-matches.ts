@@ -12,7 +12,7 @@ import { jsonIdList } from "../../database/writes/parameter-chunks.js";
 /**
  * Writes each record's metadata rows inside the scan's commit. A removed item
  * the scan rediscovered returns as newly discovered (spec 0010), so its old
- * decision and corrections are cleared first. Otherwise only an unsettled
+ * decision, corrections, and tags are cleared first. Otherwise only an unsettled
  * item takes a record: the scan read settled items before its lookups, so
  * this re-check inside the transaction keeps a choice, match, or correction
  * made meanwhile from being overwritten.
@@ -25,10 +25,12 @@ export async function writeMetadataMatches(
 ): Promise<void> {
   await deleteMatchRows(trx, rediscoveredIds);
   if (rediscoveredIds.length > 0) {
-    await trx
-      .deleteFrom("metadata_corrections")
-      .where("media_item_id", "in", jsonIdList(rediscoveredIds))
-      .execute();
+    for (const table of ["metadata_corrections", "media_item_tags"] as const) {
+      await trx
+        .deleteFrom(table)
+        .where("media_item_id", "in", jsonIdList(rediscoveredIds))
+        .execute();
+    }
   }
   const staged = records.flatMap((record) => {
     const id = itemIds.get(record.pathKey);

@@ -104,6 +104,10 @@ export function registerMediaCollectionRoutes(
     mediaCollections.listCatalogGroups("franchise"),
   );
 
+  server.get("/media-collections/tags", async () =>
+    mediaCollections.listCatalogTags(),
+  );
+
   // The browser shows this answer as the preview; it never matches itself.
   server.post("/media-collections/previews", async (request, reply) => {
     const body = previewBody.safeParse(request.body);

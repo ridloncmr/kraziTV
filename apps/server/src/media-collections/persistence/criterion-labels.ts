@@ -11,27 +11,48 @@ import { readMatchableItems } from "../criteria/matchable-items.js";
 
 /**
  * Names what each criterion matches on, keyed by `criterionKey`, so a card
- * can show its basis without the browser knowing TMDB IDs. Names come from
- * the same effective facts and naming rule as the criterion pickers, so a
- * card and a picker never disagree; a group no cataloged item names reads
- * by its TMDB ID. Reads the catalog only when some criterion needs a name.
+ * can show its basis without the browser knowing TMDB IDs. A series or
+ * franchise is named by the same effective facts and rule as its picker, so
+ * a card and the picker never disagree, or by its TMDB ID once no cataloged
+ * item names it; a tag is named by its own name. Reads only what the given
+ * criteria need.
  */
 export async function labelCriteria(
   executor: Kysely<DatabaseSchema>,
   criteria: readonly CollectionCriterion[],
 ): Promise<Map<string, string>> {
   const labels = new Map<string, string>();
-  if (criteria.length === 0) return labels;
-  const items = await readMatchableItems(executor);
-  const names = new Map<string, string>();
-  for (const kind of new Set(criteria.map((criterion) => criterion.kind))) {
-    for (const group of listCatalogGroups(kind, items)) {
-      names.set(criterionKey({ kind, tmdbId: group.tmdbId }), group.name);
+  const tmdbCriteria = criteria.flatMap((criterion) =>
+    criterion.kind === "tag" ? [] : [criterion],
+  );
+  if (tmdbCriteria.length > 0) {
+    const items = await readMatchableItems(executor);
+    for (const kind of new Set(
+      tmdbCriteria.map((criterion) => criterion.kind),
+    )) {
+      for (const group of listCatalogGroups(kind, items)) {
+        labels.set(criterionKey({ kind, tmdbId: group.tmdbId }), group.name);
+      }
+    }
+    for (const criterion of tmdbCriteria) {
+      const key = criterionKey(criterion);
+      if (!labels.has(key)) {
+        labels.set(key, groupFallbackName(criterion.kind, criterion.tmdbId));
+      }
     }
   }
-  for (const criterion of criteria) {
-    const key = criterionKey(criterion);
-    labels.set(key, names.get(key) ?? groupFallbackName(criterion));
+  const tagIds = criteria.flatMap((criterion) =>
+    criterion.kind === "tag" ? [criterion.tagId] : [],
+  );
+  if (tagIds.length > 0) {
+    const tags = await executor
+      .selectFrom("tags")
+      .select(["id", "name"])
+      .where("id", "in", tagIds)
+      .execute();
+    for (const tag of tags) {
+      labels.set(criterionKey({ kind: "tag", tagId: tag.id }), tag.name);
+    }
   }
   return labels;
 }

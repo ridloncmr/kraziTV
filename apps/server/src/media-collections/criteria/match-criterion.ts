@@ -1,26 +1,32 @@
-import type { CollectionCriterion } from "../contracts.js";
+import type { CollectionCriterion, TmdbKind } from "../contracts.js";
 import { compareExact, compareText } from "../name-order.js";
 import type { MatchableItem } from "../contracts.js";
 
 type Order = (a: MatchableItem, b: MatchableItem) => number;
 
 /**
- * Per criterion kind: the identity an item must share with the criterion,
- * and the collection's default saved order. A series and a franchise stay
- * separate criteria even when their TMDB IDs or items overlap.
+ * The TMDB identity each TMDB-keyed kind matches on. A series and a
+ * franchise stay separate criteria even when their TMDB IDs or items overlap.
+ */
+const TMDB_IDENTITY: Record<TmdbKind, (item: MatchableItem) => number | null> =
+  {
+    series: (item) => item.identity.seriesTmdbId,
+    franchise: (item) => item.identity.franchiseTmdbId,
+  };
+
+/**
+ * Per criterion kind: the collection's default saved order, and whether a
+ * match rests on provider facts, which can expire. A tag is the owner's own
+ * fact, so a tag collection never waits on TMDB. A tag can mix movies and
+ * episodes, so it orders by release like a movie group.
  */
 const KINDS: Record<
   CollectionCriterion["kind"],
-  { identity: (item: MatchableItem) => number | null; order: Order }
+  { order: Order; providerEvidence: boolean }
 > = {
-  series: {
-    identity: (item) => item.identity.seriesTmdbId,
-    order: episodeOrder,
-  },
-  franchise: {
-    identity: (item) => item.identity.franchiseTmdbId,
-    order: releaseOrder,
-  },
+  series: { order: episodeOrder, providerEvidence: true },
+  franchise: { order: releaseOrder, providerEvidence: true },
+  tag: { order: releaseOrder, providerEvidence: false },
 };
 
 /**
@@ -29,10 +35,17 @@ const KINDS: Record<
  * would include.
  */
 export function matchedIdentity(
-  kind: CollectionCriterion["kind"],
+  kind: TmdbKind,
   item: MatchableItem,
 ): number | null {
-  return KINDS[kind].identity(item);
+  return TMDB_IDENTITY[kind](item);
+}
+
+// Whether an item has what a criterion names, read from its effective facts.
+function matches(criterion: CollectionCriterion, item: MatchableItem): boolean {
+  return criterion.kind === "tag"
+    ? item.identity.tagIds.includes(criterion.tagId)
+    : TMDB_IDENTITY[criterion.kind](item) === criterion.tmdbId;
 }
 
 /** The membership a criterion gives a collection, and whether part of it rests on unavailable evidence. */
@@ -45,8 +58,9 @@ interface Membership {
 /**
  * Decides a collection's membership from a criterion, cataloged facts, its
  * current member IDs, and its exclusions, in the collection's default saved
- * order. An excluded item is never a member, whether or not it matches. An item
- * whose TMDB data expired is unknown, never a confirmed mismatch: a current
+ * order. An excluded item is never a member, whether or not it matches. For
+ * a kind matched on provider facts, an item whose TMDB data expired is
+ * unknown, never a confirmed mismatch: a current
  * member stays and a non-member is not added, and either case reports the
  * membership incomplete. Pure, so a preview, a creation, and a maintenance
  * pass given the same facts always agree.
@@ -59,18 +73,18 @@ export function matchMembership(
 ): Membership {
   const current = new Set(currentIds);
   const excluded = new Set(excludedIds);
-  const { identity, order } = KINDS[criterion.kind];
+  const { order, providerEvidence } = KINDS[criterion.kind];
   const members: MatchableItem[] = [];
   let incomplete = false;
   for (const item of items) {
     if (excluded.has(item.id)) continue;
-    const matches = identity(item) === criterion.tmdbId;
-    if (hasEvidence(item)) {
-      if (matches) members.push(item);
+    const matched = matches(criterion, item);
+    if (!providerEvidence || hasEvidence(item)) {
+      if (matched) members.push(item);
     } else if (current.has(item.id)) {
       members.push(item);
       incomplete = true;
-    } else if (matches) {
+    } else if (matched) {
       incomplete = true;
     }
   }

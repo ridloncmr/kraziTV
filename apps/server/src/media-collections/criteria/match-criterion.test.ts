@@ -187,3 +187,40 @@ describe("matchMembership", () => {
     expect(result.incomplete).toBe(false);
   });
 });
+
+describe("matchMembership: tag", () => {
+  const CHRISTMAS = { kind: "tag", tagId: "tag-christmas" } as const;
+
+  it("matches tagged movies and episodes, not untagged siblings, in release order", () => {
+    const result = matchMembership(
+      CHRISTMAS,
+      [
+        matchableMovie("elf", null, {
+          releaseDate: "2003-10-09",
+          tagIds: ["tag-christmas"],
+        }),
+        matchableMovie("alone", null, {
+          releaseDate: "1990-11-10",
+          tagIds: ["tag-other", "tag-christmas"],
+        }),
+        matchableMovie("untagged", null, { releaseDate: "1980" }),
+      ],
+      [],
+      [],
+    );
+
+    expect(result.members.map((item) => item.id)).toEqual(["alone", "elf"]);
+  });
+
+  it("needs no provider evidence, so an item whose TMDB data expired still matches and nothing is incomplete", () => {
+    const expired = {
+      ...matchableMovie("elf", null, { tagIds: ["tag-christmas"] }),
+    };
+    expired.metadata = { ...expired.metadata, tmdbDataExpired: true };
+
+    const result = matchMembership(CHRISTMAS, [expired], [], []);
+
+    expect(result.members.map((item) => item.id)).toEqual(["elf"]);
+    expect(result.incomplete).toBe(false);
+  });
+});

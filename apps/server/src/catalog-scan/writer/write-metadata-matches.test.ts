@@ -7,6 +7,7 @@ import {
   candidate,
   correctionRow,
   lookedUp,
+  tagItem,
 } from "../../testing/metadata-match-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -345,12 +346,13 @@ describe("CatalogScanWriter metadata matches", () => {
     });
   });
 
-  it("clears a removed item's corrections with its decision when a scan rediscovers it", async () => {
+  it("clears a removed item's corrections and tags with its decision when a scan rediscovers it", async () => {
     const { db, writer } = await setup();
     await db
       .insertInto("metadata_corrections")
-      .values(correctionRow(itemFixture.id, { tags: '["space"]' }))
+      .values(correctionRow(itemFixture.id, { title: "Space" }))
       .execute();
+    await tagItem(db, itemFixture.id, ["space"]);
     await db
       .updateTable("media_items")
       .set({ removed_at: SCANNED_AT })
@@ -360,6 +362,9 @@ describe("CatalogScanWriter metadata matches", () => {
 
     await expect(
       db.selectFrom("metadata_corrections").selectAll().execute(),
+    ).resolves.toEqual([]);
+    await expect(
+      db.selectFrom("media_item_tags").selectAll().execute(),
     ).resolves.toEqual([]);
   });
 

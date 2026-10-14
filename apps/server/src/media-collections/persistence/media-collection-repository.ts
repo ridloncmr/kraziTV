@@ -12,7 +12,10 @@ import { runImmediateTransaction } from "../../database/writes/immediate-transac
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
-import { listCatalogGroups } from "../criteria/catalog-groups.js";
+import {
+  listCatalogGroups,
+  listCatalogTags,
+} from "../criteria/catalog-groups.js";
 import {
   criterionKey,
   readStoredCriterion,
@@ -28,6 +31,8 @@ import {
 } from "../exclusions/excluded-items.js";
 import type {
   CatalogGroup,
+  CatalogTag,
+  TmdbKind,
   CollectionCriterion,
   CreateMediaCollectionResult,
   DeleteMediaCollectionResult,
@@ -162,10 +167,13 @@ export class MediaCollectionRepository {
   }
 
   /** Lists the TMDB series or franchises cataloged items belong to, for choosing a criterion of `kind`. */
-  async listCatalogGroups(
-    kind: CollectionCriterion["kind"],
-  ): Promise<CatalogGroup[]> {
+  async listCatalogGroups(kind: TmdbKind): Promise<CatalogGroup[]> {
     return listCatalogGroups(kind, await readMatchableItems(this.#db));
+  }
+
+  /** Lists the tags on cataloged items, for choosing a tag criterion. */
+  async listCatalogTags(): Promise<CatalogTag[]> {
+    return listCatalogTags(await readMatchableItems(this.#db));
   }
 
   /**

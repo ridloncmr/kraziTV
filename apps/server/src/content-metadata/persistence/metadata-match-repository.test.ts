@@ -5,7 +5,10 @@ import {
   itemFixtureAt,
   rootFixture,
 } from "../../testing/catalog-fixtures.js";
-import { correctionRow } from "../../testing/metadata-match-fixtures.js";
+import {
+  correctionRow,
+  tagItem,
+} from "../../testing/metadata-match-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
@@ -125,11 +128,9 @@ describe("MetadataMatchRepository.findSettledPathKeys", () => {
       .execute();
     await db
       .insertInto("metadata_corrections")
-      .values([
-        correctionRow("item-corrected", { episode_number: 3 }),
-        correctionRow("item-tagged", { tags: '["space"]' }),
-      ])
+      .values(correctionRow("item-corrected", { episode_number: 3 }))
       .execute();
+    await tagItem(db, "item-tagged", ["space"]);
 
     await expect(
       new MetadataMatchRepository(db).findSettledPathKeys(rootFixture.id),

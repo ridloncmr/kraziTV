@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import type {
   CatalogGroup,
+  CatalogTag,
   CollectionCriterion,
   CollectionMember,
 } from "../../http/contracts.js";
@@ -10,7 +11,13 @@ import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];
 
-/** What each criterion kind lists, how it is labelled, and how its members are counted. */
+/** One row a criterion picker lists: a TMDB series or franchise, or a tag. */
+type CatalogOption = CatalogGroup | CatalogTag;
+
+/**
+ * What each criterion kind lists, how it is labelled, how its members are
+ * counted, and how a listed row's option value becomes a criterion.
+ */
 const KINDS: Record<
   Kind,
   {
@@ -18,6 +25,7 @@ const KINDS: Record<
     /** The picker's own label, distinct from the kind's radio button. */
     pick: string;
     path: string;
+    criterion: (value: string) => CollectionCriterion;
     choose: string;
     explain: string;
     empty: string;
@@ -28,6 +36,7 @@ const KINDS: Record<
     label: "TV series",
     pick: "Series",
     path: "/media-collections/series",
+    criterion: (value) => ({ kind: "series", tmdbId: Number(value) }),
     choose: "Choose a series",
     explain:
       "The collection keeps every cataloged episode, in season and episode order, as your catalog changes.",
@@ -39,6 +48,7 @@ const KINDS: Record<
     label: "Movie franchise",
     pick: "Franchise",
     path: "/media-collections/franchises",
+    criterion: (value) => ({ kind: "franchise", tmdbId: Number(value) }),
     choose: "Choose a franchise",
     explain:
       "The collection keeps every cataloged movie of the franchise, in release order, as your catalog changes.",
@@ -46,7 +56,24 @@ const KINDS: Record<
       "No movie franchises are cataloged yet. A franchise appears here once TMDB matches one of its movies.",
     unit: ["movie", "movies"],
   },
+  tag: {
+    label: "Tag",
+    pick: "Tag name",
+    path: "/media-collections/tags",
+    criterion: (value) => ({ kind: "tag", tagId: value }),
+    choose: "Choose a tag",
+    explain:
+      "The collection keeps every item you tag with it, in release order, as you tag and untag media. Tags never create collections on their own.",
+    empty:
+      "No media is tagged yet. Add tags to media in the Media Library, then choose one here.",
+    unit: ["item", "items"],
+  },
 };
+
+// The value a listed row selects by: its TMDB ID or tag ID, as text.
+function optionValue(row: CatalogOption): string {
+  return "tagId" in row ? row.tagId : String(row.tmdbId);
+}
 
 /** Names a criterion kind in the words the picker and every card use. */
 export function kindLabel(kind: Kind): string {
@@ -78,11 +105,11 @@ export function CriterionPicker({
   onChoice: (choice: CriterionChoice | undefined) => void;
 }) {
   const [kind, setKind] = useState<Kind>(initialKind);
-  const groups = useResource<CatalogGroup[]>(KINDS[kind].path);
-  const [tmdbId, setTmdbId] = useState("");
+  const groups = useResource<CatalogOption[]>(KINDS[kind].path);
+  const [value, setValue] = useState("");
   const criterion = useMemo<CollectionCriterion | undefined>(
-    () => (tmdbId === "" ? undefined : { kind, tmdbId: Number(tmdbId) }),
-    [kind, tmdbId],
+    () => (value === "" ? undefined : KINDS[kind].criterion(value)),
+    [kind, value],
   );
   const previewBody = useMemo(
     () =>
@@ -100,7 +127,7 @@ export function CriterionPicker({
     previewBody,
   );
   const groupName =
-    groups.data?.find((item) => String(item.tmdbId) === tmdbId)?.name ?? "";
+    groups.data?.find((item) => optionValue(item) === value)?.name ?? "";
   const previewed = preview.data !== undefined;
   useEffect(() => {
     onChoice(
@@ -127,7 +154,7 @@ export function CriterionPicker({
               disabled={disabled}
               onChange={() => {
                 setKind(option);
-                setTmdbId("");
+                setValue("");
               }}
             />
             {KINDS[option].label}
@@ -141,14 +168,14 @@ export function CriterionPicker({
         <label>
           {pick}
           <select
-            value={tmdbId}
+            value={value}
             required
             disabled={disabled}
-            onChange={(event) => setTmdbId(event.target.value)}
+            onChange={(event) => setValue(event.target.value)}
           >
             <option value="">{choose}</option>
             {groups.data?.map((item) => (
-              <option key={item.tmdbId} value={item.tmdbId}>
+              <option key={optionValue(item)} value={optionValue(item)}>
                 {item.name} ({count(item.itemCount)})
               </option>
             ))}

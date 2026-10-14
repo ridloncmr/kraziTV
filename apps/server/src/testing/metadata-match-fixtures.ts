@@ -8,6 +8,9 @@ import type { Insertable } from "kysely";
 import type { MetadataCorrectionTable } from "../database/schema/metadata-correction-table.js";
 import type { ContentMetadata } from "../media-items/contracts.js";
 import { FIXTURE_TIME, itemFixture, rootFixture } from "./catalog-fixtures.js";
+import type { Kysely } from "kysely";
+import { replaceItemTags } from "../content-metadata/corrections/item-tags.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 /** Lookup time shared by staged records and their expected persistence. */
 export const LOOKED_UP_AT = FIXTURE_TIME + 45_000;
 /** A matched movie and its path evidence for metadata writer tests. */
@@ -178,7 +181,7 @@ export function waiting(relativePath: string, rootId = "root-a") {
   };
 }
 
-/** A corrections row for `mediaItemId` correcting only `fields`, with no tags by default. */
+/** A corrections row for `mediaItemId` correcting only `fields`. */
 export function correctionRow(
   mediaItemId: string,
   fields: Partial<Insertable<MetadataCorrectionTable>>,
@@ -189,18 +192,16 @@ export function correctionRow(
     series_name: null,
     season_number: null,
     episode_number: null,
-    tags: "[]",
     ...fields,
   };
 }
 
-/** A correction with every editable field and one tag, for schema validation. */
+/** A correction with every editable field, for schema validation. */
 export const CORRECTION = correctionRow(itemFixture.id, {
   title: "Serenity",
   series_name: "Firefly",
   season_number: 0,
   episode_number: 1,
-  tags: '["space western"]',
 });
 
 // Opens a migrated database holding one root and one item to correct.
@@ -209,4 +210,15 @@ export async function seededMetadataDatabase() {
   await db.insertInto("media_roots").values(rootFixture).execute();
   await db.insertInto("media_items").values(itemFixture).execute();
   return db;
+}
+
+/** Tags an item with `names` in order, resolving them as the correction route does. */
+export async function tagItem(
+  db: Kysely<DatabaseSchema>,
+  mediaItemId: string,
+  names: readonly string[],
+): Promise<void> {
+  await db
+    .transaction()
+    .execute((trx) => replaceItemTags(trx, mediaItemId, names));
 }

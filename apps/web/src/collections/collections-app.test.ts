@@ -356,3 +356,68 @@ it("previews a series and creates an automatic collection listed under Automatic
     within(grid).getByRole("button", { name: "Open The Office" }).textContent,
   ).toBe("The OfficeTV series: The Office2 itemsUp to date");
 });
+
+it("creates an automatic collection from a tag in use", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply("/media-collections/tags", [
+    { tagId: "tag-christmas", name: "Christmas", itemCount: 1 },
+  ]);
+  api.reply(
+    "/media-collections/previews",
+    [
+      {
+        position: 0,
+        mediaItemId: "z",
+        title: "Alpha",
+        path: "/media/alpha.mp4",
+        status: "available",
+        durationMs: 1_200_000,
+      },
+    ],
+    "POST",
+  );
+  api.reply(
+    "/media-collections",
+    {
+      id: "christmas",
+      name: "Christmas",
+      maintenanceMode: "automatic",
+      criterion: { kind: "tag", tagId: "tag-christmas" },
+      criterionLabel: "Christmas",
+      maintainedAt: "2026-10-13T12:00:00.000Z",
+      maintenanceError: null,
+      maintenanceIncomplete: false,
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+
+  fireEvent.click(within(dialog).getByRole("radio", { name: "Tag" }));
+  await within(dialog).findByRole("option", { name: "Christmas (1 item)" });
+  fireEvent.change(within(dialog).getByLabelText("Tag name"), {
+    target: { value: "tag-christmas" },
+  });
+  await within(dialog).findByText("1 item in this order");
+  await clickWhenEnabled(
+    within(dialog).getByRole("button", { name: "Create automatic collection" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      api.requests.find(
+        (request) =>
+          request.method === "POST" && request.path === "/media-collections",
+      )?.body,
+    ).toEqual({
+      name: "Christmas",
+      criterion: { kind: "tag", tagId: "tag-christmas" },
+    }),
+  );
+});

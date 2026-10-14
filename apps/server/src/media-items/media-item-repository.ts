@@ -79,10 +79,30 @@ export class MediaItemRepository {
 }
 
 /**
+ * Each tagged item's tag names and tag IDs as JSON arrays in the owner's
+ * order, one row per item, for joining beside other per-item rows.
+ */
+export function itemTags(executor: Kysely<DatabaseSchema>) {
+  return executor
+    .selectFrom("media_item_tags")
+    .innerJoin("tags", "tags.id", "media_item_tags.tag_id")
+    .select([
+      "media_item_tags.media_item_id",
+      sql<string>`json_group_array(tags.name order by media_item_tags.position)`.as(
+        "tag_names",
+      ),
+      sql<string>`json_group_array(tags.id order by media_item_tags.position)`.as(
+        "tag_ids",
+      ),
+    ])
+    .groupBy("media_item_tags.media_item_id");
+}
+
+/**
  * Starts an item read with its metadata rows beside it, for selecting
- * `METADATA_COLUMNS`. Each table holds at most one row per item, so the
- * joins never repeat an item. Takes any executor, so a read inside a
- * transaction sees the facts that transaction writes against.
+ * `METADATA_COLUMNS`. Each table, tags included, holds at most one row per
+ * item, so the joins never repeat an item. Takes any executor, so a read
+ * inside a transaction sees the facts that transaction writes against.
  */
 export function selectWithMetadata(executor: Kysely<DatabaseSchema>) {
   return executor
@@ -102,6 +122,9 @@ export function selectWithMetadata(executor: Kysely<DatabaseSchema>) {
       "metadata_corrections",
       "metadata_corrections.media_item_id",
       "media_items.id",
+    )
+    .leftJoin(itemTags(executor).as("item_tags"), (join) =>
+      join.onRef("item_tags.media_item_id", "=", "media_items.id"),
     );
 }
 

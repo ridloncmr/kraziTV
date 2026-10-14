@@ -39,7 +39,7 @@ export function matchableEpisode(
       episodeNumber: facts.episode === undefined ? 1 : facts.episode,
       tmdbDataExpired: facts.expired ?? false,
     },
-    identity: { seriesTmdbId, franchiseTmdbId: null },
+    identity: { seriesTmdbId, franchiseTmdbId: null, tagIds: [] },
   };
 }
 
@@ -54,6 +54,7 @@ export function matchableMovie(
     releaseDate?: string | null;
     title?: string | null;
     path?: string;
+    tagIds?: string[];
   } = {},
 ): MatchableItem {
   return {
@@ -69,7 +70,11 @@ export function matchableMovie(
       releaseDate: facts.releaseDate === undefined ? null : facts.releaseDate,
       franchiseName: "Indiana Jones Collection",
     },
-    identity: { seriesTmdbId: null, franchiseTmdbId },
+    identity: {
+      seriesTmdbId: null,
+      franchiseTmdbId,
+      tagIds: facts.tagIds ?? [],
+    },
   };
 }
 

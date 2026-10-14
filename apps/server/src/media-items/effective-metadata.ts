@@ -40,7 +40,8 @@ export const METADATA_COLUMNS = [
   "metadata_corrections.series_name as corrected_series_name",
   "metadata_corrections.season_number as corrected_season_number",
   "metadata_corrections.episode_number as corrected_episode_number",
-  "metadata_corrections.tags",
+  "item_tags.tag_names as tags",
+  "item_tags.tag_ids",
 ] as const;
 
 /** One item's `METADATA_COLUMNS` as selected. */
@@ -69,6 +70,7 @@ export interface MetadataColumns {
   corrected_season_number: number | null;
   corrected_episode_number: number | null;
   tags: string | null;
+  tag_ids: string | null;
 }
 
 /**
@@ -145,5 +147,6 @@ export function effectiveContentIdentity(
         ? row.series_tmdb_id
         : null,
     franchiseTmdbId: row.franchise_tmdb_id,
+    tagIds: row.tag_ids === null ? [] : (JSON.parse(row.tag_ids) as string[]),
   };
 }

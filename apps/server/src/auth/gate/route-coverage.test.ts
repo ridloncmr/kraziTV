@@ -55,6 +55,7 @@ const GATED_ROUTES = [
   "POST /media-collections",
   "GET /media-collections/series",
   "GET /media-collections/franchises",
+  "GET /media-collections/tags",
   "POST /media-collections/previews",
   "GET /media-collections/:id",
   "PATCH /media-collections/:id",

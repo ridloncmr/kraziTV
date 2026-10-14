@@ -1,14 +1,18 @@
-import type { CatalogGroup, CollectionCriterion } from "../contracts.js";
+import type {
+  CatalogGroup,
+  CatalogTag,
+  MatchableItem,
+  TmdbKind,
+} from "../contracts.js";
 import { compareExact, compareNames } from "../name-order.js";
 import { hasEvidence, matchedIdentity } from "./match-criterion.js";
-import type { MatchableItem } from "../contracts.js";
 
 /**
- * Per criterion kind: the name items give the group they match, and the
+ * Per TMDB-keyed kind: the name items give the group they match, and the
  * name used once no cataloged item names it any more.
  */
 const KINDS: Record<
-  CollectionCriterion["kind"],
+  TmdbKind,
   {
     name: (item: MatchableItem) => string | null;
     fallback: (tmdbId: number) => string;
@@ -31,7 +35,7 @@ const KINDS: Record<
  * its items, so the choice never depends on read order. Sorted by name.
  */
 export function listCatalogGroups(
-  kind: CollectionCriterion["kind"],
+  kind: TmdbKind,
   items: readonly MatchableItem[],
 ): CatalogGroup[] {
   const { name, fallback } = KINDS[kind];
@@ -60,7 +64,30 @@ export function listCatalogGroups(
     );
 }
 
+/**
+ * Lists the tags on cataloged items with how many items each holds, which
+ * is what a collection for it would include, sorted by name. A tag on no
+ * cataloged item is not listed; adding a tag never creates a collection.
+ */
+export function listCatalogTags(items: readonly MatchableItem[]): CatalogTag[] {
+  const tags = new Map<string, CatalogTag>();
+  for (const item of items) {
+    item.identity.tagIds.forEach((tagId, index) => {
+      const tag = tags.get(tagId) ?? {
+        tagId,
+        name: item.metadata.tags[index] ?? tagId,
+        itemCount: 0,
+      };
+      tag.itemCount += 1;
+      tags.set(tagId, tag);
+    });
+  }
+  return [...tags.values()].sort((a, b) =>
+    compareNames({ name: a.name, id: a.tagId }, { name: b.name, id: b.tagId }),
+  );
+}
+
 /** Names a group no cataloged item names any more, so it still reads as one. */
-export function groupFallbackName(criterion: CollectionCriterion): string {
-  return KINDS[criterion.kind].fallback(criterion.tmdbId);
+export function groupFallbackName(kind: TmdbKind, tmdbId: number): string {
+  return KINDS[kind].fallback(tmdbId);
 }

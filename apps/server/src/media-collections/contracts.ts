@@ -12,13 +12,26 @@ import type {
  * validates it for request bodies and stored rows alike.
  */
 export type CollectionCriterion =
-  { kind: "series"; tmdbId: number } | { kind: "franchise"; tmdbId: number };
+  | { kind: "series"; tmdbId: number }
+  | { kind: "franchise"; tmdbId: number }
+  | { kind: "tag"; tagId: string };
+
+/** The criterion kinds that match a TMDB series or franchise identity. */
+export type TmdbKind = Extract<CollectionCriterion, { tmdbId: number }>["kind"];
 
 /** One TMDB series or franchise with cataloged items, as a criterion picker lists it. */
 export interface CatalogGroup {
   tmdbId: number;
   name: string;
   /** How many items a collection for this series or franchise would include. */
+  itemCount: number;
+}
+
+/** One of the owner's tags on cataloged items, as the tag picker lists it. */
+export interface CatalogTag {
+  tagId: string;
+  name: string;
+  /** How many items a collection for this tag would include. */
   itemCount: number;
 }
 
