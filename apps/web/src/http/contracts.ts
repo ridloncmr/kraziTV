@@ -198,16 +198,44 @@ export interface Channel {
   name: string;
   enabled: boolean;
 }
+/** How a collection block orders its collection; mirrors the server's modes. */
+export type PlaybackMode = "chronological" | "episode" | "release" | "random";
 export type BlockSource =
   | {
       kind: "collection";
       mediaCollectionId: string;
-      playbackMode: "chronological" | "random";
+      playbackMode: PlaybackMode;
     }
   | { kind: "media_item"; mediaItemId: string };
 export interface ProgrammingBlock {
   id: string;
   source: BlockSource;
+}
+/** One collection member in the order a mode plays, with the server's flags. */
+export interface PreviewMember {
+  mediaItemId: string;
+  title: string;
+  seriesName: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  releaseDate: string | null;
+  unresolved: boolean;
+  startsSeriesGroup: boolean;
+  duplicateEpisode: boolean;
+}
+/** One schedule entry a block will air next. */
+export interface UpcomingSelection {
+  id: string;
+  mediaItemId: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+}
+/** A block's order for one mode; random has no order, and only the saved mode has upcoming selections. */
+export interface BlockPreview {
+  playbackMode: PlaybackMode;
+  ordered: PreviewMember[] | null;
+  upcoming: UpcomingSelection[] | null;
 }
 interface ScheduleEntry {
   id: string;

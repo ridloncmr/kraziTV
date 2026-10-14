@@ -73,7 +73,7 @@ type Library = Awaited<ReturnType<typeof scannedLibrary>>;
 // Changes what the scripted TMDB says about Alien, so a refresh shows in its facts.
 export function changeAlien(
   { tmdb }: Library,
-  change: { title?: string; genres?: string[] },
+  change: { title?: string; genres?: string[]; releaseDate?: string },
 ): void {
   const index = tmdb.movies.findIndex((movie) => movie.id === SCAN_ALIEN.id);
   tmdb.movies[index] = { ...SCAN_ALIEN, ...change };

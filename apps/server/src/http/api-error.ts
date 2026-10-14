@@ -44,6 +44,7 @@ type ApiErrorCode =
   | "not_disc_track"
   | "not_found"
   | "playout_unavailable"
+  | "programming_block_has_no_order"
   | "programming_block_limit_reached"
   | "programming_block_not_found"
   | "scan_cancelled"

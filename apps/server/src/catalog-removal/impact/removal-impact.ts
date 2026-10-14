@@ -265,7 +265,7 @@ async function findAffectedChannels(
 
 // Applies kraziBrain's schedulable rule to a collection member.
 function isSchedulable(member: MediaCollectionMember): boolean {
-  return isSchedulableMedia({ ...member, id: member.mediaItemId });
+  return isSchedulableMedia(member);
 }
 
 // One stable order for every ID list the API reports.

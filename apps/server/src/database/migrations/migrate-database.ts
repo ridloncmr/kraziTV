@@ -22,6 +22,9 @@ import { collectionMaintenanceMigration } from "./014-collection-maintenance.js"
 import { collectionExclusionsMigration } from "./015-collection-exclusions.js";
 import { tagsMigration } from "./016-tags.js";
 import { recommendationDecisionsMigration } from "./017-recommendation-decisions.js";
+import { playbackProgressPerModeMigration } from "./018-playback-progress-per-mode.js";
+import { orderedPlaybackModesMigration } from "./019-ordered-playback-modes.js";
+import { orderFingerprintsMigration } from "./020-order-fingerprints.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -42,6 +45,9 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "015_collection_exclusions": collectionExclusionsMigration,
   "016_tags": tagsMigration,
   "017_recommendation_decisions": recommendationDecisionsMigration,
+  "018_playback_progress_per_mode": playbackProgressPerModeMigration,
+  "019_ordered_playback_modes": orderedPlaybackModesMigration,
+  "020_order_fingerprints": orderFingerprintsMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

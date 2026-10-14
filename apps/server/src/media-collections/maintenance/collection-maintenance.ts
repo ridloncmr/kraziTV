@@ -5,7 +5,9 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import {
   hasAutomaticCollections,
+  hasMetadataOrderedBlocks,
   maintenanceChange,
+  orderingChange,
   recordMaintenanceFailure,
 } from "./maintenance-writes.js";
 
@@ -22,8 +24,9 @@ interface CollectionMaintenanceOptions {
 
 /**
  * Keeps every automatic collection's membership equal to what its criterion
- * matches in committed facts. Fact, tag, catalog, criterion, and exclusion
- * writers only call `request()` after they commit; requests coalesce into
+ * matches in committed facts, and every episode or release order's schedule
+ * equal to the order committed facts give. Fact, tag, catalog, criterion,
+ * and exclusion writers only call `request()` after they commit; requests coalesce into
  * one pass at a time, and a request made while a pass runs gets one more
  * pass after it, since the running pass may have read before that commit.
  */
@@ -72,10 +75,21 @@ export class CollectionMaintenance {
   }
 
   /**
-   * Runs one pass and logs and records a failure instead of throwing; the
-   * next request converges from committed facts.
+   * Runs one pass: automatic membership first, then metadata playback
+   * orders, so the order check reads the membership the pass just wrote.
+   * Each step is its own schedule input change, logged under its own
+   * reason, and one failing never stops the other.
    */
   async #pass(): Promise<void> {
+    await this.#maintainCollections();
+    await this.#checkOrders();
+  }
+
+  /**
+   * Reconciles every automatic collection, and logs and records a failure
+   * instead of throwing; the next request converges from committed facts.
+   */
+  async #maintainCollections(): Promise<void> {
     const { db, schedules, log, hooks } = this.#options;
     try {
       await hooks?.beforePass?.();
@@ -98,6 +112,25 @@ export class CollectionMaintenance {
           "Could not record the collection maintenance failure",
         );
       }
+    }
+  }
+
+  /**
+   * Regenerates channels whose episode or release order the committed facts
+   * changed, and logs a failure instead of throwing; the next request
+   * compares again from committed facts.
+   */
+  async #checkOrders(): Promise<void> {
+    const { db, schedules, log } = this.#options;
+    try {
+      if (!(await hasMetadataOrderedBlocks(db))) return;
+      await schedules.applyInputChange(
+        log,
+        "ordering_changed",
+        orderingChange(),
+      );
+    } catch (error) {
+      log.error({ err: error }, "Checking metadata playback orders failed");
     }
   }
 }

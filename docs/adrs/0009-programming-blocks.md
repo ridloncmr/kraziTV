@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Accepted. Amended on 2026-10-13: ordered playback modes resume
+after the last media item they selected, falling back to its recorded position
+when that item has left the collection, and every playback mode keeps its own
+progress. See
+[programming spec 0003](../specs/features/002-programming/specs/0003-playback-ordering.md).
 
 ## Context
 
@@ -64,6 +68,19 @@ Catalog -> Media collections -> Programming blocks -> Schedule entries -> Playou
   continue where the last one left off. Each schedule entry records the
   collection position or selection index it consumed, so regeneration restores
   progress from the entries it keeps instead of replaying process state.
+- **Each playback mode keeps its own progress** within a channel and
+  collection. Blocks that share a channel, collection, and mode share progress;
+  switching a block's mode never advances another mode.
+- **Ordered modes continue by identity.** Collection order (`chronological`),
+  episode order, and release order each record the last media item they
+  selected and the ordered position it held. When membership or the effective
+  order changes, selection resumes after that item in the new order, wrapping
+  at the end. If the item has left the collection, the recorded position
+  modulo the new member count is the fallback. Position alone is not enough
+  once orders can change under a running channel: it would silently skip or
+  replay content the identity still locates. Content may still replay or skip
+  after a large reorder; kraziTV shows the upcoming selections rather than
+  tracking a watched set.
 - Random selection stays deterministic: it derives from a seed scoped to the
   channel and collection plus that collection's selection index.
 - How a collection was built (manually today; automatically or by rule later)
@@ -120,6 +137,10 @@ Each step adds data and logic without rewriting the MVP model:
   planned terms.
 - ADR 0003 is unchanged. ADR 0006 is refined: programming blocks, rather than
   channels, reference media collections.
+- Programming spec 0003 adds episode and release order, identity-based
+  continuation, and an explicit per-mode progress reset. Existing
+  `chronological` and `random` values keep their names and their selected
+  order; `chronological` gains identity-based continuation.
 - The MVP carries one extra table and one extra form step compared with channel
   fields, in exchange for avoiding a schema and regeneration-policy rewrite when
   multi-block programming arrives.

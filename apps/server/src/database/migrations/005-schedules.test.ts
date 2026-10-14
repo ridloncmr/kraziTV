@@ -2,7 +2,6 @@ import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { KraziDatabase } from "../database.js";
-import type { ChannelCollectionProgressTable } from "../schema/channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "../schema/channel-schedule-state-table.js";
 import type { ScheduleEntryTable } from "../schema/schedule-entry-table.js";
 import {
@@ -86,23 +85,6 @@ describe("005_schedules", () => {
     for (const entry of invalid) {
       await expect(
         database.db.insertInto("schedule_entries").values(entry).execute(),
-      ).rejects.toThrow(/check constraint/i);
-    }
-  });
-
-  it("rejects negative collection progress", async () => {
-    const database = await seedScheduleInputs();
-    const invalid: Insertable<ChannelCollectionProgressTable>[] = [
-      { ...collectionProgressFixture, next_chronological_position: -1 },
-      { ...collectionProgressFixture, next_random_selection_index: -1 },
-    ];
-
-    for (const progress of invalid) {
-      await expect(
-        database.db
-          .insertInto("channel_collection_progress")
-          .values(progress)
-          .execute(),
       ).rejects.toThrow(/check constraint/i);
     }
   });

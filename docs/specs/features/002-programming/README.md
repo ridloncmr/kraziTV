@@ -11,8 +11,8 @@ indefinitely; manual schedules are deliberate overrides, never a daily obligatio
 [ADR 0009](../../../adrs/0009-programming-blocks.md) defines the model this
 feature extends: channels hold identity only, programming blocks select a media
 collection with a playback mode or a single media item, schedule entries are
-materialized from blocks, and playback progress is tracked per channel and
-collection.
+materialized from blocks, and playback progress is tracked per channel,
+collection, and playback mode.
 
 Source and executable tests describe current behavior. Accepted ADRs remain
 architectural constraints; the specs below propose new behavior and identify
@@ -66,9 +66,6 @@ implementation. Detailed delivery sequencing belongs in the implementation plans
 
 ## Decisions Required Before Implementation
 
-- Metadata ordering proposes identity-based continuation. Resolve the extension
-  to ADR 0009's existing progress contract explicitly; keep existing chronological
-  settings equivalent to saved collection order.
 - Manual edits can change downstream durations or selection progress. Spec 0007
   requires a resolution of ADR 0009's localized-regeneration constraint before
   implementing broader reflow.

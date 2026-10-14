@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { scheduleMedia } from "../testing/schedule-media.js";
-import type {
-  GeneratedScheduleEntry,
-  GenerationResult,
-  PlaybackProgress,
-  ScheduleMedia,
-  ScheduleSource,
+import {
+  type GeneratedScheduleEntry,
+  type GenerationResult,
+  NO_PROGRESS,
+  type PlaybackProgress,
+  type ScheduleMedia,
+  type ScheduleSource,
 } from "./contracts.js";
 import { generateScheduleEntries } from "./generate-schedule-entries.js";
 import { SCHEDULE_HORIZON_MS } from "./schedule-policy.js";
@@ -14,10 +15,19 @@ import { SCHEDULE_HORIZON_MS } from "./schedule-policy.js";
 // 2026-01-01T00:00:00.000Z as a UTC millisecond schedule anchor.
 const STARTS_AT = 1_767_225_600_000;
 const HOUR_MS = 60 * 60 * 1000;
-const START_PROGRESS: PlaybackProgress = {
-  nextChronologicalPosition: 0,
-  nextRandomSelectionIndex: 0,
-};
+
+// Ordered progress whose last selection was `lastMediaItemId` at `lastPosition`.
+function afterSelecting(
+  lastMediaItemId: string,
+  lastPosition: number,
+): PlaybackProgress {
+  return { ...NO_PROGRESS, lastMediaItemId, lastPosition };
+}
+
+// Random progress whose next pick consumes `nextSelectionIndex`.
+function atSelectionIndex(nextSelectionIndex: number): PlaybackProgress {
+  return { ...NO_PROGRESS, nextSelectionIndex };
+}
 
 function chronological(members: ScheduleMedia[]): ScheduleSource {
   return {
@@ -61,7 +71,7 @@ function generate(
   return generateScheduleEntries({
     channelSeed: 0x5d4886b3,
     source,
-    progress: START_PROGRESS,
+    progress: NO_PROGRESS,
     startsAt: STARTS_AT,
     through: STARTS_AT + HOUR_MS,
     nextSequenceNumber: 0,
@@ -127,7 +137,7 @@ describe("generateScheduleEntries: chronological collections", () => {
 
     const result = generated(
       generate(chronological(members), {
-        progress: { nextChronologicalPosition: 2, nextRandomSelectionIndex: 7 },
+        progress: afterSelecting("b", 1),
         through: STARTS_AT + 4 * 60_000,
       }),
     );
@@ -136,18 +146,86 @@ describe("generateScheduleEntries: chronological collections", () => {
     expect(result.entries.map((entry) => entry.playbackIndex)).toEqual([
       2, 0, 1, 2,
     ]);
-    expect(result.progress).toEqual({
-      nextChronologicalPosition: 0,
-      nextRandomSelectionIndex: 7,
+    expect(result.progress).toEqual(afterSelecting("c", 2));
+  });
+
+  it("resumes after the last selection when the order is unchanged", () => {
+    const members = [
+      scheduleMedia("a"),
+      scheduleMedia("b"),
+      scheduleMedia("c"),
+    ];
+
+    const result = generated(
+      generate(chronological(members), {
+        progress: afterSelecting("a", 0),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      mediaItemId: "b",
+      playbackIndex: 1,
     });
   });
 
-  it("takes a stored position modulo a collection that has shrunk", () => {
+  it("resumes after the last selection when a member is inserted before it", () => {
+    // "b" was selected at position 1; an insert moved it to position 2.
+    const members = ["new", "a", "b", "c"].map((id) => scheduleMedia(id));
+
+    const result = generated(
+      generate(chronological(members), {
+        progress: afterSelecting("b", 1),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      mediaItemId: "c",
+      playbackIndex: 3,
+    });
+  });
+
+  it("resumes after the last selection in a reordered collection, not at its old position", () => {
+    // "a" was selected at position 0; position alone would replay "b".
+    const members = ["c", "b", "a", "d"].map((id) => scheduleMedia(id));
+
+    const result = generated(
+      generate(chronological(members), {
+        progress: afterSelecting("a", 0),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      mediaItemId: "d",
+      playbackIndex: 3,
+    });
+  });
+
+  it("falls back to the recorded position when the last selection left the collection", () => {
+    // "b" at position 1 was removed; "c", which followed it, now holds 1.
+    const members = ["a", "c", "d"].map((id) => scheduleMedia(id));
+
+    const result = generated(
+      generate(chronological(members), {
+        progress: afterSelecting("b", 1),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      mediaItemId: "c",
+      playbackIndex: 1,
+    });
+  });
+
+  it("takes the recorded position modulo a collection that has shrunk", () => {
     const members = [scheduleMedia("a"), scheduleMedia("b")];
 
     const result = generated(
       generate(chronological(members), {
-        progress: { nextChronologicalPosition: 5, nextRandomSelectionIndex: 0 },
+        progress: afterSelecting("gone", 5),
         through: STARTS_AT + 60_000,
       }),
     );
@@ -156,13 +234,30 @@ describe("generateScheduleEntries: chronological collections", () => {
     expect(result.entries[0]?.playbackIndex).toBe(1);
   });
 
+  it("skips unschedulable members after the last selection and loops", () => {
+    const members = [
+      scheduleMedia("a"),
+      scheduleMedia("gone", { status: "missing" }),
+      scheduleMedia("c"),
+    ];
+
+    const result = generated(
+      generate(chronological(members), {
+        progress: afterSelecting("a", 0),
+        through: STARTS_AT + 3 * 60_000,
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["c", "a", "c"]);
+  });
+
   it.each([
     ["missing", { status: "missing" }],
     ["probe_failed", { status: "probe_failed" }],
     ["a null duration", { durationMs: null }],
     ["a duration under the floor", { durationMs: 999 }],
   ] as const)(
-    "skips a member with %s and still consumes its position",
+    "skips a member with %s and records the last selection",
     (_label, overrides) => {
       const members = [
         scheduleMedia("a"),
@@ -178,7 +273,7 @@ describe("generateScheduleEntries: chronological collections", () => {
       expect(result.entries.map((entry) => entry.playbackIndex)).toEqual([
         0, 2, 0,
       ]);
-      expect(result.progress.nextChronologicalPosition).toBe(1);
+      expect(result.progress).toEqual(afterSelecting("a", 0));
     },
   );
 
@@ -212,7 +307,54 @@ describe("generateScheduleEntries: chronological collections", () => {
     );
 
     expect(mediaIds(result.entries)).toEqual(["only", "only", "only"]);
-    expect(result.progress.nextChronologicalPosition).toBe(601);
+    expect(result.progress).toEqual(afterSelecting("only", 600));
+  });
+});
+
+describe("generateScheduleEntries: episode order", () => {
+  // Saved order differs from episode order: e3, e1, e2.
+  const members = [
+    scheduleMedia("e3", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 3 }),
+    scheduleMedia("e1", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 1 }),
+    scheduleMedia("e2", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 2 }),
+  ];
+  const episodeSource: ScheduleSource = {
+    kind: "collection",
+    programmingBlockId: "block-1",
+    mediaCollectionId: "collection-1",
+    playbackMode: "episode",
+    members,
+  };
+
+  it("airs the episode order and records each entry's ordered position", () => {
+    const result = generated(
+      generate(episodeSource, { through: STARTS_AT + 4 * 60_000 }),
+    );
+
+    expect(
+      result.entries.map((entry) => [
+        entry.mediaItemId,
+        entry.playbackMode,
+        entry.playbackIndex,
+      ]),
+    ).toEqual([
+      ["e1", "episode", 0],
+      ["e2", "episode", 1],
+      ["e3", "episode", 2],
+      ["e1", "episode", 0],
+    ]);
+    expect(result.progress).toEqual(afterSelecting("e1", 0));
+  });
+
+  it("resumes after the last episode it selected", () => {
+    const result = generated(
+      generate(episodeSource, {
+        progress: afterSelecting("e2", 1),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]?.mediaItemId).toBe("e3");
   });
 });
 
@@ -259,7 +401,7 @@ describe("generateScheduleEntries: random collections", () => {
   it("records the random mode and advances only the selection index", () => {
     const result = generated(
       generate(random(members), {
-        progress: { nextChronologicalPosition: 3, nextRandomSelectionIndex: 5 },
+        progress: atSelectionIndex(5),
         through: STARTS_AT + 2 * 60_000,
       }),
     );
@@ -269,10 +411,7 @@ describe("generateScheduleEntries: random collections", () => {
       playbackMode: "random",
       playbackIndex: 5,
     });
-    expect(result.progress).toEqual({
-      nextChronologicalPosition: 3,
-      nextRandomSelectionIndex: 7,
-    });
+    expect(result.progress).toEqual(atSelectionIndex(7));
   });
 
   it.each([0, 7, 19])(
@@ -282,10 +421,7 @@ describe("generateScheduleEntries: random collections", () => {
 
       const alone = generated(
         generate(random(members), {
-          progress: {
-            nextChronologicalPosition: 0,
-            nextRandomSelectionIndex: index,
-          },
+          progress: atSelectionIndex(index),
           through: STARTS_AT + 60_000,
         }),
       );
@@ -302,16 +438,13 @@ describe("generateScheduleEntries: random collections", () => {
 
     const result = generated(
       generate(random(members), {
-        progress: {
-          nextChronologicalPosition: 0,
-          nextRandomSelectionIndex: index,
-        },
+        progress: atSelectionIndex(index),
         through: STARTS_AT + 60_000,
       }),
     );
 
     expect(result.entries[0]?.playbackIndex).toBe(index);
-    expect(result.progress.nextRandomSelectionIndex).toBe(index + 1);
+    expect(result.progress).toEqual(atSelectionIndex(index + 1));
   });
 
   it("gives two collections on one channel independent sequences", () => {
@@ -362,10 +495,7 @@ describe("generateScheduleEntries: random collections", () => {
 
 describe("generateScheduleEntries: single media items", () => {
   it("loops one item and passes progress through unchanged", () => {
-    const progress = {
-      nextChronologicalPosition: 4,
-      nextRandomSelectionIndex: 9,
-    };
+    const progress = { ...afterSelecting("b", 4), nextSelectionIndex: 9 };
 
     const result = generated(
       generate(singleItem(scheduleMedia("a", { durationMs: 20 * 60_000 })), {
@@ -436,7 +566,7 @@ describe("generateScheduleEntries: bounds and timing", () => {
   it("generates nothing when the window is already covered", () => {
     const result = generated(
       generate(chronological([scheduleMedia("a")]), {
-        progress: { nextChronologicalPosition: 3, nextRandomSelectionIndex: 0 },
+        progress: afterSelecting("a", 3),
         nextSequenceNumber: 12,
         through: STARTS_AT,
       }),
@@ -445,7 +575,7 @@ describe("generateScheduleEntries: bounds and timing", () => {
     expect(result).toEqual({
       kind: "generated",
       entries: [],
-      progress: { nextChronologicalPosition: 3, nextRandomSelectionIndex: 0 },
+      progress: afterSelecting("a", 3),
       nextSequenceNumber: 12,
       generatedThrough: STARTS_AT,
     });
@@ -504,7 +634,7 @@ describe("generateScheduleEntries: bounds and timing", () => {
       scheduleMedia("c", { durationMs: 2_400_000 }),
     ]);
     const options = {
-      progress: { nextChronologicalPosition: 1, nextRandomSelectionIndex: 0 },
+      progress: afterSelecting("a", 0),
       through: STARTS_AT + 24 * HOUR_MS,
     };
 

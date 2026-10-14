@@ -64,13 +64,20 @@ export const scheduleEntryFixture: Insertable<ScheduleEntryTable> = {
   updated_at: FIXTURE_TIME,
 };
 
-/** The fixture channel's progress through the fixture collection. */
+/**
+ * The fixture channel's chronological progress through the fixture
+ * collection, after the fixture entry selected the fixture item.
+ */
 export const collectionProgressFixture: Insertable<ChannelCollectionProgressTable> =
   {
     channel_id: channelFixture.id,
     media_collection_id: collectionFixture.id,
-    next_chronological_position: 1,
-    next_random_selection_index: 0,
+    playback_mode: "chronological",
+    last_media_item_id: itemFixture.id,
+    last_position: 0,
+    next_selection_index: 0,
+    reset_sequence_number: null,
+    order_fingerprint: null,
     updated_at: FIXTURE_TIME,
   };
 

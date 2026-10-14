@@ -4,6 +4,8 @@ import {
   deriveChannelSeed,
   findRegenerationBoundary,
   generateScheduleEntries,
+  NO_PROGRESS,
+  orderFingerprint,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -17,6 +19,7 @@ import {
 import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
   AdmissionFailure,
+  BlockPreview,
   ChannelAdmission,
   ChannelChunk,
   ChunkResult,
@@ -45,10 +48,12 @@ import {
   insertEntries,
   listEnabledChannelIds,
   listEntriesInWindow,
+  listUpcomingBlockEntries,
+  loadBlockSource,
   loadProgress,
   loadScheduleSource,
   loadScheduleState,
-  NO_PROGRESS,
+  recordOrderFingerprint,
   restoreDeletedProgress,
   updateScheduleState,
   upsertProgress,
@@ -65,11 +70,17 @@ interface ScheduleServiceOptions extends RecordSources {
 // under SQLite's bound-variable limit.
 const ENTRIES_PER_TRANSACTION = 500;
 
+// How many upcoming selections a block preview shows.
+const PREVIEW_UPCOMING_ENTRIES = 10;
+
 /**
  * The only writer of schedule entries, schedule state, and collection
  * progress, apart from catalog purge, which deletes only entries that have
- * ended. Every mutation runs in an immediate transaction and reads its
- * effective current time only after acquiring write authority.
+ * ended, and two input changes this service runs in its own transaction:
+ * the maintenance pass's ordering change, which records an order
+ * fingerprint, and a progress reset. Every mutation runs in an immediate
+ * transaction and reads its effective current time only after acquiring
+ * write authority.
  */
 export class ScheduleService {
   readonly #db: Kysely<DatabaseSchema>;
@@ -194,6 +205,33 @@ export class ScheduleService {
       return {
         scheduleRevision: state?.scheduleRevision ?? null,
         entries: await listEntriesInWindow(trx, channelId, start, end),
+      };
+    });
+  }
+
+  /**
+   * Reads what a block's preview explains, in one deferred snapshot so the
+   * members and the upcoming entries come from the same schedule: the
+   * block's source with its members, and its next entries from the current
+   * time. Never generates or writes. Returns undefined when the channel has
+   * no such block.
+   */
+  async readBlockPreview(
+    channelId: string,
+    blockId: string,
+  ): Promise<BlockPreview | undefined> {
+    return this.#db.transaction().execute(async (trx) => {
+      const source = await loadBlockSource(trx, channelId, blockId);
+      if (source === undefined) return undefined;
+      return {
+        source,
+        upcoming: await listUpcomingBlockEntries(
+          trx,
+          channelId,
+          blockId,
+          this.#now(),
+          PREVIEW_UPCOMING_ENTRIES,
+        ),
       };
     });
   }
@@ -415,6 +453,7 @@ export class ScheduleService {
             seed: state.seed,
             startsAt: boundary,
             nextSequenceNumber: state.nextSequenceNumber,
+            recordsOrder: true,
           },
           target,
           effectiveNow,
@@ -517,6 +556,7 @@ export class ScheduleService {
         seed,
         startsAt: state?.lastGeneratedThrough ?? anchorTime,
         nextSequenceNumber: state?.nextSequenceNumber ?? 0,
+        recordsOrder: state === undefined,
       },
       target,
       effectiveNow,
@@ -543,8 +583,10 @@ export class ScheduleService {
 
   /**
    * Generates one bounded chunk toward `target` from the channel's block and
-   * commits its entries and collection progress. Leaves schedule state to
-   * the caller, which alone knows whether the revision advances.
+   * commits its entries and collection progress, and, when the chunk starts
+   * what the schedule will air, the order a metadata mode followed. Leaves
+   * schedule state to the caller, which alone knows whether the revision
+   * advances.
    */
   async #writeChunk(
     trx: Kysely<DatabaseSchema>,
@@ -562,7 +604,12 @@ export class ScheduleService {
       source,
       progress:
         source.kind === "collection"
-          ? await loadProgress(trx, channelId, source.mediaCollectionId)
+          ? await loadProgress(
+              trx,
+              channelId,
+              source.mediaCollectionId,
+              source.playbackMode,
+            )
           : NO_PROGRESS, // single items carry no collection progress
       startsAt: start.startsAt,
       through: target,
@@ -585,9 +632,23 @@ export class ScheduleService {
         trx,
         channelId,
         source.mediaCollectionId,
+        source.playbackMode,
         generated.progress,
         effectiveNow,
       );
+      const fingerprint = start.recordsOrder
+        ? orderFingerprint(source.members, source.playbackMode)
+        : null;
+      if (fingerprint !== null) {
+        await recordOrderFingerprint(
+          trx,
+          channelId,
+          source.mediaCollectionId,
+          source.playbackMode,
+          fingerprint,
+          effectiveNow,
+        );
+      }
     }
     return {
       kind: "written",

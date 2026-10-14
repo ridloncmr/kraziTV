@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "@krazitv/krazi-brain";
+import type { PlaybackMode, ScheduleSource } from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
@@ -19,6 +19,8 @@ export type ScheduleChangeReason =
   | "membership_changed"
   | "media_removed"
   | "collection_maintained"
+  | "ordering_changed"
+  | "progress_reset"
   | "manual";
 
 /**
@@ -91,6 +93,13 @@ export interface ChunkStart {
   seed: number;
   startsAt: number;
   nextSequenceNumber: number;
+  /**
+   * Whether every future entry is generated from this chunk on, as after a
+   * regeneration or for a first schedule, so the order it uses is the one
+   * the schedule follows. An extension appends to entries an older order
+   * may have produced, so it never records one.
+   */
+  recordsOrder: boolean;
 }
 
 /** Entries and progress one chunk wrote, before the caller records state. */
@@ -149,4 +158,10 @@ export interface ScheduleEntry {
 export interface ScheduleWindow {
   scheduleRevision: number | null;
   entries: ScheduleEntry[];
+}
+
+/** What a block preview explains: the block's source and its next entries. */
+export interface BlockPreview {
+  source: ScheduleSource;
+  upcoming: ScheduleEntry[];
 }

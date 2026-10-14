@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -189,6 +190,268 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
   expect(screen.getByLabelText<HTMLSelectElement>("Playback mode").value).toBe(
     "random",
   );
+});
+
+it.each([
+  ["episode", /Plays by series, season, and episode/],
+  ["release", /Plays by release or air date/],
+])(
+  "saves %s order, explains it, and shows it when reopened",
+  async (playbackMode, hint) => {
+    const api = new BrowserApi();
+    const blockWith = (mode: string) => ({
+      id: "block",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: mode,
+      },
+    });
+    api.reply("/channels/one/programming-blocks", [blockWith("chronological")]);
+    api.reply("/media-collections", adminFixtures.collections);
+    api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
+    api.handle(
+      "/channels/one/programming-blocks/block",
+      () => {
+        api.reply("/channels/one/programming-blocks", [
+          blockWith(playbackMode),
+        ]);
+        return api.response(blockWith(playbackMode));
+      },
+      "PATCH",
+    );
+    vi.stubGlobal("fetch", api.fetch);
+    const view = render(
+      createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText<HTMLSelectElement>("Programming source").value,
+      ).toBe("favorites"),
+    );
+    expect(
+      within(screen.getByLabelText("Playback mode"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Collection order", "Episode order", "Release order", "Random"]);
+
+    fireEvent.change(screen.getByLabelText("Playback mode"), {
+      target: { value: playbackMode },
+    });
+    const hintId = screen
+      .getByLabelText("Playback mode")
+      .getAttribute("aria-describedby");
+    expect(document.getElementById(hintId!)?.textContent).toMatch(hint);
+    fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
+    await screen.findByText(/revision 2/);
+    view.unmount();
+    render(
+      createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+    );
+
+    expect(
+      api.requests.find((request) => request.method === "PATCH")?.body,
+    ).toEqual({
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode,
+      },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText<HTMLSelectElement>("Playback mode").value,
+      ).toBe(playbackMode),
+    );
+  },
+);
+
+it("refreshes the order preview when the playback mode changes", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-blocks", [
+    {
+      id: "block",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: "chronological",
+      },
+    },
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  const member = (title: string, flags: Record<string, boolean> = {}) => ({
+    mediaItemId: title,
+    title,
+    seriesName: "The Office",
+    seasonNumber: 1,
+    episodeNumber: title === "Pilot" ? 1 : 2,
+    releaseDate: null,
+    unresolved: false,
+    startsSeriesGroup: false,
+    duplicateEpisode: false,
+    ...flags,
+  });
+  // The server answers each mode with its own order, as the route does.
+  api.handle("/channels/one/programming-blocks/block/preview", (request) => {
+    const playbackMode = request.query.get("playbackMode");
+    return api.response({
+      playbackMode,
+      ordered:
+        playbackMode === "random"
+          ? null
+          : playbackMode === "episode"
+            ? [
+                member("Pilot", { startsSeriesGroup: true }),
+                member("Diversity Day"),
+              ]
+            : [member("Diversity Day"), member("Pilot")],
+      upcoming:
+        playbackMode === "chronological"
+          ? [
+              {
+                id: "entry-1",
+                mediaItemId: "Diversity Day",
+                title: "Diversity Day",
+                startsAt: "2026-10-14T20:00:00.000Z",
+                endsAt: "2026-10-14T20:22:00.000Z",
+              },
+            ]
+          : null,
+    });
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const playOrder = async () =>
+    within(await screen.findByRole("list", { name: "Play order" }))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  await waitFor(async () =>
+    expect(await playOrder()).toEqual([
+      expect.stringContaining("Diversity Day"),
+      expect.stringContaining("Pilot"),
+    ]),
+  );
+  expect(
+    screen.getByRole("list", { name: "Upcoming selections" }).textContent,
+  ).toContain("Diversity Day");
+
+  fireEvent.change(screen.getByLabelText("Playback mode"), {
+    target: { value: "episode" },
+  });
+
+  await waitFor(async () =>
+    expect(await playOrder()).toEqual([
+      expect.stringContaining("The Office: Pilot"),
+      expect.stringContaining("Diversity Day"),
+    ]),
+  );
+  screen.getByText("Save this mode to see its upcoming selections.");
+
+  fireEvent.change(screen.getByLabelText("Playback mode"), {
+    target: { value: "random" },
+  });
+
+  await screen.findByText(/Random has no fixed order/);
+  expect(
+    api
+      .requestsTo("/channels/one/programming-blocks/block/preview")
+      .map((request) => request.query.get("playbackMode")),
+  ).toEqual(["chronological", "episode", "random"]);
+});
+
+it("confirms a progress reset in a dialog naming shared blocks; cancel sends nothing", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-blocks", [
+    {
+      id: "block",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: "episode",
+      },
+    },
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 3, entries: [] });
+  const upcoming = (title: string) => ({
+    playbackMode: "episode",
+    ordered: [],
+    upcoming: [
+      {
+        id: `entry-${title}`,
+        mediaItemId: title,
+        title,
+        startsAt: "2026-10-14T20:00:00.000Z",
+        endsAt: "2026-10-14T20:22:00.000Z",
+      },
+    ],
+  });
+  api.reply(
+    "/channels/one/programming-blocks/block/preview",
+    upcoming("Mid-season"),
+  );
+  api.handle(
+    "/channels/one/programming-blocks/block/progress-reset",
+    () => {
+      api.reply(
+        "/channels/one/programming-blocks/block/preview",
+        upcoming("Pilot"),
+      );
+      return api.response(undefined, 204);
+    },
+    "POST",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const restart = await screen.findByRole("button", {
+    name: "Restart from the beginning…",
+  });
+
+  fireEvent.click(restart);
+  const dialog = await screen.findByRole("dialog", {
+    name: "Restart from the beginning",
+  });
+  expect(
+    within(
+      within(dialog).getByRole("list", {
+        name: "Blocks sharing this progress",
+      }),
+    )
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["Programming block 1"]);
+  expect(dialog.textContent).toMatch(
+    /every later schedule entry is regenerated/,
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
+  ).toEqual([]);
+
+  fireEvent.click(restart);
+  fireEvent.click(
+    within(await screen.findByRole("dialog")).getByRole("button", {
+      name: "Restart progress",
+    }),
+  );
+
+  // The pre-reset list must never stand in for the regenerated one.
+  const dialogText = () => screen.getByRole("dialog").textContent;
+  await screen.findByText(/restarts in episode order/);
+  expect(dialogText()).not.toContain("Mid-season");
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("dialog")).getByRole("list", {
+        name: "Upcoming selections",
+      }).textContent,
+    ).toContain("Pilot"),
+  );
+  expect(
+    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
+  ).toHaveLength(1);
 });
 
 it("keeps a rejected create in its dialog, then selects the created channel", async () => {

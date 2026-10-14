@@ -205,6 +205,15 @@
       "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     },
     {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/005-schedules.ts",
+        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts"
+      ],
+      "reason": "Migration 018 rebuilds the progress table 005 created, and its down step recreates 005's shape, so it declares the same columns, checks, and safe-integer helper; each migration keeps its own DDL so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
       "rule": "grouping",
       "files": ["apps/server/src/media-collections/persistence/"],
       "reason": "Every file serves one capability, collection persistence: the repository, row inserts and conversion, membership replacement, criterion labels, and the channels-using-collection read.",
