@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+// The one derivation kraziBrain uses, imported rather than copied: 021
+// only backfills states that exist when it runs, so replaying it on a fresh
+// database writes no seed, and a copy here would be a cross-package copy.
 import { deriveProgrammingSeed } from "@krazitv/krazi-brain";
 import { type Kysely, type RawBuilder, sql } from "kysely";
 import type { Migration } from "kysely/migration";

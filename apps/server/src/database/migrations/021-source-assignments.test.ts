@@ -308,6 +308,30 @@ describe("021_source_assignments", () => {
     ).rejects.toThrow(/UNIQUE/);
   });
 
+  it("rolls back to one configured block per channel before any later turn", async () => {
+    const db = await legacyLoops();
+    const blocksBefore = await db
+      .selectFrom("programming_blocks")
+      .selectAll()
+      .orderBy("id")
+      .execute();
+    const legacy = db as Kysely<unknown>;
+    await sourceAssignmentsMigration.up(legacy);
+
+    await sourceAssignmentsMigration.down?.(legacy);
+
+    await expect(
+      db.selectFrom("programming_blocks").selectAll().orderBy("id").execute(),
+    ).resolves.toEqual(blocksBefore);
+    const { rows } = await sql<{
+      name: string;
+    }>`select name from sqlite_master where type = 'table'
+      and name in ('programming_source_assignments', 'programming_assignment_members', 'channel_programming_settings')`.execute(
+      db,
+    );
+    expect(rows).toEqual([]);
+  });
+
   it("refuses to roll back while a channel holds several blocks", async () => {
     const db = await legacyLoops();
     await sourceAssignmentsMigration.up(db as Kysely<unknown>);

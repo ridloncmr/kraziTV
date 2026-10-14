@@ -24,7 +24,8 @@ import { toSignalLogger } from "../src/channels/runtime/signal-log.js";
 import { PlayoutService } from "../src/playout/playout-service.js";
 import { ScheduleService } from "../src/schedules/schedule-service.js";
 import { send } from "../src/testing/api-requests.js";
-import { programmingBlockFixture } from "../src/testing/channel-fixtures.js";
+import { itemAssignment } from "../src/testing/assignment-bodies.js";
+import { assignmentFixture } from "../src/testing/channel-fixtures.js";
 import {
   decodedVideoMs,
   ffmpegPath,
@@ -286,8 +287,8 @@ describe("real FFmpeg channel stream", () => {
       const replaced = await send(
         server,
         "PATCH",
-        `/channels/${CHANNEL_ID}/programming-blocks/${programmingBlockFixture.id}`,
-        { source: { kind: "media_item", mediaItemId: "item-003" } },
+        `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`,
+        itemAssignment("item-003"),
       );
       await sleepUntil(first.ends_at + 3_000);
 

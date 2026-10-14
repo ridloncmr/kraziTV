@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import type { StretchSetting } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -9,6 +8,7 @@ import type { ProgrammingSourceAssignmentTable } from "../database/schema/progra
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { collectionExists } from "../media-collections/persistence/media-collection-repository.js";
 import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
+import { toOrdinaryStretch } from "../schedules/persistence/assignment-sources.js";
 import type {
   AssignmentSettings,
   CreateAssignmentResult,
@@ -218,24 +218,6 @@ export class AssignmentRepository {
       ? { kind: "deleted" }
       : { kind: "not_found" };
   }
-}
-
-/**
- * Reads an assignment's ordinary stretch from its columns. The only
- * decoder of stored stretches, so every reader agrees on what a valid row
- * is; only program counts are written so far, so any other kind is
- * corruption.
- */
-export function toOrdinaryStretch(
-  row: Pick<
-    ProgrammingSourceAssignmentTable,
-    "id" | "ordinary_kind" | "ordinary_min"
-  >,
-): StretchSetting {
-  if (row.ordinary_kind !== "programs") {
-    throw new Error(`Assignment ${row.id} has an unsupported stretch`);
-  }
-  return { kind: "programs", count: row.ordinary_min };
 }
 
 // Inserts an assignment's members in saved order, replacing none.

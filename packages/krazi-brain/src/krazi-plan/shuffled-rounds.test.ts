@@ -9,6 +9,7 @@ import {
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "../schedule/contracts.js";
 import type { GeneratedBlock, ProgrammingAssignment } from "./contracts.js";
+import { isUsableAssignment } from "./rotation.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
@@ -243,5 +244,21 @@ describe("generateProgramming: unusable assignments", () => {
         ]),
       ),
     ).toEqual({ kind: "unschedulable", reason: "no_schedulable_media" });
+  });
+});
+
+describe("isUsableAssignment", () => {
+  it("is true while any member is schedulable, false once none is", () => {
+    expect(isUsableAssignment(FOUR[0])).toBe(true);
+    expect(
+      isUsableAssignment(collectionAssignment("empty", "c-empty", [])),
+    ).toBe(false);
+    expect(
+      isUsableAssignment(
+        collectionAssignment("gone", "c-gone", [
+          scheduleMedia("x", { status: "missing" }),
+        ]),
+      ),
+    ).toBe(false);
   });
 });

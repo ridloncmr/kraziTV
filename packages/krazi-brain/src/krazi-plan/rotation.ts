@@ -191,6 +191,15 @@ function avoidRepeat(
 }
 
 /**
+ * Whether an assignment can take a turn: some member is schedulable. The
+ * one usability rule, so callers outside kraziPlan, such as catalog
+ * removal's warning, ask it rather than restate it.
+ */
+export function isUsableAssignment(assignment: ProgrammingAssignment): boolean {
+  return unusableReasons(assignment) === undefined;
+}
+
+/**
  * Returns why an assignment cannot take a turn, one reason per member in
  * saved member order, or undefined when some member is schedulable.
  */

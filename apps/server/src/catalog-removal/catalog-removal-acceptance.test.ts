@@ -9,6 +9,8 @@ import { captureLogLines } from "../testing/captured-log-lines.js";
 import { FIXTURE_TIME, itemFixtureAt } from "../testing/catalog-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import {
+  insertCollectionAssignment,
+  insertCollectionOfItems,
   insertScheduleEntries,
   insertScheduleState,
   readOnlyScheduleState,
@@ -407,6 +409,24 @@ describe("catalog removal preview", () => {
 
     const preview = await send(server, "POST", "/catalog-removals/preview", {
       target: { mediaItemIds },
+    });
+
+    expect(preview).toMatchObject({
+      status: 200,
+      body: { channelsLeftUnschedulable: [] },
+    });
+  });
+
+  it("never lists a channel another of its assignments keeps on the air", async () => {
+    const { server, db } = await startScheduleScenarioServer();
+    await insertCollectionOfItems(db, "other", [30 * MINUTE]);
+    await insertCollectionAssignment(db, {
+      id: "assignment-other",
+      mediaCollectionId: "other",
+    });
+
+    const preview = await send(server, "POST", "/catalog-removals/preview", {
+      target: { mediaItemIds: [A, B, C] },
     });
 
     expect(preview).toMatchObject({

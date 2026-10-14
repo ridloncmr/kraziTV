@@ -3,12 +3,14 @@ import type {
   PlaybackMode,
   ProgrammingAssignment,
   ScheduleMedia,
+  StretchSetting,
 } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaItemStatus } from "../../database/schema/media-item-table.js";
 import type { ProgrammingAssignmentMemberTable } from "../../database/schema/programming-assignment-member-table.js";
+import type { ProgrammingSourceAssignmentTable } from "../../database/schema/programming-source-assignment-table.js";
 import {
   effectiveContentIdentity,
   effectiveMetadata,
@@ -16,7 +18,6 @@ import {
   type MetadataColumns,
 } from "../../media-items/effective-metadata.js";
 import { selectWithMetadata } from "../../media-items/media-item-repository.js";
-import { toOrdinaryStretch } from "../../programming-assignments/assignment-repository.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -123,6 +124,24 @@ async function resolveMember(
     .where("media_items.id", "=", member.media_item_id)
     .executeTakeFirstOrThrow();
   return { kind: "media_item", media: toScheduleMedia(item) };
+}
+
+/**
+ * Reads an assignment's ordinary stretch from its columns. The only
+ * decoder of stored stretches, so every reader agrees on what a valid row
+ * is; only program counts are written so far, so any other kind is
+ * corruption.
+ */
+export function toOrdinaryStretch(
+  row: Pick<
+    ProgrammingSourceAssignmentTable,
+    "id" | "ordinary_kind" | "ordinary_min"
+  >,
+): StretchSetting {
+  if (row.ordinary_kind !== "programs") {
+    throw new Error(`Assignment ${row.id} has an unsupported stretch`);
+  }
+  return { kind: "programs", count: row.ordinary_min };
 }
 
 // Starts a read of the item columns and metadata a ScheduleMedia needs,
