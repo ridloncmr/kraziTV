@@ -474,6 +474,8 @@ export class ScheduleService {
           channelId,
           {
             seed: state.seed,
+            programmingSeed: state.programmingSeed,
+            rebuildCount: state.rebuildCount,
             startsAt: boundary,
             nextSequenceNumber: state.nextSequenceNumber,
             recordsOrder: true,
@@ -574,11 +576,14 @@ export class ScheduleService {
     const seed = state?.seed ?? deriveChannelSeed(channelId, anchorTime);
     const programmingSeed =
       state?.programmingSeed ?? deriveProgrammingSeed(channelId, anchorTime);
+    const rebuildCount = state?.rebuildCount ?? 0;
     const written = await this.#writeChunk(
       trx,
       channelId,
       {
         seed,
+        programmingSeed,
+        rebuildCount,
         startsAt: state?.lastGeneratedThrough ?? anchorTime,
         nextSequenceNumber: state?.nextSequenceNumber ?? 0,
         recordsOrder: state === undefined,
@@ -596,7 +601,7 @@ export class ScheduleService {
       nextSequenceNumber: written.nextSequenceNumber,
       scheduleRevision: (state?.scheduleRevision ?? 0) + 1,
       programmingSeed,
-      rebuildCount: state?.rebuildCount ?? 0,
+      rebuildCount,
       updatedAt: effectiveNow,
     };
     await (state === undefined
@@ -627,6 +632,8 @@ export class ScheduleService {
     const collections = assignedCollections(assignments);
     const generated = generateProgramming({
       channelSeed: start.seed,
+      programmingSeed: start.programmingSeed,
+      rebuildCount: start.rebuildCount,
       assignments,
       latestTurn: await loadLatestTurn(trx, channelId),
       progress: await loadProgress(trx, channelId, collections),

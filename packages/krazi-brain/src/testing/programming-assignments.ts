@@ -50,9 +50,9 @@ export function itemAssignment(
 }
 
 /** Returns block IDs `block-1`, `block-2`, ... so tests can name them. */
-export function sequentialBlockIds(): () => string {
+export function sequentialBlockIds(prefix = "block"): () => string {
   let next = 0;
-  return () => `block-${(next += 1)}`;
+  return () => `${prefix}-${(next += 1)}`;
 }
 
 /** Everything a run of generation wrote, as the server would hold it. */
@@ -109,6 +109,12 @@ export function generateInChunks(
     }
     startsAt = result.generatedThrough;
     if (startsAt >= options.through || result.entries.length === 0) {
+      // Rows have no order in storage; key order keeps runs comparable.
+      persisted.progress.sort((a, b) =>
+        progressKey(a.mediaCollectionId, a.playbackMode).localeCompare(
+          progressKey(b.mediaCollectionId, b.playbackMode),
+        ),
+      );
       return persisted;
     }
   }

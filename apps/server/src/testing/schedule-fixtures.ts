@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import {
   collectionFixture,
   itemFixture,
+  titledItemFixture,
   rootFixture,
 } from "./catalog-fixtures.js";
 import {
@@ -164,6 +165,45 @@ export async function insertCollectionAssignment(
         assignmentMemberFixture.media_collection_id,
     })
     .execute();
+}
+
+/**
+ * Inserts a collection `id` of available items `<id>-1`, `<id>-2`, ... with
+ * the given durations, in that saved order, titled by their IDs, so a
+ * multi-source test can tell every source's airings apart. Insert the
+ * fixture root first.
+ */
+export async function insertCollectionOfItems(
+  db: Kysely<DatabaseSchema>,
+  id: string,
+  durationsMs: readonly number[],
+): Promise<string[]> {
+  const itemIds = durationsMs.map((_, index) => `${id}-${index + 1}`);
+  await db
+    .insertInto("media_collections")
+    .values({ ...collectionFixture, id, name: id })
+    .execute();
+  if (itemIds.length === 0) return itemIds;
+  await db
+    .insertInto("media_items")
+    .values(
+      itemIds.map((itemId, index) =>
+        titledItemFixture(itemId, { duration_ms: durationsMs[index] ?? null }),
+      ),
+    )
+    .execute();
+  await db
+    .insertInto("media_collection_items")
+    .values(
+      itemIds.map((mediaItemId, position) => ({
+        media_collection_id: id,
+        media_item_id: mediaItemId,
+        position,
+        created_at: itemFixture.created_at,
+      })),
+    )
+    .execute();
+  return itemIds;
 }
 
 export interface ScheduleEntrySpec {

@@ -20,10 +20,7 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../testing/test-environment.js";
-import {
-  collectionAssignment,
-  itemAssignment,
-} from "../testing/assignment-bodies.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -175,7 +172,7 @@ describe("schedule generation acceptance", () => {
       reason: "no_programming_assignment",
     });
 
-    // One chronological assignment; a second is rejected until rotation arrives.
+    // One chronological assignment.
     const assignment = await send(
       first.server,
       "POST",
@@ -184,16 +181,6 @@ describe("schedule generation acceptance", () => {
     );
     expect(assignment.status).toBe(201);
     const assignmentUrl = `${assignmentsUrl}/${assignment.body.id}`;
-    expect(
-      (
-        await send(
-          first.server,
-          "POST",
-          assignmentsUrl,
-          itemAssignment("pilot"),
-        )
-      ).status,
-    ).toBe(409);
 
     // Materialized entries follow collection order, back to back, in
     // integer milliseconds, with at least a full horizon persisted.

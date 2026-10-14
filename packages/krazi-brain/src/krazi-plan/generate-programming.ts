@@ -9,6 +9,7 @@ import { generateScheduleEntries } from "../schedule/generate-schedule-entries.j
 import { progressKey } from "../schedule/regeneration.js";
 import { findUnschedulableReason } from "../schedule/schedule-policy.js";
 import type {
+  AssignmentSkip,
   BlockSource,
   GeneratedBlock,
   LatestTurn,
@@ -22,9 +23,10 @@ import {
   FIRST_CHECKPOINT,
   memberSource,
 } from "./rotation.js";
+import type { DecisionSeed } from "./programming-decisions.js";
 import { resolveSize, turnSize } from "./turn-size.js";
 
-export interface GenerateProgrammingOptions {
+export interface GenerateProgrammingOptions extends DecisionSeed {
   /** The channel's persisted seed; collection random playback derives from it. */
   channelSeed: number;
   /** The channel's assignments in saved assignment order. */
@@ -52,6 +54,8 @@ type ProgrammingResult =
       entries: GeneratedScheduleEntry[];
       /** Progress for each collection and mode this call advanced. */
       progress: CollectionProgress[];
+      /** Assignments the call's rounds passed over, for explaining them. */
+      skips: AssignmentSkip[];
       nextSequenceNumber: number;
       /** The end of the last entry, or `startsAt` when none was generated. */
       generatedThrough: number;
@@ -87,6 +91,7 @@ export function generateProgramming(
   const advanced = new Set<string>();
   const blocks: GeneratedBlock[] = [];
   const entries: GeneratedScheduleEntry[] = [];
+  const skips: AssignmentSkip[] = [];
   let state =
     latestTurn === undefined
       ? FIRST_CHECKPOINT
@@ -98,7 +103,12 @@ export function generateProgramming(
 
   while (startsAt < through && entries.length < maxEntries) {
     if (open === undefined) {
-      const turn = chooseTurn(state, assignments);
+      const { chosen: turn, skips: skipped } = chooseTurn(
+        state,
+        assignments,
+        options,
+      );
+      skips.push(...skipped);
       if (turn === undefined) {
         // Usability is fixed within one call, so only a first choice fails.
         if (entries.length > 0) break;
@@ -165,6 +175,7 @@ export function generateProgramming(
     blocks,
     entries,
     progress: [...advanced].flatMap((key) => progress.get(key) ?? []),
+    skips,
     nextSequenceNumber: sequenceNumber,
     generatedThrough: startsAt,
   };

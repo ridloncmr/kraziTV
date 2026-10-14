@@ -197,21 +197,129 @@ describe("programming assignment routes", () => {
     });
   });
 
-  it("rejects a second assignment for a channel", async () => {
+  it("adds further assignments after the first, in saved order", async () => {
     const { server } = await startServer();
     await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
 
-    const response = await send(
+    const second = await send(
       server,
       "POST",
       ASSIGNMENTS_URL,
       itemAssignment(ITEM_ID),
     );
 
-    expect(response).toMatchObject({
-      status: 409,
-      body: { error: { code: "programming_assignment_limit_reached" } },
+    expect(second.status).toBe(201);
+    const listed = await send(server, "GET", ASSIGNMENTS_URL);
+    expect(listed.body.map((entry: { id: string }) => entry.id)).toEqual([
+      "assignment-001",
+      "assignment-002",
+    ]);
+  });
+
+  it("refuses a member another assignment on the channel already plays", async () => {
+    const { server, db } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
+
+    const created = await send(
+      server,
+      "POST",
+      ASSIGNMENTS_URL,
+      collectionAssignment(COLLECTION_ID, "random"),
+    );
+    const changed = await send(
+      server,
+      "PATCH",
+      `${ASSIGNMENTS_URL}/assignment-002`,
+      collectionBody,
+    );
+
+    for (const response of [created, changed]) {
+      expect(response).toMatchObject({
+        status: 409,
+        body: {
+          error: {
+            code: "programming_member_assigned",
+            assignmentId: "assignment-001",
+            member: { kind: "collection", mediaCollectionId: COLLECTION_ID },
+          },
+        },
+      });
+    }
+    await expect(
+      db.selectFrom("programming_source_assignments").select("id").execute(),
+    ).resolves.toHaveLength(2);
+  });
+
+  it("saves a new assignment order and refuses one that does not name each assignment once", async () => {
+    const { server } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
+    const ORDER_URL = `${ASSIGNMENTS_URL}/order`;
+
+    const reordered = await send(server, "PUT", ORDER_URL, {
+      assignmentIds: ["assignment-002", "assignment-001"],
     });
+
+    expect(reordered.status).toBe(200);
+    const listed = await send(server, "GET", ASSIGNMENTS_URL);
+    expect(listed.body.map((entry: { id: string }) => entry.id)).toEqual([
+      "assignment-002",
+      "assignment-001",
+    ]);
+    for (const assignmentIds of [
+      ["assignment-001"],
+      ["assignment-001", "assignment-001"],
+      ["assignment-001", "assignment-002", "missing"],
+    ]) {
+      await expect(
+        send(server, "PUT", ORDER_URL, { assignmentIds }),
+      ).resolves.toMatchObject({
+        status: 409,
+        body: {
+          error: {
+            code: "programming_assignment_order_mismatch",
+            assignmentIds: ["assignment-002", "assignment-001"],
+          },
+        },
+      });
+    }
+    await expect(
+      send(server, "PUT", "/channels/missing/programming-assignments/order", {
+        assignmentIds: [],
+      }),
+    ).resolves.toMatchObject({
+      status: 404,
+      body: { error: { code: "channel_not_found" } },
+    });
+  });
+
+  it("rotates several assignments, keeping the airing entry when the order changes", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
+    clock.set(T0 + 30 * 60_000);
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+    const airing = before.find(
+      (entry) => entry.starts_at <= clock.now() && entry.ends_at > clock.now(),
+    );
+
+    await send(server, "PUT", `${ASSIGNMENTS_URL}/order`, {
+      assignmentIds: ["assignment-002", "assignment-001"],
+    });
+
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(after).toContainEqual(airing);
+    const blocks = await db
+      .selectFrom("programming_blocks")
+      .select("assignment_id")
+      .orderBy("starts_at")
+      .execute();
+    for (let index = 1; index < blocks.length; index += 1) {
+      expect(blocks[index]?.assignment_id).not.toBe(
+        blocks[index - 1]?.assignment_id,
+      );
+    }
   });
 
   it("materializes the horizon at revision 1 on an enabled channel", async () => {

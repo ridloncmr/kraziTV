@@ -1,4 +1,8 @@
-import type { PlaybackMode, ScheduleMedia } from "../schedule/contracts.js";
+import type {
+  PlaybackMode,
+  ScheduleMedia,
+  UnschedulableReason,
+} from "../schedule/contracts.js";
 
 /**
  * How long one turn of an assignment runs (programming spec 0004): a fixed
@@ -92,6 +96,14 @@ export interface LatestTurn {
   block: GeneratedBlock;
   airedPrograms: number;
   airedMs: number;
+}
+
+/** An assignment a round passed over, and why each of its members cannot air. */
+export interface AssignmentSkip {
+  assignmentId: string;
+  roundNumber: number;
+  /** One per member, in saved member order. */
+  reasons: UnschedulableReason[];
 }
 
 /** Why a channel's programming can produce no entry. */

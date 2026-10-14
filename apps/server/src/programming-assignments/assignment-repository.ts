@@ -13,7 +13,9 @@ import type {
   AssignmentSettings,
   CreateAssignmentResult,
   DeleteAssignmentResult,
+  MemberAssignedResult,
   MemberSource,
+  ReorderAssignmentsResult,
   SourceAssignment,
   UnknownMemberResult,
   UpdateAssignmentResult,
@@ -58,9 +60,9 @@ export class AssignmentRepository {
   }
 
   /**
-   * Adds an assignment after the channel's others. A channel holds one
-   * assignment until rotation across several arrives; the check shares the
-   * write's immediate transaction, so no concurrent create can race it.
+   * Adds an assignment after the channel's others in saved order. A member
+   * another assignment on the channel plays is refused; the check shares the
+   * write's immediate transaction, so no concurrent write can race it.
    */
   async create(
     trx: Executor,
@@ -74,21 +76,22 @@ export class AssignmentRepository {
       .where("id", "=", channelId)
       .executeTakeFirst();
     if (channel === undefined) return { kind: "channel_not_found" };
-    const unknown = await findUnknownMember(trx, settings.members);
-    if (unknown !== undefined) return unknown;
-    const existing = await trx
+    const refused =
+      (await findUnknownMember(trx, settings.members)) ??
+      (await findMemberAssigned(trx, channelId, settings.members));
+    if (refused !== undefined) return refused;
+    const last = await trx
       .selectFrom("programming_source_assignments")
-      .select("id")
+      .select((eb) => eb.fn.max("assignment_order").as("order"))
       .where("channel_id", "=", channelId)
       .executeTakeFirst();
-    if (existing !== undefined) return { kind: "limit_reached" };
 
     const row = await trx
       .insertInto("programming_source_assignments")
       .values({
         id: this.#createId(),
         channel_id: channelId,
-        assignment_order: 0,
+        assignment_order: (last?.order ?? -1) + 1,
         ...toSettingsColumns(settings),
         created_at: now,
         updated_at: now,
@@ -122,8 +125,15 @@ export class AssignmentRepository {
     if (isSameSettings(current, settings)) {
       return { kind: "unchanged", assignment: current };
     }
-    const unknown = await findUnknownMember(trx, settings.members);
-    if (unknown !== undefined) return unknown;
+    const refused =
+      (await findUnknownMember(trx, settings.members)) ??
+      (await findMemberAssigned(
+        trx,
+        channelId,
+        settings.members,
+        assignmentId,
+      ));
+    if (refused !== undefined) return refused;
 
     const row = await trx
       .updateTable("programming_source_assignments")
@@ -137,6 +147,60 @@ export class AssignmentRepository {
       .execute();
     await writeMembers(trx, row, settings.members, now);
     return { kind: "updated", assignment: await readAssignment(trx, row) };
+  }
+
+  /**
+   * Saves a new assignment order for the channel. It affects how future
+   * rounds are formed; the current round's pending turns stand. The same
+   * order writes nothing and reports `unchanged`, so callers can skip
+   * regeneration.
+   */
+  async reorder(
+    trx: Executor,
+    channelId: string,
+    assignmentIds: readonly string[],
+    now: number,
+  ): Promise<ReorderAssignmentsResult> {
+    const channel = await trx
+      .selectFrom("channels")
+      .select("id")
+      .where("id", "=", channelId)
+      .executeTakeFirst();
+    if (channel === undefined) return { kind: "channel_not_found" };
+    const rows = await trx
+      .selectFrom("programming_source_assignments")
+      .selectAll()
+      .where("channel_id", "=", channelId)
+      .orderBy("assignment_order")
+      .orderBy("id")
+      .execute();
+    const current = rows.map((row) => row.id);
+    if (
+      new Set(assignmentIds).size !== assignmentIds.length ||
+      [...assignmentIds].sort().join() !== [...current].sort().join()
+    ) {
+      return { kind: "mismatch", assignmentIds: current };
+    }
+    const changed = assignmentIds.join() !== current.join();
+    if (changed) {
+      for (const [order, id] of assignmentIds.entries()) {
+        await trx
+          .updateTable("programming_source_assignments")
+          .set({ assignment_order: order, updated_at: now })
+          .where("id", "=", id)
+          .execute();
+      }
+    }
+    const assignments: SourceAssignment[] = [];
+    for (const id of assignmentIds) {
+      const row = await trx
+        .selectFrom("programming_source_assignments")
+        .selectAll()
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      assignments.push(await readAssignment(trx, row));
+    }
+    return { kind: changed ? "reordered" : "unchanged", assignments };
   }
 
   /** Removes an assignment and its members; one owned by another channel is not found. */
@@ -268,6 +332,41 @@ function isSameSettings(
       ),
     ]);
   return normalized(current) === normalized(next);
+}
+
+// Reports the first member another assignment on the channel already
+// plays; the per-channel unique indexes remain the final guard.
+async function findMemberAssigned(
+  executor: Executor,
+  channelId: string,
+  members: readonly MemberSource[],
+  exceptAssignmentId?: string,
+): Promise<MemberAssignedResult | undefined> {
+  for (const member of members) {
+    let query = executor
+      .selectFrom("programming_assignment_members")
+      .select("assignment_id")
+      .where("channel_id", "=", channelId)
+      .where(
+        member.kind === "collection" ? "media_collection_id" : "media_item_id",
+        "=",
+        member.kind === "collection"
+          ? member.mediaCollectionId
+          : member.mediaItemId,
+      );
+    if (exceptAssignmentId !== undefined) {
+      query = query.where("assignment_id", "!=", exceptAssignmentId);
+    }
+    const row = await query.executeTakeFirst();
+    if (row !== undefined) {
+      return {
+        kind: "member_assigned",
+        member,
+        assignmentId: row.assignment_id,
+      };
+    }
+  }
+  return undefined;
 }
 
 // Reports the first member the catalog does not hold; the foreign keys remain the final guard.

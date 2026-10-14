@@ -21,6 +21,7 @@ import { assignmentChange } from "./assignment-change.js";
 import type { AssignmentRepository } from "./assignment-repository.js";
 import type {
   CreateAssignmentResult,
+  MemberAssignedResult,
   SourceAssignment,
   UnknownMemberResult,
 } from "./contracts.js";
@@ -68,6 +69,8 @@ const previewQuery = z.strictObject({
 });
 
 const resetBody = z.strictObject({ mediaCollectionId: z.string() });
+
+const orderBody = z.strictObject({ assignmentIds: z.array(z.string()) });
 
 /** Registers programming-assignment HTTP routes; validation and status mapping live only here. */
 export function registerAssignmentRoutes(
@@ -136,7 +139,42 @@ export function registerAssignmentRoutes(
         case "not_found":
           return sendAssignmentNotFound(reply, id, assignmentId);
         default:
-          return sendUnknownMember(reply, result);
+          return sendMemberRefused(reply, result);
+      }
+    },
+  );
+
+  // Saves the order future rounds are formed in; the current round's
+  // pending turns stand, so a reorder grants no assignment another turn.
+  server.put(
+    "/channels/:id/programming-assignments/order",
+    async (request, reply) => {
+      const { id } = idParams.parse(request.params);
+      const body = orderBody.safeParse(request.body);
+      if (!body.success) {
+        return sendInvalidRequest(reply, body.error);
+      }
+      const result = await schedules.applyInputChange(
+        request.log,
+        "assignments_reordered",
+        assignmentChange(id, "reordered", (trx, now) =>
+          assignments.reorder(trx, id, body.data.assignmentIds, now),
+        ),
+      );
+      switch (result.kind) {
+        case "reordered":
+        case "unchanged":
+          return result.assignments.map(toApiAssignment);
+        case "channel_not_found":
+          return sendChannelNotFound(reply, id);
+        default:
+          return sendApiError(
+            reply,
+            409,
+            "programming_assignment_order_mismatch",
+            `The order must name each of channel ${id}'s assignments once`,
+            { assignmentIds: result.assignmentIds },
+          );
       }
     },
   );
@@ -252,8 +290,21 @@ function sendNotAssigned(
   );
 }
 
-// A body's unknown reference is a 400, not a 404: the resource itself exists.
-function sendUnknownMember(reply: FastifyReply, result: UnknownMemberResult) {
+// A body's unknown reference is a 400, not a 404: the resource itself
+// exists. A member another assignment plays is a conflict with it.
+function sendMemberRefused(
+  reply: FastifyReply,
+  result: UnknownMemberResult | MemberAssignedResult,
+) {
+  if (result.kind === "member_assigned") {
+    return sendApiError(
+      reply,
+      409,
+      "programming_member_assigned",
+      `Programming assignment ${result.assignmentId} on this channel already plays that member`,
+      { member: result.member, assignmentId: result.assignmentId },
+    );
+  }
   if (result.kind === "unknown_collection") {
     return sendApiError(
       reply,
@@ -271,19 +322,9 @@ function sendCreateFailure(
   channelId: string,
   result: Exclude<CreateAssignmentResult, { kind: "created" }>,
 ) {
-  switch (result.kind) {
-    case "channel_not_found":
-      return sendChannelNotFound(reply, channelId);
-    case "limit_reached":
-      return sendApiError(
-        reply,
-        409,
-        "programming_assignment_limit_reached",
-        `Channel ${channelId} already has a programming assignment`,
-      );
-    default:
-      return sendUnknownMember(reply, result);
-  }
+  return result.kind === "channel_not_found"
+    ? sendChannelNotFound(reply, channelId)
+    : sendMemberRefused(reply, result);
 }
 
 // Shows a member with the facts its place rests on and the preview's flags.

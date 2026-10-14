@@ -27,17 +27,32 @@ export type UnknownMemberResult =
   | { kind: "unknown_collection"; mediaCollectionId: string }
   | { kind: "unknown_media_item"; mediaItemId: string };
 
+/** A member another assignment on the channel already plays. */
+export interface MemberAssignedResult {
+  kind: "member_assigned";
+  member: MemberSource;
+  assignmentId: string;
+}
+
 export type CreateAssignmentResult =
   | { kind: "created"; assignment: SourceAssignment }
-  | { kind: "limit_reached" }
   | { kind: "channel_not_found" }
-  | UnknownMemberResult;
+  | UnknownMemberResult
+  | MemberAssignedResult;
 
 export type UpdateAssignmentResult =
   | { kind: "updated"; assignment: SourceAssignment }
   | { kind: "unchanged"; assignment: SourceAssignment }
   | { kind: "not_found" }
-  | UnknownMemberResult;
+  | UnknownMemberResult
+  | MemberAssignedResult;
+
+/** A reorder must name exactly the channel's assignments, each once. */
+export type ReorderAssignmentsResult =
+  | { kind: "reordered"; assignments: SourceAssignment[] }
+  | { kind: "unchanged"; assignments: SourceAssignment[] }
+  | { kind: "channel_not_found" }
+  | { kind: "mismatch"; assignmentIds: string[] };
 
 export type DeleteAssignmentResult =
   { kind: "deleted" } | { kind: "not_found" };

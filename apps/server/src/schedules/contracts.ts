@@ -20,6 +20,7 @@ export type ScheduleChangeReason =
   | "assignment_created"
   | "assignment_changed"
   | "assignment_deleted"
+  | "assignments_reordered"
   | "membership_changed"
   | "media_removed"
   | "collection_maintained"
@@ -93,9 +94,11 @@ export type AdmissionFailure = Extract<
   { kind: "channel_not_found" | "disabled" | "through_out_of_range" }
 >;
 
-/** Where one chunk of generation starts. */
-export interface ChunkStart {
-  seed: number;
+/** Where one chunk of generation starts, with the seeds its decisions hash. */
+export interface ChunkStart extends Pick<
+  ScheduleState,
+  "seed" | "programmingSeed" | "rebuildCount"
+> {
   startsAt: number;
   nextSequenceNumber: number;
   /**

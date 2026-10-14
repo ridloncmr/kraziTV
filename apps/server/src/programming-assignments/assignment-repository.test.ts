@@ -98,20 +98,36 @@ describe("AssignmentRepository", () => {
     });
   });
 
-  it("reports limit_reached for a second assignment on one channel", async () => {
+  it("adds a second assignment after the first and refuses a member it already plays", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
-    const result = await write(db, (trx) =>
+    await write(db, (trx) =>
       repository.create(trx, channelFixture.id, singleItem, LATER),
     );
+    const again = await write(db, (trx) =>
+      repository.create(trx, channelFixture.id, chronological, LATER),
+    );
 
-    expect(result).toEqual({ kind: "limit_reached" });
+    expect(again).toEqual({
+      kind: "member_assigned",
+      member: chronological.members[0],
+      assignmentId: "assignment-001",
+    });
     await expect(
       repository.listForChannel(channelFixture.id),
-    ).resolves.toHaveLength(1);
+    ).resolves.toMatchObject([
+      { id: "assignment-001", ...chronological },
+      { id: "assignment-002", ...singleItem },
+    ]);
+    // Another channel may play the same member.
+    await expect(
+      write(db, (trx) =>
+        repository.create(trx, "channel-second", chronological, LATER),
+      ),
+    ).resolves.toMatchObject({ kind: "created" });
   });
 
   it("reports channel_not_found for an unknown channel", async () => {

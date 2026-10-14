@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
+import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { ChannelsApp } from "./channels-app.js";
 import { ProgrammingEditor } from "./programming-editor.js";
 
@@ -567,4 +567,98 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   fireEvent.click(screen.getAllByRole("button", { name: "Disable" })[0]);
   expect(selected("Northwoods TV")).toBe(false);
   expect(selected("Second channel")).toBe(true);
+});
+
+it("adds a second assignment after the first, in its own empty form", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", [
+    ...adminFixtures.collections,
+    collectionWith("other", "Other"),
+  ]);
+  api.reply("/channels/one/schedule", { scheduleRevision: 6, entries: [] });
+  api.handle(
+    "/channels/one/programming-assignments",
+    () => {
+      api.reply("/channels/one/programming-assignments", [
+        favoritesAssignment("chronological"),
+        {
+          ...favoritesAssignment("random"),
+          id: "second",
+          members: [{ kind: "collection", mediaCollectionId: "other" }],
+        },
+      ]);
+      return api.response({}, 201);
+    },
+    "POST",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add an assignment" }),
+  );
+  const added = screen.getByRole("group", { name: "New assignment" });
+  fireEvent.change(within(added).getByLabelText("Programming source"), {
+    target: { value: "other" },
+  });
+  fireEvent.change(within(added).getByLabelText("Playback mode"), {
+    target: { value: "random" },
+  });
+  fireEvent.click(
+    within(added).getByRole("button", { name: "Save programming" }),
+  );
+
+  await screen.findByRole("group", { name: "Assignment 2" });
+  expect(screen.queryByRole("group", { name: "New assignment" })).toBeNull();
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({
+    playbackMode: "random",
+    ordinaryStretch: { kind: "programs", count: 3 },
+    members: [
+      {
+        kind: "collection",
+        mediaCollectionId: "other",
+      },
+    ],
+  });
+});
+
+it("moves an assignment later in saved order", async () => {
+  const api = new BrowserApi();
+  const second = {
+    ...favoritesAssignment("random"),
+    id: "second",
+    members: [{ kind: "collection", mediaCollectionId: "other" }],
+  };
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+    second,
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 7, entries: [] });
+  api.reply("/channels/one/programming-assignments/order", [], "PUT");
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const list = await screen.findByRole("list", {
+    name: "Programming assignments",
+  });
+  await waitFor(() =>
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2),
+  );
+
+  const [first] = within(list).getAllByRole("listitem");
+  expect(
+    within(first).getByRole<HTMLButtonElement>("button", { name: "Move up" })
+      .disabled,
+  ).toBe(true);
+  fireEvent.click(within(first).getByRole("button", { name: "Move down" }));
+
+  await screen.findByText(/revision 7/);
+  expect(
+    api.requestsTo("/channels/one/programming-assignments/order")[0]?.body,
+  ).toEqual({ assignmentIds: ["second", "assignment"] });
 });

@@ -65,6 +65,8 @@ async function seeded(collectionIds: readonly string[]) {
 function firstPick(progress: PlaybackProgress): string | undefined {
   const result = generateProgramming({
     channelSeed: 1,
+    programmingSeed: 1,
+    rebuildCount: 0,
     assignments: [
       {
         id: "assignment",

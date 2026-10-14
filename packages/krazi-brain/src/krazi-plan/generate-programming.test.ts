@@ -32,6 +32,8 @@ function options(
 ): GenerateProgrammingOptions {
   return {
     channelSeed: CHANNEL_SEED,
+    programmingSeed: 0x1234abcd,
+    rebuildCount: 0,
     assignments,
     latestTurn: undefined,
     progress: [],
@@ -161,6 +163,8 @@ describe("generateProgramming: one assignment", () => {
         generateInChunks(
           {
             channelSeed: CHANNEL_SEED,
+            programmingSeed: 0x1234abcd,
+            rebuildCount: 0,
             assignments: [assignment],
             startsAt: STARTS_AT,
             through: STARTS_AT + 24 * HOUR_MS,
