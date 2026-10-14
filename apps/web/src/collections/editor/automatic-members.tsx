@@ -88,7 +88,11 @@ export function AutomaticMembers({
                     </td>
                     <td>{displayDuration(item.durationMs)}</td>
                     <td>
-                      {item.qualifies ? "Still matches" : "No longer matches"}
+                      {item.qualifies === null
+                        ? "Unknown — its TMDB data expired"
+                        : item.qualifies
+                          ? "Still matches"
+                          : "No longer matches"}
                     </td>
                     <td>
                       <button

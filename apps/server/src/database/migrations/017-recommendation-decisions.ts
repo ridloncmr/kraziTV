@@ -8,8 +8,10 @@ const MAX_SAFE_INTEGER = sql.raw(String(Number.MAX_SAFE_INTEGER));
 export const recommendationDecisionsMigration: Migration = {
   // Records the owner's decision on each collection recommendation
   // (programming spec 0002), keyed by its criterion's canonical JSON, so a
-  // rescan recognizes it. A decision outlives any collection it created:
-  // deleting an accepted collection never brings its recommendation back.
+  // rescan recognizes it. An acceptance records the collection it created,
+  // which shows the recommendation as already created however that
+  // collection is later converted; deleting it clears the link but keeps
+  // the decision, so the recommendation never comes back on its own.
   async up(db: Kysely<unknown>): Promise<void> {
     await db.schema
       .createTable("collection_recommendation_decisions")
@@ -23,12 +25,19 @@ export const recommendationDecisionsMigration: Migration = {
       .addColumn("decision", "text", (column) =>
         column.notNull().check(sql`decision in ('accepted', 'dismissed')`),
       )
+      .addColumn("media_collection_id", "text", (column) =>
+        column.references("media_collections.id").onDelete("set null"),
+      )
       .addColumn("decided_at", "integer", (column) =>
         column
           .notNull()
           .check(
             sql`typeof(decided_at) = 'integer' and decided_at between 0 and ${MAX_SAFE_INTEGER}`,
           ),
+      )
+      .addCheckConstraint(
+        "collection_recommendation_decisions_dismissal_unlinked",
+        sql`decision = 'accepted' or media_collection_id is null`,
       )
       .execute();
   },

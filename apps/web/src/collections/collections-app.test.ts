@@ -557,6 +557,13 @@ it("saves a recommendation as a manual collection, or dismisses it", async () =>
   const recommendations = "/media-collections/recommendations";
   api.reply(recommendations, [officeRecommendation]);
   api.reply(`${recommendations}/dismissal`, null, "POST", 204);
+  // The acceptance is refused, so the dialog stays open for the dismissal.
+  api.reply(
+    `${recommendations}/acceptance`,
+    { error: { code: "recommendation_decided", message: "Already decided" } },
+    "POST",
+    409,
+  );
   fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Discover collections…" }),
@@ -566,17 +573,56 @@ it("saves a recommendation as a manual collection, or dismisses it", async () =>
   });
   const card = (await within(dialog).findByText("The Office")).closest("li")!;
 
-  expect(
+  fireEvent.click(
     within(card).getByRole("button", {
       name: "Save The Office as a manual collection",
     }),
-  ).toBeTruthy();
+  );
+  await waitFor(() =>
+    expect(api.requestsTo(`${recommendations}/acceptance`)[0]?.body).toEqual({
+      criterion: { kind: "series", tmdbId: 2316 },
+      mode: "manual",
+    }),
+  );
+  await within(dialog).findByText("Already decided");
   fireEvent.click(
     within(card).getByRole("button", { name: "Dismiss The Office" }),
   );
 
   await waitFor(() =>
     expect(api.requestsTo(`${recommendations}/dismissal`)[0]?.body).toEqual({
+      criterion: { kind: "series", tmdbId: 2316 },
+    }),
+  );
+});
+
+it("lists dismissed recommendations under Show dismissed and restores one", async () => {
+  const api = renderApp();
+  const recommendations = "/media-collections/recommendations";
+  api.reply(`${recommendations}/restoration`, null, "POST", 204);
+  api.handle(recommendations, (request) =>
+    api.response(
+      request.query.get("dismissed") === "true"
+        ? [{ ...officeRecommendation, decision: "dismissed" }]
+        : [],
+    ),
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discover collections…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+  await within(dialog).findByText(/No suggestions right now/);
+
+  fireEvent.click(within(dialog).getByLabelText("Show dismissed"));
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Restore The Office" }),
+  );
+
+  await waitFor(() =>
+    expect(api.requestsTo(`${recommendations}/restoration`)[0]?.body).toEqual({
       criterion: { kind: "series", tmdbId: 2316 },
     }),
   );

@@ -217,6 +217,46 @@ describe("collection recommendations", () => {
     ).toEqual(["e1", "e2"]);
   });
 
+  it("shows a manual snapshot, and a converted acceptance, as already created, never offering them again", async () => {
+    const { server } = await startServer();
+    await accept(server, OFFICE, "manual");
+    const indy = await accept(server, INDY, "automatic");
+    await send(
+      server,
+      "POST",
+      `/media-collections/${indy.body.id as string}/conversion`,
+    );
+
+    expect(await listed(server)).toEqual([
+      { name: "Indiana Jones Collection", created: true },
+      { name: "The Office", created: true },
+    ]);
+    expect(await listed(server, true)).toEqual([]);
+    await send(server, "POST", `${RECOMMENDATIONS}/restoration`, {
+      criterion: OFFICE,
+    });
+    expect((await accept(server, OFFICE, "automatic")).status).toBe(409);
+    expect((await send(server, "GET", "/media-collections")).body).toHaveLength(
+      2,
+    );
+  });
+
+  it("refuses an acceptance when a collection with the criterion already exists", async () => {
+    const { server } = await startServer();
+    await send(server, "POST", "/media-collections", {
+      name: "My Office",
+      criterion: OFFICE,
+    });
+
+    const refused = await accept(server, OFFICE, "automatic");
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe("recommendation_decided");
+    expect((await send(server, "GET", "/media-collections")).body).toHaveLength(
+      1,
+    );
+  });
+
   it("refuses to accept a genre or tag criterion", async () => {
     const { server } = await startServer();
 

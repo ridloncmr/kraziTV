@@ -120,7 +120,7 @@ export interface TrackProposal {
     runtimeMs: number | null;
   }[];
 }
-/** What an automatic collection matches on: one TMDB series or movie franchise. */
+/** What an automatic collection matches on: one TMDB series or movie franchise, one tag, or one genre. */
 export type CollectionCriterion =
   | { kind: "series" | "franchise"; tmdbId: number }
   | { kind: "tag"; tagId: string }
@@ -146,7 +146,6 @@ export interface MediaCollectionSummary extends MediaCollection {
   /** Members whose file is missing; they stay included but cannot air. */
   missingCount: number;
 }
-/** `GET /media-collections/series` or `/franchises`: one cataloged group a criterion can name. */
 /** `GET /media-collections/tags`: one tag on cataloged items a criterion can name. */
 export interface CatalogTag {
   tagId: string;
@@ -158,6 +157,7 @@ export interface CatalogGenre {
   name: string;
   itemCount: number;
 }
+/** `GET /media-collections/series` or `/franchises`: one cataloged group a criterion can name. */
 export interface CatalogGroup {
   tmdbId: number;
   name: string;
@@ -173,7 +173,8 @@ export interface CollectionMember {
 }
 /** `GET /media-collections/:id/exclusions`: an item kept out, and whether it would match if restored. */
 export interface ExcludedItem extends Omit<CollectionMember, "position"> {
-  qualifies: boolean;
+  /** Null while expired TMDB data leaves whether it matches unknown. */
+  qualifies: boolean | null;
 }
 /** `GET /media-collections/recommendations`: one suggested series or franchise collection. */
 export interface Recommendation {

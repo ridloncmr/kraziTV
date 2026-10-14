@@ -203,6 +203,12 @@
       ],
       "reason": "Migration 016 rebuilds the corrections table 012 created, so it declares the same columns and checks; each migration keeps its own DDL so committed history never shifts under a shared edit.",
       "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/media-collections/persistence/"],
+      "reason": "Every file serves one capability, collection persistence: the repository, row inserts and conversion, membership replacement, criterion labels, and the channels-using-collection read.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     }
   ]
 }

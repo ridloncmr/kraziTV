@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ExcludedItem } from "../contracts.js";
 import { readStoredCriterion } from "../criteria/collection-criterion.js";
-import { matchMembership } from "../criteria/match-criterion.js";
+import { knownMatch } from "../criteria/match-criterion.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { compareNames } from "../name-order.js";
 
@@ -23,8 +23,9 @@ export async function readExcludedIds(
 /**
  * Lists the cataloged items excluded from a collection by title, each with
  * whether its criterion would include it were it restored, decided by the
- * same membership rule maintenance applies. Undefined for an unknown
- * collection; a removed item is no longer listed.
+ * same match rule maintenance applies: null when expired TMDB data leaves
+ * that unknown. Undefined for an unknown collection; a removed item is no
+ * longer listed.
  */
 export async function readExcludedItems(
   executor: Kysely<DatabaseSchema>,
@@ -43,13 +44,6 @@ export async function readExcludedItems(
     collection.criterion === null
       ? undefined
       : readStoredCriterion(collection.criterion);
-  const qualifying = new Set(
-    criterion === undefined
-      ? []
-      : matchMembership(criterion, items, [], []).members.map(
-          (item) => item.id,
-        ),
-  );
   return items
     .filter((item) => excluded.has(item.id))
     .map((item) => ({
@@ -58,7 +52,7 @@ export async function readExcludedItems(
       path: item.path,
       status: item.status,
       durationMs: item.durationMs,
-      qualifies: qualifying.has(item.id),
+      qualifies: criterion === undefined ? false : knownMatch(criterion, item),
     }))
     .sort((a, b) =>
       compareNames(

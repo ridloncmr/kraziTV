@@ -338,6 +338,14 @@ it("excludes a member, lists excluded items labelled with whether they still qua
       durationMs: 1_200_000,
       qualifies: false,
     },
+    {
+      mediaItemId: "a",
+      title: "Zulu",
+      path: "/media/zulu.mp4",
+      status: "missing",
+      durationMs: 1_300_000,
+      qualifies: null,
+    },
   ]);
   await screen.findByText("Episode 10");
 
@@ -351,6 +359,10 @@ it("excludes a member, lists excluded items labelled with whether they still qua
   const row = within(excluded).getByText("Alpha").closest("tr")!;
   expect(within(row).getByText("Excluded")).toBeTruthy();
   expect(within(row).getByText("No longer matches")).toBeTruthy();
+  const unknown = within(excluded).getByText("Zulu").closest("tr")!;
+  expect(
+    within(unknown).getByText("Unknown — its TMDB data expired"),
+  ).toBeTruthy();
   fireEvent.click(
     within(row).getByRole("button", { name: "Restore inclusion of Alpha" }),
   );

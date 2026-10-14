@@ -53,7 +53,7 @@ async function exclusions(server: Server, id: string) {
     "GET",
     `/media-collections/${id}/exclusions`,
   );
-  return (body as { mediaItemId: string; qualifies: boolean }[]).map(
+  return (body as { mediaItemId: string; qualifies: boolean | null }[]).map(
     ({ mediaItemId, qualifies }) => ({ mediaItemId, qualifies }),
   );
 }
@@ -91,6 +91,26 @@ describe("collection exclusion routes", () => {
     await send(server, "DELETE", `/media-collections/${office}/exclusions/e3`);
 
     expect(await members(server, office)).toEqual(["e1", "e2"]);
+  });
+
+  it("reports whether an excluded item matches as unknown while its TMDB data is expired", async () => {
+    const { server, db, office } = await startServer();
+    await send(server, "PUT", `/media-collections/${office}/exclusions/e3`);
+    await db
+      .insertInto("metadata_provider_refs")
+      .values({
+        media_item_id: "e3",
+        provider: "tmdb",
+        external_kind: "tv",
+        external_id: 2316,
+        fetched_at: 0,
+        expired_at: 1,
+      })
+      .execute();
+
+    expect(await exclusions(server, office)).toEqual([
+      { mediaItemId: "e3", qualifies: null },
+    ]);
   });
 
   it("refuses a manual collection, an unknown item, and an unknown collection", async () => {

@@ -2,7 +2,11 @@ import { type Kysely, sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { itemFixtureAt } from "../../testing/catalog-fixtures.js";
-import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
+import {
+  correctionRow,
+  seededMetadataDatabase as seeded,
+  tagItem,
+} from "../../testing/metadata-match-fixtures.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 import { tagsMigration } from "./016-tags.js";
 
@@ -29,8 +33,8 @@ describe("016_tags", () => {
     const legacy = db as Kysely<unknown>;
     await tagsMigration.down?.(legacy);
     await sql`insert into metadata_corrections (media_item_id, title, series_name, season_number, episode_number, tags) values
-      ('item-fixture-001', 'Serenity', null, null, null, '["Space Western","Christmas"]'),
-      ('item-2', null, null, null, null, '["christmas","christmas "]')`.execute(
+      ('item-fixture-001', 'Serenity', null, null, null, '["Space Western","christmas"]'),
+      ('item-2', null, null, null, null, '["Christmas","CHRISTMAS "]')`.execute(
       legacy,
     );
 
@@ -78,5 +82,43 @@ describe("016_tags", () => {
     await expect(
       db.selectFrom("media_item_tags").selectAll().execute(),
     ).resolves.toEqual([]);
+  });
+
+  it("folds tags back into each item's corrections on the way down, creating a row for a tags-only item", async () => {
+    const db = await seeded();
+    await db
+      .insertInto("media_items")
+      .values(itemFixtureAt("item-2", "/media/movies/second.mkv"))
+      .execute();
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("item-fixture-001", { title: "Serenity" }))
+      .execute();
+    await tagItem(db, "item-fixture-001", ["Space Western", "Christmas"]);
+    await tagItem(db, "item-2", ["Christmas"]);
+    const legacy = db as Kysely<unknown>;
+
+    await tagsMigration.down?.(legacy);
+
+    const { rows } = await sql<{
+      media_item_id: string;
+      title: string | null;
+      tags: string;
+    }>`select media_item_id, title, tags from metadata_corrections order by media_item_id`.execute(
+      legacy,
+    );
+    expect(rows).toEqual([
+      { media_item_id: "item-2", title: null, tags: '["Christmas"]' },
+      {
+        media_item_id: "item-fixture-001",
+        title: "Serenity",
+        tags: '["Space Western","Christmas"]',
+      },
+    ]);
+    await tagsMigration.up(legacy);
+    await expect(tagsByItem(legacy)).resolves.toEqual({
+      "item-2": ["Christmas"],
+      "item-fixture-001": ["Space Western", "Christmas"],
+    });
   });
 });

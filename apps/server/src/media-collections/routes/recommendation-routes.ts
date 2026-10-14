@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { sendApiError, sendInvalidRequest } from "../../http/api-error.js";
-import { nameField } from "../../http/request-schemas.js";
 import type { Recommendation } from "../contracts.js";
 import { collectionCriterionSchema } from "../criteria/collection-criterion.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
@@ -20,7 +19,6 @@ const listQuery = z.object({ dismissed: z.literal("true").optional() });
 const acceptanceBody = z.strictObject({
   criterion: recommendedCriterion,
   mode: z.enum(["automatic", "manual"]),
-  name: nameField.optional(),
 });
 
 const decisionBody = z.strictObject({ criterion: recommendedCriterion });
@@ -54,7 +52,7 @@ export function registerRecommendationRoutes(
           reply,
           409,
           "recommendation_decided",
-          "This recommendation was already accepted or dismissed",
+          "This recommendation was already accepted, dismissed, or created",
         );
       }
       if (result.kind === "unavailable") {

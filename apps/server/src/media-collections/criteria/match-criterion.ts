@@ -98,6 +98,20 @@ export function matchMembership(
   return { members: members.sort(order), incomplete };
 }
 
+/**
+ * Whether one item matches a criterion, or null when the criterion rests on
+ * provider facts and the item's have expired, so whether it matches is
+ * unknown rather than false.
+ */
+export function knownMatch(
+  criterion: CollectionCriterion,
+  item: MatchableItem,
+): boolean | null {
+  return KINDS[criterion.kind].providerEvidence && !hasEvidence(item)
+    ? null
+    : matches(criterion, item);
+}
+
 /** Whether an item's provider facts are current enough to confirm or rule out a match. */
 export function hasEvidence(item: MatchableItem): boolean {
   return !item.metadata.tmdbDataExpired;

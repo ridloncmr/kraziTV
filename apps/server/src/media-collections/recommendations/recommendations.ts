@@ -28,7 +28,8 @@ const KINDS: Record<
  * maintains them until accepted. Each series or franchise with enough
  * cataloged items is suggested with its reason and members, matched by the
  * same rule a collection's creation applies. By default it lists those
- * undecided and those whose collection already exists; with `dismissed`,
+ * undecided and those already created, as an automatic collection with
+ * the criterion or as the collection an acceptance made; with `dismissed`,
  * those dismissed or accepted and then deleted, which can be restored.
  */
 export async function readRecommendations(
@@ -40,9 +41,9 @@ export async function readRecommendations(
     (
       await executor
         .selectFrom("collection_recommendation_decisions")
-        .select(["criterion_key", "decision"])
+        .select(["criterion_key", "decision", "media_collection_id"])
         .execute()
-    ).map((row) => [row.criterion_key, row.decision]),
+    ).map((row) => [row.criterion_key, row]),
   );
   const collections = new Map(
     (
@@ -59,12 +60,13 @@ export async function readRecommendations(
       .map((group) => {
         const criterion = { kind, tmdbId: group.tmdbId };
         const key = criterionKey(criterion);
+        const decided = decisions.get(key);
         return toRecommendation(
           criterion,
           group.name,
           items,
-          collections.get(key) ?? null,
-          decisions.get(key) ?? null,
+          collections.get(key) ?? decided?.media_collection_id ?? null,
+          decided?.decision ?? null,
         );
       }),
   );

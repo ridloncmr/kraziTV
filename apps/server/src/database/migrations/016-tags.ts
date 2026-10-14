@@ -30,7 +30,7 @@ export const tagsMigration: Migration = {
   // collection matches one tag however its items spell it. Each item's tags
   // move from the JSON column on its corrections row into a join that keeps
   // their order. A name resolves case-insensitively, so `Christmas` and
-  // `christmas` become one tag, named as first met. The corrections table is
+  // `christmas` become one tag, named as first met in item ID order. The corrections table is
   // rebuilt without the column, since SQLite cannot drop a column a check
   // constraint names; a row left correcting nothing goes, as it would have.
   async up(db: Kysely<unknown>): Promise<void> {
@@ -77,7 +77,9 @@ export const tagsMigration: Migration = {
       const { rows: tagged } = await sql<{
         media_item_id: string;
         tags: string;
-      }>`select media_item_id, tags from metadata_corrections`.execute(trx);
+      }>`select media_item_id, tags from metadata_corrections order by media_item_id`.execute(
+        trx,
+      );
       const ids = new Map<string, string>();
       for (const { media_item_id, tags } of tagged) {
         let position = 0;

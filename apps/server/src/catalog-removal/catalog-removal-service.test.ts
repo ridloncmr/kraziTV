@@ -16,7 +16,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../testing/test-environment.js";
-import { insertMembers } from "../media-collections/persistence/media-collection-repository.js";
+import { insertMembers } from "../media-collections/persistence/collection-rows.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { CatalogRemovalService } from "./catalog-removal-service.js";
 

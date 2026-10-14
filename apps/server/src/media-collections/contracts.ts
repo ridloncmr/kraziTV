@@ -61,12 +61,11 @@ export interface Recommendation {
 export interface RecommendationAcceptance {
   criterion: Extract<CollectionCriterion, { tmdbId: number }>;
   mode: "automatic" | "manual";
-  /** Defaults to the recommendation's name. */
-  name?: string | undefined;
 }
 
 /**
- * `decided` refuses a second acceptance, or one after a dismissal;
+ * `decided` refuses a second acceptance, one after a dismissal, or one
+ * whose criterion a collection already has;
  * `unavailable` refuses a recommendation the catalog no longer supports.
  */
 export type AcceptRecommendationResult =
@@ -143,7 +142,8 @@ export type ReplaceMediaCollectionMembersResult =
 
 /** An item the owner keeps out of an automatic collection, and whether it would match if restored. */
 export interface ExcludedItem extends Omit<MediaCollectionMember, "position"> {
-  qualifies: boolean;
+  /** Null while expired TMDB data leaves whether it matches unknown. */
+  qualifies: boolean | null;
 }
 
 /** `manual` refuses: only an automatic collection has a criterion and exclusions. */

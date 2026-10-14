@@ -149,6 +149,33 @@ describe("changing an automatic collection's criterion", () => {
     expect(await revision()).toBe(before + 1);
   });
 
+  it("recomputes from current evidence, never carrying an expired member into the new criterion", async () => {
+    const { server, db, office } = await startServer();
+    await db
+      .insertInto("metadata_provider_refs")
+      .values({
+        media_item_id: "e1",
+        provider: "tmdb",
+        external_kind: "tv",
+        external_id: 2316,
+        fetched_at: 0,
+        expired_at: 1,
+      })
+      .execute();
+
+    const changed = await send(
+      server,
+      "PATCH",
+      `/media-collections/${office}`,
+      {
+        criterion: OFFICE,
+      },
+    );
+
+    expect(await members(server, office)).toEqual(["e3"]);
+    expect(changed.body).toMatchObject({ maintenanceIncomplete: true });
+  });
+
   it("leaves the criterion alone on rename, and refuses a criterion for a manual collection", async () => {
     const { server, office } = await startServer();
     const manual = await send(server, "POST", "/media-collections", {
