@@ -20,6 +20,7 @@ import { episodeFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
+  insertCollectionOfItems,
   seedScheduleScenario,
   readScheduleEntries,
   type ScheduleScenarioOptions,
@@ -178,6 +179,13 @@ describe("programming assignment routes", () => {
     ["an unsupported mode", { ...collectionBody, playbackMode: "shuffle" }],
     ["no members", { ...collectionBody, members: [] }],
     [
+      "a repeated member",
+      {
+        ...collectionBody,
+        members: [...collectionBody.members, ...collectionBody.members],
+      },
+    ],
+    [
       "a zero program count",
       { ...collectionBody, ordinaryStretch: { kind: "programs", count: 0 } },
     ],
@@ -195,6 +203,36 @@ describe("programming assignment routes", () => {
       status: 400,
       body: { error: { code: "invalid_request" } },
     });
+  });
+
+  it("saves several members in order and gives successive turns to each", async () => {
+    const { server, db } = await startServer();
+    await insertCollectionOfItems(db, "parks", [22 * 60_000, 22 * 60_000]);
+    const body = {
+      ...collectionBody,
+      ordinaryStretch: { kind: "programs", count: 2 },
+      members: [
+        { kind: "collection", mediaCollectionId: COLLECTION_ID },
+        { kind: "media_item", mediaItemId: "parks-2" },
+        { kind: "collection", mediaCollectionId: "parks" },
+      ],
+    };
+
+    const created = await send(server, "POST", ASSIGNMENTS_URL, body);
+
+    expect(created).toMatchObject({ status: 201, body });
+    const turns = await db
+      .selectFrom("programming_blocks")
+      .select(["media_collection_id", "media_item_id"])
+      .orderBy("starts_at")
+      .limit(4)
+      .execute();
+    expect(turns).toEqual([
+      { media_collection_id: COLLECTION_ID, media_item_id: null },
+      { media_collection_id: null, media_item_id: "parks-2" },
+      { media_collection_id: "parks", media_item_id: null },
+      { media_collection_id: COLLECTION_ID, media_item_id: null },
+    ]);
   });
 
   it("adds further assignments after the first, in saved order", async () => {

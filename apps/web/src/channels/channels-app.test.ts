@@ -646,11 +646,9 @@ it("moves an assignment later in saved order", async () => {
   const list = await screen.findByRole("list", {
     name: "Programming assignments",
   });
-  await waitFor(() =>
-    expect(within(list).getAllByRole("listitem")).toHaveLength(2),
-  );
+  await waitFor(() => expect(list.children).toHaveLength(2));
 
-  const [first] = within(list).getAllByRole("listitem");
+  const [first] = [...list.children] as HTMLElement[];
   expect(
     within(first).getByRole<HTMLButtonElement>("button", { name: "Move up" })
       .disabled,
@@ -661,4 +659,57 @@ it("moves an assignment later in saved order", async () => {
   expect(
     api.requestsTo("/channels/one/programming-assignments/order")[0]?.body,
   ).toEqual({ assignmentIds: ["second", "assignment"] });
+});
+
+it("adds, reorders, and saves an assignment's members", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", [
+    ...adminFixtures.collections,
+    collectionWith("other", "Other"),
+  ]);
+  api.reply("/channels/one/schedule", { scheduleRevision: 8, entries: [] });
+  api.reply(
+    "/channels/one/programming-assignments/assignment",
+    favoritesAssignment("chronological"),
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const form = await screen.findByRole("group", { name: "Assignment 1" });
+  await waitFor(() =>
+    expect(
+      within(form).getByLabelText<HTMLSelectElement>("Programming source")
+        .value,
+    ).toBe("favorites"),
+  );
+
+  fireEvent.click(within(form).getByRole("button", { name: "Add member" }));
+  const rows = () =>
+    within(within(form).getByRole("list", { name: "Members" })).getAllByRole(
+      "listitem",
+    );
+  fireEvent.change(within(rows()[1]).getByLabelText("Programming source"), {
+    target: { value: "other" },
+  });
+  fireEvent.click(
+    within(rows()[1]).getByRole("button", { name: "Move member up" }),
+  );
+  fireEvent.click(
+    within(form).getByRole("button", { name: "Save programming" }),
+  );
+
+  await screen.findByText(/revision 8/);
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({
+    playbackMode: "chronological",
+    ordinaryStretch: { kind: "programs", count: 3 },
+    members: [
+      { kind: "collection", mediaCollectionId: "other" },
+      { kind: "collection", mediaCollectionId: "favorites" },
+    ],
+  });
 });

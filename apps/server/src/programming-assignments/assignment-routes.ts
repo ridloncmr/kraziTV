@@ -38,8 +38,9 @@ const member = z.discriminatedUnion("kind", [
 
 const programCount = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 
-// Create and PATCH share one body: PATCH replaces the whole assignment. A
-// collection needs a playback mode; single items alone take none.
+// Create and PATCH share one body: PATCH replaces the whole assignment,
+// members in saved order. A collection needs a playback mode; single items
+// alone take none. Each member appears once.
 const settingsBody = z
   .strictObject({
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
@@ -47,7 +48,15 @@ const settingsBody = z
       kind: z.literal("programs"),
       count: programCount,
     }),
-    members: z.array(member).length(1),
+    members: z
+      .array(member)
+      .min(1)
+      .refine(
+        (members) =>
+          new Set(members.map((entry) => JSON.stringify(entry))).size ===
+          members.length,
+        { message: "members must not repeat a collection or item" },
+      ),
   })
   .refine(
     (body) =>
