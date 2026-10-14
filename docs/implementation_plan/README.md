@@ -49,7 +49,7 @@ at the top of each plan are generated from ticket Status blocks by
 
 - [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 12 of 13 tickets complete
 - [Programming Spec 0002 Implementation Plan: Recommended And Automatic Collections](002-programming/0002-automatic-collections.md) - 11 of 12 tickets complete
-- [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 0 of 6 tickets complete
+- [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 1 of 6 tickets complete
 
 ### 003-auth
 

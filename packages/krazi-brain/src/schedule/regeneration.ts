@@ -1,4 +1,10 @@
-import type { PlaybackProgress, RestorableEntry } from "./contracts.js";
+import {
+  NO_PROGRESS,
+  type PlaybackMode,
+  type PlaybackProgress,
+  type RestorableEntry,
+  type RestoredProgress,
+} from "./contracts.js";
 
 /**
  * Returns the instant regeneration rebuilds from: the end of the entry airing
@@ -13,39 +19,74 @@ export function findRegenerationBoundary(
 }
 
 /**
- * Rewinds each collection's progress to where its earliest deleted entry
- * picked up, separately per playback mode, so regenerated entries continue
- * exactly where the kept schedule ends and a mode the deletion never touched
- * keeps its place. Returns only the collections it changed. Entries without
- * a collection (single items, or a deleted collection) carry nothing to
+ * Returns the progress each collection and mode the deleted entries drew
+ * from goes back to, so regenerated entries continue where the kept schedule
+ * ends and a collection or mode the deletion never touched keeps its place.
+ * An ordered mode resumes after its latest kept entry, or from the beginning
+ * when none was kept; random rewinds to its earliest deleted selection index.
+ * Results follow each one's earliest deleted entry. Entries without a
+ * collection (single items, or a deleted collection) carry nothing to
  * restore.
  */
 export function restorePlaybackProgress(
-  currentProgressByCollection: ReadonlyMap<string, PlaybackProgress>,
   deletedEntries: readonly RestorableEntry[],
-): Map<string, PlaybackProgress> {
-  const latestFirst = [...deletedEntries].sort(
-    (a, b) => b.sequenceNumber - a.sequenceNumber,
+  keptEntries: readonly RestorableEntry[],
+): RestoredProgress[] {
+  const earliestFirst = [...deletedEntries].sort(
+    (a, b) => a.sequenceNumber - b.sequenceNumber,
   );
-  const restored = new Map<string, PlaybackProgress>();
-  // Walking latest to earliest lets each earlier entry overwrite a later one.
-  for (const entry of latestFirst) {
+  const restored = new Map<string, RestoredProgress>();
+  for (const entry of earliestFirst) {
     const { mediaCollectionId, playbackMode, playbackIndex } = entry;
-    if (mediaCollectionId === null || playbackIndex === null) continue;
-    const progress =
-      restored.get(mediaCollectionId) ??
-      currentProgressByCollection.get(mediaCollectionId);
-    if (progress === undefined) {
-      throw new Error(
-        `No current progress for collection ${mediaCollectionId} to restore`,
-      );
+    if (
+      mediaCollectionId === null ||
+      playbackMode === null ||
+      playbackIndex === null
+    ) {
+      continue;
     }
-    restored.set(
+    const key = JSON.stringify([mediaCollectionId, playbackMode]);
+    if (restored.has(key)) continue;
+    restored.set(key, {
       mediaCollectionId,
-      playbackMode === "random"
-        ? { ...progress, nextRandomSelectionIndex: playbackIndex }
-        : { ...progress, nextChronologicalPosition: playbackIndex },
-    );
+      playbackMode,
+      progress:
+        playbackMode === "random"
+          ? { ...NO_PROGRESS, nextSelectionIndex: playbackIndex }
+          : progressAfter(
+              latestEntry(keptEntries, mediaCollectionId, playbackMode),
+            ),
+    });
   }
-  return restored;
+  return [...restored.values()];
+}
+
+/** Returns the latest entry of one collection and mode, if there is one. */
+function latestEntry(
+  entries: readonly RestorableEntry[],
+  mediaCollectionId: string,
+  playbackMode: PlaybackMode,
+): RestorableEntry | undefined {
+  let latest: RestorableEntry | undefined;
+  for (const entry of entries) {
+    if (
+      entry.mediaCollectionId === mediaCollectionId &&
+      entry.playbackMode === playbackMode &&
+      (latest === undefined || entry.sequenceNumber > latest.sequenceNumber)
+    ) {
+      latest = entry;
+    }
+  }
+  return latest;
+}
+
+/** Returns ordered progress that resumes after `entry`, or from the start without one. */
+function progressAfter(entry: RestorableEntry | undefined): PlaybackProgress {
+  return entry === undefined
+    ? NO_PROGRESS
+    : {
+        ...NO_PROGRESS,
+        lastMediaItemId: entry.mediaItemId,
+        lastPosition: entry.playbackIndex,
+      };
 }

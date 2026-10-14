@@ -30,7 +30,7 @@ export {
   isSchedulableMedia,
 } from "./schedule/schedule-policy.js";
 export { deriveChannelSeed } from "./schedule/seeded-hash.js";
-export { PLAYBACK_MODES } from "./schedule/contracts.js";
+export { NO_PROGRESS, PLAYBACK_MODES } from "./schedule/contracts.js";
 export type {
   GeneratedScheduleEntry,
   PlaybackMode,

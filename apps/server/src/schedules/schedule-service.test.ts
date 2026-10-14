@@ -71,9 +71,13 @@ function readState(db: Kysely<DatabaseSchema>, channelId: string) {
     .executeTakeFirst();
 }
 
-// Reads every progress row, so tests also see rows that should not exist.
+// Reads every progress row in mode order, so tests also see rows that should not exist.
 function readProgress(db: Kysely<DatabaseSchema>) {
-  return db.selectFrom("channel_collection_progress").selectAll().execute();
+  return db
+    .selectFrom("channel_collection_progress")
+    .selectAll()
+    .orderBy(["channel_id", "media_collection_id", "playback_mode"])
+    .execute();
 }
 
 // A covered result at a revision; tests that care about the exact end read the state row.
@@ -128,8 +132,11 @@ describe("ScheduleService.ensureCoverage", () => {
       {
         channel_id: channelId,
         media_collection_id: collectionId,
-        next_chronological_position: (last.playback_index! + 1) % 3,
-        next_random_selection_index: 0,
+        playback_mode: "chronological",
+        last_media_item_id: last.media_item_id,
+        last_position: last.playback_index,
+        next_selection_index: 0,
+        reset_sequence_number: null,
         updated_at: T0,
       },
     ]);
@@ -176,11 +183,14 @@ describe("ScheduleService.ensureCoverage", () => {
     expect(entries.map((entry) => entry.playback_index)).toEqual(
       entries.map((_, index) => index),
     );
-    const [progress] = await readProgress(db);
-    expect(progress).toMatchObject({
-      next_chronological_position: 0,
-      next_random_selection_index: entries.length,
-    });
+    await expect(readProgress(db)).resolves.toMatchObject([
+      {
+        playback_mode: "random",
+        last_media_item_id: null,
+        last_position: null,
+        next_selection_index: entries.length,
+      },
+    ]);
   });
 
   it("repeats a single item without collection progress", async () => {
@@ -543,7 +553,7 @@ describe("ScheduleService gap repair", () => {
     expect(repaired).toHaveLength(FRESH_HORIZON_ENTRIES);
     expectContiguous(repaired);
     await expect(readProgress(db)).resolves.toMatchObject([
-      { next_random_selection_index: 2 * FRESH_HORIZON_ENTRIES },
+      { next_selection_index: 2 * FRESH_HORIZON_ENTRIES },
     ]);
     await expect(readState(db, channelId)).resolves.toMatchObject({
       anchor_time: T0,
@@ -1008,15 +1018,18 @@ describe("ScheduleService regeneration", () => {
     expect(log.lines.map((line) => line.level)).toEqual(["info"]);
   });
 
-  it("restores progress from the earliest deleted entry, never replaying from the anchor", async () => {
-    // Four hourly items: the horizon ends after position 3, leaving progress
-    // at 0, while at 2.5 hours the first deleted entry is position 3.
+  it("restores ordered progress to the latest kept entry, never replaying from the anchor", async () => {
+    // Four hourly items: the horizon ends on the last one, while at 2.5
+    // hours the airing entry, the last one kept, is the third.
     const { db, channelId, collectionId, service, log } = await generatedSetup(
       T0 + 2.5 * HOUR,
       { items: Array.from({ length: 4 }, () => ({ durationMs: HOUR })) },
     );
     await expect(readProgress(db)).resolves.toEqual([
-      expect.objectContaining({ next_chronological_position: 0 }),
+      expect.objectContaining({
+        last_media_item_id: "item-004",
+        last_position: 3,
+      }),
     ]);
 
     await service.applyInputChange(
@@ -1026,8 +1039,42 @@ describe("ScheduleService regeneration", () => {
     );
 
     await expect(readProgress(db)).resolves.toEqual([
-      expect.objectContaining({ next_chronological_position: 3 }),
+      expect.objectContaining({
+        playback_mode: "chronological",
+        last_media_item_id: "item-003",
+        last_position: 2,
+      }),
+      expect.objectContaining({ playback_mode: "random" }),
     ]);
+  });
+
+  it("generates identical programming in chunks, after a restart, and after regeneration", async () => {
+    const whole = await setup();
+    await whole.service.ensureCoverage(whole.channelId, whole.log);
+    const chunked = await setup({}, 7);
+    await chunked.service.ensureCoverage(chunked.channelId, chunked.log);
+    // A fresh service holds no state, as after a restart.
+    const restarted = new ScheduleService(chunked.db, {
+      now: chunked.clock.now,
+      createId: sequentialIds("restarted"),
+    });
+    chunked.clock.set(T0 + 30 * MINUTE);
+    await restarted.regenerate(chunked.channelId, chunked.log);
+
+    const programming = async (db: Kysely<DatabaseSchema>) =>
+      (await readScheduleEntries(db, channelFixture.id)).map(
+        ({ media_item_id, starts_at, playback_index }) => ({
+          media_item_id,
+          starts_at,
+          playback_index,
+        }),
+      );
+    const expected = await programming(whole.db);
+    expect(expected.length).toBeGreaterThan(7);
+    // Regeneration covered a horizon from 30 minutes later, so it runs longer.
+    expect((await programming(chunked.db)).slice(0, expected.length)).toEqual(
+      expected,
+    );
   });
 
   it("resumes chronological playback untouched by a random stretch", async () => {
@@ -1061,14 +1108,18 @@ describe("ScheduleService regeneration", () => {
     });
     // The deleted random stretch rewinds to its first deleted selection.
     await expect(readProgress(db)).resolves.toEqual([
-      expect.objectContaining({ next_random_selection_index: 1 }),
+      expect.objectContaining({ playback_mode: "chronological" }),
+      expect.objectContaining({
+        playback_mode: "random",
+        next_selection_index: 1,
+      }),
     ]);
   });
 
-  describe("membership modulo at restored position 3", () => {
+  describe("membership changes while C, at position 2, airs", () => {
     const HOURLY = Array.from({ length: 6 }, () => ({ durationMs: HOUR }));
 
-    // Plays [A, B, C, D] hourly; at 2.5 hours C airs and D is the first deleted entry.
+    // Plays [A, B, C, D] hourly; at 2.5 hours C airs, the last kept entry.
     async function fourMemberSetup() {
       const context = await setup({ items: HOURLY });
       await context.db
@@ -1080,7 +1131,7 @@ describe("ScheduleService regeneration", () => {
       return context;
     }
 
-    it("replays B when [A, B, C, D] shrinks to [A, B] (3 mod 2 = 1)", async () => {
+    it("falls back to C's position when [A, B, C, D] shrinks to [A, B] (2 mod 2 = 0)", async () => {
       const { db, channelId, collectionId, service, log } =
         await fourMemberSetup();
 
@@ -1093,9 +1144,32 @@ describe("ScheduleService regeneration", () => {
       const after = await readScheduleEntries(db, channelId);
       expect(after[3]).toMatchObject({
         starts_at: T0 + 3 * HOUR,
-        playback_index: 1,
-        media_item_id: "item-002",
+        playback_index: 0,
+        media_item_id: "item-001",
       });
+    });
+
+    it("continues after C, not at its old position, when the collection is reordered to [C, A, D, B]", async () => {
+      const { db, channelId, collectionId, service, log } =
+        await fourMemberSetup();
+
+      await service.applyInputChange(
+        log,
+        "membership_changed",
+        membershipChange(collectionId, [
+          "item-003",
+          "item-001",
+          "item-004",
+          "item-002",
+        ]),
+      );
+
+      const after = await readScheduleEntries(db, channelId);
+      expect(after.slice(3, 6).map((entry) => entry.media_item_id)).toEqual([
+        "item-001",
+        "item-004",
+        "item-002",
+      ]);
     });
 
     it("continues at D, skipping nothing, when [A, B, C, D] grows to [A, B, C, D, E, F]", async () => {
@@ -1217,7 +1291,11 @@ describe("ScheduleService regeneration", () => {
 
     await expect(readScheduleEntries(db, channelId)).resolves.toHaveLength(2);
     await expect(readProgress(db)).resolves.toEqual([
-      expect.objectContaining({ next_chronological_position: 2 }),
+      expect.objectContaining({
+        playback_mode: "chronological",
+        last_media_item_id: "item-002",
+        last_position: 1,
+      }),
     ]);
     await expect(readState(db, channelId)).resolves.toMatchObject({
       last_generated_through: T0 + 45 * MINUTE,

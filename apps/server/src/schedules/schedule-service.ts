@@ -4,6 +4,7 @@ import {
   deriveChannelSeed,
   findRegenerationBoundary,
   generateScheduleEntries,
+  NO_PROGRESS,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -48,7 +49,6 @@ import {
   loadProgress,
   loadScheduleSource,
   loadScheduleState,
-  NO_PROGRESS,
   restoreDeletedProgress,
   updateScheduleState,
   upsertProgress,
@@ -562,7 +562,12 @@ export class ScheduleService {
       source,
       progress:
         source.kind === "collection"
-          ? await loadProgress(trx, channelId, source.mediaCollectionId)
+          ? await loadProgress(
+              trx,
+              channelId,
+              source.mediaCollectionId,
+              source.playbackMode,
+            )
           : NO_PROGRESS, // single items carry no collection progress
       startsAt: start.startsAt,
       through: target,
@@ -585,6 +590,7 @@ export class ScheduleService {
         trx,
         channelId,
         source.mediaCollectionId,
+        source.playbackMode,
         generated.progress,
         effectiveNow,
       );

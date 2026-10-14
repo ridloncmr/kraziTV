@@ -35,11 +35,27 @@ export type ScheduleSource =
       media: ScheduleMedia;
     };
 
-/** How far a channel has advanced through one media collection. */
+/**
+ * How far a channel has advanced through one media collection in one
+ * playback mode. Ordered modes use only the last selection; random uses only
+ * the selection index. A field the mode does not use stays at its
+ * `NO_PROGRESS` value.
+ */
 export interface PlaybackProgress {
-  nextChronologicalPosition: number;
-  nextRandomSelectionIndex: number;
+  /** Ordered modes: the last media item selected, or null before the first. */
+  lastMediaItemId: string | null;
+  /** Ordered modes: the ordered position that item held, or null before the first. */
+  lastPosition: number | null;
+  /** Random: the selection index the next pick consumes. */
+  nextSelectionIndex: number;
 }
+
+/** Progress through a collection a channel has never played in a mode. */
+export const NO_PROGRESS: PlaybackProgress = Object.freeze({
+  lastMediaItemId: null,
+  lastPosition: null,
+  nextSelectionIndex: 0,
+});
 
 /** Why a source cannot produce any schedule entry. */
 export type UnschedulableReason =
@@ -59,11 +75,25 @@ export interface GeneratedScheduleEntry {
   playbackIndex: number | null;
 }
 
-/** The collection bookkeeping of an entry regeneration deleted. */
+/**
+ * The collection bookkeeping of an entry regeneration deleted or kept: what
+ * it selected, and the collection, mode, and position or index it consumed.
+ */
 export type RestorableEntry = Pick<
   GeneratedScheduleEntry,
-  "sequenceNumber" | "mediaCollectionId" | "playbackMode" | "playbackIndex"
+  | "sequenceNumber"
+  | "mediaItemId"
+  | "mediaCollectionId"
+  | "playbackMode"
+  | "playbackIndex"
 >;
+
+/** The progress one collection and mode returns to after regeneration. */
+export interface RestoredProgress {
+  mediaCollectionId: string;
+  playbackMode: PlaybackMode;
+  progress: PlaybackProgress;
+}
 
 export type GenerationResult =
   | { kind: "unschedulable"; reason: UnschedulableReason }

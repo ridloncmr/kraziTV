@@ -1,5 +1,7 @@
 import {
   type GeneratedScheduleEntry,
+  NO_PROGRESS,
+  type PlaybackMode,
   type PlaybackProgress,
   type RestorableEntry,
   restorePlaybackProgress,
@@ -26,12 +28,6 @@ import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 // reads run inside a deferred read snapshot.
 
 type Executor = Kysely<DatabaseSchema>;
-
-/** Progress for a collection the channel has never played. */
-export const NO_PROGRESS: PlaybackProgress = {
-  nextChronologicalPosition: 0,
-  nextRandomSelectionIndex: 0,
-};
 
 /** Returns whether the channel is enabled, or undefined when it does not exist. */
 export async function findChannelEnabled(
@@ -126,23 +122,29 @@ export async function loadScheduleSource(
   };
 }
 
-/** Loads the channel's progress through a collection, starting at zero when it has none. */
+/**
+ * Loads the channel's progress through a collection in one playback mode,
+ * starting from the beginning when that mode has none.
+ */
 export async function loadProgress(
   trx: Executor,
   channelId: string,
   mediaCollectionId: string,
+  playbackMode: PlaybackMode,
 ): Promise<PlaybackProgress> {
   const row = await trx
     .selectFrom("channel_collection_progress")
-    .select(["next_chronological_position", "next_random_selection_index"])
+    .select(["last_media_item_id", "last_position", "next_selection_index"])
     .where("channel_id", "=", channelId)
     .where("media_collection_id", "=", mediaCollectionId)
+    .where("playback_mode", "=", playbackMode)
     .executeTakeFirst();
   return row === undefined
     ? NO_PROGRESS
     : {
-        nextChronologicalPosition: row.next_chronological_position,
-        nextRandomSelectionIndex: row.next_random_selection_index,
+        lastMediaItemId: row.last_media_item_id,
+        lastPosition: row.last_position,
+        nextSelectionIndex: row.next_selection_index,
       };
 }
 
@@ -210,24 +212,16 @@ export async function deleteEntriesFrom(
     .deleteFrom("schedule_entries")
     .where("channel_id", "=", channelId)
     .where("starts_at", ">=", boundary)
-    .returning([
-      "sequence_number",
-      "media_collection_id",
-      "playback_mode",
-      "playback_index",
-    ])
+    .returning(RESTORABLE_COLUMNS)
     .execute();
-  return rows.map((row) => ({
-    sequenceNumber: row.sequence_number,
-    mediaCollectionId: row.media_collection_id,
-    playbackMode: row.playback_mode,
-    playbackIndex: row.playback_index,
-  }));
+  return rows.map(toRestorableEntry);
 }
 
 /**
- * Rewinds the channel's progress through each collection the deleted entries
- * drew from, so regenerated entries continue where the kept schedule ends.
+ * Sets the channel's progress through each collection and mode the deleted
+ * entries drew from to what the kept schedule implies, so
+ * regenerated entries continue where it ends. Runs after the deletion, so
+ * every entry still on the channel is a kept one.
  */
 export async function restoreDeletedProgress(
   trx: Executor,
@@ -235,31 +229,68 @@ export async function restoreDeletedProgress(
   deletedEntries: readonly RestorableEntry[],
   now: number,
 ): Promise<void> {
-  const current = new Map<string, PlaybackProgress>();
-  for (const { mediaCollectionId } of deletedEntries) {
-    if (mediaCollectionId === null || current.has(mediaCollectionId)) continue;
-    current.set(
+  const kept: RestorableEntry[] = [];
+  const searched = new Set<string>();
+  for (const { mediaCollectionId, playbackMode } of deletedEntries) {
+    if (mediaCollectionId === null || playbackMode === null) continue;
+    const key = JSON.stringify([mediaCollectionId, playbackMode]);
+    if (searched.has(key)) continue;
+    searched.add(key);
+    const latest = await findLatestEntry(
+      trx,
+      channelId,
       mediaCollectionId,
-      await loadProgress(trx, channelId, mediaCollectionId),
+      playbackMode,
     );
+    if (latest !== undefined) kept.push(latest);
   }
-  const restored = restorePlaybackProgress(current, deletedEntries);
-  for (const [mediaCollectionId, progress] of restored) {
-    await upsertProgress(trx, channelId, mediaCollectionId, progress, now);
+  for (const restored of restorePlaybackProgress(deletedEntries, kept)) {
+    await upsertProgress(
+      trx,
+      channelId,
+      restored.mediaCollectionId,
+      restored.playbackMode,
+      restored.progress,
+      now,
+    );
   }
 }
 
-/** Records the channel's progress through a collection, creating the row on first use. */
+// Finds the channel's latest entry drawn from one collection in one mode.
+async function findLatestEntry(
+  trx: Executor,
+  channelId: string,
+  mediaCollectionId: string,
+  playbackMode: PlaybackMode,
+): Promise<RestorableEntry | undefined> {
+  const row = await trx
+    .selectFrom("schedule_entries")
+    .select(RESTORABLE_COLUMNS)
+    .where("channel_id", "=", channelId)
+    .where("media_collection_id", "=", mediaCollectionId)
+    .where("playback_mode", "=", playbackMode)
+    .orderBy("sequence_number", "desc")
+    .limit(1)
+    .executeTakeFirst();
+  return row === undefined ? undefined : toRestorableEntry(row);
+}
+
+/**
+ * Records the channel's progress through a collection in one playback mode,
+ * creating the row on first use. Never touches the reset marker.
+ */
 export async function upsertProgress(
   trx: Executor,
   channelId: string,
   mediaCollectionId: string,
+  playbackMode: PlaybackMode,
   progress: PlaybackProgress,
   now: number,
 ): Promise<void> {
   const columns = {
-    next_chronological_position: progress.nextChronologicalPosition,
-    next_random_selection_index: progress.nextRandomSelectionIndex,
+    last_media_item_id: progress.lastMediaItemId,
+    last_position: progress.lastPosition,
+    next_selection_index: progress.nextSelectionIndex,
     updated_at: now,
   };
   await trx
@@ -267,11 +298,12 @@ export async function upsertProgress(
     .values({
       channel_id: channelId,
       media_collection_id: mediaCollectionId,
+      playback_mode: playbackMode,
       ...columns,
     })
     .onConflict((conflict) =>
       conflict
-        .columns(["channel_id", "media_collection_id"])
+        .columns(["channel_id", "media_collection_id", "playback_mode"])
         .doUpdateSet(columns),
     )
     .execute();
@@ -319,6 +351,31 @@ export async function listEntriesInWindow(
     .orderBy("starts_at")
     .execute();
   return rows.map(toScheduleEntry);
+}
+
+// The entry columns progress restoration reads.
+const RESTORABLE_COLUMNS = [
+  "sequence_number",
+  "media_item_id",
+  "media_collection_id",
+  "playback_mode",
+  "playback_index",
+] as const;
+
+// Keeps the entry row shape inside this module.
+function toRestorableEntry(
+  row: Pick<
+    Selectable<ScheduleEntryTable>,
+    (typeof RESTORABLE_COLUMNS)[number]
+  >,
+): RestorableEntry {
+  return {
+    sequenceNumber: row.sequence_number,
+    mediaItemId: row.media_item_id,
+    mediaCollectionId: row.media_collection_id,
+    playbackMode: row.playback_mode,
+    playbackIndex: row.playback_index,
+  };
 }
 
 // Maps the domain state onto every column except `created_at`, which never changes.

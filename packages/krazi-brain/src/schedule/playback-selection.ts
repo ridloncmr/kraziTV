@@ -1,33 +1,50 @@
-import type { ScheduleMedia } from "./contracts.js";
+import type { PlaybackProgress, ScheduleMedia } from "./contracts.js";
 import { isSchedulableMedia } from "./schedule-policy.js";
 import { hash32 } from "./seeded-hash.js";
 
-/** One member chosen to air, the playback index it consumed, and the next one. */
+/** One member chosen to air and the position or index it consumed. */
 interface PlaybackSelection {
   media: ScheduleMedia;
   playbackIndex: number;
-  nextIndex: number;
 }
 
 /**
- * Chooses the next chronological member at or after `position`, taken modulo
- * the current member count. An unschedulable member is skipped but still
- * consumes its position, so a member returning later keeps its place in
- * order. The caller must pass members with at least one schedulable item, or
- * the search never ends.
+ * Returns where an ordered mode resumes (ADR 0009): after the last selected
+ * member wherever it now sits, or at its recorded position modulo the member
+ * count when it has left, or at the start before any selection. Checks the
+ * recorded position first, so an unchanged order resumes without a search.
  */
-export function selectChronological(
+function resumePosition(
   members: readonly ScheduleMedia[],
-  position: number,
+  { lastMediaItemId, lastPosition }: PlaybackProgress,
+): number {
+  const found =
+    lastMediaItemId === null
+      ? -1
+      : lastPosition !== null && members[lastPosition]?.id === lastMediaItemId
+        ? lastPosition
+        : members.findIndex((media) => media.id === lastMediaItemId);
+  if (found !== -1) return (found + 1) % members.length;
+  return lastPosition === null ? 0 : lastPosition % members.length;
+}
+
+/**
+ * Chooses the next member of an ordered view after `progress`, skipping
+ * unschedulable members and wrapping at the end. Shared by every ordered
+ * mode; the caller passes members already in that mode's order, with at
+ * least one schedulable item, or the search never ends.
+ */
+export function selectOrdered(
+  members: readonly ScheduleMedia[],
+  progress: PlaybackProgress,
 ): PlaybackSelection {
-  let index = position % members.length;
+  let index = resumePosition(members, progress);
   for (;;) {
     const media = members[index];
-    const nextIndex = (index + 1) % members.length;
     if (media !== undefined && isSchedulableMedia(media)) {
-      return { media, playbackIndex: index, nextIndex };
+      return { media, playbackIndex: index };
     }
-    index = nextIndex;
+    index = (index + 1) % members.length;
   }
 }
 
@@ -50,9 +67,5 @@ export function selectRandom(
   if (media === undefined) {
     throw new Error("random selection needs a schedulable member");
   }
-  return {
-    media,
-    playbackIndex: selectionIndex,
-    nextIndex: selectionIndex + 1,
-  };
+  return { media, playbackIndex: selectionIndex };
 }

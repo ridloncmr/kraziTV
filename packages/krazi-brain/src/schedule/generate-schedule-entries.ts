@@ -6,7 +6,7 @@ import type {
   ScheduleMedia,
   ScheduleSource,
 } from "./contracts.js";
-import { selectChronological, selectRandom } from "./playback-selection.js";
+import { selectOrdered, selectRandom } from "./playback-selection.js";
 import { findUnschedulableReason } from "./schedule-policy.js";
 import { deriveCollectionSeed } from "./seeded-hash.js";
 
@@ -14,7 +14,7 @@ interface GenerateScheduleEntriesOptions {
   /** The channel's persisted seed; random playback derives from it. */
   channelSeed: number;
   source: ScheduleSource;
-  /** The channel's progress through the source collection. */
+  /** The channel's progress through the source collection in its playback mode. */
   progress: PlaybackProgress;
   startsAt: number;
   /** No entry starts at or after this instant; the last one may end past it. */
@@ -34,10 +34,11 @@ interface NextAiring {
 }
 
 /**
- * Chooses what airs next from a source and advances progress past it. A
+ * Chooses what airs next from a source and advances its progress past it. A
  * single item repeats and leaves progress untouched, because only collections
- * carry playback progress. Each mode advances only its own progress field, so
- * a random stretch never moves the chronological position or vice versa.
+ * carry playback progress. Random advances its selection index; an ordered
+ * mode records the member it selected and the position it held, so the next
+ * selection can find that member again after the order changes.
  */
 function nextAiring(
   source: ScheduleSource,
@@ -53,30 +54,33 @@ function nextAiring(
       progress,
     };
   }
-  if (source.playbackMode === "random") {
+  const { mediaCollectionId, playbackMode, members } = source;
+  if (playbackMode === "random") {
     const selection = selectRandom(
-      source.members,
-      deriveCollectionSeed(channelSeed, source.mediaCollectionId),
-      progress.nextRandomSelectionIndex,
+      members,
+      deriveCollectionSeed(channelSeed, mediaCollectionId),
+      progress.nextSelectionIndex,
     );
     return {
-      media: selection.media,
-      mediaCollectionId: source.mediaCollectionId,
-      playbackMode: "random",
-      playbackIndex: selection.playbackIndex,
-      progress: { ...progress, nextRandomSelectionIndex: selection.nextIndex },
+      ...selection,
+      mediaCollectionId,
+      playbackMode,
+      progress: {
+        ...progress,
+        nextSelectionIndex: selection.playbackIndex + 1,
+      },
     };
   }
-  const selection = selectChronological(
-    source.members,
-    progress.nextChronologicalPosition,
-  );
+  const selection = selectOrdered(members, progress);
   return {
-    media: selection.media,
-    mediaCollectionId: source.mediaCollectionId,
-    playbackMode: "chronological",
-    playbackIndex: selection.playbackIndex,
-    progress: { ...progress, nextChronologicalPosition: selection.nextIndex },
+    ...selection,
+    mediaCollectionId,
+    playbackMode,
+    progress: {
+      ...progress,
+      lastMediaItemId: selection.media.id,
+      lastPosition: selection.playbackIndex,
+    },
   };
 }
 
