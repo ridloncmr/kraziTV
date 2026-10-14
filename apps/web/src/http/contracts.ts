@@ -199,7 +199,7 @@ export interface Channel {
   enabled: boolean;
 }
 /** How a collection block orders its collection; mirrors the server's modes. */
-export type PlaybackMode = "chronological" | "episode" | "random";
+export type PlaybackMode = "chronological" | "episode" | "release" | "random";
 export type BlockSource =
   | {
       kind: "collection";

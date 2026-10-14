@@ -3,7 +3,12 @@
  * list of values: the server's request validation and persisted columns
  * derive from it, so a new mode cannot be accepted before it is scheduled.
  */
-export const PLAYBACK_MODES = ["chronological", "episode", "random"] as const;
+export const PLAYBACK_MODES = [
+  "chronological",
+  "episode",
+  "release",
+  "random",
+] as const;
 
 /** How a collection-sourced block orders its collection. */
 export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
@@ -28,6 +33,8 @@ export interface ScheduleMedia {
   seasonNumber: number | null;
   /** The first episode a multi-episode file holds. */
   episodeNumber: number | null;
+  /** `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`, at the precision it was stored with; an episode's own air date. */
+  releaseDate: string | null;
 }
 
 /** A programming block's source, with its media resolved from the catalog. */

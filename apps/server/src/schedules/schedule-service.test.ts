@@ -6,7 +6,7 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { episodeFacts } from "../testing/collection-fixtures.js";
+import { episodeFacts, movieFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { correctionRow } from "../testing/metadata-match-fixtures.js";
 import { countQueries } from "../testing/query-counter.js";
@@ -185,6 +185,33 @@ describe("ScheduleService.ensureCoverage", () => {
       "item-001",
       "item-002",
       "item-004",
+    ]);
+  });
+
+  it("plays release order from accepted dates, undated items last", async () => {
+    const { db, channelId, service, log } = await setup({
+      source: "release",
+    });
+    await db
+      .insertInto("content_facts")
+      .values([
+        movieFacts("item-001", null, "2001"),
+        movieFacts("item-002", null, "1999-05"),
+        movieFacts("item-003", null, null),
+      ])
+      .execute();
+
+    await service.ensureCoverage(channelId, log);
+
+    const entries = await readScheduleEntries(db, channelId);
+    expect(
+      entries
+        .slice(0, 3)
+        .map((entry) => [entry.media_item_id, entry.playback_mode]),
+    ).toEqual([
+      ["item-002", "release"],
+      ["item-001", "release"],
+      ["item-003", "release"],
     ]);
   });
 

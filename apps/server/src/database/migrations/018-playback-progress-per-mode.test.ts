@@ -79,6 +79,7 @@ function firstPick(progress: PlaybackProgress): string | undefined {
         seriesName: null,
         seasonNumber: null,
         episodeNumber: null,
+        releaseDate: null,
       })),
     },
     progress,

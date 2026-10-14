@@ -455,7 +455,7 @@ function toScheduleEntry(row: Selectable<ScheduleEntryTable>): ScheduleEntry {
 // schedules from, so both block sources hand it the same shape. Ordering
 // facts go through effectiveMetadata and effectiveContentIdentity, so a
 // correction wins here exactly as it does in the Media Library. An extra is
-// never an episode, so it carries none.
+// never matched as an episode or movie, so it carries none.
 function toScheduleMedia(
   row: MetadataColumns & {
     id: string;
@@ -475,5 +475,6 @@ function toScheduleMedia(
     seriesName: extra ? null : metadata.seriesName,
     seasonNumber: extra ? null : metadata.seasonNumber,
     episodeNumber: extra ? null : metadata.episodeNumber,
+    releaseDate: extra ? null : metadata.releaseDate,
   };
 }

@@ -120,6 +120,83 @@ describe("orderMembers: episode order", () => {
   });
 });
 
+describe("orderMembers: release order", () => {
+  // A member released on `releaseDate`, stored at the precision TMDB gave.
+  function released(id: string, releaseDate: string | null): ScheduleMedia {
+    return scheduleMedia(id, { releaseDate });
+  }
+
+  it("orders by year, then month, then day, not by saved order", () => {
+    const members = [
+      released("late-1999", "1999-12-31"),
+      released("2001", "2001-01-01"),
+      released("early-1999", "1999-01-02"),
+      released("mid-1999", "1999-06-15"),
+    ];
+
+    expect(ids(orderMembers(members, "release"))).toEqual([
+      "early-1999",
+      "mid-1999",
+      "late-1999",
+      "2001",
+    ]);
+  });
+
+  it("puts a year-only date after every date in that year with a month", () => {
+    const members = [
+      released("year-only", "1999"),
+      released("december", "1999-12"),
+      released("next-year", "2000-01-01"),
+      released("march-3rd", "1999-03-03"),
+    ];
+
+    expect(ids(orderMembers(members, "release"))).toEqual([
+      "march-3rd",
+      "december",
+      "year-only",
+      "next-year",
+    ]);
+  });
+
+  it("puts a month-only date after every date in that month with a day", () => {
+    const members = [
+      released("march", "1999-03"),
+      released("april-1st", "1999-04-01"),
+      released("march-31st", "1999-03-31"),
+    ];
+
+    expect(ids(orderMembers(members, "release"))).toEqual([
+      "march-31st",
+      "march",
+      "april-1st",
+    ]);
+  });
+
+  it("puts undated members last, in saved order", () => {
+    const members = [
+      released("undated-b", null),
+      released("dated", "1980"),
+      released("undated-a", null),
+    ];
+
+    expect(ids(orderMembers(members, "release"))).toEqual([
+      "dated",
+      "undated-b",
+      "undated-a",
+    ]);
+  });
+
+  it("keeps equal dates of equal precision in saved order", () => {
+    const members = [
+      released("z", "1999-05"),
+      released("a", "1999-05"),
+      released("m", "1999-05"),
+    ];
+
+    expect(ids(orderMembers(members, "release"))).toEqual(["z", "a", "m"]);
+  });
+});
+
 describe("orderMembers: modes that keep saved order", () => {
   it.each(["chronological", "random"] as const)(
     "returns %s members in saved order",

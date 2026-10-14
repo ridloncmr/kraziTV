@@ -29,6 +29,11 @@ const PLAYBACK_MODE_CHOICES: readonly {
     hint: "Plays by series, season, and episode; items without episode details play last, in saved order.",
   },
   {
+    mode: "release",
+    label: "Release order",
+    hint: "Plays by release or air date, earliest first; items without a date play last, in saved order.",
+  },
+  {
     mode: "random",
     label: "Random",
     hint: "Picks reproducibly at random from the collection; items can repeat.",

@@ -18,6 +18,7 @@ export function scheduleMedia(
     seriesName: null,
     seasonNumber: null,
     episodeNumber: null,
+    releaseDate: null,
     ...overrides,
   };
 }

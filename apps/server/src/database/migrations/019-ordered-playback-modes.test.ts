@@ -54,27 +54,22 @@ describe("019_ordered_playback_modes", () => {
     "stores a block and an entry in %s mode",
     async (playbackMode) => {
       const db = await seeded();
+
       await db
         .insertInto("programming_blocks")
-        .values(programmingBlockFixture)
+        .values({ ...programmingBlockFixture, playback_mode: playbackMode })
         .execute();
       await db
         .insertInto("schedule_entries")
-        .values(scheduleEntryFixture)
+        .values({ ...scheduleEntryFixture, playback_mode: playbackMode })
         .execute();
 
-      // Raw SQL, since the schema types list only modes kraziBrain schedules.
-      await sql`update programming_blocks set playback_mode = ${playbackMode}`.execute(
-        db,
-      );
-      await sql`update schedule_entries set playback_mode = ${playbackMode}`.execute(
-        db,
-      );
-
-      const { rows } = await sql`
-        select b.playback_mode as block, e.playback_mode as entry
-        from programming_blocks b, schedule_entries e`.execute(db);
-      expect(rows).toEqual([{ block: playbackMode, entry: playbackMode }]);
+      await expect(
+        db.selectFrom("programming_blocks").select("playback_mode").execute(),
+      ).resolves.toEqual([{ playback_mode: playbackMode }]);
+      await expect(
+        db.selectFrom("schedule_entries").select("playback_mode").execute(),
+      ).resolves.toEqual([{ playback_mode: playbackMode }]);
     },
   );
 
