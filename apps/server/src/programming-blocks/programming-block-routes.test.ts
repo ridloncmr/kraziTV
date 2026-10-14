@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
+import { episodeFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
+import { sequentialIds } from "../testing/record-sources.js";
 import {
   seedScheduleScenario,
   readScheduleEntries,
@@ -58,7 +61,7 @@ async function startServer(
     },
     overrides: (db) => ({
       programmingBlocks: new ProgrammingBlockRepository(db, {
-        createId: () => "block-001",
+        createId: sequentialIds("block"),
       }),
       schedules: new ScheduleService(db, { now: clock.now }),
     }),
@@ -277,6 +280,61 @@ describe("programming block routes", () => {
     ).resolves.toEqual([]);
   });
 });
+
+describe("playback modes over one collection", () => {
+  it("airs saved order on one channel and episode order on another, leaving saved positions alone", async () => {
+    // Saved order item-001, item-002, item-003; episode order 3, 1, 2.
+    const { server, db } = await startServer();
+    await db
+      .insertInto("content_facts")
+      .values([
+        episodeFacts("item-001", 2316, 1, 2),
+        episodeFacts("item-002", 2316, 1, 3),
+        episodeFacts("item-003", 2316, 1, 1),
+      ])
+      .execute();
+    const other = { ...channelFixture, id: "channel-other", number: "70" };
+    await db.insertInto("channels").values(other).execute();
+    const positionsBefore = await savedPositions(db);
+
+    await send(server, "POST", BLOCKS_URL, { source: collectionSource });
+    const created = await send(
+      server,
+      "POST",
+      `/channels/${other.id}/programming-blocks`,
+      { source: { ...collectionSource, playbackMode: "episode" } },
+    );
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: { source: { playbackMode: "episode" } },
+    });
+    const firstThree = async (channelId: string) =>
+      (await readScheduleEntries(db, channelId))
+        .slice(0, 3)
+        .map((entry) => [entry.media_item_id, entry.playback_mode]);
+    await expect(firstThree(CHANNEL_ID)).resolves.toEqual([
+      ["item-001", "chronological"],
+      ["item-002", "chronological"],
+      ["item-003", "chronological"],
+    ]);
+    await expect(firstThree(other.id)).resolves.toEqual([
+      ["item-003", "episode"],
+      ["item-001", "episode"],
+      ["item-002", "episode"],
+    ]);
+    await expect(savedPositions(db)).resolves.toEqual(positionsBefore);
+  });
+});
+
+// Reads the collection's saved membership, which no playback mode may rewrite.
+function savedPositions(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("media_collection_items")
+    .select(["media_item_id", "position"])
+    .orderBy("position")
+    .execute();
+}
 
 describe("changing and deleting a programming block", () => {
   const BLOCK_URL = `${BLOCKS_URL}/block-001`;

@@ -17,8 +17,14 @@ import {
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
-import type { MediaCollectionMember } from "../media-collections/contracts.js";
-import { selectMembers } from "../media-collections/persistence/media-collection-repository.js";
+import type { MediaItemStatus } from "../database/schema/media-item-table.js";
+import {
+  effectiveContentIdentity,
+  effectiveMetadata,
+  METADATA_COLUMNS,
+  type MetadataColumns,
+} from "../media-items/effective-metadata.js";
+import { selectWithMetadata } from "../media-items/media-item-repository.js";
 import { toProgrammingBlockSource } from "../programming-blocks/programming-block-repository.js";
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 
@@ -79,8 +85,9 @@ export async function findLatestScheduleMutation(
 
 /**
  * Resolves the channel's block into the source kraziBrain generates from:
- * collection members in membership order, or the single item. Returns
- * undefined when the channel has no block.
+ * collection members in saved membership order, or the single item, each
+ * with its effective ordering facts. Returns undefined when the channel has
+ * no block.
  */
 export async function loadScheduleSource(
   trx: Executor,
@@ -95,7 +102,19 @@ export async function loadScheduleSource(
 
   const source = toProgrammingBlockSource(block);
   if (source.kind === "collection") {
-    const members = await selectMembers(trx, source.mediaCollectionId);
+    const members = await selectScheduleMedia(trx)
+      .innerJoin(
+        "media_collection_items",
+        "media_collection_items.media_item_id",
+        "media_items.id",
+      )
+      .where(
+        "media_collection_items.media_collection_id",
+        "=",
+        source.mediaCollectionId,
+      )
+      .orderBy("media_collection_items.position")
+      .execute();
     return {
       kind: "collection",
       programmingBlockId: block.id,
@@ -105,21 +124,27 @@ export async function loadScheduleSource(
     };
   }
 
-  const item = await trx
-    .selectFrom("media_items")
-    .select([
-      "id as mediaItemId",
-      "title",
-      "status",
-      "duration_ms as durationMs",
-    ])
-    .where("id", "=", source.mediaItemId)
+  const item = await selectScheduleMedia(trx)
+    .where("media_items.id", "=", source.mediaItemId)
     .executeTakeFirstOrThrow();
   return {
     kind: "media_item",
     programmingBlockId: block.id,
     media: toScheduleMedia(item),
   };
+}
+
+// Starts a read of the item columns and metadata a ScheduleMedia needs,
+// through the Media Library's join, so scheduling sees the facts it shows.
+function selectScheduleMedia(trx: Executor) {
+  return selectWithMetadata(trx)
+    .select([
+      "media_items.id",
+      "media_items.title as item_title",
+      "media_items.status",
+      "media_items.duration_ms",
+    ])
+    .select(METADATA_COLUMNS);
 }
 
 /**
@@ -427,17 +452,28 @@ function toScheduleEntry(row: Selectable<ScheduleEntryTable>): ScheduleEntry {
 }
 
 // Narrows a collection member or single item to the facts kraziBrain
-// schedules from, so both block sources hand it the same shape.
+// schedules from, so both block sources hand it the same shape. Ordering
+// facts go through effectiveMetadata and effectiveContentIdentity, so a
+// correction wins here exactly as it does in the Media Library. An extra is
+// never an episode, so it carries none.
 function toScheduleMedia(
-  media: Pick<
-    MediaCollectionMember,
-    "mediaItemId" | "title" | "status" | "durationMs"
-  >,
+  row: MetadataColumns & {
+    id: string;
+    item_title: string;
+    status: MediaItemStatus;
+    duration_ms: number | null;
+  },
 ): ScheduleMedia {
+  const metadata = effectiveMetadata(row);
+  const extra = metadata.matchState === "extra";
   return {
-    id: media.mediaItemId,
-    title: media.title,
-    status: media.status,
-    durationMs: media.durationMs,
+    id: row.id,
+    title: row.item_title,
+    status: row.status,
+    durationMs: row.duration_ms,
+    seriesTmdbId: extra ? null : effectiveContentIdentity(row).seriesTmdbId,
+    seriesName: extra ? null : metadata.seriesName,
+    seasonNumber: extra ? null : metadata.seasonNumber,
+    episodeNumber: extra ? null : metadata.episodeNumber,
   };
 }

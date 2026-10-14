@@ -1,8 +1,9 @@
 import type { ScheduleMedia } from "../schedule/contracts.js";
 
 /**
- * Builds an available media item that is schedulable unless a test
- * overrides it, so each test states only the facts it is about.
+ * Builds an available media item that is schedulable, with no ordering
+ * facts, unless a test overrides it, so each test states only the facts it
+ * is about.
  */
 export function scheduleMedia(
   id: string,
@@ -13,6 +14,10 @@ export function scheduleMedia(
     title: `Title ${id}`,
     status: "available",
     durationMs: 60_000,
+    seriesTmdbId: null,
+    seriesName: null,
+    seasonNumber: null,
+    episodeNumber: null,
     ...overrides,
   };
 }

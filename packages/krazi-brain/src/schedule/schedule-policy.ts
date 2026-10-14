@@ -19,7 +19,9 @@ export const MIN_SCHEDULABLE_DURATION_MS = 1000;
  * duration at or above the floor, so every entry built from it has integer,
  * contiguous times.
  */
-export function isSchedulableMedia(media: ScheduleMedia): boolean {
+export function isSchedulableMedia(
+  media: Pick<ScheduleMedia, "status" | "durationMs">,
+): boolean {
   return (
     media.status === "available" &&
     Number.isSafeInteger(media.durationMs) &&

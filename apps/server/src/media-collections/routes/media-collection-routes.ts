@@ -204,7 +204,7 @@ export function registerMediaCollectionRoutes(
     const members = await mediaCollections.listMembers(id);
     if (members === undefined) return sendCollectionNotFound(reply, id);
     const schedulableCount = members.filter((member) =>
-      isSchedulableMedia({ ...member, id: member.mediaItemId }),
+      isSchedulableMedia(member),
     ).length;
     return {
       schedulable: schedulableCount > 0,

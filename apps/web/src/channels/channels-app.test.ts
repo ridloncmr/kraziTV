@@ -191,6 +191,72 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
   );
 });
 
+it("saves episode order, explains it, and shows it when reopened", async () => {
+  const api = new BrowserApi();
+  const blockWith = (playbackMode: string) => ({
+    id: "block",
+    source: {
+      kind: "collection",
+      mediaCollectionId: "favorites",
+      playbackMode,
+    },
+  });
+  api.reply("/channels/one/programming-blocks", [blockWith("chronological")]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
+  api.handle(
+    "/channels/one/programming-blocks/block",
+    () => {
+      api.reply("/channels/one/programming-blocks", [blockWith("episode")]);
+      return api.response(blockWith("episode"));
+    },
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const view = render(
+    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Programming source").value,
+    ).toBe("favorites"),
+  );
+  expect(
+    screen.getAllByRole("option").map((option) => option.textContent),
+  ).toEqual(
+    expect.arrayContaining(["Collection order", "Episode order", "Random"]),
+  );
+
+  fireEvent.change(screen.getByLabelText("Playback mode"), {
+    target: { value: "episode" },
+  });
+  const hintId = screen
+    .getByLabelText("Playback mode")
+    .getAttribute("aria-describedby");
+  expect(document.getElementById(hintId!)?.textContent).toMatch(
+    /Plays by series, season, and episode/,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
+  await screen.findByText(/revision 2/);
+  view.unmount();
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({
+    source: {
+      kind: "collection",
+      mediaCollectionId: "favorites",
+      playbackMode: "episode",
+    },
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Playback mode").value,
+    ).toBe("episode"),
+  );
+});
+
 it("keeps a rejected create in its dialog, then selects the created channel", async () => {
   const api = new BrowserApi();
   api.reply("/channels", []);

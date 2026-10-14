@@ -311,6 +311,53 @@ describe("generateScheduleEntries: chronological collections", () => {
   });
 });
 
+describe("generateScheduleEntries: episode order", () => {
+  // Saved order differs from episode order: e3, e1, e2.
+  const members = [
+    scheduleMedia("e3", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 3 }),
+    scheduleMedia("e1", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 1 }),
+    scheduleMedia("e2", { seriesTmdbId: 1, seasonNumber: 1, episodeNumber: 2 }),
+  ];
+  const episodeSource: ScheduleSource = {
+    kind: "collection",
+    programmingBlockId: "block-1",
+    mediaCollectionId: "collection-1",
+    playbackMode: "episode",
+    members,
+  };
+
+  it("airs the episode order and records each entry's ordered position", () => {
+    const result = generated(
+      generate(episodeSource, { through: STARTS_AT + 4 * 60_000 }),
+    );
+
+    expect(
+      result.entries.map((entry) => [
+        entry.mediaItemId,
+        entry.playbackMode,
+        entry.playbackIndex,
+      ]),
+    ).toEqual([
+      ["e1", "episode", 0],
+      ["e2", "episode", 1],
+      ["e3", "episode", 2],
+      ["e1", "episode", 0],
+    ]);
+    expect(result.progress).toEqual(afterSelecting("e1", 0));
+  });
+
+  it("resumes after the last episode it selected", () => {
+    const result = generated(
+      generate(episodeSource, {
+        progress: afterSelecting("e2", 1),
+        through: STARTS_AT + 60_000,
+      }),
+    );
+
+    expect(result.entries[0]?.mediaItemId).toBe("e3");
+  });
+});
+
 describe("generateScheduleEntries: random collections", () => {
   // Four schedulable members around one that random selection must never pick.
   const members = [

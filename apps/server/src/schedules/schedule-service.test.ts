@@ -6,7 +6,9 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { episodeFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
+import { correctionRow } from "../testing/metadata-match-fixtures.js";
 import { countQueries } from "../testing/query-counter.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { recordingLog } from "../testing/recording-log.js";
@@ -141,6 +143,49 @@ describe("ScheduleService.ensureCoverage", () => {
       },
     ]);
     expect(log.lines).toEqual([]);
+  });
+
+  it("plays episode order from effective facts: corrections win and extras sort last", async () => {
+    const { db, channelId, service, log } = await setup({
+      items: [...EPISODES, { durationMs: 25 * MINUTE }],
+      source: "episode",
+    });
+    await db
+      .insertInto("content_facts")
+      .values([
+        episodeFacts("item-001", 2316, 1, 1),
+        episodeFacts("item-002", 2316, 1, 2),
+        episodeFacts("item-003", 2316, 1, 3),
+        // An extra's stray facts would put it first if they were read.
+        episodeFacts("item-004", 2316, 0, 1),
+      ])
+      .execute();
+    await db
+      .insertInto("metadata_matches")
+      .values({
+        media_item_id: "item-004",
+        state: "unmatched",
+        extra: 1,
+        lookup_error: null,
+        looked_up_at: null,
+        evidence: "{}",
+        matched_duration_ms: null,
+      })
+      .execute();
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("item-003", { season_number: 0 }))
+      .execute();
+
+    await service.ensureCoverage(channelId, log);
+
+    const entries = await readScheduleEntries(db, channelId);
+    expect(entries.slice(0, 4).map((entry) => entry.media_item_id)).toEqual([
+      "item-003",
+      "item-001",
+      "item-002",
+      "item-004",
+    ]);
   });
 
   it("plays a chronological collection in membership position order, not item ID order", async () => {

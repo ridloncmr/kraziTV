@@ -198,11 +198,13 @@ export interface Channel {
   name: string;
   enabled: boolean;
 }
+/** How a collection block orders its collection; mirrors the server's modes. */
+export type PlaybackMode = "chronological" | "episode" | "random";
 export type BlockSource =
   | {
       kind: "collection";
       mediaCollectionId: string;
-      playbackMode: "chronological" | "random";
+      playbackMode: PlaybackMode;
     }
   | { kind: "media_item"; mediaItemId: string };
 export interface ProgrammingBlock {

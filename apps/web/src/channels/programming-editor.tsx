@@ -4,12 +4,36 @@ import { resourcePath } from "../http/api-client.js";
 import type {
   BlockSource,
   MediaCollection,
+  PlaybackMode,
   ProgrammingBlock,
   ScheduleWindow,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { MediaItemPicker } from "../media-search/media-item-picker.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
+
+// Every playback mode the editor offers, with the one line that explains it.
+const PLAYBACK_MODE_CHOICES: readonly {
+  mode: PlaybackMode;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    mode: "chronological",
+    label: "Collection order",
+    hint: "Plays the collection in its saved order.",
+  },
+  {
+    mode: "episode",
+    label: "Episode order",
+    hint: "Plays by series, season, and episode; items without episode details play last, in saved order.",
+  },
+  {
+    mode: "random",
+    label: "Random",
+    hint: "Picks reproducibly at random from the collection; items can repeat.",
+  },
+];
 
 /** Sends the explicit either/or source contract; the server regenerates and returns schedule observations. */
 export function ProgrammingEditor({
@@ -28,7 +52,7 @@ export function ProgrammingEditor({
   const mutation = useMutation();
   const [kind, setKind] = useState<BlockSource["kind"]>("collection");
   const [sourceId, setSourceId] = useState("");
-  const [mode, setMode] = useState<"chronological" | "random">("chronological");
+  const [mode, setMode] = useState<PlaybackMode>("chronological");
   const [showSchedule, setShowSchedule] = useState(false);
   const dirty = useRef(false);
   const schedulePath = useMemo(
@@ -129,21 +153,31 @@ export function ProgrammingEditor({
             />
           )}
           {kind === "collection" && (
-            <label>
-              Playback mode
-              <select
-                value={mode}
-                onChange={(event) => {
-                  dirty.current = true;
-                  setMode(event.target.value as "chronological" | "random");
-                }}
-              >
-                <option value="chronological">
-                  Chronological (collection order)
-                </option>
-                <option value="random">Random (deterministic)</option>
-              </select>
-            </label>
+            <>
+              <label>
+                Playback mode
+                <select
+                  value={mode}
+                  aria-describedby="playback-mode-hint"
+                  onChange={(event) => {
+                    dirty.current = true;
+                    setMode(event.target.value as PlaybackMode);
+                  }}
+                >
+                  {PLAYBACK_MODE_CHOICES.map((choice) => (
+                    <option key={choice.mode} value={choice.mode}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <small id="playback-mode-hint" className="secondary">
+                {
+                  PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)
+                    ?.hint
+                }
+              </small>
+            </>
           )}
         </div>
         <div className="row-actions">

@@ -6,6 +6,7 @@ import type {
   ScheduleMedia,
   ScheduleSource,
 } from "./contracts.js";
+import { orderMembers } from "./ordered-view.js";
 import { selectOrdered, selectRandom } from "./playback-selection.js";
 import { findUnschedulableReason } from "./schedule-policy.js";
 import { deriveCollectionSeed } from "./seeded-hash.js";
@@ -88,17 +89,28 @@ function nextAiring(
  * Generates contiguous schedule entries from `startsAt` until one ends at or
  * past `through` or `maxEntries` is reached, without touching persistence.
  * The result carries everything needed to resume exactly where it stopped, so
- * chunked calls produce the same entries as one long call. The output depends
- * only on the inputs.
+ * chunked calls produce the same entries as one long call. A collection is
+ * ordered for its playback mode once, so each entry's playback index is its
+ * position in that order. The output depends only on the inputs.
  */
 export function generateScheduleEntries(
   options: GenerateScheduleEntriesOptions,
 ): GenerationResult {
-  const { source, through, maxEntries } = options;
-  const reason = findUnschedulableReason(source);
+  const { through, maxEntries } = options;
+  const reason = findUnschedulableReason(options.source);
   if (reason !== null) {
     return { kind: "unschedulable", reason };
   }
+  const source: ScheduleSource =
+    options.source.kind === "collection"
+      ? {
+          ...options.source,
+          members: orderMembers(
+            options.source.members,
+            options.source.playbackMode,
+          ),
+        }
+      : options.source;
 
   const entries: GeneratedScheduleEntry[] = [];
   let nextStartsAt = options.startsAt;

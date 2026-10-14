@@ -3,7 +3,7 @@
  * list of values: the server's request validation and persisted columns
  * derive from it, so a new mode cannot be accepted before it is scheduled.
  */
-export const PLAYBACK_MODES = ["chronological", "random"] as const;
+export const PLAYBACK_MODES = ["chronological", "episode", "random"] as const;
 
 /** How a collection-sourced block orders its collection. */
 export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
@@ -11,12 +11,23 @@ export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
 /** A media item's catalog status. */
 export type ScheduleMediaStatus = "available" | "missing" | "probe_failed";
 
-/** The catalog facts about one media item that scheduling needs. */
+/**
+ * The catalog facts about one media item that scheduling needs. The
+ * ordering facts are effective content metadata, with the owner's
+ * corrections already applied; each is null when unknown, and always null
+ * for an extra.
+ */
 export interface ScheduleMedia {
   id: string;
   title: string;
   status: ScheduleMediaStatus;
   durationMs: number | null;
+  /** Null when the series is unknown or the owner renamed it away from TMDB's. */
+  seriesTmdbId: number | null;
+  seriesName: string | null;
+  seasonNumber: number | null;
+  /** The first episode a multi-episode file holds. */
+  episodeNumber: number | null;
 }
 
 /** A programming block's source, with its media resolved from the catalog. */
