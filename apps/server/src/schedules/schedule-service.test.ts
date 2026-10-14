@@ -1186,6 +1186,51 @@ describe("ScheduleService regeneration", () => {
     );
   });
 
+  it("resumes a collection after another collection airs, without consuming its progress", async () => {
+    const { db, channelId, collectionId, clock, service, log } =
+      await generatedSetup(T0 + 30 * MINUTE);
+    await db
+      .insertInto("media_collections")
+      .values({ id: "other", name: "Other", created_at: T0, updated_at: T0 })
+      .execute();
+    await db
+      .insertInto("media_collection_items")
+      .values({
+        media_collection_id: "other",
+        media_item_id: "item-001",
+        position: 0,
+        created_at: T0,
+      })
+      .execute();
+    // Item 2 airs; the other collection takes over after it.
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection("other", "chronological")),
+    );
+    // The other collection's item 1 airs from 45 minutes for 22 minutes.
+    clock.set(T0 + 50 * MINUTE);
+
+    await service.applyInputChange(
+      log,
+      "block_changed",
+      changeSource(channelId, playCollection(collectionId, "chronological")),
+    );
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(
+      after
+        .slice(0, 4)
+        .map((entry) => [entry.media_collection_id, entry.media_item_id]),
+    ).toEqual([
+      [collectionId, "item-001"],
+      [collectionId, "item-002"],
+      ["other", "item-001"],
+      // Continues after item 2, where this collection last aired.
+      [collectionId, "item-003"],
+    ]);
+  });
+
   it("resumes chronological playback untouched by a random stretch", async () => {
     const { db, channelId, collectionId, clock, service, log } =
       await generatedSetup(T0 + 30 * MINUTE);

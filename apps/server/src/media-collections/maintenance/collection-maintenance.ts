@@ -25,8 +25,8 @@ interface CollectionMaintenanceOptions {
 /**
  * Keeps every automatic collection's membership equal to what its criterion
  * matches in committed facts, and every episode or release order's schedule
- * equal to the order committed facts give. Fact, tag, catalog, criterion, and exclusion
- * writers only call `request()` after they commit; requests coalesce into
+ * equal to the order committed facts give. Fact, tag, catalog, criterion,
+ * and exclusion writers only call `request()` after they commit; requests coalesce into
  * one pass at a time, and a request made while a pass runs gets one more
  * pass after it, since the running pass may have read before that commit.
  */

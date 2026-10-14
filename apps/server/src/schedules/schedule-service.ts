@@ -76,9 +76,11 @@ const PREVIEW_UPCOMING_ENTRIES = 10;
 /**
  * The only writer of schedule entries, schedule state, and collection
  * progress, apart from catalog purge, which deletes only entries that have
- * ended, and the maintenance pass's ordering change, which records an order
- * fingerprint inside an input change this service runs. Every mutation runs in an immediate transaction and reads its
- * effective current time only after acquiring write authority.
+ * ended, and two input changes this service runs in its own transaction:
+ * the maintenance pass's ordering change, which records an order
+ * fingerprint, and a progress reset. Every mutation runs in an immediate
+ * transaction and reads its effective current time only after acquiring
+ * write authority.
  */
 export class ScheduleService {
   readonly #db: Kysely<DatabaseSchema>;
