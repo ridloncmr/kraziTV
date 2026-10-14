@@ -3,6 +3,7 @@ import type { ScheduledTask, TimerScheduler } from "@krazitv/signal";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
+import type { CollectionMaintenance } from "../../media-collections/maintenance/collection-maintenance.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
 import { lookUpDue, readDueRefreshes } from "./due-refreshes.js";
@@ -26,6 +27,8 @@ interface MetadataRefreshOptions {
   timers: TimerScheduler;
   now: () => number;
   log: Pick<FastifyBaseLogger, "info" | "error">;
+  /** Asked for a pass after expiry or a refresh changes facts collections match on. */
+  collections: Pick<CollectionMaintenance, "request">;
 }
 
 /**
@@ -102,7 +105,8 @@ export class MetadataRefreshService {
 
   /** Runs provider work only while this service still owns its tracked pass. */
   async #refreshDue(): Promise<void> {
-    const { db, tmdbKeys, tmdb, isScanning, now, log } = this.#options;
+    const { db, tmdbKeys, tmdb, isScanning, now, log, collections } =
+      this.#options;
     const passAt = now();
     const expired = await expireStoredFacts(
       db,
@@ -111,7 +115,10 @@ export class MetadataRefreshService {
       isScanning,
     );
     if (this.#stop.signal.aborted) return;
-    if (expired > 0) log.info({ expired }, "Expired stored TMDB data");
+    if (expired > 0) {
+      log.info({ expired }, "Expired stored TMDB data");
+      void collections.request();
+    }
     const apiKey = await tmdbKeys.readKey();
     if (apiKey === undefined || this.#stop.signal.aborted) return;
     const due = (await readDueRefreshes(db, passAt - REFRESH_AGE_MS)).filter(
@@ -122,6 +129,7 @@ export class MetadataRefreshService {
     if (this.#stop.signal.aborted) return;
     const counts = await commitRefreshes(db, answers, now(), isScanning);
     log.info(counts, "Refreshed TMDB data");
+    if (counts.refreshed > 0) void collections.request();
   }
 
   /**

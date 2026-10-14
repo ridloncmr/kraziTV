@@ -3,7 +3,7 @@ import type {
   ChannelState,
   ContentMetadata,
   MatchCandidates,
-  MediaCollection,
+  MediaCollectionSummary,
   MediaItem,
   SeriesSearch,
   TrackFolder,
@@ -36,7 +36,7 @@ export const noMetadata: ContentMetadata = {
 export const adminFixtures: {
   channels: Channel[];
   media: MediaItem[];
-  collections: MediaCollection[];
+  collections: MediaCollectionSummary[];
   now: ChannelState;
 } = {
   channels: [
@@ -63,7 +63,12 @@ export const adminFixtures: {
       metadata: noMetadata,
     },
   ],
-  collections: [{ id: "favorites", name: "Favorites" }],
+  collections: [
+    collectionWith("favorites", "Favorites", {
+      memberCount: 2,
+      missingCount: 1,
+    }),
+  ],
   now: {
     evaluatedAt: "2026-10-05T15:00:00.000Z",
     currentItem: {
@@ -79,6 +84,27 @@ export const adminFixtures: {
     },
   },
 };
+
+/** A listed manual collection with no members unless `overrides` say otherwise. */
+export function collectionWith(
+  id: string,
+  name: string,
+  overrides: Partial<MediaCollectionSummary> = {},
+): MediaCollectionSummary {
+  return {
+    id,
+    name,
+    maintenanceMode: "manual",
+    criterion: null,
+    criterionLabel: null,
+    maintainedAt: null,
+    maintenanceError: null,
+    maintenanceIncomplete: null,
+    memberCount: 0,
+    missingCount: 0,
+    ...overrides,
+  };
+}
 
 /** A listed item titled `title` whose metadata overrides the unknown defaults. */
 export function itemWith(title: string, metadata: Partial<ContentMetadata>) {

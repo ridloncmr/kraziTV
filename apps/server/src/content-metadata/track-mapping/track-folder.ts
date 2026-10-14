@@ -9,6 +9,7 @@ import type { Kysely } from "kysely";
 import { pathHintsBelow } from "../../catalog-scan/scanner/catalog-candidate.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { jsonIdList } from "../../database/writes/parameter-chunks.js";
+import { itemTags } from "../../media-items/media-item-repository.js";
 import type { FolderTrack, MetadataRefusal } from "../contracts.js";
 import { compareTracks } from "./track-proposal.js";
 
@@ -45,6 +46,9 @@ export async function readTrackStates(
       "metadata_corrections.media_item_id",
       "media_items.id",
     )
+    .leftJoin(itemTags(db).as("item_tags"), (join) =>
+      join.onRef("item_tags.media_item_id", "=", "media_items.id"),
+    )
     .select([
       "media_items.id",
       "media_items.path_key",
@@ -59,7 +63,7 @@ export async function readTrackStates(
       "metadata_corrections.series_name",
       "metadata_corrections.season_number",
       "metadata_corrections.episode_number",
-      "metadata_corrections.tags",
+      "item_tags.tag_ids",
     ])
     .where("media_items.id", "in", jsonIdList(ids))
     .where("media_items.removed_at", "is", null)

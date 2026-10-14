@@ -43,7 +43,10 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   const held = options.holdCommit ? (commit = createBarrier()) : undefined;
   const started = await startTestServer({
     plex: { publicBaseUrl: "http://northwoods.lan:3000" },
-    overrides: (db, { mediaRoots, schedules, catalogRemovals }) => ({
+    overrides: (
+      db,
+      { mediaRoots, schedules, catalogRemovals, collectionMaintenance },
+    ) => ({
       scanner: new CatalogScanner({
         roots: mediaRoots,
         prober: controlled,
@@ -56,6 +59,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
         },
         removals: catalogRemovals,
         metadataRefresh: new IdleMetadataRefresh(),
+        collections: collectionMaintenance,
         metadata: withoutTmdbKey(),
         log: recordingLog(),
       }),
@@ -326,9 +330,7 @@ for (const viewport of [
       name: "Collections",
       exact: true,
     });
-    await collections
-      .getByRole("button", { name: "Create a collection…" })
-      .click();
+    await collections.getByRole("button", { name: "New collection…" }).click();
     const newCollection = collections.getByRole("dialog", {
       name: "New collection",
     });

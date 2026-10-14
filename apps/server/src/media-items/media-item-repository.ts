@@ -35,7 +35,7 @@ export class MediaItemRepository {
    * of IDs stays under SQLite's parameter limit.
    */
   async list(query: MediaItemQuery): Promise<MediaItemPage> {
-    const matching = this.#withMetadata()
+    const matching = selectWithMetadata(this.#db)
       .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
       .where("media_items.removed_at", "is", null)
       .$if(query.search !== "", (builder) =>
@@ -68,7 +68,7 @@ export class MediaItemRepository {
 
   /** Loads one item; returns undefined when the ID is unknown or removed. */
   async findById(id: string): Promise<MediaItem | undefined> {
-    const row = await this.#withMetadata()
+    const row = await selectWithMetadata(this.#db)
       .selectAll("media_items")
       .select(METADATA_COLUMNS)
       .where("media_items.id", "=", id)
@@ -76,35 +76,56 @@ export class MediaItemRepository {
       .executeTakeFirst();
     return row === undefined ? undefined : toMediaItem(row);
   }
+}
 
-  /**
-   * Starts an item read with its metadata rows beside it. Each table holds at
-   * most one row per item, so the joins never repeat an item.
-   */
-  #withMetadata() {
-    return this.#db
-      .selectFrom("media_items")
-      .leftJoin(
-        "metadata_matches",
-        "metadata_matches.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "content_facts",
-        "content_facts.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "metadata_provider_refs",
-        "metadata_provider_refs.media_item_id",
-        "media_items.id",
-      )
-      .leftJoin(
-        "metadata_corrections",
-        "metadata_corrections.media_item_id",
-        "media_items.id",
-      );
-  }
+/**
+ * Each tagged item's tag names and tag IDs as JSON arrays in the owner's
+ * order, one row per item, for joining beside other per-item rows.
+ */
+export function itemTags(executor: Kysely<DatabaseSchema>) {
+  return executor
+    .selectFrom("media_item_tags")
+    .innerJoin("tags", "tags.id", "media_item_tags.tag_id")
+    .select([
+      "media_item_tags.media_item_id",
+      sql<string>`json_group_array(tags.name order by media_item_tags.position)`.as(
+        "tag_names",
+      ),
+      sql<string>`json_group_array(tags.id order by media_item_tags.position)`.as(
+        "tag_ids",
+      ),
+    ])
+    .groupBy("media_item_tags.media_item_id");
+}
+
+/**
+ * Starts an item read with its metadata rows beside it, for selecting
+ * `METADATA_COLUMNS`. Each table, tags included, holds at most one row per
+ * item, so the joins never repeat an item. Takes any executor, so a read
+ * inside a transaction sees the facts that transaction writes against.
+ */
+export function selectWithMetadata(executor: Kysely<DatabaseSchema>) {
+  return executor
+    .selectFrom("media_items")
+    .leftJoin(
+      "metadata_matches",
+      "metadata_matches.media_item_id",
+      "media_items.id",
+    )
+    .leftJoin("content_facts", "content_facts.media_item_id", "media_items.id")
+    .leftJoin(
+      "metadata_provider_refs",
+      "metadata_provider_refs.media_item_id",
+      "media_items.id",
+    )
+    .leftJoin(
+      "metadata_corrections",
+      "metadata_corrections.media_item_id",
+      "media_items.id",
+    )
+    .leftJoin(itemTags(executor).as("item_tags"), (join) =>
+      join.onRef("item_tags.media_item_id", "=", "media_items.id"),
+    );
 }
 
 /**

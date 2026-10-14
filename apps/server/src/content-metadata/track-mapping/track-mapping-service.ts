@@ -6,6 +6,7 @@ import {
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { CollectionMaintenance } from "../../media-collections/maintenance/collection-maintenance.js";
 import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import type {
@@ -58,19 +59,23 @@ export class TrackMappingService {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #tmdbKeys: Pick<TmdbKeyService, "readKey">;
   readonly #tmdb: TmdbClient;
+  readonly #collections: Pick<CollectionMaintenance, "request">;
   readonly #now: () => number;
 
   // Shares the server's one TMDB client, so mapping calls queue with scan
-  // lookups under TMDB's rate ceiling.
+  // lookups under TMDB's rate ceiling. A mapping sets the facts automatic
+  // collections match on, so each applied one asks for maintenance.
   constructor(
     db: Kysely<DatabaseSchema>,
     tmdbKeys: Pick<TmdbKeyService, "readKey">,
     tmdb: TmdbClient,
+    collections: Pick<CollectionMaintenance, "request">,
     now: () => number = Date.now,
   ) {
     this.#db = db;
     this.#tmdbKeys = tmdbKeys;
     this.#tmdb = tmdb;
+    this.#collections = collections;
     this.#now = now;
   }
 
@@ -209,7 +214,7 @@ export class TrackMappingService {
       id: track.mediaItemId,
       record: mappingRecord(track, byId.get(track.mediaItemId), lookedUpAt),
     }));
-    return runImmediateTransaction(this.#db, async (pinned) => {
+    const applied = await runImmediateTransaction(this.#db, async (pinned) => {
       const removed = new Set(
         await findUnknownMediaItemIds(
           pinned,
@@ -237,6 +242,8 @@ export class TrackMappingService {
         goneCount: removed.size + unknown.length,
       };
     });
+    if (!("kind" in applied)) void this.#collections.request();
+    return applied;
   }
 
   /**

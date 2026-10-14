@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { RecordingCollectionMaintenance } from "./testing/recording-collection-maintenance.js";
 
 import {
   buildServer,
@@ -14,7 +15,7 @@ import type { MediaRootRepository } from "./media-roots/media-root-repository.js
 import type { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import type { ScanStatus } from "./catalog-scan/contracts.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
-import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
+import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
@@ -48,6 +49,7 @@ function createDependencies(
     matchChoices: {} as MatchChoiceService,
     corrections: {} as CorrectionService,
     trackMappings: {} as TrackMappingService,
+    collectionMaintenance: new RecordingCollectionMaintenance(),
     metadataRefresh: new IdleMetadataRefresh(),
     mediaRoots: {} as MediaRootRepository,
     scanner: scanner as CatalogScanner,
@@ -272,6 +274,29 @@ describe("buildServer", () => {
     expect(events).toEqual([
       "refresh started",
       "refresh stopped",
+      "database closed",
+    ]);
+  });
+
+  it("asks for a collection maintenance pass once ready and stops maintenance before closing the database", async () => {
+    const events: string[] = [];
+    const dependencies = createDependencies({
+      close: async () => void events.push("database closed"),
+    });
+    dependencies.collectionMaintenance = new RecordingCollectionMaintenance(
+      events,
+    );
+    const server = buildServer(dependencies, {
+      logger: false,
+      plex: plexSettingsFixture,
+    });
+
+    await server.ready();
+    await server.close();
+
+    expect(events).toEqual([
+      "maintenance requested",
+      "maintenance stopped",
       "database closed",
     ]);
   });

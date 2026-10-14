@@ -29,8 +29,11 @@ import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-se
 import { registerCatalogRemovalRoutes } from "./catalog-removal/routes/catalog-removal-routes.js";
 import type { MediaItemRepository } from "./media-items/media-item-repository.js";
 import { registerMediaItemRoutes } from "./media-items/media-item-routes.js";
-import type { MediaCollectionRepository } from "./media-collections/media-collection-repository.js";
-import { registerMediaCollectionRoutes } from "./media-collections/media-collection-routes.js";
+import type { CollectionMaintenance } from "./media-collections/maintenance/collection-maintenance.js";
+import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
+import { registerMediaCollectionRoutes } from "./media-collections/routes/media-collection-routes.js";
+import { registerCollectionExclusionRoutes } from "./media-collections/routes/collection-exclusion-routes.js";
+import { registerRecommendationRoutes } from "./media-collections/routes/recommendation-routes.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { ChannelRuntime, ChannelStreams } from "./channels/contracts.js";
 import { registerChannelRoutes } from "./channels/routes/channel-routes.js";
@@ -83,6 +86,8 @@ export type ServerDependencies = {
   scanner: CatalogScanner;
   mediaItems: MediaItemRepository;
   mediaCollections: MediaCollectionRepository;
+  /** Passes once at boot, and stops before the database closes. */
+  collectionMaintenance: Pick<CollectionMaintenance, "request" | "shutdown">;
   catalogRemovals: CatalogRemovalService;
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
@@ -168,6 +173,12 @@ function registerRoutes(
     dependencies.mediaCollections,
     dependencies.schedules,
   );
+  registerCollectionExclusionRoutes(
+    server,
+    dependencies.mediaCollections,
+    dependencies.schedules,
+  );
+  registerRecommendationRoutes(server, dependencies.mediaCollections);
   registerChannelRoutes(
     server,
     dependencies.channels,
@@ -210,7 +221,8 @@ export function buildServer(
 
   // Scan jobs are cancelled first so every ffprobe child closes, and a
   // committing job finishes, before onClose releases the database. The TMDB
-  // refresh stops the same way, finishing a commit already under way.
+  // refresh stops the same way, finishing a commit already under way, and
+  // so does collection maintenance.
   // Channel streams shut down here too: a live stream response never ends on
   // its own, so the server could not finish closing while one is open. Both
   // steps settle before the database closes, even when one fails; a failure
@@ -219,6 +231,7 @@ export function buildServer(
     const results = await Promise.allSettled([
       dependencies.scanner.shutdown(),
       dependencies.metadataRefresh.shutdown(),
+      dependencies.collectionMaintenance.shutdown(),
       dependencies.channelStreams.shutdown(),
     ]);
     for (const result of results) {
@@ -230,14 +243,17 @@ export function buildServer(
 
   // Deletes sessions that expired while the server was down, purges removed
   // media whose airing ended meanwhile, then repairs schedules that lapsed,
-  // before it serves traffic, and starts the TMDB refresh. Each logs
-  // failures instead of blocking startup.
+  // before it serves traffic, and starts the TMDB refresh and a collection
+  // maintenance pass. Each logs failures instead of blocking startup.
   server.addHook("onReady", async () => {
     await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
     // Runs in the background, so a slow TMDB never delays startup.
     dependencies.metadataRefresh.checkNow();
+    // Converges automatic collections with facts committed while the server
+    // was down, or by a pass that failed before it stopped.
+    void dependencies.collectionMaintenance.request();
   });
 
   server.addHook("onClose", async () => {

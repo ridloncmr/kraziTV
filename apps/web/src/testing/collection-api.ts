@@ -1,5 +1,5 @@
-import type { MediaItem } from "../http/contracts.js";
-import { adminFixtures, noMetadata } from "./admin-fixtures.js";
+import type { CatalogGroup, MediaItem } from "../http/contracts.js";
+import { adminFixtures, collectionWith, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
 
 /** Episodes whose numeric path order (2 before 10) differs from plain text order. */
@@ -25,6 +25,28 @@ export const episodes: MediaItem[] = [
 ];
 
 const catalog = [...adminFixtures.media, ...episodes];
+
+/** Cataloged series as the server lists them, by name. */
+export const catalogSeries: CatalogGroup[] = [
+  { tmdbId: 8592, name: "Parks and Recreation", itemCount: 4 },
+  { tmdbId: 2316, name: "The Office", itemCount: 2 },
+];
+
+/** Cataloged movie franchises as the server lists them, by name. */
+export const catalogFranchises: CatalogGroup[] = [
+  { tmdbId: 8091, name: "Alien Collection", itemCount: 4 },
+  { tmdbId: 84, name: "Indiana Jones Collection", itemCount: 3 },
+];
+
+/** An automatic series collection holding both fixture episodes. */
+export const officeCollection = collectionWith("office", "The Office", {
+  maintenanceMode: "automatic",
+  criterion: { kind: "series", tmdbId: 2316 },
+  criterionLabel: "The Office",
+  maintainedAt: "2026-10-13T12:00:00.000Z",
+  maintenanceIncomplete: false,
+  memberCount: 2,
+});
 
 /**
  * Serves one collection's members, status and the catalog search. Saved order

@@ -1,5 +1,6 @@
 import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
+import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 
 import { MediaDiscoveryError, MediaProbeError } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
@@ -92,6 +93,7 @@ async function startServer(options: ServerOptions = {}) {
           },
           removals: catalogRemovals,
           metadataRefresh: new IdleMetadataRefresh(),
+          collections: new RecordingCollectionMaintenance(),
           log,
           now: () => (time += 1_000),
         }),
@@ -661,6 +663,7 @@ describe("scan schedule maintenance", () => {
           schedules,
           removals: catalogRemovals,
           metadataRefresh: new IdleMetadataRefresh(),
+          collections: new RecordingCollectionMaintenance(),
           log: recordingLog(),
         }),
       }),

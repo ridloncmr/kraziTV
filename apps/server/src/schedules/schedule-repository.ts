@@ -16,7 +16,7 @@ import type { ChannelScheduleStateTable } from "../database/schema/channel-sched
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 import type { MediaCollectionMember } from "../media-collections/contracts.js";
-import { selectMembers } from "../media-collections/media-collection-repository.js";
+import { selectMembers } from "../media-collections/persistence/media-collection-repository.js";
 import { toProgrammingBlockSource } from "../programming-blocks/programming-block-repository.js";
 import type { ScheduleEntry, ScheduleState } from "./contracts.js";
 

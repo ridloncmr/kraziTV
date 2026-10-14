@@ -21,8 +21,8 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
-import { MediaCollectionRepository } from "../media-collections/media-collection-repository.js";
-import { membershipChange } from "../media-collections/replace-collection-members.js";
+import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
+import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
 import type { ProgrammingBlockSource } from "../programming-blocks/contracts.js";
 import {
   channelFixture,

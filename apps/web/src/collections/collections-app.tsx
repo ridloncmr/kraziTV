@@ -1,32 +1,49 @@
 import { useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
-import type { MediaCollection } from "../http/contracts.js";
+import type {
+  MediaCollection,
+  MediaCollectionSummary,
+} from "../http/contracts.js";
 import { useResource } from "../http/use-resource.js";
-import { CollectionEditor } from "./collection-editor.js";
-import { CreateCollectionDialog } from "./create-collection-dialog.js";
+import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
+import { DiscoverDialog } from "./discovery/discover-dialog.js";
+import { CollectionEditor } from "./editor/collection-editor.js";
+import { CollectionGrid } from "./landing/collection-grid.js";
+import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
 
 /**
  * Collections select programming eligibility independently of filesystem
- * discovery roots. Switching or creating collections while a draft is unsaved
- * is blocked, because the editor's draft would be dropped silently.
+ * discovery roots. The landing grids open one collection's editor; leaving
+ * it while a draft is unsaved is blocked, because the draft would be dropped
+ * silently.
  */
 export function CollectionsApp({ visible }: { visible: boolean }) {
-  const collections = useResource<MediaCollection[]>(
+  const collections = useResource<MediaCollectionSummary[]>(
     "/media-collections",
     visible,
   );
+  const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [creating, setCreating] = useState(false);
+  // Which kind of collection a creation dialog is open for, if any.
+  const [creating, setCreating] =
+    useState<MediaCollection["maintenanceMode"]>();
+  const [discovering, setDiscovering] = useState(false);
   const collection = collections.data?.find((item) => item.id === selected);
+
+  /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
+  function opened(created: MediaCollection) {
+    setCreating(undefined);
+    setDiscovering(false);
+    setTab(created.maintenanceMode);
+    setSelected(created.id);
+    collections.refresh();
+  }
   return (
     <div className="program-page">
       <div className="program-toolbar">
         <span>Collections</span>
         <div className="row-actions">
-          <button disabled={dirty} onClick={() => setCreating(true)}>
-            New collection…
-          </button>
           <button onClick={collections.refresh}>Refresh</button>
         </div>
       </div>
@@ -38,64 +55,59 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
         loading={collections.loading}
         error={collections.error}
       />
-      {collections.data?.length === 0 ? (
-        <div className="empty-state">
-          <p>
-            No collections yet. Create one, then add media from the catalog.
-          </p>
-          <button onClick={() => setCreating(true)}>
-            Create a collection…
-          </button>
-        </div>
-      ) : (
-        <div className="inline-form">
-          <label>
-            Collection
-            <select
-              value={selected}
-              disabled={dirty}
-              onChange={(event) => setSelected(event.target.value)}
-            >
-              <option value="">Choose a collection</option>
-              {collections.data?.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {dirty && (
-            <small className="secondary">
-              Save or discard changes before switching or creating collections.
-            </small>
-          )}
-        </div>
-      )}
       {collection ? (
-        <CollectionEditor
-          key={collection.id}
-          collection={collection}
-          visible={visible}
-          changed={collections.refresh}
-          deleted={() => {
-            setSelected("");
-            collections.refresh();
-          }}
-          onDirtyChange={setDirty}
-        />
+        <>
+          <div className="inline-form">
+            <button disabled={dirty} onClick={() => setSelected("")}>
+              All collections
+            </button>
+            {dirty && (
+              <small className="secondary">
+                Save or discard changes before leaving this collection.
+              </small>
+            )}
+          </div>
+          <h2>{collection.name}</h2>
+          <CollectionEditor
+            key={collection.id}
+            collection={collection}
+            visible={visible}
+            changed={collections.refresh}
+            deleted={() => {
+              setSelected("");
+              collections.refresh();
+            }}
+            onDirtyChange={setDirty}
+          />
+        </>
       ) : (
-        collections.data?.length !== 0 && (
-          <p className="empty-state">Choose a collection to edit its media.</p>
+        collections.data && (
+          <CollectionGrid
+            collections={collections.data}
+            tab={tab}
+            onTabChange={setTab}
+            onOpen={setSelected}
+            onCreate={setCreating}
+            onDiscover={() => setDiscovering(true)}
+          />
         )
       )}
-      {creating && (
+      {creating === "manual" && (
         <CreateCollectionDialog
-          created={(result) => {
-            setCreating(false);
-            setSelected(result.id);
-            collections.refresh();
-          }}
-          onClose={() => setCreating(false)}
+          created={opened}
+          onClose={() => setCreating(undefined)}
+        />
+      )}
+      {discovering && (
+        <DiscoverDialog
+          created={opened}
+          onClose={() => setDiscovering(false)}
+        />
+      )}
+      {creating === "automatic" && (
+        <NewAutomaticCollectionDialog
+          created={opened}
+          onClose={() => setCreating(undefined)}
         />
       )}
     </div>

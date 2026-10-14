@@ -96,6 +96,8 @@ describe("MetadataRefreshService", () => {
         .where("media_item_id", "=", library.alien)
         .executeTakeFirst(),
     ).resolves.toEqual({ title: "My Alien" });
+    // Refreshed facts may change what automatic collections match.
+    expect(library.collections.requests).toBe(1);
   });
 
   it("leaves facts younger than five months alone", async () => {
@@ -105,6 +107,7 @@ describe("MetadataRefreshService", () => {
     await library.refresh.refreshDue();
 
     expect(library.tmdb.paths()).toEqual([]);
+    expect(library.collections.requests).toBe(0);
   });
 
   it("keeps the match and records why when TMDB is unreachable, then drops the facts at six months", async () => {
@@ -120,6 +123,8 @@ describe("MetadataRefreshService", () => {
       ...before,
       refresh_error: expect.any(String),
     });
+    // A failed refresh changed no fact, so it asks for no pass.
+    expect(library.collections.requests).toBe(0);
 
     await db
       .insertInto("metadata_corrections")
@@ -138,6 +143,7 @@ describe("MetadataRefreshService", () => {
       refresh_error: expect.any(String),
       expired_at: clock.now(),
     });
+    expect(library.collections.requests).toBe(1);
     const item = await new MediaItemRepository(db).findById(library.episode);
     expect(item?.metadata).toMatchObject({
       matchState: "matched",
@@ -263,6 +269,7 @@ describe("MetadataRefreshService", () => {
       db,
       new TmdbKeyService(db, client),
       client,
+      library.collections,
     );
     await expect(choices.reject(library.alien)).resolves.toEqual({
       kind: "rejected",
@@ -370,6 +377,7 @@ describe("MetadataRefreshService", () => {
       timers: runtime,
       now: clock.now,
       log: library.log,
+      collections: library.collections,
     });
     second.checkNow();
     await held.reached;

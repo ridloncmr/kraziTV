@@ -9,6 +9,7 @@ import {
   setupEnrichmentScan,
 } from "./enrichment-scan.js";
 import { manualClock } from "./manual-clock.js";
+import { RecordingCollectionMaintenance } from "./recording-collection-maintenance.js";
 import { recordingLog } from "./recording-log.js";
 import { SCAN_ALIEN, SCAN_FIREFLY } from "./scan-metadata.js";
 import { TrackedRuntime } from "./tracked-runtime.js";
@@ -36,6 +37,7 @@ export async function scannedLibrary() {
   const busy = { root: false };
   const runtime = new TrackedRuntime();
   const log = recordingLog();
+  const collections = new RecordingCollectionMaintenance();
   const keys = new TmdbKeyService(db, client);
   const refresh = new MetadataRefreshService({
     db,
@@ -45,6 +47,7 @@ export async function scannedLibrary() {
     timers: runtime,
     now: clock.now,
     log,
+    collections,
   });
 
   tmdb.requests.splice(0);
@@ -56,6 +59,7 @@ export async function scannedLibrary() {
     busy,
     runtime,
     log,
+    collections,
     refresh,
     firefly,
     alien: await itemId(context, ALIEN_PATH),

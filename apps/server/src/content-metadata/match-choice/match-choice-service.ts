@@ -10,6 +10,7 @@ import {
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { CollectionMaintenance } from "../../media-collections/maintenance/collection-maintenance.js";
 import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import { jsonIdList } from "../../database/writes/parameter-chunks.js";
 import type {
@@ -43,19 +44,23 @@ export class MatchChoiceService {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #tmdbKeys: Pick<TmdbKeyService, "readKey">;
   readonly #tmdb: TmdbClient;
+  readonly #collections: Pick<CollectionMaintenance, "request">;
   readonly #now: () => number;
 
   // Shares the server's one TMDB client, so choices queue with scan lookups
-  // under TMDB's rate ceiling.
+  // under TMDB's rate ceiling. A decision changes the facts automatic
+  // collections match on, so each committed one asks for maintenance.
   constructor(
     db: Kysely<DatabaseSchema>,
     tmdbKeys: Pick<TmdbKeyService, "readKey">,
     tmdb: TmdbClient,
+    collections: Pick<CollectionMaintenance, "request">,
     now: () => number = Date.now,
   ) {
     this.#db = db;
     this.#tmdbKeys = tmdbKeys;
     this.#tmdb = tmdb;
+    this.#collections = collections;
     this.#now = now;
   }
 
@@ -167,7 +172,7 @@ export class MatchChoiceService {
       id: item.id,
       record: chosenRecord(item, lookup, lookedUpAt),
     }));
-    return runImmediateTransaction(this.#db, async (pinned) => {
+    return this.#decide("chosen", async (pinned) => {
       const rows = await selectDecisions(pinned)
         .where("media_items.id", "in", jsonIdList(records.map(({ id }) => id)))
         .where("metadata_matches.state", "=", "ambiguous")
@@ -198,7 +203,7 @@ export class MatchChoiceService {
   async reject(
     mediaItemId: string,
   ): Promise<{ kind: "rejected" } | MetadataRefusal> {
-    return runImmediateTransaction(this.#db, async (pinned) => {
+    return this.#decide("rejected", async (pinned) => {
       const decision = await readDecision(pinned, mediaItemId);
       if (decision === undefined) return { kind: "item_not_found" as const };
       if (
@@ -231,7 +236,7 @@ export class MatchChoiceService {
   async clearRejection(
     mediaItemId: string,
   ): Promise<{ kind: "cleared" } | MetadataRefusal> {
-    return runImmediateTransaction(this.#db, async (pinned) => {
+    return this.#decide("cleared", async (pinned) => {
       const decision = await readDecision(pinned, mediaItemId);
       if (decision === undefined) return { kind: "item_not_found" as const };
       if (decision.state !== "rejected") {
@@ -240,6 +245,20 @@ export class MatchChoiceService {
       await deleteMatchRows(pinned, [mediaItemId]);
       return { kind: "cleared" as const };
     });
+  }
+
+  /**
+   * Writes one decision under write authority, then asks for collection
+   * maintenance when it committed as `committed`; a refusal wrote nothing,
+   * so it asks for nothing.
+   */
+  async #decide<T extends { kind: string }>(
+    committed: T["kind"],
+    work: (pinned: Kysely<DatabaseSchema>) => Promise<T>,
+  ): Promise<T> {
+    const result = await runImmediateTransaction(this.#db, work);
+    if (result.kind === committed) void this.#collections.request();
+    return result;
   }
 
   /**
