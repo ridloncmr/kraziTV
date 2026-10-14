@@ -19,7 +19,7 @@ import { MediaCollectionRepository } from "./media-collections/persistence/media
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
 import { toSignalLogger } from "./channels/runtime/signal-log.js";
-import { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
+import { AssignmentRepository } from "./programming-assignments/assignment-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
@@ -58,7 +58,7 @@ const mediaRoots = new MediaRootRepository(database.db);
 const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
-const programmingBlocks = new ProgrammingBlockRepository(database.db);
+const assignments = new AssignmentRepository(database.db);
 const schedules = new ScheduleService(database.db);
 const playout = new PlayoutService(database.db, schedules);
 
@@ -162,7 +162,7 @@ const server = buildServer(
     // Disable and delete stop the same workers that serve tunes.
     channelRuntime: channelStreams,
     channelStreams,
-    programmingBlocks,
+    assignments,
     schedules,
     playout,
   },

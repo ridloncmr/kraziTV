@@ -11,7 +11,7 @@ import {
 import {
   findChannelEnabled,
   loadScheduleState,
-} from "../schedules/schedule-repository.js";
+} from "../schedules/persistence/schedule-repository.js";
 import type {
   CoverageRequirement,
   PlayoutSnapshot,

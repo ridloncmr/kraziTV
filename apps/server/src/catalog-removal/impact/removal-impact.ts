@@ -18,7 +18,7 @@ import { targetItemIds } from "../removal-target.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
-/** A collection that loses items, with the channels whose block draws from it. */
+/** A collection that loses items, with the channels whose assignments play it. */
 interface AffectedCollection {
   id: string;
   channelIds: string[];
@@ -55,11 +55,11 @@ export async function readRemovalImpact(
     return { kind: "scan_in_progress" };
   }
   const inUse = await trx
-    .selectFrom("programming_blocks")
+    .selectFrom("programming_assignment_members")
     .select(["channel_id", "media_item_id"])
     .where("source_kind", "=", "media_item")
     .where("media_item_id", "in", items)
-    // A single-item block always names its item.
+    // A single-item member always names its item.
     .$narrowType<{ media_item_id: string }>()
     .execute();
   if (inUse.length > 0) {

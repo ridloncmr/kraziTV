@@ -7,10 +7,7 @@ import {
   rootFixture,
   titledItemFixture,
 } from "../../testing/catalog-fixtures.js";
-import {
-  channelFixture,
-  programmingBlockFixture,
-} from "../../testing/channel-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
@@ -18,6 +15,7 @@ import {
 import { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { scriptedClock } from "../../testing/record-sources.js";
 import { ScheduleService } from "../../schedules/schedule-service.js";
+import { insertCollectionAssignment } from "../../testing/schedule-fixtures.js";
 
 type Server = FastifyInstance;
 
@@ -348,10 +346,7 @@ describe("DELETE /media-collections/:id", () => {
           .values(collectionFixture)
           .execute();
         await db.insertInto("channels").values(channelFixture).execute();
-        await db
-          .insertInto("programming_blocks")
-          .values(programmingBlockFixture)
-          .execute();
+        await insertCollectionAssignment(db);
       },
     });
 

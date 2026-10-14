@@ -43,12 +43,12 @@ import {
   stopChannelUnderLock,
 } from "./channels/runtime/settle-runtime-stop.js";
 import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
-import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
-import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
+import type { AssignmentRepository } from "./programming-assignments/assignment-repository.js";
+import { registerAssignmentRoutes } from "./programming-assignments/assignment-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
-import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
+import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
@@ -92,7 +92,7 @@ export type ServerDependencies = {
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
   channelStreams: ChannelStreams;
-  programmingBlocks: ProgrammingBlockRepository;
+  assignments: AssignmentRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
 };
@@ -188,9 +188,9 @@ function registerRoutes(
     channelStopTimeoutMs,
   );
   registerChannelStreamRoutes(server, dependencies.channelStreams);
-  registerProgrammingBlockRoutes(
+  registerAssignmentRoutes(
     server,
-    dependencies.programmingBlocks,
+    dependencies.assignments,
     dependencies.channels,
     dependencies.schedules,
   );

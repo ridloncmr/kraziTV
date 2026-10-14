@@ -1,5 +1,5 @@
 import {
-  generateScheduleEntries,
+  generateProgramming,
   type PlaybackProgress,
 } from "@krazitv/krazi-brain";
 import { type Kysely, sql } from "kysely";
@@ -63,30 +63,45 @@ async function seeded(collectionIds: readonly string[]) {
 
 // Returns the first item a chronological generation picks from `progress`.
 function firstPick(progress: PlaybackProgress): string | undefined {
-  const result = generateScheduleEntries({
+  const result = generateProgramming({
     channelSeed: 1,
-    source: {
-      kind: "collection",
-      programmingBlockId: "block",
-      mediaCollectionId: "collection",
-      playbackMode: "chronological",
-      members: MEMBERS.map((member) => ({
-        id: member.id,
-        title: member.id,
-        status: "available",
-        durationMs: 60_000,
-        seriesTmdbId: null,
-        seriesName: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        releaseDate: null,
-      })),
-    },
-    progress,
+    assignments: [
+      {
+        id: "assignment",
+        playbackMode: "chronological",
+        ordinary: { kind: "programs", count: 1 },
+        members: [
+          {
+            kind: "collection",
+            mediaCollectionId: "collection",
+            members: MEMBERS.map((member) => ({
+              id: member.id,
+              title: member.id,
+              status: "available",
+              durationMs: 60_000,
+              seriesTmdbId: null,
+              seriesName: null,
+              seasonNumber: null,
+              episodeNumber: null,
+              releaseDate: null,
+            })),
+          },
+        ],
+      },
+    ],
+    latestTurn: undefined,
+    progress: [
+      {
+        mediaCollectionId: "collection",
+        playbackMode: "chronological",
+        progress,
+      },
+    ],
     startsAt: FIXTURE_TIME,
     through: FIXTURE_TIME + 1,
     nextSequenceNumber: 0,
     maxEntries: 1,
+    createBlockId: () => "block",
   });
   return result.kind === "generated"
     ? result.entries[0]?.mediaItemId

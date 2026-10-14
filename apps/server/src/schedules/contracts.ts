@@ -1,4 +1,8 @@
-import type { PlaybackMode, ScheduleSource } from "@krazitv/krazi-brain";
+import type {
+  PlaybackMode,
+  ProgrammingUnschedulableReason,
+  ScheduleMedia,
+} from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
@@ -13,9 +17,9 @@ export type ScheduleLog = Pick<FastifyBaseLogger, "info" | "warn">;
 
 /** Why a schedule input changed or a channel regenerated; logged with each affected channel's outcome. */
 export type ScheduleChangeReason =
-  | "block_created"
-  | "block_changed"
-  | "block_deleted"
+  | "assignment_created"
+  | "assignment_changed"
+  | "assignment_deleted"
   | "membership_changed"
   | "media_removed"
   | "collection_maintained"
@@ -55,18 +59,19 @@ export interface ScheduleState {
   lastGeneratedThrough: number;
   nextSequenceNumber: number;
   scheduleRevision: number;
+  /** Seeds kraziPlan's decisions; independent of the collection playback `seed`. */
+  programmingSeed: number;
+  /** Fresh rebuilds so far; each starts new programming decisions. */
+  rebuildCount: number;
   /** The effective time of the last schedule mutation. */
   updatedAt: number;
 }
 
-/** Why an enabled channel cannot be scheduled; the API reports the same values. */
-type ChannelUnschedulableReason =
-  "no_programming_block" | "no_schedulable_media";
-
 export type EnsureCoverageResult =
   | { kind: "channel_not_found" }
   | { kind: "disabled" }
-  | { kind: "unschedulable"; reason: ChannelUnschedulableReason }
+  /** The API reports the same reasons. */
+  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
   | { kind: "covered"; scheduleRevision: number; generatedThrough: number }
   /** The requested instant lies past the request limit; nothing is written. */
   | { kind: "through_out_of_range"; latestThrough: number };
@@ -160,8 +165,12 @@ export interface ScheduleWindow {
   entries: ScheduleEntry[];
 }
 
-/** What a block preview explains: the block's source and its next entries. */
-export interface BlockPreview {
-  source: ScheduleSource;
+/**
+ * What a collection preview explains: an assigned collection's members in
+ * saved order, the mode its assignment plays it in, and its next entries.
+ */
+export interface CollectionPreview {
+  playbackMode: PlaybackMode;
+  members: ScheduleMedia[];
   upcoming: ScheduleEntry[];
 }

@@ -120,20 +120,35 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
   ).toEqual([{ enabled: true }, { enabled: false }]);
 });
 
+// A saved assignment of the favorites collection, as the server lists it.
+function favoritesAssignment(playbackMode: string, count = 3) {
+  return {
+    id: "assignment",
+    playbackMode,
+    ordinaryStretch: { kind: "programs", count },
+    members: [{ kind: "collection", mediaCollectionId: "favorites" }],
+  };
+}
+
 it("single-item programming sends no collection playback mode and reloads the backend schedule", async () => {
   const api = new BrowserApi();
-  api.reply("/channels/one/programming-blocks", []);
+  api.reply("/channels/one/programming-assignments", []);
   api.reply("/media-collections", adminFixtures.collections);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   api.reply(
-    "/channels/one/programming-blocks",
-    { id: "block", source: { kind: "media_item", mediaItemId: "z" } },
+    "/channels/one/programming-assignments",
+    {
+      id: "assignment",
+      playbackMode: null,
+      ordinaryStretch: { kind: "programs", count: 1 },
+      members: [{ kind: "media_item", mediaItemId: "z" }],
+    },
     "POST",
   );
   api.reply("/channels/one/schedule", { scheduleRevision: 9, entries: [] });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
-  await screen.findByText(/No programming block/);
+  await screen.findByText(/No programming assigned/);
   fireEvent.change(screen.getByLabelText("Source type"), {
     target: { value: "media_item" },
   });
@@ -142,24 +157,22 @@ it("single-item programming sends no collection playback mode and reloads the ba
     target: { value: "z" },
   });
   expect(screen.queryByLabelText("Playback mode")).toBeNull();
+  expect(screen.queryByLabelText("Programs per turn")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
   await screen.findByText(/revision 9/);
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
-  ).toEqual({ source: { kind: "media_item", mediaItemId: "z" } });
+  ).toEqual({
+    playbackMode: null,
+    ordinaryStretch: { kind: "programs", count: 1 },
+    members: [{ kind: "media_item", mediaItemId: "z" }],
+  });
 });
 
 it("preserves an unsaved programming mode across minimize and restore", async () => {
   const api = new BrowserApi();
-  api.reply("/channels/one/programming-blocks", [
-    {
-      id: "block",
-      source: {
-        kind: "collection",
-        mediaCollectionId: "favorites",
-        playbackMode: "chronological",
-      },
-    },
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
   vi.stubGlobal("fetch", api.fetch);
@@ -183,7 +196,7 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
   await waitFor(() =>
     expect(
       api.requests.filter((request) =>
-        request.path.endsWith("programming-blocks"),
+        request.path.endsWith("programming-assignments"),
       ),
     ).toHaveLength(2),
   );
@@ -199,24 +212,18 @@ it.each([
   "saves %s order, explains it, and shows it when reopened",
   async (playbackMode, hint) => {
     const api = new BrowserApi();
-    const blockWith = (mode: string) => ({
-      id: "block",
-      source: {
-        kind: "collection",
-        mediaCollectionId: "favorites",
-        playbackMode: mode,
-      },
-    });
-    api.reply("/channels/one/programming-blocks", [blockWith("chronological")]);
+    api.reply("/channels/one/programming-assignments", [
+      favoritesAssignment("chronological"),
+    ]);
     api.reply("/media-collections", adminFixtures.collections);
     api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
     api.handle(
-      "/channels/one/programming-blocks/block",
+      "/channels/one/programming-assignments/assignment",
       () => {
-        api.reply("/channels/one/programming-blocks", [
-          blockWith(playbackMode),
+        api.reply("/channels/one/programming-assignments", [
+          favoritesAssignment(playbackMode),
         ]);
-        return api.response(blockWith(playbackMode));
+        return api.response(favoritesAssignment(playbackMode));
       },
       "PATCH",
     );
@@ -252,11 +259,9 @@ it.each([
     expect(
       api.requests.find((request) => request.method === "PATCH")?.body,
     ).toEqual({
-      source: {
-        kind: "collection",
-        mediaCollectionId: "favorites",
-        playbackMode,
-      },
+      playbackMode,
+      ordinaryStretch: { kind: "programs", count: 3 },
+      members: [{ kind: "collection", mediaCollectionId: "favorites" }],
     });
     await waitFor(() =>
       expect(
@@ -268,15 +273,8 @@ it.each([
 
 it("refreshes the order preview when the playback mode changes", async () => {
   const api = new BrowserApi();
-  api.reply("/channels/one/programming-blocks", [
-    {
-      id: "block",
-      source: {
-        kind: "collection",
-        mediaCollectionId: "favorites",
-        playbackMode: "chronological",
-      },
-    },
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
   const member = (title: string, flags: Record<string, boolean> = {}) => ({
@@ -292,33 +290,36 @@ it("refreshes the order preview when the playback mode changes", async () => {
     ...flags,
   });
   // The server answers each mode with its own order, as the route does.
-  api.handle("/channels/one/programming-blocks/block/preview", (request) => {
-    const playbackMode = request.query.get("playbackMode");
-    return api.response({
-      playbackMode,
-      ordered:
-        playbackMode === "random"
-          ? null
-          : playbackMode === "episode"
+  api.handle(
+    "/channels/one/programming-assignments/assignment/preview",
+    (request) => {
+      const playbackMode = request.query.get("playbackMode");
+      return api.response({
+        playbackMode,
+        ordered:
+          playbackMode === "random"
+            ? null
+            : playbackMode === "episode"
+              ? [
+                  member("Pilot", { startsSeriesGroup: true }),
+                  member("Diversity Day"),
+                ]
+              : [member("Diversity Day"), member("Pilot")],
+        upcoming:
+          playbackMode === "chronological"
             ? [
-                member("Pilot", { startsSeriesGroup: true }),
-                member("Diversity Day"),
+                {
+                  id: "entry-1",
+                  mediaItemId: "Diversity Day",
+                  title: "Diversity Day",
+                  startsAt: "2026-10-14T20:00:00.000Z",
+                  endsAt: "2026-10-14T20:22:00.000Z",
+                },
               ]
-            : [member("Diversity Day"), member("Pilot")],
-      upcoming:
-        playbackMode === "chronological"
-          ? [
-              {
-                id: "entry-1",
-                mediaItemId: "Diversity Day",
-                title: "Diversity Day",
-                startsAt: "2026-10-14T20:00:00.000Z",
-                endsAt: "2026-10-14T20:22:00.000Z",
-              },
-            ]
-          : null,
-    });
-  });
+            : null,
+      });
+    },
+  );
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
   const playOrder = async () =>
@@ -355,22 +356,22 @@ it("refreshes the order preview when the playback mode changes", async () => {
   await screen.findByText(/Random has no fixed order/);
   expect(
     api
-      .requestsTo("/channels/one/programming-blocks/block/preview")
-      .map((request) => request.query.get("playbackMode")),
-  ).toEqual(["chronological", "episode", "random"]);
+      .requestsTo("/channels/one/programming-assignments/assignment/preview")
+      .map((request) => [
+        request.query.get("mediaCollectionId"),
+        request.query.get("playbackMode"),
+      ]),
+  ).toEqual([
+    ["favorites", "chronological"],
+    ["favorites", "episode"],
+    ["favorites", "random"],
+  ]);
 });
 
-it("confirms a progress reset in a dialog naming shared blocks; cancel sends nothing", async () => {
+it("confirms a progress reset in a dialog; cancel sends nothing", async () => {
   const api = new BrowserApi();
-  api.reply("/channels/one/programming-blocks", [
-    {
-      id: "block",
-      source: {
-        kind: "collection",
-        mediaCollectionId: "favorites",
-        playbackMode: "episode",
-      },
-    },
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("episode"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
   api.reply("/channels/one/schedule", { scheduleRevision: 3, entries: [] });
@@ -388,14 +389,14 @@ it("confirms a progress reset in a dialog naming shared blocks; cancel sends not
     ],
   });
   api.reply(
-    "/channels/one/programming-blocks/block/preview",
+    "/channels/one/programming-assignments/assignment/preview",
     upcoming("Mid-season"),
   );
   api.handle(
-    "/channels/one/programming-blocks/block/progress-reset",
+    "/channels/one/programming-assignments/assignment/progress-reset",
     () => {
       api.reply(
-        "/channels/one/programming-blocks/block/preview",
+        "/channels/one/programming-assignments/assignment/preview",
         upcoming("Pilot"),
       );
       return api.response(undefined, 204);
@@ -412,15 +413,6 @@ it("confirms a progress reset in a dialog naming shared blocks; cancel sends not
   const dialog = await screen.findByRole("dialog", {
     name: "Restart from the beginning",
   });
-  expect(
-    within(
-      within(dialog).getByRole("list", {
-        name: "Blocks sharing this progress",
-      }),
-    )
-      .getAllByRole("listitem")
-      .map((item) => item.textContent),
-  ).toEqual(["Programming block 1"]);
   expect(dialog.textContent).toMatch(
     /every later schedule entry is regenerated/,
   );
@@ -428,7 +420,9 @@ it("confirms a progress reset in a dialog naming shared blocks; cancel sends not
 
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(
-    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
+    api.requestsTo(
+      "/channels/one/programming-assignments/assignment/progress-reset",
+    ),
   ).toEqual([]);
 
   fireEvent.click(restart);
@@ -450,8 +444,43 @@ it("confirms a progress reset in a dialog naming shared blocks; cancel sends not
     ).toContain("Pilot"),
   );
   expect(
-    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
-  ).toHaveLength(1);
+    api
+      .requestsTo(
+        "/channels/one/programming-assignments/assignment/progress-reset",
+      )
+      .map((request) => request.body),
+  ).toEqual([{ mediaCollectionId: "favorites" }]);
+});
+
+it("shows a collection's programs per turn and saves an edited count", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological", 4),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 5, entries: [] });
+  api.reply(
+    "/channels/one/programming-assignments/assignment",
+    favoritesAssignment("chronological", 2),
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const count = () =>
+    screen.getByLabelText<HTMLInputElement>("Programs per turn");
+  await waitFor(() => expect(count().value).toBe("4"));
+
+  fireEvent.change(count(), { target: { value: "2" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
+
+  await screen.findByText(/revision 5/);
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({
+    playbackMode: "chronological",
+    ordinaryStretch: { kind: "programs", count: 2 },
+    members: [{ kind: "collection", mediaCollectionId: "favorites" }],
+  });
 });
 
 it("keeps a rejected create in its dialog, then selects the created channel", async () => {

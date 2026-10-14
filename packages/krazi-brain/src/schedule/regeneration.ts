@@ -4,7 +4,7 @@ import {
   type PlaybackProgress,
   type ProgressReset,
   type RestorableEntry,
-  type RestoredProgress,
+  type CollectionProgress,
 } from "./contracts.js";
 
 /**
@@ -36,7 +36,7 @@ export function restorePlaybackProgress(
   deletedEntries: readonly RestorableEntry[],
   keptEntries: readonly RestorableEntry[],
   resets: readonly ProgressReset[] = [],
-): RestoredProgress[] {
+): CollectionProgress[] {
   const resetAt = new Map(
     resets.map((reset) => [
       progressKey(reset.mediaCollectionId, reset.playbackMode),
@@ -52,7 +52,7 @@ export function restorePlaybackProgress(
   const earliestFirst = deletedEntries
     .filter(followsReset)
     .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-  const restored = new Map<string, RestoredProgress>();
+  const restored = new Map<string, CollectionProgress>();
   for (const entry of earliestFirst) {
     const { mediaCollectionId, playbackMode, playbackIndex } = entry;
     if (
@@ -77,7 +77,7 @@ export function restorePlaybackProgress(
 }
 
 /** Identifies one collection and mode, the scope progress and resets share. */
-function progressKey(
+export function progressKey(
   mediaCollectionId: string | null,
   playbackMode: PlaybackMode | null,
 ): string {

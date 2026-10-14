@@ -7,20 +7,20 @@ import {
   sendChannelNotFound,
   sendInvalidRequest,
   sendThroughOutOfRange,
-} from "../http/api-error.js";
-import { toApiTimestamp } from "../http/api-timestamp.js";
+} from "../../http/api-error.js";
+import { toApiTimestamp } from "../../http/api-timestamp.js";
 import {
   idParams,
   isoInstantField,
   windowQuery,
-} from "../http/request-schemas.js";
+} from "../../http/request-schemas.js";
 import type {
   EnsureCoverageResult,
   ScheduleEntry,
   ScheduleWindow,
-} from "./contracts.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
-import type { ScheduleService } from "./schedule-service.js";
+} from "../contracts.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedule-coverage.js";
+import type { ScheduleService } from "../schedule-service.js";
 
 const scheduleWindowQuery = windowQuery(SCHEDULE_REQUEST_LIMIT_MS);
 

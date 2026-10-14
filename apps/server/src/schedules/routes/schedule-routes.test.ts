@@ -1,25 +1,25 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { iso, send, windowUrl } from "../testing/api-requests.js";
-import { captureLogLines } from "../testing/captured-log-lines.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { holdWriteAuthority } from "../testing/hold-write-authority.js";
-import { manualClock } from "../testing/manual-clock.js";
-import { sequentialIds } from "../testing/record-sources.js";
+import { iso, send, windowUrl } from "../../testing/api-requests.js";
+import { captureLogLines } from "../../testing/captured-log-lines.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
+import { manualClock } from "../../testing/manual-clock.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 import {
   readOnlyScheduleState,
   seedScheduleScenario,
   readScheduleEntries,
-} from "../testing/schedule-fixtures.js";
-import { startScheduleScenarioServer } from "../testing/schedule-server.js";
+} from "../../testing/schedule-fixtures.js";
+import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
   startTestServer,
-} from "../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
-import { ScheduleService } from "./schedule-service.js";
+} from "../../testing/test-environment.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedule-coverage.js";
+import { ScheduleService } from "../schedule-service.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -57,7 +57,7 @@ describe("GET /channels/:id/schedule", () => {
           endsAt: iso(T0 + 22 * MINUTE),
           durationMs: 22 * MINUTE,
           sequenceNumber: 0,
-          programmingBlockId: "block-fixture-001",
+          programmingBlockId: "block-001",
           mediaCollectionId: "collection-fixture-001",
           playbackMode: "chronological",
           playbackIndex: 0,
@@ -168,7 +168,11 @@ describe("GET /channels/:id/schedule", () => {
   });
 
   it.each([
-    ["no programming block", { source: null }, "no_programming_block"],
+    [
+      "no programming assignment",
+      { source: null },
+      "no_programming_assignment",
+    ],
     ["no schedulable media", { items: [] }, "no_schedulable_media"],
   ])(
     "reports a channel with %s as unschedulable",
@@ -192,7 +196,7 @@ describe("GET /channels/:id/schedule", () => {
   it("still serves entries already in a window once the channel becomes unschedulable", async () => {
     const { server, db, clock } = await startScheduleScenarioServer();
     await send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR));
-    await db.deleteFrom("programming_blocks").execute();
+    await db.deleteFrom("programming_source_assignments").execute();
     clock.advance(HOUR);
 
     const covered = await send(
@@ -213,7 +217,7 @@ describe("GET /channels/:id/schedule", () => {
     expect(covered.status).toBe(200);
     expect(covered.body.entries.length).toBeGreaterThan(0);
     expect(uncovered.status).toBe(409);
-    expect(uncovered.body.error.reason).toBe("no_programming_block");
+    expect(uncovered.body.error.reason).toBe("no_programming_assignment");
   });
 
   it("repairs lapsed coverage from now and still serves the old window", async () => {
@@ -435,7 +439,11 @@ describe("POST /channels/:id/schedule/generate", () => {
   });
 
   it.each([
-    ["no programming block", { source: null }, "no_programming_block"],
+    [
+      "no programming assignment",
+      { source: null },
+      "no_programming_assignment",
+    ],
     ["no schedulable media", { items: [] }, "no_schedulable_media"],
   ])(
     "reports a channel with %s as unschedulable",

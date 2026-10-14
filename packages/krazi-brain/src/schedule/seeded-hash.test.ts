@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveChannelSeed,
   deriveCollectionSeed,
+  deriveProgrammingSeed,
   fnv1a32,
   hash32,
 } from "./seeded-hash.js";
@@ -109,5 +110,24 @@ describe("deriveCollectionSeed", () => {
     expect(deriveCollectionSeed(CHANNEL_SEED, "col-1")).not.toBe(
       deriveCollectionSeed(CHANNEL_SEED, "col-2"),
     );
+  });
+});
+
+describe("deriveProgrammingSeed", () => {
+  it("is fixed by the channel and its anchor", () => {
+    expect(deriveProgrammingSeed("ch-1", ANCHOR_TIME)).toBe(
+      deriveProgrammingSeed("ch-1", ANCHOR_TIME),
+    );
+    expect(deriveProgrammingSeed("ch-1", ANCHOR_TIME + 1)).not.toBe(
+      deriveProgrammingSeed("ch-1", ANCHOR_TIME),
+    );
+  });
+
+  it("never equals the channel's collection playback seed", () => {
+    for (const channelId of ["ch-1", "ch-2", "office", "ä-channel"]) {
+      expect(deriveProgrammingSeed(channelId, ANCHOR_TIME)).not.toBe(
+        deriveChannelSeed(channelId, ANCHOR_TIME),
+      );
+    }
   });
 });

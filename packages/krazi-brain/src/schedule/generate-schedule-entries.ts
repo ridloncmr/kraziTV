@@ -5,6 +5,7 @@ import type {
   PlaybackProgress,
   ScheduleMedia,
   ScheduleSource,
+  TurnSize,
 } from "./contracts.js";
 import { orderMembers } from "./ordered-view.js";
 import { selectOrdered, selectRandom } from "./playback-selection.js";
@@ -23,6 +24,8 @@ interface GenerateScheduleEntriesOptions {
   nextSequenceNumber: number;
   /** Caps one call so a caller can persist long horizons in bounded chunks. */
   maxEntries: number;
+  /** Also stops once this turn's size is met; without one, the source loops to `through`. */
+  turn?: TurnSize | undefined;
 }
 
 /** What one entry airs and the collection bookkeeping it carries. */
@@ -87,7 +90,9 @@ function nextAiring(
 
 /**
  * Generates contiguous schedule entries from `startsAt` until one ends at or
- * past `through` or `maxEntries` is reached, without touching persistence.
+ * past `through`, `maxEntries` is reached, or the turn's size is met, without
+ * touching persistence. A turn counts whole programs, or adds each one's
+ * duration toward an airtime target, so its last program may overrun it.
  * The result carries everything needed to resume exactly where it stopped, so
  * chunked calls produce the same entries as one long call. A collection is
  * ordered for its playback mode once, so each entry's playback index is its
@@ -116,7 +121,12 @@ export function generateScheduleEntries(
   let nextStartsAt = options.startsAt;
   let progress = options.progress;
   let sequenceNumber = options.nextSequenceNumber;
-  while (nextStartsAt < through && entries.length < maxEntries) {
+  let turn = options.turn;
+  while (
+    nextStartsAt < through &&
+    entries.length < maxEntries &&
+    (turn === undefined || turn.accumulated < turn.target)
+  ) {
     const airing = nextAiring(source, progress, options.channelSeed);
     // The schedulability check guarantees an integer duration at the floor.
     const durationMs = airing.media.durationMs ?? 0;
@@ -135,6 +145,13 @@ export function generateScheduleEntries(
     nextStartsAt += durationMs;
     sequenceNumber += 1;
     progress = airing.progress;
+    if (turn !== undefined) {
+      turn = {
+        ...turn,
+        accumulated:
+          turn.accumulated + (turn.kind === "programs" ? 1 : durationMs),
+      };
+    }
   }
 
   return {
@@ -143,5 +160,6 @@ export function generateScheduleEntries(
     progress,
     nextSequenceNumber: sequenceNumber,
     generatedThrough: nextStartsAt,
+    turn,
   };
 }

@@ -1,9 +1,13 @@
-import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
+import { type PlaybackMode, SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send } from "../testing/api-requests.js";
+import {
+  collectionAssignment,
+  itemAssignment,
+} from "../testing/assignment-bodies.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
@@ -28,7 +32,7 @@ import {
 } from "../testing/test-environment.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
-import { ProgrammingBlockRepository } from "./programming-block-repository.js";
+import { AssignmentRepository } from "./assignment-repository.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -40,16 +44,13 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
 const CHANNEL_ID = "channel-fixture-001";
 const COLLECTION_ID = "collection-fixture-001";
 const ITEM_ID = "item-001";
-const BLOCKS_URL = `/channels/${CHANNEL_ID}/programming-blocks`;
+const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
+const ASSIGNMENT_URL = `${ASSIGNMENTS_URL}/assignment-001`;
 
-const collectionSource = {
-  kind: "collection",
-  mediaCollectionId: COLLECTION_ID,
-  playbackMode: "chronological",
-};
+const collectionBody = collectionAssignment(COLLECTION_ID);
 
-// Boots the real composition over a channel with no block yet, with fixed IDs
-// and time. A null scenario reopens the data directory without seeding.
+// Boots the real composition over a channel with no assignment yet, with
+// fixed IDs and time. A null scenario reopens the data directory without seeding.
 async function startServer(
   scenario: Partial<ScheduleScenarioOptions> | null = {},
   dataDirectory?: string,
@@ -66,8 +67,8 @@ async function startServer(
       });
     },
     overrides: (db) => ({
-      programmingBlocks: new ProgrammingBlockRepository(db, {
-        createId: sequentialIds("block"),
+      assignments: new AssignmentRepository(db, {
+        createId: sequentialIds("assignment"),
       }),
       schedules: new ScheduleService(db, { now: clock.now }),
     }),
@@ -75,42 +76,42 @@ async function startServer(
   return { server, db, clock };
 }
 
-describe("programming block routes", () => {
-  it("lists no blocks for a channel without programming", async () => {
+describe("programming assignment routes", () => {
+  it("lists no assignments for a channel without programming", async () => {
     const { server } = await startServer();
 
-    await expect(send(server, "GET", BLOCKS_URL)).resolves.toEqual({
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toEqual({
       status: 200,
       body: [],
     });
   });
 
-  it("creates a collection block and lists it", async () => {
+  it("creates a collection assignment and lists it", async () => {
     const { server } = await startServer();
     const expected = {
-      id: "block-001",
+      id: "assignment-001",
       channelId: CHANNEL_ID,
-      source: collectionSource,
+      ...collectionBody,
       createdAt: new Date(T0).toISOString(),
       updatedAt: new Date(T0).toISOString(),
     };
 
     await expect(
-      send(server, "POST", BLOCKS_URL, { source: collectionSource }),
+      send(server, "POST", ASSIGNMENTS_URL, collectionBody),
     ).resolves.toEqual({ status: 201, body: expected });
-    await expect(send(server, "GET", BLOCKS_URL)).resolves.toEqual({
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toEqual({
       status: 200,
       body: [expected],
     });
   });
 
-  it("creates a single-item block", async () => {
+  it("creates a single-item assignment", async () => {
     const { server } = await startServer();
-    const source = { kind: "media_item", mediaItemId: ITEM_ID };
+    const body = itemAssignment(ITEM_ID);
 
-    const response = await send(server, "POST", BLOCKS_URL, { source });
+    const response = await send(server, "POST", ASSIGNMENTS_URL, body);
 
-    expect(response).toMatchObject({ status: 201, body: { source } });
+    expect(response).toMatchObject({ status: 201, body });
   });
 
   it.each(["GET", "POST"] as const)(
@@ -121,8 +122,8 @@ describe("programming block routes", () => {
       const response = await send(
         server,
         method,
-        "/channels/missing/programming-blocks",
-        method === "POST" ? { source: collectionSource } : undefined,
+        "/channels/missing/programming-assignments",
+        method === "POST" ? collectionBody : undefined,
       );
 
       expect(response).toMatchObject({
@@ -135,55 +136,60 @@ describe("programming block routes", () => {
   it.each([
     [
       "collection",
-      { ...collectionSource, mediaCollectionId: "missing" },
+      collectionAssignment("missing"),
       "media_collection_not_found",
     ],
-    [
-      "media item",
-      { kind: "media_item", mediaItemId: "missing" },
-      "media_item_not_found",
-    ],
-  ])("rejects an unknown %s", async (_, source, code) => {
+    ["media item", itemAssignment("missing"), "media_item_not_found"],
+  ])("rejects an unknown %s", async (_, body, code) => {
     const { server, db } = await startServer();
 
-    const response = await send(server, "POST", BLOCKS_URL, { source });
+    const response = await send(server, "POST", ASSIGNMENTS_URL, body);
 
     expect(response).toMatchObject({ status: 400, body: { error: { code } } });
     await expect(
-      db.selectFrom("programming_blocks").selectAll().execute(),
+      db.selectFrom("programming_source_assignments").selectAll().execute(),
     ).resolves.toEqual([]);
   });
 
   it.each([
-    ["a missing body source", {}],
-    ["a missing source kind", { source: { mediaItemId: ITEM_ID } }],
+    ["a missing body", {}],
     [
-      "a doubled source",
-      { source: { ...collectionSource, mediaItemId: ITEM_ID } },
+      "a missing member kind",
+      { ...collectionBody, members: [{ mediaItemId: ITEM_ID }] },
     ],
     [
-      "a mode on an item source",
+      "a doubled member source",
       {
-        source: {
-          kind: "media_item",
-          mediaItemId: ITEM_ID,
-          playbackMode: "random",
-        },
+        ...collectionBody,
+        members: [
+          {
+            kind: "collection",
+            mediaCollectionId: COLLECTION_ID,
+            mediaItemId: ITEM_ID,
+          },
+        ],
       },
     ],
     [
-      "a missing mode",
-      { source: { kind: "collection", mediaCollectionId: COLLECTION_ID } },
+      "a mode with only an item",
+      { ...itemAssignment(ITEM_ID), playbackMode: "random" },
+    ],
+    ["a collection without a mode", { ...collectionBody, playbackMode: null }],
+    ["an unsupported mode", { ...collectionBody, playbackMode: "shuffle" }],
+    ["no members", { ...collectionBody, members: [] }],
+    [
+      "a zero program count",
+      { ...collectionBody, ordinaryStretch: { kind: "programs", count: 0 } },
     ],
     [
-      "an unsupported mode",
-      { source: { ...collectionSource, playbackMode: "shuffle" } },
+      "a fractional program count",
+      { ...collectionBody, ordinaryStretch: { kind: "programs", count: 1.5 } },
     ],
-    ["an unknown field", { source: collectionSource, name: "Prime time" }],
+    ["an unknown field", { ...collectionBody, name: "Prime time" }],
   ])("rejects %s", async (_, payload) => {
     const { server } = await startServer();
 
-    const response = await send(server, "POST", BLOCKS_URL, payload);
+    const response = await send(server, "POST", ASSIGNMENTS_URL, payload);
 
     expect(response).toMatchObject({
       status: 400,
@@ -191,24 +197,27 @@ describe("programming block routes", () => {
     });
   });
 
-  it("rejects a second block for a channel", async () => {
+  it("rejects a second assignment for a channel", async () => {
     const { server } = await startServer();
-    await send(server, "POST", BLOCKS_URL, { source: collectionSource });
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
 
-    const response = await send(server, "POST", BLOCKS_URL, {
-      source: { kind: "media_item", mediaItemId: ITEM_ID },
-    });
+    const response = await send(
+      server,
+      "POST",
+      ASSIGNMENTS_URL,
+      itemAssignment(ITEM_ID),
+    );
 
     expect(response).toMatchObject({
       status: 409,
-      body: { error: { code: "programming_block_limit_reached" } },
+      body: { error: { code: "programming_assignment_limit_reached" } },
     });
   });
 
   it("materializes the horizon at revision 1 on an enabled channel", async () => {
     const { server, db } = await startServer();
 
-    await send(server, "POST", BLOCKS_URL, { source: collectionSource });
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
 
     const state = await db
       .selectFrom("channel_schedule_states")
@@ -232,33 +241,45 @@ describe("programming block routes", () => {
       "a source with no schedulable media",
       { items: [{ durationMs: 60_000, status: "missing" as const }] },
     ],
-  ])("keeps the block but writes no schedule for %s", async (_, scenario) => {
-    const { server, db } = await startServer(scenario);
+  ])(
+    "keeps the assignment but writes no schedule for %s",
+    async (_, scenario) => {
+      const { server, db } = await startServer(scenario);
 
-    const response = await send(server, "POST", BLOCKS_URL, {
-      source: collectionSource,
-    });
+      const response = await send(
+        server,
+        "POST",
+        ASSIGNMENTS_URL,
+        collectionBody,
+      );
 
-    expect(response.status).toBe(201);
-    await expect(
-      db.selectFrom("channel_schedule_states").selectAll().execute(),
-    ).resolves.toEqual([]);
-    await expect(
-      db.selectFrom("schedule_entries").selectAll().execute(),
-    ).resolves.toEqual([]);
-  });
+      expect(response.status).toBe(201);
+      for (const table of [
+        "channel_schedule_states",
+        "schedule_entries",
+        "programming_blocks",
+      ] as const) {
+        await expect(
+          db.selectFrom(table).selectAll().execute(),
+        ).resolves.toEqual([]);
+      }
+    },
+  );
 
-  it("keeps blocks across a restart", async () => {
+  it("keeps assignments across a restart", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const first = await startServer({}, dataDirectory);
-    const created = await send(first.server, "POST", BLOCKS_URL, {
-      source: collectionSource,
-    });
+    const created = await send(
+      first.server,
+      "POST",
+      ASSIGNMENTS_URL,
+      collectionBody,
+    );
     await first.server.close();
 
     const second = await startServer(null, dataDirectory);
 
-    await expect(send(second.server, "GET", BLOCKS_URL)).resolves.toEqual({
+    await expect(send(second.server, "GET", ASSIGNMENTS_URL)).resolves.toEqual({
       status: 200,
       body: [created.body],
     });
@@ -270,9 +291,12 @@ describe("programming block routes", () => {
     const other = await openTestDatabase(dataDirectory);
     const holder = await holdWriteAuthority(other.db);
     try {
-      const response = await send(server, "POST", BLOCKS_URL, {
-        source: collectionSource,
-      });
+      const response = await send(
+        server,
+        "POST",
+        ASSIGNMENTS_URL,
+        collectionBody,
+      );
 
       expect(response).toMatchObject({
         status: 503,
@@ -282,8 +306,45 @@ describe("programming block routes", () => {
       await holder.release();
     }
     await expect(
-      db.selectFrom("programming_blocks").selectAll().execute(),
+      db.selectFrom("programming_source_assignments").selectAll().execute(),
     ).resolves.toEqual([]);
+  });
+});
+
+describe("generated turns", () => {
+  it("airs a three-program assignment as blocks of three whole programs", async () => {
+    const { server, db } = await startServer();
+
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    const blocks = await db
+      .selectFrom("programming_blocks")
+      .selectAll()
+      .orderBy("starts_at")
+      .execute();
+    expect(blocks.slice(0, 2)).toMatchObject([
+      {
+        assignment_id: "assignment-001",
+        media_collection_id: COLLECTION_ID,
+        round_number: 1,
+        turn_index: 0,
+        starts_at: T0,
+        resolved_kind: "programs",
+        resolved_value: 3,
+      },
+      { round_number: 2, starts_at: entries[3]?.starts_at },
+    ]);
+    expect(
+      entries.slice(0, 6).map((entry) => entry.programming_block_id),
+    ).toEqual([
+      blocks[0]?.id,
+      blocks[0]?.id,
+      blocks[0]?.id,
+      blocks[1]?.id,
+      blocks[1]?.id,
+      blocks[1]?.id,
+    ]);
   });
 });
 
@@ -303,17 +364,17 @@ describe("playback modes over one collection", () => {
     await db.insertInto("channels").values(other).execute();
     const positionsBefore = await savedPositions(db);
 
-    await send(server, "POST", BLOCKS_URL, { source: collectionSource });
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
     const created = await send(
       server,
       "POST",
-      `/channels/${other.id}/programming-blocks`,
-      { source: { ...collectionSource, playbackMode: "episode" } },
+      `/channels/${other.id}/programming-assignments`,
+      collectionAssignment(COLLECTION_ID, "episode"),
     );
 
     expect(created).toMatchObject({
       status: 201,
-      body: { source: { playbackMode: "episode" } },
+      body: { playbackMode: "episode" },
     });
     const firstThree = async (channelId: string) =>
       (await readScheduleEntries(db, channelId))
@@ -333,16 +394,16 @@ describe("playback modes over one collection", () => {
   });
 });
 
-describe("block preview", () => {
-  const PREVIEW_URL = `${BLOCKS_URL}/block-001/preview`;
+describe("collection preview", () => {
+  const PREVIEW_URL = `${ASSIGNMENT_URL}/preview?mediaCollectionId=${COLLECTION_ID}`;
   // Five members in saved order: Office 1x2, Parks 1x1, Office 1x1, a
   // duplicate Office 1x1, and one with no episode details.
   const MEMBERS = Array.from({ length: 5 }, () => ({
     durationMs: 30 * 60_000,
   }));
 
-  // Starts the server with the five members, their facts, and a block.
-  async function previewServer(playbackMode: string) {
+  // Starts the server with the five members, their facts, and an assignment.
+  async function previewServer(playbackMode: PlaybackMode) {
     const context = await startServer({ items: MEMBERS });
     await context.db
       .insertInto("content_facts")
@@ -353,9 +414,12 @@ describe("block preview", () => {
         episodeFacts("item-004", 2316, 1, 1),
       ])
       .execute();
-    await send(context.server, "POST", BLOCKS_URL, {
-      source: { ...collectionSource, playbackMode },
-    });
+    await send(
+      context.server,
+      "POST",
+      ASSIGNMENTS_URL,
+      collectionAssignment(COLLECTION_ID, playbackMode),
+    );
     return context;
   }
 
@@ -424,7 +488,7 @@ describe("block preview", () => {
     const { body } = await send(
       server,
       "GET",
-      `${PREVIEW_URL}?playbackMode=chronological`,
+      `${PREVIEW_URL}&playbackMode=chronological`,
     );
 
     expect(body).toMatchObject({
@@ -450,24 +514,26 @@ describe("block preview", () => {
     expect((body as { upcoming: unknown[] }).upcoming).toHaveLength(10);
   });
 
-  it("refuses a single-item block, an unknown block, and an unknown mode", async () => {
+  it("refuses a collection the assignment does not play, an unknown assignment, and an unknown mode", async () => {
     const { server } = await startServer();
-    await send(server, "POST", BLOCKS_URL, {
-      source: { kind: "media_item", mediaItemId: ITEM_ID },
-    });
+    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
 
     await expect(send(server, "GET", PREVIEW_URL)).resolves.toMatchObject({
-      status: 409,
-      body: { error: { code: "programming_block_has_no_order" } },
+      status: 404,
+      body: { error: { code: "media_collection_not_assigned" } },
     });
     await expect(
-      send(server, "GET", `${BLOCKS_URL}/missing/preview`),
+      send(
+        server,
+        "GET",
+        `${ASSIGNMENTS_URL}/missing/preview?mediaCollectionId=${COLLECTION_ID}`,
+      ),
     ).resolves.toMatchObject({
       status: 404,
-      body: { error: { code: "programming_block_not_found" } },
+      body: { error: { code: "media_collection_not_assigned" } },
     });
     await expect(
-      send(server, "GET", `${PREVIEW_URL}?playbackMode=shuffle`),
+      send(server, "GET", `${PREVIEW_URL}&playbackMode=shuffle`),
     ).resolves.toMatchObject({
       status: 400,
       body: { error: { code: "invalid_request" } },
@@ -476,15 +542,19 @@ describe("block preview", () => {
 });
 
 describe("progress reset", () => {
-  const RESET_URL = `${BLOCKS_URL}/block-001/progress-reset`;
+  const RESET_URL = `${ASSIGNMENT_URL}/progress-reset`;
+  const RESET_BODY = { mediaCollectionId: COLLECTION_ID };
 
   // Plays the three episodes in `playbackMode` from T0, then sets the clock
   // to 30 minutes, while the second entry (item-002) airs.
-  async function airingSecondEntry(playbackMode: string) {
+  async function airingSecondEntry(playbackMode: PlaybackMode) {
     const context = await startServer();
-    await send(context.server, "POST", BLOCKS_URL, {
-      source: { ...collectionSource, playbackMode },
-    });
+    await send(
+      context.server,
+      "POST",
+      ASSIGNMENTS_URL,
+      collectionAssignment(COLLECTION_ID, playbackMode),
+    );
     context.clock.set(T0 + 30 * 60_000);
     return context;
   }
@@ -501,7 +571,7 @@ describe("progress reset", () => {
     const { server, db } = await airingSecondEntry("chronological");
     const [, airing] = await readScheduleEntries(db, CHANNEL_ID);
 
-    const response = await send(server, "POST", RESET_URL);
+    const response = await send(server, "POST", RESET_URL, RESET_BODY);
 
     expect(response.status).toBe(204);
     const after = await readScheduleEntries(db, CHANNEL_ID);
@@ -515,7 +585,7 @@ describe("progress reset", () => {
 
   it("never returns to pre-reset progress when the schedule regenerates later", async () => {
     const { server, db } = await airingSecondEntry("chronological");
-    await send(server, "POST", RESET_URL);
+    await send(server, "POST", RESET_URL, RESET_BODY);
 
     const regenerated = await send(
       server,
@@ -535,7 +605,7 @@ describe("progress reset", () => {
     const { server, db } = await airingSecondEntry("random");
     const before = await airings(db);
 
-    await send(server, "POST", RESET_URL);
+    await send(server, "POST", RESET_URL, RESET_BODY);
 
     const after = await airings(db);
     // Selection index 0 picks what it picked at T0, from the same seed.
@@ -568,7 +638,7 @@ describe("progress reset", () => {
       .values([...untouched])
       .execute();
 
-    await send(server, "POST", RESET_URL);
+    await send(server, "POST", RESET_URL, RESET_BODY);
 
     await expect(
       db
@@ -589,19 +659,25 @@ describe("progress reset", () => {
     ]);
   });
 
-  it("refuses an unknown block and a single-item block", async () => {
+  it("refuses an unknown assignment, a collection it does not play, and a missing body", async () => {
     const { server } = await startServer();
 
-    await expect(send(server, "POST", RESET_URL)).resolves.toMatchObject({
+    await expect(
+      send(server, "POST", RESET_URL, RESET_BODY),
+    ).resolves.toMatchObject({
       status: 404,
-      body: { error: { code: "programming_block_not_found" } },
+      body: { error: { code: "media_collection_not_assigned" } },
     });
-    await send(server, "POST", BLOCKS_URL, {
-      source: { kind: "media_item", mediaItemId: ITEM_ID },
+    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
+    await expect(
+      send(server, "POST", RESET_URL, RESET_BODY),
+    ).resolves.toMatchObject({
+      status: 404,
+      body: { error: { code: "media_collection_not_assigned" } },
     });
     await expect(send(server, "POST", RESET_URL)).resolves.toMatchObject({
-      status: 409,
-      body: { error: { code: "programming_block_has_no_order" } },
+      status: 400,
+      body: { error: { code: "invalid_request" } },
     });
   });
 });
@@ -615,16 +691,13 @@ function savedPositions(db: Kysely<DatabaseSchema>) {
     .execute();
 }
 
-describe("changing and deleting a programming block", () => {
-  const BLOCK_URL = `${BLOCKS_URL}/block-001`;
-  const randomSource = { ...collectionSource, playbackMode: "random" };
+describe("changing and deleting an assignment", () => {
+  const randomBody = collectionAssignment(COLLECTION_ID, "random");
 
-  // Creates the collection block at T0, then moves the clock into the second episode (22–45 minutes).
+  // Creates the collection assignment at T0, then moves the clock into the second episode (22–45 minutes).
   async function startScheduled() {
     const context = await startServer();
-    await send(context.server, "POST", BLOCKS_URL, {
-      source: collectionSource,
-    });
+    await send(context.server, "POST", ASSIGNMENTS_URL, collectionBody);
     context.clock.set(T0 + 30 * 60_000);
     return context;
   }
@@ -639,20 +712,18 @@ describe("changing and deleting a programming block", () => {
     return { entries, revision: state.schedule_revision };
   }
 
-  it("replaces the source and regenerates after the airing entry", async () => {
+  it("replaces the settings and regenerates after the airing entry", async () => {
     const { server, db } = await startScheduled();
     const before = await readSchedule(db);
 
-    const response = await send(server, "PATCH", BLOCK_URL, {
-      source: randomSource,
-    });
+    const response = await send(server, "PATCH", ASSIGNMENT_URL, randomBody);
 
     expect(response).toEqual({
       status: 200,
       body: {
-        id: "block-001",
+        id: "assignment-001",
         channelId: CHANNEL_ID,
-        source: randomSource,
+        ...randomBody,
         createdAt: new Date(T0).toISOString(),
         updatedAt: new Date(T0 + 30 * 60_000).toISOString(),
       },
@@ -666,12 +737,12 @@ describe("changing and deleting a programming block", () => {
     });
   });
 
-  it("writes nothing for an identical source", async () => {
+  it("writes nothing for identical settings", async () => {
     const { server, db } = await startScheduled();
     const before = await readSchedule(db);
 
-    const response = await send(server, "PATCH", BLOCK_URL, {
-      source: collectionSource,
+    const response = await send(server, "PATCH", ASSIGNMENT_URL, {
+      ...collectionBody,
     });
 
     expect(response).toMatchObject({
@@ -681,56 +752,58 @@ describe("changing and deleting a programming block", () => {
     await expect(readSchedule(db)).resolves.toEqual(before);
   });
 
-  it("deletes the block, keeping the airing entry without it", async () => {
+  it("deletes the assignment, keeping the airing entry and its block as history", async () => {
     const { server, db } = await startScheduled();
+    const before = await readSchedule(db);
 
-    const response = await server.inject({ method: "DELETE", url: BLOCK_URL });
+    const response = await server.inject({
+      method: "DELETE",
+      url: ASSIGNMENT_URL,
+    });
 
     expect(response.statusCode).toBe(204);
-    await expect(send(server, "GET", BLOCKS_URL)).resolves.toEqual({
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toEqual({
       status: 200,
       body: [],
     });
     const after = await readSchedule(db);
     expect(after.revision).toBe(2);
-    expect(
-      after.entries.map((entry) => [
-        entry.starts_at,
-        entry.programming_block_id,
-      ]),
-    ).toEqual([
-      [T0, null],
-      [T0 + 22 * 60_000, null],
-    ]);
+    expect(after.entries).toEqual(before.entries.slice(0, 2));
+    await expect(
+      db.selectFrom("programming_blocks").select("assignment_id").execute(),
+    ).resolves.toEqual([{ assignment_id: null }]);
   });
 
   it.each([
-    ["an unknown block", `${BLOCKS_URL}/missing`],
+    ["an unknown assignment", `${ASSIGNMENTS_URL}/missing`],
     [
-      "another channel's block",
-      "/channels/missing/programming-blocks/block-001",
+      "another channel's assignment",
+      "/channels/missing/programming-assignments/assignment-001",
     ],
   ])("reports %s as not found", async (_, url) => {
     const { server } = await startScheduled();
 
-    const patched = await send(server, "PATCH", url, { source: randomSource });
+    const patched = await send(server, "PATCH", url, randomBody);
     const deleted = await send(server, "DELETE", url);
 
     for (const response of [patched, deleted]) {
       expect(response).toMatchObject({
         status: 404,
-        body: { error: { code: "programming_block_not_found" } },
+        body: { error: { code: "programming_assignment_not_found" } },
       });
     }
   });
 
-  it("rejects an unknown collection and keeps the old source", async () => {
+  it("rejects an unknown collection and keeps the old settings", async () => {
     const { server, db } = await startScheduled();
     const before = await readSchedule(db);
 
-    const response = await send(server, "PATCH", BLOCK_URL, {
-      source: { ...collectionSource, mediaCollectionId: "missing" },
-    });
+    const response = await send(
+      server,
+      "PATCH",
+      ASSIGNMENT_URL,
+      collectionAssignment("missing"),
+    );
 
     expect(response).toMatchObject({
       status: 400,
@@ -742,8 +815,9 @@ describe("changing and deleting a programming block", () => {
   it("rejects an invalid body", async () => {
     const { server } = await startScheduled();
 
-    const response = await send(server, "PATCH", BLOCK_URL, {
-      source: { ...collectionSource, playbackMode: "shuffle" },
+    const response = await send(server, "PATCH", ASSIGNMENT_URL, {
+      ...collectionBody,
+      playbackMode: "shuffle",
     });
 
     expect(response).toMatchObject({

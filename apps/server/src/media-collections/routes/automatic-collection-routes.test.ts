@@ -12,6 +12,7 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../testing/test-environment.js";
+import { collectionAssignment } from "../../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -247,14 +248,8 @@ describe("automatic series collections", () => {
     const block = await send(
       server,
       "POST",
-      `${channelUrl}/programming-blocks`,
-      {
-        source: {
-          kind: "collection",
-          mediaCollectionId: created.body.id,
-          playbackMode: "chronological",
-        },
-      },
+      `${channelUrl}/programming-assignments`,
+      collectionAssignment(created.body.id as string),
     );
     const now = Date.now();
     const schedule = await send(

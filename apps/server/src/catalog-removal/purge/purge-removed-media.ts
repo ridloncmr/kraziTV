@@ -4,7 +4,7 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import {
   loadScheduleState,
   updateScheduleState,
-} from "../../schedules/schedule-repository.js";
+} from "../../schedules/persistence/schedule-repository.js";
 
 /**
  * Deletes every removed item that no schedule entry holds past `now`,

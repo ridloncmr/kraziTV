@@ -10,6 +10,7 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../testing/test-environment.js";
+import { collectionAssignment } from "../../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -124,14 +125,8 @@ describe("changing an automatic collection's criterion", () => {
     await send(
       server,
       "POST",
-      `/channels/${channel.body.id}/programming-blocks`,
-      {
-        source: {
-          kind: "collection",
-          mediaCollectionId: office,
-          playbackMode: "chronological",
-        },
-      },
+      `/channels/${channel.body.id}/programming-assignments`,
+      collectionAssignment(office),
     );
     const revision = async () =>
       (

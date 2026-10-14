@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import {
   deriveChannelSeed,
+  deriveProgrammingSeed,
   findRegenerationBoundary,
-  generateScheduleEntries,
-  NO_PROGRESS,
+  generateProgramming,
   orderFingerprint,
+  type ProgrammingAssignment,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -19,8 +20,8 @@ import {
 import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
   AdmissionFailure,
-  BlockPreview,
   ChannelAdmission,
+  CollectionPreview,
   ChannelChunk,
   ChunkResult,
   ChunkStart,
@@ -40,6 +41,22 @@ import {
   warnIfGapRepaired,
 } from "./schedule-coverage.js";
 import {
+  findAssignedCollectionMode,
+  loadCollectionMembers,
+  loadProgrammingAssignments,
+} from "./persistence/assignment-sources.js";
+import {
+  loadProgress,
+  recordOrderFingerprint,
+  restoreDeletedProgress,
+  upsertProgress,
+} from "./persistence/collection-progress.js";
+import {
+  deleteEmptyBlocks,
+  insertBlocks,
+  loadLatestTurn,
+} from "./persistence/generated-blocks.js";
+import {
   createScheduleState,
   deleteEntriesFrom,
   findChannelEnabled,
@@ -48,18 +65,14 @@ import {
   insertEntries,
   listEnabledChannelIds,
   listEntriesInWindow,
-  listUpcomingBlockEntries,
-  loadBlockSource,
-  loadProgress,
-  loadScheduleSource,
+  listUpcomingCollectionEntries,
   loadScheduleState,
-  recordOrderFingerprint,
-  restoreDeletedProgress,
   updateScheduleState,
-  upsertProgress,
-} from "./schedule-repository.js";
+} from "./persistence/schedule-repository.js";
 
 interface ScheduleServiceOptions extends RecordSources {
+  /** Names generated blocks; separate from entry IDs so tests can name each. */
+  createBlockId?: (() => string) | undefined;
   /** Caps the entries one transaction inserts; defaults to 500. */
   entriesPerTransaction?: number | undefined;
   /** Passed to every immediate transaction; a test pause point. */
@@ -70,12 +83,12 @@ interface ScheduleServiceOptions extends RecordSources {
 // under SQLite's bound-variable limit.
 const ENTRIES_PER_TRANSACTION = 500;
 
-// How many upcoming selections a block preview shows.
+// How many upcoming selections a collection preview shows.
 const PREVIEW_UPCOMING_ENTRIES = 10;
 
 /**
- * The only writer of schedule entries, schedule state, and collection
- * progress, apart from catalog purge, which deletes only entries that have
+ * The only writer of schedule entries, generated programming blocks,
+ * schedule state, and collection progress, apart from catalog purge, which deletes only entries that have
  * ended, and two input changes this service runs in its own transaction:
  * the maintenance pass's ordering change, which records an order
  * fingerprint, and a progress reset. Every mutation runs in an immediate
@@ -86,6 +99,7 @@ export class ScheduleService {
   readonly #db: Kysely<DatabaseSchema>;
   readonly #now: () => number;
   readonly #createId: () => string;
+  readonly #createBlockId: () => string;
   readonly #entriesPerTransaction: number;
   readonly #transactionHooks: ImmediateTransactionHooks | undefined;
 
@@ -97,6 +111,7 @@ export class ScheduleService {
     this.#db = db;
     this.#now = options.now ?? Date.now;
     this.#createId = options.createId ?? randomUUID;
+    this.#createBlockId = options.createBlockId ?? randomUUID;
     this.#entriesPerTransaction =
       options.entriesPerTransaction ?? ENTRIES_PER_TRANSACTION;
     // A chunk that may insert nothing would loop forever without covering anything.
@@ -210,25 +225,32 @@ export class ScheduleService {
   }
 
   /**
-   * Reads what a block's preview explains, in one deferred snapshot so the
-   * members and the upcoming entries come from the same schedule: the
-   * block's source with its members, and its next entries from the current
-   * time. Never generates or writes. Returns undefined when the channel has
-   * no such block.
+   * Reads what a collection preview explains, in one deferred snapshot so
+   * the members and the upcoming entries come from the same schedule: an
+   * assigned collection's members, the mode its assignment plays it in, and
+   * its next entries in that mode from the current time. Never generates or
+   * writes. Returns undefined unless the channel's assignment holds the
+   * collection.
    */
-  async readBlockPreview(
+  async readCollectionPreview(
     channelId: string,
-    blockId: string,
-  ): Promise<BlockPreview | undefined> {
+    assignmentId: string,
+    mediaCollectionId: string,
+  ): Promise<CollectionPreview | undefined> {
     return this.#db.transaction().execute(async (trx) => {
-      const source = await loadBlockSource(trx, channelId, blockId);
-      if (source === undefined) return undefined;
+      const playbackMode = await findAssignedCollectionMode(trx, {
+        channelId,
+        assignmentId,
+        mediaCollectionId,
+      });
+      if (playbackMode === undefined) return undefined;
       return {
-        source,
-        upcoming: await listUpcomingBlockEntries(
+        playbackMode,
+        members: await loadCollectionMembers(trx, mediaCollectionId),
+        upcoming: await listUpcomingCollectionEntries(
           trx,
           channelId,
-          blockId,
+          { mediaCollectionId, playbackMode },
           this.#now(),
           PREVIEW_UPCOMING_ENTRIES,
         ),
@@ -444,6 +466,7 @@ export class ScheduleService {
     const { startsAt: boundary } = span;
     const deleted = await deleteEntriesFrom(trx, channelId, span.deleteFrom);
     await restoreDeletedProgress(trx, channelId, deleted, effectiveNow);
+    await deleteEmptyBlocks(trx, channelId);
 
     const written = (await findChannelEnabled(trx, channelId))
       ? await this.#writeChunk(
@@ -549,6 +572,8 @@ export class ScheduleService {
 
     const anchorTime = state?.anchorTime ?? effectiveNow;
     const seed = state?.seed ?? deriveChannelSeed(channelId, anchorTime);
+    const programmingSeed =
+      state?.programmingSeed ?? deriveProgrammingSeed(channelId, anchorTime);
     const written = await this.#writeChunk(
       trx,
       channelId,
@@ -570,6 +595,8 @@ export class ScheduleService {
       lastGeneratedThrough: written.lastGeneratedThrough,
       nextSequenceNumber: written.nextSequenceNumber,
       scheduleRevision: (state?.scheduleRevision ?? 0) + 1,
+      programmingSeed,
+      rebuildCount: state?.rebuildCount ?? 0,
       updatedAt: effectiveNow,
     };
     await (state === undefined
@@ -582,9 +609,10 @@ export class ScheduleService {
   }
 
   /**
-   * Generates one bounded chunk toward `target` from the channel's block and
-   * commits its entries and collection progress, and, when the chunk starts
-   * what the schedule will air, the order a metadata mode followed. Leaves
+   * Generates one bounded chunk toward `target` from the channel's
+   * assignments, continuing its latest turn, and commits the new blocks,
+   * their entries, and collection progress, and, when the chunk starts what
+   * the schedule will air, the order each metadata mode followed. Leaves
    * schedule state to the caller, which alone knows whether the revision
    * advances.
    */
@@ -595,31 +623,22 @@ export class ScheduleService {
     target: number,
     effectiveNow: number,
   ): Promise<WrittenChunk> {
-    const source = await loadScheduleSource(trx, channelId);
-    if (source === undefined) {
-      return { kind: "unschedulable", reason: "no_programming_block" };
-    }
-    const generated = generateScheduleEntries({
+    const assignments = await loadProgrammingAssignments(trx, channelId);
+    const collections = assignedCollections(assignments);
+    const generated = generateProgramming({
       channelSeed: start.seed,
-      source,
-      progress:
-        source.kind === "collection"
-          ? await loadProgress(
-              trx,
-              channelId,
-              source.mediaCollectionId,
-              source.playbackMode,
-            )
-          : NO_PROGRESS, // single items carry no collection progress
+      assignments,
+      latestTurn: await loadLatestTurn(trx, channelId),
+      progress: await loadProgress(trx, channelId, collections),
       startsAt: start.startsAt,
       through: target,
       nextSequenceNumber: start.nextSequenceNumber,
       maxEntries: this.#entriesPerTransaction,
+      createBlockId: this.#createBlockId,
     });
-    if (generated.kind === "unschedulable") {
-      return { kind: "unschedulable", reason: "no_schedulable_media" };
-    }
+    if (generated.kind === "unschedulable") return generated;
 
+    await insertBlocks(trx, channelId, generated.blocks, effectiveNow);
     await insertEntries(
       trx,
       channelId,
@@ -627,24 +646,16 @@ export class ScheduleService {
       this.#createId,
       effectiveNow,
     );
-    if (source.kind === "collection") {
-      await upsertProgress(
-        trx,
-        channelId,
-        source.mediaCollectionId,
-        source.playbackMode,
-        generated.progress,
-        effectiveNow,
-      );
-      const fingerprint = start.recordsOrder
-        ? orderFingerprint(source.members, source.playbackMode)
-        : null;
-      if (fingerprint !== null) {
+    for (const progress of generated.progress) {
+      await upsertProgress(trx, channelId, progress, effectiveNow);
+    }
+    if (start.recordsOrder) {
+      for (const { members, ...scope } of collections) {
+        const fingerprint = orderFingerprint(members, scope.playbackMode);
+        if (fingerprint === null) continue;
         await recordOrderFingerprint(
           trx,
-          channelId,
-          source.mediaCollectionId,
-          source.playbackMode,
+          { channelId, ...scope },
           fingerprint,
           effectiveNow,
         );
@@ -690,4 +701,27 @@ export class ScheduleService {
       hooks: this.#transactionHooks,
     });
   }
+}
+
+/**
+ * Lists each collection the assignments play, with the mode its assignment
+ * plays it in and its members, so generation loads their progress and a
+ * new schedule records the order each metadata mode follows.
+ */
+function assignedCollections(assignments: readonly ProgrammingAssignment[]) {
+  return assignments.flatMap(({ playbackMode, members }) =>
+    playbackMode === null
+      ? []
+      : members.flatMap((member) =>
+          member.kind === "collection"
+            ? [
+                {
+                  mediaCollectionId: member.mediaCollectionId,
+                  playbackMode,
+                  members: member.members,
+                },
+              ]
+            : [],
+        ),
+  );
 }

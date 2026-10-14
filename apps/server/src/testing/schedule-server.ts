@@ -58,6 +58,7 @@ export async function startScheduleServer(
       schedules: new ScheduleService(db, {
         now: clock.now,
         createId: sequentialIds(`${boot}-entry`),
+        createBlockId: sequentialIds(`${boot}-block`),
       }),
     }),
   });
@@ -91,6 +92,7 @@ export async function startScheduleScenarioServer(
       schedules: new ScheduleService(db, {
         now: clock.now,
         createId: sequentialIds("entry"),
+        createBlockId: sequentialIds("block"),
       }),
     }),
   });

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
-  BlockPreview,
-  BlockSource,
+  AssignmentMember,
+  AssignmentSettings,
+  CollectionPreview,
   MediaCollection,
   PlaybackMode,
-  ProgrammingBlock,
   ScheduleWindow,
+  SourceAssignment,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { MediaItemPicker } from "../media-search/media-item-picker.js";
@@ -43,7 +44,14 @@ const PLAYBACK_MODE_CHOICES: readonly {
   },
 ];
 
-/** Sends the explicit either/or source contract; the server regenerates and returns schedule observations. */
+// The ordinary stretch a new collection assignment starts with.
+const DEFAULT_PROGRAM_COUNT = 3;
+
+/**
+ * Edits the channel's one programming source assignment: a collection in a
+ * playback mode for a number of programs a turn, or a single item that airs
+ * once a turn. The server regenerates and returns schedule observations.
+ */
 export function ProgrammingEditor({
   channelId,
   visible,
@@ -51,16 +59,17 @@ export function ProgrammingEditor({
   channelId: string;
   visible: boolean;
 }) {
-  const path = `${resourcePath("channels", channelId)}/programming-blocks`;
-  const blocks = useResource<ProgrammingBlock[]>(path, visible);
+  const path = `${resourcePath("channels", channelId)}/programming-assignments`;
+  const assignments = useResource<SourceAssignment[]>(path, visible);
   const collections = useResource<MediaCollection[]>(
     "/media-collections",
     visible,
   );
   const mutation = useMutation();
-  const [kind, setKind] = useState<BlockSource["kind"]>("collection");
+  const [kind, setKind] = useState<AssignmentMember["kind"]>("collection");
   const [sourceId, setSourceId] = useState("");
   const [mode, setMode] = useState<PlaybackMode>("chronological");
+  const [count, setCount] = useState(DEFAULT_PROGRAM_COUNT);
   const [showSchedule, setShowSchedule] = useState(false);
   const dirty = useRef(false);
   const schedulePath = useMemo(
@@ -71,20 +80,32 @@ export function ProgrammingEditor({
     showSchedule ? schedulePath : null,
     visible,
   );
-  const block = blocks.data?.[0];
+  const assignment = assignments.data?.[0];
+  const assignmentPath = assignment
+    ? `${path}/${encodeURIComponent(assignment.id)}`
+    : undefined;
+  const savedMember = assignment?.members[0];
+  // The saved collection and the mode its assignment plays it in, if any.
+  const saved =
+    savedMember?.kind === "collection" && assignment?.playbackMode
+      ? {
+          mediaCollectionId: savedMember.mediaCollectionId,
+          playbackMode: assignment.playbackMode,
+        }
+      : undefined;
   // The server previews the saved collection only, so an unsaved collection
   // choice has no preview until it is saved.
-  const preview = useResource<BlockPreview>(
-    block?.source.kind === "collection" &&
+  const preview = useResource<CollectionPreview>(
+    assignmentPath !== undefined &&
+      saved !== undefined &&
       kind === "collection" &&
-      sourceId === block.source.mediaCollectionId
-      ? `${path}/${encodeURIComponent(block.id)}/preview?playbackMode=${mode}`
+      sourceId === saved.mediaCollectionId
+      ? `${assignmentPath}/preview?mediaCollectionId=${encodeURIComponent(sourceId)}&playbackMode=${mode}`
       : null,
     visible,
   );
   // Reset applies to the saved collection and mode, so it is offered only
   // while the form shows them.
-  const saved = block?.source.kind === "collection" ? block.source : undefined;
   const resettable =
     saved !== undefined &&
     kind === "collection" &&
@@ -92,42 +113,39 @@ export function ProgrammingEditor({
     mode === saved.playbackMode;
   const [resetting, setResetting] = useState(false);
   useEffect(() => {
-    if (!block || dirty.current) return;
-    setKind(block.source.kind);
+    if (!assignment || !savedMember || dirty.current) return;
+    setKind(savedMember.kind);
     setSourceId(
-      block.source.kind === "collection"
-        ? block.source.mediaCollectionId
-        : block.source.mediaItemId,
+      savedMember.kind === "collection"
+        ? savedMember.mediaCollectionId
+        : savedMember.mediaItemId,
     );
-    if (block.source.kind === "collection") setMode(block.source.playbackMode);
-  }, [block]);
+    if (assignment.playbackMode) setMode(assignment.playbackMode);
+    setCount(assignment.ordinaryStretch.count);
+  }, [assignment, savedMember]);
   return (
-    <fieldset disabled={mutation.pending || blocks.loading}>
-      <legend>Programming block</legend>
+    <fieldset disabled={mutation.pending || assignments.loading}>
+      <legend>Programming</legend>
       <RequestFeedback
-        loading={blocks.loading || collections.loading || mutation.pending}
-        error={mutation.error ?? blocks.error ?? collections.error}
+        loading={assignments.loading || collections.loading || mutation.pending}
+        error={mutation.error ?? assignments.error ?? collections.error}
         message={mutation.message}
       />
-      {blocks.data?.length === 0 && (
+      {assignments.data?.length === 0 && (
         <p className="empty-state">
-          No programming block. Choose one source to begin broadcasting.
+          No programming assigned. Choose one source to begin broadcasting.
         </p>
       )}
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          const source: BlockSource =
-            kind === "collection"
-              ? { kind, mediaCollectionId: sourceId, playbackMode: mode }
-              : { kind, mediaItemId: sourceId };
           void mutation.run(
-            block ? `${path}/${encodeURIComponent(block.id)}` : path,
-            block ? "PATCH" : "POST",
-            { source },
+            assignmentPath ?? path,
+            assignmentPath ? "PATCH" : "POST",
+            toSettings(kind, sourceId, mode, count),
             () => {
               dirty.current = false;
-              blocks.refresh();
+              assignments.refresh();
               preview.refresh();
               setShowSchedule(true);
               schedule.refresh();
@@ -142,7 +160,7 @@ export function ProgrammingEditor({
               value={kind}
               onChange={(event) => {
                 dirty.current = true;
-                setKind(event.target.value as BlockSource["kind"]);
+                setKind(event.target.value as AssignmentMember["kind"]);
                 setSourceId("");
               }}
             >
@@ -205,31 +223,40 @@ export function ProgrammingEditor({
                     ?.hint
                 }
               </small>
+              <label>
+                Programs per turn
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  step={1}
+                  value={count}
+                  onChange={(event) => {
+                    dirty.current = true;
+                    setCount(event.target.valueAsNumber);
+                  }}
+                />
+              </label>
             </>
           )}
         </div>
         <div className="row-actions">
-          <button type="submit" disabled={!sourceId || !blocks.data}>
+          <button type="submit" disabled={!sourceId || !assignments.data}>
             Save programming
           </button>
-          {block && (
+          {assignmentPath && (
             <button
               type="button"
               onClick={() => {
-                void mutation.run(
-                  `${path}/${encodeURIComponent(block.id)}`,
-                  "DELETE",
-                  undefined,
-                  () => {
-                    blocks.refresh();
-                    setShowSchedule(true);
-                    schedule.refresh();
-                    setSourceId("");
-                  },
-                );
+                void mutation.run(assignmentPath, "DELETE", undefined, () => {
+                  assignments.refresh();
+                  setShowSchedule(true);
+                  schedule.refresh();
+                  setSourceId("");
+                });
               }}
             >
-              Remove programming block
+              Remove programming
             </button>
           )}
           {resettable && (
@@ -239,9 +266,10 @@ export function ProgrammingEditor({
           )}
         </div>
       </form>
-      {resetting && saved !== undefined && block && (
+      {resetting && saved !== undefined && assignmentPath && (
         <ProgressResetDialog
-          path={`${path}/${encodeURIComponent(block.id)}/progress-reset`}
+          path={`${assignmentPath}/progress-reset`}
+          mediaCollectionId={saved.mediaCollectionId}
           collectionName={
             collections.data?.find(
               (collection) => collection.id === saved.mediaCollectionId,
@@ -252,13 +280,6 @@ export function ProgrammingEditor({
               (choice) => choice.mode === saved.playbackMode,
             )?.label ?? saved.playbackMode
           }
-          sharingBlocks={(blocks.data ?? []).flatMap((candidate, index) =>
-            candidate.source.kind === "collection" &&
-            candidate.source.mediaCollectionId === saved.mediaCollectionId &&
-            candidate.source.playbackMode === saved.playbackMode
-              ? [`Programming block ${index + 1}`]
-              : [],
-          )}
           upcoming={preview.data?.upcoming ?? null}
           upcomingError={preview.error}
           reset={() => {
@@ -287,4 +308,28 @@ export function ProgrammingEditor({
       )}
     </fieldset>
   );
+}
+
+/**
+ * Builds the assignment the form describes: a collection in its mode for
+ * the chosen programs a turn, or one item, which airs once a turn whatever
+ * its stretch.
+ */
+function toSettings(
+  kind: AssignmentMember["kind"],
+  sourceId: string,
+  mode: PlaybackMode,
+  count: number,
+): AssignmentSettings {
+  return kind === "collection"
+    ? {
+        playbackMode: mode,
+        ordinaryStretch: { kind: "programs", count },
+        members: [{ kind, mediaCollectionId: sourceId }],
+      }
+    : {
+        playbackMode: null,
+        ordinaryStretch: { kind: "programs", count: 1 },
+        members: [{ kind, mediaItemId: sourceId }],
+      };
 }

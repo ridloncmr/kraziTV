@@ -28,7 +28,7 @@ import {
 } from "../database/database.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
-import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
+import { AssignmentRepository } from "../programming-assignments/assignment-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
@@ -200,7 +200,7 @@ export async function startTestServer(
     channels: new ChannelRepository(database.db),
     channelRuntime: new RecordingChannelRuntime(),
     channelStreams: new ControlledChannelStreams(),
-    programmingBlocks: new ProgrammingBlockRepository(database.db),
+    assignments: new AssignmentRepository(database.db),
     schedules,
     playout: new PlayoutService(database.db, schedules),
   };

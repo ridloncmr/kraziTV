@@ -19,8 +19,21 @@ export type {
   PlayoutItem,
 } from "./playout/contracts.js";
 
+// kraziPlan: continuous programming from a channel's source assignments,
+// generated turn by turn into blocks and the entries they air.
+export { generateProgramming } from "./krazi-plan/generate-programming.js";
+export type {
+  AssignmentMember,
+  BlockSource,
+  GeneratedBlock,
+  LatestTurn,
+  ProgrammingAssignment,
+  ProgrammingUnschedulableReason,
+  RotationCheckpoint,
+  StretchSetting,
+} from "./krazi-plan/contracts.js";
+
 // Schedule generation the server materializes into persisted entries.
-export { generateScheduleEntries } from "./schedule/generate-schedule-entries.js";
 export {
   describeOrderedView,
   orderFingerprint,
@@ -33,13 +46,17 @@ export {
   SCHEDULE_HORIZON_MS,
   isSchedulableMedia,
 } from "./schedule/schedule-policy.js";
-export { deriveChannelSeed } from "./schedule/seeded-hash.js";
+export {
+  deriveChannelSeed,
+  deriveProgrammingSeed,
+} from "./schedule/seeded-hash.js";
 export {
   METADATA_PLAYBACK_MODES,
   NO_PROGRESS,
   PLAYBACK_MODES,
 } from "./schedule/contracts.js";
 export type {
+  CollectionProgress,
   GeneratedScheduleEntry,
   OrderedMember,
   PlaybackMode,
@@ -47,5 +64,4 @@ export type {
   ProgressReset,
   RestorableEntry,
   ScheduleMedia,
-  ScheduleSource,
 } from "./schedule/contracts.js";

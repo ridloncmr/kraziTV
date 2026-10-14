@@ -62,3 +62,16 @@ export function deriveCollectionSeed(
 ): number {
   return hash32(`collection:${channelSeed}:${collectionId}`);
 }
+
+/**
+ * Derives a channel's programming seed, which kraziPlan's source and size
+ * decisions hash, from the same identity and anchor as its channel seed but
+ * under its own label, so programming randomness never advances or mirrors
+ * collection playback randomness.
+ */
+export function deriveProgrammingSeed(
+  channelId: string,
+  anchorTime: number,
+): number {
+  return hash32(`programming:${channelId}:${anchorTime}`);
+}

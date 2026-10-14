@@ -198,18 +198,21 @@ export interface Channel {
   name: string;
   enabled: boolean;
 }
-/** How a collection block orders its collection; mirrors the server's modes. */
+/** How an assignment orders its collections; mirrors the server's modes. */
 export type PlaybackMode = "chronological" | "episode" | "release" | "random";
-export type BlockSource =
-  | {
-      kind: "collection";
-      mediaCollectionId: string;
-      playbackMode: PlaybackMode;
-    }
+/** One member an assignment plays: a collection, or one media item. */
+export type AssignmentMember =
+  | { kind: "collection"; mediaCollectionId: string }
   | { kind: "media_item"; mediaItemId: string };
-export interface ProgrammingBlock {
+/** What the owner saves for one programming source assignment. */
+export interface AssignmentSettings {
+  /** Required with a collection; null for single items only. */
+  playbackMode: PlaybackMode | null;
+  ordinaryStretch: { kind: "programs"; count: number };
+  members: AssignmentMember[];
+}
+export interface SourceAssignment extends AssignmentSettings {
   id: string;
-  source: BlockSource;
 }
 /** One collection member in the order a mode plays, with the server's flags. */
 export interface PreviewMember {
@@ -223,7 +226,7 @@ export interface PreviewMember {
   startsSeriesGroup: boolean;
   duplicateEpisode: boolean;
 }
-/** One schedule entry a block will air next. */
+/** One schedule entry a collection will air next. */
 export interface UpcomingSelection {
   id: string;
   mediaItemId: string;
@@ -231,8 +234,8 @@ export interface UpcomingSelection {
   startsAt: string;
   endsAt: string;
 }
-/** A block's order for one mode; random has no order, and only the saved mode has upcoming selections. */
-export interface BlockPreview {
+/** An assigned collection's order for one mode; random has no order, and only the saved mode has upcoming selections. */
+export interface CollectionPreview {
   playbackMode: PlaybackMode;
   ordered: PreviewMember[] | null;
   upcoming: UpcomingSelection[] | null;
