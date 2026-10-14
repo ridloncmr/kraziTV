@@ -161,3 +161,73 @@ describe("restorePlaybackProgress", () => {
     expect(restored).toEqual([]);
   });
 });
+
+describe("restorePlaybackProgress after a progress reset", () => {
+  // The reset recorded that entries from sequence number 20 on follow it.
+  const reset = {
+    mediaCollectionId: "collection-1",
+    playbackMode: "chronological",
+    resetSequenceNumber: 20,
+  } as const;
+
+  it("never returns ordered progress to an entry kept from before the reset", () => {
+    const restored = restorePlaybackProgress(
+      [entry(20, "chronological", 0), entry(21, "chronological", 1)],
+      [entry(19, "chronological", 4, "airing")],
+      [reset],
+    );
+
+    expect(restored).toEqual([
+      {
+        mediaCollectionId: "collection-1",
+        playbackMode: "chronological",
+        progress: NO_PROGRESS,
+      },
+    ]);
+  });
+
+  it("restores from entries generated after the reset", () => {
+    const restored = restorePlaybackProgress(
+      [entry(23, "chronological", 3)],
+      [
+        entry(19, "chronological", 4, "airing"),
+        entry(22, "chronological", 2, "c"),
+      ],
+      [reset],
+    );
+
+    expect(restored).toEqual([
+      {
+        mediaCollectionId: "collection-1",
+        playbackMode: "chronological",
+        progress: { ...NO_PROGRESS, lastMediaItemId: "c", lastPosition: 2 },
+      },
+    ]);
+  });
+
+  it("leaves reset random progress alone when every deleted entry predates the reset", () => {
+    const restored = restorePlaybackProgress(
+      [entry(18, "random", 40), entry(19, "random", 41)],
+      [],
+      [{ ...reset, playbackMode: "random" }],
+    );
+
+    expect(restored).toEqual([]);
+  });
+
+  it("applies a reset only to its own collection and mode", () => {
+    const restored = restorePlaybackProgress(
+      [entry(18, "random", 40)],
+      [],
+      [reset],
+    );
+
+    expect(restored).toEqual([
+      {
+        mediaCollectionId: "collection-1",
+        playbackMode: "random",
+        progress: { ...NO_PROGRESS, nextSelectionIndex: 40 },
+      },
+    ]);
+  });
+});

@@ -44,6 +44,7 @@ export type {
   OrderedMember,
   PlaybackMode,
   PlaybackProgress,
+  ProgressReset,
   RestorableEntry,
   ScheduleMedia,
   ScheduleSource,

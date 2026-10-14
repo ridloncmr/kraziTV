@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send } from "../testing/api-requests.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { channelFixture } from "../testing/channel-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+} from "../testing/catalog-fixtures.js";
+import {
+  channelFixture,
+  collectionProgressFixture,
+} from "../testing/channel-fixtures.js";
 import { episodeFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
@@ -465,6 +471,137 @@ describe("block preview", () => {
     ).resolves.toMatchObject({
       status: 400,
       body: { error: { code: "invalid_request" } },
+    });
+  });
+});
+
+describe("progress reset", () => {
+  const RESET_URL = `${BLOCKS_URL}/block-001/progress-reset`;
+
+  // Plays the three episodes in `playbackMode` from T0, then sets the clock
+  // to 30 minutes, while the second entry (item-002) airs.
+  async function airingSecondEntry(playbackMode: string) {
+    const context = await startServer();
+    await send(context.server, "POST", BLOCKS_URL, {
+      source: { ...collectionSource, playbackMode },
+    });
+    context.clock.set(T0 + 30 * 60_000);
+    return context;
+  }
+
+  // Reads the fixture channel's entries as [item, playback index].
+  async function airings(db: Kysely<DatabaseSchema>) {
+    return (await readScheduleEntries(db, CHANNEL_ID)).map((entry) => [
+      entry.media_item_id,
+      entry.playback_index,
+    ]);
+  }
+
+  it("keeps the airing entry and restarts the collection order after it", async () => {
+    const { server, db } = await airingSecondEntry("chronological");
+    const [, airing] = await readScheduleEntries(db, CHANNEL_ID);
+
+    const response = await send(server, "POST", RESET_URL);
+
+    expect(response.status).toBe(204);
+    const after = await readScheduleEntries(db, CHANNEL_ID);
+    expect(after[1]).toEqual(airing);
+    // Without the reset, item-003 would follow the airing item-002.
+    expect((await airings(db)).slice(2, 4)).toEqual([
+      ["item-001", 0],
+      ["item-002", 1],
+    ]);
+  });
+
+  it("never returns to pre-reset progress when the schedule regenerates later", async () => {
+    const { server, db } = await airingSecondEntry("chronological");
+    await send(server, "POST", RESET_URL);
+
+    const regenerated = await send(
+      server,
+      "POST",
+      `/channels/${CHANNEL_ID}/schedule/generate`,
+      { regenerate: true },
+    );
+
+    expect(regenerated.status).toBe(200);
+    expect((await airings(db)).slice(1, 3)).toEqual([
+      ["item-002", 1],
+      ["item-001", 0],
+    ]);
+  });
+
+  it("restarts random's selection index and keeps its seed", async () => {
+    const { server, db } = await airingSecondEntry("random");
+    const before = await airings(db);
+
+    await send(server, "POST", RESET_URL);
+
+    const after = await airings(db);
+    // Selection index 0 picks what it picked at T0, from the same seed.
+    expect(after[2]).toEqual(before[0]);
+    expect(after.slice(2, 5).map(([, index]) => index)).toEqual([0, 1, 2]);
+  });
+
+  it("leaves other collections and modes untouched", async () => {
+    const { server, db } = await airingSecondEntry("chronological");
+    await db
+      .insertInto("media_collections")
+      .values({ ...collectionFixture, id: "other", name: "Other" })
+      .execute();
+    const untouched = [
+      {
+        ...collectionProgressFixture,
+        playback_mode: "random",
+        last_media_item_id: null,
+        last_position: null,
+        next_selection_index: 7,
+      },
+      {
+        ...collectionProgressFixture,
+        media_collection_id: "other",
+        last_media_item_id: ITEM_ID,
+      },
+    ] as const;
+    await db
+      .insertInto("channel_collection_progress")
+      .values([...untouched])
+      .execute();
+
+    await send(server, "POST", RESET_URL);
+
+    await expect(
+      db
+        .selectFrom("channel_collection_progress")
+        .selectAll()
+        .where((eb) =>
+          eb.or([
+            eb("playback_mode", "=", "random"),
+            eb("media_collection_id", "=", "other"),
+          ]),
+        )
+        .orderBy("media_collection_id")
+        .orderBy("playback_mode")
+        .execute(),
+    ).resolves.toEqual([
+      { ...untouched[0], reset_sequence_number: null, order_fingerprint: null },
+      { ...untouched[1] },
+    ]);
+  });
+
+  it("refuses an unknown block and a single-item block", async () => {
+    const { server } = await startServer();
+
+    await expect(send(server, "POST", RESET_URL)).resolves.toMatchObject({
+      status: 404,
+      body: { error: { code: "programming_block_not_found" } },
+    });
+    await send(server, "POST", BLOCKS_URL, {
+      source: { kind: "media_item", mediaItemId: ITEM_ID },
+    });
+    await expect(send(server, "POST", RESET_URL)).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "programming_block_has_no_order" } },
     });
   });
 });

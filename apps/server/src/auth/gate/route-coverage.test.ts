@@ -86,6 +86,7 @@ const GATED_ROUTES = [
   "PATCH /channels/:id/programming-blocks/:blockId",
   "DELETE /channels/:id/programming-blocks/:blockId",
   "GET /channels/:id/programming-blocks/:blockId/preview",
+  "POST /channels/:id/programming-blocks/:blockId/progress-reset",
   "GET /channels/:id/playout",
   "GET /channels/:id/now",
   "GET /plex/setup",

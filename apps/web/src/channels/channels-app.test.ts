@@ -360,6 +360,100 @@ it("refreshes the order preview when the playback mode changes", async () => {
   ).toEqual(["chronological", "episode", "random"]);
 });
 
+it("confirms a progress reset in a dialog naming shared blocks; cancel sends nothing", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-blocks", [
+    {
+      id: "block",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: "episode",
+      },
+    },
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 3, entries: [] });
+  const upcoming = (title: string) => ({
+    playbackMode: "episode",
+    ordered: [],
+    upcoming: [
+      {
+        id: `entry-${title}`,
+        mediaItemId: title,
+        title,
+        startsAt: "2026-10-14T20:00:00.000Z",
+        endsAt: "2026-10-14T20:22:00.000Z",
+      },
+    ],
+  });
+  api.reply(
+    "/channels/one/programming-blocks/block/preview",
+    upcoming("Mid-season"),
+  );
+  api.handle(
+    "/channels/one/programming-blocks/block/progress-reset",
+    () => {
+      api.reply(
+        "/channels/one/programming-blocks/block/preview",
+        upcoming("Pilot"),
+      );
+      return api.response(undefined, 204);
+    },
+    "POST",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const restart = await screen.findByRole("button", {
+    name: "Restart from the beginning…",
+  });
+
+  fireEvent.click(restart);
+  const dialog = await screen.findByRole("dialog", {
+    name: "Restart from the beginning",
+  });
+  expect(
+    within(
+      within(dialog).getByRole("list", {
+        name: "Blocks sharing this progress",
+      }),
+    )
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["Programming block 1"]);
+  expect(dialog.textContent).toMatch(
+    /every later schedule entry is regenerated/,
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
+  ).toEqual([]);
+
+  fireEvent.click(restart);
+  fireEvent.click(
+    within(await screen.findByRole("dialog")).getByRole("button", {
+      name: "Restart progress",
+    }),
+  );
+
+  // The pre-reset list must never stand in for the regenerated one.
+  const dialogText = () => screen.getByRole("dialog").textContent;
+  await screen.findByText(/restarts in episode order/);
+  expect(dialogText()).not.toContain("Mid-season");
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("dialog")).getByRole("list", {
+        name: "Upcoming selections",
+      }).textContent,
+    ).toContain("Pilot"),
+  );
+  expect(
+    api.requestsTo("/channels/one/programming-blocks/block/progress-reset"),
+  ).toHaveLength(1);
+});
+
 it("keeps a rejected create in its dialog, then selects the created channel", async () => {
   const api = new BrowserApi();
   api.reply("/channels", []);

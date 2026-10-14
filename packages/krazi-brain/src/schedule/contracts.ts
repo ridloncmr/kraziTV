@@ -123,6 +123,14 @@ export type RestorableEntry = Pick<
   | "playbackIndex"
 >;
 
+/** Where a channel last reset its progress through one collection and mode. */
+export interface ProgressReset {
+  mediaCollectionId: string;
+  playbackMode: PlaybackMode;
+  /** The first entry generated after the reset; earlier entries hold pre-reset progress. */
+  resetSequenceNumber: number;
+}
+
 /** The progress one collection and mode returns to after regeneration. */
 export interface RestoredProgress {
   mediaCollectionId: string;

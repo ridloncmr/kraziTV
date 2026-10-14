@@ -1,6 +1,6 @@
 # Collection Playback Ordering
 
-Status: Accepted
+Status: Implemented
 
 ## Problem
 

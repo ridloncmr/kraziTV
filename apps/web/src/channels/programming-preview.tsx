@@ -38,7 +38,7 @@ export function ProgrammingPreview({ preview }: { preview: BlockPreview }) {
 }
 
 /** Lists the selections a block airs next, as the schedule holds them. */
-function UpcomingSelections({
+export function UpcomingSelections({
   selections,
 }: {
   selections: UpcomingSelection[];

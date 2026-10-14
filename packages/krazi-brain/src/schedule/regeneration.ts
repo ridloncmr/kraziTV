@@ -2,6 +2,7 @@ import {
   NO_PROGRESS,
   type PlaybackMode,
   type PlaybackProgress,
+  type ProgressReset,
   type RestorableEntry,
   type RestoredProgress,
 } from "./contracts.js";
@@ -26,15 +27,31 @@ export function findRegenerationBoundary(
  * when none was kept; random rewinds to its earliest deleted selection index.
  * Results follow each one's earliest deleted entry. Entries without a
  * collection (single items, or a deleted collection) carry nothing to
- * restore.
+ * restore. An entry generated before its collection and mode were last
+ * reset is ignored, so restoration never returns to pre-reset progress; a
+ * collection and mode none of whose deleted entries follow its reset keeps
+ * the reset progress.
  */
 export function restorePlaybackProgress(
   deletedEntries: readonly RestorableEntry[],
   keptEntries: readonly RestorableEntry[],
+  resets: readonly ProgressReset[] = [],
 ): RestoredProgress[] {
-  const earliestFirst = [...deletedEntries].sort(
-    (a, b) => a.sequenceNumber - b.sequenceNumber,
+  const resetAt = new Map(
+    resets.map((reset) => [
+      progressKey(reset.mediaCollectionId, reset.playbackMode),
+      reset.resetSequenceNumber,
+    ]),
   );
+  // Entries without a collection or mode never match a reset.
+  const followsReset = (entry: RestorableEntry) =>
+    entry.sequenceNumber >=
+    (resetAt.get(progressKey(entry.mediaCollectionId, entry.playbackMode)) ??
+      0);
+  const kept = keptEntries.filter(followsReset);
+  const earliestFirst = deletedEntries
+    .filter(followsReset)
+    .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
   const restored = new Map<string, RestoredProgress>();
   for (const entry of earliestFirst) {
     const { mediaCollectionId, playbackMode, playbackIndex } = entry;
@@ -45,7 +62,7 @@ export function restorePlaybackProgress(
     ) {
       continue;
     }
-    const key = JSON.stringify([mediaCollectionId, playbackMode]);
+    const key = progressKey(mediaCollectionId, playbackMode);
     if (restored.has(key)) continue;
     restored.set(key, {
       mediaCollectionId,
@@ -53,12 +70,18 @@ export function restorePlaybackProgress(
       progress:
         playbackMode === "random"
           ? { ...NO_PROGRESS, nextSelectionIndex: playbackIndex }
-          : progressAfter(
-              latestEntry(keptEntries, mediaCollectionId, playbackMode),
-            ),
+          : progressAfter(latestEntry(kept, mediaCollectionId, playbackMode)),
     });
   }
   return [...restored.values()];
+}
+
+/** Identifies one collection and mode, the scope progress and resets share. */
+function progressKey(
+  mediaCollectionId: string | null,
+  playbackMode: PlaybackMode | null,
+): string {
+  return JSON.stringify([mediaCollectionId, playbackMode]);
 }
 
 /** Returns the latest entry of one collection and mode, if there is one. */

@@ -36,3 +36,7 @@ export type ReplaceProgrammingBlockSourceResult =
 
 export type DeleteProgrammingBlockResult =
   { kind: "deleted" } | { kind: "not_found" };
+
+/** A progress reset's outcome; a single-item block has no progress to reset. */
+export type ProgressResetResult =
+  { kind: "reset" } | { kind: "not_found" } | { kind: "single_item" };

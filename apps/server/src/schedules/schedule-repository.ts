@@ -4,17 +4,19 @@ import {
   NO_PROGRESS,
   type PlaybackMode,
   type PlaybackProgress,
+  type ProgressReset,
   type RestorableEntry,
   restorePlaybackProgress,
   type ScheduleMedia,
   type ScheduleSource,
 } from "@krazitv/krazi-brain";
-import type { Kysely, Selectable } from "kysely";
+import type { Insertable, Kysely, Selectable } from "kysely";
 
 import {
   fromSqliteBoolean,
   toSqliteBoolean,
 } from "../database/columns/sqlite-boolean.js";
+import type { ChannelCollectionProgressTable } from "../database/schema/channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -304,6 +306,7 @@ export async function restoreDeletedProgress(
   now: number,
 ): Promise<void> {
   const kept: RestorableEntry[] = [];
+  const resets: ProgressReset[] = [];
   const searched = new Set<string>();
   for (const { mediaCollectionId, playbackMode } of deletedEntries) {
     if (mediaCollectionId === null || playbackMode === null) continue;
@@ -317,8 +320,26 @@ export async function restoreDeletedProgress(
       playbackMode,
     );
     if (latest !== undefined) kept.push(latest);
+    const reset = await trx
+      .selectFrom("channel_collection_progress")
+      .select("reset_sequence_number")
+      .where("channel_id", "=", channelId)
+      .where("media_collection_id", "=", mediaCollectionId)
+      .where("playback_mode", "=", playbackMode)
+      .executeTakeFirst();
+    if (reset?.reset_sequence_number != null) {
+      resets.push({
+        mediaCollectionId,
+        playbackMode,
+        resetSequenceNumber: reset.reset_sequence_number,
+      });
+    }
   }
-  for (const restored of restorePlaybackProgress(deletedEntries, kept)) {
+  for (const restored of restorePlaybackProgress(
+    deletedEntries,
+    kept,
+    resets,
+  )) {
     await upsertProgress(
       trx,
       channelId,
@@ -361,26 +382,42 @@ export async function upsertProgress(
   progress: PlaybackProgress,
   now: number,
 ): Promise<void> {
-  const columns = {
-    last_media_item_id: progress.lastMediaItemId,
-    last_position: progress.lastPosition,
-    next_selection_index: progress.nextSelectionIndex,
-    updated_at: now,
-  };
-  await trx
-    .insertInto("channel_collection_progress")
-    .values({
-      channel_id: channelId,
-      media_collection_id: mediaCollectionId,
-      playback_mode: playbackMode,
-      ...columns,
-    })
-    .onConflict((conflict) =>
-      conflict
-        .columns(["channel_id", "media_collection_id", "playback_mode"])
-        .doUpdateSet(columns),
-    )
-    .execute();
+  await upsertProgressColumns(
+    trx,
+    { channelId, mediaCollectionId, playbackMode },
+    {
+      last_media_item_id: progress.lastMediaItemId,
+      last_position: progress.lastPosition,
+      next_selection_index: progress.nextSelectionIndex,
+    },
+    now,
+  );
+}
+
+/**
+ * Starts a channel's progress through a collection in one mode over from
+ * the beginning, keeping random's seed, and marks the first entry generated
+ * afterwards so restoration never returns to pre-reset progress.
+ */
+export async function resetProgress(
+  trx: Executor,
+  channelId: string,
+  mediaCollectionId: string,
+  playbackMode: PlaybackMode,
+  resetSequenceNumber: number,
+  now: number,
+): Promise<void> {
+  await upsertProgressColumns(
+    trx,
+    { channelId, mediaCollectionId, playbackMode },
+    {
+      last_media_item_id: NO_PROGRESS.lastMediaItemId,
+      last_position: NO_PROGRESS.lastPosition,
+      next_selection_index: NO_PROGRESS.nextSelectionIndex,
+      reset_sequence_number: resetSequenceNumber,
+    },
+    now,
+  );
 }
 
 /**
@@ -396,22 +433,51 @@ export async function recordOrderFingerprint(
   orderFingerprint: string,
   now: number,
 ): Promise<void> {
+  await upsertProgressColumns(
+    trx,
+    { channelId, mediaCollectionId, playbackMode },
+    { order_fingerprint: orderFingerprint },
+    now,
+  );
+}
+
+// Writes `columns` to one channel, collection, and mode's progress row; a
+// new row starts every column it is not given from the beginning.
+async function upsertProgressColumns(
+  trx: Executor,
+  key: {
+    channelId: string;
+    mediaCollectionId: string;
+    playbackMode: PlaybackMode;
+  },
+  columns: Partial<
+    Pick<
+      Insertable<ChannelCollectionProgressTable>,
+      | "last_media_item_id"
+      | "last_position"
+      | "next_selection_index"
+      | "reset_sequence_number"
+      | "order_fingerprint"
+    >
+  >,
+  now: number,
+): Promise<void> {
+  const written = { ...columns, updated_at: now };
   await trx
     .insertInto("channel_collection_progress")
     .values({
-      channel_id: channelId,
-      media_collection_id: mediaCollectionId,
-      playback_mode: playbackMode,
+      channel_id: key.channelId,
+      media_collection_id: key.mediaCollectionId,
+      playback_mode: key.playbackMode,
       last_media_item_id: NO_PROGRESS.lastMediaItemId,
       last_position: NO_PROGRESS.lastPosition,
       next_selection_index: NO_PROGRESS.nextSelectionIndex,
-      order_fingerprint: orderFingerprint,
-      updated_at: now,
+      ...written,
     })
     .onConflict((conflict) =>
       conflict
         .columns(["channel_id", "media_collection_id", "playback_mode"])
-        .doUpdateSet({ order_fingerprint: orderFingerprint, updated_at: now }),
+        .doUpdateSet(written),
     )
     .execute();
 }

@@ -20,6 +20,7 @@ export type ScheduleChangeReason =
   | "media_removed"
   | "collection_maintained"
   | "ordering_changed"
+  | "progress_reset"
   | "manual";
 
 /**

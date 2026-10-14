@@ -24,6 +24,7 @@ import type {
   UnknownSourceResult,
 } from "./contracts.js";
 import type { ProgrammingBlockRepository } from "./programming-block-repository.js";
+import { resetBlockProgress } from "./progress-reset.js";
 
 // Strict members reject a doubled source, a mode on an item, and unknown fields.
 const source = z.discriminatedUnion("kind", [
@@ -136,12 +137,7 @@ export function registerProgrammingBlockRoutes(
       }
       const { source, upcoming } = preview;
       if (source.kind !== "collection") {
-        return sendApiError(
-          reply,
-          409,
-          "programming_block_has_no_order",
-          `Programming block ${blockId} plays a single item`,
-        );
+        return sendBlockHasNoOrder(reply, blockId);
       }
       const playbackMode = query.data.playbackMode ?? source.playbackMode;
       return {
@@ -155,6 +151,30 @@ export function registerProgrammingBlockRoutes(
             ? upcoming.map(toApiUpcomingEntry)
             : null,
       };
+    },
+  );
+
+  // Restarts the block's collection in its saved mode and regenerates after
+  // the airing entry; the browser confirms first.
+  server.post(
+    "/channels/:id/programming-blocks/:blockId/progress-reset",
+    async (request, reply) => {
+      const { id, blockId } = blockParams.parse(request.params);
+      const result = await schedules.applyInputChange(
+        request.log,
+        "progress_reset",
+        blockChange(id, "reset", (trx, now) =>
+          resetBlockProgress(trx, id, blockId, now),
+        ),
+      );
+      switch (result.kind) {
+        case "reset":
+          return reply.status(204).send();
+        case "not_found":
+          return sendBlockNotFound(reply, id, blockId);
+        default:
+          return sendBlockHasNoOrder(reply, blockId);
+      }
     },
   );
 
@@ -188,6 +208,16 @@ function sendBlockNotFound(
     404,
     "programming_block_not_found",
     `Channel ${channelId} has no programming block ${blockId}`,
+  );
+}
+
+// A single-item block has no order to preview and no progress to reset.
+function sendBlockHasNoOrder(reply: FastifyReply, blockId: string) {
+  return sendApiError(
+    reply,
+    409,
+    "programming_block_has_no_order",
+    `Programming block ${blockId} plays a single item`,
   );
 }
 

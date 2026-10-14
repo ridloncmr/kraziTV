@@ -13,6 +13,7 @@ import { useMutation, useResource } from "../http/use-resource.js";
 import { MediaItemPicker } from "../media-search/media-item-picker.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { ProgrammingPreview } from "./programming-preview.js";
+import { ProgressResetDialog } from "./progress-reset-dialog.js";
 
 // Every playback mode the editor offers, with the one line that explains it.
 const PLAYBACK_MODE_CHOICES: readonly {
@@ -81,6 +82,15 @@ export function ProgrammingEditor({
       : null,
     visible,
   );
+  // Reset applies to the saved collection and mode, so it is offered only
+  // while the form shows them.
+  const saved = block?.source.kind === "collection" ? block.source : undefined;
+  const resettable =
+    saved !== undefined &&
+    kind === "collection" &&
+    sourceId === saved.mediaCollectionId &&
+    mode === saved.playbackMode;
+  const [resetting, setResetting] = useState(false);
   useEffect(() => {
     if (!block || dirty.current) return;
     setKind(block.source.kind);
@@ -222,8 +232,43 @@ export function ProgrammingEditor({
               Remove programming block
             </button>
           )}
+          {resettable && (
+            <button type="button" onClick={() => setResetting(true)}>
+              Restart from the beginning…
+            </button>
+          )}
         </div>
       </form>
+      {resetting && saved !== undefined && block && (
+        <ProgressResetDialog
+          path={`${path}/${encodeURIComponent(block.id)}/progress-reset`}
+          collectionName={
+            collections.data?.find(
+              (collection) => collection.id === saved.mediaCollectionId,
+            )?.name ?? "This collection"
+          }
+          modeLabel={
+            PLAYBACK_MODE_CHOICES.find(
+              (choice) => choice.mode === saved.playbackMode,
+            )?.label ?? saved.playbackMode
+          }
+          sharingBlocks={(blocks.data ?? []).flatMap((candidate, index) =>
+            candidate.source.kind === "collection" &&
+            candidate.source.mediaCollectionId === saved.mediaCollectionId &&
+            candidate.source.playbackMode === saved.playbackMode
+              ? [`Programming block ${index + 1}`]
+              : [],
+          )}
+          upcoming={preview.data?.upcoming ?? null}
+          upcomingError={preview.error}
+          reset={() => {
+            preview.refresh();
+            setShowSchedule(true);
+            schedule.refresh();
+          }}
+          onClose={() => setResetting(false)}
+        />
+      )}
       <RequestFeedback loading={preview.loading} error={preview.error} />
       {preview.data && kind === "collection" && (
         <ProgrammingPreview preview={preview.data} />
