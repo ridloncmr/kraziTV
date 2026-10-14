@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "@krazitv/krazi-brain";
+import type { PlaybackMode, ScheduleSource } from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
@@ -149,4 +149,10 @@ export interface ScheduleEntry {
 export interface ScheduleWindow {
   scheduleRevision: number | null;
   entries: ScheduleEntry[];
+}
+
+/** What a block preview explains: the block's source and its next entries. */
+export interface BlockPreview {
+  source: ScheduleSource;
+  upcoming: ScheduleEntry[];
 }

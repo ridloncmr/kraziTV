@@ -1,4 +1,8 @@
-import type { PlaybackMode, ScheduleMedia } from "./contracts.js";
+import type {
+  OrderedMember,
+  PlaybackMode,
+  ScheduleMedia,
+} from "./contracts.js";
 
 /** Where a member falls in a metadata order, compared element by element. */
 type SortKey = readonly (string | number)[];
@@ -20,10 +24,8 @@ export function orderMembers(
   members: readonly ScheduleMedia[],
   playbackMode: PlaybackMode,
 ): readonly ScheduleMedia[] {
-  if (playbackMode === "chronological" || playbackMode === "random") {
-    return members;
-  }
-  const keyOf = playbackMode === "episode" ? episodeKey : releaseKey;
+  const keyOf = metadataKeyFor(playbackMode);
+  if (keyOf === null) return members;
   return members
     .map((media, savedIndex) => ({ media, savedIndex, key: keyOf(media) }))
     .sort((a, b) => {
@@ -36,6 +38,59 @@ export function orderMembers(
       return compareKeys(a.key, b.key) || a.savedIndex - b.savedIndex;
     })
     .map(({ media }) => media);
+}
+
+/**
+ * Explains the order a playback mode plays, member by member, for the
+ * preview: which members metadata could not place, where each series group
+ * begins in episode order, and which members identify the same episode as
+ * another. Duplicates stay selectable; they are flagged in every mode, since
+ * they are a fact about the collection. Random has no ordered view.
+ */
+export function describeOrderedView(
+  members: readonly ScheduleMedia[],
+  playbackMode: PlaybackMode,
+): OrderedMember[] | null {
+  if (playbackMode === "random") return null;
+  const keyOf = metadataKeyFor(playbackMode);
+  const episodeCounts = new Map<string, number>();
+  for (const media of members) {
+    const key = episodeKey(media);
+    if (key === null) continue;
+    const id = JSON.stringify(key);
+    episodeCounts.set(id, (episodeCounts.get(id) ?? 0) + 1);
+  }
+  let previousSeries: string | null = null;
+  return orderMembers(members, playbackMode).map((media) => {
+    const episode = episodeKey(media);
+    const unresolved = keyOf !== null && keyOf(media) === null;
+    const series =
+      playbackMode === "episode" && !unresolved ? buildSeriesKey(media) : null;
+    const startsSeriesGroup = series !== null && series !== previousSeries;
+    if (series !== null) previousSeries = series;
+    return {
+      media,
+      unresolved,
+      startsSeriesGroup,
+      duplicateEpisode:
+        episode !== null &&
+        (episodeCounts.get(JSON.stringify(episode)) ?? 0) > 1,
+    };
+  });
+}
+
+/** Returns how a metadata mode places a member, or null for a mode that keeps saved order. */
+function metadataKeyFor(
+  playbackMode: PlaybackMode,
+): ((media: ScheduleMedia) => SortKey | null) | null {
+  switch (playbackMode) {
+    case "episode":
+      return episodeKey;
+    case "release":
+      return releaseKey;
+    default:
+      return null;
+  }
 }
 
 /**

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
+  BlockPreview,
   BlockSource,
   MediaCollection,
   PlaybackMode,
@@ -11,6 +12,7 @@ import type {
 import { useMutation, useResource } from "../http/use-resource.js";
 import { MediaItemPicker } from "../media-search/media-item-picker.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
+import { ProgrammingPreview } from "./programming-preview.js";
 
 // Every playback mode the editor offers, with the one line that explains it.
 const PLAYBACK_MODE_CHOICES: readonly {
@@ -69,6 +71,16 @@ export function ProgrammingEditor({
     visible,
   );
   const block = blocks.data?.[0];
+  // The server previews the saved collection only, so an unsaved collection
+  // choice has no preview until it is saved.
+  const preview = useResource<BlockPreview>(
+    block?.source.kind === "collection" &&
+      kind === "collection" &&
+      sourceId === block.source.mediaCollectionId
+      ? `${path}/${encodeURIComponent(block.id)}/preview?playbackMode=${mode}`
+      : null,
+    visible,
+  );
   useEffect(() => {
     if (!block || dirty.current) return;
     setKind(block.source.kind);
@@ -106,6 +118,7 @@ export function ProgrammingEditor({
             () => {
               dirty.current = false;
               blocks.refresh();
+              preview.refresh();
               setShowSchedule(true);
               schedule.refresh();
             },
@@ -211,6 +224,10 @@ export function ProgrammingEditor({
           )}
         </div>
       </form>
+      <RequestFeedback loading={preview.loading} error={preview.error} />
+      {preview.data && kind === "collection" && (
+        <ProgrammingPreview preview={preview.data} />
+      )}
       {showSchedule && (
         <>
           <RequestFeedback loading={schedule.loading} error={schedule.error} />

@@ -266,6 +266,100 @@ it.each([
   },
 );
 
+it("refreshes the order preview when the playback mode changes", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-blocks", [
+    {
+      id: "block",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: "chronological",
+      },
+    },
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  const member = (title: string, flags: Record<string, boolean> = {}) => ({
+    mediaItemId: title,
+    title,
+    seriesName: "The Office",
+    seasonNumber: 1,
+    episodeNumber: title === "Pilot" ? 1 : 2,
+    releaseDate: null,
+    unresolved: false,
+    startsSeriesGroup: false,
+    duplicateEpisode: false,
+    ...flags,
+  });
+  // The server answers each mode with its own order, as the route does.
+  api.handle("/channels/one/programming-blocks/block/preview", (request) => {
+    const playbackMode = request.query.get("playbackMode");
+    return api.response({
+      playbackMode,
+      ordered:
+        playbackMode === "random"
+          ? null
+          : playbackMode === "episode"
+            ? [
+                member("Pilot", { startsSeriesGroup: true }),
+                member("Diversity Day"),
+              ]
+            : [member("Diversity Day"), member("Pilot")],
+      upcoming:
+        playbackMode === "chronological"
+          ? [
+              {
+                id: "entry-1",
+                mediaItemId: "Diversity Day",
+                title: "Diversity Day",
+                startsAt: "2026-10-14T20:00:00.000Z",
+                endsAt: "2026-10-14T20:22:00.000Z",
+              },
+            ]
+          : null,
+    });
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const playOrder = async () =>
+    within(await screen.findByRole("list", { name: "Play order" }))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  await waitFor(async () =>
+    expect(await playOrder()).toEqual([
+      expect.stringContaining("Diversity Day"),
+      expect.stringContaining("Pilot"),
+    ]),
+  );
+  expect(
+    screen.getByRole("list", { name: "Upcoming selections" }).textContent,
+  ).toContain("Diversity Day");
+
+  fireEvent.change(screen.getByLabelText("Playback mode"), {
+    target: { value: "episode" },
+  });
+
+  await waitFor(async () =>
+    expect(await playOrder()).toEqual([
+      expect.stringContaining("The Office: Pilot"),
+      expect.stringContaining("Diversity Day"),
+    ]),
+  );
+  screen.getByText("Save this mode to see its upcoming selections.");
+
+  fireEvent.change(screen.getByLabelText("Playback mode"), {
+    target: { value: "random" },
+  });
+
+  await screen.findByText(/Random has no fixed order/);
+  expect(
+    api
+      .requestsTo("/channels/one/programming-blocks/block/preview")
+      .map((request) => request.query.get("playbackMode")),
+  ).toEqual(["chronological", "episode", "random"]);
+});
+
 it("keeps a rejected create in its dialog, then selects the created channel", async () => {
   const api = new BrowserApi();
   api.reply("/channels", []);

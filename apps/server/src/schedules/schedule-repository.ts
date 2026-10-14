@@ -15,6 +15,7 @@ import {
   toSqliteBoolean,
 } from "../database/columns/sqlite-boolean.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
+import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
@@ -98,8 +99,55 @@ export async function loadScheduleSource(
     .selectAll()
     .where("channel_id", "=", channelId)
     .executeTakeFirst();
-  if (block === undefined) return undefined;
+  return block === undefined ? undefined : resolveBlockSource(trx, block);
+}
 
+/**
+ * Resolves one block of the channel as `loadScheduleSource` does, for reads
+ * that name the block. Returns undefined when the channel has no such block.
+ */
+export async function loadBlockSource(
+  trx: Executor,
+  channelId: string,
+  blockId: string,
+): Promise<ScheduleSource | undefined> {
+  const block = await trx
+    .selectFrom("programming_blocks")
+    .selectAll()
+    .where("channel_id", "=", channelId)
+    .where("id", "=", blockId)
+    .executeTakeFirst();
+  return block === undefined ? undefined : resolveBlockSource(trx, block);
+}
+
+/**
+ * Lists up to `limit` of a block's entries starting at or after `from`, in
+ * start order: the selections it will air next.
+ */
+export async function listUpcomingBlockEntries(
+  trx: Executor,
+  channelId: string,
+  blockId: string,
+  from: number,
+  limit: number,
+): Promise<ScheduleEntry[]> {
+  const rows = await trx
+    .selectFrom("schedule_entries")
+    .selectAll()
+    .where("channel_id", "=", channelId)
+    .where("programming_block_id", "=", blockId)
+    .where("starts_at", ">=", from)
+    .orderBy("starts_at")
+    .limit(limit)
+    .execute();
+  return rows.map(toScheduleEntry);
+}
+
+// Reads a block row's source with its media; keeps both loaders on one path.
+async function resolveBlockSource(
+  trx: Executor,
+  block: Selectable<ProgrammingBlockTable>,
+): Promise<ScheduleSource> {
   const source = toProgrammingBlockSource(block);
   if (source.kind === "collection") {
     const members = await selectScheduleMedia(trx)

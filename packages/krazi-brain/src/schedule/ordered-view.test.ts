@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "./contracts.js";
-import { orderMembers } from "./ordered-view.js";
+import { describeOrderedView, orderMembers } from "./ordered-view.js";
 
 // An episode of a TMDB series; IDs never follow the episode order.
 function episode(
@@ -206,4 +206,77 @@ describe("orderMembers: modes that keep saved order", () => {
       expect(ids(orderMembers(members, playbackMode))).toEqual(["b", "a"]);
     },
   );
+});
+
+describe("describeOrderedView", () => {
+  // Flags only, so each test reads as the preview's columns.
+  function flags(view: ReturnType<typeof describeOrderedView>) {
+    return view?.map((member) => [
+      member.media.id,
+      member.unresolved,
+      member.startsSeriesGroup,
+      member.duplicateEpisode,
+    ]);
+  }
+
+  it("lists episode order with series group starts, duplicates, and unresolved members", () => {
+    const members = [
+      scheduleMedia("loose"),
+      episode("parks-1", 8592, 1, 1, "Parks and Recreation"),
+      episode("office-2", 2316, 1, 2),
+      episode("office-1", 2316, 1, 1),
+      episode("office-1-copy", 2316, 1, 1),
+    ];
+
+    expect(flags(describeOrderedView(members, "episode"))).toEqual([
+      ["office-1", false, true, true],
+      ["office-1-copy", false, false, true],
+      ["office-2", false, false, false],
+      ["parks-1", false, true, false],
+      ["loose", true, false, false],
+    ]);
+  });
+
+  it("lists the same order the scheduler plays", () => {
+    const members = [
+      episode("b", 2316, 2, 1),
+      scheduleMedia("loose"),
+      episode("a", 2316, 1, 1),
+    ];
+
+    expect(
+      describeOrderedView(members, "episode")?.map((member) => member.media),
+    ).toEqual(orderMembers(members, "episode"));
+  });
+
+  it("flags undated members as unresolved in release order, but not in collection order", () => {
+    const members = [
+      scheduleMedia("undated"),
+      scheduleMedia("dated", { releaseDate: "1999" }),
+    ];
+
+    expect(flags(describeOrderedView(members, "release"))).toEqual([
+      ["dated", false, false, false],
+      ["undated", true, false, false],
+    ]);
+    expect(flags(describeOrderedView(members, "chronological"))).toEqual([
+      ["undated", false, false, false],
+      ["dated", false, false, false],
+    ]);
+  });
+
+  it("flags duplicate episodes in every ordered mode", () => {
+    const members = [episode("a", 2316, 1, 1), episode("b", 2316, 1, 1)];
+
+    expect(flags(describeOrderedView(members, "chronological"))).toEqual([
+      ["a", false, false, true],
+      ["b", false, false, true],
+    ]);
+  });
+
+  it("has no ordered view for random", () => {
+    expect(
+      describeOrderedView([episode("a", 2316, 1, 1)], "random"),
+    ).toBeNull();
+  });
 });

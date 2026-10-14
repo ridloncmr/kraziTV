@@ -18,6 +18,7 @@ import {
 import type { RecordSources } from "../database/writes/record-sources.js";
 import type {
   AdmissionFailure,
+  BlockPreview,
   ChannelAdmission,
   ChannelChunk,
   ChunkResult,
@@ -46,6 +47,8 @@ import {
   insertEntries,
   listEnabledChannelIds,
   listEntriesInWindow,
+  listUpcomingBlockEntries,
+  loadBlockSource,
   loadProgress,
   loadScheduleSource,
   loadScheduleState,
@@ -64,6 +67,9 @@ interface ScheduleServiceOptions extends RecordSources {
 // Keeps one transaction's write authority short and one multi-row insert
 // under SQLite's bound-variable limit.
 const ENTRIES_PER_TRANSACTION = 500;
+
+// How many upcoming selections a block preview shows.
+const PREVIEW_UPCOMING_ENTRIES = 10;
 
 /**
  * The only writer of schedule entries, schedule state, and collection
@@ -194,6 +200,33 @@ export class ScheduleService {
       return {
         scheduleRevision: state?.scheduleRevision ?? null,
         entries: await listEntriesInWindow(trx, channelId, start, end),
+      };
+    });
+  }
+
+  /**
+   * Reads what a block's preview explains, in one deferred snapshot so the
+   * members and the upcoming entries come from the same schedule: the
+   * block's source with its members, and its next entries from the current
+   * time. Never generates or writes. Returns undefined when the channel has
+   * no such block.
+   */
+  async readBlockPreview(
+    channelId: string,
+    blockId: string,
+  ): Promise<BlockPreview | undefined> {
+    return this.#db.transaction().execute(async (trx) => {
+      const source = await loadBlockSource(trx, channelId, blockId);
+      if (source === undefined) return undefined;
+      return {
+        source,
+        upcoming: await listUpcomingBlockEntries(
+          trx,
+          channelId,
+          blockId,
+          this.#now(),
+          PREVIEW_UPCOMING_ENTRIES,
+        ),
       };
     });
   }

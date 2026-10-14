@@ -1,4 +1,8 @@
-import { PLAYBACK_MODES } from "@krazitv/krazi-brain";
+import {
+  describeOrderedView,
+  type OrderedMember,
+  PLAYBACK_MODES,
+} from "@krazitv/krazi-brain";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
@@ -11,6 +15,7 @@ import {
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
+import type { ScheduleEntry } from "../schedules/contracts.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import { blockChange } from "./block-change.js";
 import type {
@@ -37,6 +42,11 @@ const source = z.discriminatedUnion("kind", [
 const createBody = z.strictObject({ source });
 
 const blockParams = z.object({ id: z.string(), blockId: z.string() });
+
+// Omitting the mode previews the block's saved one.
+const previewQuery = z.object({
+  playbackMode: z.enum(PLAYBACK_MODES).optional(),
+});
 
 /** Registers programming-block HTTP routes; validation and status mapping live only here. */
 export function registerProgrammingBlockRoutes(
@@ -110,6 +120,44 @@ export function registerProgrammingBlockRoutes(
     },
   );
 
+  // Reads only: the preview explains the saved or a proposed mode's order
+  // and never generates. Upcoming selections exist only for the saved mode.
+  server.get(
+    "/channels/:id/programming-blocks/:blockId/preview",
+    async (request, reply) => {
+      const { id, blockId } = blockParams.parse(request.params);
+      const query = previewQuery.safeParse(request.query);
+      if (!query.success) {
+        return sendInvalidRequest(reply, query.error);
+      }
+      const preview = await schedules.readBlockPreview(id, blockId);
+      if (preview === undefined) {
+        return sendBlockNotFound(reply, id, blockId);
+      }
+      const { source, upcoming } = preview;
+      if (source.kind !== "collection") {
+        return sendApiError(
+          reply,
+          409,
+          "programming_block_has_no_order",
+          `Programming block ${blockId} plays a single item`,
+        );
+      }
+      const playbackMode = query.data.playbackMode ?? source.playbackMode;
+      return {
+        playbackMode,
+        ordered:
+          describeOrderedView(source.members, playbackMode)?.map(
+            toApiOrderedMember,
+          ) ?? null,
+        upcoming:
+          playbackMode === source.playbackMode
+            ? upcoming.map(toApiUpcomingEntry)
+            : null,
+      };
+    },
+  );
+
   server.delete(
     "/channels/:id/programming-blocks/:blockId",
     async (request, reply) => {
@@ -175,6 +223,38 @@ function sendCreateFailure(
     default:
       return sendUnknownSource(reply, result);
   }
+}
+
+// Shows a member with the facts its place rests on and the preview's flags.
+function toApiOrderedMember({
+  media,
+  unresolved,
+  startsSeriesGroup,
+  duplicateEpisode,
+}: OrderedMember) {
+  return {
+    mediaItemId: media.id,
+    title: media.title,
+    status: media.status,
+    seriesName: media.seriesName,
+    seasonNumber: media.seasonNumber,
+    episodeNumber: media.episodeNumber,
+    releaseDate: media.releaseDate,
+    unresolved,
+    startsSeriesGroup,
+    duplicateEpisode,
+  };
+}
+
+// Shows one upcoming selection with ISO 8601 times.
+function toApiUpcomingEntry(entry: ScheduleEntry) {
+  return {
+    id: entry.id,
+    mediaItemId: entry.mediaItemId,
+    title: entry.title,
+    startsAt: toApiTimestamp(entry.startsAt),
+    endsAt: toApiTimestamp(entry.endsAt),
+  };
 }
 
 // Converts internal epoch milliseconds to the ISO 8601 strings the API promises.

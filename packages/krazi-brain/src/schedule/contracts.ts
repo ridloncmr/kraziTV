@@ -37,6 +37,17 @@ export interface ScheduleMedia {
   releaseDate: string | null;
 }
 
+/** One member of an ordered view, with what the preview flags about it. */
+export interface OrderedMember {
+  media: ScheduleMedia;
+  /** Metadata could not place it, so it follows in saved order. */
+  unresolved: boolean;
+  /** Episode order: the first member of its series group. */
+  startsSeriesGroup: boolean;
+  /** Another member identifies the same series, season, and episode. */
+  duplicateEpisode: boolean;
+}
+
 /** A programming block's source, with its media resolved from the catalog. */
 export type ScheduleSource =
   | {

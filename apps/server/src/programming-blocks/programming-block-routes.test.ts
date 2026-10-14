@@ -327,6 +327,148 @@ describe("playback modes over one collection", () => {
   });
 });
 
+describe("block preview", () => {
+  const PREVIEW_URL = `${BLOCKS_URL}/block-001/preview`;
+  // Five members in saved order: Office 1x2, Parks 1x1, Office 1x1, a
+  // duplicate Office 1x1, and one with no episode details.
+  const MEMBERS = Array.from({ length: 5 }, () => ({
+    durationMs: 30 * 60_000,
+  }));
+
+  // Starts the server with the five members, their facts, and a block.
+  async function previewServer(playbackMode: string) {
+    const context = await startServer({ items: MEMBERS });
+    await context.db
+      .insertInto("content_facts")
+      .values([
+        episodeFacts("item-001", 2316, 1, 2),
+        { ...episodeFacts("item-002", 8592, 1, 1), series_name: "Parks" },
+        episodeFacts("item-003", 2316, 1, 1),
+        episodeFacts("item-004", 2316, 1, 1),
+      ])
+      .execute();
+    await send(context.server, "POST", BLOCKS_URL, {
+      source: { ...collectionSource, playbackMode },
+    });
+    return context;
+  }
+
+  // The preview's ordered members as [item, unresolved, group start, duplicate].
+  function flags(body: unknown) {
+    return (
+      body as {
+        ordered: {
+          mediaItemId: string;
+          unresolved: boolean;
+          startsSeriesGroup: boolean;
+          duplicateEpisode: boolean;
+        }[];
+      }
+    ).ordered.map((member) => [
+      member.mediaItemId,
+      member.unresolved,
+      member.startsSeriesGroup,
+      member.duplicateEpisode,
+    ]);
+  }
+
+  it("flags unresolved members, series groups, and duplicate episodes", async () => {
+    const { server } = await previewServer("episode");
+
+    const response = await send(server, "GET", PREVIEW_URL);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ playbackMode: "episode" });
+    expect(flags(response.body)).toEqual([
+      ["item-003", false, true, true],
+      ["item-004", false, false, true],
+      ["item-001", false, false, false],
+      ["item-002", false, true, false],
+      ["item-005", true, false, false],
+    ]);
+  });
+
+  it("previews the order the scheduler airs, with the next ten selections", async () => {
+    const { server, db } = await previewServer("episode");
+
+    const { body } = await send(server, "GET", PREVIEW_URL);
+
+    const aired = (await readScheduleEntries(db, CHANNEL_ID)).slice(0, 10);
+    const preview = body as {
+      ordered: { mediaItemId: string }[];
+      upcoming: { id: string; mediaItemId: string; startsAt: string }[];
+    };
+    expect(preview.ordered.map((member) => member.mediaItemId)).toEqual(
+      aired.slice(0, 5).map((entry) => entry.media_item_id),
+    );
+    expect(preview.upcoming).toHaveLength(10);
+    expect(preview.upcoming[0]).toEqual({
+      id: aired[0]?.id,
+      mediaItemId: aired[0]?.media_item_id,
+      title: aired[0]?.title,
+      startsAt: new Date(T0).toISOString(),
+      endsAt: new Date(T0 + 30 * 60_000).toISOString(),
+    });
+  });
+
+  it("previews an unsaved mode without upcoming selections, and writes nothing", async () => {
+    const { server, db } = await previewServer("episode");
+    const before = await readScheduleEntries(db, CHANNEL_ID);
+
+    const { body } = await send(
+      server,
+      "GET",
+      `${PREVIEW_URL}?playbackMode=chronological`,
+    );
+
+    expect(body).toMatchObject({
+      playbackMode: "chronological",
+      upcoming: null,
+    });
+    expect(flags(body).map(([id]) => id)).toEqual([
+      "item-001",
+      "item-002",
+      "item-003",
+      "item-004",
+      "item-005",
+    ]);
+    await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
+  });
+
+  it("shows random's upcoming selections without an ordered view", async () => {
+    const { server } = await previewServer("random");
+
+    const { body } = await send(server, "GET", PREVIEW_URL);
+
+    expect(body).toMatchObject({ playbackMode: "random", ordered: null });
+    expect((body as { upcoming: unknown[] }).upcoming).toHaveLength(10);
+  });
+
+  it("refuses a single-item block, an unknown block, and an unknown mode", async () => {
+    const { server } = await startServer();
+    await send(server, "POST", BLOCKS_URL, {
+      source: { kind: "media_item", mediaItemId: ITEM_ID },
+    });
+
+    await expect(send(server, "GET", PREVIEW_URL)).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "programming_block_has_no_order" } },
+    });
+    await expect(
+      send(server, "GET", `${BLOCKS_URL}/missing/preview`),
+    ).resolves.toMatchObject({
+      status: 404,
+      body: { error: { code: "programming_block_not_found" } },
+    });
+    await expect(
+      send(server, "GET", `${PREVIEW_URL}?playbackMode=shuffle`),
+    ).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_request" } },
+    });
+  });
+});
+
 // Reads the collection's saved membership, which no playback mode may rewrite.
 function savedPositions(db: Kysely<DatabaseSchema>) {
   return db
