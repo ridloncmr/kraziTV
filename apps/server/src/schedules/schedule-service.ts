@@ -5,6 +5,7 @@ import {
   findRegenerationBoundary,
   generateScheduleEntries,
   NO_PROGRESS,
+  orderFingerprint,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -52,6 +53,7 @@ import {
   loadProgress,
   loadScheduleSource,
   loadScheduleState,
+  recordOrderFingerprint,
   restoreDeletedProgress,
   updateScheduleState,
   upsertProgress,
@@ -74,7 +76,8 @@ const PREVIEW_UPCOMING_ENTRIES = 10;
 /**
  * The only writer of schedule entries, schedule state, and collection
  * progress, apart from catalog purge, which deletes only entries that have
- * ended. Every mutation runs in an immediate transaction and reads its
+ * ended, and the maintenance pass's ordering change, which records an order
+ * fingerprint inside an input change this service runs. Every mutation runs in an immediate transaction and reads its
  * effective current time only after acquiring write authority.
  */
 export class ScheduleService {
@@ -448,6 +451,7 @@ export class ScheduleService {
             seed: state.seed,
             startsAt: boundary,
             nextSequenceNumber: state.nextSequenceNumber,
+            recordsOrder: true,
           },
           target,
           effectiveNow,
@@ -550,6 +554,7 @@ export class ScheduleService {
         seed,
         startsAt: state?.lastGeneratedThrough ?? anchorTime,
         nextSequenceNumber: state?.nextSequenceNumber ?? 0,
+        recordsOrder: state === undefined,
       },
       target,
       effectiveNow,
@@ -576,8 +581,10 @@ export class ScheduleService {
 
   /**
    * Generates one bounded chunk toward `target` from the channel's block and
-   * commits its entries and collection progress. Leaves schedule state to
-   * the caller, which alone knows whether the revision advances.
+   * commits its entries and collection progress, and, when the chunk starts
+   * what the schedule will air, the order a metadata mode followed. Leaves
+   * schedule state to the caller, which alone knows whether the revision
+   * advances.
    */
   async #writeChunk(
     trx: Kysely<DatabaseSchema>,
@@ -627,6 +634,19 @@ export class ScheduleService {
         generated.progress,
         effectiveNow,
       );
+      const fingerprint = start.recordsOrder
+        ? orderFingerprint(source.members, source.playbackMode)
+        : null;
+      if (fingerprint !== null) {
+        await recordOrderFingerprint(
+          trx,
+          channelId,
+          source.mediaCollectionId,
+          source.playbackMode,
+          fingerprint,
+          effectiveNow,
+        );
+      }
     }
     return {
       kind: "written",

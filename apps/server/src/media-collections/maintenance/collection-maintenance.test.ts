@@ -107,7 +107,7 @@ function diagnostics({ db }: Setup, id: string) {
 }
 
 // Reads the fixture channel's schedule revision.
-async function revision({ db }: Setup) {
+async function revision({ db }: Pick<Setup, "db">) {
   const state = await db
     .selectFrom("channel_schedule_states")
     .select("schedule_revision")
@@ -373,3 +373,123 @@ function entryAt({ db }: Setup, time: number) {
     .where("ends_at", ">", time)
     .executeTakeFirstOrThrow();
 }
+
+describe("CollectionMaintenance: metadata playback orders", () => {
+  /**
+   * Catalogs three two-hour Office episodes in a manual collection saved as
+   * e3, e1, e2, with no automatic collection, and plays it on the fixture
+   * channel in `playbackMode`. E1 airs at the clock's time.
+   */
+  async function orderedChannel(playbackMode: "episode" | "chronological") {
+    const { db } = await openTestDatabase();
+    await seedEpisodes(db, [
+      ["e1", 1, 1],
+      ["e2", 1, 2],
+      ["e3", 1, 3],
+    ]);
+    const clock = manualClock(FIXTURE_TIME);
+    const schedules = new ScheduleService(db, { now: clock.now });
+    const log = recordingLog();
+    const maintenance = new CollectionMaintenance({ db, schedules, log });
+    const created = await new MediaCollectionRepository(db, {
+      now: clock.now,
+    }).create("Office", ["e3", "e1", "e2"]);
+    if (created.kind !== "created") throw new Error("collection not created");
+    await db.insertInto("channels").values(channelFixture).execute();
+    await db
+      .insertInto("programming_blocks")
+      .values({
+        ...programmingBlockFixture,
+        media_collection_id: created.collection.id,
+        playback_mode: playbackMode,
+      })
+      .execute();
+    await schedules.ensureCoverage(channelFixture.id, log);
+    clock.set(FIXTURE_TIME + 60_000);
+    log.lines.splice(0);
+    return { db, log, maintenance };
+  }
+
+  // Reads the fixture channel's first `count` entries as [id, item].
+  async function firstEntries(db: Setup["db"], count: number) {
+    const rows = await db
+      .selectFrom("schedule_entries")
+      .select(["id", "media_item_id"])
+      .orderBy("sequence_number")
+      .execute();
+    return rows.slice(0, count).map((row) => [row.id, row.media_item_id]);
+  }
+
+  it("regenerates after the airing entry when a correction changes episode order, with no automatic collection", async () => {
+    const { db, log, maintenance } = await orderedChannel("episode");
+    const [airing] = await firstEntries(db, 1);
+    expect(airing?.[1]).toBe("e1");
+    const before = await revision({ db });
+    // E2 moves to season 2, so e3 now follows the airing e1.
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("e2", { season_number: 2 }))
+      .execute();
+
+    await maintenance.request();
+
+    const after = await firstEntries(db, 3);
+    expect(after[0]).toEqual(airing);
+    expect(after.slice(1).map(([, item]) => item)).toEqual(["e3", "e2"]);
+    expect(await revision({ db })).toBe(before + 1);
+    expect(log.lines).toContainEqual(
+      expect.objectContaining({
+        level: "info",
+        fields: expect.objectContaining({ reason: "ordering_changed" }),
+      }),
+    );
+  });
+
+  it("regenerates nothing when a correction leaves the episode order alone", async () => {
+    const { db, log, maintenance } = await orderedChannel("episode");
+    const before = await firstEntries(db, 5);
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("e2", { title: "Diversity Day" }))
+      .execute();
+
+    await maintenance.request();
+    // A second pass finds the order it recorded the first time.
+    await maintenance.request();
+
+    await expect(firstEntries(db, 5)).resolves.toEqual(before);
+    expect(log.lines).toEqual([]);
+  });
+
+  it("settles a disabled channel's changed order in one pass, so later passes do nothing", async () => {
+    const { db, log, maintenance } = await orderedChannel("episode");
+    await db.updateTable("channels").set({ enabled: 0 }).execute();
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("e2", { season_number: 2 }))
+      .execute();
+
+    await maintenance.request();
+    const settled = await revision({ db });
+    log.lines.splice(0);
+    await maintenance.request();
+
+    // Generation skips a disabled channel, so the pass records the order.
+    expect(await revision({ db })).toBe(settled);
+    expect(log.lines).toEqual([]);
+  });
+
+  it("never regenerates a collection-order channel on a metadata write", async () => {
+    const { db, log, maintenance } = await orderedChannel("chronological");
+    const before = await revision({ db });
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("e2", { season_number: 2 }))
+      .execute();
+
+    await maintenance.request();
+
+    expect(await revision({ db })).toBe(before);
+    expect(log.lines).toEqual([]);
+  });
+});

@@ -75,7 +75,7 @@ export async function setupEnrichmentScan(options: SetupOptions) {
  */
 export async function startEnrichmentServer(options: SetupOptions) {
   const { tmdb, client } = scriptedTmdb();
-  const { server, db } = await startTestServer({
+  const { server, db, dependencies } = await startTestServer({
     seed: (db) => seedEnrichment(db, options.key ?? true),
     overrides: (db, { collectionMaintenance: collections }) => {
       const tmdbKeys = new TmdbKeyService(db, client);
@@ -91,7 +91,7 @@ export async function startEnrichmentServer(options: SetupOptions) {
       };
     },
   });
-  return { server, db, tmdb };
+  return { server, db, tmdb, dependencies };
 }
 
 /** Scans the fixture root through the routes and waits for the job to end. */

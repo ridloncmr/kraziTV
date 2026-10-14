@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import { scheduleMedia } from "../testing/schedule-media.js";
-import type { ScheduleMedia } from "./contracts.js";
-import { describeOrderedView, orderMembers } from "./ordered-view.js";
+import {
+  METADATA_PLAYBACK_MODES,
+  PLAYBACK_MODES,
+  type ScheduleMedia,
+} from "./contracts.js";
+import {
+  describeOrderedView,
+  orderFingerprint,
+  orderMembers,
+} from "./ordered-view.js";
 
 // An episode of a TMDB series; IDs never follow the episode order.
 function episode(
@@ -278,5 +286,55 @@ describe("describeOrderedView", () => {
     expect(
       describeOrderedView([episode("a", 2316, 1, 1)], "random"),
     ).toBeNull();
+  });
+});
+
+describe("orderFingerprint", () => {
+  const members = [
+    episode("b", 2316, 1, 2),
+    episode("a", 2316, 1, 1),
+    episode("c", 2316, 1, 3),
+  ];
+
+  it("stays equal while the order does, even when other facts change", () => {
+    const retitled = members.map((media) => ({
+      ...media,
+      title: `${media.title} (remastered)`,
+    }));
+
+    expect(orderFingerprint(retitled, "episode")).toBe(
+      orderFingerprint(members, "episode"),
+    );
+  });
+
+  it("changes when a correction reorders the members", () => {
+    const corrected = [{ ...members[0], seasonNumber: 0 }, ...members.slice(1)];
+
+    expect(orderFingerprint(corrected, "episode")).not.toBe(
+      orderFingerprint(members, "episode"),
+    );
+  });
+
+  it("is the same for saved orders that metadata puts in the same order", () => {
+    expect(orderFingerprint([...members].reverse(), "episode")).toBe(
+      orderFingerprint(members, "episode"),
+    );
+  });
+
+  it.each(["chronological", "random"] as const)(
+    "is null for %s, which never reads metadata",
+    (playbackMode) => {
+      expect(orderFingerprint(members, playbackMode)).toBeNull();
+    },
+  );
+});
+
+describe("METADATA_PLAYBACK_MODES", () => {
+  it("lists exactly the modes whose order metadata can change", () => {
+    const members = [episode("a", 2316, 1, 1)];
+
+    expect(
+      PLAYBACK_MODES.filter((mode) => orderFingerprint(members, mode) !== null),
+    ).toEqual(METADATA_PLAYBACK_MODES);
   });
 });

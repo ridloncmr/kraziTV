@@ -13,6 +13,12 @@ export const PLAYBACK_MODES = [
 /** How a collection-sourced block orders its collection. */
 export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
 
+/** The playback modes that order by content metadata, so a metadata write can change what they play. */
+export const METADATA_PLAYBACK_MODES = [
+  "episode",
+  "release",
+] as const satisfies readonly PlaybackMode[];
+
 /** A media item's catalog status. */
 export type ScheduleMediaStatus = "available" | "missing" | "probe_failed";
 

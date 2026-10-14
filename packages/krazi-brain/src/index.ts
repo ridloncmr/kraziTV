@@ -21,7 +21,10 @@ export type {
 
 // Schedule generation the server materializes into persisted entries.
 export { generateScheduleEntries } from "./schedule/generate-schedule-entries.js";
-export { describeOrderedView } from "./schedule/ordered-view.js";
+export {
+  describeOrderedView,
+  orderFingerprint,
+} from "./schedule/ordered-view.js";
 export {
   findRegenerationBoundary,
   restorePlaybackProgress,
@@ -31,7 +34,11 @@ export {
   isSchedulableMedia,
 } from "./schedule/schedule-policy.js";
 export { deriveChannelSeed } from "./schedule/seeded-hash.js";
-export { NO_PROGRESS, PLAYBACK_MODES } from "./schedule/contracts.js";
+export {
+  METADATA_PLAYBACK_MODES,
+  NO_PROGRESS,
+  PLAYBACK_MODES,
+} from "./schedule/contracts.js";
 export type {
   GeneratedScheduleEntry,
   OrderedMember,

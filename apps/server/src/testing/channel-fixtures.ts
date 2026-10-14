@@ -77,6 +77,7 @@ export const collectionProgressFixture: Insertable<ChannelCollectionProgressTabl
     last_position: 0,
     next_selection_index: 0,
     reset_sequence_number: null,
+    order_fingerprint: null,
     updated_at: FIXTURE_TIME,
   };
 

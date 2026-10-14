@@ -3,6 +3,7 @@ import type {
   PlaybackMode,
   ScheduleMedia,
 } from "./contracts.js";
+import { hash32 } from "./seeded-hash.js";
 
 /** Where a member falls in a metadata order, compared element by element. */
 type SortKey = readonly (string | number)[];
@@ -145,4 +146,25 @@ function compareKeys(a: SortKey, b: SortKey): number {
     return String(left) < String(right) ? -1 : 1;
   }
   return 0;
+}
+
+/**
+ * Identifies the order a metadata mode plays, so a metadata write can be
+ * checked for whether it changed that order. Two hashes of the ordered IDs
+ * make an accidental match negligible. Every member counts, schedulable or
+ * not, since the ordered view the preview shows lists them all; a reorder
+ * among unschedulable members regenerates identical entries, which is safe.
+ * Null for modes that keep saved order, since metadata never changes them.
+ */
+export function orderFingerprint(
+  members: readonly ScheduleMedia[],
+  playbackMode: PlaybackMode,
+): string | null {
+  if (metadataKeyFor(playbackMode) === null) return null;
+  const ids = JSON.stringify(
+    orderMembers(members, playbackMode).map((media) => media.id),
+  );
+  return [hash32(`order:a:${ids}`), hash32(`order:b:${ids}`)]
+    .map((hash) => hash.toString(16).padStart(8, "0"))
+    .join("");
 }

@@ -78,7 +78,9 @@ function readProgress(db: Kysely<DatabaseSchema>) {
   return db
     .selectFrom("channel_collection_progress")
     .selectAll()
-    .orderBy(["channel_id", "media_collection_id", "playback_mode"])
+    .orderBy("channel_id")
+    .orderBy("media_collection_id")
+    .orderBy("playback_mode")
     .execute();
 }
 
@@ -139,6 +141,7 @@ describe("ScheduleService.ensureCoverage", () => {
         last_position: last.playback_index,
         next_selection_index: 0,
         reset_sequence_number: null,
+        order_fingerprint: null,
         updated_at: T0,
       },
     ]);
@@ -186,6 +189,40 @@ describe("ScheduleService.ensureCoverage", () => {
       "item-002",
       "item-004",
     ]);
+  });
+
+  it("records the episode order a schedule starts from, never the order a later extension sees", async () => {
+    const { db, channelId, clock, service, log } = await setup({
+      source: "episode",
+    });
+    await db
+      .insertInto("content_facts")
+      .values([
+        episodeFacts("item-001", 2316, 1, 1),
+        episodeFacts("item-002", 2316, 1, 2),
+        episodeFacts("item-003", 2316, 1, 3),
+      ])
+      .execute();
+    const recorded = async () =>
+      (await readProgress(db)).map((row) => row.order_fingerprint);
+    await service.ensureCoverage(channelId, log);
+    const first = await recorded();
+    expect(first).toEqual([expect.stringMatching(/^[0-9a-f]{16}$/)]);
+    await db
+      .insertInto("metadata_corrections")
+      .values(correctionRow("item-002", { season_number: 2 }))
+      .execute();
+
+    // Extending appends to entries the old order produced, so the old
+    // order stays recorded and a maintenance pass still sees the change.
+    clock.advance(HOUR);
+    await service.ensureCoverage(channelId, log);
+    await expect(recorded()).resolves.toEqual(first);
+
+    await service.regenerate(channelId, log);
+    const regenerated = await recorded();
+    expect(regenerated).not.toEqual(first);
+    expect(regenerated).toEqual([expect.stringMatching(/^[0-9a-f]{16}$/)]);
   });
 
   it("plays release order from accepted dates, undated items last", async () => {

@@ -1,5 +1,6 @@
 import {
   type GeneratedScheduleEntry,
+  METADATA_PLAYBACK_MODES,
   NO_PROGRESS,
   type PlaybackMode,
   type PlaybackProgress,
@@ -380,6 +381,86 @@ export async function upsertProgress(
         .doUpdateSet(columns),
     )
     .execute();
+}
+
+/**
+ * Records the order a channel's schedule follows for a collection in a
+ * metadata mode, creating the progress row from the beginning on first
+ * use. Never touches progress itself.
+ */
+export async function recordOrderFingerprint(
+  trx: Executor,
+  channelId: string,
+  mediaCollectionId: string,
+  playbackMode: PlaybackMode,
+  orderFingerprint: string,
+  now: number,
+): Promise<void> {
+  await trx
+    .insertInto("channel_collection_progress")
+    .values({
+      channel_id: channelId,
+      media_collection_id: mediaCollectionId,
+      playback_mode: playbackMode,
+      last_media_item_id: NO_PROGRESS.lastMediaItemId,
+      last_position: NO_PROGRESS.lastPosition,
+      next_selection_index: NO_PROGRESS.nextSelectionIndex,
+      order_fingerprint: orderFingerprint,
+      updated_at: now,
+    })
+    .onConflict((conflict) =>
+      conflict
+        .columns(["channel_id", "media_collection_id", "playback_mode"])
+        .doUpdateSet({ order_fingerprint: orderFingerprint, updated_at: now }),
+    )
+    .execute();
+}
+
+/**
+ * Lists every block that plays its collection in a metadata mode, with the
+ * order fingerprint its channel's schedule records, or null before one.
+ */
+export async function listMetadataOrderedBlocks(trx: Executor): Promise<
+  {
+    channelId: string;
+    blockId: string;
+    recordedFingerprint: string | null;
+  }[]
+> {
+  const rows = await trx
+    .selectFrom("programming_blocks")
+    .leftJoin("channel_collection_progress", (join) =>
+      join
+        .onRef(
+          "channel_collection_progress.channel_id",
+          "=",
+          "programming_blocks.channel_id",
+        )
+        .onRef(
+          "channel_collection_progress.media_collection_id",
+          "=",
+          "programming_blocks.media_collection_id",
+        )
+        .onRef(
+          "channel_collection_progress.playback_mode",
+          "=",
+          "programming_blocks.playback_mode",
+        ),
+    )
+    .select([
+      "programming_blocks.channel_id",
+      "programming_blocks.id",
+      "channel_collection_progress.order_fingerprint",
+    ])
+    .where("programming_blocks.playback_mode", "in", METADATA_PLAYBACK_MODES)
+    .orderBy("programming_blocks.channel_id")
+    .orderBy("programming_blocks.id")
+    .execute();
+  return rows.map((row) => ({
+    channelId: row.channel_id,
+    blockId: row.id,
+    recordedFingerprint: row.order_fingerprint,
+  }));
 }
 
 /** Creates a channel's state; its creation time is the mutation's effective time. */

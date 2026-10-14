@@ -15,5 +15,7 @@ export interface ChannelCollectionProgressTable {
   next_selection_index: number;
   /** The first sequence number generated after a reset; restoration ignores earlier entries. */
   reset_sequence_number: number | null;
+  /** Metadata modes: identifies the order the schedule was generated from. */
+  order_fingerprint: string | null;
   updated_at: number;
 }

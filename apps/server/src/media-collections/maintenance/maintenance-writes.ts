@@ -1,7 +1,16 @@
+import {
+  METADATA_PLAYBACK_MODES,
+  orderFingerprint,
+} from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
+import {
+  listMetadataOrderedBlocks,
+  loadBlockSource,
+  recordOrderFingerprint,
+} from "../../schedules/schedule-repository.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { reconcileCollection } from "./reconcile-collection.js";
 
@@ -34,6 +43,56 @@ export function maintenanceChange(): ScheduleInputChange<void> {
     }
     return { value: undefined, affectedChannelIds };
   };
+}
+
+/**
+ * One check of every metadata-ordered block as a schedule input change.
+ * Each block's order is recomputed from facts read inside the change's
+ * immediate transaction and compared with the order its channel's schedule
+ * recorded. Only a channel whose order differs is named and its new order
+ * recorded, so a metadata write that changes no order regenerates nothing,
+ * and a channel generation skips, such as a disabled one, is not checked
+ * again until its order changes once more.
+ */
+export function orderingChange(): ScheduleInputChange<void> {
+  return async (trx, now) => {
+    const affectedChannelIds: string[] = [];
+    for (const block of await listMetadataOrderedBlocks(trx)) {
+      const source = await loadBlockSource(trx, block.channelId, block.blockId);
+      if (source?.kind !== "collection") continue;
+      const fingerprint = orderFingerprint(source.members, source.playbackMode);
+      if (fingerprint === null || fingerprint === block.recordedFingerprint) {
+        continue;
+      }
+      await recordOrderFingerprint(
+        trx,
+        block.channelId,
+        source.mediaCollectionId,
+        source.playbackMode,
+        fingerprint,
+        now,
+      );
+      affectedChannelIds.push(block.channelId);
+    }
+    return { value: undefined, affectedChannelIds };
+  };
+}
+
+/**
+ * Whether any block orders by metadata, read before taking write authority
+ * so a channel lineup with none never queues behind the schedule lock.
+ * Skipping is safe: a block given such a mode later records its order when
+ * its schedule regenerates.
+ */
+export async function hasMetadataOrderedBlocks(
+  db: Kysely<DatabaseSchema>,
+): Promise<boolean> {
+  const row = await db
+    .selectFrom("programming_blocks")
+    .select("id")
+    .where("playback_mode", "in", METADATA_PLAYBACK_MODES)
+    .executeTakeFirst();
+  return row !== undefined;
 }
 
 /**
