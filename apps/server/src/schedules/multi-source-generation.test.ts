@@ -8,10 +8,12 @@ import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
+  assignmentsByRound,
   insertCollectionAssignment,
   insertCollectionOfItems,
   readBlocks,
   readScheduleEntries,
+  readScheduleShape,
 } from "../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
@@ -66,13 +68,7 @@ describe("multi-source generation", () => {
     await scheduleService(db).ensureCoverage(channelFixture.id, recordingLog());
 
     const blocks = await readBlocks(db);
-    const rounds = new Map<number, string[]>();
-    for (const block of blocks) {
-      rounds.set(block.round_number, [
-        ...(rounds.get(block.round_number) ?? []),
-        block.assignment_id ?? "",
-      ]);
-    }
+    const rounds = assignmentsByRound(blocks);
     for (const round of [...rounds.values()].slice(0, -1)) {
       expect([...round].sort()).toEqual(
         SOURCES.map((id) => `assignment-${id}`).sort(),
@@ -116,22 +112,9 @@ describe("multi-source generation", () => {
     await restarted.ensureCoverage(channelFixture.id, recordingLog());
 
     // IDs restart with the process; everything they name must match.
-    const shape = async (db: Kysely<DatabaseSchema>) => {
-      const blocks = await readBlocks(db);
-      const entries = await readScheduleEntries(db, channelFixture.id);
-      const blockIndex = new Map(
-        blocks.map((block, index) => [block.id, index]),
-      );
-      return {
-        // A turn's checkpoint names assignments, never block IDs.
-        blocks: blocks.map(({ id: _, ...block }) => block),
-        entries: entries.map(({ id: _, programming_block_id, ...entry }) => ({
-          ...entry,
-          block: blockIndex.get(programming_block_id ?? ""),
-        })),
-      };
-    };
-    expect(await shape(chunked)).toEqual(await shape(whole));
+    expect(await readScheduleShape(chunked, channelFixture.id)).toEqual(
+      await readScheduleShape(whole, channelFixture.id),
+    );
   });
 
   it("skips an empty collection's assignment, and reports a channel with nothing usable", async () => {

@@ -296,3 +296,43 @@ export function readBlocks(db: Kysely<DatabaseSchema>) {
     .orderBy("starts_at")
     .execute();
 }
+
+/**
+ * Groups blocks' assignment IDs by round, in airing order, so rotation tests
+ * can check that each round gives every source one turn.
+ */
+export function assignmentsByRound(
+  blocks: readonly { round_number: number; assignment_id: string | null }[],
+): Map<number, string[]> {
+  const rounds = new Map<number, string[]>();
+  for (const block of blocks) {
+    rounds.set(block.round_number, [
+      ...(rounds.get(block.round_number) ?? []),
+      block.assignment_id ?? "",
+    ]);
+  }
+  return rounds;
+}
+
+/**
+ * Reads a channel's blocks and entries with their generated IDs dropped and
+ * each entry's block named by airing position. Separate runs name rows from
+ * their own ID sources, so this is what must match when the same inputs
+ * generate the same programming.
+ */
+export async function readScheduleShape(
+  db: Kysely<DatabaseSchema>,
+  channelId: string,
+) {
+  const blocks = await readBlocks(db);
+  const entries = await readScheduleEntries(db, channelId);
+  const blockIndex = new Map(blocks.map((block, index) => [block.id, index]));
+  return {
+    // A turn's checkpoint names assignments, never block IDs.
+    blocks: blocks.map(({ id: _, ...block }) => block),
+    entries: entries.map(({ id: _, programming_block_id, ...entry }) => ({
+      ...entry,
+      block: blockIndex.get(programming_block_id ?? ""),
+    })),
+  };
+}

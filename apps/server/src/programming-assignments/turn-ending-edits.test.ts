@@ -11,6 +11,7 @@ import {
 } from "../testing/racing-schedule.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
+  assignmentsByRound,
   insertCollectionOfItems,
   readBlocks,
   readScheduleEntries,
@@ -99,14 +100,7 @@ describe("edits that end the started turn", () => {
     await send(server, "POST", assignmentsUrl, collectionAssignment("scrubs"));
 
     const blocks = await readBlocks(db);
-    const rounds = new Map<number, string[]>();
-    for (const block of blocks) {
-      rounds.set(block.round_number, [
-        ...(rounds.get(block.round_number) ?? []),
-        block.assignment_id ?? "",
-      ]);
-    }
-    for (const round of rounds.values()) {
+    for (const round of assignmentsByRound(blocks).values()) {
       expect(new Set(round).size).toBe(round.length);
     }
     const scrubsId = (
