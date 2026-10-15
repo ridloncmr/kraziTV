@@ -1,4 +1,8 @@
-import type { PlaybackMode, StretchSetting } from "@krazitv/krazi-brain";
+import type {
+  MarathonSettings,
+  PlaybackMode,
+  StretchSetting,
+} from "@krazitv/krazi-brain";
 
 /** One member an assignment plays: a collection, or one media item. */
 export type MemberSource =
@@ -10,6 +14,8 @@ export interface AssignmentSettings {
   /** Required when a member is a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
   ordinaryStretch: StretchSetting;
+  /** A longer turn in the same unit, or null while marathons are disabled. */
+  marathonStretch: StretchSetting | null;
   /** Members in saved member order. */
   members: MemberSource[];
 }
@@ -56,6 +62,11 @@ export type ReorderAssignmentsResult =
 
 export type DeleteAssignmentResult =
   { kind: "deleted" } | { kind: "not_found" };
+
+/** A marathon settings save's outcome, with the settings that now apply. */
+export type SaveMarathonSettingsResult =
+  | { kind: "saved" | "unchanged"; settings: MarathonSettings }
+  | { kind: "channel_not_found" };
 
 /** A progress reset's outcome; the collection must be one of the assignment's members. */
 export type ProgressResetResult = { kind: "reset" } | { kind: "not_assigned" };

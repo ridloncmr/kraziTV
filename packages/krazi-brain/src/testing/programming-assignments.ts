@@ -31,6 +31,7 @@ export function collectionAssignment(
     id,
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 3 },
+    marathon: null,
     members: [{ kind: "collection", mediaCollectionId, members }],
     ...overrides,
   };
@@ -45,6 +46,7 @@ export function itemAssignment(
     id,
     playbackMode: null,
     ordinary: { kind: "programs", count: 3 },
+    marathon: null,
     members: [{ kind: "media_item", media }],
   };
 }

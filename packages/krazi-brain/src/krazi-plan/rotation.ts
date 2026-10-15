@@ -7,9 +7,11 @@ import type {
   AssignmentMember,
   AssignmentSkip,
   BlockSource,
+  MarathonSettings,
   ProgrammingAssignment,
   RotationCheckpoint,
 } from "./contracts.js";
+import { closeRound, cooldownPermits, drawOpportunity } from "./marathons.js";
 import { type DecisionSeed, shuffleRound } from "./programming-decisions.js";
 
 /** The rotation state of a channel that has never generated a turn. */
@@ -25,11 +27,12 @@ export const FIRST_CHECKPOINT: RotationCheckpoint = Object.freeze({
   ordinaryRoundsSinceMarathon: null,
 });
 
-/** The turn kraziPlan chose: its assignment, the source its member plays, and the checkpoint its block stores. */
+/** The turn kraziPlan chose: its assignment, the source its member plays, whether it is a marathon, and the checkpoint its block stores. */
 interface ChosenTurn {
   assignment: ProgrammingAssignment;
   member: AssignmentMember;
   source: ScheduleSource;
+  marathon: boolean;
   checkpoint: RotationCheckpoint;
 }
 
@@ -37,11 +40,14 @@ interface ChosenTurn {
  * Returns the rotation state after a block's turn started, from the
  * checkpoint it stored: its assignment leaves `pending` as served and last
  * aired, its member position moves past the member that took the turn, and
- * the round has committed a program. Pure, so the state after any kept
- * block is reproduced exactly, without storing it separately.
+ * the round has committed a program. A marathon marks the round's
+ * opportunity started and restarts cooldown as its first program commits;
+ * an opportunity its turn did not use is lost. Pure, so the state after any
+ * kept block is reproduced exactly, without storing it separately.
  */
 export function advancePastTurn(
   checkpoint: RotationCheckpoint,
+  marathon: boolean,
 ): RotationCheckpoint {
   const [assignmentId, ...pending] = checkpoint.pending;
   if (assignmentId === undefined) {
@@ -57,6 +63,15 @@ export function advancePastTurn(
       [assignmentId]: (checkpoint.nextMemberPositions[assignmentId] ?? 0) + 1,
     },
     roundCommittedProgram: true,
+    marathonOpportunity:
+      checkpoint.marathonOpportunity?.assignmentId !== assignmentId
+        ? checkpoint.marathonOpportunity
+        : marathon
+          ? { assignmentId, started: true }
+          : null,
+    ordinaryRoundsSinceMarathon: marathon
+      ? 0
+      : checkpoint.ordinaryRoundsSinceMarathon,
   };
 }
 
@@ -81,6 +96,7 @@ export function chooseTurn(
   state: RotationCheckpoint,
   assignments: readonly ProgrammingAssignment[],
   seed: DecisionSeed,
+  marathons: MarathonSettings,
 ): TurnChoice {
   const reasons = new Map(
     assignments.map((assignment) => [
@@ -123,6 +139,7 @@ export function chooseTurn(
     const roundNumber = round.roundNumber + 1;
     const formed: RotationCheckpoint = {
       ...round,
+      ordinaryRoundsSinceMarathon: closeRound(round),
       roundNumber,
       pending: shuffleRound(
         usable.map(({ id }) => id),
@@ -136,6 +153,7 @@ export function chooseTurn(
     };
     round = {
       ...formed,
+      marathonOpportunity: drawOpportunity(formed, usable, marathons, seed),
       skipped: assignments
         .filter(({ id }) => reasons.get(id) !== undefined)
         .map(({ id }) => skip(formed, id)),
@@ -157,11 +175,22 @@ export function chooseTurn(
   if (assignment === undefined || chosen === undefined) {
     throw new Error("a usable pending assignment must have a usable member");
   }
+  // The round's opportunity becomes a marathon only on a collection, and
+  // only if cooldown still permits now that its turn starts; otherwise it
+  // is lost without a reroll.
+  const opportunity = round.marathonOpportunity;
+  const marathon =
+    opportunity?.assignmentId === assignment.id &&
+    !opportunity.started &&
+    chosen.member.kind === "collection" &&
+    assignment.marathon !== null &&
+    cooldownPermits(round, marathons);
   return {
     chosen: {
       assignment,
       member: chosen.member,
       source: chosen.source,
+      marathon,
       checkpoint: {
         ...round,
         nextMemberPositions: {

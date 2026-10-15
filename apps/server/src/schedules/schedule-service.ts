@@ -43,6 +43,7 @@ import {
 import {
   findAssignedCollectionMode,
   loadCollectionMembers,
+  loadMarathonSettings,
   loadProgrammingAssignments,
 } from "./persistence/assignment-sources.js";
 import {
@@ -634,6 +635,7 @@ export class ScheduleService {
       channelSeed: start.seed,
       programmingSeed: start.programmingSeed,
       rebuildCount: start.rebuildCount,
+      marathons: await loadMarathonSettings(trx, channelId),
       assignments,
       latestTurn: await loadLatestTurn(trx, channelId),
       progress: await loadProgress(trx, channelId, collections),

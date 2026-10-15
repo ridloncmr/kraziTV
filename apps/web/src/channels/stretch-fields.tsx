@@ -49,25 +49,44 @@ const KIND_CHOICES: readonly { kind: StretchDraft["kind"]; label: string }[] = [
 ];
 
 /**
- * Edits how long each of an assignment's turns runs, and explains that an
- * airtime target airs whole programs, so a turn runs over rather than cut a
- * program short.
+ * Suggests a marathon length when the owner turns marathons on: the
+ * ordinary stretch's unit, and longer than its longest turn, as the server
+ * requires; twice the programs, or three times the minutes.
+ */
+export function suggestMarathon(ordinary: StretchDraft): StretchDraft {
+  if (ordinary.kind === "programs") {
+    return { ...UNCHOSEN_STRETCH, count: (ordinary.count || 1) * 2 };
+  }
+  const longest =
+    ordinary.kind === "airtime" ? ordinary.minutes : ordinary.maxMinutes;
+  return { ...UNCHOSEN_STRETCH, kind: "airtime", minutes: (longest || 60) * 3 };
+}
+
+/**
+ * Edits how long each of an assignment's turns runs, or, with `marathon`,
+ * how long its marathon turns run, and explains that an airtime target
+ * airs whole programs, so a turn runs over rather than cut a program short.
  */
 export function StretchFields({
   draft,
   onChange,
+  marathon = false,
 }: {
   draft: StretchDraft;
   onChange: (draft: StretchDraft) => void;
+  marathon?: boolean;
 }) {
   const hintId = useId();
+  // Names a field, as a marathon field when this edits a marathon.
+  const name = (text: string) =>
+    marathon ? `Marathon ${text.toLowerCase()}` : text;
   // Edits one numeric field of the draft.
   const numberField = (
     label: string,
     field: "count" | "minutes" | "minMinutes" | "maxMinutes",
   ) => (
     <label>
-      {label}
+      {name(label)}
       <input
         type="number"
         required
@@ -84,7 +103,7 @@ export function StretchFields({
   return (
     <>
       <label>
-        Turn length
+        {name("Turn length")}
         <select
           value={draft.kind}
           onChange={(event) =>
@@ -109,7 +128,7 @@ export function StretchFields({
           {numberField("At most minutes", "maxMinutes")}
         </>
       )}
-      {draft.kind !== "programs" && (
+      {draft.kind !== "programs" && !marathon && (
         <small id={hintId} className="secondary">
           {draft.kind === "airtime_range"
             ? "Each turn picks one target in this range. "

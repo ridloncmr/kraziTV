@@ -19,7 +19,7 @@ import { MediaCollectionRepository } from "./media-collections/persistence/media
 import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
 import { toSignalLogger } from "./channels/runtime/signal-log.js";
-import { AssignmentRepository } from "./programming-assignments/assignment-repository.js";
+import { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";

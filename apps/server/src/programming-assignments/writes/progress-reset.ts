@@ -1,10 +1,10 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { findAssignedCollectionMode } from "../schedules/persistence/assignment-sources.js";
-import { resetProgress } from "../schedules/persistence/collection-progress.js";
-import { loadScheduleState } from "../schedules/persistence/schedule-repository.js";
-import type { ProgressResetResult } from "./contracts.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { findAssignedCollectionMode } from "../../schedules/persistence/assignment-sources.js";
+import { resetProgress } from "../../schedules/persistence/collection-progress.js";
+import { loadScheduleState } from "../../schedules/persistence/schedule-repository.js";
+import type { ProgressResetResult } from "../contracts.js";
 
 /**
  * Restarts the channel's progress through one of an assignment's

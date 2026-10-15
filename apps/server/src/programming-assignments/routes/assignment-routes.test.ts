@@ -2,38 +2,38 @@ import { type PlaybackMode, SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { send } from "../testing/api-requests.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { send } from "../../testing/api-requests.js";
 import {
   collectionAssignment,
   itemAssignment,
-} from "../testing/assignment-bodies.js";
+} from "../../testing/assignment-bodies.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
-} from "../testing/catalog-fixtures.js";
+} from "../../testing/catalog-fixtures.js";
 import {
   channelFixture,
   collectionProgressFixture,
-} from "../testing/channel-fixtures.js";
-import { episodeFacts, movieFacts } from "../testing/collection-fixtures.js";
-import { manualClock } from "../testing/manual-clock.js";
-import { sequentialIds } from "../testing/record-sources.js";
+} from "../../testing/channel-fixtures.js";
+import { episodeFacts, movieFacts } from "../../testing/collection-fixtures.js";
+import { manualClock } from "../../testing/manual-clock.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 import {
   insertCollectionOfItems,
   seedScheduleScenario,
   readScheduleEntries,
   type ScheduleScenarioOptions,
-} from "../testing/schedule-fixtures.js";
+} from "../../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
   openTestDatabase,
   startTestServer,
-} from "../testing/test-environment.js";
-import { holdWriteAuthority } from "../testing/hold-write-authority.js";
-import { ScheduleService } from "../schedules/schedule-service.js";
-import { AssignmentRepository } from "./assignment-repository.js";
+} from "../../testing/test-environment.js";
+import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
+import { ScheduleService } from "../../schedules/schedule-service.js";
+import { AssignmentRepository } from "../persistence/assignment-repository.js";
 
 afterEach(cleanUpTestEnvironment);
 

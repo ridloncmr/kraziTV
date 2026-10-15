@@ -29,6 +29,7 @@ export type {
   BlockSource,
   GeneratedBlock,
   LatestTurn,
+  MarathonSettings,
   ProgrammingAssignment,
   ProgrammingUnschedulableReason,
   RotationCheckpoint,

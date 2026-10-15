@@ -1,5 +1,6 @@
 import type {
   AssignmentMember,
+  MarathonSettings,
   PlaybackMode,
   ProgrammingAssignment,
   ScheduleMedia,
@@ -10,7 +11,10 @@ import type { Kysely } from "kysely";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaItemStatus } from "../../database/schema/media-item-table.js";
 import type { ProgrammingAssignmentMemberTable } from "../../database/schema/programming-assignment-member-table.js";
-import type { StretchKind } from "../../database/schema/programming-source-assignment-table.js";
+import type {
+  ProgrammingSourceAssignmentTable,
+  StretchKind,
+} from "../../database/schema/programming-source-assignment-table.js";
 import {
   effectiveContentIdentity,
   effectiveMetadata,
@@ -53,11 +57,7 @@ export async function loadProgrammingAssignments(
     assignments.push({
       id: row.id,
       playbackMode: row.playback_mode,
-      ordinary: toStretch({
-        kind: row.ordinary_kind,
-        min: row.ordinary_min,
-        max: row.ordinary_max,
-      }),
+      ...toAssignmentStretches(row),
       members: resolved,
     });
   }
@@ -143,7 +143,7 @@ interface StretchColumns {
  * agrees on what a valid row is; the table checks make any other shape
  * corruption.
  */
-export function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
+function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
   switch (kind) {
     case "programs":
       return { kind, count: min };
@@ -153,6 +153,65 @@ export function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
       if (max === null) throw new Error("An airtime range has no maximum");
       return { kind, minMinutes: min, maxMinutes: max };
   }
+}
+
+/**
+ * Reads an assignment's ordinary stretch and its marathon stretch, which is
+ * null when its columns are, as they are together while disabled.
+ */
+export function toAssignmentStretches(
+  row: Pick<
+    ProgrammingSourceAssignmentTable,
+    | "ordinary_kind"
+    | "ordinary_min"
+    | "ordinary_max"
+    | "marathon_kind"
+    | "marathon_min"
+    | "marathon_max"
+  >,
+): { ordinary: StretchSetting; marathon: StretchSetting | null } {
+  return {
+    ordinary: toStretch({
+      kind: row.ordinary_kind,
+      min: row.ordinary_min,
+      max: row.ordinary_max,
+    }),
+    marathon:
+      row.marathon_kind === null || row.marathon_min === null
+        ? null
+        : toStretch({
+            kind: row.marathon_kind,
+            min: row.marathon_min,
+            max: row.marathon_max,
+          }),
+  };
+}
+
+/** The marathon controls of a channel that has saved none. */
+const DEFAULT_MARATHON_SETTINGS: MarathonSettings = Object.freeze({
+  chancePercent: 0,
+  minOrdinaryRounds: 2,
+});
+
+/**
+ * Loads a channel's marathon chance and cooldown, or the defaults, which
+ * keep marathons off, when it has saved none.
+ */
+export async function loadMarathonSettings(
+  trx: Executor,
+  channelId: string,
+): Promise<MarathonSettings> {
+  const row = await trx
+    .selectFrom("channel_programming_settings")
+    .select(["marathon_chance_percent", "marathon_min_ordinary_rounds"])
+    .where("channel_id", "=", channelId)
+    .executeTakeFirst();
+  return row === undefined
+    ? DEFAULT_MARATHON_SETTINGS
+    : {
+        chancePercent: row.marathon_chance_percent,
+        minOrdinaryRounds: row.marathon_min_ordinary_rounds,
+      };
 }
 
 /** Writes a stretch as the columns `toStretch` reads back. */

@@ -16,6 +16,7 @@ import { ProgressResetDialog } from "./progress-reset-dialog.js";
 import {
   type StretchDraft,
   StretchFields,
+  suggestMarathon,
   toStretchDraft,
   toStretchSetting,
   UNCHOSEN_STRETCH,
@@ -89,6 +90,8 @@ export function AssignmentForm({
   const [stretch, setStretch] = useState<StretchDraft>(UNCHOSEN_STRETCH);
   // Whether the owner set the turn length, so a suggestion never overrides it.
   const [stretchSet, setStretchSet] = useState(false);
+  // Null while marathons are off for this assignment.
+  const [marathon, setMarathon] = useState<StretchDraft | null>(null);
   const [previewed, setPreviewed] = useState("");
   const dirty = useRef(false);
   const assignmentPath = assignment
@@ -154,6 +157,11 @@ export function AssignmentForm({
     if (assignment.playbackMode) setMode(assignment.playbackMode);
     setStretch(toStretchDraft(assignment.ordinaryStretch));
     setStretchSet(true);
+    setMarathon(
+      assignment.marathonStretch === null
+        ? null
+        : toStretchDraft(assignment.marathonStretch),
+    );
   }, [assignment]);
   // Applies one edit to the member rows and marks the form edited.
   const editMembers = (edit: (rows: MemberDraft[]) => MemberDraft[]) => {
@@ -176,7 +184,7 @@ export function AssignmentForm({
           void mutation.run(
             assignmentPath ?? assignmentsPath,
             assignmentPath ? "PATCH" : "POST",
-            toSettings(members, mode, stretch),
+            toSettings(members, mode, stretch, marathon),
             () => {
               dirty.current = false;
               preview.refresh();
@@ -317,6 +325,29 @@ export function AssignmentForm({
                 setStretch(draft);
               }}
             />
+            <label>
+              <input
+                type="checkbox"
+                checked={marathon !== null}
+                onChange={(event) => {
+                  dirty.current = true;
+                  setMarathon(
+                    event.target.checked ? suggestMarathon(stretch) : null,
+                  );
+                }}
+              />
+              Allow marathons
+            </label>
+            {marathon !== null && (
+              <StretchFields
+                marathon
+                draft={marathon}
+                onChange={(draft) => {
+                  dirty.current = true;
+                  setMarathon(draft);
+                }}
+              />
+            )}
             {suggested === null && !stretchSet && (
               <p className="secondary">
                 These members mix movies and episodes, or are not classified
@@ -421,13 +452,15 @@ function suggestionPath(members: readonly MemberDraft[]): string {
 
 /**
  * Builds the assignment the form describes: its members in order, with the
- * mode and turn length its collections play by. Single items alone take no
- * mode and air once a turn whatever the stretch.
+ * mode, turn length, and optional marathon length its collections play
+ * by. Single items alone take no mode and air once a turn whatever the
+ * stretch, so they never become marathons.
  */
 function toSettings(
   members: readonly MemberDraft[],
   mode: PlaybackMode,
   stretch: StretchDraft,
+  marathon: StretchDraft | null,
 ): AssignmentSettings {
   const hasCollection = members.some((member) => member.kind === "collection");
   return {
@@ -435,6 +468,8 @@ function toSettings(
     ordinaryStretch: hasCollection
       ? toStretchSetting(stretch)
       : { kind: "programs", count: 1 },
+    marathonStretch:
+      hasCollection && marathon !== null ? toStretchSetting(marathon) : null,
     members: members.map((member) =>
       member.kind === "collection"
         ? { kind: "collection", mediaCollectionId: member.sourceId }

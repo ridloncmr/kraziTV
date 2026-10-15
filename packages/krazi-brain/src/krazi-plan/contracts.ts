@@ -15,6 +15,14 @@ export type StretchSetting =
   | { kind: "airtime"; minutes: number }
   | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 
+/** A channel's marathon controls, shared by every rotation context. */
+export interface MarathonSettings {
+  /** The chance, 0 to 100, that an eligible round gets a marathon. */
+  chancePercent: number;
+  /** Completed ordinary rounds required between marathons. */
+  minOrdinaryRounds: number;
+}
+
 /** One member of an assignment, with its media resolved from the catalog. */
 export type AssignmentMember =
   | {
@@ -34,6 +42,8 @@ export interface ProgrammingAssignment {
   /** Required when a member is a collection; absent for single items only. */
   playbackMode: PlaybackMode | null;
   ordinary: StretchSetting;
+  /** A longer turn in the same unit, or null when marathons are disabled. */
+  marathon: StretchSetting | null;
   /** Members in saved member order. */
   members: readonly AssignmentMember[];
 }

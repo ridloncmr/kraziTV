@@ -1,22 +1,22 @@
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { runImmediateTransaction } from "../database/writes/immediate-transaction.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
-} from "../testing/catalog-fixtures.js";
-import { channelFixture } from "../testing/channel-fixtures.js";
-import { sequentialIds } from "../testing/record-sources.js";
+} from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
-import { AssignmentRepository } from "./assignment-repository.js";
-import type { AssignmentSettings } from "./contracts.js";
+} from "../../testing/test-environment.js";
+import { AssignmentRepository } from "../persistence/assignment-repository.js";
+import type { AssignmentSettings } from "../contracts.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -25,12 +25,14 @@ const LATER = FIXTURE_TIME + 60_000;
 const chronological: AssignmentSettings = {
   playbackMode: "chronological",
   ordinaryStretch: { kind: "programs", count: 3 },
+  marathonStretch: null,
   members: [{ kind: "collection", mediaCollectionId: collectionFixture.id }],
 };
 
 const singleItem: AssignmentSettings = {
   playbackMode: null,
   ordinaryStretch: { kind: "programs", count: 1 },
+  marathonStretch: null,
   members: [{ kind: "media_item", mediaItemId: itemFixture.id }],
 };
 

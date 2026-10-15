@@ -1,29 +1,36 @@
 import { randomUUID } from "node:crypto";
 
-import { isSchedulableMedia, type StretchSetting } from "@krazitv/krazi-brain";
+import {
+  isSchedulableMedia,
+  type MarathonSettings,
+  type StretchSetting,
+} from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { ProgrammingAssignmentMemberTable } from "../database/schema/programming-assignment-member-table.js";
-import type { ProgrammingSourceAssignmentTable } from "../database/schema/programming-source-assignment-table.js";
-import type { RecordSources } from "../database/writes/record-sources.js";
-import { collectionExists } from "../media-collections/persistence/media-collection-repository.js";
-import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { ProgrammingSourceAssignmentTable } from "../../database/schema/programming-source-assignment-table.js";
+import type { RecordSources } from "../../database/writes/record-sources.js";
 import {
-  toStretch,
+  findMemberAssigned,
+  findUnknownMember,
+  toMemberSource,
+  writeMembers,
+} from "./assignment-members.js";
+import {
+  loadMarathonSettings,
+  toAssignmentStretches,
   toStretchColumns,
-} from "../schedules/persistence/assignment-sources.js";
+} from "../../schedules/persistence/assignment-sources.js";
 import type {
   AssignmentSettings,
   CreateAssignmentResult,
   DeleteAssignmentResult,
-  MemberAssignedResult,
   MemberSource,
   ReorderAssignmentsResult,
+  SaveMarathonSettingsResult,
   SourceAssignment,
-  UnknownMemberResult,
   UpdateAssignmentResult,
-} from "./contracts.js";
+} from "../contracts.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -45,6 +52,49 @@ export class AssignmentRepository {
   ) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;
+  }
+
+  /** Reads a channel's marathon chance and cooldown, or the defaults when it saved none. */
+  async readMarathonSettings(channelId: string): Promise<MarathonSettings> {
+    return loadMarathonSettings(this.#db, channelId);
+  }
+
+  /**
+   * Saves a channel's marathon chance and cooldown. The same values write
+   * nothing and report `unchanged`, so callers can skip regeneration.
+   */
+  async saveMarathonSettings(
+    trx: Executor,
+    channelId: string,
+    settings: MarathonSettings,
+    now: number,
+  ): Promise<SaveMarathonSettingsResult> {
+    const channel = await trx
+      .selectFrom("channels")
+      .select("id")
+      .where("id", "=", channelId)
+      .executeTakeFirst();
+    if (channel === undefined) return { kind: "channel_not_found" };
+    const current = await loadMarathonSettings(trx, channelId);
+    if (
+      current.chancePercent === settings.chancePercent &&
+      current.minOrdinaryRounds === settings.minOrdinaryRounds
+    ) {
+      return { kind: "unchanged", settings: current };
+    }
+    const columns = {
+      marathon_chance_percent: settings.chancePercent,
+      marathon_min_ordinary_rounds: settings.minOrdinaryRounds,
+      updated_at: now,
+    };
+    await trx
+      .insertInto("channel_programming_settings")
+      .values({ channel_id: channelId, ...columns, created_at: now })
+      .onConflict((conflict) =>
+        conflict.column("channel_id").doUpdateSet(columns),
+      )
+      .execute();
+    return { kind: "saved", settings };
   }
 
   /**
@@ -287,40 +337,6 @@ export class AssignmentRepository {
   }
 }
 
-// Inserts an assignment's members in saved order, replacing none.
-async function writeMembers(
-  trx: Executor,
-  assignment: Pick<
-    Selectable<ProgrammingSourceAssignmentTable>,
-    "id" | "channel_id"
-  >,
-  members: readonly MemberSource[],
-  now: number,
-): Promise<void> {
-  await trx
-    .insertInto("programming_assignment_members")
-    .values(
-      members.map((member, position) => ({
-        assignment_id: assignment.id,
-        channel_id: assignment.channel_id,
-        position,
-        ...(member.kind === "collection"
-          ? {
-              source_kind: "collection" as const,
-              media_collection_id: member.mediaCollectionId,
-              media_item_id: null,
-            }
-          : {
-              source_kind: "media_item" as const,
-              media_collection_id: null,
-              media_item_id: member.mediaItemId,
-            }),
-        created_at: now,
-      })),
-    )
-    .execute();
-}
-
 // Reads an assignment row with its members into the shape the API uses.
 async function readAssignment(
   executor: Executor,
@@ -336,39 +352,35 @@ async function readAssignment(
     id: row.id,
     channelId: row.channel_id,
     playbackMode: row.playback_mode,
-    ordinaryStretch: toStretch({
-      kind: row.ordinary_kind,
-      min: row.ordinary_min,
-      max: row.ordinary_max,
-    }),
+    ...toApiStretches(row),
     members: members.map(toMemberSource),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-// Decodes one member row; the table check makes a mismatch corruption.
-function toMemberSource(
-  row: Selectable<ProgrammingAssignmentMemberTable>,
-): MemberSource {
-  if (row.media_collection_id !== null) {
-    return { kind: "collection", mediaCollectionId: row.media_collection_id };
-  }
-  if (row.media_item_id !== null) {
-    return { kind: "media_item", mediaItemId: row.media_item_id };
-  }
-  throw new Error(`Assignment ${row.assignment_id} has a malformed member`);
-}
-
 // Flattens the settings into the assignment's own columns.
 function toSettingsColumns(settings: AssignmentSettings) {
   const ordinary = toStretchColumns(settings.ordinaryStretch);
+  const marathon =
+    settings.marathonStretch === null
+      ? null
+      : toStretchColumns(settings.marathonStretch);
   return {
     playback_mode: settings.playbackMode,
     ordinary_kind: ordinary.kind,
     ordinary_min: ordinary.min,
     ordinary_max: ordinary.max,
+    marathon_kind: marathon?.kind ?? null,
+    marathon_min: marathon?.min ?? null,
+    marathon_max: marathon?.max ?? null,
   };
+}
+
+// Names the stored stretches as the API does.
+function toApiStretches(row: Selectable<ProgrammingSourceAssignmentTable>) {
+  const { ordinary, marathon } = toAssignmentStretches(row);
+  return { ordinaryStretch: ordinary, marathonStretch: marathon };
 }
 
 // Compares settings by value, so field order never matters.
@@ -386,61 +398,4 @@ function isSameSettings(
       ),
     ]);
   return normalized(current) === normalized(next);
-}
-
-// Reports the first member another assignment on the channel already
-// plays; the per-channel unique indexes remain the final guard.
-async function findMemberAssigned(
-  executor: Executor,
-  channelId: string,
-  members: readonly MemberSource[],
-  exceptAssignmentId?: string,
-): Promise<MemberAssignedResult | undefined> {
-  for (const member of members) {
-    let query = executor
-      .selectFrom("programming_assignment_members")
-      .select("assignment_id")
-      .where("channel_id", "=", channelId)
-      .where(
-        member.kind === "collection" ? "media_collection_id" : "media_item_id",
-        "=",
-        member.kind === "collection"
-          ? member.mediaCollectionId
-          : member.mediaItemId,
-      );
-    if (exceptAssignmentId !== undefined) {
-      query = query.where("assignment_id", "!=", exceptAssignmentId);
-    }
-    const row = await query.executeTakeFirst();
-    if (row !== undefined) {
-      return {
-        kind: "member_assigned",
-        member,
-        assignmentId: row.assignment_id,
-      };
-    }
-  }
-  return undefined;
-}
-
-// Reports the first member the catalog does not hold; the foreign keys remain the final guard.
-async function findUnknownMember(
-  executor: Executor,
-  members: readonly MemberSource[],
-): Promise<UnknownMemberResult | undefined> {
-  for (const member of members) {
-    if (member.kind === "collection") {
-      if (!(await collectionExists(executor, member.mediaCollectionId))) {
-        return {
-          kind: "unknown_collection",
-          mediaCollectionId: member.mediaCollectionId,
-        };
-      }
-    } else if (
-      (await findUnknownMediaItemIds(executor, [member.mediaItemId])).length > 0
-    ) {
-      return { kind: "unknown_media_item", mediaItemId: member.mediaItemId };
-    }
-  }
-  return undefined;
 }

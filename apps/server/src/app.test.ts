@@ -18,7 +18,7 @@ import type { MediaItemRepository } from "./media-items/media-item-repository.js
 import type { MediaCollectionRepository } from "./media-collections/persistence/media-collection-repository.js";
 import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
-import type { AssignmentRepository } from "./programming-assignments/assignment-repository.js";
+import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 import type { ChannelStreams } from "./channels/contracts.js";

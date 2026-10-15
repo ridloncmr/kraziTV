@@ -13,6 +13,7 @@ import type {
   BlockSource,
   GeneratedBlock,
   LatestTurn,
+  MarathonSettings,
   ProgrammingAssignment,
   ProgrammingUnschedulableReason,
 } from "./contracts.js";
@@ -28,6 +29,8 @@ import { resolveSize } from "./stretch-settings.js";
 import { turnSize } from "./turn-size.js";
 
 export interface GenerateProgrammingOptions extends DecisionSeed {
+  /** The channel's marathon chance and cooldown. */
+  marathons: MarathonSettings;
   /** The channel's persisted seed; collection random playback derives from it. */
   channelSeed: number;
   /** The channel's assignments in saved assignment order. */
@@ -96,7 +99,7 @@ export function generateProgramming(
   let state =
     latestTurn === undefined
       ? FIRST_CHECKPOINT
-      : advancePastTurn(latestTurn.block.checkpoint);
+      : advancePastTurn(latestTurn.block.checkpoint, latestTurn.block.marathon);
   let open =
     latestTurn === undefined ? undefined : resumeTurn(latestTurn, assignments);
   let startsAt = options.startsAt;
@@ -108,6 +111,7 @@ export function generateProgramming(
         state,
         assignments,
         options,
+        options.marathons,
       );
       skips.push(...skipped);
       if (turn === undefined) {
@@ -122,15 +126,22 @@ export function generateProgramming(
         roundNumber: turn.checkpoint.roundNumber,
         turnIndex: turn.checkpoint.served.length,
         startsAt,
-        size: resolveSize(turn.member, turn.assignment.ordinary, options, {
-          roundNumber: turn.checkpoint.roundNumber,
-          turnIndex: turn.checkpoint.served.length,
-        }),
-        marathon: false,
+        size: resolveSize(
+          turn.member,
+          (turn.marathon ? turn.assignment.marathon : null) ??
+            turn.assignment.ordinary,
+          turn.marathon ? "marathon_size" : "size",
+          options,
+          {
+            roundNumber: turn.checkpoint.roundNumber,
+            turnIndex: turn.checkpoint.served.length,
+          },
+        ),
+        marathon: turn.marathon,
         checkpoint: turn.checkpoint,
       };
       blocks.push(block);
-      state = advancePastTurn(turn.checkpoint);
+      state = advancePastTurn(turn.checkpoint, turn.marathon);
       open = {
         source: { ...turn.source, programmingBlockId: block.id },
         size: turnSize(block.size),

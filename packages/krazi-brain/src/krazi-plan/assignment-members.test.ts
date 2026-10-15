@@ -40,6 +40,7 @@ function sitcoms(members: AssignmentMember[]): ProgrammingAssignment {
     id: "sitcoms",
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 2 },
+    marathon: null,
     members,
   };
 }
@@ -56,6 +57,7 @@ function options(
     channelSeed: 0x5d4886b3,
     programmingSeed: 0x1234abcd,
     rebuildCount: 0,
+    marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     latestTurn: undefined,
     progress: [],

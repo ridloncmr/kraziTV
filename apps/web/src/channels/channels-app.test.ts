@@ -126,6 +126,7 @@ function favoritesAssignment(playbackMode: string, count = 3) {
     id: "assignment",
     playbackMode,
     ordinaryStretch: { kind: "programs", count },
+    marathonStretch: null,
     members: [{ kind: "collection", mediaCollectionId: "favorites" }],
   };
 }
@@ -141,6 +142,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
       id: "assignment",
       playbackMode: null,
       ordinaryStretch: { kind: "programs", count: 1 },
+      marathonStretch: null,
       members: [{ kind: "media_item", mediaItemId: "z" }],
     },
     "POST",
@@ -165,6 +167,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   ).toEqual({
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
+    marathonStretch: null,
     members: [{ kind: "media_item", mediaItemId: "z" }],
   });
 });
@@ -261,6 +264,7 @@ it.each([
     ).toEqual({
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
+      marathonStretch: null,
       members: [{ kind: "collection", mediaCollectionId: "favorites" }],
     });
     await waitFor(() =>
@@ -479,6 +483,7 @@ it("shows a collection's programs per turn and saves an edited count", async () 
   ).toEqual({
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 2 },
+    marathonStretch: null,
     members: [{ kind: "collection", mediaCollectionId: "favorites" }],
   });
 });
@@ -581,6 +586,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
   api.reply("/channels/one/schedule", { scheduleRevision: 6, entries: [] });
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: null,
   });
   api.handle(
     "/channels/one/programming-assignments",
@@ -627,6 +633,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
   ).toEqual({
     playbackMode: "random",
     ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: null,
     members: [
       {
         kind: "collection",
@@ -716,6 +723,7 @@ it("adds, reorders, and saves an assignment's members", async () => {
   ).toEqual({
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: null,
     members: [
       { kind: "collection", mediaCollectionId: "other" },
       { kind: "collection", mediaCollectionId: "favorites" },
@@ -772,6 +780,85 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   ).toEqual({
     playbackMode: "chronological",
     ordinaryStretch: { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
+    marathonStretch: null,
     members: [{ kind: "collection", mediaCollectionId: "favorites" }],
   });
+});
+
+it("allows marathons on an assignment with a suggested longer length", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/programming-settings", {
+    marathonChancePercent: 0,
+    marathonMinOrdinaryRounds: 2,
+  });
+  api.reply("/channels/one/schedule", { scheduleRevision: 10, entries: [] });
+  api.reply(
+    "/channels/one/programming-assignments/assignment",
+    favoritesAssignment("chronological"),
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const form = await screen.findByRole("group", { name: "Assignment 1" });
+  await waitFor(() =>
+    expect(
+      within(form).getByLabelText<HTMLInputElement>("Programs per turn").value,
+    ).toBe("3"),
+  );
+
+  fireEvent.click(within(form).getByLabelText("Allow marathons"));
+
+  expect(
+    within(form).getByLabelText<HTMLInputElement>("Marathon programs per turn")
+      .value,
+  ).toBe("6");
+  fireEvent.click(
+    within(form).getByRole("button", { name: "Save programming" }),
+  );
+  await screen.findByText(/revision 10/);
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toMatchObject({ marathonStretch: { kind: "programs", count: 6 } });
+});
+
+it("offers the suggested marathon chance and cooldown once an assignment allows marathons", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    {
+      ...favoritesAssignment("chronological"),
+      marathonStretch: { kind: "programs", count: 6 },
+    },
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/programming-settings", {
+    marathonChancePercent: 0,
+    marathonMinOrdinaryRounds: 2,
+  });
+  api.reply("/channels/one/schedule", { scheduleRevision: 11, entries: [] });
+  api.reply(
+    "/channels/one/programming-settings",
+    { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
+    "PUT",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const marathons = await screen.findByRole("group", { name: "Marathons" });
+
+  fireEvent.click(
+    within(marathons).getByRole("button", {
+      name: "Use the suggested 10% and two rounds",
+    }),
+  );
+  fireEvent.click(
+    within(marathons).getByRole("button", { name: "Save marathon settings" }),
+  );
+
+  await screen.findByText(/revision 11/);
+  expect(
+    api.requests.find((request) => request.method === "PUT")?.body,
+  ).toEqual({ marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 });
 });

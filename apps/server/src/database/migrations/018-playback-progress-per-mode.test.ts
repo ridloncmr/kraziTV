@@ -67,11 +67,13 @@ function firstPick(progress: PlaybackProgress): string | undefined {
     channelSeed: 1,
     programmingSeed: 1,
     rebuildCount: 0,
+    marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments: [
       {
         id: "assignment",
         playbackMode: "chronological",
         ordinary: { kind: "programs", count: 1 },
+        marathon: null,
         members: [
           {
             kind: "collection",

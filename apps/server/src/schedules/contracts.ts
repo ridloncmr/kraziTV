@@ -21,6 +21,7 @@ export type ScheduleChangeReason =
   | "assignment_changed"
   | "assignment_deleted"
   | "assignments_reordered"
+  | "marathon_settings_changed"
   | "membership_changed"
   | "media_removed"
   | "collection_maintained"

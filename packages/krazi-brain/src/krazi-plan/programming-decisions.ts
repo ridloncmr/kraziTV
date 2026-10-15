@@ -15,7 +15,8 @@ export interface DecisionSeed {
  * one kind of decision never advances another. Collection playback
  * randomness has its own seed and is never one of these.
  */
-type DecisionStream = "shuffle" | "size";
+type DecisionStream =
+  "shuffle" | "size" | "marathon_chance" | "marathon_source" | "marathon_size";
 
 /**
  * Returns one reproducible unsigned 32-bit draw for a decision, keyed by its

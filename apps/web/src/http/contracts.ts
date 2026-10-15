@@ -214,7 +214,14 @@ export interface AssignmentSettings {
   /** Required with a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
   ordinaryStretch: StretchSetting;
+  /** A longer turn in the same unit, or null while marathons are off. */
+  marathonStretch: StretchSetting | null;
   members: AssignmentMember[];
+}
+/** A channel's marathon controls, shared by all its assignments. */
+export interface MarathonSettings {
+  marathonChancePercent: number;
+  marathonMinOrdinaryRounds: number;
 }
 export interface SourceAssignment extends AssignmentSettings {
   id: string;

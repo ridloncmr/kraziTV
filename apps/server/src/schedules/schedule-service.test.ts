@@ -29,8 +29,8 @@ import {
 } from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
 import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
-import { assignmentChange } from "../programming-assignments/assignment-change.js";
-import { AssignmentRepository } from "../programming-assignments/assignment-repository.js";
+import { assignmentChange } from "../programming-assignments/writes/assignment-change.js";
+import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
 import type {
   AssignmentSettings,
   MemberSource,
@@ -828,6 +828,7 @@ describe("ScheduleService.applyInputChange", () => {
         {
           playbackMode: "chronological",
           ordinaryStretch: { kind: "programs", count: 3 },
+          marathonStretch: null,
           members: [{ kind: "collection", mediaCollectionId: collectionId }],
         },
         effectiveNow,
@@ -1057,6 +1058,7 @@ describe("ScheduleService regeneration", () => {
     return {
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
+      marathonStretch: null,
       members: [{ kind: "collection", mediaCollectionId }],
     };
   }
@@ -1066,6 +1068,7 @@ describe("ScheduleService regeneration", () => {
     return {
       playbackMode: null,
       ordinaryStretch: { kind: "programs", count: 1 },
+      marathonStretch: null,
       members: [member],
     } satisfies AssignmentSettings;
   }

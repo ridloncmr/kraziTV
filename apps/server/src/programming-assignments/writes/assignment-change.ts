@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { ScheduleInputChange } from "../schedules/contracts.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { ScheduleInputChange } from "../../schedules/contracts.js";
 
 /**
  * Wraps an assignment write as a schedule input change that affects the channel

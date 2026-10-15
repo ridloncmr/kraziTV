@@ -9,6 +9,7 @@ import type {
 import { useMutation, useResource } from "../http/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "./assignment-form.js";
+import { MarathonSettingsForm } from "./marathon-settings-form.js";
 
 /**
  * Lists the channel's programming source assignments in saved order, which
@@ -126,6 +127,16 @@ export function ProgrammingEditor({
             Add an assignment
           </button>
         )
+      )}
+      {listed.length > 0 && (
+        <MarathonSettingsForm
+          path={`${resourcePath("channels", channelId)}/programming-settings`}
+          visible={visible}
+          marathonsAllowed={listed.some(
+            (assignment) => assignment.marathonStretch !== null,
+          )}
+          changed={changed}
+        />
       )}
       {showSchedule && (
         <>

@@ -7,26 +7,26 @@ import {
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
-import type { ChannelRepository } from "../channels/repository/channel-repository.js";
+import type { ChannelRepository } from "../../channels/repository/channel-repository.js";
 import {
   sendApiError,
   sendChannelNotFound,
   sendInvalidRequest,
   sendUnknownMediaItems,
-} from "../http/api-error.js";
-import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams } from "../http/request-schemas.js";
-import type { ScheduleEntry } from "../schedules/contracts.js";
-import type { ScheduleService } from "../schedules/schedule-service.js";
-import { assignmentChange } from "./assignment-change.js";
-import type { AssignmentRepository } from "./assignment-repository.js";
+} from "../../http/api-error.js";
+import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { idParams } from "../../http/request-schemas.js";
+import type { ScheduleEntry } from "../../schedules/contracts.js";
+import type { ScheduleService } from "../../schedules/schedule-service.js";
+import { assignmentChange } from "../writes/assignment-change.js";
+import type { AssignmentRepository } from "../persistence/assignment-repository.js";
 import type {
   CreateAssignmentResult,
   MemberAssignedResult,
   SourceAssignment,
   UnknownMemberResult,
-} from "./contracts.js";
-import { resetCollectionProgress } from "./progress-reset.js";
+} from "../contracts.js";
+import { resetCollectionProgress } from "../writes/progress-reset.js";
 
 // Strict members reject a doubled source and unknown fields.
 const member = z.discriminatedUnion("kind", [
@@ -38,21 +38,15 @@ const member = z.discriminatedUnion("kind", [
 ]);
 
 // The three stretch shapes; kraziBrain's rule decides which values are valid.
-const stretch = z
-  .discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("programs"), count: z.number() }),
-    z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
-    z.strictObject({
-      kind: z.literal("airtime_range"),
-      minMinutes: z.number(),
-      maxMinutes: z.number(),
-    }),
-  ])
-  .superRefine((value, context) => {
-    const problem = findStretchProblem(value);
-    if (problem !== null)
-      context.addIssue({ code: "custom", message: problem });
-  });
+const stretch = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("programs"), count: z.number() }),
+  z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
+  z.strictObject({
+    kind: z.literal("airtime_range"),
+    minMinutes: z.number(),
+    maxMinutes: z.number(),
+  }),
+]);
 
 // Create and PATCH share one body: PATCH replaces the whole assignment,
 // members in saved order. A collection needs a playback mode; single items
@@ -61,6 +55,8 @@ const settingsBody = z
   .strictObject({
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
     ordinaryStretch: stretch,
+    // Omitted means marathons are disabled for the assignment.
+    marathonStretch: stretch.nullable().default(null),
     members: z
       .array(member)
       .min(1)
@@ -70,6 +66,15 @@ const settingsBody = z
           members.length,
         { message: "members must not repeat a collection or item" },
       ),
+  })
+  .superRefine((body, context) => {
+    const problem = findStretchProblem(
+      body.ordinaryStretch,
+      body.marathonStretch,
+    );
+    if (problem !== null) {
+      context.addIssue({ code: "custom", message: problem });
+    }
   })
   .refine(
     (body) =>
@@ -425,6 +430,7 @@ function toApiAssignment(assignment: SourceAssignment) {
     channelId: assignment.channelId,
     playbackMode: assignment.playbackMode,
     ordinaryStretch: assignment.ordinaryStretch,
+    marathonStretch: assignment.marathonStretch,
     members: assignment.members,
     createdAt: toApiTimestamp(assignment.createdAt),
     updatedAt: toApiTimestamp(assignment.updatedAt),

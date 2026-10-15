@@ -9,6 +9,7 @@ export function collectionAssignment(
   return {
     playbackMode,
     ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: null,
     members: [{ kind: "collection", mediaCollectionId }],
   };
 }
@@ -18,6 +19,7 @@ export function itemAssignment(mediaItemId: string) {
   return {
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
+    marathonStretch: null,
     members: [{ kind: "media_item", mediaItemId }],
   };
 }

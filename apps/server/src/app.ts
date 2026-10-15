@@ -43,8 +43,9 @@ import {
   stopChannelUnderLock,
 } from "./channels/runtime/settle-runtime-stop.js";
 import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
-import type { AssignmentRepository } from "./programming-assignments/assignment-repository.js";
-import { registerAssignmentRoutes } from "./programming-assignments/assignment-routes.js";
+import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
+import { registerAssignmentRoutes } from "./programming-assignments/routes/assignment-routes.js";
+import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -189,6 +190,12 @@ function registerRoutes(
   );
   registerChannelStreamRoutes(server, dependencies.channelStreams);
   registerAssignmentRoutes(
+    server,
+    dependencies.assignments,
+    dependencies.channels,
+    dependencies.schedules,
+  );
+  registerMarathonSettingsRoutes(
     server,
     dependencies.assignments,
     dependencies.channels,
