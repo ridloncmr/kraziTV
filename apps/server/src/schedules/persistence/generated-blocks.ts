@@ -4,6 +4,7 @@ import type {
   LatestTurn,
   RotationCheckpoint,
 } from "@krazitv/krazi-brain";
+import { findRegenerationBoundary } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
 import {
@@ -12,6 +13,7 @@ import {
 } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ProgrammingBlockTable } from "../../database/schema/programming-block-table.js";
+import { findEntryAiringAt } from "./schedule-repository.js";
 
 // Every function here takes the caller's executor: blocks are written only
 // inside the schedule transaction that writes their entries.
@@ -61,6 +63,32 @@ export async function loadLatestTurn(
   };
 }
 
+/**
+ * Ends an assignment's started turn after the airing program, for a mode or
+ * stretch edit: flags the latest block kept at the regeneration boundary
+ * the edit's own transaction will regenerate from, if that block is the
+ * assignment's, so generation moves on instead of continuing it. Its
+ * rotation, and a marathon's cooldown reset, stand as served.
+ */
+export async function endStartedTurn(
+  trx: Executor,
+  channelId: string,
+  assignmentId: string,
+  effectiveNow: number,
+): Promise<void> {
+  const boundary = findRegenerationBoundary(
+    await findEntryAiringAt(trx, channelId, effectiveNow),
+    effectiveNow,
+  );
+  const latest = await loadLatestTurn(trx, channelId, boundary);
+  if (latest?.block.assignmentId !== assignmentId) return;
+  await trx
+    .updateTable("programming_blocks")
+    .set({ ended_by_edit: toSqliteBoolean(true) })
+    .where("id", "=", latest.block.id)
+    .execute();
+}
+
 /** Inserts the blocks one chunk generated, before the entries that reference them. */
 export async function insertBlocks(
   trx: Executor,
@@ -83,6 +111,7 @@ export async function insertBlocks(
         resolved_kind: block.size?.kind ?? null,
         resolved_value: block.size?.value ?? null,
         marathon: toSqliteBoolean(block.marathon),
+        ended_by_edit: toSqliteBoolean(block.endedByEdit),
         checkpoint: JSON.stringify(block.checkpoint),
         created_at: now,
         updated_at: now,
@@ -157,6 +186,7 @@ function toGeneratedBlock(
         ? null
         : { kind: row.resolved_kind, value: row.resolved_value },
     marathon: fromSqliteBoolean(row.marathon),
+    endedByEdit: fromSqliteBoolean(row.ended_by_edit),
     checkpoint: JSON.parse(row.checkpoint) as RotationCheckpoint,
   };
 }

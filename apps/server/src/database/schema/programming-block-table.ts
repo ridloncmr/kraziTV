@@ -26,6 +26,8 @@ export interface ProgrammingBlockTable {
   /** A program count, or airtime in integer minutes. */
   resolved_value: number | null;
   marathon: SqliteBoolean;
+  /** Set when a mode or stretch edit ended the turn; generation never continues it. */
+  ended_by_edit: SqliteBoolean;
   /** JSON rotation checkpoint from before this turn. */
   checkpoint: string;
   created_at: number;

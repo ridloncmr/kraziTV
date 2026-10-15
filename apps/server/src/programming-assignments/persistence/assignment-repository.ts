@@ -16,6 +16,7 @@ import {
   toMemberSource,
   writeMembers,
 } from "./assignment-members.js";
+import { endStartedTurn } from "../../schedules/persistence/generated-blocks.js";
 import {
   loadMarathonSettings,
   toAssignmentStretches,
@@ -252,9 +253,17 @@ export class AssignmentRepository {
       ));
     if (refused !== undefined) return refused;
 
+    // A mode or stretch change ends the started turn after the airing
+    // program; member edits keep it (programming spec 0004).
+    const columns = toSettingsColumns(settings);
+    if (
+      JSON.stringify(columns) !== JSON.stringify(toSettingsColumns(current))
+    ) {
+      await endStartedTurn(trx, channelId, assignmentId, now);
+    }
     const row = await trx
       .updateTable("programming_source_assignments")
-      .set({ ...toSettingsColumns(settings), updated_at: now })
+      .set({ ...columns, updated_at: now })
       .where("id", "=", assignmentId)
       .returningAll()
       .executeTakeFirstOrThrow();

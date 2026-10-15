@@ -23,6 +23,7 @@ import {
   openTestDatabase,
 } from "../../testing/test-environment.js";
 import { sourceAssignmentsMigration } from "./021-source-assignments.js";
+import { turnsEndedByEditsMigration } from "./022-turns-ended-by-edits.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -220,6 +221,8 @@ describe("021_source_assignments", () => {
   it("keeps each loop's next pick, and keeps the single item looping", async () => {
     const db = await legacyLoops();
     await sourceAssignmentsMigration.up(db as Kysely<unknown>);
+    // Generating needs every later migration too.
+    await turnsEndedByEditsMigration.up(db as Kysely<unknown>);
     const schedules = new ScheduleService(db, {
       now: () => FIXTURE_TIME,
       createId: sequentialIds("next"),

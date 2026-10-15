@@ -134,6 +134,7 @@ export const programmingBlockFixture: Insertable<ProgrammingBlockTable> = {
   resolved_kind: "programs",
   resolved_value: 3,
   marathon: 0,
+  ended_by_edit: 0,
   checkpoint: JSON.stringify({
     roundNumber: 1,
     pending: [assignmentFixture.id],

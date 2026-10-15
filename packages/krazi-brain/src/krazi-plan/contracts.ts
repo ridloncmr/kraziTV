@@ -100,6 +100,8 @@ export interface GeneratedBlock {
   /** Null for a single-item turn, which is one airing. */
   size: ResolvedSize | null;
   marathon: boolean;
+  /** A mode or stretch edit ended the turn; generation never continues it. */
+  endedByEdit: boolean;
   checkpoint: RotationCheckpoint;
 }
 

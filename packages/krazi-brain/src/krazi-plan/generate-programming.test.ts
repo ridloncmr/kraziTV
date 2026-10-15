@@ -127,6 +127,7 @@ describe("generateProgramming: one assignment", () => {
       startsAt: STARTS_AT,
       size: { kind: "programs", value: 3 },
       marathon: false,
+      endedByEdit: false,
       checkpoint: {
         roundNumber: 1,
         pending: ["office"],
@@ -282,5 +283,35 @@ describe("generateProgramming: unschedulable channels", () => {
       kind: "unschedulable",
       reason: "no_schedulable_media",
     });
+  });
+});
+
+describe("generateProgramming: turns ended by an edit", () => {
+  it("never continues a turn an edit ended, and moves on to the next turn", () => {
+    const assignment = collectionAssignment("office", "c-office", EPISODES);
+    const first = generated(
+      generateProgramming(options([assignment], { maxEntries: 1 })),
+    );
+    const turn = latestTurn(first);
+    if (turn === undefined) throw new Error("expected a turn");
+
+    const next = generated(
+      generateProgramming(
+        options([assignment], {
+          startsAt: first.generatedThrough,
+          nextSequenceNumber: first.nextSequenceNumber,
+          latestTurn: { ...turn, block: { ...turn.block, endedByEdit: true } },
+          progress: first.progress,
+          maxEntries: 1,
+          createBlockId: () => "block-2",
+        }),
+      ),
+    );
+
+    expect(next.entries[0]).toMatchObject({
+      mediaItemId: "e2",
+      programmingBlockId: "block-2",
+    });
+    expect(next.blocks[0]?.roundNumber).toBe(2);
   });
 });

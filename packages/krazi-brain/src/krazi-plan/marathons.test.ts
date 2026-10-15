@@ -94,6 +94,7 @@ const RESERVED_TURN = {
     startsAt: STARTS_AT,
     size: { kind: "programs" as const, value: 2 },
     marathon: false,
+    endedByEdit: false,
     checkpoint: {
       roundNumber: 3,
       pending: ["parks", "office"],
@@ -474,4 +475,46 @@ describe("generateProgramming: the turn-start cooldown recheck", () => {
       expect(blocks[0]).toMatchObject({ assignmentId: "office", marathon });
     },
   );
+});
+
+describe("generateProgramming: a marathon an edit ended", () => {
+  it("still resets cooldown, so the next marathon waits its rounds", () => {
+    const latestTurn = {
+      ...RESERVED_TURN,
+      block: {
+        ...RESERVED_TURN.block,
+        id: "office-marathon",
+        assignmentId: "office",
+        source: {
+          kind: "collection" as const,
+          mediaCollectionId: "c-office",
+          playbackMode: "chronological" as const,
+        },
+        size: { kind: "programs" as const, value: 6 },
+        marathon: true,
+        endedByEdit: true,
+        checkpoint: {
+          ...RESERVED_TURN.block.checkpoint,
+          pending: ["office", "parks"],
+          ordinaryRoundsSinceMarathon: 5,
+        },
+      },
+      airedPrograms: 1,
+      airedMs: 22 * 60_000,
+    };
+
+    const { blocks } = generated(
+      generateProgramming(
+        options(
+          [OFFICE, PARKS],
+          { chancePercent: 100, minOrdinaryRounds: 2 },
+          { latestTurn },
+        ),
+      ),
+    );
+
+    // Round 3 started the marathon; rounds 4 and 5 count; round 6 may hold one.
+    expect(blocks[0]).toMatchObject({ assignmentId: "parks", roundNumber: 3 });
+    expect(blocks.find((block) => block.marathon)?.roundNumber).toBe(6);
+  });
 });

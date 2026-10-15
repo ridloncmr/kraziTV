@@ -138,6 +138,7 @@ export function generateProgramming(
           },
         ),
         marathon: turn.marathon,
+        endedByEdit: false,
         checkpoint: turn.checkpoint,
       };
       blocks.push(block);
@@ -197,8 +198,8 @@ export function generateProgramming(
 }
 
 /**
- * Returns the latest turn to continue, or undefined when it is over: its
- * size is met, or its assignment, its member, or the member's mode no longer
+ * Returns the latest turn to continue, or undefined when it is over: an
+ * edit ended it, its size is met, or its assignment, its member, or the member's mode no longer
  * stands as it did, or its member has nothing left to air.
  */
 function resumeTurn(
@@ -207,7 +208,9 @@ function resumeTurn(
 ): OpenTurn | undefined {
   const { block } = latest;
   const assignment = assignments.find(({ id }) => id === block.assignmentId);
-  if (assignment === undefined || block.source === null) return undefined;
+  if (block.endedByEdit || assignment === undefined || block.source === null) {
+    return undefined;
+  }
   const member = findBlockMember(assignment, block.source);
   const source =
     member === undefined
