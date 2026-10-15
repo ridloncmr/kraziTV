@@ -68,7 +68,11 @@ export function MarathonSettingsForm({
             min={0}
             max={100}
             step={1}
-            value={draft.marathonChancePercent}
+            value={
+              Number.isNaN(draft.marathonChancePercent)
+                ? ""
+                : draft.marathonChancePercent
+            }
             onChange={(event) =>
               setDraft({
                 ...draft,
@@ -84,7 +88,11 @@ export function MarathonSettingsForm({
             required
             min={0}
             step={1}
-            value={draft.marathonMinOrdinaryRounds}
+            value={
+              Number.isNaN(draft.marathonMinOrdinaryRounds)
+                ? ""
+                : draft.marathonMinOrdinaryRounds
+            }
             onChange={(event) =>
               setDraft({
                 ...draft,

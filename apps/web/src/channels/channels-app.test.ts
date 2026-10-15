@@ -862,3 +862,31 @@ it("offers the suggested marathon chance and cooldown once an assignment allows 
     api.requests.find((request) => request.method === "PUT")?.body,
   ).toEqual({ marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 });
 });
+
+it("keeps an allowed marathon longer than a turn length suggested afterwards", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", []);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/programming-assignments/stretch-suggestion", {
+    ordinaryStretch: { kind: "programs", count: 3 },
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const form = await screen.findByRole("group", { name: "New assignment" });
+
+  fireEvent.click(within(form).getByLabelText("Allow marathons"));
+  fireEvent.change(within(form).getByLabelText("Programming source"), {
+    target: { value: "favorites" },
+  });
+
+  await waitFor(() =>
+    expect(
+      within(form).getByLabelText<HTMLInputElement>(
+        "Marathon programs per turn",
+      ).value,
+    ).toBe("6"),
+  );
+  expect(
+    within(form).getByLabelText<HTMLInputElement>("Programs per turn").value,
+  ).toBe("3");
+});

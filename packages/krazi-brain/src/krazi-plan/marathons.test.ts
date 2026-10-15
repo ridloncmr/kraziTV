@@ -78,6 +78,38 @@ function marathonRounds(blocks: readonly GeneratedBlock[]): number[] {
     .map((block) => block.roundNumber);
 }
 
+// Parks' finished turn opened round 3; Office holds the round's
+// opportunity, one ordinary round after the last marathon.
+const RESERVED_TURN = {
+  block: {
+    id: "parks-turn",
+    assignmentId: "parks",
+    source: {
+      kind: "collection" as const,
+      mediaCollectionId: "c-parks",
+      playbackMode: "chronological" as const,
+    },
+    roundNumber: 3,
+    turnIndex: 0,
+    startsAt: STARTS_AT,
+    size: { kind: "programs" as const, value: 2 },
+    marathon: false,
+    checkpoint: {
+      roundNumber: 3,
+      pending: ["parks", "office"],
+      served: [],
+      skipped: [],
+      lastAiredAssignmentId: "office",
+      nextMemberPositions: {},
+      marathonOpportunity: { assignmentId: "office", started: false },
+      roundCommittedProgram: false,
+      ordinaryRoundsSinceMarathon: 1,
+    },
+  },
+  airedPrograms: 2,
+  airedMs: 44 * 60_000,
+};
+
 describe("generateProgramming: generated marathons", () => {
   it("starts at most one marathon a round, extending that source's turn", () => {
     const { blocks, entries } = generated(
@@ -179,29 +211,143 @@ describe("generateProgramming: generated marathons", () => {
       ],
     };
 
+    // Parks allows marathons too, so a reroll would have somewhere to go.
     const { blocks } = generated(
       generateProgramming(
-        options([holiday, PARKS], { chancePercent: 100, minOrdinaryRounds: 0 }),
+        options(
+          [holiday, source("parks", true)],
+          { chancePercent: 100, minOrdinaryRounds: 0 },
+          { through: STARTS_AT + 7 * DAY_MS },
+        ),
       ),
     );
 
-    const officeTurns = blocks.filter(
-      (block) => block.assignmentId === "office",
+    const lost = blocks.filter(
+      (block) =>
+        block.source?.kind === "media_item" &&
+        block.checkpoint.marathonOpportunity?.assignmentId === "office",
     );
-    // Round one's turn goes to the special and stays ordinary; no other
-    // source takes the round's lost opportunity.
-    expect(officeTurns[0]).toMatchObject({
-      source: { kind: "media_item" },
-      marathon: false,
-      size: null,
-    });
+    expect(lost.length).toBeGreaterThan(0);
+    for (const turn of lost) {
+      expect(turn).toMatchObject({ marathon: false, size: null });
+      expect(
+        blocks.some(
+          (block) => block.roundNumber === turn.roundNumber && block.marathon,
+        ),
+      ).toBe(false);
+    }
     expect(
-      blocks.filter((b) => b.roundNumber === 1).some((b) => b.marathon),
-    ).toBe(false);
-    expect(officeTurns[1]).toMatchObject({
-      source: { kind: "collection", mediaCollectionId: "c-office" },
-      marathon: true,
+      blocks.some(
+        (block) =>
+          block.assignmentId === "office" &&
+          block.source?.kind === "collection" &&
+          block.marathon,
+      ),
+    ).toBe(true);
+  });
+
+  it("never gives an opportunity to an assignment of single items only", () => {
+    const specials: ProgrammingAssignment = {
+      id: "specials",
+      playbackMode: null,
+      ordinary: { kind: "programs", count: 1 },
+      marathon: { kind: "programs", count: 3 },
+      members: [
+        {
+          kind: "media_item",
+          media: scheduleMedia("special", { durationMs: 30 * 60_000 }),
+        },
+      ],
+    };
+
+    const { blocks } = generated(
+      generateProgramming(
+        options([OFFICE, specials], {
+          chancePercent: 100,
+          minOrdinaryRounds: 0,
+        }),
+      ),
+    );
+
+    for (const block of blocks) {
+      expect(block.checkpoint.marathonOpportunity?.assignmentId).not.toBe(
+        "specials",
+      );
+    }
+    expect(marathonRounds(blocks).slice(0, 3)).toEqual([1, 2, 3]);
+  });
+
+  it("counts a marathon cut short by its assignment's removal toward cooldown", () => {
+    const first = generated(
+      generateProgramming(
+        options([OFFICE, source("parks", true), SCRUBS], {
+          chancePercent: 100,
+          minOrdinaryRounds: 2,
+        }),
+      ),
+    );
+    const marathon = first.blocks.find((block) => block.marathon);
+    if (marathon === undefined) throw new Error("expected a marathon");
+    const remaining = [OFFICE, source("parks", true), SCRUBS].filter(
+      ({ id }) => id !== marathon.assignmentId,
+    );
+
+    // Its first program aired; then its assignment was deleted.
+    const later = generated(
+      generateProgramming(
+        options(
+          remaining,
+          { chancePercent: 100, minOrdinaryRounds: 2 },
+          {
+            latestTurn: {
+              block: marathon,
+              airedPrograms: 1,
+              airedMs: 22 * 60_000,
+            },
+            createBlockId: sequentialBlockIds("later"),
+          },
+        ),
+      ),
+    );
+
+    expect(later.blocks.find((block) => block.marathon)?.roundNumber).toBe(
+      marathon.roundNumber + 3,
+    );
+  });
+
+  it("loses an opportunity whose source becomes unusable before its turn", () => {
+    const emptied = collectionAssignment("office", "c-office", [], {
+      ordinary: { kind: "programs", count: 2 },
+      marathon: { kind: "programs", count: 6 },
     });
+
+    const { blocks } = generated(
+      generateProgramming(
+        options(
+          [emptied, source("parks", true), SCRUBS],
+          { chancePercent: 100, minOrdinaryRounds: 0 },
+          {
+            latestTurn: {
+              ...RESERVED_TURN,
+              block: {
+                ...RESERVED_TURN.block,
+                checkpoint: {
+                  ...RESERVED_TURN.block.checkpoint,
+                  pending: ["parks", "office", "scrubs"],
+                },
+              },
+            },
+            maxEntries: 4,
+          },
+        ),
+      ),
+    );
+
+    // Office is skipped; Scrubs takes round 3's last turn as an ordinary one.
+    const round3 = blocks.filter((block) => block.roundNumber === 3);
+    expect(round3.map((block) => [block.assignmentId, block.marathon])).toEqual(
+      [["scrubs", false]],
+    );
   });
 
   it("extends only the current member's collection on a multi-member assignment", () => {
@@ -307,37 +453,7 @@ describe("findStretchProblem: marathon settings", () => {
 });
 
 describe("generateProgramming: the turn-start cooldown recheck", () => {
-  // Parks' finished turn opened round 3; Office holds the round's
-  // opportunity, one ordinary round after the last marathon.
-  const latestTurn = {
-    block: {
-      id: "parks-turn",
-      assignmentId: "parks",
-      source: {
-        kind: "collection" as const,
-        mediaCollectionId: "c-parks",
-        playbackMode: "chronological" as const,
-      },
-      roundNumber: 3,
-      turnIndex: 0,
-      startsAt: STARTS_AT,
-      size: { kind: "programs" as const, value: 2 },
-      marathon: false,
-      checkpoint: {
-        roundNumber: 3,
-        pending: ["parks", "office"],
-        served: [],
-        skipped: [],
-        lastAiredAssignmentId: "office",
-        nextMemberPositions: {},
-        marathonOpportunity: { assignmentId: "office", started: false },
-        roundCommittedProgram: false,
-        ordinaryRoundsSinceMarathon: 1,
-      },
-    },
-    airedPrograms: 2,
-    airedMs: 44 * 60_000,
-  };
+  const latestTurn = RESERVED_TURN;
 
   it.each([
     [1, true],

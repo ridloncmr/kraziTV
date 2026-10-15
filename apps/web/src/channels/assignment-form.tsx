@@ -119,8 +119,12 @@ export function AssignmentForm({
   const suggested = suggestion.data?.ordinaryStretch;
   useEffect(() => {
     if (suggested !== undefined && !stretchSet) {
-      setStretch(
-        suggested === null ? UNCHOSEN_STRETCH : toStretchDraft(suggested),
+      const next =
+        suggested === null ? UNCHOSEN_STRETCH : toStretchDraft(suggested);
+      setStretch(next);
+      // A marathon allowed already follows, so it stays longer than the turn.
+      setMarathon((current) =>
+        current === null ? null : suggestMarathon(next),
       );
     }
   }, [suggested, stretchSet]);

@@ -37,9 +37,10 @@ export function closeRound(state: RotationCheckpoint): number | null {
 
 /**
  * Draws a new round's marathon opportunity: when cooldown permits and some
- * usable assignment has a marathon setting, one seeded chance decision for
- * the round, then one uniform pick among those assignments in saved order.
- * No roll per source and no reroll later, so the round holds at most one.
+ * usable assignment with a collection has a marathon setting, one seeded
+ * chance decision for the round, then one uniform pick among those
+ * assignments in saved order. No roll per source and no reroll later, so
+ * the round holds at most one.
  */
 export function drawOpportunity(
   round: RotationCheckpoint,
@@ -47,7 +48,12 @@ export function drawOpportunity(
   marathons: MarathonSettings,
   seed: DecisionSeed,
 ): RotationCheckpoint["marathonOpportunity"] {
-  const enabled = usable.filter((assignment) => assignment.marathon !== null);
+  // A marathon extends a collection, so single items alone can never use one.
+  const enabled = usable.filter(
+    (assignment) =>
+      assignment.marathon !== null &&
+      assignment.members.some((member) => member.kind === "collection"),
+  );
   if (enabled.length === 0 || !cooldownPermits(round, marathons)) return null;
   const roll = drawInRange(
     seed,
