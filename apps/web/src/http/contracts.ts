@@ -204,11 +204,16 @@ export type PlaybackMode = "chronological" | "episode" | "release" | "random";
 export type AssignmentMember =
   | { kind: "collection"; mediaCollectionId: string }
   | { kind: "media_item"; mediaItemId: string };
+/** How long one of an assignment's turns runs; airtime in whole minutes. */
+export type StretchSetting =
+  | { kind: "programs"; count: number }
+  | { kind: "airtime"; minutes: number }
+  | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 /** What the owner saves for one programming source assignment. */
 export interface AssignmentSettings {
   /** Required with a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
-  ordinaryStretch: { kind: "programs"; count: number };
+  ordinaryStretch: StretchSetting;
   members: AssignmentMember[];
 }
 export interface SourceAssignment extends AssignmentSettings {

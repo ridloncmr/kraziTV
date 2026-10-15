@@ -6,12 +6,14 @@ import type {
 
 /**
  * How long one turn of an assignment runs (programming spec 0004): a fixed
- * number of whole programs. Airtime settings arrive with KPL-004.
+ * number of whole programs, an airtime target, or an airtime range a turn
+ * picks its target from. Airtime is in integer minutes; a turn always airs
+ * whole programs, so it may run past its target.
  */
-export interface StretchSetting {
-  kind: "programs";
-  count: number;
-}
+export type StretchSetting =
+  | { kind: "programs"; count: number }
+  | { kind: "airtime"; minutes: number }
+  | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 
 /** One member of an assignment, with its media resolved from the catalog. */
 export type AssignmentMember =

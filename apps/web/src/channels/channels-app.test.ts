@@ -579,6 +579,9 @@ it("adds a second assignment after the first, in its own empty form", async () =
     collectionWith("other", "Other"),
   ]);
   api.reply("/channels/one/schedule", { scheduleRevision: 6, entries: [] });
+  api.reply("/programming-assignments/stretch-suggestion", {
+    ordinaryStretch: { kind: "programs", count: 3 },
+  });
   api.handle(
     "/channels/one/programming-assignments",
     () => {
@@ -604,6 +607,12 @@ it("adds a second assignment after the first, in its own empty form", async () =
   fireEvent.change(within(added).getByLabelText("Programming source"), {
     target: { value: "other" },
   });
+  // The server suggests three programs a turn for this collection.
+  await waitFor(() =>
+    expect(
+      within(added).getByLabelText<HTMLInputElement>("Programs per turn").value,
+    ).toBe("3"),
+  );
   fireEvent.change(within(added).getByLabelText("Playback mode"), {
     target: { value: "random" },
   });
@@ -711,5 +720,58 @@ it("adds, reorders, and saves an assignment's members", async () => {
       { kind: "collection", mediaCollectionId: "other" },
       { kind: "collection", mediaCollectionId: "favorites" },
     ],
+  });
+});
+
+it("asks for a turn length when the server has no suggestion, then saves an airtime range", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", []);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 9, entries: [] });
+  api.reply("/programming-assignments/stretch-suggestion", {
+    ordinaryStretch: null,
+  });
+  api.reply("/channels/one/programming-assignments", {}, "POST", 201);
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  const form = await screen.findByRole("group", { name: "New assignment" });
+
+  fireEvent.change(within(form).getByLabelText("Programming source"), {
+    target: { value: "favorites" },
+  });
+
+  await within(form).findByText(/Choose how long each turn runs/);
+  expect(
+    api
+      .requestsTo("/programming-assignments/stretch-suggestion")
+      .map((request) => request.query.get("mediaCollectionIds")),
+  ).toContain("favorites");
+  const save = within(form).getByRole<HTMLButtonElement>("button", {
+    name: "Save programming",
+  });
+  expect(
+    within(form).getByLabelText<HTMLInputElement>("Programs per turn").value,
+  ).toBe("");
+  fireEvent.change(within(form).getByLabelText("Turn length"), {
+    target: { value: "airtime_range" },
+  });
+  expect(within(form).getByText(/runs over/).textContent).toMatch(
+    /picks one target/,
+  );
+  fireEvent.change(within(form).getByLabelText("At least minutes"), {
+    target: { value: "60" },
+  });
+  fireEvent.change(within(form).getByLabelText("At most minutes"), {
+    target: { value: "120" },
+  });
+  fireEvent.click(save);
+
+  await screen.findByText(/revision 9/);
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({
+    playbackMode: "chronological",
+    ordinaryStretch: { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
+    members: [{ kind: "collection", mediaCollectionId: "favorites" }],
   });
 });

@@ -1,5 +1,6 @@
 import {
   describeOrderedView,
+  findStretchProblem,
   type OrderedMember,
   PLAYBACK_MODES,
 } from "@krazitv/krazi-brain";
@@ -36,7 +37,22 @@ const member = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("media_item"), mediaItemId: z.string() }),
 ]);
 
-const programCount = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+// The three stretch shapes; kraziBrain's rule decides which values are valid.
+const stretch = z
+  .discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("programs"), count: z.number() }),
+    z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
+    z.strictObject({
+      kind: z.literal("airtime_range"),
+      minMinutes: z.number(),
+      maxMinutes: z.number(),
+    }),
+  ])
+  .superRefine((value, context) => {
+    const problem = findStretchProblem(value);
+    if (problem !== null)
+      context.addIssue({ code: "custom", message: problem });
+  });
 
 // Create and PATCH share one body: PATCH replaces the whole assignment,
 // members in saved order. A collection needs a playback mode; single items
@@ -44,10 +60,7 @@ const programCount = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const settingsBody = z
   .strictObject({
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
-    ordinaryStretch: z.strictObject({
-      kind: z.literal("programs"),
-      count: programCount,
-    }),
+    ordinaryStretch: stretch,
     members: z
       .array(member)
       .min(1)
@@ -70,6 +83,18 @@ const settingsBody = z
   );
 
 const assignmentParams = z.object({ id: z.string(), assignmentId: z.string() });
+
+// Comma-separated ID lists, so the editor can refetch as members change.
+const idList = z
+  .string()
+  .optional()
+  .transform((value) => (value ? value.split(",") : []));
+const suggestionQuery = z
+  .strictObject({ mediaCollectionIds: idList, mediaItemIds: idList })
+  .refine(
+    (query) => query.mediaCollectionIds.length + query.mediaItemIds.length > 0,
+    { message: "name at least one collection or item" },
+  );
 
 // Names the assigned collection; omitting the mode previews the saved one.
 const previewQuery = z.strictObject({
@@ -98,6 +123,31 @@ export function registerAssignmentRoutes(
       }
       const listed = await assignments.listForChannel(id);
       return listed.map(toApiAssignment);
+    },
+  );
+
+  // Suggests a new assignment's ordinary stretch from its members' content
+  // types; the editor applies it as an editable default and asks when the
+  // answer is null. Reads only.
+  server.get(
+    "/programming-assignments/stretch-suggestion",
+    async (request, reply) => {
+      const query = suggestionQuery.safeParse(request.query);
+      if (!query.success) {
+        return sendInvalidRequest(reply, query.error);
+      }
+      return {
+        ordinaryStretch: await assignments.suggestStretch([
+          ...query.data.mediaCollectionIds.map((mediaCollectionId) => ({
+            kind: "collection" as const,
+            mediaCollectionId,
+          })),
+          ...query.data.mediaItemIds.map((mediaItemId) => ({
+            kind: "media_item" as const,
+            mediaItemId,
+          })),
+        ]),
+      };
     },
   );
 

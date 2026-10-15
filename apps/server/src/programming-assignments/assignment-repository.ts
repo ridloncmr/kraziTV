@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { isSchedulableMedia, type StretchSetting } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -8,7 +9,10 @@ import type { ProgrammingSourceAssignmentTable } from "../database/schema/progra
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { collectionExists } from "../media-collections/persistence/media-collection-repository.js";
 import { findUnknownMediaItemIds } from "../media-items/media-item-repository.js";
-import { toOrdinaryStretch } from "../schedules/persistence/assignment-sources.js";
+import {
+  toStretch,
+  toStretchColumns,
+} from "../schedules/persistence/assignment-sources.js";
 import type {
   AssignmentSettings,
   CreateAssignmentResult,
@@ -41,6 +45,69 @@ export class AssignmentRepository {
   ) {
     this.#db = db;
     this.#createId = options.createId ?? randomUUID;
+  }
+
+  /**
+   * Suggests an ordinary stretch for new members (programming spec 0004):
+   * one program when every schedulable member is a movie, three when every
+   * one is an episode, and null otherwise, including when nothing is
+   * schedulable, so the editor asks. An editable setup default, never a
+   * scheduling rule.
+   */
+  async suggestStretch(
+    members: readonly MemberSource[],
+  ): Promise<StretchSetting | null> {
+    const collectionIds = members.flatMap((member) =>
+      member.kind === "collection" ? [member.mediaCollectionId] : [],
+    );
+    const itemIds = members.flatMap((member) =>
+      member.kind === "media_item" ? [member.mediaItemId] : [],
+    );
+    const rows = await this.#db
+      .selectFrom("media_items")
+      .leftJoin(
+        "content_facts",
+        "content_facts.media_item_id",
+        "media_items.id",
+      )
+      .select([
+        "media_items.status",
+        "media_items.duration_ms",
+        "content_facts.content_type",
+      ])
+      // SQLite refuses an empty IN list, so each kind joins only when present.
+      .where((eb) =>
+        eb.or([
+          ...(itemIds.length > 0 ? [eb("media_items.id", "in", itemIds)] : []),
+          ...(collectionIds.length > 0
+            ? [
+                eb(
+                  "media_items.id",
+                  "in",
+                  eb
+                    .selectFrom("media_collection_items")
+                    .select("media_item_id")
+                    .where("media_collection_id", "in", collectionIds),
+                ),
+              ]
+            : []),
+        ]),
+      )
+      .execute();
+    const types = new Set(
+      rows
+        .filter((row) =>
+          isSchedulableMedia({
+            status: row.status,
+            durationMs: row.duration_ms,
+          }),
+        )
+        .map((row) => row.content_type ?? "unknown"),
+    );
+    if (types.size !== 1) return null;
+    if (types.has("movie")) return { kind: "programs", count: 1 };
+    if (types.has("episode")) return { kind: "programs", count: 3 };
+    return null;
   }
 
   /** Lists a channel's assignments in saved order; an unknown channel simply has none. */
@@ -269,7 +336,11 @@ async function readAssignment(
     id: row.id,
     channelId: row.channel_id,
     playbackMode: row.playback_mode,
-    ordinaryStretch: toOrdinaryStretch(row),
+    ordinaryStretch: toStretch({
+      kind: row.ordinary_kind,
+      min: row.ordinary_min,
+      max: row.ordinary_max,
+    }),
     members: members.map(toMemberSource),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -291,11 +362,12 @@ function toMemberSource(
 
 // Flattens the settings into the assignment's own columns.
 function toSettingsColumns(settings: AssignmentSettings) {
+  const ordinary = toStretchColumns(settings.ordinaryStretch);
   return {
     playback_mode: settings.playbackMode,
-    ordinary_kind: settings.ordinaryStretch.kind,
-    ordinary_min: settings.ordinaryStretch.count,
-    ordinary_max: null,
+    ordinary_kind: ordinary.kind,
+    ordinary_min: ordinary.min,
+    ordinary_max: ordinary.max,
   };
 }
 

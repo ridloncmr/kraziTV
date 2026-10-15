@@ -63,6 +63,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["packages/krazi-brain/src/krazi-plan/"],
+      "reason": "Every file serves one capability, kraziPlan turn generation: the composition loop, round rotation, seeded decisions, stretch resolution, and turn sizes, so the domain stays flat.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/server/src/database/migrations/"],
       "reason": "migrations/ is a kind folder holding one file per migration plus their runner; every file serves the migration history.",
       "source": "AGENTS.md (source layout reference tree for database/: \"migrations/ migrate-database.ts, 001-initial-catalog.ts, ...\")"

@@ -7,11 +7,19 @@ import type {
   MediaCollection,
   PlaybackMode,
   SourceAssignment,
+  StretchSetting,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { MediaItemPicker } from "../media-search/media-item-picker.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";
+import {
+  type StretchDraft,
+  StretchFields,
+  toStretchDraft,
+  toStretchSetting,
+  UNCHOSEN_STRETCH,
+} from "./stretch-fields.js";
 
 // Every playback mode the editor offers, with the one line that explains it.
 const PLAYBACK_MODE_CHOICES: readonly {
@@ -41,9 +49,6 @@ const PLAYBACK_MODE_CHOICES: readonly {
   },
 ];
 
-// The ordinary stretch a new collection assignment starts with.
-const DEFAULT_PROGRAM_COUNT = 3;
-
 /** One member row as the form edits it; an empty source is not chosen yet. */
 interface MemberDraft {
   kind: AssignmentMember["kind"];
@@ -55,10 +60,12 @@ const NEW_MEMBER: MemberDraft = { kind: "collection", sourceId: "" };
 /**
  * Edits one programming source assignment, or adds one when none is given:
  * members in saved order, each a collection or a single item, with the
- * playback mode and programs per turn its collections play by. Each turn
- * goes to the next member, and a single item airs once a turn. It previews
- * and restarts one saved collection at a time; `changed` runs after every
- * write the server accepted.
+ * playback mode and turn length its collections play by. Each turn goes to
+ * the next member, and a single item airs once a turn. A new assignment
+ * takes the server's suggested turn length until the owner sets one, and
+ * asks when there is no suggestion. It previews and restarts one saved
+ * collection at a time; `changed` runs after every write the server
+ * accepted.
  */
 export function AssignmentForm({
   assignmentsPath,
@@ -79,7 +86,9 @@ export function AssignmentForm({
   const hintId = useId();
   const [members, setMembers] = useState<MemberDraft[]>([NEW_MEMBER]);
   const [mode, setMode] = useState<PlaybackMode>("chronological");
-  const [count, setCount] = useState(DEFAULT_PROGRAM_COUNT);
+  const [stretch, setStretch] = useState<StretchDraft>(UNCHOSEN_STRETCH);
+  // Whether the owner set the turn length, so a suggestion never overrides it.
+  const [stretchSet, setStretchSet] = useState(false);
   const [previewed, setPreviewed] = useState("");
   const dirty = useRef(false);
   const assignmentPath = assignment
@@ -94,6 +103,24 @@ export function AssignmentForm({
     ? previewed
     : savedCollections[0];
   const hasCollection = members.some((member) => member.kind === "collection");
+  // A new assignment asks for a suggested turn length once its members are chosen.
+  const suggestion = useResource<{ ordinaryStretch: StretchSetting | null }>(
+    assignment === undefined &&
+      !stretchSet &&
+      hasCollection &&
+      members.every((member) => member.sourceId)
+      ? suggestionPath(members)
+      : null,
+    visible,
+  );
+  const suggested = suggestion.data?.ordinaryStretch;
+  useEffect(() => {
+    if (suggested !== undefined && !stretchSet) {
+      setStretch(
+        suggested === null ? UNCHOSEN_STRETCH : toStretchDraft(suggested),
+      );
+    }
+  }, [suggested, stretchSet]);
   // The server previews saved collections only, so a collection the form no
   // longer holds, or holds only unsaved, has no preview until it is saved.
   const preview = useResource<CollectionPreview>(
@@ -125,7 +152,8 @@ export function AssignmentForm({
       })),
     );
     if (assignment.playbackMode) setMode(assignment.playbackMode);
-    setCount(assignment.ordinaryStretch.count);
+    setStretch(toStretchDraft(assignment.ordinaryStretch));
+    setStretchSet(true);
   }, [assignment]);
   // Applies one edit to the member rows and marks the form edited.
   const editMembers = (edit: (rows: MemberDraft[]) => MemberDraft[]) => {
@@ -148,7 +176,7 @@ export function AssignmentForm({
           void mutation.run(
             assignmentPath ?? assignmentsPath,
             assignmentPath ? "PATCH" : "POST",
-            toSettings(members, mode, count),
+            toSettings(members, mode, stretch),
             () => {
               dirty.current = false;
               preview.refresh();
@@ -281,20 +309,20 @@ export function AssignmentForm({
                   ?.hint
               }
             </small>
-            <label>
-              Programs per turn
-              <input
-                type="number"
-                required
-                min={1}
-                step={1}
-                value={count}
-                onChange={(event) => {
-                  dirty.current = true;
-                  setCount(event.target.valueAsNumber);
-                }}
-              />
-            </label>
+            <StretchFields
+              draft={stretch}
+              onChange={(draft) => {
+                dirty.current = true;
+                setStretchSet(true);
+                setStretch(draft);
+              }}
+            />
+            {suggested === null && !stretchSet && (
+              <p className="secondary">
+                These members mix movies and episodes, or are not classified
+                yet. Choose how long each turn runs.
+              </p>
+            )}
           </div>
         )}
         <div className="row-actions">
@@ -377,20 +405,36 @@ function moveRow(
   return rows;
 }
 
+/** Asks the server to suggest a turn length for the chosen members. */
+function suggestionPath(members: readonly MemberDraft[]): string {
+  const ids = (kind: MemberDraft["kind"]) =>
+    members
+      .filter((member) => member.kind === kind)
+      .map((member) => member.sourceId)
+      .join(",");
+  const query = new URLSearchParams({
+    mediaCollectionIds: ids("collection"),
+    mediaItemIds: ids("media_item"),
+  });
+  return `/programming-assignments/stretch-suggestion?${query}`;
+}
+
 /**
  * Builds the assignment the form describes: its members in order, with the
- * mode and programs per turn its collections play by. Single items alone
- * take no mode and air once a turn whatever the stretch.
+ * mode and turn length its collections play by. Single items alone take no
+ * mode and air once a turn whatever the stretch.
  */
 function toSettings(
   members: readonly MemberDraft[],
   mode: PlaybackMode,
-  count: number,
+  stretch: StretchDraft,
 ): AssignmentSettings {
   const hasCollection = members.some((member) => member.kind === "collection");
   return {
     playbackMode: hasCollection ? mode : null,
-    ordinaryStretch: { kind: "programs", count: hasCollection ? count : 1 },
+    ordinaryStretch: hasCollection
+      ? toStretchSetting(stretch)
+      : { kind: "programs", count: 1 },
     members: members.map((member) =>
       member.kind === "collection"
         ? { kind: "collection", mediaCollectionId: member.sourceId }

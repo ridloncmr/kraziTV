@@ -15,7 +15,7 @@ export interface DecisionSeed {
  * one kind of decision never advances another. Collection playback
  * randomness has its own seed and is never one of these.
  */
-type DecisionStream = "shuffle";
+type DecisionStream = "shuffle" | "size";
 
 /**
  * Returns one reproducible unsigned 32-bit draw for a decision, keyed by its
@@ -34,9 +34,23 @@ function decide(
 }
 
 /**
+ * Draws a reproducible integer from `min` to `max` inclusive for one
+ * decision. Modulo bias is accepted, as it is for random selection.
+ */
+export function drawInRange(
+  seed: DecisionSeed,
+  stream: DecisionStream,
+  roundNumber: number,
+  index: number,
+  min: number,
+  max: number,
+): number {
+  return min + (decide(seed, stream, roundNumber, index) % (max - min + 1));
+}
+
+/**
  * Shuffles a round's assignment IDs from saved order with a seeded
- * Fisher-Yates pass, one `shuffle` draw per position. Modulo bias is
- * accepted, as it is for random selection.
+ * Fisher-Yates pass, one `shuffle` draw per position.
  */
 export function shuffleRound(
   ids: readonly string[],
@@ -45,7 +59,7 @@ export function shuffleRound(
 ): string[] {
   const shuffled = [...ids];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const other = decide(seed, "shuffle", roundNumber, index) % (index + 1);
+    const other = drawInRange(seed, "shuffle", roundNumber, index, 0, index);
     const held = shuffled[index];
     shuffled[index] = shuffled[other];
     shuffled[other] = held;

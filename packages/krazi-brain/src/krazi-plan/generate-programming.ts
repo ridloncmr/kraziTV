@@ -24,7 +24,8 @@ import {
   memberSource,
 } from "./rotation.js";
 import type { DecisionSeed } from "./programming-decisions.js";
-import { resolveSize, turnSize } from "./turn-size.js";
+import { resolveSize } from "./stretch-settings.js";
+import { turnSize } from "./turn-size.js";
 
 export interface GenerateProgrammingOptions extends DecisionSeed {
   /** The channel's persisted seed; collection random playback derives from it. */
@@ -121,7 +122,10 @@ export function generateProgramming(
         roundNumber: turn.checkpoint.roundNumber,
         turnIndex: turn.checkpoint.served.length,
         startsAt,
-        size: resolveSize(turn.member, turn.assignment.ordinary),
+        size: resolveSize(turn.member, turn.assignment.ordinary, options, {
+          roundNumber: turn.checkpoint.roundNumber,
+          turnIndex: turn.checkpoint.served.length,
+        }),
         marathon: false,
         checkpoint: turn.checkpoint,
       };

@@ -16,7 +16,7 @@ import {
   channelFixture,
   collectionProgressFixture,
 } from "../testing/channel-fixtures.js";
-import { episodeFacts } from "../testing/collection-fixtures.js";
+import { episodeFacts, movieFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
@@ -969,6 +969,162 @@ describe("changing and deleting an assignment", () => {
     expect(response).toMatchObject({
       status: 400,
       body: { error: { code: "invalid_request" } },
+    });
+  });
+});
+
+describe("stretch settings", () => {
+  it.each([
+    { kind: "airtime", minutes: 60 },
+    { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
+  ])("saves and reads back %o", async (ordinaryStretch) => {
+    const { server } = await startServer();
+
+    const created = await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionBody,
+      ordinaryStretch,
+    });
+
+    expect(created).toMatchObject({ status: 201, body: { ordinaryStretch } });
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toMatchObject({
+      body: [{ ordinaryStretch }],
+    });
+  });
+
+  it.each([
+    [{ kind: "airtime", minutes: 0 }, "minutes must be a positive integer"],
+    [
+      { kind: "airtime_range", minMinutes: 30, maxMinutes: 30.5 },
+      "maxMinutes must be a positive integer",
+    ],
+    [
+      { kind: "airtime_range", minMinutes: 90, maxMinutes: 60 },
+      "maxMinutes must be at least minMinutes",
+    ],
+  ])("refuses %o with kraziBrain's reason", async (ordinaryStretch, reason) => {
+    const { server } = await startServer();
+
+    const response = await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionBody,
+      ordinaryStretch,
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(response.body)).toContain(reason);
+  });
+
+  it("airs whole 22-minute episodes for a 60-minute target, overrunning to 66", async () => {
+    const { server, db } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionBody,
+      ordinaryStretch: { kind: "airtime", minutes: 60 },
+    });
+
+    const [first] = await db
+      .selectFrom("programming_blocks")
+      .select("id")
+      .orderBy("starts_at")
+      .execute();
+    const aired = (await readScheduleEntries(db, CHANNEL_ID)).filter(
+      (entry) => entry.programming_block_id === first?.id,
+    );
+    // The scenario's episodes run 22, 23, and 24 minutes.
+    expect(aired.map((entry) => entry.duration_ms / 60_000)).toEqual([
+      22, 23, 24,
+    ]);
+  });
+});
+
+describe("stretch suggestion", () => {
+  // The suggestion URL for members, as the editor builds it.
+  function suggestionUrl(
+    members: readonly (
+      | { kind: string; mediaCollectionId: string }
+      | { kind: string; mediaItemId: string }
+    )[],
+  ) {
+    const ids = (field: "mediaCollectionId" | "mediaItemId") =>
+      members.flatMap((member) =>
+        field in member ? [(member as Record<string, string>)[field]] : [],
+      );
+    const query = new URLSearchParams({
+      mediaCollectionIds: ids("mediaCollectionId").join(","),
+      mediaItemIds: ids("mediaItemId").join(","),
+    });
+    return `/programming-assignments/stretch-suggestion?${query}`;
+  }
+
+  // Seeds collections of movies, episodes, both, and unclassified items.
+  async function suggestionServer() {
+    const context = await startServer();
+    const { db } = context;
+    const movies = await insertCollectionOfItems(db, "movies", [
+      120 * 60_000,
+      100 * 60_000,
+    ]);
+    const shows = await insertCollectionOfItems(db, "shows", [22 * 60_000]);
+    await insertCollectionOfItems(db, "unclassified", [30 * 60_000]);
+    await db
+      .insertInto("content_facts")
+      .values([
+        ...movies.map((id) => movieFacts(id, null, "1999")),
+        ...shows.map((id) => episodeFacts(id, 2316, 1, 1)),
+      ])
+      .execute();
+    return context;
+  }
+
+  it.each([
+    [[{ kind: "collection", mediaCollectionId: "movies" }], { count: 1 }],
+    [[{ kind: "media_item", mediaItemId: "movies-1" }], { count: 1 }],
+    [[{ kind: "collection", mediaCollectionId: "shows" }], { count: 3 }],
+    [
+      [
+        { kind: "collection", mediaCollectionId: "movies" },
+        { kind: "collection", mediaCollectionId: "shows" },
+      ],
+      null,
+    ],
+    [[{ kind: "collection", mediaCollectionId: "unclassified" }], null],
+  ])("suggests for %o", async (members, suggested) => {
+    const { server } = await suggestionServer();
+
+    const response = await send(server, "GET", suggestionUrl(members));
+
+    expect(response).toEqual({
+      status: 200,
+      body: {
+        ordinaryStretch:
+          suggested === null ? null : { kind: "programs", ...suggested },
+      },
+    });
+  });
+
+  it("leaves an unschedulable movie out of the decision", async () => {
+    const { server, db } = await suggestionServer();
+    await db
+      .updateTable("media_items")
+      .set({ status: "missing" })
+      .where("id", "=", "movies-2")
+      .execute();
+    await db
+      .insertInto("media_collection_items")
+      .values({
+        media_collection_id: "shows",
+        media_item_id: "movies-2",
+        position: 1,
+        created_at: T0,
+      })
+      .execute();
+
+    await expect(
+      send(
+        server,
+        "GET",
+        suggestionUrl([{ kind: "collection", mediaCollectionId: "shows" }]),
+      ),
+    ).resolves.toMatchObject({
+      body: { ordinaryStretch: { kind: "programs", count: 3 } },
     });
   });
 });

@@ -10,7 +10,7 @@ import type { Kysely } from "kysely";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaItemStatus } from "../../database/schema/media-item-table.js";
 import type { ProgrammingAssignmentMemberTable } from "../../database/schema/programming-assignment-member-table.js";
-import type { ProgrammingSourceAssignmentTable } from "../../database/schema/programming-source-assignment-table.js";
+import type { StretchKind } from "../../database/schema/programming-source-assignment-table.js";
 import {
   effectiveContentIdentity,
   effectiveMetadata,
@@ -53,7 +53,11 @@ export async function loadProgrammingAssignments(
     assignments.push({
       id: row.id,
       playbackMode: row.playback_mode,
-      ordinary: toOrdinaryStretch(row),
+      ordinary: toStretch({
+        kind: row.ordinary_kind,
+        min: row.ordinary_min,
+        max: row.ordinary_max,
+      }),
       members: resolved,
     });
   }
@@ -126,22 +130,45 @@ async function resolveMember(
   return { kind: "media_item", media: toScheduleMedia(item) };
 }
 
+/** A stretch as an assignment's three columns store it. */
+interface StretchColumns {
+  kind: StretchKind;
+  min: number;
+  max: number | null;
+}
+
 /**
- * Reads an assignment's ordinary stretch from its columns. The only
- * decoder of stored stretches, so every reader agrees on what a valid row
- * is; only program counts are written so far, so any other kind is
+ * Reads a stretch from its columns: a count or minutes in `min`, and `max`
+ * for a range only. The only decoder of stored stretches, so every reader
+ * agrees on what a valid row is; the table checks make any other shape
  * corruption.
  */
-export function toOrdinaryStretch(
-  row: Pick<
-    ProgrammingSourceAssignmentTable,
-    "id" | "ordinary_kind" | "ordinary_min"
-  >,
-): StretchSetting {
-  if (row.ordinary_kind !== "programs") {
-    throw new Error(`Assignment ${row.id} has an unsupported stretch`);
+export function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
+  switch (kind) {
+    case "programs":
+      return { kind, count: min };
+    case "airtime":
+      return { kind, minutes: min };
+    case "airtime_range":
+      if (max === null) throw new Error("An airtime range has no maximum");
+      return { kind, minMinutes: min, maxMinutes: max };
   }
-  return { kind: "programs", count: row.ordinary_min };
+}
+
+/** Writes a stretch as the columns `toStretch` reads back. */
+export function toStretchColumns(stretch: StretchSetting): StretchColumns {
+  switch (stretch.kind) {
+    case "programs":
+      return { kind: stretch.kind, min: stretch.count, max: null };
+    case "airtime":
+      return { kind: stretch.kind, min: stretch.minutes, max: null };
+    case "airtime_range":
+      return {
+        kind: stretch.kind,
+        min: stretch.minMinutes,
+        max: stretch.maxMinutes,
+      };
+  }
 }
 
 // Starts a read of the item columns and metadata a ScheduleMedia needs,

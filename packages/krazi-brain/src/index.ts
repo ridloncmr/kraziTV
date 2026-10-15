@@ -23,6 +23,7 @@ export type {
 // generated turn by turn into blocks and the entries they air.
 export { generateProgramming } from "./krazi-plan/generate-programming.js";
 export { isUsableAssignment } from "./krazi-plan/rotation.js";
+export { findStretchProblem } from "./krazi-plan/stretch-settings.js";
 export type {
   AssignmentMember,
   BlockSource,

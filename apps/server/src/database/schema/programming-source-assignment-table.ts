@@ -1,7 +1,7 @@
 import type { PlaybackMode } from "@krazitv/krazi-brain";
 
 /** The stretch kinds an assignment's ordinary and marathon settings take. */
-type StretchKind = "programs" | "airtime" | "airtime_range";
+export type StretchKind = "programs" | "airtime" | "airtime_range";
 
 /**
  * One programming source assignment: enduring channel configuration that
