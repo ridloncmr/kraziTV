@@ -263,3 +263,63 @@ describe("isUsableAssignment", () => {
     ).toBe(false);
   });
 });
+
+describe("generateProgramming: a fresh rebuild", () => {
+  it("starts new rounds and decisions, ignoring the slate before the rebuild", () => {
+    const before = generated(
+      generateProgramming(options(FOUR, { maxEntries: 5 })),
+    );
+    const latest = latestTurn(before);
+    if (latest === undefined) throw new Error("expected a turn");
+
+    const rebuilt = generated(
+      generateProgramming(
+        options(FOUR, {
+          rebuildCount: 1,
+          latestTurn: latest,
+          progress: before.progress,
+          startsAt: before.generatedThrough,
+          createBlockId: sequentialBlockIds("fresh"),
+        }),
+      ),
+    );
+
+    // The interrupted turn is never continued, and round one starts over.
+    expect(rebuilt.entries[0]?.programmingBlockId).toBe("fresh-1");
+    expect(rebuilt.blocks[0]?.checkpoint).toMatchObject({
+      roundNumber: 1,
+      served: [],
+      rebuildCount: 1,
+      nextMemberPositions: { [rebuilt.blocks[0]?.assignmentId ?? ""]: 0 },
+    });
+    // Collections keep their progress.
+    const office = rebuilt.entries.find(
+      (entry) => entry.mediaCollectionId === "c-office",
+    );
+    const officeBefore = before.entries.filter(
+      (entry) => entry.mediaCollectionId === "c-office",
+    ).length;
+    expect(office?.mediaItemId).toBe(`office${officeBefore + 1}`);
+  });
+
+  it("continues normally when the latest block was made under the same rebuild", () => {
+    const first = generated(
+      generateProgramming(options(FOUR, { rebuildCount: 2, maxEntries: 1 })),
+    );
+
+    const next = generated(
+      generateProgramming(
+        options(FOUR, {
+          rebuildCount: 2,
+          latestTurn: latestTurn(first),
+          progress: first.progress,
+          startsAt: first.generatedThrough,
+          maxEntries: 1,
+          createBlockId: sequentialBlockIds("next"),
+        }),
+      ),
+    );
+
+    expect(next.entries[0]?.programmingBlockId).toBe("block-1");
+  });
+});

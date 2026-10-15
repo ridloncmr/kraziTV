@@ -962,3 +962,90 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     screen.getByRole("list", { name: "Skipped assignments" }).textContent,
   ).toMatch(/Round 2 skips an assignment: its collection is empty/);
 });
+
+it("lets the airing program finish by default when rebuilding", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule/generate", {}, "POST");
+  api.reply("/channels/one/schedule", { scheduleRevision: 12, entries: [] });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Rebuild the schedule…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Rebuild the schedule" });
+  expect(
+    within(dialog).getByRole<HTMLInputElement>("radio", {
+      name: "Let it finish",
+    }).checked,
+  ).toBe(true);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+
+  await within(dialog).findByText(/rebuilt after what is airing now/);
+  expect(
+    api.requests.find((request) => request.method === "POST")?.body,
+  ).toEqual({ regenerate: true });
+  expect(api.requestsTo("/channels/one/programming/rebuild")).toEqual([]);
+});
+
+it("stops the airing program on request, disclosing the disconnect, and keeps a failed cleanup for retry with the same key after the window closes", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 13, entries: [] });
+  api.reply(
+    "/channels/one/programming/rebuild",
+    { rebuilt: true, stopFailed: true },
+    "POST",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const editor = render(
+    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Rebuild the schedule…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Rebuild the schedule" });
+
+  fireEvent.click(
+    within(dialog).getByRole("radio", {
+      name: "Stop it now and rebuild the schedule",
+    }),
+  );
+  expect(dialog.textContent).toMatch(/disconnected and must tune in again/);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+  await within(dialog).findByText(/could not be stopped/);
+  editor.unmount();
+
+  // The retry outlives the closed window and repeats the rebuild's key.
+  render(createElement(ChannelsApp, { visible: true }));
+  await screen.findByText("Schedule rebuilt with fresh programming.");
+  api.reply(
+    "/channels/one/programming/rebuild",
+    { rebuilt: false, stopFailed: false },
+    "POST",
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Retry runtime cleanup" }),
+    ).toBeNull(),
+  );
+  const keys = api
+    .requestsTo("/channels/one/programming/rebuild")
+    .map(
+      (request) => (request.body as { idempotencyKey: string }).idempotencyKey,
+    );
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
+});

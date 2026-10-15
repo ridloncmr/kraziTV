@@ -10,6 +10,7 @@ import { useMutation, useResource } from "../http/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "./assignment-form.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
+import { RebuildDialog } from "./rebuild-dialog.js";
 import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**
@@ -33,6 +34,7 @@ export function ProgrammingEditor({
   );
   const reorder = useMutation();
   const [adding, setAdding] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   // Remounts the add form after each addition, so it starts empty again.
   const [added, setAdded] = useState(0);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -148,6 +150,18 @@ export function ProgrammingEditor({
           path={`${resourcePath("channels", channelId)}/programming-preview`}
           visible={visible}
           collections={collections.data}
+        />
+      )}
+      {listed.length > 0 && (
+        <button type="button" onClick={() => setRebuilding(true)}>
+          Rebuild the schedule…
+        </button>
+      )}
+      {rebuilding && (
+        <RebuildDialog
+          channelId={channelId}
+          rebuilt={changed}
+          onClose={() => setRebuilding(false)}
         />
       )}
       {showSchedule && (

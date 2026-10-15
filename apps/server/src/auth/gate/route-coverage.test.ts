@@ -87,6 +87,7 @@ const GATED_ROUTES = [
   "PATCH /channels/:id/programming-assignments/:assignmentId",
   "PUT /channels/:id/programming-assignments/order",
   "GET /channels/:id/programming-preview",
+  "POST /channels/:id/programming/rebuild",
   "GET /channels/:id/programming-settings",
   "PUT /channels/:id/programming-settings",
   "DELETE /channels/:id/programming-assignments/:assignmentId",

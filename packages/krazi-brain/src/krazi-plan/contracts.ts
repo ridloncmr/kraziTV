@@ -70,6 +70,8 @@ export interface RotationCheckpoint {
   roundCommittedProgram: boolean;
   /** Completed ordinary rounds since the last marathon started; null before any. */
   ordinaryRoundsSinceMarathon: number | null;
+  /** The fresh rebuild this slate began with; a later one starts a new slate. */
+  rebuildCount: number;
 }
 
 /** The member that took a block's turn. */

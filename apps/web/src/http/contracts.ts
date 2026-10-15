@@ -382,6 +382,11 @@ export interface CatalogRemoval {
   stopFailedChannelIds: string[];
   affectedChannelIds: string[];
 }
+/** `POST /channels/:id/programming/rebuild`: whether it rebuilt now, and whether the worker stop failed. */
+export interface ProgrammingRebuild {
+  rebuilt: boolean;
+  stopFailed: boolean;
+}
 export interface PlexSetup {
   tunerBaseUrl: string;
   xmltvUrl: string;

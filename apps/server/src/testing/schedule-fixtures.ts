@@ -287,3 +287,12 @@ export function readScheduleEntries(
     .orderBy("sequence_number")
     .execute();
 }
+
+/** Reads programming blocks in airing order so schedule tests can assert turn history. */
+export function readBlocks(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("programming_blocks")
+    .selectAll()
+    .orderBy("starts_at")
+    .execute();
+}

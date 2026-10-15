@@ -105,6 +105,7 @@ const RESERVED_TURN = {
       marathonOpportunity: { assignmentId: "office", started: false },
       roundCommittedProgram: false,
       ordinaryRoundsSinceMarathon: 1,
+      rebuildCount: 0,
     },
   },
   airedPrograms: 2,

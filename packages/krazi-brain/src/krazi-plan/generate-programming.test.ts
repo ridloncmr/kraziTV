@@ -138,6 +138,7 @@ describe("generateProgramming: one assignment", () => {
         marathonOpportunity: null,
         roundCommittedProgram: false,
         ordinaryRoundsSinceMarathon: null,
+        rebuildCount: 0,
       },
     });
     expect(result.blocks[1]).toMatchObject({

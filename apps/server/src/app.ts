@@ -41,12 +41,14 @@ import { ChannelLifecycleLock } from "./channels/runtime/channel-lifecycle-lock.
 import {
   DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
   stopChannelUnderLock,
+  type StopInterrupted,
 } from "./channels/runtime/settle-runtime-stop.js";
 import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
 import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import { registerAssignmentRoutes } from "./programming-assignments/routes/assignment-routes.js";
 import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
 import { registerProgrammingPreviewRoutes } from "./programming-assignments/routes/programming-preview-routes.js";
+import { registerProgrammingRebuildRoutes } from "./programming-assignments/routes/programming-rebuild-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -158,17 +160,19 @@ function registerRoutes(
     dependencies.mediaRoots,
   );
   registerMediaItemRoutes(server, dependencies.mediaItems);
+  // Stops a channel's worker after a change the owner chose to interrupt.
+  const stopInterrupted: StopInterrupted = (channelId, log) =>
+    stopChannelUnderLock(
+      lifecycle,
+      dependencies.channelRuntime,
+      channelStopTimeoutMs,
+      log,
+      { channelId, reason: "interrupted" },
+    );
   registerCatalogRemovalRoutes(
     server,
     dependencies.catalogRemovals,
-    (channelId, log) =>
-      stopChannelUnderLock(
-        lifecycle,
-        dependencies.channelRuntime,
-        channelStopTimeoutMs,
-        log,
-        { channelId, reason: "interrupted" },
-      ),
+    stopInterrupted,
   );
   registerMediaCollectionRoutes(
     server,
@@ -203,6 +207,11 @@ function registerRoutes(
     dependencies.schedules,
   );
   registerProgrammingPreviewRoutes(server, dependencies.schedules);
+  registerProgrammingRebuildRoutes(
+    server,
+    dependencies.schedules,
+    stopInterrupted,
+  );
   registerScheduleRoutes(server, dependencies.schedules);
   registerPlayoutRoutes(server, dependencies.playout);
   registerPlexRoutes(

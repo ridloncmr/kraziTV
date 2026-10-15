@@ -96,12 +96,19 @@ export function generateProgramming(
   const blocks: GeneratedBlock[] = [];
   const entries: GeneratedScheduleEntry[] = [];
   const skips: AssignmentSkip[] = [];
+  // A latest block from before a fresh rebuild belongs to a finished slate:
+  // its turn is never continued and its rounds, cooldown, and member
+  // positions are not carried over. Collection progress still is.
+  const continued =
+    latestTurn?.block.checkpoint.rebuildCount === options.rebuildCount
+      ? latestTurn
+      : undefined;
   let state =
-    latestTurn === undefined
-      ? FIRST_CHECKPOINT
-      : advancePastTurn(latestTurn.block.checkpoint, latestTurn.block.marathon);
+    continued === undefined
+      ? { ...FIRST_CHECKPOINT, rebuildCount: options.rebuildCount }
+      : advancePastTurn(continued.block.checkpoint, continued.block.marathon);
   let open =
-    latestTurn === undefined ? undefined : resumeTurn(latestTurn, assignments);
+    continued === undefined ? undefined : resumeTurn(continued, assignments);
   let startsAt = options.startsAt;
   let sequenceNumber = options.nextSequenceNumber;
 

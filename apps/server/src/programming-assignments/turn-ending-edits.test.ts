@@ -1,7 +1,5 @@
-import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { send } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
@@ -14,6 +12,7 @@ import {
 import { recordingLog } from "../testing/recording-log.js";
 import {
   insertCollectionOfItems,
+  readBlocks,
   readScheduleEntries,
 } from "../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../testing/schedule-server.js";
@@ -30,15 +29,6 @@ const T0 = FIXTURE_TIME;
 const CHANNEL_ID = "channel-fixture-001";
 const COLLECTION_ID = "collection-fixture-001";
 const ASSIGNMENT_URL = `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`;
-
-// The channel's blocks in airing order.
-function readBlocks(db: Kysely<DatabaseSchema>) {
-  return db
-    .selectFrom("programming_blocks")
-    .selectAll()
-    .orderBy("starts_at")
-    .execute();
-}
 
 // The scenario's three-episode turn, airing its second episode.
 async function midTurnServer() {

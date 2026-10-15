@@ -187,8 +187,17 @@ function toGeneratedBlock(
         : { kind: row.resolved_kind, value: row.resolved_value },
     marathon: fromSqliteBoolean(row.marathon),
     endedByEdit: fromSqliteBoolean(row.ended_by_edit),
-    checkpoint: JSON.parse(row.checkpoint) as RotationCheckpoint,
+    checkpoint: toCheckpoint(row.checkpoint),
   };
+}
+
+// Parses a stored checkpoint, giving ones from before fresh rebuilds existed a
+// count of 0. The default goes last so key order, and so the JSON a resumed
+// generation writes, matches what one uninterrupted generation writes.
+function toCheckpoint(json: string): RotationCheckpoint {
+  const stored = JSON.parse(json) as Omit<RotationCheckpoint, "rebuildCount"> &
+    Partial<Pick<RotationCheckpoint, "rebuildCount">>;
+  return { ...stored, rebuildCount: stored.rebuildCount ?? 0 };
 }
 
 // Rebuilds a block's member, or null once its collection or item is deleted.

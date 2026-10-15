@@ -25,6 +25,7 @@ export const FIRST_CHECKPOINT: RotationCheckpoint = Object.freeze({
   marathonOpportunity: null,
   roundCommittedProgram: false,
   ordinaryRoundsSinceMarathon: null,
+  rebuildCount: 0,
 });
 
 /** The turn kraziPlan chose: its assignment, the source its member plays, whether it is a marathon, and the checkpoint its block stores. */

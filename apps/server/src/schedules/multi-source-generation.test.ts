@@ -10,6 +10,7 @@ import { recordingLog } from "../testing/recording-log.js";
 import {
   insertCollectionAssignment,
   insertCollectionOfItems,
+  readBlocks,
   readScheduleEntries,
 } from "../testing/schedule-fixtures.js";
 import {
@@ -56,15 +57,6 @@ function scheduleService(
     createBlockId: sequentialIds("block"),
     entriesPerTransaction,
   });
-}
-
-// Reads the channel's blocks in airing order.
-function readBlocks(db: Kysely<DatabaseSchema>) {
-  return db
-    .selectFrom("programming_blocks")
-    .selectAll()
-    .orderBy("starts_at")
-    .execute();
 }
 
 describe("multi-source generation", () => {

@@ -218,6 +218,49 @@ export async function createScheduleState(
     .execute();
 }
 
+/**
+ * Records a fresh rebuild requested under `key` before it regenerates:
+ * advances the rebuild count once and remembers the key, so a retry with
+ * the same key is reported `repeated` and advances nothing. A channel with
+ * no schedule yet has no programming to clear, so it is `unscheduled`.
+ */
+export async function recordFreshRebuild(
+  trx: Executor,
+  channelId: string,
+  key: string,
+): Promise<"advanced" | "repeated" | "unscheduled"> {
+  const row = await trx
+    .selectFrom("channel_schedule_states")
+    .select(["rebuild_count", "last_rebuild_key"])
+    .where("channel_id", "=", channelId)
+    .executeTakeFirst();
+  if (row === undefined) return "unscheduled";
+  if (row.last_rebuild_key === key) return "repeated";
+  await trx
+    .updateTable("channel_schedule_states")
+    .set({ rebuild_count: row.rebuild_count + 1, last_rebuild_key: key })
+    .where("channel_id", "=", channelId)
+    .execute();
+  return "advanced";
+}
+
+/**
+ * Remembers a fresh rebuild's key on a schedule its own commit created, so
+ * a retry is still recognized; the count stays where the first schedule
+ * started it.
+ */
+export async function recordRebuildKey(
+  trx: Executor,
+  channelId: string,
+  key: string,
+): Promise<void> {
+  await trx
+    .updateTable("channel_schedule_states")
+    .set({ last_rebuild_key: key })
+    .where("channel_id", "=", channelId)
+    .execute();
+}
+
 /** Overwrites a channel's state with the result of a mutation. */
 export async function updateScheduleState(
   trx: Executor,
