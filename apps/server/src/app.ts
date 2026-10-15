@@ -46,6 +46,7 @@ import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-ro
 import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import { registerAssignmentRoutes } from "./programming-assignments/routes/assignment-routes.js";
 import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
+import { registerProgrammingPreviewRoutes } from "./programming-assignments/routes/programming-preview-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -201,6 +202,7 @@ function registerRoutes(
     dependencies.channels,
     dependencies.schedules,
   );
+  registerProgrammingPreviewRoutes(server, dependencies.schedules);
   registerScheduleRoutes(server, dependencies.schedules);
   registerPlayoutRoutes(server, dependencies.playout);
   registerPlexRoutes(

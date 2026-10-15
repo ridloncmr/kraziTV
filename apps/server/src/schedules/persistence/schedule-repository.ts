@@ -145,6 +145,25 @@ export async function findEntryAiringAt(
 }
 
 /**
+ * Lists the collection bookkeeping of the channel's entries starting at or
+ * after `boundary`: what a regeneration from there would delete, read
+ * without deleting, for a preview.
+ */
+export async function listRestorableEntriesFrom(
+  trx: Executor,
+  channelId: string,
+  boundary: number,
+): Promise<RestorableEntry[]> {
+  const rows = await trx
+    .selectFrom("schedule_entries")
+    .select(RESTORABLE_COLUMNS)
+    .where("channel_id", "=", channelId)
+    .where("starts_at", ">=", boundary)
+    .execute();
+  return rows.map(toRestorableEntry);
+}
+
+/**
  * Deletes the channel's entries starting at or after `boundary` and returns
  * their collection bookkeeping, so regeneration can restore progress from
  * exactly what it removed.
@@ -163,19 +182,25 @@ export async function deleteEntriesFrom(
   return rows.map(toRestorableEntry);
 }
 
-/** Finds the channel's latest entry drawn from one collection in one mode. */
+/**
+ * Finds the channel's latest entry drawn from one collection in one mode,
+ * among those starting before `before` when it is given.
+ */
 export async function findLatestCollectionEntry(
   trx: Executor,
   channelId: string,
   mediaCollectionId: string,
   playbackMode: PlaybackMode,
+  before?: number,
 ): Promise<RestorableEntry | undefined> {
-  const row = await trx
+  let query = trx
     .selectFrom("schedule_entries")
     .select(RESTORABLE_COLUMNS)
     .where("channel_id", "=", channelId)
     .where("media_collection_id", "=", mediaCollectionId)
-    .where("playback_mode", "=", playbackMode)
+    .where("playback_mode", "=", playbackMode);
+  if (before !== undefined) query = query.where("starts_at", "<", before);
+  const row = await query
     .orderBy("sequence_number", "desc")
     .limit(1)
     .executeTakeFirst();

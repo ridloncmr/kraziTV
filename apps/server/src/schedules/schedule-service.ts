@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  type CollectionProgress,
   deriveChannelSeed,
   deriveProgrammingSeed,
   findRegenerationBoundary,
@@ -26,6 +27,7 @@ import type {
   ChunkResult,
   ChunkStart,
   EnsureCoverageResult,
+  ProgrammingPreview,
   ScheduleChangeReason,
   ScheduleInputChange,
   ScheduleLog,
@@ -48,6 +50,7 @@ import {
 } from "./persistence/assignment-sources.js";
 import {
   loadProgress,
+  readRestoredProgress,
   recordOrderFingerprint,
   restoreDeletedProgress,
   upsertProgress,
@@ -66,6 +69,7 @@ import {
   insertEntries,
   listEnabledChannelIds,
   listEntriesInWindow,
+  listRestorableEntriesFrom,
   listUpcomingCollectionEntries,
   loadScheduleState,
   updateScheduleState,
@@ -83,6 +87,9 @@ interface ScheduleServiceOptions extends RecordSources {
 // Keeps one transaction's write authority short and one multi-row insert
 // under SQLite's bound-variable limit.
 const ENTRIES_PER_TRANSACTION = 500;
+
+// Bounds one programming preview, as a transaction bounds one chunk.
+const PREVIEW_MAX_ENTRIES = 2000;
 
 // How many upcoming selections a collection preview shows.
 const PREVIEW_UPCOMING_ENTRIES = 10;
@@ -256,6 +263,65 @@ export class ScheduleService {
           PREVIEW_UPCOMING_ENTRIES,
         ),
       };
+    });
+  }
+
+  /**
+   * Previews the channel's programming as a regeneration from now would
+   * generate it, without writing: the same boundary, kept turn, restored
+   * progress, rotation state, and cooldown, run through kraziPlan on copied
+   * inputs across a horizon. Read in one deferred snapshot, so previewing
+   * changes no entry, block, progress, decision, or revision.
+   */
+  async previewProgramming(
+    channelId: string,
+    log: ScheduleLog,
+  ): Promise<ProgrammingPreview> {
+    return this.#db.transaction().execute(async (trx) => {
+      if ((await findChannelEnabled(trx, channelId)) === undefined) {
+        return { kind: "channel_not_found" };
+      }
+      const state = await loadScheduleState(trx, channelId);
+      const effectiveNow = clampToLastMutation(
+        this.#now(),
+        state?.updatedAt,
+        log,
+        { channelId },
+      );
+      const boundary = findRegenerationBoundary(
+        await findEntryAiringAt(trx, channelId, effectiveNow),
+        effectiveNow,
+      );
+      const { collections: _, ...inputs } = await loadProgrammingInputs(
+        trx,
+        channelId,
+        boundary,
+      );
+      const anchorTime = state?.anchorTime ?? effectiveNow;
+      let previewed = 0;
+      const generated = generateProgramming({
+        channelSeed: state?.seed ?? deriveChannelSeed(channelId, anchorTime),
+        programmingSeed:
+          state?.programmingSeed ??
+          deriveProgrammingSeed(channelId, anchorTime),
+        rebuildCount: state?.rebuildCount ?? 0,
+        ...inputs,
+        startsAt: boundary,
+        through: boundary + SCHEDULE_HORIZON_MS,
+        nextSequenceNumber: state?.nextSequenceNumber ?? 0,
+        maxEntries: PREVIEW_MAX_ENTRIES,
+        createBlockId: () => `preview-${(previewed += 1)}`,
+      });
+      return generated.kind === "unschedulable"
+        ? generated
+        : {
+            kind: "preview",
+            continuedTurn: inputs.latestTurn?.block,
+            marathons: inputs.marathons,
+            blocks: generated.blocks,
+            entries: generated.entries,
+            skips: generated.skips,
+          };
     });
   }
 
@@ -629,16 +695,15 @@ export class ScheduleService {
     target: number,
     effectiveNow: number,
   ): Promise<WrittenChunk> {
-    const assignments = await loadProgrammingAssignments(trx, channelId);
-    const collections = assignedCollections(assignments);
+    const { collections, ...inputs } = await loadProgrammingInputs(
+      trx,
+      channelId,
+    );
     const generated = generateProgramming({
       channelSeed: start.seed,
       programmingSeed: start.programmingSeed,
       rebuildCount: start.rebuildCount,
-      marathons: await loadMarathonSettings(trx, channelId),
-      assignments,
-      latestTurn: await loadLatestTurn(trx, channelId),
-      progress: await loadProgress(trx, channelId, collections),
+      ...inputs,
       startsAt: start.startsAt,
       through: target,
       nextSequenceNumber: start.nextSequenceNumber,
@@ -710,6 +775,45 @@ export class ScheduleService {
       hooks: this.#transactionHooks,
     });
   }
+}
+
+/**
+ * Loads everything kraziPlan reads from storage for a channel. Without
+ * `keptBefore` it reads the state as stored, as generation continues it;
+ * with it, it reads what a regeneration from that boundary would keep:
+ * the latest turn and aired totals before it, and the progress the
+ * entries from it would restore to.
+ */
+async function loadProgrammingInputs(
+  trx: Kysely<DatabaseSchema>,
+  channelId: string,
+  keptBefore?: number,
+) {
+  const assignments = await loadProgrammingAssignments(trx, channelId);
+  const collections = assignedCollections(assignments);
+  const stored = await loadProgress(trx, channelId, collections);
+  const restored =
+    keptBefore === undefined
+      ? []
+      : await readRestoredProgress(
+          trx,
+          channelId,
+          await listRestorableEntriesFrom(trx, channelId, keptBefore),
+          keptBefore,
+        );
+  const key = (entry: CollectionProgress) =>
+    `${entry.mediaCollectionId}\u0000${entry.playbackMode}`;
+  const restoredKeys = new Set(restored.map(key));
+  return {
+    assignments,
+    collections,
+    marathons: await loadMarathonSettings(trx, channelId),
+    latestTurn: await loadLatestTurn(trx, channelId, keptBefore),
+    progress: [
+      ...stored.filter((entry) => !restoredKeys.has(key(entry))),
+      ...restored,
+    ],
+  };
 }
 
 /**

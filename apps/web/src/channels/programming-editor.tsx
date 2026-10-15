@@ -10,6 +10,7 @@ import { useMutation, useResource } from "../http/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "./assignment-form.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
+import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**
  * Lists the channel's programming source assignments in saved order, which
@@ -43,8 +44,11 @@ export function ProgrammingEditor({
     showSchedule ? schedulePath : null,
     visible,
   );
-  // Refreshes what every write can change: the list and the schedule.
+  // Counts accepted writes, so the upcoming programming is read again.
+  const [changes, setChanges] = useState(0);
+  // Refreshes what every write can change: the list, preview, and schedule.
   const changed = () => {
+    setChanges((count) => count + 1);
     assignments.refresh();
     setShowSchedule(true);
     schedule.refresh();
@@ -110,7 +114,7 @@ export function ProgrammingEditor({
       </ol>
       {assignments.data && (listed.length === 0 || adding) ? (
         <AssignmentForm
-          key={added}
+          key={`new-${added}`}
           assignmentsPath={path}
           legend="New assignment"
           collections={collections.data}
@@ -136,6 +140,14 @@ export function ProgrammingEditor({
             (assignment) => assignment.marathonStretch !== null,
           )}
           changed={changed}
+        />
+      )}
+      {listed.length > 0 && (
+        <UpcomingProgramming
+          key={`preview-${changes}`}
+          path={`${resourcePath("channels", channelId)}/programming-preview`}
+          visible={visible}
+          collections={collections.data}
         />
       )}
       {showSchedule && (

@@ -218,6 +218,41 @@ export interface AssignmentSettings {
   marathonStretch: StretchSetting | null;
   members: AssignmentMember[];
 }
+/** One turn of a programming preview, with what explains it. */
+export interface PreviewTurn {
+  assignmentId: string | null;
+  member:
+    | {
+        kind: "collection";
+        mediaCollectionId: string;
+        playbackMode: PlaybackMode;
+      }
+    | { kind: "media_item"; mediaItemId: string }
+    | null;
+  roundNumber: number;
+  turnIndex: number;
+  /** The turn on air when the preview was read, continuing. */
+  continues: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  size: { kind: "programs" | "airtime"; value: number } | null;
+  marathon: boolean;
+  marathonChancePercent: number | null;
+  airtimeMinutes: number;
+  /** Minutes past an airtime target the turn's whole programs run. */
+  overrunMinutes: number | null;
+  programs: {
+    mediaItemId: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+  }[];
+}
+/** The channel's next turns as a regeneration from now would air them. */
+export interface ProgrammingPreview {
+  turns: PreviewTurn[];
+  skips: { assignmentId: string; roundNumber: number; reasons: string[] }[];
+}
 /** A channel's marathon controls, shared by all its assignments. */
 export interface MarathonSettings {
   marathonChancePercent: number;

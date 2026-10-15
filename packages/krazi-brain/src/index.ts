@@ -26,6 +26,7 @@ export { isUsableAssignment } from "./krazi-plan/rotation.js";
 export { findStretchProblem } from "./krazi-plan/stretch-settings.js";
 export type {
   AssignmentMember,
+  AssignmentSkip,
   BlockSource,
   GeneratedBlock,
   LatestTurn,

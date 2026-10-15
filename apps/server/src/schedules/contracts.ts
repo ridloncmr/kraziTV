@@ -1,4 +1,8 @@
 import type {
+  AssignmentSkip,
+  GeneratedBlock,
+  GeneratedScheduleEntry,
+  MarathonSettings,
   PlaybackMode,
   ProgrammingUnschedulableReason,
   ScheduleMedia,
@@ -168,6 +172,24 @@ export interface ScheduleWindow {
   scheduleRevision: number | null;
   entries: ScheduleEntry[];
 }
+
+/**
+ * What a programming preview shows: the turn a regeneration from now would
+ * continue, then the turns it would start, their entries, and the
+ * assignments its rounds would skip, with the marathon settings that drew
+ * any marathons. Nothing in it is persisted.
+ */
+export type ProgrammingPreview =
+  | { kind: "channel_not_found" }
+  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
+  | {
+      kind: "preview";
+      continuedTurn: GeneratedBlock | undefined;
+      marathons: MarathonSettings;
+      blocks: GeneratedBlock[];
+      entries: GeneratedScheduleEntry[];
+      skips: AssignmentSkip[];
+    };
 
 /**
  * What a collection preview explains: an assigned collection's members in

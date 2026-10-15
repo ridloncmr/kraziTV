@@ -70,6 +70,28 @@ export async function restoreDeletedProgress(
   deletedEntries: readonly RestorableEntry[],
   now: number,
 ): Promise<void> {
+  for (const restored of await readRestoredProgress(
+    trx,
+    channelId,
+    deletedEntries,
+  )) {
+    await upsertProgress(trx, channelId, restored, now);
+  }
+}
+
+/**
+ * Computes, without writing, the progress each collection and mode the
+ * deleted entries drew from returns to. Kept entries are those starting
+ * before `keptBefore`, or every entry on the channel without it, as after
+ * a deletion; a preview passes the regeneration boundary instead of
+ * deleting, so it restores exactly as regeneration would.
+ */
+export async function readRestoredProgress(
+  trx: Executor,
+  channelId: string,
+  deletedEntries: readonly RestorableEntry[],
+  keptBefore?: number,
+): Promise<CollectionProgress[]> {
   const kept: RestorableEntry[] = [];
   const resets: ProgressReset[] = [];
   const searched = new Set<string>();
@@ -83,6 +105,7 @@ export async function restoreDeletedProgress(
       channelId,
       mediaCollectionId,
       playbackMode,
+      keptBefore,
     );
     if (latest !== undefined) kept.push(latest);
     const reset = await trx
@@ -100,13 +123,7 @@ export async function restoreDeletedProgress(
       });
     }
   }
-  for (const restored of restorePlaybackProgress(
-    deletedEntries,
-    kept,
-    resets,
-  )) {
-    await upsertProgress(trx, channelId, restored, now);
-  }
+  return restorePlaybackProgress(deletedEntries, kept, resets);
 }
 
 /**

@@ -890,3 +890,75 @@ it("keeps an allowed marathon longer than a turn length suggested afterwards", a
     within(form).getByLabelText<HTMLInputElement>("Programs per turn").value,
   ).toBe("3");
 });
+
+it("explains upcoming turns: continuation, overrun, marathons, and skips", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  const program = (title: string) => ({
+    mediaItemId: title,
+    title,
+    startsAt: "2026-10-14T20:00:00.000Z",
+    endsAt: "2026-10-14T20:22:00.000Z",
+  });
+  const turn = {
+    assignmentId: "assignment",
+    member: {
+      kind: "collection",
+      mediaCollectionId: "favorites",
+      playbackMode: "chronological",
+    },
+    roundNumber: 2,
+    turnIndex: 0,
+    continues: false,
+    startsAt: "2026-10-14T20:00:00.000Z",
+    endsAt: "2026-10-14T21:06:00.000Z",
+    size: { kind: "airtime", value: 60 },
+    marathon: false,
+    marathonChancePercent: null,
+    airtimeMinutes: 66,
+    overrunMinutes: 6,
+    programs: [program("One"), program("Two"), program("Three")],
+  };
+  api.reply("/channels/one/programming-preview", {
+    turns: [
+      {
+        ...turn,
+        continues: true,
+        overrunMinutes: null,
+        airtimeMinutes: 22,
+        programs: [program("One")],
+      },
+      turn,
+      {
+        ...turn,
+        size: { kind: "programs", value: 6 },
+        marathon: true,
+        marathonChancePercent: 10,
+        overrunMinutes: null,
+      },
+    ],
+    skips: [
+      { assignmentId: "empty", roundNumber: 2, reasons: ["empty_collection"] },
+    ],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  const turns = await screen.findByRole("list", { name: "Upcoming turns" });
+  const lines = within(turns)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent);
+  expect(lines[0]).toMatch(
+    /Favorites · 1 program, 22 min · continues the turn on air/,
+  );
+  expect(lines[1]).toMatch(
+    /3 programs, 66 min · 6 min over its 60-minute target/,
+  );
+  expect(lines[2]).toMatch(/marathon, from this round's 10% chance/);
+  expect(
+    screen.getByRole("list", { name: "Skipped assignments" }).textContent,
+  ).toMatch(/Round 2 skips an assignment: its collection is empty/);
+});

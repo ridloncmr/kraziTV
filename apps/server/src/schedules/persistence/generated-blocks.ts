@@ -21,29 +21,39 @@ type Executor = Kysely<DatabaseSchema>;
 /**
  * Loads the channel's latest kept block with how much of its turn the kept
  * entries aired, so generation can continue that turn or advance the
- * rotation past it. Undefined before the channel's first turn.
+ * rotation past it. Undefined before the channel's first turn. Kept means
+ * starting before `keptBefore` when a preview passes the boundary it
+ * would regenerate from; otherwise every block and entry is kept.
  */
 export async function loadLatestTurn(
   trx: Executor,
   channelId: string,
+  keptBefore?: number,
 ): Promise<LatestTurn | undefined> {
-  const row = await trx
+  let blocks = trx
     .selectFrom("programming_blocks")
     .selectAll()
-    .where("channel_id", "=", channelId)
+    .where("channel_id", "=", channelId);
+  if (keptBefore !== undefined) {
+    blocks = blocks.where("starts_at", "<", keptBefore);
+  }
+  const row = await blocks
     .orderBy("starts_at", "desc")
     .orderBy("id", "desc")
     .limit(1)
     .executeTakeFirst();
   if (row === undefined) return undefined;
-  const aired = await trx
+  let entries = trx
     .selectFrom("schedule_entries")
     .select((eb) => [
       eb.fn.countAll<number>().as("programs"),
       eb.fn.coalesce(eb.fn.sum<number>("duration_ms"), eb.lit(0)).as("ms"),
     ])
-    .where("programming_block_id", "=", row.id)
-    .executeTakeFirstOrThrow();
+    .where("programming_block_id", "=", row.id);
+  if (keptBefore !== undefined) {
+    entries = entries.where("starts_at", "<", keptBefore);
+  }
+  const aired = await entries.executeTakeFirstOrThrow();
   return {
     block: toGeneratedBlock(row),
     airedPrograms: Number(aired.programs),
