@@ -1,4 +1,7 @@
-import type { PlaybackMode } from "@krazitv/krazi-brain";
+import type {
+  AssignmentParticipation,
+  PlaybackMode,
+} from "@krazitv/krazi-brain";
 
 /** The stretch kinds an assignment's ordinary and marathon settings take. */
 export type StretchKind = "programs" | "airtime" | "airtime_range";
@@ -15,6 +18,7 @@ export interface ProgrammingSourceAssignmentTable {
   channel_id: string;
   /** Required by the API when a member is a collection. */
   playback_mode: PlaybackMode | null;
+  participation: AssignmentParticipation;
   /** Saved assignment order; ties break by ID. */
   assignment_order: number;
   ordinary_kind: StretchKind;

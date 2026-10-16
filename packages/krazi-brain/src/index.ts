@@ -24,8 +24,10 @@ export type {
 export { generateProgramming } from "./krazi-plan/generate-programming.js";
 export { isUsableAssignment } from "./krazi-plan/rotation.js";
 export { findStretchProblem } from "./krazi-plan/stretch-settings.js";
+export { ASSIGNMENT_PARTICIPATIONS } from "./krazi-plan/contracts.js";
 export type {
   AssignmentMember,
+  AssignmentParticipation,
   AssignmentSkip,
   BlockSource,
   GeneratedBlock,

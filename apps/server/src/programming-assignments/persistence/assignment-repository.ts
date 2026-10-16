@@ -254,11 +254,14 @@ export class AssignmentRepository {
     if (refused !== undefined) return refused;
 
     // A mode or stretch change ends the started turn after the airing
-    // program; member edits keep it (programming spec 0004).
+    // program; member edits keep it (programming spec 0004). Leaving
+    // rotation ends it through generation, which stops a turn whose
+    // assignment no longer rotates, so participation is not compared here.
     const columns = toSettingsColumns(settings);
-    if (
-      JSON.stringify(columns) !== JSON.stringify(toSettingsColumns(current))
-    ) {
+    const { participation: _, ...turnColumns } = columns;
+    const { participation: __, ...currentTurnColumns } =
+      toSettingsColumns(current);
+    if (JSON.stringify(turnColumns) !== JSON.stringify(currentTurnColumns)) {
       await endStartedTurn(trx, channelId, assignmentId, now);
     }
     const row = await trx
@@ -360,6 +363,7 @@ async function readAssignment(
   return {
     id: row.id,
     channelId: row.channel_id,
+    participation: row.participation,
     playbackMode: row.playback_mode,
     ...toApiStretches(row),
     members: members.map(toMemberSource),
@@ -376,6 +380,7 @@ function toSettingsColumns(settings: AssignmentSettings) {
       ? null
       : toStretchColumns(settings.marathonStretch);
   return {
+    participation: settings.participation,
     playback_mode: settings.playbackMode,
     ordinary_kind: ordinary.kind,
     ordinary_min: ordinary.min,

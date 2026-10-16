@@ -7,6 +7,7 @@ export function collectionAssignment(
   playbackMode: PlaybackMode = "chronological",
 ) {
   return {
+    participation: "default" as const,
     playbackMode,
     ordinaryStretch: { kind: "programs", count: 3 },
     marathonStretch: null,
@@ -17,6 +18,7 @@ export function collectionAssignment(
 /** The body that assigns one media item, which airs once each turn. */
 export function itemAssignment(mediaItemId: string) {
   return {
+    participation: "default" as const,
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
     marathonStretch: null,

@@ -211,6 +211,8 @@ export type StretchSetting =
   | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 /** What the owner saves for one programming source assignment. */
 export interface AssignmentSettings {
+  /** Rotates normally, or airs only while a programming rule selects it. */
+  participation: "default" | "rule_only";
   /** Required with a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
   ordinaryStretch: StretchSetting;

@@ -1,4 +1,5 @@
 import {
+  ASSIGNMENT_PARTICIPATIONS,
   describeOrderedView,
   findStretchProblem,
   type OrderedMember,
@@ -53,6 +54,8 @@ const stretch = z.discriminatedUnion("kind", [
 // alone take none. Each member appears once.
 const settingsBody = z
   .strictObject({
+    // Omitted means the assignment rotates normally.
+    participation: z.enum(ASSIGNMENT_PARTICIPATIONS).default("default"),
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
     ordinaryStretch: stretch,
     // Omitted means marathons are disabled for the assignment.
@@ -428,6 +431,7 @@ function toApiAssignment(assignment: SourceAssignment) {
   return {
     id: assignment.id,
     channelId: assignment.channelId,
+    participation: assignment.participation,
     playbackMode: assignment.playbackMode,
     ordinaryStretch: assignment.ordinaryStretch,
     marathonStretch: assignment.marathonStretch,

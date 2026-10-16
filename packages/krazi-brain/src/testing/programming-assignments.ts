@@ -29,6 +29,7 @@ export function collectionAssignment(
 ): ProgrammingAssignment {
   return {
     id,
+    participation: "default",
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 3 },
     marathon: null,
@@ -44,6 +45,7 @@ export function itemAssignment(
 ): ProgrammingAssignment {
   return {
     id,
+    participation: "default",
     playbackMode: null,
     ordinary: { kind: "programs", count: 3 },
     marathon: null,

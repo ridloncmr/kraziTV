@@ -71,6 +71,7 @@ function firstPick(progress: PlaybackProgress): string | undefined {
     assignments: [
       {
         id: "assignment",
+        participation: "default",
         playbackMode: "chronological",
         ordinary: { kind: "programs", count: 1 },
         marathon: null,

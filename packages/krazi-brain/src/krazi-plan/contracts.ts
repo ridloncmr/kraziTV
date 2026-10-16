@@ -23,6 +23,16 @@ export interface MarathonSettings {
   minOrdinaryRounds: number;
 }
 
+/**
+ * How an assignment takes part in programming (programming spec 0005): in
+ * normal rotation, or only while a winning programming rule selects it. The
+ * one list of values; the server's validation and column derive from it.
+ */
+export const ASSIGNMENT_PARTICIPATIONS = ["default", "rule_only"] as const;
+
+export type AssignmentParticipation =
+  (typeof ASSIGNMENT_PARTICIPATIONS)[number];
+
 /** One member of an assignment, with its media resolved from the catalog. */
 export type AssignmentMember =
   | {
@@ -39,6 +49,11 @@ export type AssignmentMember =
  */
 export interface ProgrammingAssignment {
   id: string;
+  /**
+   * `default` takes turns in normal rotation; `rule_only` airs only while
+   * a winning programming rule selects it (programming spec 0005).
+   */
+  participation: AssignmentParticipation;
   /** Required when a member is a collection; absent for single items only. */
   playbackMode: PlaybackMode | null;
   ordinary: StretchSetting;

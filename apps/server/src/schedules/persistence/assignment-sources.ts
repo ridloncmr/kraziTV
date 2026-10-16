@@ -56,6 +56,7 @@ export async function loadProgrammingAssignments(
     }
     assignments.push({
       id: row.id,
+      participation: row.participation,
       playbackMode: row.playback_mode,
       ...toAssignmentStretches(row),
       members: resolved,

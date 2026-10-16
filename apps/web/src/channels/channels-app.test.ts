@@ -124,6 +124,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
 function favoritesAssignment(playbackMode: string, count = 3) {
   return {
     id: "assignment",
+    participation: "default",
     playbackMode,
     ordinaryStretch: { kind: "programs", count },
     marathonStretch: null,
@@ -165,6 +166,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
     marathonStretch: null,
@@ -262,6 +264,7 @@ it.each([
     expect(
       api.requests.find((request) => request.method === "PATCH")?.body,
     ).toEqual({
+      participation: "default",
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
       marathonStretch: null,
@@ -481,6 +484,7 @@ it("shows a collection's programs per turn and saves an edited count", async () 
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 2 },
     marathonStretch: null,
@@ -631,6 +635,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "random",
     ordinaryStretch: { kind: "programs", count: 3 },
     marathonStretch: null,
@@ -721,6 +726,7 @@ it("adds, reorders, and saves an assignment's members", async () => {
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 3 },
     marathonStretch: null,
@@ -778,6 +784,7 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
     marathonStretch: null,
@@ -1048,4 +1055,50 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
     );
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
+});
+
+it("saves an assignment kept out of normal rotation and shows it when reopened", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
+  const ruleOnly = {
+    ...favoritesAssignment("chronological"),
+    participation: "rule_only",
+  };
+  api.handle(
+    "/channels/one/programming-assignments/assignment",
+    () => {
+      api.reply("/channels/one/programming-assignments", [ruleOnly]);
+      return api.response(ruleOnly);
+    },
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const view = render(
+    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+  );
+  const rotation = await screen.findByLabelText<HTMLInputElement>(
+    "Plays in normal rotation",
+  );
+  await waitFor(() => expect(rotation.checked).toBe(true));
+
+  fireEvent.click(rotation);
+  screen.getByText("Airs only while a programming rule selects it.");
+  fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
+  await screen.findByText(/revision 2/);
+  view.unmount();
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toMatchObject({ participation: "rule_only" });
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Plays in normal rotation")
+        .checked,
+    ).toBe(false),
+  );
 });

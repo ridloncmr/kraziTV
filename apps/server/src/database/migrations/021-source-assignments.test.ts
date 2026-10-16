@@ -24,6 +24,7 @@ import {
 } from "../../testing/test-environment.js";
 import { sourceAssignmentsMigration } from "./021-source-assignments.js";
 import { turnsEndedByEditsMigration } from "./022-turns-ended-by-edits.js";
+import { assignmentParticipationMigration } from "./023-assignment-participation.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -223,6 +224,7 @@ describe("021_source_assignments", () => {
     await sourceAssignmentsMigration.up(db as Kysely<unknown>);
     // Generating needs every later migration too.
     await turnsEndedByEditsMigration.up(db as Kysely<unknown>);
+    await assignmentParticipationMigration.up(db as Kysely<unknown>);
     const schedules = new ScheduleService(db, {
       now: () => FIXTURE_TIME,
       createId: sequentialIds("next"),

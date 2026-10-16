@@ -92,6 +92,11 @@ export function generateProgramming(
       entry,
     ]),
   );
+  // Only assignments in normal rotation take turns; a rule-only one waits
+  // for a rule to select it, and one that left rotation ends its turn.
+  const rotating = assignments.filter(
+    ({ participation }) => participation === "default",
+  );
   const advanced = new Set<string>();
   const blocks: GeneratedBlock[] = [];
   const entries: GeneratedScheduleEntry[] = [];
@@ -108,7 +113,7 @@ export function generateProgramming(
       ? { ...FIRST_CHECKPOINT, rebuildCount: options.rebuildCount }
       : advancePastTurn(continued.block.checkpoint, continued.block.marathon);
   let open =
-    continued === undefined ? undefined : resumeTurn(continued, assignments);
+    continued === undefined ? undefined : resumeTurn(continued, rotating);
   let startsAt = options.startsAt;
   let sequenceNumber = options.nextSequenceNumber;
 
@@ -116,7 +121,7 @@ export function generateProgramming(
     if (open === undefined) {
       const { chosen: turn, skips: skipped } = chooseTurn(
         state,
-        assignments,
+        rotating,
         options,
         options.marathons,
       );

@@ -92,6 +92,7 @@ export const assignmentFixture: Insertable<ProgrammingSourceAssignmentTable> = {
   id: "assignment-fixture-001",
   channel_id: channelFixture.id,
   playback_mode: "chronological",
+  participation: "default",
   assignment_order: 0,
   ordinary_kind: "programs",
   ordinary_min: 3,

@@ -1,4 +1,5 @@
 import type {
+  AssignmentParticipation,
   MarathonSettings,
   PlaybackMode,
   StretchSetting,
@@ -11,6 +12,8 @@ export type MemberSource =
 
 /** What the owner saves for one assignment; the API accepts and returns it. */
 export interface AssignmentSettings {
+  /** In normal rotation, or only while a programming rule selects it. */
+  participation: AssignmentParticipation;
   /** Required when a member is a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
   ordinaryStretch: StretchSetting;

@@ -38,6 +38,7 @@ function collection(prefix: string, count = 5): AssignmentMember {
 function sitcoms(members: AssignmentMember[]): ProgrammingAssignment {
   return {
     id: "sitcoms",
+    participation: "default",
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 2 },
     marathon: null,

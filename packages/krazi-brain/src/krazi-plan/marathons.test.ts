@@ -251,6 +251,7 @@ describe("generateProgramming: generated marathons", () => {
   it("never gives an opportunity to an assignment of single items only", () => {
     const specials: ProgrammingAssignment = {
       id: "specials",
+      participation: "default",
       playbackMode: null,
       ordinary: { kind: "programs", count: 1 },
       marathon: { kind: "programs", count: 3 },

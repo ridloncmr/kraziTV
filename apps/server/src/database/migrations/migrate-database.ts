@@ -27,6 +27,7 @@ import { orderedPlaybackModesMigration } from "./019-ordered-playback-modes.js";
 import { orderFingerprintsMigration } from "./020-order-fingerprints.js";
 import { sourceAssignmentsMigration } from "./021-source-assignments.js";
 import { turnsEndedByEditsMigration } from "./022-turns-ended-by-edits.js";
+import { assignmentParticipationMigration } from "./023-assignment-participation.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -52,6 +53,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "020_order_fingerprints": orderFingerprintsMigration,
   "021_source_assignments": sourceAssignmentsMigration,
   "022_turns_ended_by_edits": turnsEndedByEditsMigration,
+  "023_assignment_participation": assignmentParticipationMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {
