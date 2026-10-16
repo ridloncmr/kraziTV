@@ -4,7 +4,17 @@ export type ChannelId = string;
 export type ScheduleEntryId = string;
 export type MediaItemId = string;
 
-export type SelectedPlayoutItem = {
+/**
+ * Where a worker continues from: a program by its schedule entry, or
+ * planned filler by its end, which stays fixed while it airs (ADR 0014).
+ */
+export type PlayoutCursor =
+  | { kind: "program"; scheduleEntryId: ScheduleEntryId }
+  | { kind: "filler"; endsAt: TimestampMs };
+
+/** A program to transmit from its media. */
+type SelectedProgram = {
+  kind: "program";
   channelId: ChannelId;
   scheduleEntryId: ScheduleEntryId;
   scheduleRevision: number;
@@ -20,12 +30,30 @@ export type SelectedPlayoutItem = {
   startOffsetMs: DurationMs;
 };
 
+/**
+ * Planned filler kraziBrain chose: black video with `message`, already
+ * worded and formatted by the adapter, until `endsAt`, when programming
+ * resumes.
+ */
+type SelectedFiller = {
+  kind: "filler";
+  channelId: ChannelId;
+  scheduleRevision: number;
+  startsAt: TimestampMs;
+  endsAt: TimestampMs;
+  message: string;
+};
+
+/** What airs: a program or planned filler. */
+export type SelectedPlayoutItem = SelectedProgram | SelectedFiller;
+
 export type CurrentPlayoutResult =
   | {
       status: "current";
       channelId: ChannelId;
       scheduleRevision: number;
       evaluatedAt: TimestampMs;
+      /** Where in the program's media to join; for filler, the join offset into it. */
       mediaOffsetMs: DurationMs;
       item: SelectedPlayoutItem;
     }
@@ -45,7 +73,7 @@ export type FollowingPlayoutResult =
       scheduleRevision: number;
       items: readonly SelectedPlayoutItem[];
     }
-  // The afterScheduleEntryId the caller passed is no longer on the schedule.
+  // The cursor the caller passed no longer names a program or filler.
   | {
       status: "stale_entry";
       channelId: ChannelId;
@@ -61,7 +89,7 @@ export interface PlayoutProvider {
   ): Promise<CurrentPlayoutResult>;
   getFollowing(
     channelId: ChannelId,
-    afterScheduleEntryId: ScheduleEntryId,
+    after: PlayoutCursor,
     count: number,
   ): Promise<FollowingPlayoutResult>;
 }

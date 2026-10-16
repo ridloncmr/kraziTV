@@ -18,6 +18,7 @@ export {
 export type {
   ChannelState,
   FollowingPlayout,
+  PlayoutCursor,
   PlayoutEntry,
   PlayoutItem,
 } from "./playout/contracts.js";

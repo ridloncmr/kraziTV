@@ -1,20 +1,21 @@
 import type { PlayoutEntry } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { channelFixture } from "../testing/channel-fixtures.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import {
   insertScheduleEntries,
   seedScheduleScenario,
-} from "../testing/schedule-fixtures.js";
+} from "../../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
+} from "../../testing/test-environment.js";
 import {
   findCoveringPlayoutEntries,
   findPlayoutEntryById,
-  listPlayoutEntriesAfter,
+  listPlayoutEntriesAround,
+  listReservedTimeRanges,
   listPlayoutEntriesInWindow,
 } from "./playout-repository.js";
 
@@ -169,13 +170,12 @@ describe("playout queries", () => {
     ).resolves.toEqual(["entry-7"]);
   });
 
-  it("finds an entry by ID with its sequence number, only on its own channel", async () => {
+  it("finds an entry by ID, only on its own channel", async () => {
     const { db, channelId } = await setup();
 
     const found = await findPlayoutEntryById(db, channelId, "entry-2");
 
-    expect(found?.sequenceNumber).toBe(2);
-    expect(found?.entry.id).toBe("entry-2");
+    expect(found).toMatchObject({ id: "entry-2", startsAt: T0 + 45 * MINUTE });
     await expect(
       findPlayoutEntryById(db, channelId, "entry-gone"),
     ).resolves.toBeUndefined();
@@ -195,9 +195,12 @@ describe("playout queries", () => {
     await expect(
       findPlayoutEntryById(db, channelId, otherEntryId),
     ).resolves.toBeUndefined();
-    await expect(listPlayoutEntriesAfter(db, channelId, 7, 5)).resolves.toEqual(
-      [],
-    );
+    await expect(
+      listPlayoutEntriesAround(db, channelId, T0 + 103 * MINUTE, 5).then(ids),
+    ).resolves.toEqual(["entry-7"]);
+    await expect(
+      listReservedTimeRanges(db, OTHER_CHANNEL_ID, T0),
+    ).resolves.toEqual([]);
     await expect(
       listPlayoutEntriesInWindow(
         db,
@@ -213,18 +216,68 @@ describe("playout queries", () => {
     ).resolves.toEqual([otherEntryId, `${OTHER_CHANNEL_ID}-entry-9`]);
   });
 
-  it("lists up to count entries after a sequence number, in sequence order", async () => {
+  it("lists the entry starting at or before an instant and up to count after it, however far", async () => {
     const { db, channelId } = await setup();
 
+    // In the gap after entry-2: the one before it and the next one, 11 minutes on.
     await expect(
-      listPlayoutEntriesAfter(db, channelId, 0, 2).then(ids),
+      listPlayoutEntriesAround(db, channelId, T0 + 70 * MINUTE, 1).then(ids),
+    ).resolves.toEqual(["entry-2", "entry-7"]);
+    // Exactly at a start, that entry is the one around the instant.
+    await expect(
+      listPlayoutEntriesAround(db, channelId, T0 + 22 * MINUTE, 1).then(ids),
     ).resolves.toEqual(["entry-1", "entry-2"]);
     await expect(
-      listPlayoutEntriesAfter(db, channelId, 2, 5).then(ids),
-    ).resolves.toEqual(["entry-7"]);
-    await expect(listPlayoutEntriesAfter(db, channelId, 7, 5)).resolves.toEqual(
-      [],
-    );
+      listPlayoutEntriesAround(db, channelId, T0, 5).then(ids),
+    ).resolves.toEqual(["entry-0", "entry-1", "entry-2", "entry-7"]);
+    // Before the first entry there is none around, only those after.
+    await expect(
+      listPlayoutEntriesAround(db, channelId, T0 - 1, 2).then(ids),
+    ).resolves.toEqual(["entry-0", "entry-1"]);
+  });
+
+  it("lists the ranges of a channel's reservations still to end, in start order", async () => {
+    const { db, channelId } = await setup();
+    const reservation = {
+      channel_id: channelId,
+      end_kind: "explicit" as const,
+      source_kind: "media_items" as const,
+      media_collection_id: null,
+      playback_mode: null,
+      created_at: T0,
+      updated_at: T0,
+    };
+    await db
+      .insertInto("reservations")
+      .values([
+        {
+          ...reservation,
+          id: "late",
+          starts_at: T0 + 200 * MINUTE,
+          ends_at: T0 + 230 * MINUTE,
+        },
+        {
+          ...reservation,
+          id: "ended",
+          starts_at: T0 + 10 * MINUTE,
+          ends_at: T0 + 20 * MINUTE,
+        },
+        {
+          ...reservation,
+          id: "early",
+          starts_at: T0 + 70 * MINUTE,
+          ends_at: T0 + 80 * MINUTE,
+        },
+      ])
+      .execute();
+
+    // A range ending exactly at the instant has ended.
+    await expect(
+      listReservedTimeRanges(db, channelId, T0 + 20 * MINUTE),
+    ).resolves.toEqual([
+      { startsAt: T0 + 70 * MINUTE, endsAt: T0 + 80 * MINUTE },
+      { startsAt: T0 + 200 * MINUTE, endsAt: T0 + 230 * MINUTE },
+    ]);
   });
 
   it("rejects a count that is not a positive integer before reading", async () => {
@@ -234,7 +287,7 @@ describe("playout queries", () => {
     // every later entry instead of failing.
     for (const count of [0, -1, 1.5, Number.NaN]) {
       await expect(
-        listPlayoutEntriesAfter(db, channelId, 0, count),
+        listPlayoutEntriesAround(db, channelId, T0, count),
       ).rejects.toThrow(`following count must be a positive integer: ${count}`);
     }
   });

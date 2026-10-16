@@ -1,28 +1,22 @@
-import {
-  buildPlayoutTimeline,
-  deriveChannelState,
-  type PlayoutItem,
-  selectFollowingPlayout,
-} from "@krazitv/krazi-brain";
+import type { PlayoutItem } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import {
   openRacingSchedule,
   RACING_EPISODE_MS,
   racingRegenerator,
-} from "../testing/racing-schedule.js";
-import { recordingLog } from "../testing/recording-log.js";
-import { readOnlyScheduleState } from "../testing/schedule-fixtures.js";
-import { createBarrier } from "../testing/test-barrier.js";
-import { cleanUpTestEnvironment } from "../testing/test-environment.js";
-import type { PlayoutSnapshotRead } from "./contracts.js";
+} from "../../testing/racing-schedule.js";
+import { recordingLog } from "../../testing/recording-log.js";
+import { readOnlyScheduleState } from "../../testing/schedule-fixtures.js";
+import { createBarrier } from "../../testing/test-barrier.js";
+import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
+import type { PlayoutSnapshotRead } from "../contracts.js";
 import {
-  findCoveringPlayoutEntries,
-  findPlayoutEntryById,
-  listPlayoutEntriesAfter,
-  listPlayoutEntriesInWindow,
-} from "./playout-repository.js";
+  readChannelStateAt,
+  readFollowing,
+  readTimeline,
+} from "./playout-reads.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -34,7 +28,7 @@ const NOW = T0 + HOUR / 2;
 const AIRING_ENTRY_ID = "original-001";
 const FOLLOWING_COUNT = 3;
 
-// Names a playout item by its entry, or as filler, which these reads never derive.
+// Names a playout item by its entry, or as filler, which this schedule never derives.
 function itemId(item: PlayoutItem | null): string {
   if (item === null) return "none";
   return item.type === "program" ? item.scheduleEntryId : "filler";
@@ -49,15 +43,12 @@ interface Observed {
 // The current-state read: the airing entry and the item that follows it.
 const readChannelState =
   (channelId: string): PlayoutSnapshotRead<Observed> =>
-  async (trx, scheduleRevision) => {
-    const state = deriveChannelState({
-      channelId,
-      scheduleRevision,
-      reservations: [],
-      anchorTime: 0,
-      evaluatedAt: NOW,
-      entries: await findCoveringPlayoutEntries(trx, channelId, NOW),
-    });
+  async (trx, scheduleRevision, anchorTime) => {
+    const state = await readChannelStateAt(
+      trx,
+      { channelId, scheduleRevision, anchorTime },
+      NOW,
+    );
     if (state.kind !== "current") throw new Error(`no current: ${state.kind}`);
     return {
       scheduleRevision: state.scheduleRevision,
@@ -66,28 +57,15 @@ const readChannelState =
   };
 
 // The following read: the items after the airing entry, used as the cursor.
-const readFollowing =
+const readFollowingItems =
   (channelId: string): PlayoutSnapshotRead<Observed> =>
-  async (trx, scheduleRevision) => {
-    const cursor = await findPlayoutEntryById(trx, channelId, AIRING_ENTRY_ID);
-    const candidates =
-      cursor === undefined
-        ? []
-        : await listPlayoutEntriesAfter(
-            trx,
-            channelId,
-            cursor.sequenceNumber,
-            FOLLOWING_COUNT,
-          );
-    const following = selectFollowingPlayout({
-      channelId,
-      scheduleRevision,
-      reservations: [],
-      anchorTime: 0,
-      cursor: { kind: "program", scheduleEntryId: AIRING_ENTRY_ID },
-      entries: cursor === undefined ? [] : [cursor.entry, ...candidates],
-      count: FOLLOWING_COUNT,
-    });
+  async (trx, scheduleRevision, anchorTime) => {
+    const following = await readFollowing(
+      trx,
+      { channelId, scheduleRevision, anchorTime },
+      { kind: "program", scheduleEntryId: AIRING_ENTRY_ID },
+      FOLLOWING_COUNT,
+    );
     if (following.status !== "selected") {
       throw new Error(`not selected: ${following.status}`);
     }
@@ -100,24 +78,14 @@ const readFollowing =
 // The window read: every playable item in the three hours from T0.
 const readWindow =
   (channelId: string): PlayoutSnapshotRead<Observed> =>
-  async (trx, scheduleRevision) => {
-    const items = buildPlayoutTimeline({
-      channelId,
-      scheduleRevision,
-      reservations: [],
-      anchorTime: 0,
-      window: { start: T0, end: T0 + 3 * HOUR },
-      entries: await listPlayoutEntriesInWindow(
-        trx,
-        channelId,
-        T0,
-        T0 + 3 * HOUR,
-      ),
-    });
-    return {
-      scheduleRevision,
-      entryIds: items.map(itemId),
-    };
+  async (trx, scheduleRevision, anchorTime) => {
+    const items = await readTimeline(
+      trx,
+      { channelId, scheduleRevision, anchorTime },
+      T0,
+      T0 + 3 * HOUR,
+    );
+    return { scheduleRevision, entryIds: items.map(itemId) };
   };
 
 const READS = [
@@ -129,7 +97,7 @@ const READS = [
   },
   {
     name: "following",
-    read: readFollowing,
+    read: readFollowingItems,
     before: ["original-002", "original-003", "original-004"],
     after: ["regenerated-001", "regenerated-002", "regenerated-003"],
   },

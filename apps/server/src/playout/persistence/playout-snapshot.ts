@@ -1,23 +1,23 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { ScheduleState } from "../schedules/contracts.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { ScheduleState } from "../../schedules/contracts.js";
 import {
   checkCoverage,
   effectiveNow,
   resolveTarget,
   scheduleRevisionOrZero,
-} from "../schedules/schedule-coverage.js";
+} from "../../schedules/schedule-coverage.js";
 import {
   findChannelEnabled,
   loadScheduleState,
-} from "../schedules/persistence/schedule-repository.js";
+} from "../../schedules/persistence/schedule-repository.js";
 import type {
   CoverageRequirement,
   PlayoutSnapshot,
   PlayoutSnapshotOptions,
   PlayoutSnapshotRead,
-} from "./contracts.js";
+} from "../contracts.js";
 
 /**
  * Reads one playout result from a single schedule snapshot: a deferred read
@@ -50,7 +50,7 @@ export async function readPlayoutSnapshot<T>(
     return {
       kind: "ok",
       scheduleRevision,
-      value: await read(trx, scheduleRevision),
+      value: await read(trx, scheduleRevision, state?.anchorTime ?? 0),
     };
   });
 }

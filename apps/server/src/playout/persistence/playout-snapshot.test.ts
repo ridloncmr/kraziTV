@@ -1,19 +1,19 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { countQueries } from "../testing/query-counter.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { countQueries } from "../../testing/query-counter.js";
 import {
   insertScheduleEntries,
   insertScheduleState,
   seedScheduleScenario,
-} from "../testing/schedule-fixtures.js";
+} from "../../testing/schedule-fixtures.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
-import type { CoverageRequirement } from "./contracts.js";
+} from "../../testing/test-environment.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
+import type { CoverageRequirement } from "../contracts.js";
 import { findCoveringPlayoutEntries } from "./playout-repository.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";
 

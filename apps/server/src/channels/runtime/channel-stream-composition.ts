@@ -27,6 +27,8 @@ interface ChannelStreamCompositionOptions {
   playout: PlayoutService;
   channels: Pick<ChannelRepository, "findById">;
   log: FastifyBaseLogger;
+  /** Where filler's resume time is worded. */
+  programmingTimezone: string;
   packager: SignalPackager;
   /** One source for both, so worker sleeps and transition checks agree. */
   runtime: Clock & TimerScheduler;
@@ -50,6 +52,7 @@ export function composeChannelStreamManager(
     options.playout,
     options.channels,
     options.log,
+    options.programmingTimezone,
   );
   return createChannelStreamManager({
     authorization: adapter,

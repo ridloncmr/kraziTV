@@ -20,10 +20,11 @@ import {
 } from "vitest";
 
 import { composeChannelStreamManager } from "../src/channels/runtime/channel-stream-composition.js";
+import { parseFfmpegFontFile } from "../src/config/ffmpeg.js";
 import { toSignalLogger } from "../src/channels/runtime/signal-log.js";
 import { PlayoutService } from "../src/playout/playout-service.js";
 import { ScheduleService } from "../src/schedules/schedule-service.js";
-import { send } from "../src/testing/api-requests.js";
+import { iso, send } from "../src/testing/api-requests.js";
 import { itemAssignment } from "../src/testing/assignment-bodies.js";
 import { assignmentFixture } from "../src/testing/channel-fixtures.js";
 import {
@@ -127,6 +128,8 @@ async function startRealChannel({
       logger: toSignalLogger(silent),
       timers: runtime,
       ffmpegPath,
+      // The font production resolves, so filler renders on every host.
+      fillerFontFile: parseFfmpegFontFile(process.env, process.platform),
     }),
   );
   const { server, db } = await startTestServer({
@@ -141,6 +144,7 @@ async function startRealChannel({
         playout,
         channels: defaults.channels,
         log: silent,
+        programmingTimezone: "UTC",
         packager,
         runtime,
         startupTimeoutMs,
@@ -314,6 +318,56 @@ describe("real FFmpeg channel stream", () => {
       expect(commit?.committedAt).toBeGreaterThanOrEqual(first.ends_at);
       expect(viewer.response.closed).toBe(false);
       expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("real FFmpeg reserved start", () => {
+  it(
+    "airs filler and starts the reserved program within a second of its time on one signal",
+    async () => {
+      const { server, baseUrl, packager, entries } = await startRealChannel();
+      const first = entryAt(entries, 0);
+      // The next episode would end past the reservation, so filler covers
+      // three seconds after the first one before the reserved program.
+      const reservedAt = first.ends_at + 3_000;
+      const created = await send(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations`,
+        {
+          startsAt: iso(reservedAt),
+          source: { kind: "media_items", mediaItemIds: ["item-002"] },
+        },
+      );
+      expect(created.status, "reservation status").toBe(201);
+      await sleepUntil(first.starts_at + 1_000);
+      const viewer = await tune(baseUrl);
+      await receivesBytes(viewer);
+
+      await sleepUntil(reservedAt + 2_000);
+
+      expect(packager.sessions).toHaveLength(1);
+      const commits = packager.sessions[0]?.commits ?? [];
+      expect(commits.map(({ item }) => item.kind)).toEqual([
+        "filler",
+        "program",
+      ]);
+      const [filler, reserved] = commits;
+      expect(filler?.committedAt).toBeGreaterThanOrEqual(first.ends_at);
+      expect(filler?.committedAt).toBeLessThan(first.ends_at + 1_000);
+      expect(reserved?.item).toMatchObject({ mediaItemId: "item-002" });
+      // Spec 0006's exact start: within a second on the broadcast timeline.
+      expect(reserved?.committedAt).toBeGreaterThanOrEqual(reservedAt);
+      expect(reserved?.committedAt).toBeLessThan(reservedAt + 1_000);
+      expect(viewer.response.closed).toBe(false);
+      // One continuous decodable stream across both transitions: the viewer
+      // received about as much video as wall time passed since tuning.
+      const watchedMs = Date.now() - viewer.tunedAt;
+      expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
+        watchedMs - DRIFT_CEILING_MS,
+      );
     },
     TEST_TIMEOUT_MS,
   );

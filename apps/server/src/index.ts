@@ -141,6 +141,7 @@ const channelStreams = composeChannelStreamManager({
   playout,
   channels,
   log: logger,
+  programmingTimezone,
   packager: createFfmpegSignalPackager({
     logger: toSignalLogger(logger),
     timers: runtime,

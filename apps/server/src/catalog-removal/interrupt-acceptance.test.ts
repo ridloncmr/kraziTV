@@ -150,9 +150,14 @@ describe("catalog removal with airing interrupt", () => {
       dependencies.playout,
       dependencies.channels,
       recordingLog(),
+      "UTC",
     );
     await expect(
-      adapter.getFollowing(CHANNEL_ID, airing.id, 1),
+      adapter.getFollowing(
+        CHANNEL_ID,
+        { kind: "program", scheduleEntryId: airing.id },
+        1,
+      ),
     ).resolves.toMatchObject({ status: "stale_entry", items: [] });
     await expect(
       adapter.getCurrent(CHANNEL_ID, airing.ends_at),

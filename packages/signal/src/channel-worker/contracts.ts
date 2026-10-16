@@ -1,10 +1,10 @@
 import type { ChannelBroadcastSubscription } from "../channel-broadcast/channel-broadcast-subscription.js";
-import type { ChannelId, ScheduleEntryId } from "../playout/contracts.js";
+import type { ChannelId, PlayoutCursor } from "../playout/contracts.js";
 import type { TimestampMs } from "../runtime/clock.js";
 
 /** The item a worker's session is transmitting, and when its boundary falls. */
 export type AiringItem = {
-  scheduleEntryId: ScheduleEntryId;
+  cursor: PlayoutCursor;
   endsAt: TimestampMs;
 };
 
@@ -28,9 +28,10 @@ export interface ChannelAuthorization {
   ): Promise<ChannelAuthorizationResult>;
 }
 
+/** A prepared item the coordinator must find still airing at its boundary. */
 export type TransitionCandidate = {
   channelId: ChannelId;
-  scheduleEntryId: ScheduleEntryId;
+  cursor: PlayoutCursor;
   scheduleRevision: number;
 };
 

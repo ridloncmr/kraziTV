@@ -77,6 +77,7 @@ async function startStreamingServer(
         playout,
         channels: defaults.channels,
         log: pino({ level: "silent" }),
+        programmingTimezone: "UTC",
         packager,
         runtime: {
           now: clock.now,

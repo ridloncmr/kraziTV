@@ -25,6 +25,8 @@ import { RecordingLogger } from "./testing/recording-logger.js";
 import { expectSignalError } from "./testing/expect-signal-error.js";
 import { settlePromises } from "./testing/settle-promises.js";
 
+type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
+
 // Package-level scenarios: the real manager, worker, broadcaster, and
 // transition loop run together. Only playout, packaging, coordination, and
 // time are faked, and every interleaving is driven explicitly.
@@ -38,7 +40,8 @@ const entry = (
   scheduleEntryId: string,
   startsAt: number,
   channelId: ChannelId = CHANNEL,
-): SelectedPlayoutItem => ({
+): SelectedProgram => ({
+  kind: "program",
   channelId,
   scheduleEntryId,
   scheduleRevision: 7,
@@ -55,7 +58,7 @@ const entry = (
 
 /** Selected playout as the provider reports it at one evaluation instant. */
 const current = (
-  item: SelectedPlayoutItem,
+  item: SelectedProgram,
   evaluatedAt: number,
 ): CurrentPlayoutResult => ({
   status: "current",
@@ -143,7 +146,7 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
     manager,
 
     /** Arranges the worker's preliminary and final pre-spawn state lookups. */
-    arrangeStartup(item: SelectedPlayoutItem, atMs = clock.now()): void {
+    arrangeStartup(item: SelectedProgram, atMs = clock.now()): void {
       provider.enqueueCurrent(current(item, atMs));
       provider.enqueueCurrent(current(item, atMs));
     },

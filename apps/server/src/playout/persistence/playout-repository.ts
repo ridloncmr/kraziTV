@@ -1,9 +1,12 @@
-import { assertFollowingCount, type PlayoutEntry } from "@krazitv/krazi-brain";
+import {
+  assertFollowingCount,
+  type PlayoutEntry,
+  type Reservation,
+} from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
-import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import type { SequencedPlayoutEntry } from "./contracts.js";
+import { fromNullableSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 
 // Every query takes the caller's executor, so the snapshot read and the
 // transition coordinator's immediate transaction run the same SQL. The inner
@@ -39,40 +42,18 @@ export async function findCoveringPlayoutEntries(
 }
 
 /**
- * Finds a playout cursor's entry on its channel with the sequence number the
- * following query continues from. Undefined means the cursor is stale.
+ * Finds a program cursor's entry on its channel, where following selection
+ * reads from. Undefined means the cursor is stale.
  */
 export async function findPlayoutEntryById(
   trx: Executor,
   channelId: string,
   entryId: string,
-): Promise<SequencedPlayoutEntry | undefined> {
+): Promise<PlayoutEntry | undefined> {
   const row = await selectPlayoutEntries(trx, channelId)
     .where("schedule_entries.id", "=", entryId)
     .executeTakeFirst();
-  return row === undefined
-    ? undefined
-    : { entry: toPlayoutEntry(row), sequenceNumber: row.sequence_number };
-}
-
-/**
- * Lists up to `count` entries after a sequence number, in sequence order.
- * Rejects a count that is not a positive integer as a programming error,
- * because SQLite reads a negative LIMIT as no limit at all.
- */
-export async function listPlayoutEntriesAfter(
-  trx: Executor,
-  channelId: string,
-  sequenceNumber: number,
-  count: number,
-): Promise<PlayoutEntry[]> {
-  assertFollowingCount(count);
-  const rows = await selectPlayoutEntries(trx, channelId)
-    .where("schedule_entries.sequence_number", ">", sequenceNumber)
-    .orderBy("schedule_entries.sequence_number")
-    .limit(count)
-    .execute();
-  return rows.map(toPlayoutEntry);
+  return row === undefined ? undefined : toPlayoutEntry(row);
 }
 
 /**
@@ -91,6 +72,52 @@ export async function listPlayoutEntriesInWindow(
     .orderBy("schedule_entries.sequence_number")
     .execute();
   return rows.map(toPlayoutEntry);
+}
+
+/**
+ * Lists, in start order, the entry starting at or before `at` (the one
+ * covering it, or else the last before it) and up to `after` entries
+ * starting after it: what planned filler at or after `at` is derived from
+ * (ADR 0014), however far the next entry is.
+ */
+export async function listPlayoutEntriesAround(
+  trx: Executor,
+  channelId: string,
+  at: number,
+  after: number,
+): Promise<PlayoutEntry[]> {
+  // SQLite reads a negative LIMIT as no limit, so a bad count fails here.
+  assertFollowingCount(after);
+  const latest = await selectPlayoutEntries(trx, channelId)
+    .where("schedule_entries.starts_at", "<=", at)
+    .orderBy("schedule_entries.starts_at", "desc")
+    .limit(1)
+    .execute();
+  const later = await selectPlayoutEntries(trx, channelId)
+    .where("schedule_entries.starts_at", ">", at)
+    .orderBy("schedule_entries.starts_at")
+    .limit(after)
+    .execute();
+  return [...latest, ...later].map(toPlayoutEntry);
+}
+
+/**
+ * Lists the ranges of the channel's reservations ending after `after`, the
+ * only ones that can explain filler from then on.
+ */
+export async function listReservedTimeRanges(
+  trx: Executor,
+  channelId: string,
+  after: number,
+): Promise<Pick<Reservation, "startsAt" | "endsAt">[]> {
+  const rows = await trx
+    .selectFrom("reservations")
+    .select(["starts_at", "ends_at"])
+    .where("channel_id", "=", channelId)
+    .where("ends_at", ">", after)
+    .orderBy("starts_at")
+    .execute();
+  return rows.map((row) => ({ startsAt: row.starts_at, endsAt: row.ends_at }));
 }
 
 // The channel's entries joined to the media columns a playout entry carries.

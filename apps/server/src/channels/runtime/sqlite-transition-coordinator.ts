@@ -10,7 +10,8 @@ import {
   type ImmediateTransactionHooks,
   runImmediateTransaction,
 } from "../../database/writes/immediate-transaction.js";
-import { findCoveringPlayoutEntries } from "../../playout/playout-repository.js";
+import { readChannelStateAt } from "../../playout/persistence/playout-reads.js";
+import { findCoveringPlayoutEntries } from "../../playout/persistence/playout-repository.js";
 import {
   findChannelEnabled,
   loadScheduleState,
@@ -100,21 +101,39 @@ export class SqliteTransitionCoordinator implements TransitionCoordinator {
 /**
  * Whether the candidate is still what should air at `boundaryTime`: its
  * channel still exists and is enabled, the schedule revision it was
- * prepared under is still current, and its entry covers `boundaryTime`.
+ * prepared under is still current, and its program's entry covers
+ * `boundaryTime`, or the planned filler airing then ends where its cursor
+ * says (ADR 0014).
  */
 async function isStillCurrent(
   trx: Kysely<DatabaseSchema>,
   candidate: TransitionCandidate,
   boundaryTime: number,
 ): Promise<boolean> {
-  const { channelId } = candidate;
+  const { channelId, cursor } = candidate;
   if ((await findChannelEnabled(trx, channelId)) !== true) return false;
   const state = await loadScheduleState(trx, channelId);
   if (state?.scheduleRevision !== candidate.scheduleRevision) return false;
-  const [covering] = await findCoveringPlayoutEntries(
+  if (cursor.kind === "program") {
+    const [covering] = await findCoveringPlayoutEntries(
+      trx,
+      channelId,
+      boundaryTime,
+    );
+    return covering?.id === cursor.scheduleEntryId;
+  }
+  const airing = await readChannelStateAt(
     trx,
-    channelId,
+    {
+      channelId,
+      scheduleRevision: state.scheduleRevision,
+      anchorTime: state.anchorTime,
+    },
     boundaryTime,
   );
-  return covering?.id === candidate.scheduleEntryId;
+  return (
+    airing.kind === "current" &&
+    airing.currentItem.type === "filler" &&
+    airing.currentItem.endsAt === cursor.endsAt
+  );
 }

@@ -6,16 +6,20 @@ import type {
   SelectedPlayoutItem,
 } from "../playout/contracts.js";
 import {
+  cursorOf,
   requireCurrent,
   selectContiguousFollowing,
   toFollowingSignalItem,
   toSignalItem,
 } from "./playout-projection.js";
 
+type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
+
 const item = (
   scheduleRevision: number,
-  overrides: Partial<SelectedPlayoutItem> = {},
-): SelectedPlayoutItem => ({
+  overrides: Partial<SelectedProgram> = {},
+): SelectedProgram => ({
+  kind: "program",
   channelId: "channel-1",
   scheduleEntryId: "entry-1",
   scheduleRevision,
@@ -34,7 +38,7 @@ const item = (
 const current = (
   evaluatedAt: number,
   mediaOffsetMs: number,
-  overrides: Partial<SelectedPlayoutItem> = {},
+  overrides: Partial<SelectedProgram> = {},
 ): Extract<CurrentPlayoutResult, { status: "current" }> => ({
   status: "current",
   channelId: "channel-1",
@@ -158,5 +162,79 @@ describe("playout projection revision validation", () => {
     };
 
     expect(selectContiguousFollowing(result, "channel-1", 0)).toBeUndefined();
+  });
+});
+
+describe("planned filler projection", () => {
+  type SelectedFiller = Extract<SelectedPlayoutItem, { kind: "filler" }>;
+  const filler = (overrides: Partial<SelectedFiller> = {}): SelectedFiller => ({
+    kind: "filler",
+    channelId: "channel-1",
+    scheduleRevision: 1,
+    startsAt: 10_000,
+    endsAt: 15_000,
+    message: "Programming resumes at 8:00 PM",
+    ...overrides,
+  });
+  const tunedAt = (
+    evaluatedAt: number,
+    overrides: Partial<SelectedFiller> = {},
+  ): Extract<CurrentPlayoutResult, { status: "current" }> => ({
+    status: "current",
+    channelId: "channel-1",
+    scheduleRevision: 1,
+    evaluatedAt,
+    mediaOffsetMs: evaluatedAt - 10_000,
+    item: filler(overrides),
+  });
+  const selected = (item: SelectedPlayoutItem): FollowingPlayoutResult => ({
+    status: "selected",
+    channelId: "channel-1",
+    scheduleRevision: 1,
+    items: [item],
+  });
+
+  it("names a program by its entry and filler by its end", () => {
+    expect(cursorOf(item(1))).toEqual({
+      kind: "program",
+      scheduleEntryId: "entry-1",
+    });
+    expect(cursorOf(filler())).toEqual({ kind: "filler", endsAt: 15_000 });
+  });
+
+  it("packages filler joined mid-way for only its remaining airtime", () => {
+    expect(toSignalItem(tunedAt(12_000), "channel-1")).toEqual({
+      kind: "filler",
+      channelId: "channel-1",
+      message: "Programming resumes at 8:00 PM",
+      airtimeMs: 3_000,
+    });
+    expect(toFollowingSignalItem(filler())).toMatchObject({ airtimeMs: 5_000 });
+  });
+
+  it.each([
+    { name: "at its end", current: tunedAt(15_000) },
+    { name: "before its start", current: tunedAt(9_000) },
+    { name: "with no message", current: tunedAt(12_000, { message: "" }) },
+  ])("refuses filler joined $name", ({ current }) => {
+    expect(() => toSignalItem(current, "channel-1")).toThrow(
+      expect.objectContaining({ code: "invalid_playout_item" }),
+    );
+  });
+
+  it("accepts following filler only when it starts at the boundary and has airtime", () => {
+    expect(
+      selectContiguousFollowing(selected(filler()), "channel-1", 10_000),
+    ).toEqual(filler());
+    expect(
+      selectContiguousFollowing(selected(filler()), "channel-1", 9_000),
+    ).toBeUndefined();
+    expect(
+      selectContiguousFollowing(
+        selected(filler({ endsAt: 10_000 })),
+        "channel-1",
+        10_000,
+      ),
+    ).toBeUndefined();
   });
 });

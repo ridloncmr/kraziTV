@@ -54,7 +54,7 @@ import type { RuleRepository } from "./programming-rules/rule-repository.js";
 import { registerRuleRoutes } from "./programming-rules/rule-routes.js";
 import type { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
 import { registerReservationRoutes } from "./reservations/routes/reservation-routes.js";
-import { registerPlayoutRoutes } from "./playout/playout-routes.js";
+import { registerPlayoutRoutes } from "./playout/routes/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";

@@ -1,16 +1,7 @@
-import type { PlayoutEntry, PlayoutItem } from "@krazitv/krazi-brain";
+import type { PlayoutItem } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-
-/**
- * A playout entry with its channel sequence number, which only the server
- * needs: it orders the following-items query, and kraziBrain never sees it.
- */
-export interface SequencedPlayoutEntry {
-  entry: PlayoutEntry;
-  sequenceNumber: number;
-}
 
 /**
  * The playable items overlapping one window, all read at `scheduleRevision`.
@@ -43,11 +34,13 @@ export interface PlayoutSnapshotOptions {
 
 /**
  * Reads the snapshot's playout rows through its transaction, given the
- * revision they belong to.
+ * revision they belong to and the schedule anchor planned filler with no
+ * earlier program starts at (ADR 0014).
  */
 export type PlayoutSnapshotRead<T> = (
   trx: Kysely<DatabaseSchema>,
   scheduleRevision: number,
+  anchorTime: number,
 ) => Promise<T>;
 
 /**

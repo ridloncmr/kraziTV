@@ -1,25 +1,25 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { iso, send, windowUrl } from "../testing/api-requests.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { holdWriteAuthority } from "../testing/hold-write-authority.js";
-import { manualClock } from "../testing/manual-clock.js";
+import { iso, send, windowUrl } from "../../testing/api-requests.js";
+import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
+import { manualClock } from "../../testing/manual-clock.js";
 import {
   readOnlyScheduleState,
   readScheduleEntries,
   seedScheduleScenario,
-} from "../testing/schedule-fixtures.js";
-import { startScheduleScenarioServer } from "../testing/schedule-server.js";
+} from "../../testing/schedule-fixtures.js";
+import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
   startTestServer,
-} from "../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
-import { ScheduleService } from "../schedules/schedule-service.js";
-import { unwrittenCoverage } from "../testing/unwritten-coverage.js";
-import { PlayoutService } from "./playout-service.js";
+} from "../../testing/test-environment.js";
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
+import { ScheduleService } from "../../schedules/schedule-service.js";
+import { unwrittenCoverage } from "../../testing/unwritten-coverage.js";
+import { PlayoutService } from "../playout-service.js";
 
 afterEach(cleanUpTestEnvironment);
 

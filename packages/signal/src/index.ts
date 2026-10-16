@@ -25,6 +25,7 @@ export type {
 export type {
   CurrentPlayoutResult,
   FollowingPlayoutResult,
+  PlayoutCursor,
   PlayoutProvider,
   SelectedPlayoutItem,
 } from "./playout/contracts.js";

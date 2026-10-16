@@ -1,10 +1,8 @@
 import {
   assertFollowingCount,
-  buildPlayoutTimeline,
   type ChannelState,
-  deriveChannelState,
   type FollowingPlayout,
-  selectFollowingPlayout,
+  type PlayoutCursor,
 } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
@@ -20,20 +18,16 @@ import type {
   PlayoutTimeline,
 } from "./contracts.js";
 import {
-  findCoveringPlayoutEntries,
-  findPlayoutEntryById,
-  listPlayoutEntriesAfter,
-  listPlayoutEntriesInWindow,
-} from "./playout-repository.js";
-import { readPlayoutSnapshot } from "./playout-snapshot.js";
+  readChannelStateAt,
+  readFollowing,
+  readTimeline,
+} from "./persistence/playout-reads.js";
+import { readPlayoutSnapshot } from "./persistence/playout-snapshot.js";
 
 interface PlayoutServiceOptions {
   /** Passed to every snapshot; a test pause point. */
   afterRevisionRead?: PlayoutSnapshotOptions["afterRevisionRead"];
 }
-
-// Reads pass no reservations yet, so no planned filler is derived.
-const NO_RESERVATIONS = { reservations: [], anchorTime: 0 };
 
 /**
  * The schedule writer a playout read ensures coverage through. Its clock is
@@ -65,9 +59,10 @@ export class PlayoutService {
   }
 
   /**
-   * Derives the channel's state at `at`, or now when omitted. The evaluation
-   * time is fixed once, so the retry answers for the same instant, and a
-   * future `at` ensures coverage through it.
+   * Derives the channel's state at `at`, or now when omitted: a program or
+   * planned filler, with its join offset. The evaluation time is fixed
+   * once, so the retry answers for the same instant, and a future `at`
+   * ensures coverage through it.
    */
   async getCurrent(
     channelId: string,
@@ -75,24 +70,22 @@ export class PlayoutService {
     log: ScheduleLog,
   ): Promise<ChannelState | PlayoutFailure> {
     const evaluatedAt = at ?? this.#schedules.now();
-    return this.#readCovered(channelId, log, at, async (trx, revision) =>
-      deriveChannelState({
-        channelId,
-        scheduleRevision: revision,
-        ...NO_RESERVATIONS,
+    return this.#readCovered(channelId, log, at, (trx, revision, anchorTime) =>
+      readChannelStateAt(
+        trx,
+        { channelId, scheduleRevision: revision, anchorTime },
         evaluatedAt,
-        entries: await findCoveringPlayoutEntries(trx, channelId, evaluatedAt),
-      }),
+      ),
     );
   }
 
   /**
-   * Selects up to `count` contiguous playable items after the cursor entry,
-   * with a full horizon of coverage ensured first.
+   * Selects up to `count` contiguous playable items, programs and planned
+   * filler, after the cursor, with a full horizon of coverage ensured first.
    */
   async getFollowing(
     channelId: string,
-    afterScheduleEntryId: string,
+    cursor: PlayoutCursor,
     count: number,
     log: ScheduleLog,
   ): Promise<FollowingPlayout | PlayoutFailure> {
@@ -102,39 +95,21 @@ export class PlayoutService {
       channelId,
       log,
       undefined,
-      async (trx, revision) => {
-        const cursor = await findPlayoutEntryById(
+      (trx, revision, anchorTime) =>
+        readFollowing(
           trx,
-          channelId,
-          afterScheduleEntryId,
-        );
-        return selectFollowingPlayout({
-          channelId,
-          scheduleRevision: revision,
-          ...NO_RESERVATIONS,
-          cursor: { kind: "program", scheduleEntryId: afterScheduleEntryId },
-          entries:
-            cursor === undefined
-              ? []
-              : [
-                  cursor.entry,
-                  ...(await listPlayoutEntriesAfter(
-                    trx,
-                    channelId,
-                    cursor.sequenceNumber,
-                    count,
-                  )),
-                ],
+          { channelId, scheduleRevision: revision, anchorTime },
+          cursor,
           count,
-        });
-      },
+        ),
     );
   }
 
   /**
    * Builds the playout timeline for `[start, end)` from one snapshot, with
    * coverage ensured through `end` first, so a window past the horizon is
-   * never silently partial. An `end` past the request limit is refused.
+   * never silently partial. Planned filler is listed beside programs. An
+   * `end` past the request limit is refused.
    */
   async getTimeline(
     channelId: string,
@@ -142,18 +117,22 @@ export class PlayoutService {
     end: number,
     log: ScheduleLog,
   ): Promise<PlayoutTimeline | PlayoutFailure> {
-    return this.#readCovered(channelId, log, end, async (trx, revision) => ({
-      kind: "timeline",
+    return this.#readCovered(
       channelId,
-      scheduleRevision: revision,
-      items: buildPlayoutTimeline({
+      log,
+      end,
+      async (trx, revision, anchorTime) => ({
+        kind: "timeline",
         channelId,
         scheduleRevision: revision,
-        ...NO_RESERVATIONS,
-        window: { start, end },
-        entries: await listPlayoutEntriesInWindow(trx, channelId, start, end),
+        items: await readTimeline(
+          trx,
+          { channelId, scheduleRevision: revision, anchorTime },
+          start,
+          end,
+        ),
       }),
-    }));
+    );
   }
 
   /**
