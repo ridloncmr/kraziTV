@@ -3,4 +3,6 @@ export interface ServerSettingsTable {
   id: number;
   /** The owner's TMDB API Read Access Token, or null when none is set (ADR 0013). */
   tmdb_api_key: string | null;
+  /** The programming timezone schedules were last generated in, or null before the first startup records it. */
+  programming_timezone: string | null;
 }

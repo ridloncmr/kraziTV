@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify, {
+  type FastifyBaseLogger,
   type FastifyInstance,
   type FastifyServerOptions,
   type RouteOptions,
@@ -103,6 +104,33 @@ export type ServerDependencies = {
   schedules: ScheduleService;
   playout: PlayoutService;
 };
+
+/**
+ * Regenerates channels with rules once when the server starts under a
+ * different programming timezone than schedules were generated in. A
+ * failure is logged, not thrown: the timezone stays unrecorded, so the next
+ * startup tries again, and startup still ensures coverage.
+ */
+async function applyProgrammingTimezone(
+  schedules: ScheduleService,
+  log: FastifyBaseLogger,
+): Promise<void> {
+  try {
+    const result = await schedules.applyProgrammingTimezone(log);
+    if (result?.kind === "changed") {
+      log.info(
+        {
+          previous: result.previous,
+          programmingTimezone: schedules.programmingTimezone(),
+          channelIds: result.channelIds,
+        },
+        "Programming timezone changed; regenerated channels with rules",
+      );
+    }
+  } catch (err) {
+    log.warn({ err }, "Applying the programming timezone change failed");
+  }
+}
 
 /** Registers HTTP behavior without opening production infrastructure. */
 function registerRoutes(
@@ -275,6 +303,7 @@ export function buildServer(
   server.addHook("onReady", async () => {
     await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
+    await applyProgrammingTimezone(dependencies.schedules, server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
     // Runs in the background, so a slow TMDB never delays startup.
     dependencies.metadataRefresh.checkNow();

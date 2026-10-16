@@ -31,6 +31,7 @@ export type ScheduleChangeReason =
   | "rule_changed"
   | "rule_deleted"
   | "rules_reordered"
+  | "programming_timezone_changed"
   | "programming_rebuilt"
   | "membership_changed"
   | "media_removed"

@@ -65,11 +65,43 @@ export async function loadLatestTurn(
 }
 
 /**
+ * Finds the turn a change at `effectiveNow` would leave started: the latest
+ * block kept at the regeneration boundary the change's own transaction
+ * will regenerate from, with that boundary, where its next program would
+ * start. Undefined before the channel's first turn.
+ */
+export async function findStartedTurn(
+  trx: Executor,
+  channelId: string,
+  effectiveNow: number,
+): Promise<{ block: GeneratedBlock; boundary: number } | undefined> {
+  const boundary = findRegenerationBoundary(
+    await findEntryAiringAt(trx, channelId, effectiveNow),
+    effectiveNow,
+  );
+  const latest = await loadLatestTurn(trx, channelId, boundary);
+  return latest === undefined ? undefined : { block: latest.block, boundary };
+}
+
+/**
+ * Ends a started turn after the airing program, so generation moves on
+ * instead of continuing it. Its rotation, and a marathon's cooldown
+ * reset, stand as served.
+ */
+export async function markTurnEnded(
+  trx: Executor,
+  blockId: string,
+): Promise<void> {
+  await trx
+    .updateTable("programming_blocks")
+    .set({ ended_by_edit: toSqliteBoolean(true) })
+    .where("id", "=", blockId)
+    .execute();
+}
+
+/**
  * Ends an assignment's started turn after the airing program, for a mode or
- * stretch edit: flags the latest block kept at the regeneration boundary
- * the edit's own transaction will regenerate from, if that block is the
- * assignment's, so generation moves on instead of continuing it. Its
- * rotation, and a marathon's cooldown reset, stand as served.
+ * stretch edit, if the started turn is the assignment's.
  */
 export async function endStartedTurn(
   trx: Executor,
@@ -77,17 +109,9 @@ export async function endStartedTurn(
   assignmentId: string,
   effectiveNow: number,
 ): Promise<void> {
-  const boundary = findRegenerationBoundary(
-    await findEntryAiringAt(trx, channelId, effectiveNow),
-    effectiveNow,
-  );
-  const latest = await loadLatestTurn(trx, channelId, boundary);
-  if (latest?.block.assignmentId !== assignmentId) return;
-  await trx
-    .updateTable("programming_blocks")
-    .set({ ended_by_edit: toSqliteBoolean(true) })
-    .where("id", "=", latest.block.id)
-    .execute();
+  const started = await findStartedTurn(trx, channelId, effectiveNow);
+  if (started?.block.assignmentId !== assignmentId) return;
+  await markTurnEnded(trx, started.block.id);
 }
 
 /** Inserts the blocks one chunk generated, before the entries that reference them. */

@@ -10,9 +10,9 @@ import {
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
 import { idParams, nameField, stretchField } from "../http/request-schemas.js";
-import { channelInputChange } from "../schedules/channel-input-change.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type { RuleSourceRefusal, SavedRule } from "./contracts.js";
+import { ruleChange } from "./rule-change.js";
 import type { RuleRepository } from "./rule-repository.js";
 
 // Date shapes only; kraziBrain's calendar rule decides which values are valid.
@@ -113,7 +113,7 @@ export function registerRuleRoutes(
     const result = await schedules.applyInputChange(
       request.log,
       "rule_created",
-      channelInputChange(id, "created", (trx, now) =>
+      ruleChange(id, "created", schedules.programmingTimezone(), (trx, now) =>
         rules.create(trx, id, body.data, now),
       ),
     );
@@ -139,7 +139,7 @@ export function registerRuleRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "rule_changed",
-        channelInputChange(id, "updated", (trx, now) =>
+        ruleChange(id, "updated", schedules.programmingTimezone(), (trx, now) =>
           rules.update(trx, id, ruleId, body.data, now),
         ),
       );
@@ -167,8 +167,11 @@ export function registerRuleRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "rules_reordered",
-        channelInputChange(id, "reordered", (trx, now) =>
-          rules.reorder(trx, id, body.data.ruleIds, now),
+        ruleChange(
+          id,
+          "reordered",
+          schedules.programmingTimezone(),
+          (trx, now) => rules.reorder(trx, id, body.data.ruleIds, now),
         ),
       );
       switch (result.kind) {
@@ -196,7 +199,7 @@ export function registerRuleRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "rule_deleted",
-        channelInputChange(id, "deleted", (trx) =>
+        ruleChange(id, "deleted", schedules.programmingTimezone(), (trx) =>
           rules.delete(trx, id, ruleId),
         ),
       );

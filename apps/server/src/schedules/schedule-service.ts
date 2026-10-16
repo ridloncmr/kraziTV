@@ -76,6 +76,10 @@ import {
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
+import {
+  programmingTimezoneChange,
+  recordTimezoneUnlessRulesNeedIt,
+} from "./timezone-change.js";
 
 interface ScheduleServiceOptions extends RecordSources {
   /** Names generated blocks; separate from entry IDs so tests can name each. */
@@ -137,6 +141,25 @@ export class ScheduleService {
     );
     this.#transactionHooks = options.transactionHooks;
     this.#programmingTimezone = options.programmingTimezone ?? "UTC";
+  }
+
+  /**
+   * Applies the programming timezone at startup: records it when no
+   * channel has a rule, and otherwise, when it changed, regenerates the
+   * channels with rules after their airing entries in one input change.
+   * Returns undefined when nothing needed regenerating.
+   */
+  async applyProgrammingTimezone(log: ScheduleLog) {
+    const timeZone = this.#programmingTimezone;
+    const needed = await this.#immediate((trx) =>
+      recordTimezoneUnlessRulesNeedIt(trx, timeZone),
+    );
+    if (!needed) return undefined;
+    return this.applyInputChange(
+      log,
+      "programming_timezone_changed",
+      programmingTimezoneChange(timeZone),
+    );
   }
 
   /** Names the timezone this service evaluates programming rules in. */

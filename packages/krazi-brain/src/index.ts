@@ -25,6 +25,7 @@ export { generateProgramming } from "./krazi-plan/generate-programming.js";
 export { canProgramByDefault } from "./krazi-plan/rotation/rotation.js";
 export { findStretchProblem } from "./krazi-plan/stretches/stretch-settings.js";
 export { findRuleSourceProblem } from "./krazi-plan/rules/rule-settings.js";
+export { turnTerms } from "./krazi-plan/rules/turn-terms.js";
 export {
   ASSIGNMENT_PARTICIPATIONS,
   RULE_BEHAVIORS,
