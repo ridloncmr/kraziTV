@@ -851,6 +851,7 @@ async function loadProgrammingInputs(
   return {
     assignments,
     rules: await loadProgrammingRules(trx, channelId),
+    reservations: [],
     collections,
     marathons: await loadMarathonSettings(trx, channelId),
     latestTurn: await loadLatestTurn(trx, channelId, keptBefore),

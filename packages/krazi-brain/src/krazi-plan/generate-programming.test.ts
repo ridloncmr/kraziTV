@@ -6,6 +6,7 @@ import {
   itemAssignment,
   latestTurn,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../testing/programming-assignments.js";
 import { scheduleMedia } from "../testing/schedule-media.js";
 import { NO_PROGRESS, type ScheduleMedia } from "../schedule/contracts.js";
@@ -37,6 +38,7 @@ function options(
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     rules: [],
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -47,13 +49,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 describe("generateProgramming: one assignment", () => {
@@ -131,6 +126,7 @@ describe("generateProgramming: one assignment", () => {
       marathon: false,
       winningRuleId: null,
       settingOrigins: { ordinary: "assignment", marathon: "assignment" },
+      reservationId: null,
       endedByEdit: false,
       checkpoint: {
         activeContext: "default",
@@ -185,6 +181,7 @@ describe("generateProgramming: one assignment", () => {
             marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
             assignments: [assignment],
             rules: [],
+            reservations: [],
             timeZone: "UTC",
             startsAt: STARTS_AT,
             through: STARTS_AT + 24 * HOUR_MS,

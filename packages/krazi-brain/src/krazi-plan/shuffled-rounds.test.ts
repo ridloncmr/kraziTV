@@ -5,6 +5,7 @@ import {
   generateInChunks,
   latestTurn,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../testing/programming-assignments.js";
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "../schedule/contracts.js";
@@ -53,6 +54,7 @@ function options(
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     rules: [],
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -63,13 +65,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 // Groups block assignments by round, dropping the last, possibly unfinished, round.

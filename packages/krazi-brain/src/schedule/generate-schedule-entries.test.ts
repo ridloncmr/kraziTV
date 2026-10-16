@@ -64,6 +64,7 @@ interface GenerateOverrides {
   nextSequenceNumber?: number;
   maxEntries?: number;
   turn?: TurnSize;
+  hardEnd?: number;
 }
 
 function generate(
@@ -580,6 +581,7 @@ describe("generateScheduleEntries: bounds and timing", () => {
       progress: afterSelecting("a", 3),
       nextSequenceNumber: 12,
       generatedThrough: STARTS_AT,
+      deferred: false,
     });
   });
 
@@ -725,5 +727,66 @@ describe("generateScheduleEntries: turn sizes", () => {
 
     expect(result.entries).toHaveLength(3);
     expect(result.turn).toBeUndefined();
+  });
+});
+
+describe("generateScheduleEntries: a hard end", () => {
+  // Episodes of 40, 20, and 30 minutes, so fit depends on which comes next.
+  const members = [
+    scheduleMedia("a", { durationMs: 40 * 60_000 }),
+    scheduleMedia("b", { durationMs: 20 * 60_000 }),
+    scheduleMedia("c", { durationMs: 30 * 60_000 }),
+  ];
+
+  it("selects a program that ends exactly at the hard end and stops there", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: STARTS_AT + 2 * HOUR_MS,
+        hardEnd: STARTS_AT + 60 * 60_000,
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["a", "b"]);
+    expect(result.generatedThrough).toBe(STARTS_AT + 60 * 60_000);
+    expect(result.deferred).toBe(true);
+  });
+
+  it("defers the next program past the hard end without searching later ones or advancing progress", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: STARTS_AT + 2 * HOUR_MS,
+        hardEnd: STARTS_AT + 85 * 60_000,
+      }),
+    );
+
+    // c (30 minutes) would end at 90; b would fit but is never searched for.
+    expect(mediaIds(result.entries)).toEqual(["a", "b"]);
+    expect(result.generatedThrough).toBe(STARTS_AT + 60 * 60_000);
+    expect(result.progress).toEqual(afterSelecting("b", 1));
+    expect(result.deferred).toBe(true);
+  });
+
+  it("is not deferred when through, not the hard end, stops generation", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: STARTS_AT + 30 * 60_000,
+        hardEnd: STARTS_AT + 2 * HOUR_MS,
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["a"]);
+    expect(result.deferred).toBe(false);
+  });
+
+  it("leaves random progress at the deferred selection", () => {
+    const result = generated(
+      generate(random([scheduleMedia("x", { durationMs: 40 * 60_000 })]), {
+        through: STARTS_AT + 2 * HOUR_MS,
+        hardEnd: STARTS_AT + 60 * 60_000,
+      }),
+    );
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.progress).toEqual(atSelectionIndex(1));
   });
 });

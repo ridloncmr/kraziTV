@@ -48,19 +48,16 @@ export async function loadLatestTurn(
   if (row === undefined) return undefined;
   let entries = trx
     .selectFrom("schedule_entries")
-    .select((eb) => [
-      eb.fn.countAll<number>().as("programs"),
-      eb.fn.coalesce(eb.fn.sum<number>("duration_ms"), eb.lit(0)).as("ms"),
-    ])
+    .select(["media_item_id", "duration_ms"])
     .where("programming_block_id", "=", row.id);
   if (keptBefore !== undefined) {
     entries = entries.where("starts_at", "<", keptBefore);
   }
-  const aired = await entries.executeTakeFirstOrThrow();
+  const aired = await entries.orderBy("sequence_number").execute();
   return {
     block: toGeneratedBlock(row),
-    airedPrograms: Number(aired.programs),
-    airedMs: Number(aired.ms),
+    airedMediaItemIds: aired.map((entry) => entry.media_item_id),
+    airedMs: aired.reduce((total, entry) => total + entry.duration_ms, 0),
   };
 }
 
@@ -205,6 +202,7 @@ function toGeneratedBlock(
   return {
     id: row.id,
     assignmentId: row.assignment_id,
+    reservationId: null,
     source: toBlockSource(row),
     roundNumber: row.round_number,
     turnIndex: row.turn_index,

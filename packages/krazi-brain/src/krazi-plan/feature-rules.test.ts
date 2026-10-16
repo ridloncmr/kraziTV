@@ -5,9 +5,9 @@ import {
   generateInChunks,
   programmingRule,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../testing/programming-assignments.js";
-import { scheduleMedia } from "../testing/schedule-media.js";
-import type { ScheduleMedia } from "../schedule/contracts.js";
+import { numberedMedia as items } from "../testing/schedule-media.js";
 import type {
   GeneratedBlock,
   LatestTurn,
@@ -23,17 +23,6 @@ import {
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const utc = (iso: string) => Date.parse(iso);
-
-// `count` items of `minutes` each, named `<prefix>1`, `<prefix>2`, ...
-function items(
-  prefix: string,
-  count: number,
-  minutes: number,
-): ScheduleMedia[] {
-  return Array.from({ length: count }, (_, index) =>
-    scheduleMedia(`${prefix}${index + 1}`, { durationMs: minutes * MINUTE_MS }),
-  );
-}
 
 // A sitcom of 30-minute episodes, three a turn.
 function sitcom(id: string): ProgrammingAssignment {
@@ -79,6 +68,7 @@ function options(
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     rules,
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -89,13 +79,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 // Whether a UTC instant falls on a December Friday evening.
@@ -463,10 +446,11 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
         marathon: false,
         winningRuleId: "evenings",
         settingOrigins: { ordinary: "assignment", marathon: "assignment" },
+        reservationId: null,
         endedByEdit: false,
         checkpoint,
       },
-      airedPrograms: 1,
+      airedMediaItemIds: ["aired-1"],
       airedMs: 100 * MINUTE_MS,
     };
   }
@@ -516,6 +500,7 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
         marathon: false,
         winningRuleId: null,
         settingOrigins: { ordinary: "assignment", marathon: "assignment" },
+        reservationId: null,
         endedByEdit: false,
         checkpoint: {
           activeContext: "default",
@@ -536,7 +521,7 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
           rebuildCount: 0,
         },
       },
-      airedPrograms: 2,
+      airedMediaItemIds: ["aired-1", "aired-2"],
       airedMs: 60 * MINUTE_MS,
     };
   }

@@ -26,6 +26,11 @@ interface GenerateScheduleEntriesOptions {
   maxEntries: number;
   /** Also stops once this turn's size is met; without one, the source loops to `through`. */
   turn?: TurnSize | undefined;
+  /**
+   * No entry ends past this instant, such as a reservation's start or end:
+   * the next program that would cross it is deferred, not cut.
+   */
+  hardEnd?: number | undefined;
 }
 
 /** What one entry airs and the collection bookkeeping it carries. */
@@ -90,9 +95,12 @@ function nextAiring(
 
 /**
  * Generates contiguous schedule entries from `startsAt` until one ends at or
- * past `through`, `maxEntries` is reached, or the turn's size is met, without
- * touching persistence. A turn counts whole programs, or adds each one's
- * duration toward an airtime target, so its last program may overrun it.
+ * past `through`, `maxEntries` is reached, the turn's size is met, or the
+ * next program would end past `hardEnd`, without touching persistence. A
+ * deferred program consumes no progress, and no later program is searched
+ * for in its place, so ordering is preserved (programming spec 0006). A
+ * turn counts whole programs, or adds each one's duration toward an airtime
+ * target, so its last program may overrun it.
  * The result carries everything needed to resume exactly where it stopped, so
  * chunked calls produce the same entries as one long call. A collection is
  * ordered for its playback mode once, so each entry's playback index is its
@@ -122,6 +130,7 @@ export function generateScheduleEntries(
   let progress = options.progress;
   let sequenceNumber = options.nextSequenceNumber;
   let turn = options.turn;
+  let deferred = false;
   while (
     nextStartsAt < through &&
     entries.length < maxEntries &&
@@ -130,6 +139,13 @@ export function generateScheduleEntries(
     const airing = nextAiring(source, progress, options.channelSeed);
     // The schedulability check guarantees an integer duration at the floor.
     const durationMs = airing.media.durationMs ?? 0;
+    if (
+      options.hardEnd !== undefined &&
+      nextStartsAt + durationMs > options.hardEnd
+    ) {
+      deferred = true;
+      break;
+    }
     entries.push({
       mediaItemId: airing.media.id,
       title: airing.media.title,
@@ -161,5 +177,6 @@ export function generateScheduleEntries(
     nextSequenceNumber: sequenceNumber,
     generatedThrough: nextStartsAt,
     turn,
+    deferred,
   };
 }

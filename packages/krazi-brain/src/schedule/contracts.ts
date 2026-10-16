@@ -160,4 +160,6 @@ export type GenerationResult =
       generatedThrough: number;
       /** The turn the call was given, with what its entries added. */
       turn?: TurnSize | undefined;
+      /** Whether it stopped because the next program would have ended past the hard end. */
+      deferred: boolean;
     };

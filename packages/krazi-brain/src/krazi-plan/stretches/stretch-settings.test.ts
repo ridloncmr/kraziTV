@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectionAssignment,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../../testing/programming-assignments.js";
 import { scheduleMedia } from "../../testing/schedule-media.js";
 import type { PlaybackMode, ScheduleMedia } from "../../schedule/contracts.js";
@@ -56,6 +57,7 @@ function options(
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     rules: [],
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -66,13 +68,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 // Each of an assignment's turns as [resolved size, programs, airtime minutes].

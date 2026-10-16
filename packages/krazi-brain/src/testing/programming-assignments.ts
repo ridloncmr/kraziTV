@@ -95,6 +95,16 @@ export function programmingRule(
   };
 }
 
+/** Narrows a generation result to `generated`, failing the test with its reason otherwise. */
+export function generatedProgramming(
+  result: ReturnType<typeof generateProgramming>,
+) {
+  if (result.kind !== "generated") {
+    throw new Error(`expected generated, got ${result.reason}`);
+  }
+  return result;
+}
+
 /** Returns block IDs `block-1`, `block-2`, ... so tests can name them. */
 export function sequentialBlockIds(prefix = "block"): () => string {
   let next = 0;
@@ -178,7 +188,7 @@ export function latestTurn({
   );
   return {
     block,
-    airedPrograms: aired.length,
+    airedMediaItemIds: aired.map((entry) => entry.mediaItemId),
     airedMs: aired.reduce((total, entry) => total + entry.durationMs, 0),
   };
 }

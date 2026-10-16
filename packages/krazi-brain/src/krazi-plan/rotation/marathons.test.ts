@@ -4,6 +4,7 @@ import {
   collectionAssignment,
   generateInChunks,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../../testing/programming-assignments.js";
 import { scheduleMedia } from "../../testing/schedule-media.js";
 import type { ScheduleMedia } from "../../schedule/contracts.js";
@@ -54,6 +55,7 @@ function options(
     marathons,
     assignments,
     rules: [],
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -64,13 +66,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 // The completed rounds' marathon blocks, keyed by round.
@@ -124,10 +119,11 @@ const RESERVED_TURN = {
     marathon: false,
     winningRuleId: null,
     settingOrigins: { ordinary: "assignment", marathon: "assignment" } as const,
+    reservationId: null,
     endedByEdit: false,
     checkpoint: reservedCheckpoint(),
   },
-  airedPrograms: 2,
+  airedMediaItemIds: ["aired-1", "aired-2"],
   airedMs: 44 * 60_000,
 };
 
@@ -324,7 +320,7 @@ describe("generateProgramming: generated marathons", () => {
           {
             latestTurn: {
               block: marathon,
-              airedPrograms: 1,
+              airedMediaItemIds: ["aired-1"],
               airedMs: 22 * 60_000,
             },
             createBlockId: sequentialBlockIds("later"),
@@ -511,10 +507,11 @@ describe("generateProgramming: a marathon an edit ended", () => {
         },
         size: { kind: "programs" as const, value: 6 },
         marathon: true,
+        reservationId: null,
         endedByEdit: true,
         checkpoint: reservedCheckpoint(["office", "parks"], 5),
       },
-      airedPrograms: 1,
+      airedMediaItemIds: ["aired-1"],
       airedMs: 22 * 60_000,
     };
 

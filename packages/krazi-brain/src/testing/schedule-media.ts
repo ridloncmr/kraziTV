@@ -22,3 +22,17 @@ export function scheduleMedia(
     ...overrides,
   };
 }
+
+/**
+ * Builds `count` schedulable items of `minutes` each, named `<prefix>1`,
+ * `<prefix>2`, ..., so a test can tell every source's airings apart.
+ */
+export function numberedMedia(
+  prefix: string,
+  count: number,
+  minutes: number,
+): ScheduleMedia[] {
+  return Array.from({ length: count }, (_, index) =>
+    scheduleMedia(`${prefix}${index + 1}`, { durationMs: minutes * 60_000 }),
+  );
+}
