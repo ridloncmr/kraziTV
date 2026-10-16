@@ -119,7 +119,15 @@ function toApiChannelState(state: ChannelState) {
 }
 
 // Converts one item's instants; durations and offsets stay in milliseconds.
+// Planned filler carries only its interval, whose end is the resume time.
 function toApiPlayoutItem(item: PlayoutItem) {
+  if (item.type === "filler") {
+    return {
+      type: item.type,
+      startsAt: toApiTimestamp(item.startsAt),
+      endsAt: toApiTimestamp(item.endsAt),
+    };
+  }
   return {
     type: item.type,
     scheduleEntryId: item.scheduleEntryId,

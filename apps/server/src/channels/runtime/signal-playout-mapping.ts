@@ -93,6 +93,9 @@ export function playoutFailureError(
 
 /** Keeps only the fields the signal port carries, dropping record timestamps. */
 function toSelectedPlayoutItem(item: PlayoutItem): SelectedPlayoutItem {
+  if (item.type === "filler") {
+    throw new Error("The signal port does not carry planned filler yet");
+  }
   return {
     channelId: item.channelId,
     scheduleEntryId: item.scheduleEntryId,

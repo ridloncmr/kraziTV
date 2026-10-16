@@ -1,6 +1,7 @@
 import {
   buildPlayoutTimeline,
   deriveChannelState,
+  type PlayoutItem,
   selectFollowingPlayout,
 } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,6 +34,12 @@ const NOW = T0 + HOUR / 2;
 const AIRING_ENTRY_ID = "original-001";
 const FOLLOWING_COUNT = 3;
 
+// Names a playout item by its entry, or as filler, which these reads never derive.
+function itemId(item: PlayoutItem | null): string {
+  if (item === null) return "none";
+  return item.type === "program" ? item.scheduleEntryId : "filler";
+}
+
 // What a read observed, reduced to the revision and the entry IDs it paired with it.
 interface Observed {
   scheduleRevision: number;
@@ -46,16 +53,15 @@ const readChannelState =
     const state = deriveChannelState({
       channelId,
       scheduleRevision,
+      reservations: [],
+      anchorTime: 0,
       evaluatedAt: NOW,
       entries: await findCoveringPlayoutEntries(trx, channelId, NOW),
     });
     if (state.kind !== "current") throw new Error(`no current: ${state.kind}`);
     return {
       scheduleRevision: state.scheduleRevision,
-      entryIds: [
-        state.currentItem.scheduleEntryId,
-        state.nextItem?.scheduleEntryId ?? "none",
-      ],
+      entryIds: [itemId(state.currentItem), itemId(state.nextItem)],
     };
   };
 
@@ -76,8 +82,10 @@ const readFollowing =
     const following = selectFollowingPlayout({
       channelId,
       scheduleRevision,
-      cursor: cursor?.entry,
-      candidates,
+      reservations: [],
+      anchorTime: 0,
+      cursor: { kind: "program", scheduleEntryId: AIRING_ENTRY_ID },
+      entries: cursor === undefined ? [] : [cursor.entry, ...candidates],
       count: FOLLOWING_COUNT,
     });
     if (following.status !== "selected") {
@@ -85,7 +93,7 @@ const readFollowing =
     }
     return {
       scheduleRevision: following.scheduleRevision,
-      entryIds: following.items.map((item) => item.scheduleEntryId),
+      entryIds: following.items.map(itemId),
     };
   };
 
@@ -96,6 +104,9 @@ const readWindow =
     const items = buildPlayoutTimeline({
       channelId,
       scheduleRevision,
+      reservations: [],
+      anchorTime: 0,
+      window: { start: T0, end: T0 + 3 * HOUR },
       entries: await listPlayoutEntriesInWindow(
         trx,
         channelId,
@@ -105,7 +116,7 @@ const readWindow =
     });
     return {
       scheduleRevision,
-      entryIds: items.map((item) => item.scheduleEntryId),
+      entryIds: items.map(itemId),
     };
   };
 

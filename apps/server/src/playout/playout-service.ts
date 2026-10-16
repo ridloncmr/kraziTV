@@ -32,6 +32,9 @@ interface PlayoutServiceOptions {
   afterRevisionRead?: PlayoutSnapshotOptions["afterRevisionRead"];
 }
 
+// Reads pass no reservations yet, so no planned filler is derived.
+const NO_RESERVATIONS = { reservations: [], anchorTime: 0 };
+
 /**
  * The schedule writer a playout read ensures coverage through. Its clock is
  * the only clock playout reads, so a read evaluates the same time the write
@@ -76,6 +79,7 @@ export class PlayoutService {
       deriveChannelState({
         channelId,
         scheduleRevision: revision,
+        ...NO_RESERVATIONS,
         evaluatedAt,
         entries: await findCoveringPlayoutEntries(trx, channelId, evaluatedAt),
       }),
@@ -107,16 +111,20 @@ export class PlayoutService {
         return selectFollowingPlayout({
           channelId,
           scheduleRevision: revision,
-          cursor: cursor?.entry,
-          candidates:
+          ...NO_RESERVATIONS,
+          cursor: { kind: "program", scheduleEntryId: afterScheduleEntryId },
+          entries:
             cursor === undefined
               ? []
-              : await listPlayoutEntriesAfter(
-                  trx,
-                  channelId,
-                  cursor.sequenceNumber,
-                  count,
-                ),
+              : [
+                  cursor.entry,
+                  ...(await listPlayoutEntriesAfter(
+                    trx,
+                    channelId,
+                    cursor.sequenceNumber,
+                    count,
+                  )),
+                ],
           count,
         });
       },
@@ -141,6 +149,8 @@ export class PlayoutService {
       items: buildPlayoutTimeline({
         channelId,
         scheduleRevision: revision,
+        ...NO_RESERVATIONS,
+        window: { start, end },
         entries: await listPlayoutEntriesInWindow(trx, channelId, start, end),
       }),
     }));

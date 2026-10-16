@@ -1,9 +1,11 @@
 import type {
   FollowingPlayout,
+  PlayoutCursor,
   PlayoutEntry,
   PlayoutItem,
 } from "./contracts.js";
-import { toPlayoutItem } from "./playout-item.js";
+import { findFillerAt, type FillerInputs } from "./filler.js";
+import { itemStartingAt } from "./playout-item.js";
 
 /**
  * Rejects a following count that is not a positive integer as a programming
@@ -17,45 +19,58 @@ export function assertFollowingCount(count: number): void {
 }
 
 /**
- * Selects up to `count` playable items airing back to back after the cursor
- * entry, stopping at the first gap or unplayable entry, because a worker can
- * only transition into an item that starts exactly when the previous one ends.
+ * Selects up to `count` playable items airing back to back after the
+ * cursor, programs and planned filler alike, stopping at the first gap or
+ * unplayable entry, because a worker can only transition into an item that
+ * starts exactly when the previous one ends. Contiguity is judged by time,
+ * never by sequence numbers, which regeneration never reuses.
  *
- * `cursor` is undefined when the cursor entry no longer exists on the channel.
- * `candidates` are the entries after it in channel sequence order; contiguity
- * is judged by time, never by sequence numbers, which regeneration never reuses.
+ * A program cursor is stale when its entry is gone; a filler cursor when no
+ * filler ends at its instant any more (ADR 0014). `entries` must be in
+ * start order and hold the cursor's entry, or the program before a filler
+ * cursor, and the entries after it.
  */
 export function selectFollowingPlayout({
-  channelId,
-  scheduleRevision,
   cursor,
-  candidates,
+  entries,
   count,
-}: {
-  channelId: string;
-  scheduleRevision: number;
-  cursor: PlayoutEntry | undefined;
-  candidates: readonly PlayoutEntry[];
+  ...filler
+}: FillerInputs & {
+  cursor: PlayoutCursor;
+  entries: readonly PlayoutEntry[];
   count: number;
 }): FollowingPlayout {
   assertFollowingCount(count);
-  const base = { channelId, scheduleRevision };
-  if (!cursor) {
+  const base = {
+    channelId: filler.channelId,
+    scheduleRevision: filler.scheduleRevision,
+  };
+  const from = cursorEnd(cursor, entries, filler);
+  if (from === undefined) {
     return { ...base, status: "stale_entry", items: [] };
   }
 
   const items: PlayoutItem[] = [];
-  let endsAt = cursor.endsAt;
-  for (const candidate of candidates) {
-    if (items.length === count || candidate.startsAt !== endsAt) {
-      break;
-    }
-    const item = toPlayoutItem(candidate, channelId, scheduleRevision);
-    if (!item) {
-      break;
-    }
+  let endsAt = from;
+  while (items.length < count) {
+    const item = itemStartingAt(endsAt, entries, filler);
+    if (item === null) break;
     items.push(item);
     endsAt = item.endsAt;
   }
   return { ...base, status: "selected", items };
+}
+
+/** Returns where the cursor's item ends, or undefined when it is stale. */
+function cursorEnd(
+  cursor: PlayoutCursor,
+  entries: readonly PlayoutEntry[],
+  filler: FillerInputs,
+): number | undefined {
+  if (cursor.kind === "program") {
+    return entries.find((entry) => entry.id === cursor.scheduleEntryId)?.endsAt;
+  }
+  // A filler is at least a millisecond long, so its last instant names it.
+  const airing = findFillerAt(cursor.endsAt - 1, entries, filler);
+  return airing?.endsAt === cursor.endsAt ? cursor.endsAt : undefined;
 }
