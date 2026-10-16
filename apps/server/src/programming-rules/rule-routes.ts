@@ -91,9 +91,6 @@ export function registerRuleRoutes(
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
-    if (body.data.behavior === "feature") {
-      return sendFeatureUnsupported(reply);
-    }
     const result = await schedules.applyInputChange(
       request.log,
       "rule_created",
@@ -118,9 +115,6 @@ export function registerRuleRoutes(
       const body = ruleBody.safeParse(request.body);
       if (!body.success) {
         return sendInvalidRequest(reply, body.error);
-      }
-      if (body.data.behavior === "feature") {
-        return sendFeatureUnsupported(reply);
       }
       // Unchanged settings affect no channel, so nothing regenerates.
       const result = await schedules.applyInputChange(
@@ -220,16 +214,6 @@ function sendUnknownAssignment(
     "programming_assignment_not_found",
     `This channel has no programming assignment ${result.assignmentId}`,
     { assignmentId: result.assignmentId },
-  );
-}
-
-// Feature rules are stored by the schema but not generated yet.
-function sendFeatureUnsupported(reply: FastifyReply) {
-  return sendApiError(
-    reply,
-    400,
-    "programming_rule_behavior_unsupported",
-    "Feature rules are not supported yet; use a join rule",
   );
 }
 

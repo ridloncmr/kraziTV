@@ -334,14 +334,37 @@ describe("programming rule routes", () => {
     });
   });
 
-  it("refuses a feature rule until feature rules are supported", async () => {
-    const { server } = await startServer();
+  it("airs only a feature rule's sources in its window", async () => {
+    const { server, db } = await startServer();
 
+    const created = await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      behavior: "feature",
+      window: { startMinute: 18 * 60, endMinute: 23 * 60 },
+    });
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: { behavior: "feature" },
+    });
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    const evening = entries.filter((entry) => {
+      const hour = new Date(entry.starts_at).getUTCHours();
+      return hour >= 18 && hour < 23;
+    });
+    expect(evening.length).toBeGreaterThan(0);
+    for (const entry of evening) {
+      expect(entry.media_collection_id).toBe("christmas");
+    }
     await expect(
-      send(server, "POST", RULES_URL, { ...decemberBody, behavior: "feature" }),
-    ).resolves.toMatchObject({
-      status: 400,
-      body: { error: { code: "programming_rule_behavior_unsupported" } },
+      db
+        .selectFrom("programming_blocks")
+        .select(["context_key", "winning_rule_id"])
+        .where("context_key", "!=", "default")
+        .executeTakeFirst(),
+    ).resolves.toEqual({
+      context_key: "rule:rule-001",
+      winning_rule_id: "rule-001",
     });
   });
 
