@@ -29,6 +29,7 @@ import { CatalogRemovalService } from "./catalog-removal/catalog-removal-service
 import { parseProbeConfig } from "./config/probe.js";
 import { parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
+import { resolveProgrammingTimezone } from "./config/programming-timezone.js";
 import {
   parseCorsOrigins,
   parseListenConfig,
@@ -43,9 +44,13 @@ const dataDirectory = resolveDataDirectory(
   process.env.KRAZITV_DATA_DIR,
   process.cwd(),
 );
+// Created first so startup configuration, the stream runtime, and scan jobs
+// all log through the same logger.
+const logger = pino();
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
+resolveProgrammingTimezone(process.env, logger);
 const database = await openDatabase({ dataDirectory });
 
 const auth = new AuthService(database.db);
@@ -62,8 +67,6 @@ const assignments = new AssignmentRepository(database.db);
 const schedules = new ScheduleService(database.db);
 const playout = new PlayoutService(database.db, schedules);
 
-// Created before Fastify so the stream runtime and scan jobs log through the same logger.
-const logger = pino();
 // Every writer of facts automatic collections match on asks this one
 // service for a pass after it commits.
 const collectionMaintenance = new CollectionMaintenance({
