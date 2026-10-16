@@ -16,7 +16,26 @@ export interface DecisionSeed {
  * randomness has its own seed and is never one of these.
  */
 type DecisionStream =
-  "shuffle" | "size" | "marathon_chance" | "marathon_source" | "marathon_size";
+  | "shuffle"
+  | "size"
+  | "marathon_chance"
+  | "marathon_source"
+  | "marathon_size"
+  | "join";
+
+/**
+ * Names one context's round in decision keys. The default context keeps the
+ * bare round number, so channels without feature rules draw exactly as they
+ * did before rules existed; a feature context's rounds draw apart from it.
+ */
+export type RoundKey = number | string;
+
+/** The decision key of a round in a rotation context. */
+export function roundKey(contextKey: string, roundNumber: number): RoundKey {
+  return contextKey === "default"
+    ? roundNumber
+    : `${contextKey}/${roundNumber}`;
+}
 
 /**
  * Returns one reproducible unsigned 32-bit draw for a decision, keyed by its
@@ -26,11 +45,11 @@ type DecisionStream =
 function decide(
   seed: DecisionSeed,
   stream: DecisionStream,
-  roundNumber: number,
-  index: number,
+  round: RoundKey,
+  index: number | string,
 ): number {
   return hash32(
-    `${stream}:${seed.programmingSeed}:${seed.rebuildCount}:${roundNumber}:${index}`,
+    `${stream}:${seed.programmingSeed}:${seed.rebuildCount}:${round}:${index}`,
   );
 }
 
@@ -41,12 +60,12 @@ function decide(
 export function drawInRange(
   seed: DecisionSeed,
   stream: DecisionStream,
-  roundNumber: number,
-  index: number,
+  round: RoundKey,
+  index: number | string,
   min: number,
   max: number,
 ): number {
-  return min + (decide(seed, stream, roundNumber, index) % (max - min + 1));
+  return min + (decide(seed, stream, round, index) % (max - min + 1));
 }
 
 /**
@@ -56,11 +75,11 @@ export function drawInRange(
 export function shuffleRound(
   ids: readonly string[],
   seed: DecisionSeed,
-  roundNumber: number,
+  round: RoundKey,
 ): string[] {
   const shuffled = [...ids];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const other = drawInRange(seed, "shuffle", roundNumber, index, 0, index);
+    const other = drawInRange(seed, "shuffle", round, index, 0, index);
     const held = shuffled[index];
     shuffled[index] = shuffled[other];
     shuffled[other] = held;

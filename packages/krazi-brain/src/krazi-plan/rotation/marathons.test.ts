@@ -4,19 +4,20 @@ import {
   collectionAssignment,
   generateInChunks,
   sequentialBlockIds,
-} from "../testing/programming-assignments.js";
-import { scheduleMedia } from "../testing/schedule-media.js";
-import type { ScheduleMedia } from "../schedule/contracts.js";
+} from "../../testing/programming-assignments.js";
+import { scheduleMedia } from "../../testing/schedule-media.js";
+import type { ScheduleMedia } from "../../schedule/contracts.js";
 import type {
+  RotationCheckpoint,
   GeneratedBlock,
   MarathonSettings,
   ProgrammingAssignment,
-} from "./contracts.js";
+} from "../contracts.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
-} from "./generate-programming.js";
-import { findStretchProblem } from "./stretch-settings.js";
+} from "../generate-programming.js";
+import { findStretchProblem } from "../stretches/stretch-settings.js";
 
 // 2026-01-01T00:00:00.000Z as a UTC millisecond schedule anchor.
 const STARTS_AT = 1_767_225_600_000;
@@ -52,6 +53,8 @@ function options(
     rebuildCount: 0,
     marathons,
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,
@@ -80,6 +83,31 @@ function marathonRounds(blocks: readonly GeneratedBlock[]): number[] {
 
 // Parks' finished turn opened round 3; Office holds the round's
 // opportunity, one ordinary round after the last marathon.
+// The reserved round-three checkpoint, with one pending order or cooldown changed.
+function reservedCheckpoint(
+  pending: string[] = ["parks", "office"],
+  ordinaryRoundsSinceMarathon = 1,
+): RotationCheckpoint {
+  return {
+    activeContext: "default",
+    contexts: {
+      default: {
+        roundNumber: 3,
+        pending,
+        served: [],
+        skipped: [],
+        unservedRemoved: [],
+        marathonOpportunity: { assignmentId: "office", started: false },
+        roundCommittedProgram: false,
+      },
+    },
+    lastAiredAssignmentId: "office",
+    nextMemberPositions: {},
+    ordinaryRoundsSinceMarathon,
+    rebuildCount: 0,
+  };
+}
+
 const RESERVED_TURN = {
   block: {
     id: "parks-turn",
@@ -94,19 +122,9 @@ const RESERVED_TURN = {
     startsAt: STARTS_AT,
     size: { kind: "programs" as const, value: 2 },
     marathon: false,
+    winningRuleId: null,
     endedByEdit: false,
-    checkpoint: {
-      roundNumber: 3,
-      pending: ["parks", "office"],
-      served: [],
-      skipped: [],
-      lastAiredAssignmentId: "office",
-      nextMemberPositions: {},
-      marathonOpportunity: { assignmentId: "office", started: false },
-      roundCommittedProgram: false,
-      ordinaryRoundsSinceMarathon: 1,
-      rebuildCount: 0,
-    },
+    checkpoint: reservedCheckpoint(),
   },
   airedPrograms: 2,
   airedMs: 44 * 60_000,
@@ -227,7 +245,8 @@ describe("generateProgramming: generated marathons", () => {
     const lost = blocks.filter(
       (block) =>
         block.source?.kind === "media_item" &&
-        block.checkpoint.marathonOpportunity?.assignmentId === "office",
+        block.checkpoint.contexts.default?.marathonOpportunity?.assignmentId ===
+          "office",
     );
     expect(lost.length).toBeGreaterThan(0);
     for (const turn of lost) {
@@ -273,9 +292,9 @@ describe("generateProgramming: generated marathons", () => {
     );
 
     for (const block of blocks) {
-      expect(block.checkpoint.marathonOpportunity?.assignmentId).not.toBe(
-        "specials",
-      );
+      expect(
+        block.checkpoint.contexts.default?.marathonOpportunity?.assignmentId,
+      ).not.toBe("specials");
     }
     expect(marathonRounds(blocks).slice(0, 3)).toEqual([1, 2, 3]);
   });
@@ -334,10 +353,7 @@ describe("generateProgramming: generated marathons", () => {
               ...RESERVED_TURN,
               block: {
                 ...RESERVED_TURN.block,
-                checkpoint: {
-                  ...RESERVED_TURN.block.checkpoint,
-                  pending: ["parks", "office", "scrubs"],
-                },
+                checkpoint: reservedCheckpoint(["parks", "office", "scrubs"]),
               },
             },
             maxEntries: 4,
@@ -495,11 +511,7 @@ describe("generateProgramming: a marathon an edit ended", () => {
         size: { kind: "programs" as const, value: 6 },
         marathon: true,
         endedByEdit: true,
-        checkpoint: {
-          ...RESERVED_TURN.block.checkpoint,
-          pending: ["office", "parks"],
-          ordinaryRoundsSinceMarathon: 5,
-        },
+        checkpoint: reservedCheckpoint(["office", "parks"], 5),
       },
       airedPrograms: 1,
       airedMs: 22 * 60_000,

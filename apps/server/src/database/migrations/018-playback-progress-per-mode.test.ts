@@ -68,6 +68,8 @@ function firstPick(progress: PlaybackProgress): string | undefined {
     programmingSeed: 1,
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
+    rules: [],
+    timeZone: "UTC",
     assignments: [
       {
         id: "assignment",

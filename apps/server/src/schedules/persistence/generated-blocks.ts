@@ -111,6 +111,13 @@ export async function insertBlocks(
         resolved_kind: block.size?.kind ?? null,
         resolved_value: block.size?.value ?? null,
         marathon: toSqliteBoolean(block.marathon),
+        winning_rule_id: block.winningRuleId,
+        context_key: block.checkpoint.activeContext,
+        // Every turn takes its assignment's settings until rules can override them.
+        setting_origins: JSON.stringify({
+          ordinary: "assignment",
+          marathon: "assignment",
+        }),
         ended_by_edit: toSqliteBoolean(block.endedByEdit),
         checkpoint: JSON.stringify(block.checkpoint),
         created_at: now,
@@ -186,18 +193,11 @@ function toGeneratedBlock(
         ? null
         : { kind: row.resolved_kind, value: row.resolved_value },
     marathon: fromSqliteBoolean(row.marathon),
+    winningRuleId: row.winning_rule_id,
     endedByEdit: fromSqliteBoolean(row.ended_by_edit),
-    checkpoint: toCheckpoint(row.checkpoint),
+    // Migration 024 rewrote every stored checkpoint into this shape.
+    checkpoint: JSON.parse(row.checkpoint) as RotationCheckpoint,
   };
-}
-
-// Parses a stored checkpoint, giving ones from before fresh rebuilds existed a
-// count of 0. The default goes last so key order, and so the JSON a resumed
-// generation writes, matches what one uninterrupted generation writes.
-function toCheckpoint(json: string): RotationCheckpoint {
-  const stored = JSON.parse(json) as Omit<RotationCheckpoint, "rebuildCount"> &
-    Partial<Pick<RotationCheckpoint, "rebuildCount">>;
-  return { ...stored, rebuildCount: stored.rebuildCount ?? 0 };
 }
 
 // Rebuilds a block's member, or null once its collection or item is deleted.

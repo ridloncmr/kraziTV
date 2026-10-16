@@ -9,7 +9,7 @@ import {
 import { idParams } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type { AssignmentRepository } from "../persistence/assignment-repository.js";
-import { assignmentChange } from "../writes/assignment-change.js";
+import { channelInputChange } from "../../schedules/channel-input-change.js";
 
 // The chance is a whole percentage; the cooldown a whole number of rounds.
 const settingsBody = z.strictObject({
@@ -51,7 +51,7 @@ export function registerMarathonSettingsRoutes(
     const result = await schedules.applyInputChange(
       request.log,
       "marathon_settings_changed",
-      assignmentChange(id, "saved", (trx, now) =>
+      channelInputChange(id, "saved", (trx, now) =>
         assignments.saveMarathonSettings(
           trx,
           id,

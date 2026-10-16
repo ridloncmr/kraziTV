@@ -1,5 +1,5 @@
-import type { TurnSize } from "../schedule/contracts.js";
-import type { LatestTurn, ResolvedSize } from "./contracts.js";
+import type { TurnSize } from "../../schedule/contracts.js";
+import type { LatestTurn, ResolvedSize } from "../contracts.js";
 
 const MINUTE_MS = 60_000;
 

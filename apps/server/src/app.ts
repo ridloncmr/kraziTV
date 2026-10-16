@@ -49,6 +49,8 @@ import { registerAssignmentRoutes } from "./programming-assignments/routes/assig
 import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
 import { registerProgrammingPreviewRoutes } from "./programming-assignments/routes/programming-preview-routes.js";
 import { registerProgrammingRebuildRoutes } from "./programming-assignments/routes/programming-rebuild-routes.js";
+import type { RuleRepository } from "./programming-rules/rule-repository.js";
+import { registerRuleRoutes } from "./programming-rules/rule-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -97,6 +99,7 @@ export type ServerDependencies = {
   channelRuntime: ChannelRuntime;
   channelStreams: ChannelStreams;
   assignments: AssignmentRepository;
+  rules: RuleRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
 };
@@ -197,6 +200,12 @@ function registerRoutes(
   registerAssignmentRoutes(
     server,
     dependencies.assignments,
+    dependencies.channels,
+    dependencies.schedules,
+  );
+  registerRuleRoutes(
+    server,
+    dependencies.rules,
     dependencies.channels,
     dependencies.schedules,
   );

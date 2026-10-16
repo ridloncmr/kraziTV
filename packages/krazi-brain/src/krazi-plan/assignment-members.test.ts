@@ -60,6 +60,8 @@ function options(
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,

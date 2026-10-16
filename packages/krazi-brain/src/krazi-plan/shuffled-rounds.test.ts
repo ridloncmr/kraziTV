@@ -9,7 +9,7 @@ import {
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "../schedule/contracts.js";
 import type { GeneratedBlock, ProgrammingAssignment } from "./contracts.js";
-import { isUsableAssignment } from "./rotation.js";
+import { isUsableAssignment } from "./rotation/rotation.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
@@ -49,6 +49,8 @@ function options(
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,
@@ -193,7 +195,9 @@ describe("generateProgramming: unusable assignments", () => {
     expect(new Set(result.blocks.map((block) => block.assignmentId))).toEqual(
       new Set(["office", "parks"]),
     );
-    expect(result.blocks[0]?.checkpoint.skipped).toEqual(["empty"]);
+    expect(result.blocks[0]?.checkpoint.contexts.default?.skipped).toEqual([
+      "empty",
+    ]);
     expect(result.skips[0]).toEqual({
       assignmentId: "empty",
       roundNumber: 1,
@@ -373,8 +377,7 @@ describe("generateProgramming: a fresh rebuild", () => {
     // The interrupted turn is never continued, and round one starts over.
     expect(rebuilt.entries[0]?.programmingBlockId).toBe("fresh-1");
     expect(rebuilt.blocks[0]?.checkpoint).toMatchObject({
-      roundNumber: 1,
-      served: [],
+      contexts: { default: { roundNumber: 1, served: [] } },
       rebuildCount: 1,
       nextMemberPositions: { [rebuilt.blocks[0]?.assignmentId ?? ""]: 0 },
     });

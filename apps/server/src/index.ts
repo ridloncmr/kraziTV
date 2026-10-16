@@ -20,6 +20,7 @@ import { ChannelRepository } from "./channels/repository/channel-repository.js";
 import { composeChannelStreamManager } from "./channels/runtime/channel-stream-composition.js";
 import { toSignalLogger } from "./channels/runtime/signal-log.js";
 import { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
+import { RuleRepository } from "./programming-rules/rule-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
@@ -50,7 +51,7 @@ const logger = pino();
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
-resolveProgrammingTimezone(process.env, logger);
+const programmingTimezone = resolveProgrammingTimezone(process.env, logger);
 const database = await openDatabase({ dataDirectory });
 
 const auth = new AuthService(database.db);
@@ -64,7 +65,8 @@ const mediaItems = new MediaItemRepository(database.db);
 const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
 const assignments = new AssignmentRepository(database.db);
-const schedules = new ScheduleService(database.db);
+const rules = new RuleRepository(database.db);
+const schedules = new ScheduleService(database.db, { programmingTimezone });
 const playout = new PlayoutService(database.db, schedules);
 
 // Every writer of facts automatic collections match on asks this one
@@ -166,6 +168,7 @@ const server = buildServer(
     channelRuntime: channelStreams,
     channelStreams,
     assignments,
+    rules,
     schedules,
     playout,
   },

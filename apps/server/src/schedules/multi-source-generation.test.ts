@@ -127,7 +127,7 @@ describe("multi-source generation", () => {
       new Set(["assignment-office", "assignment-parks", "assignment-frasier"]),
     );
     expect(JSON.parse(blocks[0]?.checkpoint ?? "{}")).toMatchObject({
-      skipped: ["assignment-scrubs"],
+      contexts: { default: { skipped: ["assignment-scrubs"] } },
     });
 
     const nothing = await seedFourSources(SOURCES);

@@ -19,7 +19,7 @@ import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
-import { assignmentChange } from "../writes/assignment-change.js";
+import { channelInputChange } from "../../schedules/channel-input-change.js";
 import type { AssignmentRepository } from "../persistence/assignment-repository.js";
 import type {
   CreateAssignmentResult,
@@ -171,7 +171,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_created",
-        assignmentChange(id, "created", (trx, now) =>
+        channelInputChange(id, "created", (trx, now) =>
           assignments.create(trx, id, body.data, now),
         ),
       );
@@ -195,7 +195,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_changed",
-        assignmentChange(id, "updated", (trx, now) =>
+        channelInputChange(id, "updated", (trx, now) =>
           assignments.update(trx, id, assignmentId, body.data, now),
         ),
       );
@@ -224,7 +224,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignments_reordered",
-        assignmentChange(id, "reordered", (trx, now) =>
+        channelInputChange(id, "reordered", (trx, now) =>
           assignments.reorder(trx, id, body.data.assignmentIds, now),
         ),
       );
@@ -295,7 +295,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "progress_reset",
-        assignmentChange(id, "reset", (trx, now) =>
+        channelInputChange(id, "reset", (trx, now) =>
           resetCollectionProgress(
             trx,
             { channelId: id, assignmentId, mediaCollectionId },
@@ -317,7 +317,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_deleted",
-        assignmentChange(id, "deleted", (trx) =>
+        channelInputChange(id, "deleted", (trx) =>
           assignments.delete(trx, id, assignmentId),
         ),
       );

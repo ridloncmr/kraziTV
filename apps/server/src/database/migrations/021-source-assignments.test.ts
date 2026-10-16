@@ -25,6 +25,7 @@ import {
 import { sourceAssignmentsMigration } from "./021-source-assignments.js";
 import { turnsEndedByEditsMigration } from "./022-turns-ended-by-edits.js";
 import { assignmentParticipationMigration } from "./023-assignment-participation.js";
+import { programmingRulesMigration } from "./024-programming-rules.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -39,6 +40,8 @@ const SPECIAL = "channel-special";
 async function legacyLoops() {
   const { db } = await openTestDatabase();
   const legacy = db as Kysely<unknown>;
+  // Later migrations roll back first; 021 drops what 022 and 023 added.
+  await programmingRulesMigration.down?.(legacy);
   await sourceAssignmentsMigration.down?.(legacy);
   await db
     .insertInto("channels")
@@ -225,6 +228,7 @@ describe("021_source_assignments", () => {
     // Generating needs every later migration too.
     await turnsEndedByEditsMigration.up(db as Kysely<unknown>);
     await assignmentParticipationMigration.up(db as Kysely<unknown>);
+    await programmingRulesMigration.up(db as Kysely<unknown>);
     const schedules = new ScheduleService(db, {
       now: () => FIXTURE_TIME,
       createId: sequentialIds("next"),

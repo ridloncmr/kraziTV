@@ -2,8 +2,12 @@ import type {
   AssignmentMember,
   ResolvedSize,
   StretchSetting,
-} from "./contracts.js";
-import { type DecisionSeed, drawInRange } from "./programming-decisions.js";
+} from "../contracts.js";
+import {
+  type DecisionSeed,
+  drawInRange,
+  type RoundKey,
+} from "../programming-decisions.js";
 
 /**
  * Returns why an assignment's stretch settings are invalid, or null when
@@ -70,9 +74,9 @@ function findShapeProblem(stretch: StretchSetting): string | null {
   return null;
 }
 
-/** Identifies the turn a size decision belongs to. */
+/** Identifies the turn a size decision belongs to: its round, keyed by context, and its place in it. */
 interface TurnPosition {
-  roundNumber: number;
+  round: RoundKey;
   turnIndex: number;
 }
 
@@ -88,7 +92,7 @@ export function resolveSize(
   stretch: StretchSetting,
   stream: "size" | "marathon_size",
   seed: DecisionSeed,
-  { roundNumber, turnIndex }: TurnPosition,
+  { round, turnIndex }: TurnPosition,
 ): ResolvedSize | null {
   if (member.kind === "media_item") return null;
   switch (stretch.kind) {
@@ -102,7 +106,7 @@ export function resolveSize(
         value: drawInRange(
           seed,
           stream,
-          roundNumber,
+          round,
           turnIndex,
           stretch.minMinutes,
           stretch.maxMinutes,
