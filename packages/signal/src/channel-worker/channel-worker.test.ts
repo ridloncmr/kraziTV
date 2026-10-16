@@ -138,6 +138,7 @@ describe("ChannelWorker startup", () => {
     ]);
     expect(packager.startCalls).toEqual([
       {
+        kind: "program",
         channelId: "channel-1",
         scheduleEntryId: "entry-1",
         mediaItemId: "media-1",

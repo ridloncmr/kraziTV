@@ -237,12 +237,15 @@ describe("real FFmpeg channel stream", () => {
       });
       // Joined in progress from the offset resolved at tune time. This bounds
       // startup latency only; drift at first output is Plex-measured evidence.
-      const offsetMs = session?.initialItem.mediaOffsetMs ?? 0;
+      const initial = session?.initialItem;
+      const offsetMs = initial?.kind === "program" ? initial.mediaOffsetMs : 0;
       expect(offsetMs).toBeGreaterThanOrEqual(2_000);
       expect(offsetMs).toBeLessThan(2_000 + DRIFT_CEILING_MS);
       // The following entry committed at its boundary, never before it.
       expect(session?.commits).toHaveLength(1);
-      expect(session?.commits[0]?.item.scheduleEntryId).toBe(second.id);
+      expect(session?.commits[0]?.item).toMatchObject({
+        scheduleEntryId: second.id,
+      });
       expect(session?.commits[0]?.committedAt).toBeGreaterThanOrEqual(
         second.starts_at,
       );
@@ -271,9 +274,9 @@ describe("real FFmpeg channel stream", () => {
       // Wait until the worker holds the old following entry as its preparation.
       await vi.waitFor(
         () =>
-          expect(packager.sessions[0]?.prepared[0]?.scheduleEntryId).toBe(
-            stale.id,
-          ),
+          expect(packager.sessions[0]?.prepared[0]).toMatchObject({
+            scheduleEntryId: stale.id,
+          }),
         { timeout: MEDIA_DURATION_MS, interval: 50 },
       );
 
@@ -298,14 +301,16 @@ describe("real FFmpeg channel stream", () => {
       expect(packager.sessions).toHaveLength(1);
       expect(session?.commits).toHaveLength(1);
       const commit = session?.commits[0];
+      const committed = commit?.item.kind === "program" ? commit.item : null;
       // The stale preparation was replaced by a fresh one and never aired;
       // the regenerated entry did, on time.
-      expect(session?.prepared.map((item) => item.scheduleEntryId)).toEqual([
-        stale.id,
-        commit?.item.scheduleEntryId,
-      ]);
-      expect(commit?.item.scheduleEntryId).not.toBe(stale.id);
-      expect(commit?.item.mediaItemId).toBe("item-003");
+      expect(
+        session?.prepared.map((item) =>
+          item.kind === "program" ? item.scheduleEntryId : "filler",
+        ),
+      ).toEqual([stale.id, committed?.scheduleEntryId]);
+      expect(committed?.scheduleEntryId).not.toBe(stale.id);
+      expect(committed?.mediaItemId).toBe("item-003");
       expect(commit?.committedAt).toBeGreaterThanOrEqual(first.ends_at);
       expect(viewer.response.closed).toBe(false);
       expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(0);

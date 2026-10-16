@@ -7,7 +7,9 @@ import type {
 } from "../playout/contracts.js";
 import type { DurationMs } from "../runtime/clock.js";
 
-export type SignalPlayoutItem = {
+/** One program a session transmits from its media. */
+type ProgramSignalItem = {
+  kind: "program";
   channelId: ChannelId;
   scheduleEntryId: ScheduleEntryId;
   mediaItemId: MediaItemId;
@@ -26,11 +28,26 @@ export type SignalPlayoutItem = {
   playDurationMs: DurationMs;
   /**
    * Black video and silence emitted after the media when it is shorter than
-   * its airtime, so the signal stays continuous to the boundary. Filler
-   * replaces it later.
+   * its airtime, so the signal stays continuous to the boundary.
    */
   blackTailMs: DurationMs;
 };
+
+/**
+ * Planned filler as kraziBrain chose it (ADR 0014): black video showing
+ * `message` over silence for `airtimeMs`. No media input; packaging never
+ * decides its timing or wording.
+ */
+type FillerSignalItem = {
+  kind: "filler";
+  channelId: ChannelId;
+  /** The text shown, already formatted, such as "Programming resumes at 8:00 PM". */
+  message: string;
+  airtimeMs: DurationMs;
+};
+
+/** What a session transmits next: a program or planned filler. */
+export type SignalPlayoutItem = ProgramSignalItem | FillerSignalItem;
 
 export interface SignalPackager {
   start(initialItem: SignalPlayoutItem): SignalSession;

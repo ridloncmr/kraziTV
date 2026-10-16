@@ -29,7 +29,7 @@ import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import { parseProbeConfig } from "./config/probe.js";
-import { parseFfmpegPath } from "./config/ffmpeg.js";
+import { parseFfmpegFontFile, parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
 import { resolveProgrammingTimezone } from "./config/programming-timezone.js";
 import {
@@ -52,6 +52,7 @@ const logger = pino();
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
+const fillerFontFile = parseFfmpegFontFile(process.env, process.platform);
 const programmingTimezone = resolveProgrammingTimezone(process.env, logger);
 const database = await openDatabase({ dataDirectory });
 
@@ -144,6 +145,7 @@ const channelStreams = composeChannelStreamManager({
     logger: toSignalLogger(logger),
     timers: runtime,
     ffmpegPath,
+    fillerFontFile,
   }),
   runtime,
 });

@@ -6,6 +6,7 @@ import type {
   FollowingPlayoutResult,
   SelectedPlayoutItem,
 } from "../playout/contracts.js";
+import { signalItemLabel } from "../testing/signal-item-label.js";
 import { Deferred } from "../testing/deferred.js";
 import { FakeClock } from "../testing/fake-clock.js";
 import { FakePlayoutProvider } from "../testing/fake-playout-provider.js";
@@ -121,7 +122,7 @@ const startWorker = async (
 };
 
 const committedEntries = (session: FakeSignalSession): string[] =>
-  session.committedItems.map((item) => item.scheduleEntryId);
+  session.committedItems.map(signalItemLabel);
 
 /** A dependency call that never answers, as a stalled database or FFmpeg process. */
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
@@ -155,6 +156,7 @@ describe("ChannelWorker following-item transitions", () => {
     ]);
     expect(session.prepareCalls).toEqual([
       {
+        kind: "program",
         channelId: CHANNEL,
         scheduleEntryId: "entry-2",
         mediaItemId: "media-entry-2",
@@ -236,9 +238,7 @@ describe("ChannelWorker following-item transitions", () => {
     setup.provider.enqueueCurrent(current(regenerated, 10_000));
     await advanceTo(setup.clock, 10_000);
 
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.provider.currentCalls.at(-1)).toEqual({
       channelId: CHANNEL,
       atMs: 10_000,
@@ -299,9 +299,7 @@ describe("ChannelWorker following-item transitions", () => {
     await advanceTo(setup.clock, 8_000);
 
     await worker.stop();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
 
     await advanceTo(setup.clock, 10_000);
@@ -358,9 +356,7 @@ describe("ChannelWorker following-item transitions", () => {
     );
     expect(error.cause).toBe(failure);
     expect(session.stopCalls).toBe(1);
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(committedEntries(session)).toEqual(["entry-1"]);
   });
 
@@ -496,9 +492,7 @@ describe("ChannelWorker following-item transitions", () => {
 
       await advanceTo(setup.clock, 10_000);
 
-      expect(
-        session.discardedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-2"]);
+      expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
       expect(committedEntries(session)).toEqual(["entry-1", nextEntryId]);
 
       await worker.stop();
@@ -534,9 +528,7 @@ describe("ChannelWorker following-item transitions", () => {
     await expect(worker.completion).rejects.toBe(failure);
     await settlePromises(5);
 
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
   });
 
@@ -555,9 +547,7 @@ describe("ChannelWorker following-item transitions", () => {
     await advanceTo(setup.clock, 10_000);
 
     await expectSignalError(worker.completion, "transition_failed");
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(session.stopCalls).toBe(1);
   });
   it("stop resolves once the loop's own retry discards a preparation halt failed to release", async () => {
@@ -568,9 +558,7 @@ describe("ChannelWorker following-item transitions", () => {
     session.failDiscards(new Error("discard failed once"));
 
     await expect(worker.stop()).resolves.toBeUndefined();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
   });
 
   it("rejects a stop whose session cleanup fails and succeeds on retry", async () => {
@@ -583,9 +571,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     await expect(worker.stop()).rejects.toBe(failure);
     await expect(worker.stop()).resolves.toBeUndefined();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
   });
 
   it("stops the session without waiting for a slow discard", async () => {
@@ -741,9 +727,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     expect(() => commit?.()).toThrow();
     expect(committedEntries(session)).toEqual(["entry-1"]);
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
   });
 

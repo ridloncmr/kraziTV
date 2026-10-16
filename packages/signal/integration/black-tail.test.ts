@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,8 +5,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createFfmpegSignalPackager, SystemRuntime } from "../src/index.js";
+import { ffmpegPath, runFfmpeg, wait } from "./real-ffmpeg.js";
 
-const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
 const MEDIA_MS = 2_000;
 const BLACK_TAIL_MS = 3_000;
 const AIRTIME_MS = MEDIA_MS + BLACK_TAIL_MS;
@@ -84,6 +83,7 @@ describe("real FFmpeg black tail", () => {
       });
       const startedAt = performance.now();
       const session = packager.start({
+        kind: "program",
         channelId: "69",
         scheduleEntryId: "entry-short",
         mediaItemId: "media-short",
@@ -145,6 +145,7 @@ describe("real FFmpeg black video", () => {
     });
     const startedAt = performance.now();
     const session = packager.start({
+      kind: "program",
       channelId: "69",
       scheduleEntryId: "entry-audio-only",
       mediaItemId: "media-audio-only",
@@ -189,38 +190,3 @@ describe("real FFmpeg black video", () => {
     expect(analysis).not.toMatch(/silence_start/);
   }, 45_000);
 });
-
-/**
- * Runs FFmpeg to completion and returns its stderr, where FFmpeg writes its
- * filter reports. Fails the suite rather than skipping when FFmpeg is missing.
- */
-function runFfmpeg(
-  args: readonly string[],
-  failure: string,
-  input?: Buffer,
-): string {
-  const result = spawnSync(
-    ffmpegPath,
-    // The capture arrives on stdin, so `-nostdin` is never passed here.
-    args[0] === "-version" ? args : ["-hide_banner", ...args],
-    {
-      input,
-      encoding: "utf8",
-      shell: false,
-      windowsHide: true,
-      maxBuffer: 16 * 1024 * 1024,
-    },
-  );
-  if (result.error || result.status !== 0) {
-    throw new Error(
-      `${failure} ("${ffmpegPath}"). Install FFmpeg or set FFMPEG_PATH: ${result.stderr?.trim() || result.error?.message}`,
-      { cause: result.error },
-    );
-  }
-  return result.stderr;
-}
-
-/** Lets the real broadcast run for a fixed wall-clock span. */
-function wait(delayMs: number): Promise<void> {
-  return new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
-}

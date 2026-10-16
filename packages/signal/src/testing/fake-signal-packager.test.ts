@@ -4,6 +4,7 @@ import type { SignalPlayoutItem } from "../index.js";
 import { FakeSignalPackager } from "./fake-signal-packager.js";
 
 const item = (scheduleEntryId: string): SignalPlayoutItem => ({
+  kind: "program",
   channelId: "comedy",
   scheduleEntryId,
   mediaItemId: `media-${scheduleEntryId}`,

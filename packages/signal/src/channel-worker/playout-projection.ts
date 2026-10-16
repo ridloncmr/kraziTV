@@ -13,6 +13,8 @@ import type {
 import type { TimestampMs } from "../runtime/clock.js";
 import type { SignalPlayoutItem } from "../signal-packager/contracts.js";
 
+type ProgramSignalItem = Extract<SignalPlayoutItem, { kind: "program" }>;
+
 type CurrentPlayout = Extract<CurrentPlayoutResult, { status: "current" }>;
 
 /** Converts one atomic current-state projection into route-safe failures. */
@@ -53,7 +55,7 @@ export function requireCurrent(
 export function toSignalItem(
   current: CurrentPlayout,
   channelId: ChannelId,
-): SignalPlayoutItem {
+): ProgramSignalItem {
   const item = toPackagedItem(
     current.item,
     current.mediaOffsetMs,
@@ -101,7 +103,7 @@ export function selectContiguousFollowing(
 /** Plays a following item from its selected offset for its scheduled airtime. */
 export function toFollowingSignalItem(
   item: SelectedPlayoutItem,
-): SignalPlayoutItem {
+): ProgramSignalItem {
   return toPackagedItem(item, item.startOffsetMs, item.endsAt - item.startsAt);
 }
 
@@ -115,9 +117,10 @@ function toPackagedItem(
   item: SelectedPlayoutItem,
   mediaOffsetMs: number,
   airtimeMs: number,
-): SignalPlayoutItem {
+): ProgramSignalItem {
   const playDurationMs = Math.min(airtimeMs, item.durationMs - mediaOffsetMs);
   return {
+    kind: "program",
     channelId: item.channelId,
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,

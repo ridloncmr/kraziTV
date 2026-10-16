@@ -15,10 +15,27 @@ const BLACK_TAIL_VIDEO_FILTER = "tpad=stop_mode=add:stop=-1:color=black";
 const SILENT_AUDIO_SOURCE = "anullsrc=channel_layout=stereo:sample_rate=48000";
 const BLACK_VIDEO_SOURCE = "color=c=black:s=1920x1080:r=30";
 
+type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
+type FillerItem = Extract<SignalPlayoutItem, { kind: "filler" }>;
+
+/** How the packager renders what it generates rather than reads. */
+interface FfmpegArgumentOptions {
+  /** The font filler messages are drawn in; unset uses fontconfig's default. */
+  fontFile?: string | undefined;
+}
+
 /** Validates one selected item and expresses the MVP packaging policy as argv. */
 export function buildFfmpegArguments(
   item: SignalPlayoutItem,
+  options: FfmpegArgumentOptions = {},
 ): readonly string[] {
+  return item.kind === "filler"
+    ? fillerArguments(item, options)
+    : programArguments(item);
+}
+
+/** Packages a program from its media, generating any stream it lacks. */
+function programArguments(item: ProgramItem): readonly string[] {
   const invalidField = findInvalidField(item);
   if (invalidField !== undefined) {
     throw invalidPlayoutItem(invalidField);
@@ -61,9 +78,96 @@ export function buildFfmpegArguments(
     videoStream,
     "-map",
     audioStream,
+    ...encodedOutput({
+      zeroLatency: hasBlackTail,
+      videoFilter: hasBlackTail
+        ? `${VIDEO_FILTER},${BLACK_TAIL_VIDEO_FILTER}`
+        : VIDEO_FILTER,
+      // `-re` paces input reads only, so the generated tail needs its own
+      // wall-clock pacing. Pacing audio alone holds the interleaved video
+      // too; a video `realtime` stage stacks with encoder buffering and can
+      // lag. Synthesized silence never ends, so only source audio needs
+      // padding.
+      audioFilter: hasBlackTail
+        ? item.hasAudio
+          ? "apad,arealtime"
+          : "arealtime"
+        : undefined,
+    }),
+  ];
+}
+
+/**
+ * Packages planned filler from generated sources alone: black video with
+ * the message drawn centered, over silence, for exactly its airtime. Like
+ * the black tail it reads nothing paced, so pacing the audio holds the
+ * interleaved video to wall-clock time.
+ */
+function fillerArguments(
+  item: FillerItem,
+  { fontFile }: FfmpegArgumentOptions,
+): readonly string[] {
+  if (!isPositiveSafeInteger(item.airtimeMs)) {
+    throw invalidPlayoutItem("airtimeMs");
+  }
+  if (item.message === "") throw invalidPlayoutItem("message");
+  const drawtext = [
+    `text=${escapeFilterValue(item.message)}`,
+    // Messages are shown as written; `%{...}` is never expanded.
+    "expansion=none",
+    ...(fontFile === undefined
+      ? []
+      : [`fontfile=${escapeFilterValue(fontFile)}`]),
+    "fontcolor=white",
+    "fontsize=64",
+    "x=(w-text_w)/2",
+    "y=(h-text_h)/2",
+  ].join(":");
+  return [
+    "-hide_banner",
+    "-nostdin",
+    "-loglevel",
+    "warning",
+    "-f",
+    "lavfi",
+    "-i",
+    BLACK_VIDEO_SOURCE,
+    "-f",
+    "lavfi",
+    "-i",
+    SILENT_AUDIO_SOURCE,
+    "-t",
+    millisecondsToDecimalSeconds(item.airtimeMs),
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
+    ...encodedOutput({
+      zeroLatency: true,
+      videoFilter: `drawtext=${drawtext}`,
+      audioFilter: "arealtime",
+    }),
+  ];
+}
+
+/**
+ * The encoder and muxer settings every item shares, so programs and filler
+ * reach one stable MPEG-TS stream layout: the same codecs, frame rate, GOP,
+ * and PIDs across every FFmpeg process of a session.
+ */
+function encodedOutput({
+  zeroLatency,
+  videoFilter,
+  audioFilter,
+}: {
+  zeroLatency: boolean;
+  videoFilter: string;
+  audioFilter: string | undefined;
+}): string[] {
+  return [
     "-c:v",
     "libx264",
-    ...(hasBlackTail ? ["-tune", "zerolatency"] : []),
+    ...(zeroLatency ? ["-tune", "zerolatency"] : []),
     "-pix_fmt",
     "yuv420p",
     "-r",
@@ -75,14 +179,8 @@ export function buildFfmpegArguments(
     "-sc_threshold",
     "0",
     "-vf",
-    hasBlackTail ? `${VIDEO_FILTER},${BLACK_TAIL_VIDEO_FILTER}` : VIDEO_FILTER,
-    // `-re` paces input reads only, so the generated tail needs its own
-    // wall-clock pacing. Pacing audio alone holds the interleaved video too;
-    // a video `realtime` stage stacks with encoder buffering and can lag.
-    // Synthesized silence never ends, so only source audio needs padding.
-    ...(hasBlackTail
-      ? ["-af", item.hasAudio ? "apad,arealtime" : "arealtime"]
-      : []),
+    videoFilter,
+    ...(audioFilter === undefined ? [] : ["-af", audioFilter]),
     "-c:a",
     "aac",
     "-ar",
@@ -103,15 +201,33 @@ export function buildFfmpegArguments(
   ];
 }
 
+/**
+ * Escapes a value placed in a filter option inside a `-vf` filtergraph:
+ * first for the option parser (`\`, `'`, `:`), then for the filtergraph
+ * parser (`\`, `'`, `[`, `]`, `,`, `;`), so any message or font path is
+ * read as text, never as filter syntax. No shell is involved.
+ */
+function escapeFilterValue(value: string): string {
+  return value
+    .replace(/[\\':]/g, (character) => `\\${character}`)
+    .replace(/[\\'[\],;]/g, (character) => `\\${character}`);
+}
+
 type PackagingField =
-  "blackTailMs" | "hasAudio" | "hasVideo" | "mediaOffsetMs" | "playDurationMs";
+  | "airtimeMs"
+  | "blackTailMs"
+  | "hasAudio"
+  | "hasVideo"
+  | "mediaOffsetMs"
+  | "message"
+  | "playDurationMs";
 
 /**
  * Returns the first field FFmpeg cannot be given as-is, or undefined when the
  * item can be packaged. Checked in a fixed order, so an item with several bad
  * fields always reports the same one.
  */
-function findInvalidField(item: SignalPlayoutItem): PackagingField | undefined {
+function findInvalidField(item: ProgramItem): PackagingField | undefined {
   if (!isNonNegativeSafeInteger(item.mediaOffsetMs)) return "mediaOffsetMs";
   if (!isPositiveSafeInteger(item.playDurationMs)) return "playDurationMs";
   if (!isNonNegativeSafeInteger(item.blackTailMs)) return "blackTailMs";
