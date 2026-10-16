@@ -20,7 +20,7 @@ import { startScheduleScenarioServer } from "../testing/schedule-server.js";
 import { createBarrier } from "../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 import { AssignmentRepository } from "./persistence/assignment-repository.js";
-import { assignmentChange } from "./writes/assignment-change.js";
+import { channelInputChange } from "../schedules/channel-input-change.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -122,7 +122,7 @@ describe("edits that end the started turn", () => {
     const now = FIXTURE_TIME + 30 * MINUTE;
     const barrier = createBarrier();
     const edit = (count: number) =>
-      assignmentChange(channelId, "updated", (trx, effectiveNow) =>
+      channelInputChange(channelId, "updated", (trx, effectiveNow) =>
         new AssignmentRepository(trx).update(
           trx,
           channelId,

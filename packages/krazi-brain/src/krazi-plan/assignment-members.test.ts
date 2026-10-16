@@ -38,6 +38,7 @@ function collection(prefix: string, count = 5): AssignmentMember {
 function sitcoms(members: AssignmentMember[]): ProgrammingAssignment {
   return {
     id: "sitcoms",
+    participation: "default",
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 2 },
     marathon: null,
@@ -59,6 +60,8 @@ function options(
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,

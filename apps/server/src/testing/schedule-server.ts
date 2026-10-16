@@ -39,13 +39,14 @@ const EPISODE_SCENARIO: ScheduleScenarioOptions = {
  * Composes the server the way index.ts does, on the test's clock. Only
  * `schedules` is overridden, so the default playout service shares its clock.
  * Each boot gets its own ID prefix so entries from different boots never
- * collide; `seedCatalog` writes the acceptance catalog on first boot.
+ * collide; `seedCatalog` writes the acceptance catalog on first boot, and
+ * `programmingTimezone` evaluates rules where a suite needs.
  */
 export async function startScheduleServer(
   dataDirectory: string,
   clock: ManualClock,
   boot: string,
-  options: { seedCatalog?: boolean } = {},
+  options: { seedCatalog?: boolean; programmingTimezone?: string } = {},
 ) {
   const { server, db } = await startTestServer({
     dataDirectory,
@@ -59,6 +60,7 @@ export async function startScheduleServer(
         now: clock.now,
         createId: sequentialIds(`${boot}-entry`),
         createBlockId: sequentialIds(`${boot}-block`),
+        programmingTimezone: options.programmingTimezone,
       }),
     }),
   });
@@ -74,12 +76,14 @@ export async function startScheduleServer(
  * connection to the same file, and the dependencies so a test can reach
  * the default recording runtime. Pass a logger to assert what the server
  * logs, a stop deadline for hung-stop tests, or a small transaction size
- * to prove chunked generation writes what one transaction would.
+ * to prove chunked generation writes what one transaction would, or a
+ * programming timezone for suites about calendar rules.
  */
 export async function startScheduleScenarioServer(
   scenario: Partial<ScheduleScenarioOptions> = {},
   options: Pick<StartTestServerOptions, "logger" | "channelStopTimeoutMs"> & {
     entriesPerTransaction?: number;
+    programmingTimezone?: string;
   } = {},
 ) {
   const dataDirectory = await createTemporaryDirectory();
@@ -97,6 +101,7 @@ export async function startScheduleScenarioServer(
         createId: sequentialIds("entry"),
         createBlockId: sequentialIds("block"),
         entriesPerTransaction: options.entriesPerTransaction,
+        programmingTimezone: options.programmingTimezone,
       }),
     }),
   });

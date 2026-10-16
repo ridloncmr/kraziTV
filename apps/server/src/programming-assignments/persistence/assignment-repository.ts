@@ -17,6 +17,7 @@ import {
   writeMembers,
 } from "./assignment-members.js";
 import { endStartedTurn } from "../../schedules/persistence/generated-blocks.js";
+import { findRuleStretchConflict } from "../../programming-rules/rule-rows.js";
 import {
   loadMarathonSettings,
   toAssignmentStretches,
@@ -222,8 +223,10 @@ export class AssignmentRepository {
 
   /**
    * Replaces an assignment's settings and members; one owned by another
-   * channel is not found. Identical settings write nothing and report
-   * `unchanged`, so callers can skip regeneration.
+   * channel is not found. A stretch change that would make a rule's
+   * inherited ordinary and marathon pair invalid is refused naming the rule,
+   * which must replace or disable its marathon first. Identical settings
+   * write nothing and report `unchanged`, so callers can skip regeneration.
    */
   async update(
     trx: Executor,
@@ -250,15 +253,22 @@ export class AssignmentRepository {
         channelId,
         settings.members,
         assignmentId,
-      ));
+      )) ??
+      (await findRuleStretchConflict(trx, assignmentId, {
+        ordinary: settings.ordinaryStretch,
+        marathon: settings.marathonStretch,
+      }));
     if (refused !== undefined) return refused;
 
     // A mode or stretch change ends the started turn after the airing
-    // program; member edits keep it (programming spec 0004).
+    // program; member edits keep it (programming spec 0004). Leaving
+    // rotation ends it through generation, which stops a turn whose
+    // assignment no longer rotates, so participation is not compared here.
     const columns = toSettingsColumns(settings);
-    if (
-      JSON.stringify(columns) !== JSON.stringify(toSettingsColumns(current))
-    ) {
+    const { participation: _, ...turnColumns } = columns;
+    const { participation: __, ...currentTurnColumns } =
+      toSettingsColumns(current);
+    if (JSON.stringify(turnColumns) !== JSON.stringify(currentTurnColumns)) {
       await endStartedTurn(trx, channelId, assignmentId, now);
     }
     const row = await trx
@@ -360,6 +370,7 @@ async function readAssignment(
   return {
     id: row.id,
     channelId: row.channel_id,
+    participation: row.participation,
     playbackMode: row.playback_mode,
     ...toApiStretches(row),
     members: members.map(toMemberSource),
@@ -376,6 +387,7 @@ function toSettingsColumns(settings: AssignmentSettings) {
       ? null
       : toStretchColumns(settings.marathonStretch);
   return {
+    participation: settings.participation,
     playback_mode: settings.playbackMode,
     ordinary_kind: ordinary.kind,
     ordinary_min: ordinary.min,

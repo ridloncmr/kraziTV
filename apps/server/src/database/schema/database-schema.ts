@@ -16,6 +16,8 @@ import type { MediaItemTable } from "./media-item-table.js";
 import type { MediaRootTable } from "./media-root-table.js";
 import type { ProgrammingAssignmentMemberTable } from "./programming-assignment-member-table.js";
 import type { ProgrammingBlockTable } from "./programming-block-table.js";
+import type { ProgrammingRuleSourceTable } from "./programming-rule-source-table.js";
+import type { ProgrammingRuleTable } from "./programming-rule-table.js";
 import type { ProgrammingSourceAssignmentTable } from "./programming-source-assignment-table.js";
 import type { ScheduleEntryTable } from "./schedule-entry-table.js";
 import type { MediaItemTagTable } from "./media-item-tag-table.js";
@@ -35,6 +37,8 @@ export interface DatabaseSchema {
   programming_assignment_members: ProgrammingAssignmentMemberTable;
   channel_programming_settings: ChannelProgrammingSettingsTable;
   programming_blocks: ProgrammingBlockTable;
+  programming_rules: ProgrammingRuleTable;
+  programming_rule_sources: ProgrammingRuleSourceTable;
   channel_schedule_states: ChannelScheduleStateTable;
   schedule_entries: ScheduleEntryTable;
   channel_collection_progress: ChannelCollectionProgressTable;

@@ -1,7 +1,10 @@
+import type { CalendarConditions } from "../calendar/contracts.js";
 import type {
   GeneratedBlock,
   LatestTurn,
   ProgrammingAssignment,
+  ProgrammingRule,
+  RuleSource,
 } from "../krazi-plan/contracts.js";
 import {
   generateProgramming,
@@ -29,6 +32,7 @@ export function collectionAssignment(
 ): ProgrammingAssignment {
   return {
     id,
+    participation: "default",
     playbackMode: "chronological",
     ordinary: { kind: "programs", count: 3 },
     marathon: null,
@@ -44,10 +48,50 @@ export function itemAssignment(
 ): ProgrammingAssignment {
   return {
     id,
+    participation: "default",
     playbackMode: null,
     ordinary: { kind: "programs", count: 3 },
     marathon: null,
     members: [{ kind: "media_item", media }],
+  };
+}
+
+/**
+ * Builds a join rule selecting `sources` that applies everywhere, unless a
+ * test narrows its conditions or changes its behavior or precedence. A
+ * source named by ID alone inherits its assignment's settings.
+ */
+export function programmingRule(
+  id: string,
+  sources: readonly (string | RuleSource)[],
+  {
+    conditions = {},
+    ...overrides
+  }: Partial<Omit<ProgrammingRule, "id" | "sources" | "conditions">> & {
+    conditions?: Partial<CalendarConditions>;
+  } = {},
+): ProgrammingRule {
+  return {
+    id,
+    behavior: "join",
+    priority: 0,
+    ruleOrder: 0,
+    conditions: {
+      dates: { kind: "any" },
+      weekdays: null,
+      window: null,
+      ...conditions,
+    },
+    sources: sources.map((source) =>
+      typeof source === "string"
+        ? {
+            assignmentId: source,
+            ordinary: null,
+            marathon: { mode: "inherit" },
+          }
+        : source,
+    ),
+    ...overrides,
   };
 }
 

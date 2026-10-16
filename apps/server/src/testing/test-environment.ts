@@ -29,6 +29,7 @@ import {
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
+import { RuleRepository } from "../programming-rules/rule-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
@@ -201,6 +202,7 @@ export async function startTestServer(
     channelRuntime: new RecordingChannelRuntime(),
     channelStreams: new ControlledChannelStreams(),
     assignments: new AssignmentRepository(database.db),
+    rules: new RuleRepository(database.db),
     schedules,
     playout: new PlayoutService(database.db, schedules),
   };

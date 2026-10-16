@@ -1128,3 +1128,80 @@ describe("stretch suggestion", () => {
     });
   });
 });
+
+describe("rule-only assignments", () => {
+  it("saves an omitted participation as normal rotation", async () => {
+    const { server } = await startServer();
+    const { participation: _, ...body } = collectionBody;
+
+    const created = await send(server, "POST", ASSIGNMENTS_URL, body);
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: { participation: "default" },
+    });
+  });
+
+  it("keeps a rule-only assignment off the schedule while the others rotate", async () => {
+    const { server, db } = await startServer();
+    await insertCollectionOfItems(db, "christmas", [22 * 60_000, 22 * 60_000]);
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+
+    const created = await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionAssignment("christmas"),
+      participation: "rule_only",
+    });
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: { participation: "rule_only" },
+    });
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(
+      entries.filter((entry) => entry.media_collection_id === "christmas"),
+    ).toEqual([]);
+    await expect(
+      db
+        .selectFrom("channel_collection_progress")
+        .select("media_collection_id")
+        .where("media_collection_id", "=", "christmas")
+        .execute(),
+    ).resolves.toEqual([]);
+  });
+
+  it("plays an assignment returned to rotation", async () => {
+    const { server, db } = await startServer();
+    await insertCollectionOfItems(db, "christmas", [22 * 60_000, 22 * 60_000]);
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+    const ruleOnly = {
+      ...collectionAssignment("christmas"),
+      participation: "rule_only",
+    };
+    await send(server, "POST", ASSIGNMENTS_URL, ruleOnly);
+
+    await send(server, "PATCH", `${ASSIGNMENTS_URL}/assignment-002`, {
+      ...ruleOnly,
+      participation: "default",
+    });
+
+    const entries = await readScheduleEntries(db, CHANNEL_ID);
+    expect(
+      entries.some((entry) => entry.media_collection_id === "christmas"),
+    ).toBe(true);
+  });
+
+  it("rejects an unknown participation", async () => {
+    const { server } = await startServer();
+
+    const response = await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionBody,
+      participation: "sometimes",
+    });
+
+    expect(response).toMatchObject({
+      status: 400,
+      body: { error: { code: "invalid_request" } },
+    });
+  });
+});

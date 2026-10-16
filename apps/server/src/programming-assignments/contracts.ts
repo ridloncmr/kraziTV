@@ -1,4 +1,6 @@
+import type { RuleStretchConflict } from "../programming-rules/contracts.js";
 import type {
+  AssignmentParticipation,
   MarathonSettings,
   PlaybackMode,
   StretchSetting,
@@ -11,6 +13,8 @@ export type MemberSource =
 
 /** What the owner saves for one assignment; the API accepts and returns it. */
 export interface AssignmentSettings {
+  /** In normal rotation, or only while a programming rule selects it. */
+  participation: AssignmentParticipation;
   /** Required when a member is a collection; null for single items only. */
   playbackMode: PlaybackMode | null;
   ordinaryStretch: StretchSetting;
@@ -51,7 +55,8 @@ export type UpdateAssignmentResult =
   | { kind: "unchanged"; assignment: SourceAssignment }
   | { kind: "not_found" }
   | UnknownMemberResult
-  | MemberAssignedResult;
+  | MemberAssignedResult
+  | RuleStretchConflict;
 
 /** A reorder must name exactly the channel's assignments, each once. */
 export type ReorderAssignmentsResult =

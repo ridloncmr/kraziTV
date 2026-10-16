@@ -23,6 +23,7 @@ afterEach(cleanUpTestEnvironment);
 const LATER = FIXTURE_TIME + 60_000;
 
 const chronological: AssignmentSettings = {
+  participation: "default",
   playbackMode: "chronological",
   ordinaryStretch: { kind: "programs", count: 3 },
   marathonStretch: null,
@@ -30,6 +31,7 @@ const chronological: AssignmentSettings = {
 };
 
 const singleItem: AssignmentSettings = {
+  participation: "default",
   playbackMode: null,
   ordinaryStretch: { kind: "programs", count: 1 },
   marathonStretch: null,

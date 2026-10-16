@@ -3,6 +3,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
   MediaCollection,
+  ProgrammingRule,
   ScheduleWindow,
   SourceAssignment,
 } from "../http/contracts.js";
@@ -11,6 +12,7 @@ import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "./assignment-form.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
 import { RebuildDialog } from "./rebuild-dialog.js";
+import { RulesEditor } from "./rules-editor.js";
 import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**
@@ -30,6 +32,10 @@ export function ProgrammingEditor({
   const assignments = useResource<SourceAssignment[]>(path, visible);
   const collections = useResource<MediaCollection[]>(
     "/media-collections",
+    visible,
+  );
+  const rules = useResource<ProgrammingRule[]>(
+    `${resourcePath("channels", channelId)}/programming-rules`,
     visible,
   );
   const reorder = useMutation();
@@ -52,6 +58,7 @@ export function ProgrammingEditor({
   const changed = () => {
     setChanges((count) => count + 1);
     assignments.refresh();
+    rules.refresh();
     setShowSchedule(true);
     schedule.refresh();
   };
@@ -145,11 +152,22 @@ export function ProgrammingEditor({
         />
       )}
       {listed.length > 0 && (
+        <RulesEditor
+          channelId={channelId}
+          visible={visible}
+          rules={rules}
+          assignments={listed}
+          collections={collections.data}
+          changed={changed}
+        />
+      )}
+      {listed.length > 0 && (
         <UpcomingProgramming
           key={`preview-${changes}`}
           path={`${resourcePath("channels", channelId)}/programming-preview`}
           visible={visible}
           collections={collections.data}
+          rules={rules.data}
         />
       )}
       {listed.length > 0 && (

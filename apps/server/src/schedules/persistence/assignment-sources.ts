@@ -56,6 +56,7 @@ export async function loadProgrammingAssignments(
     }
     assignments.push({
       id: row.id,
+      participation: row.participation,
       playbackMode: row.playback_mode,
       ...toAssignmentStretches(row),
       members: resolved,
@@ -139,11 +140,11 @@ interface StretchColumns {
 
 /**
  * Reads a stretch from its columns: a count or minutes in `min`, and `max`
- * for a range only. The only decoder of stored stretches, so every reader
- * agrees on what a valid row is; the table checks make any other shape
- * corruption.
+ * for a range only. The only decoder of stored stretches, assignment and
+ * rule source alike, so every reader agrees on what a valid row is; the
+ * table checks make any other shape corruption.
  */
-function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
+export function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
   switch (kind) {
     case "programs":
       return { kind, count: min };
@@ -212,6 +213,48 @@ export async function loadMarathonSettings(
         chancePercent: row.marathon_chance_percent,
         minOrdinaryRounds: row.marathon_min_ordinary_rounds,
       };
+}
+
+/**
+ * Records one programming configuration write on the channel, creating its
+ * settings row with the default marathon controls when it has none, so a
+ * preview read before the write reports an older revision.
+ */
+export async function recordConfigurationChange(
+  trx: Executor,
+  channelId: string,
+  now: number,
+): Promise<void> {
+  await trx
+    .insertInto("channel_programming_settings")
+    .values({
+      channel_id: channelId,
+      marathon_chance_percent: DEFAULT_MARATHON_SETTINGS.chancePercent,
+      marathon_min_ordinary_rounds: DEFAULT_MARATHON_SETTINGS.minOrdinaryRounds,
+      configuration_revision: 1,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflict((conflict) =>
+      conflict.column("channel_id").doUpdateSet((eb) => ({
+        configuration_revision: eb("configuration_revision", "+", 1),
+        updated_at: now,
+      })),
+    )
+    .execute();
+}
+
+/** Reads how many programming configuration writes the channel has had; 0 before any. */
+export async function loadConfigurationRevision(
+  trx: Executor,
+  channelId: string,
+): Promise<number> {
+  const row = await trx
+    .selectFrom("channel_programming_settings")
+    .select("configuration_revision")
+    .where("channel_id", "=", channelId)
+    .executeTakeFirst();
+  return row?.configuration_revision ?? 0;
 }
 
 /** Writes a stretch as the columns `toStretch` reads back. */

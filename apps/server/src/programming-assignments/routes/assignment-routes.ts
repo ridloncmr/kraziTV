@@ -1,4 +1,5 @@
 import {
+  ASSIGNMENT_PARTICIPATIONS,
   describeOrderedView,
   findStretchProblem,
   type OrderedMember,
@@ -15,10 +16,13 @@ import {
   sendUnknownMediaItems,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
-import { idParams } from "../../http/request-schemas.js";
+import { idParams, stretchField } from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
-import { assignmentChange } from "../writes/assignment-change.js";
+import {
+  channelInputChange,
+  configurationChange,
+} from "../../schedules/channel-input-change.js";
 import type { AssignmentRepository } from "../persistence/assignment-repository.js";
 import type {
   CreateAssignmentResult,
@@ -37,26 +41,17 @@ const member = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("media_item"), mediaItemId: z.string() }),
 ]);
 
-// The three stretch shapes; kraziBrain's rule decides which values are valid.
-const stretch = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("programs"), count: z.number() }),
-  z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
-  z.strictObject({
-    kind: z.literal("airtime_range"),
-    minMinutes: z.number(),
-    maxMinutes: z.number(),
-  }),
-]);
-
 // Create and PATCH share one body: PATCH replaces the whole assignment,
 // members in saved order. A collection needs a playback mode; single items
 // alone take none. Each member appears once.
 const settingsBody = z
   .strictObject({
+    // Omitted means the assignment rotates normally.
+    participation: z.enum(ASSIGNMENT_PARTICIPATIONS).default("default"),
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
-    ordinaryStretch: stretch,
+    ordinaryStretch: stretchField,
     // Omitted means marathons are disabled for the assignment.
-    marathonStretch: stretch.nullable().default(null),
+    marathonStretch: stretchField.nullable().default(null),
     members: z
       .array(member)
       .min(1)
@@ -168,7 +163,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_created",
-        assignmentChange(id, "created", (trx, now) =>
+        configurationChange(id, "created", (trx, now) =>
           assignments.create(trx, id, body.data, now),
         ),
       );
@@ -192,7 +187,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_changed",
-        assignmentChange(id, "updated", (trx, now) =>
+        configurationChange(id, "updated", (trx, now) =>
           assignments.update(trx, id, assignmentId, body.data, now),
         ),
       );
@@ -202,6 +197,14 @@ export function registerAssignmentRoutes(
           return toApiAssignment(result.assignment);
         case "not_found":
           return sendAssignmentNotFound(reply, id, assignmentId);
+        case "rule_stretch_conflict":
+          return sendApiError(
+            reply,
+            409,
+            "programming_rule_stretch_conflict",
+            `Rule "${result.ruleName}" inherits this assignment's settings, and its settings for it would become invalid: ${result.problem}. Change the rule first.`,
+            { ruleId: result.ruleId, problem: result.problem },
+          );
         default:
           return sendMemberRefused(reply, result);
       }
@@ -221,7 +224,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignments_reordered",
-        assignmentChange(id, "reordered", (trx, now) =>
+        configurationChange(id, "reordered", (trx, now) =>
           assignments.reorder(trx, id, body.data.assignmentIds, now),
         ),
       );
@@ -292,7 +295,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "progress_reset",
-        assignmentChange(id, "reset", (trx, now) =>
+        channelInputChange(id, "reset", (trx, now) =>
           resetCollectionProgress(
             trx,
             { channelId: id, assignmentId, mediaCollectionId },
@@ -314,7 +317,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_deleted",
-        assignmentChange(id, "deleted", (trx) =>
+        configurationChange(id, "deleted", (trx) =>
           assignments.delete(trx, id, assignmentId),
         ),
       );
@@ -428,6 +431,7 @@ function toApiAssignment(assignment: SourceAssignment) {
   return {
     id: assignment.id,
     channelId: assignment.channelId,
+    participation: assignment.participation,
     playbackMode: assignment.playbackMode,
     ordinaryStretch: assignment.ordinaryStretch,
     marathonStretch: assignment.marathonStretch,

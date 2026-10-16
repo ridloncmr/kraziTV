@@ -1,5 +1,6 @@
 import type {
   AssignmentSkip,
+  RuleSkip,
   GeneratedBlock,
   GeneratedScheduleEntry,
   MarathonSettings,
@@ -26,6 +27,11 @@ export type ScheduleChangeReason =
   | "assignment_deleted"
   | "assignments_reordered"
   | "marathon_settings_changed"
+  | "rule_created"
+  | "rule_changed"
+  | "rule_deleted"
+  | "rules_reordered"
+  | "programming_timezone_changed"
   | "programming_rebuilt"
   | "membership_changed"
   | "media_removed"
@@ -190,6 +196,10 @@ export type ProgrammingPreview =
       blocks: GeneratedBlock[];
       entries: GeneratedScheduleEntry[];
       skips: AssignmentSkip[];
+      /** Rules each previewed block's decision passed over. */
+      ruleSkips: (RuleSkip & { blockId: string })[];
+      /** The configuration the preview was generated from. */
+      configurationRevision: number;
     };
 
 /**

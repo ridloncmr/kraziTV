@@ -27,6 +27,10 @@ import { orderedPlaybackModesMigration } from "./019-ordered-playback-modes.js";
 import { orderFingerprintsMigration } from "./020-order-fingerprints.js";
 import { sourceAssignmentsMigration } from "./021-source-assignments.js";
 import { turnsEndedByEditsMigration } from "./022-turns-ended-by-edits.js";
+import { assignmentParticipationMigration } from "./023-assignment-participation.js";
+import { programmingRulesMigration } from "./024-programming-rules.js";
+import { configurationRevisionsMigration } from "./025-configuration-revisions.js";
+import { programmingTimezoneMigration } from "./026-programming-timezone.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -52,6 +56,10 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "020_order_fingerprints": orderFingerprintsMigration,
   "021_source_assignments": sourceAssignmentsMigration,
   "022_turns_ended_by_edits": turnsEndedByEditsMigration,
+  "023_assignment_participation": assignmentParticipationMigration,
+  "024_programming_rules": programmingRulesMigration,
+  "025_configuration_revisions": configurationRevisionsMigration,
+  "026_programming_timezone": programmingTimezoneMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

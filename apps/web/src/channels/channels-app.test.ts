@@ -124,6 +124,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
 function favoritesAssignment(playbackMode: string, count = 3) {
   return {
     id: "assignment",
+    participation: "default",
     playbackMode,
     ordinaryStretch: { kind: "programs", count },
     marathonStretch: null,
@@ -165,6 +166,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
     marathonStretch: null,
@@ -262,6 +264,7 @@ it.each([
     expect(
       api.requests.find((request) => request.method === "PATCH")?.body,
     ).toEqual({
+      participation: "default",
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
       marathonStretch: null,
@@ -481,6 +484,7 @@ it("shows a collection's programs per turn and saves an edited count", async () 
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 2 },
     marathonStretch: null,
@@ -631,6 +635,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "random",
     ordinaryStretch: { kind: "programs", count: 3 },
     marathonStretch: null,
@@ -721,6 +726,7 @@ it("adds, reorders, and saves an assignment's members", async () => {
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 3 },
     marathonStretch: null,
@@ -778,6 +784,7 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
+    participation: "default",
     playbackMode: "chronological",
     ordinaryStretch: { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
     marathonStretch: null,
@@ -913,6 +920,10 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     roundNumber: 2,
     turnIndex: 0,
     continues: false,
+    winningRuleId: null,
+    skippedRules: [],
+    decidedAt: "2026-10-14T20:00:00.000Z",
+    settingOrigins: { ordinary: "assignment", marathon: "assignment" },
     startsAt: "2026-10-14T20:00:00.000Z",
     endsAt: "2026-10-14T21:06:00.000Z",
     size: { kind: "airtime", value: 60 },
@@ -923,6 +934,7 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     programs: [program("One"), program("Two"), program("Three")],
   };
   api.reply("/channels/one/programming-preview", {
+    configurationRevision: 3,
     turns: [
       {
         ...turn,
@@ -1048,4 +1060,137 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
     );
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
+});
+
+it("saves an assignment kept out of normal rotation and shows it when reopened", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
+  const ruleOnly = {
+    ...favoritesAssignment("chronological"),
+    participation: "rule_only",
+  };
+  api.handle(
+    "/channels/one/programming-assignments/assignment",
+    () => {
+      api.reply("/channels/one/programming-assignments", [ruleOnly]);
+      return api.response(ruleOnly);
+    },
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const view = render(
+    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
+  );
+  const rotation = await screen.findByLabelText<HTMLInputElement>(
+    "Plays in normal rotation",
+  );
+  await waitFor(() => expect(rotation.checked).toBe(true));
+
+  fireEvent.click(rotation);
+  screen.getByText("Airs only while a programming rule selects it.");
+  fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
+  await screen.findByText(/revision 2/);
+  view.unmount();
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toMatchObject({ participation: "rule_only" });
+  await waitFor(() =>
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Plays in normal rotation")
+        .checked,
+    ).toBe(false),
+  );
+});
+
+it("explains which rule chose each turn, the rules it passed over, and where its settings came from", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  const rule = (id: string, name: string) => ({
+    id,
+    name,
+    behavior: "feature",
+    priority: 1,
+    dates: { kind: "any" },
+    weekdays: null,
+    window: { startMinute: 18 * 60, endMinute: 23 * 60 },
+    sources: [],
+  });
+  api.reply("/channels/one/programming-rules", [
+    rule("fridays", "Friday movies"),
+    rule("broken", "Nothing to air"),
+  ]);
+  const turn = {
+    assignmentId: "assignment",
+    member: {
+      kind: "collection",
+      mediaCollectionId: "favorites",
+      playbackMode: "chronological",
+    },
+    roundNumber: 1,
+    turnIndex: 0,
+    continues: false,
+    winningRuleId: "fridays",
+    skippedRules: [{ ruleId: "broken", reason: "no_usable_source" }],
+    decidedAt: "2026-10-16T22:00:00.000Z",
+    settingOrigins: { ordinary: "rule", marathon: "disabled" },
+    startsAt: "2026-10-16T22:00:00.000Z",
+    endsAt: "2026-10-16T23:30:00.000Z",
+    size: { kind: "programs", value: 2 },
+    marathon: false,
+    marathonChancePercent: null,
+    airtimeMinutes: 90,
+    overrunMinutes: null,
+    programs: [
+      {
+        mediaItemId: "a",
+        title: "A",
+        startsAt: "2026-10-16T22:00:00.000Z",
+        endsAt: "2026-10-16T23:30:00.000Z",
+      },
+    ],
+  };
+  api.reply("/channels/one/programming-preview", {
+    configurationRevision: 4,
+    turns: [
+      turn,
+      {
+        ...turn,
+        winningRuleId: null,
+        skippedRules: [],
+        settingOrigins: { ordinary: "assignment", marathon: "assignment" },
+      },
+    ],
+    skips: [],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  const turns = await screen.findByRole("list", { name: "Upcoming turns" });
+  await waitFor(() =>
+    expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
+      /chosen by Friday movies/,
+    ),
+  );
+  const [ruled, defaulted] = within(turns)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent);
+  expect(ruled).toMatch(
+    /passed over Nothing to air: none of its sources can air/,
+  );
+  expect(ruled).toMatch(
+    /the rule.s turn length · marathons off under the rule/,
+  );
+  expect(defaulted).toMatch(/normal rotation/);
+  expect(screen.getByText(/checked at program boundaries/).textContent).toMatch(
+    /never promises a program starts exactly when a window opens/,
+  );
 });

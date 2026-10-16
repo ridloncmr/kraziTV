@@ -1,3 +1,5 @@
+import type { Generated } from "kysely";
+
 /**
  * A channel's marathon controls; a channel without a row has the defaults.
  * Configuration, so it is kept apart from identity on `channels` and from
@@ -9,6 +11,8 @@ export interface ChannelProgrammingSettingsTable {
   marathon_chance_percent: number;
   /** Completed ordinary rounds required between marathons. */
   marathon_min_ordinary_rounds: number;
+  /** Counts programming configuration writes; distinct from the schedule revision. */
+  configuration_revision: Generated<number>;
   created_at: number;
   updated_at: number;
 }

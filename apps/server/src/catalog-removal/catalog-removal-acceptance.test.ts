@@ -434,6 +434,33 @@ describe("catalog removal preview", () => {
       body: { channelsLeftUnschedulable: [] },
     });
   });
+
+  it("warns even when a rule-only assignment remains, since it airs only when a rule selects it", async () => {
+    const { server, db } = await startScheduleScenarioServer();
+    await insertCollectionOfItems(db, "christmas", [90 * MINUTE]);
+    await insertCollectionAssignment(db, {
+      id: "assignment-christmas",
+      mediaCollectionId: "christmas",
+    });
+    await db
+      .updateTable("programming_source_assignments")
+      .set({ participation: "rule_only" })
+      .where("id", "=", "assignment-christmas")
+      .execute();
+
+    const preview = await send(server, "POST", "/catalog-removals/preview", {
+      target: { mediaItemIds: [A, B, C] },
+    });
+
+    expect(preview).toMatchObject({
+      status: 200,
+      body: {
+        channelsLeftUnschedulable: [
+          { channelId: CHANNEL_ID, channelNumber: "69" },
+        ],
+      },
+    });
+  });
 });
 
 describe("catalog removal leaving channels unschedulable", () => {

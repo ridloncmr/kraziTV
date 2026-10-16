@@ -1,8 +1,8 @@
 import type {
   ScheduleSource,
   UnschedulableReason,
-} from "../schedule/contracts.js";
-import { findUnschedulableReason } from "../schedule/schedule-policy.js";
+} from "../../schedule/contracts.js";
+import { findUnschedulableReason } from "../../schedule/schedule-policy.js";
 import type {
   AssignmentMember,
   AssignmentSkip,
@@ -10,70 +10,96 @@ import type {
   MarathonSettings,
   ProgrammingAssignment,
   RotationCheckpoint,
-} from "./contracts.js";
+  RotationScope,
+} from "../contracts.js";
+import {
+  type DecisionSeed,
+  type RoundKey,
+  roundKey,
+  shuffleRound,
+} from "../programming-decisions.js";
 import { closeRound, cooldownPermits, drawOpportunity } from "./marathons.js";
-import { type DecisionSeed, shuffleRound } from "./programming-decisions.js";
+import {
+  enterContext,
+  leaveContext,
+  reconcileRound,
+  type RotationState,
+} from "./rotation-contexts.js";
 
 /** The rotation state of a channel that has never generated a turn. */
 export const FIRST_CHECKPOINT: RotationCheckpoint = Object.freeze({
-  roundNumber: 0,
-  pending: [],
-  served: [],
-  skipped: [],
+  activeContext: "default",
+  contexts: {},
   lastAiredAssignmentId: null,
   nextMemberPositions: {},
-  marathonOpportunity: null,
-  roundCommittedProgram: false,
   ordinaryRoundsSinceMarathon: null,
   rebuildCount: 0,
 });
 
-/** The turn kraziPlan chose: its assignment, the source its member plays, whether it is a marathon, and the checkpoint its block stores. */
+/**
+ * The turn kraziPlan chose: its assignment, the source its member plays,
+ * whether it is a marathon, the checkpoint its block stores, and the key
+ * its round draws decisions under.
+ */
 interface ChosenTurn {
   assignment: ProgrammingAssignment;
   member: AssignmentMember;
   source: ScheduleSource;
   marathon: boolean;
   checkpoint: RotationCheckpoint;
+  round: RoundKey;
 }
 
 /**
  * Returns the rotation state after a block's turn started, from the
- * checkpoint it stored: its assignment leaves `pending` as served and last
- * aired, its member position moves past the member that took the turn, and
- * the round has committed a program. A marathon marks the round's
- * opportunity started and restarts cooldown as its first program commits;
- * an opportunity its turn did not use is lost. Pure, so the state after any
- * kept block is reproduced exactly, without storing it separately.
+ * checkpoint it stored: in the turn's context, its assignment leaves
+ * `pending` as served and the round has committed a program; channel-wide,
+ * it aired last and its member position moves past the member that took the
+ * turn, and the round completes for cooldown if this was its last turn. A
+ * marathon marks the round's opportunity started and restarts
+ * cooldown as its first program commits; an opportunity its turn did not
+ * use is lost. Pure, so the state after any kept block is reproduced
+ * exactly, without storing it separately.
  */
 export function advancePastTurn(
   checkpoint: RotationCheckpoint,
   marathon: boolean,
 ): RotationCheckpoint {
-  const [assignmentId, ...pending] = checkpoint.pending;
+  const state = enterContext(checkpoint, checkpoint.activeContext);
+  const [assignmentId, ...pending] = state.pending;
   if (assignmentId === undefined) {
     throw new Error("a block's checkpoint must name its turn's assignment");
   }
-  return {
-    ...checkpoint,
+  const next: RotationState = {
+    ...state,
     pending,
-    served: [...checkpoint.served, assignmentId],
+    served: [...state.served, assignmentId],
     lastAiredAssignmentId: assignmentId,
     nextMemberPositions: {
-      ...checkpoint.nextMemberPositions,
-      [assignmentId]: (checkpoint.nextMemberPositions[assignmentId] ?? 0) + 1,
+      ...state.nextMemberPositions,
+      [assignmentId]: (state.nextMemberPositions[assignmentId] ?? 0) + 1,
     },
     roundCommittedProgram: true,
     marathonOpportunity:
-      checkpoint.marathonOpportunity?.assignmentId !== assignmentId
-        ? checkpoint.marathonOpportunity
+      state.marathonOpportunity?.assignmentId !== assignmentId
+        ? state.marathonOpportunity
         : marathon
           ? { assignmentId, started: true }
           : null,
     ordinaryRoundsSinceMarathon: marathon
       ? 0
-      : checkpoint.ordinaryRoundsSinceMarathon,
+      : state.ordinaryRoundsSinceMarathon,
   };
+  // The round completes as its last turn starts, before any other context
+  // can start a marathon, so cooldown counts it now rather than whenever
+  // its context next forms a round.
+  return leaveContext(
+    pending.length === 0
+      ? { ...next, ordinaryRoundsSinceMarathon: closeRound(next) }
+      : next,
+    checkpoint.activeContext,
+    checkpoint,
+  );
 }
 
 /** What one selection attempt found: the turn, if any, and every skip it made. */
@@ -83,22 +109,24 @@ interface TurnChoice {
 }
 
 /**
- * Chooses the next turn from the rotation state (programming spec 0004):
- * the next usable pending assignment of the current round, or the first of
- * a new round formed from the usable assignments in saved order and
- * shuffled with the seed once the current round is spent. A pending
+ * Chooses the next turn in the scope's rotation context (programming specs
+ * 0004 and 0005): the context's round is first reconciled with who is
+ * eligible now, then the next usable pending assignment takes the turn, or
+ * the first of a new round formed from the usable eligible assignments in
+ * saved order and shuffled with the seed once the round is spent. A pending
  * assignment that has become unusable is skipped without touching its
- * progress and waits for the next round; one no longer on the channel is
- * dropped. Each assignment is examined once per attempt, and at most one
- * new round is formed, so a channel with nothing usable reports no turn
- * instead of forming empty rounds forever.
+ * progress and waits for the next round. Each assignment is examined once
+ * per attempt, and at most one new round is formed, so a scope with nothing
+ * usable reports no turn instead of forming empty rounds forever.
  */
 export function chooseTurn(
-  state: RotationCheckpoint,
-  assignments: readonly ProgrammingAssignment[],
+  checkpoint: RotationCheckpoint,
+  scope: RotationScope,
   seed: DecisionSeed,
   marathons: MarathonSettings,
 ): TurnChoice {
+  const assignments = scope.eligible;
+  const key = (roundNumber: number) => roundKey(scope.contextKey, roundNumber);
   const reasons = new Map(
     assignments.map((assignment) => [
       assignment.id,
@@ -106,7 +134,7 @@ export function chooseTurn(
     ]),
   );
   const skips: AssignmentSkip[] = [];
-  const skip = (round: RotationCheckpoint, assignmentId: string) => {
+  const skip = (round: RotationState, assignmentId: string) => {
     skips.push({
       assignmentId,
       roundNumber: round.roundNumber,
@@ -115,14 +143,14 @@ export function chooseTurn(
     return assignmentId;
   };
 
-  // A pending assignment no longer on the channel is simply dropped.
-  const known = state.pending.filter((id) => reasons.has(id));
-  let round: RotationCheckpoint = {
+  const entered = enterContext(checkpoint, scope.contextKey);
+  const state = reconcileRound(entered, scope, seed, key(entered.roundNumber));
+  let round: RotationState = {
     ...state,
-    pending: known.filter((id) => reasons.get(id) === undefined),
+    pending: state.pending.filter((id) => reasons.get(id) === undefined),
     skipped: [
       ...state.skipped,
-      ...known
+      ...state.pending
         .filter((id) => reasons.get(id) !== undefined)
         .map((id) => skip(state, id)),
     ],
@@ -138,23 +166,35 @@ export function chooseTurn(
       return { chosen: undefined, skips };
     }
     const roundNumber = round.roundNumber + 1;
-    const formed: RotationCheckpoint = {
+    const formed: RotationState = {
       ...round,
-      ordinaryRoundsSinceMarathon: closeRound(round),
+      // A round whose last turn started was counted then; one this choice
+      // emptied by skipping or removing its turns completes now.
+      ordinaryRoundsSinceMarathon:
+        entered.pending.length === 0
+          ? round.ordinaryRoundsSinceMarathon
+          : closeRound(round),
       roundNumber,
       pending: shuffleRound(
         usable.map(({ id }) => id),
         seed,
-        roundNumber,
+        key(roundNumber),
       ),
       served: [],
       skipped: [],
+      unservedRemoved: [],
       marathonOpportunity: null,
       roundCommittedProgram: false,
     };
     round = {
       ...formed,
-      marathonOpportunity: drawOpportunity(formed, usable, marathons, seed),
+      marathonOpportunity: drawOpportunity(
+        formed,
+        usable,
+        marathons,
+        seed,
+        key(roundNumber),
+      ),
       skipped: assignments
         .filter(({ id }) => reasons.get(id) !== undefined)
         .map(({ id }) => skip(formed, id)),
@@ -192,13 +232,18 @@ export function chooseTurn(
       member: chosen.member,
       source: chosen.source,
       marathon,
-      checkpoint: {
-        ...round,
-        nextMemberPositions: {
-          ...round.nextMemberPositions,
-          [assignment.id]: chosen.position,
+      checkpoint: leaveContext(
+        {
+          ...round,
+          nextMemberPositions: {
+            ...round.nextMemberPositions,
+            [assignment.id]: chosen.position,
+          },
         },
-      },
+        scope.contextKey,
+        checkpoint,
+      ),
+      round: key(round.roundNumber),
     },
     skips,
   };
@@ -220,13 +265,24 @@ function avoidRepeat(
     : [...pending];
 }
 
-/**
- * Whether an assignment can take a turn: some member is schedulable. The
- * one usability rule, so callers outside kraziPlan, such as catalog
- * removal's warning, ask it rather than restate it.
- */
+/** Whether an assignment can take a turn: some member is schedulable. */
 export function isUsableAssignment(assignment: ProgrammingAssignment): boolean {
   return unusableReasons(assignment) === undefined;
+}
+
+/**
+ * Whether default rotation can program the channel: some assignment in
+ * normal rotation is usable. Without one, any time no rule wins reports
+ * nothing schedulable, so callers outside kraziPlan, such as catalog
+ * removal's warning, ask this rather than restate it.
+ */
+export function canProgramByDefault(
+  assignments: readonly ProgrammingAssignment[],
+): boolean {
+  return assignments.some(
+    (assignment) =>
+      assignment.participation === "default" && isUsableAssignment(assignment),
+  );
 }
 
 /**

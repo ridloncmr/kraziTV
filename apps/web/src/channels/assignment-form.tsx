@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import type {
-  AssignmentMember,
   AssignmentSettings,
   CollectionPreview,
   MediaCollection,
@@ -10,7 +9,7 @@ import type {
   StretchSetting,
 } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
-import { MediaItemPicker } from "../media-search/media-item-picker.js";
+import { type MemberDraft, MemberRows, NEW_MEMBER } from "./member-rows.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";
 import {
@@ -50,14 +49,6 @@ const PLAYBACK_MODE_CHOICES: readonly {
   },
 ];
 
-/** One member row as the form edits it; an empty source is not chosen yet. */
-interface MemberDraft {
-  kind: AssignmentMember["kind"];
-  sourceId: string;
-}
-
-const NEW_MEMBER: MemberDraft = { kind: "collection", sourceId: "" };
-
 /**
  * Edits one programming source assignment, or adds one when none is given:
  * members in saved order, each a collection or a single item, with the
@@ -90,6 +81,8 @@ export function AssignmentForm({
   const [stretch, setStretch] = useState<StretchDraft>(UNCHOSEN_STRETCH);
   // Whether the owner set the turn length, so a suggestion never overrides it.
   const [stretchSet, setStretchSet] = useState(false);
+  // Off for a rule-only assignment, which airs only when a rule selects it.
+  const [rotates, setRotates] = useState(true);
   // Null while marathons are off for this assignment.
   const [marathon, setMarathon] = useState<StretchDraft | null>(null);
   const [previewed, setPreviewed] = useState("");
@@ -158,6 +151,7 @@ export function AssignmentForm({
             : member.mediaItemId,
       })),
     );
+    setRotates(assignment.participation === "default");
     if (assignment.playbackMode) setMode(assignment.playbackMode);
     setStretch(toStretchDraft(assignment.ordinaryStretch));
     setStretchSet(true);
@@ -188,7 +182,7 @@ export function AssignmentForm({
           void mutation.run(
             assignmentPath ?? assignmentsPath,
             assignmentPath ? "PATCH" : "POST",
-            toSettings(members, mode, stretch, marathon),
+            toSettings(members, rotates, mode, stretch, marathon),
             () => {
               dirty.current = false;
               preview.refresh();
@@ -197,105 +191,28 @@ export function AssignmentForm({
           );
         }}
       >
-        <ol aria-label="Members">
-          {members.map((member, index) => (
-            <li key={index} className="inline-form">
-              <label>
-                Source type
-                <select
-                  value={member.kind}
-                  onChange={(event) => {
-                    const kind = event.target.value as MemberDraft["kind"];
-                    editMembers((rows) =>
-                      rows.map((row, at) =>
-                        at === index ? { kind, sourceId: "" } : row,
-                      ),
-                    );
-                  }}
-                >
-                  <option value="collection">Media collection</option>
-                  <option value="media_item">Single media item</option>
-                </select>
-              </label>
-              {member.kind === "collection" ? (
-                <label>
-                  Programming source
-                  <select
-                    required
-                    value={member.sourceId}
-                    onChange={(event) => {
-                      const sourceId = event.target.value;
-                      editMembers((rows) =>
-                        rows.map((row, at) =>
-                          at === index ? { ...row, sourceId } : row,
-                        ),
-                      );
-                    }}
-                  >
-                    <option value="">Choose a source</option>
-                    {collections?.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <MediaItemPicker
-                  label="Programming source"
-                  value={member.sourceId}
-                  visible={visible}
-                  onChange={(item) => {
-                    const sourceId = item?.id ?? "";
-                    editMembers((rows) =>
-                      rows.map((row, at) =>
-                        at === index ? { ...row, sourceId } : row,
-                      ),
-                    );
-                  }}
-                />
-              )}
-              {members.length > 1 && (
-                <span className="row-actions">
-                  <button
-                    type="button"
-                    disabled={index === 0}
-                    onClick={() =>
-                      editMembers((rows) => moveRow(rows, index, -1))
-                    }
-                  >
-                    Move member up
-                  </button>
-                  <button
-                    type="button"
-                    disabled={index === members.length - 1}
-                    onClick={() =>
-                      editMembers((rows) => moveRow(rows, index, 1))
-                    }
-                  >
-                    Move member down
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      editMembers((rows) =>
-                        rows.filter((_, at) => at !== index),
-                      )
-                    }
-                  >
-                    Remove member
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
-        <button
-          type="button"
-          onClick={() => editMembers((rows) => [...rows, NEW_MEMBER])}
-        >
-          Add member
-        </button>
+        <MemberRows
+          members={members}
+          collections={collections}
+          visible={visible}
+          edit={editMembers}
+        />
+        <label>
+          <input
+            type="checkbox"
+            checked={rotates}
+            onChange={(event) => {
+              dirty.current = true;
+              setRotates(event.target.checked);
+            }}
+          />
+          Plays in normal rotation
+        </label>
+        {!rotates && (
+          <p className="secondary">
+            Airs only while a programming rule selects it.
+          </p>
+        )}
         {hasCollection && (
           <div className="inline-form">
             <label>
@@ -428,18 +345,6 @@ export function AssignmentForm({
     </fieldset>
   );
 }
-
-/** Moves one member row a place earlier or later. */
-function moveRow(
-  rows: MemberDraft[],
-  index: number,
-  offset: -1 | 1,
-): MemberDraft[] {
-  const [moved] = rows.splice(index, 1);
-  if (moved !== undefined) rows.splice(index + offset, 0, moved);
-  return rows;
-}
-
 /** Asks the server to suggest a turn length for the chosen members. */
 function suggestionPath(members: readonly MemberDraft[]): string {
   const ids = (kind: MemberDraft["kind"]) =>
@@ -455,19 +360,21 @@ function suggestionPath(members: readonly MemberDraft[]): string {
 }
 
 /**
- * Builds the assignment the form describes: its members in order, with the
- * mode, turn length, and optional marathon length its collections play
- * by. Single items alone take no mode and air once a turn whatever the
+ * Builds the assignment the form describes: whether it rotates normally,
+ * its members in order, and the mode, turn length, and optional marathon
+ * length its collections play by. Single items alone take no mode and air once a turn whatever the
  * stretch, so they never become marathons.
  */
 function toSettings(
   members: readonly MemberDraft[],
+  rotates: boolean,
   mode: PlaybackMode,
   stretch: StretchDraft,
   marathon: StretchDraft | null,
 ): AssignmentSettings {
   const hasCollection = members.some((member) => member.kind === "collection");
   return {
+    participation: rotates ? "default" : "rule_only",
     playbackMode: hasCollection ? mode : null,
     ordinaryStretch: hasCollection
       ? toStretchSetting(stretch)

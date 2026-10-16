@@ -1,4 +1,4 @@
-import { isUsableAssignment } from "@krazitv/krazi-brain";
+import { canProgramByDefault } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
@@ -239,7 +239,7 @@ async function findChannelsLeftUnschedulable(
           : member,
       ),
     }));
-    if (before.some(isUsableAssignment) && !after.some(isUsableAssignment)) {
+    if (canProgramByDefault(before) && !canProgramByDefault(after)) {
       left.push({ channelId: channel.id, channelNumber: channel.number });
     }
   }

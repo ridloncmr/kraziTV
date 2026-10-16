@@ -15,6 +15,8 @@ import type { ChannelScheduleStateTable } from "../database/schema/channel-sched
 import type { ChannelTable } from "../database/schema/channel-table.js";
 import type { ProgrammingAssignmentMemberTable } from "../database/schema/programming-assignment-member-table.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
+import type { ProgrammingRuleSourceTable } from "../database/schema/programming-rule-source-table.js";
+import type { ProgrammingRuleTable } from "../database/schema/programming-rule-table.js";
 import type { ProgrammingSourceAssignmentTable } from "../database/schema/programming-source-assignment-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 
@@ -92,6 +94,7 @@ export const assignmentFixture: Insertable<ProgrammingSourceAssignmentTable> = {
   id: "assignment-fixture-001",
   channel_id: channelFixture.id,
   playback_mode: "chronological",
+  participation: "default",
   assignment_order: 0,
   ordinary_kind: "programs",
   ordinary_min: 3,
@@ -115,6 +118,42 @@ export const assignmentMemberFixture: Insertable<ProgrammingAssignmentMemberTabl
     created_at: FIXTURE_TIME,
   };
 
+/** A December join rule on the fixture channel, applying all day. */
+export const ruleFixture: Insertable<ProgrammingRuleTable> = {
+  id: "rule-fixture-001",
+  channel_id: channelFixture.id,
+  name: "December",
+  behavior: "join",
+  priority: 0,
+  rule_order: 0,
+  date_kind: "annual",
+  start_date: null,
+  end_date: null,
+  start_month_day: "12-01",
+  end_month_day: "12-31",
+  weekdays: null,
+  window_start_minute: null,
+  window_end_minute: null,
+  created_at: FIXTURE_TIME,
+  updated_at: FIXTURE_TIME,
+};
+
+/** The fixture rule selecting the fixture assignment with its own settings; insert both first. */
+export const ruleSourceFixture: Insertable<ProgrammingRuleSourceTable> = {
+  rule_id: ruleFixture.id,
+  channel_id: channelFixture.id,
+  assignment_id: assignmentFixture.id,
+  position: 0,
+  ordinary_kind: null,
+  ordinary_min: null,
+  ordinary_max: null,
+  marathon_mode: "inherit",
+  marathon_kind: null,
+  marathon_min: null,
+  marathon_max: null,
+  created_at: FIXTURE_TIME,
+};
+
 /**
  * A generated turn of the fixture collection whose assignment is gone, as
  * history, so it inserts beside the catalog fixtures alone. Set
@@ -135,16 +174,29 @@ export const programmingBlockFixture: Insertable<ProgrammingBlockTable> = {
   resolved_value: 3,
   marathon: 0,
   ended_by_edit: 0,
+  winning_rule_id: null,
+  context_key: "default",
+  setting_origins: JSON.stringify({
+    ordinary: "assignment",
+    marathon: "assignment",
+  }),
   checkpoint: JSON.stringify({
-    roundNumber: 1,
-    pending: [assignmentFixture.id],
-    served: [],
-    skipped: [],
+    activeContext: "default",
+    contexts: {
+      default: {
+        roundNumber: 1,
+        pending: [assignmentFixture.id],
+        served: [],
+        skipped: [],
+        unservedRemoved: [],
+        marathonOpportunity: null,
+        roundCommittedProgram: false,
+      },
+    },
     lastAiredAssignmentId: null,
     nextMemberPositions: { [assignmentFixture.id]: 0 },
-    marathonOpportunity: null,
-    roundCommittedProgram: false,
     ordinaryRoundsSinceMarathon: null,
+    rebuildCount: 0,
   }),
   created_at: FIXTURE_TIME,
   updated_at: FIXTURE_TIME,

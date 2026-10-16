@@ -29,7 +29,7 @@ import {
 } from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
 import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
-import { assignmentChange } from "../programming-assignments/writes/assignment-change.js";
+import { channelInputChange } from "./channel-input-change.js";
 import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
 import type {
   AssignmentSettings,
@@ -821,11 +821,12 @@ describe("ScheduleService.applyInputChange", () => {
     const assignments = new AssignmentRepository(db, {
       createId: () => "assignment-001",
     });
-    return assignmentChange(channelId, "created", (trx, effectiveNow) =>
+    return channelInputChange(channelId, "created", (trx, effectiveNow) =>
       assignments.create(
         trx,
         channelId,
         {
+          participation: "default",
           playbackMode: "chronological",
           ordinaryStretch: { kind: "programs", count: 3 },
           marathonStretch: null,
@@ -1032,7 +1033,7 @@ describe("ScheduleService regeneration", () => {
 
   // Replaces the scenario assignment's settings through the repository, as the PATCH route does.
   function changeSource(channelId: string, settings: AssignmentSettings) {
-    return assignmentChange(channelId, "updated", (trx, now) =>
+    return channelInputChange(channelId, "updated", (trx, now) =>
       new AssignmentRepository(trx).update(
         trx,
         channelId,
@@ -1045,7 +1046,7 @@ describe("ScheduleService regeneration", () => {
 
   // Deletes the scenario assignment through the repository, as the DELETE route does.
   function deleteBlock(channelId: string) {
-    return assignmentChange(channelId, "deleted", (trx) =>
+    return channelInputChange(channelId, "deleted", (trx) =>
       new AssignmentRepository(trx).delete(trx, channelId, ASSIGNMENT_ID),
     );
   }
@@ -1056,6 +1057,7 @@ describe("ScheduleService regeneration", () => {
     playbackMode: "chronological" | "random",
   ): AssignmentSettings {
     return {
+      participation: "default",
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
       marathonStretch: null,
@@ -1066,6 +1068,7 @@ describe("ScheduleService regeneration", () => {
   // One single item on repeat.
   function playItem(member: Extract<MemberSource, { kind: "media_item" }>) {
     return {
+      participation: "default",
       playbackMode: null,
       ordinaryStretch: { kind: "programs", count: 1 },
       marathonStretch: null,
@@ -1479,7 +1482,7 @@ describe("ScheduleService regeneration", () => {
     await service.applyInputChange(
       log,
       "assignment_created",
-      assignmentChange(channelId, "created", (trx, now) =>
+      channelInputChange(channelId, "created", (trx, now) =>
         new AssignmentRepository(trx).create(
           trx,
           channelId,

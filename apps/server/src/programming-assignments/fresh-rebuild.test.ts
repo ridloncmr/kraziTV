@@ -120,7 +120,7 @@ describe("POST /channels/:id/programming/rebuild", () => {
     expect(firstFresh?.round_number).toBe(1);
     expect(JSON.parse(firstFresh?.checkpoint ?? "{}")).toMatchObject({
       rebuildCount: 1,
-      served: [],
+      contexts: { default: { served: [] } },
       ordinaryRoundsSinceMarathon: null,
     });
     expect(

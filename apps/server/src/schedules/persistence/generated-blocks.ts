@@ -3,6 +3,7 @@ import type {
   GeneratedBlock,
   LatestTurn,
   RotationCheckpoint,
+  SettingOrigins,
 } from "@krazitv/krazi-brain";
 import { findRegenerationBoundary } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
@@ -64,11 +65,43 @@ export async function loadLatestTurn(
 }
 
 /**
+ * Finds the turn a change at `effectiveNow` would leave started: the latest
+ * block kept at the regeneration boundary the change's own transaction
+ * will regenerate from, with that boundary, where its next program would
+ * start. Undefined before the channel's first turn.
+ */
+export async function findStartedTurn(
+  trx: Executor,
+  channelId: string,
+  effectiveNow: number,
+): Promise<{ block: GeneratedBlock; boundary: number } | undefined> {
+  const boundary = findRegenerationBoundary(
+    await findEntryAiringAt(trx, channelId, effectiveNow),
+    effectiveNow,
+  );
+  const latest = await loadLatestTurn(trx, channelId, boundary);
+  return latest === undefined ? undefined : { block: latest.block, boundary };
+}
+
+/**
+ * Ends a started turn after the airing program, so generation moves on
+ * instead of continuing it. Its rotation, and a marathon's cooldown
+ * reset, stand as served.
+ */
+export async function markTurnEnded(
+  trx: Executor,
+  blockId: string,
+): Promise<void> {
+  await trx
+    .updateTable("programming_blocks")
+    .set({ ended_by_edit: toSqliteBoolean(true) })
+    .where("id", "=", blockId)
+    .execute();
+}
+
+/**
  * Ends an assignment's started turn after the airing program, for a mode or
- * stretch edit: flags the latest block kept at the regeneration boundary
- * the edit's own transaction will regenerate from, if that block is the
- * assignment's, so generation moves on instead of continuing it. Its
- * rotation, and a marathon's cooldown reset, stand as served.
+ * stretch edit, if the started turn is the assignment's.
  */
 export async function endStartedTurn(
   trx: Executor,
@@ -76,17 +109,9 @@ export async function endStartedTurn(
   assignmentId: string,
   effectiveNow: number,
 ): Promise<void> {
-  const boundary = findRegenerationBoundary(
-    await findEntryAiringAt(trx, channelId, effectiveNow),
-    effectiveNow,
-  );
-  const latest = await loadLatestTurn(trx, channelId, boundary);
-  if (latest?.block.assignmentId !== assignmentId) return;
-  await trx
-    .updateTable("programming_blocks")
-    .set({ ended_by_edit: toSqliteBoolean(true) })
-    .where("id", "=", latest.block.id)
-    .execute();
+  const started = await findStartedTurn(trx, channelId, effectiveNow);
+  if (started?.block.assignmentId !== assignmentId) return;
+  await markTurnEnded(trx, started.block.id);
 }
 
 /** Inserts the blocks one chunk generated, before the entries that reference them. */
@@ -111,6 +136,9 @@ export async function insertBlocks(
         resolved_kind: block.size?.kind ?? null,
         resolved_value: block.size?.value ?? null,
         marathon: toSqliteBoolean(block.marathon),
+        winning_rule_id: block.winningRuleId,
+        context_key: block.checkpoint.activeContext,
+        setting_origins: JSON.stringify(block.settingOrigins),
         ended_by_edit: toSqliteBoolean(block.endedByEdit),
         checkpoint: JSON.stringify(block.checkpoint),
         created_at: now,
@@ -186,18 +214,12 @@ function toGeneratedBlock(
         ? null
         : { kind: row.resolved_kind, value: row.resolved_value },
     marathon: fromSqliteBoolean(row.marathon),
+    winningRuleId: row.winning_rule_id,
+    settingOrigins: JSON.parse(row.setting_origins) as SettingOrigins,
     endedByEdit: fromSqliteBoolean(row.ended_by_edit),
-    checkpoint: toCheckpoint(row.checkpoint),
+    // Migration 024 rewrote every stored checkpoint into this shape.
+    checkpoint: JSON.parse(row.checkpoint) as RotationCheckpoint,
   };
-}
-
-// Parses a stored checkpoint, giving ones from before fresh rebuilds existed a
-// count of 0. The default goes last so key order, and so the JSON a resumed
-// generation writes, matches what one uninterrupted generation writes.
-function toCheckpoint(json: string): RotationCheckpoint {
-  const stored = JSON.parse(json) as Omit<RotationCheckpoint, "rebuildCount"> &
-    Partial<Pick<RotationCheckpoint, "rebuildCount">>;
-  return { ...stored, rebuildCount: stored.rebuildCount ?? 0 };
 }
 
 // Rebuilds a block's member, or null once its collection or item is deleted.

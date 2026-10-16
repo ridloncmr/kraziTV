@@ -45,6 +45,7 @@ import {
 import {
   findAssignedCollectionMode,
   loadCollectionMembers,
+  loadConfigurationRevision,
   loadMarathonSettings,
   loadProgrammingAssignments,
 } from "./persistence/assignment-sources.js";
@@ -74,6 +75,11 @@ import {
   loadScheduleState,
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
+import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
+import {
+  programmingTimezoneChange,
+  recordTimezoneUnlessRulesNeedIt,
+} from "./timezone-change.js";
 
 interface ScheduleServiceOptions extends RecordSources {
   /** Names generated blocks; separate from entry IDs so tests can name each. */
@@ -82,6 +88,11 @@ interface ScheduleServiceOptions extends RecordSources {
   entriesPerTransaction?: number | undefined;
   /** Passed to every immediate transaction; a test pause point. */
   transactionHooks?: ImmediateTransactionHooks | undefined;
+  /**
+   * The IANA timezone programming rules are evaluated in. Production passes
+   * the one startup resolved; suites that set no rule may leave it UTC.
+   */
+  programmingTimezone?: string | undefined;
 }
 
 // Keeps one transaction's write authority short and one multi-row insert
@@ -110,8 +121,9 @@ export class ScheduleService {
   readonly #createBlockId: () => string;
   readonly #entriesPerTransaction: number;
   readonly #transactionHooks: ImmediateTransactionHooks | undefined;
+  readonly #programmingTimezone: string;
 
-  // Clock, IDs, chunk size, and hooks are injectable so tests stay deterministic.
+  // Clock, IDs, chunk size, hooks, and timezone are injectable so tests stay deterministic.
   constructor(
     db: Kysely<DatabaseSchema>,
     options: ScheduleServiceOptions = {},
@@ -128,6 +140,31 @@ export class ScheduleService {
       "entriesPerTransaction",
     );
     this.#transactionHooks = options.transactionHooks;
+    this.#programmingTimezone = options.programmingTimezone ?? "UTC";
+  }
+
+  /**
+   * Applies the programming timezone at startup: records it when no
+   * channel has a rule, and otherwise, when it changed, regenerates the
+   * channels with rules after their airing entries in one input change.
+   * Returns undefined when nothing needed regenerating.
+   */
+  async applyProgrammingTimezone(log: ScheduleLog) {
+    const timeZone = this.#programmingTimezone;
+    const needed = await this.#immediate((trx) =>
+      recordTimezoneUnlessRulesNeedIt(trx, timeZone),
+    );
+    if (!needed) return undefined;
+    return this.applyInputChange(
+      log,
+      "programming_timezone_changed",
+      programmingTimezoneChange(timeZone),
+    );
+  }
+
+  /** Names the timezone this service evaluates programming rules in. */
+  programmingTimezone(): string {
+    return this.#programmingTimezone;
   }
 
   /**
@@ -306,6 +343,7 @@ export class ScheduleService {
           deriveProgrammingSeed(channelId, anchorTime),
         rebuildCount: state?.rebuildCount ?? 0,
         ...inputs,
+        timeZone: this.#programmingTimezone,
         startsAt: boundary,
         through: boundary + SCHEDULE_HORIZON_MS,
         nextSequenceNumber: state?.nextSequenceNumber ?? 0,
@@ -321,6 +359,11 @@ export class ScheduleService {
             blocks: generated.blocks,
             entries: generated.entries,
             skips: generated.skips,
+            ruleSkips: generated.ruleSkips,
+            configurationRevision: await loadConfigurationRevision(
+              trx,
+              channelId,
+            ),
           };
     });
   }
@@ -704,6 +747,7 @@ export class ScheduleService {
       programmingSeed: start.programmingSeed,
       rebuildCount: start.rebuildCount,
       ...inputs,
+      timeZone: this.#programmingTimezone,
       startsAt: start.startsAt,
       through: target,
       nextSequenceNumber: start.nextSequenceNumber,
@@ -806,6 +850,7 @@ async function loadProgrammingInputs(
   const restoredKeys = new Set(restored.map(key));
   return {
     assignments,
+    rules: await loadProgrammingRules(trx, channelId),
     collections,
     marathons: await loadMarathonSettings(trx, channelId),
     latestTurn: await loadLatestTurn(trx, channelId, keptBefore),

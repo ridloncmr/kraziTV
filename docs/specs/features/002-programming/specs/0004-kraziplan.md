@@ -1,6 +1,6 @@
 # Continuous Multi-Source Programming With kraziPlan
 
-Status: Partially Implemented (remaining criteria wait on specs 0005–0007)
+Status: Partially Implemented (remaining criteria wait on specs 0006 and 0007)
 
 ## Problem
 
@@ -295,7 +295,7 @@ remain independent and unchanged.
 ### Recurring-Rule And Reservation Integration
 
 Spec 0005's winning rule determines active sources before turn selection. Priority
-selects the rule, not source frequency or extra turns. Proposed integration:
+selects the rule, not source frequency or extra turns. Integration:
 
 - Join behavior shares the default round. Insert newly eligible sources once
   into seeded positions in the unplayed portion, preserving pending relative

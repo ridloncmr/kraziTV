@@ -42,5 +42,19 @@ export const uniqueMediaItemIds = z
 /** A display name: trimmed, and never empty once trimmed. */
 export const nameField = z.string().trim().min(1, "name must not be empty");
 
+/**
+ * The three stretch shapes an assignment or rule source sets; kraziBrain's
+ * stretch rule decides which values are valid.
+ */
+export const stretchField = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("programs"), count: z.number() }),
+  z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
+  z.strictObject({
+    kind: z.literal("airtime_range"),
+    minMinutes: z.number(),
+    maxMinutes: z.number(),
+  }),
+]);
+
 /** A season or episode number as content facts store it; season 0 holds specials. */
 export const countField = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

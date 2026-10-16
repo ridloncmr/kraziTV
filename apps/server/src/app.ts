@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify, {
+  type FastifyBaseLogger,
   type FastifyInstance,
   type FastifyServerOptions,
   type RouteOptions,
@@ -49,6 +50,8 @@ import { registerAssignmentRoutes } from "./programming-assignments/routes/assig
 import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
 import { registerProgrammingPreviewRoutes } from "./programming-assignments/routes/programming-preview-routes.js";
 import { registerProgrammingRebuildRoutes } from "./programming-assignments/routes/programming-rebuild-routes.js";
+import type { RuleRepository } from "./programming-rules/rule-repository.js";
+import { registerRuleRoutes } from "./programming-rules/rule-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
@@ -97,9 +100,37 @@ export type ServerDependencies = {
   channelRuntime: ChannelRuntime;
   channelStreams: ChannelStreams;
   assignments: AssignmentRepository;
+  rules: RuleRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
 };
+
+/**
+ * Regenerates channels with rules once when the server starts under a
+ * different programming timezone than schedules were generated in. A
+ * failure is logged, not thrown: the timezone stays unrecorded, so the next
+ * startup tries again, and startup still ensures coverage.
+ */
+async function applyProgrammingTimezone(
+  schedules: ScheduleService,
+  log: FastifyBaseLogger,
+): Promise<void> {
+  try {
+    const result = await schedules.applyProgrammingTimezone(log);
+    if (result?.kind === "changed") {
+      log.info(
+        {
+          previous: result.previous,
+          programmingTimezone: schedules.programmingTimezone(),
+          channelIds: result.channelIds,
+        },
+        "Programming timezone changed; regenerated channels with rules",
+      );
+    }
+  } catch (err) {
+    log.warn({ err }, "Applying the programming timezone change failed");
+  }
+}
 
 /** Registers HTTP behavior without opening production infrastructure. */
 function registerRoutes(
@@ -200,6 +231,12 @@ function registerRoutes(
     dependencies.channels,
     dependencies.schedules,
   );
+  registerRuleRoutes(
+    server,
+    dependencies.rules,
+    dependencies.channels,
+    dependencies.schedules,
+  );
   registerMarathonSettingsRoutes(
     server,
     dependencies.assignments,
@@ -266,6 +303,7 @@ export function buildServer(
   server.addHook("onReady", async () => {
     await dependencies.auth.deleteExpiredSessions(server.log);
     await dependencies.catalogRemovals.purge(server.log);
+    await applyProgrammingTimezone(dependencies.schedules, server.log);
     await dependencies.schedules.ensureAllEnabled(server.log);
     // Runs in the background, so a slow TMDB never delays startup.
     dependencies.metadataRefresh.checkNow();

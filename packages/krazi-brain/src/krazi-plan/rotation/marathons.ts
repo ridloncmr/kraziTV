@@ -1,9 +1,10 @@
-import type {
-  MarathonSettings,
-  ProgrammingAssignment,
-  RotationCheckpoint,
-} from "./contracts.js";
-import { type DecisionSeed, drawInRange } from "./programming-decisions.js";
+import type { MarathonSettings, ProgrammingAssignment } from "../contracts.js";
+import {
+  type DecisionSeed,
+  drawInRange,
+  type RoundKey,
+} from "../programming-decisions.js";
+import type { RotationState } from "./rotation-contexts.js";
 
 /**
  * Whether channel-wide cooldown lets a marathon begin: none has started
@@ -11,7 +12,7 @@ import { type DecisionSeed, drawInRange } from "./programming-decisions.js";
  * Checked when a round forms and again when its opportunity's turn starts.
  */
 export function cooldownPermits(
-  state: RotationCheckpoint,
+  state: RotationState,
   marathons: MarathonSettings,
 ): boolean {
   return (
@@ -21,11 +22,13 @@ export function cooldownPermits(
 }
 
 /**
- * Returns the cooldown count once a round ends. A round counts once, and
- * only when it committed a program and started no marathon; an empty or
- * entirely skipped round, and the marathon's own round, never count.
+ * Returns the cooldown count once a round completes, in whichever context
+ * it ran, since cooldown is channel-wide; callers call it once per round.
+ * A round counts only when it committed a program and started no marathon:
+ * an empty or entirely skipped round, and the marathon's own round, never
+ * count.
  */
-export function closeRound(state: RotationCheckpoint): number | null {
+export function closeRound(state: RotationState): number | null {
   const counted =
     state.roundNumber > 0 &&
     state.roundCommittedProgram &&
@@ -40,14 +43,16 @@ export function closeRound(state: RotationCheckpoint): number | null {
  * usable assignment with a collection has a marathon setting, one seeded
  * chance decision for the round, then one uniform pick among those
  * assignments in saved order. No roll per source and no reroll later, so
- * the round holds at most one.
+ * the round holds at most one. `usable` carries each assignment's
+ * effective marathon setting.
  */
 export function drawOpportunity(
-  round: RotationCheckpoint,
+  round: RotationState,
   usable: readonly ProgrammingAssignment[],
   marathons: MarathonSettings,
   seed: DecisionSeed,
-): RotationCheckpoint["marathonOpportunity"] {
+  key: RoundKey,
+): RotationState["marathonOpportunity"] {
   // A marathon extends a collection, so single items alone can never use one.
   const enabled = usable.filter(
     (assignment) =>
@@ -55,19 +60,12 @@ export function drawOpportunity(
       assignment.members.some((member) => member.kind === "collection"),
   );
   if (enabled.length === 0 || !cooldownPermits(round, marathons)) return null;
-  const roll = drawInRange(
-    seed,
-    "marathon_chance",
-    round.roundNumber,
-    0,
-    0,
-    99,
-  );
+  const roll = drawInRange(seed, "marathon_chance", key, 0, 0, 99);
   if (roll >= marathons.chancePercent) return null;
   const pick = drawInRange(
     seed,
     "marathon_source",
-    round.roundNumber,
+    key,
     0,
     0,
     enabled.length - 1,

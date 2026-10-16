@@ -12,7 +12,7 @@ describe("009_server_settings", () => {
     const { db } = await openTestDatabase();
 
     await expect(
-      db.selectFrom("server_settings").selectAll().execute(),
+      db.selectFrom("server_settings").select(["id", "tmdb_api_key"]).execute(),
     ).resolves.toEqual([{ id: 1, tmdb_api_key: null }]);
   });
 

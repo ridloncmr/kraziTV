@@ -18,17 +18,21 @@ const STOP_FAILED_MESSAGE =
  * a fresh programming slate, disconnecting viewers. One idempotency key per
  * dialog makes a resend repeat the same rebuild rather than start another.
  * A failed worker stop becomes a cleanup retry that outlives this dialog,
- * and a later rebuild whose stop succeeds settles any earlier one.
+ * and a later rebuild whose stop succeeds settles any earlier one. After an
+ * edit the server already applied, `finishApplied` makes Let it finish
+ * confirm without regenerating again.
  */
 export function RebuildDialog({
   channelId,
   rebuilt,
   onClose,
+  finishApplied = false,
 }: {
   channelId: string;
   /** Runs after either choice the server accepted. */
   rebuilt: () => void;
   onClose: () => void;
+  finishApplied?: boolean;
 }) {
   const mutation = useMutation();
   const cleanup = useCleanupRetries();
@@ -39,6 +43,10 @@ export function RebuildDialog({
   const channelPath = resourcePath("channels", channelId);
   // Sends the chosen change; a rebuild repeats this dialog's one key.
   const submit = () => {
+    if (choice === "finish" && finishApplied) {
+      setDone(true);
+      return;
+    }
     if (choice === "finish") {
       void mutation.run(
         `${channelPath}/schedule/generate`,

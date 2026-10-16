@@ -22,20 +22,37 @@ export type {
 // kraziPlan: continuous programming from a channel's source assignments,
 // generated turn by turn into blocks and the entries they air.
 export { generateProgramming } from "./krazi-plan/generate-programming.js";
-export { isUsableAssignment } from "./krazi-plan/rotation.js";
-export { findStretchProblem } from "./krazi-plan/stretch-settings.js";
+export { canProgramByDefault } from "./krazi-plan/rotation/rotation.js";
+export { findStretchProblem } from "./krazi-plan/stretches/stretch-settings.js";
+export { findRuleSourceProblem } from "./krazi-plan/rules/rule-settings.js";
+export { turnTerms } from "./krazi-plan/rules/turn-terms.js";
+export {
+  ASSIGNMENT_PARTICIPATIONS,
+  RULE_BEHAVIORS,
+} from "./krazi-plan/contracts.js";
 export type {
   AssignmentMember,
+  AssignmentParticipation,
   AssignmentSkip,
   BlockSource,
   GeneratedBlock,
   LatestTurn,
   MarathonSettings,
   ProgrammingAssignment,
+  ProgrammingRule,
   ProgrammingUnschedulableReason,
+  RuleMarathon,
+  RuleSkip,
+  RuleSource,
+  SettingOrigins,
   RotationCheckpoint,
   StretchSetting,
 } from "./krazi-plan/contracts.js";
+
+// Calendar conditions programming rules are evaluated by, in the
+// server-wide programming timezone.
+export { findCalendarProblem } from "./calendar/calendar-problems.js";
+export type { CalendarConditions } from "./calendar/contracts.js";
 
 // Schedule generation the server materializes into persisted entries.
 export {

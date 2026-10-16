@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   collectionAssignment,
   sequentialBlockIds,
-} from "../testing/programming-assignments.js";
-import { scheduleMedia } from "../testing/schedule-media.js";
-import type { PlaybackMode, ScheduleMedia } from "../schedule/contracts.js";
-import type { ProgrammingAssignment, StretchSetting } from "./contracts.js";
+} from "../../testing/programming-assignments.js";
+import { scheduleMedia } from "../../testing/schedule-media.js";
+import type { PlaybackMode, ScheduleMedia } from "../../schedule/contracts.js";
+import type { ProgrammingAssignment, StretchSetting } from "../contracts.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
-} from "./generate-programming.js";
+} from "../generate-programming.js";
 import { findStretchProblem } from "./stretch-settings.js";
 
 // 2026-01-01T00:00:00.000Z as a UTC millisecond schedule anchor.
@@ -55,6 +55,8 @@ function options(
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,

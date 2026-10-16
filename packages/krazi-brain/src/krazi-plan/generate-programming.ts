@@ -15,7 +15,9 @@ import type {
   LatestTurn,
   MarathonSettings,
   ProgrammingAssignment,
+  ProgrammingRule,
   ProgrammingUnschedulableReason,
+  RuleSkip,
 } from "./contracts.js";
 import {
   advancePastTurn,
@@ -23,10 +25,12 @@ import {
   findBlockMember,
   FIRST_CHECKPOINT,
   memberSource,
-} from "./rotation.js";
+} from "./rotation/rotation.js";
 import type { DecisionSeed } from "./programming-decisions.js";
-import { resolveSize } from "./stretch-settings.js";
-import { turnSize } from "./turn-size.js";
+import { settingOrigins } from "./rules/rule-settings.js";
+import { decideRule, ruleScope } from "./rules/winning-rule.js";
+import { resolveSize } from "./stretches/stretch-settings.js";
+import { turnSize } from "./stretches/turn-size.js";
 
 export interface GenerateProgrammingOptions extends DecisionSeed {
   /** The channel's marathon chance and cooldown. */
@@ -35,6 +39,10 @@ export interface GenerateProgrammingOptions extends DecisionSeed {
   channelSeed: number;
   /** The channel's assignments in saved assignment order. */
   assignments: readonly ProgrammingAssignment[];
+  /** The channel's programming rules, in any order; kraziPlan ranks them. */
+  rules: readonly ProgrammingRule[];
+  /** The server-wide IANA programming timezone rules are evaluated in. */
+  timeZone: string;
   /** The channel's latest kept block, or undefined before its first turn. */
   latestTurn: LatestTurn | undefined;
   /** The channel's progress for collections its assignments play; absent means none yet. */
@@ -60,24 +68,30 @@ type ProgrammingResult =
       progress: CollectionProgress[];
       /** Assignments the call's rounds passed over, for explaining them. */
       skips: AssignmentSkip[];
+      /** Rules each new block's decision passed over before its winner, for explaining them. */
+      ruleSkips: (RuleSkip & { blockId: string })[];
       nextSequenceNumber: number;
       /** The end of the last entry, or `startsAt` when none was generated. */
       generatedThrough: number;
     };
 
-/** The turn generation is running: where its entries go, and how far it has to go. */
+/** The turn generation is running: whose it is, where its entries go, and how far it has to go. */
 interface OpenTurn {
+  assignmentId: string;
   source: ScheduleSource;
   size: TurnSize;
 }
 
 /**
- * Generates a channel's programming from `startsAt`: continues the latest
- * turn until its size is met, then asks kraziPlan for each next turn and
- * lets schedule generation choose its whole programs. Stops at `through`
- * or `maxEntries`, and returns what to persist so the next call resumes
- * exactly, from the blocks and progress alone. Never touches persistence;
- * the output depends only on the inputs.
+ * Generates a channel's programming from `startsAt`: before every program
+ * it asks which programming rule wins, continues the latest turn while its
+ * assignment stays eligible in the same rotation context and its size is
+ * unmet, and otherwise asks kraziPlan for the next turn and lets schedule
+ * generation choose its whole programs. A program is never cut for a
+ * calendar window; the next one follows current eligibility. Stops at
+ * `through` or `maxEntries`, and returns what to persist so the next call
+ * resumes exactly, from the blocks and progress alone. Never touches
+ * persistence; the output depends only on the inputs.
  */
 export function generateProgramming(
   options: GenerateProgrammingOptions,
@@ -96,6 +110,7 @@ export function generateProgramming(
   const blocks: GeneratedBlock[] = [];
   const entries: GeneratedScheduleEntry[] = [];
   const skips: AssignmentSkip[] = [];
+  const ruleSkips: (RuleSkip & { blockId: string })[] = [];
   // A latest block from before a fresh rebuild belongs to a finished slate:
   // its turn is never continued and its rounds, cooldown, and member
   // positions are not carried over. Collection progress still is.
@@ -111,27 +126,54 @@ export function generateProgramming(
     continued === undefined ? undefined : resumeTurn(continued, assignments);
   let startsAt = options.startsAt;
   let sequenceNumber = options.nextSequenceNumber;
+  let decision: ReturnType<typeof decideRule> | undefined;
 
   while (startsAt < through && entries.length < maxEntries) {
+    // The winning rule stands until some rule's applicability can change,
+    // so it is decided again only at the first program from then on.
+    if (decision === undefined || startsAt >= decision.validUntil) {
+      decision = decideRule(
+        options.rules,
+        assignments,
+        startsAt,
+        options.timeZone,
+      );
+    }
+    const scope = ruleScope(decision.winner, assignments);
+    // Eligibility loss or a change of context ends a started turn here, at
+    // a program boundary; its remainder is discarded without debt.
+    const openId = open?.assignmentId;
+    if (
+      state.activeContext !== scope.contextKey ||
+      !scope.eligible.some(({ id }) => id === openId)
+    ) {
+      open = undefined;
+    }
     if (open === undefined) {
       const { chosen: turn, skips: skipped } = chooseTurn(
         state,
-        assignments,
+        scope,
         options,
         options.marathons,
       );
       skips.push(...skipped);
       if (turn === undefined) {
-        // Usability is fixed within one call, so only a first choice fails.
+        // A later program could only come from a calendar change, which
+        // generation does not wait for, so coverage stops here.
         if (entries.length > 0) break;
         return { kind: "unschedulable", reason: "no_schedulable_media" };
       }
+      const position = {
+        roundNumber:
+          turn.checkpoint.contexts[scope.contextKey]?.roundNumber ?? 0,
+        turnIndex:
+          turn.checkpoint.contexts[scope.contextKey]?.served.length ?? 0,
+      };
       const block: GeneratedBlock = {
         id: options.createBlockId(),
         assignmentId: turn.assignment.id,
         source: toBlockSource(turn.source),
-        roundNumber: turn.checkpoint.roundNumber,
-        turnIndex: turn.checkpoint.served.length,
+        ...position,
         startsAt,
         size: resolveSize(
           turn.member,
@@ -139,18 +181,21 @@ export function generateProgramming(
             turn.assignment.ordinary,
           turn.marathon ? "marathon_size" : "size",
           options,
-          {
-            roundNumber: turn.checkpoint.roundNumber,
-            turnIndex: turn.checkpoint.served.length,
-          },
+          { round: turn.round, turnIndex: position.turnIndex },
         ),
         marathon: turn.marathon,
+        winningRuleId: decision.winner?.id ?? null,
+        settingOrigins: settingOrigins(decision.winner, turn.assignment.id),
         endedByEdit: false,
         checkpoint: turn.checkpoint,
       };
       blocks.push(block);
+      for (const skip of decision.passedOver) {
+        ruleSkips.push({ blockId: block.id, ...skip });
+      }
       state = advancePastTurn(turn.checkpoint, turn.marathon);
       open = {
+        assignmentId: turn.assignment.id,
         source: { ...turn.source, programmingBlockId: block.id },
         size: turnSize(block.size),
       };
@@ -167,7 +212,8 @@ export function generateProgramming(
         (key === undefined ? undefined : progress.get(key)?.progress) ??
         NO_PROGRESS,
       startsAt,
-      through,
+      // Every program starting before the decision can change shares its winner.
+      through: Math.min(through, decision.validUntil),
       nextSequenceNumber: sequenceNumber,
       maxEntries: maxEntries - entries.length,
       turn: open.size,
@@ -199,6 +245,7 @@ export function generateProgramming(
     entries,
     progress: [...advanced].flatMap((key) => progress.get(key) ?? []),
     skips,
+    ruleSkips,
     nextSequenceNumber: sequenceNumber,
     generatedThrough: startsAt,
   };
@@ -206,8 +253,9 @@ export function generateProgramming(
 
 /**
  * Returns the latest turn to continue, or undefined when it is over: an
- * edit ended it, its size is met, or its assignment, its member, or the member's mode no longer
- * stands as it did, or its member has nothing left to air.
+ * edit ended it, its size is met, or its assignment, its member, or the
+ * member's mode no longer stands as it did, or its member has nothing left
+ * to air. Whether it is still eligible is decided before each program.
  */
 function resumeTurn(
   latest: LatestTurn,
@@ -227,7 +275,9 @@ function resumeTurn(
     return undefined;
   }
   const size = turnSize(block.size, latest);
-  return size.accumulated < size.target ? { source, size } : undefined;
+  return size.accumulated < size.target
+    ? { assignmentId: assignment.id, source, size }
+    : undefined;
 }
 
 /** Names the member a block records, as its source columns persist it. */

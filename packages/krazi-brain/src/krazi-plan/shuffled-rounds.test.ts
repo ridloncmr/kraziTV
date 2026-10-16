@@ -9,7 +9,10 @@ import {
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "../schedule/contracts.js";
 import type { GeneratedBlock, ProgrammingAssignment } from "./contracts.js";
-import { isUsableAssignment } from "./rotation.js";
+import {
+  canProgramByDefault,
+  isUsableAssignment,
+} from "./rotation/rotation.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
@@ -49,6 +52,8 @@ function options(
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
+    rules: [],
+    timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
     startsAt: STARTS_AT,
@@ -193,7 +198,9 @@ describe("generateProgramming: unusable assignments", () => {
     expect(new Set(result.blocks.map((block) => block.assignmentId))).toEqual(
       new Set(["office", "parks"]),
     );
-    expect(result.blocks[0]?.checkpoint.skipped).toEqual(["empty"]);
+    expect(result.blocks[0]?.checkpoint.contexts.default?.skipped).toEqual([
+      "empty",
+    ]);
     expect(result.skips[0]).toEqual({
       assignmentId: "empty",
       roundNumber: 1,
@@ -248,6 +255,109 @@ describe("generateProgramming: unusable assignments", () => {
   });
 });
 
+describe("generateProgramming: rule-only assignments", () => {
+  const christmas = (participation: "default" | "rule_only") =>
+    collectionAssignment("christmas", "c-christmas", episodes("xmas", 5), {
+      participation,
+    });
+
+  it("never gives a rule-only assignment a turn or touches its progress", () => {
+    const result = generated(
+      generateProgramming(
+        options([...FOUR.slice(0, 2), christmas("rule_only")]),
+      ),
+    );
+
+    expect(new Set(result.blocks.map((block) => block.assignmentId))).toEqual(
+      new Set(["office", "parks"]),
+    );
+    expect(result.skips).toEqual([]);
+    expect(
+      result.progress.map((entry) => entry.mediaCollectionId).sort(),
+    ).toEqual(["c-office", "c-parks"]);
+  });
+
+  it("reports a channel whose only assignments are rule-only as having nothing to schedule", () => {
+    expect(generateProgramming(options([christmas("rule_only")]))).toEqual({
+      kind: "unschedulable",
+      reason: "no_schedulable_media",
+    });
+  });
+
+  it("plays an assignment turned back into rotation from the next round", () => {
+    const first = generated(
+      generateProgramming(
+        options([...FOUR.slice(0, 2), christmas("rule_only")], {
+          maxEntries: 2,
+        }),
+      ),
+    );
+
+    const second = generated(
+      generateProgramming(
+        options([...FOUR.slice(0, 2), christmas("default")], {
+          startsAt: first.generatedThrough,
+          nextSequenceNumber: first.nextSequenceNumber,
+          latestTurn: latestTurn(first),
+          progress: first.progress,
+          createBlockId: sequentialBlockIds("later"),
+          maxEntries: 20,
+        }),
+      ),
+    );
+
+    const rounds = second.blocks
+      .filter((block) => block.assignmentId === "christmas")
+      .map((block) => block.roundNumber);
+    expect(second.blocks[0]?.roundNumber).toBe(1);
+    expect(rounds[0]).toBe(2);
+  });
+
+  it("ends a started turn once its assignment leaves rotation", () => {
+    const office = collectionAssignment(
+      "office",
+      "c-office",
+      episodes("o", 7),
+      {
+        ordinary: { kind: "programs", count: 3 },
+      },
+    );
+    const first = generated(
+      generateProgramming(options([office], { maxEntries: 1 })),
+    );
+
+    const result = generateProgramming(
+      options([{ ...office, participation: "rule_only" }, FOUR[1]], {
+        startsAt: first.generatedThrough,
+        nextSequenceNumber: first.nextSequenceNumber,
+        latestTurn: latestTurn(first),
+        progress: first.progress,
+        createBlockId: sequentialBlockIds("later"),
+      }),
+    );
+
+    expect(generated(result).entries[0]?.programmingBlockId).toBe("later-1");
+    expect(generated(result).blocks[0]?.assignmentId).toBe("parks");
+  });
+});
+
+describe("canProgramByDefault", () => {
+  const ruleOnly = collectionAssignment("xmas", "c-xmas", episodes("x", 2), {
+    participation: "rule_only",
+  });
+
+  it("counts only usable assignments in normal rotation", () => {
+    expect(canProgramByDefault([FOUR[0], ruleOnly])).toBe(true);
+    expect(canProgramByDefault([ruleOnly])).toBe(false);
+    expect(
+      canProgramByDefault([
+        collectionAssignment("empty", "c-empty", []),
+        ruleOnly,
+      ]),
+    ).toBe(false);
+  });
+});
+
 describe("isUsableAssignment", () => {
   it("is true while any member is schedulable, false once none is", () => {
     expect(isUsableAssignment(FOUR[0])).toBe(true);
@@ -287,8 +397,7 @@ describe("generateProgramming: a fresh rebuild", () => {
     // The interrupted turn is never continued, and round one starts over.
     expect(rebuilt.entries[0]?.programmingBlockId).toBe("fresh-1");
     expect(rebuilt.blocks[0]?.checkpoint).toMatchObject({
-      roundNumber: 1,
-      served: [],
+      contexts: { default: { roundNumber: 1, served: [] } },
       rebuildCount: 1,
       nextMemberPositions: { [rebuilt.blocks[0]?.assignmentId ?? ""]: 0 },
     });
