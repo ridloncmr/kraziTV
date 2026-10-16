@@ -139,6 +139,11 @@ export class ScheduleService {
     this.#programmingTimezone = options.programmingTimezone ?? "UTC";
   }
 
+  /** Names the timezone this service evaluates programming rules in. */
+  programmingTimezone(): string {
+    return this.#programmingTimezone;
+  }
+
   /**
    * Reads the clock this service writes by. Playout reads use it as their
    * only clock, so they evaluate the same time coverage is generated for.

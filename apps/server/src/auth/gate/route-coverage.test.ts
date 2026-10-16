@@ -94,6 +94,7 @@ const GATED_ROUTES = [
   "GET /channels/:id/programming-assignments/:assignmentId/preview",
   "POST /channels/:id/programming-assignments/:assignmentId/progress-reset",
   "GET /channels/:id/programming-rules",
+  "GET /programming-timezone",
   "POST /channels/:id/programming-rules",
   "PATCH /channels/:id/programming-rules/:ruleId",
   "PUT /channels/:id/programming-rules/order",

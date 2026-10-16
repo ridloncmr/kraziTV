@@ -100,6 +100,17 @@ async function airsChristmas(
 }
 
 describe("programming rule routes", () => {
+  it("reports the programming timezone rules are evaluated in", async () => {
+    const { server } = await startServer(DECEMBER_2, "America/New_York");
+
+    await expect(send(server, "GET", "/programming-timezone")).resolves.toEqual(
+      {
+        status: 200,
+        body: { programmingTimezone: "America/New_York" },
+      },
+    );
+  });
+
   it("lists no rules for a channel without any, and reports an unknown channel", async () => {
     const { server } = await startServer();
 

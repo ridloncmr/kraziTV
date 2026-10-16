@@ -5,6 +5,7 @@ import type {
   MatchCandidates,
   MediaCollectionSummary,
   MediaItem,
+  ProgrammingRule,
   SeriesSearch,
   TrackFolder,
   TrackProposal,
@@ -228,3 +229,30 @@ export const TRACK_PROPOSAL: TrackProposal = {
     { number: 2, title: "Second", runtimeMs: null },
   ],
 };
+
+/**
+ * A saved join rule selecting `assignmentIds` with their own settings,
+ * applying all day every day unless `overrides` narrow it.
+ */
+export function ruleFixture(
+  id: string,
+  name: string,
+  assignmentIds: string[],
+  overrides: Partial<ProgrammingRule> = {},
+): ProgrammingRule {
+  return {
+    id,
+    name,
+    behavior: "join",
+    priority: 0,
+    dates: { kind: "any" },
+    weekdays: null,
+    window: null,
+    sources: assignmentIds.map((assignmentId) => ({
+      assignmentId,
+      ordinaryStretch: null,
+      marathon: { mode: "inherit" },
+    })),
+    ...overrides,
+  };
+}

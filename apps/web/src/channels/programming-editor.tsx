@@ -12,6 +12,7 @@ import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "./assignment-form.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
 import { RebuildDialog } from "./rebuild-dialog.js";
+import { RulesEditor } from "./rules-editor.js";
 import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**
@@ -147,6 +148,16 @@ export function ProgrammingEditor({
           marathonsAllowed={listed.some(
             (assignment) => assignment.marathonStretch !== null,
           )}
+          changed={changed}
+        />
+      )}
+      {listed.length > 0 && (
+        <RulesEditor
+          channelId={channelId}
+          visible={visible}
+          rules={rules}
+          assignments={listed}
+          collections={collections.data}
           changed={changed}
         />
       )}

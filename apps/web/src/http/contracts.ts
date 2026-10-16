@@ -221,13 +221,13 @@ export interface AssignmentSettings {
   members: AssignmentMember[];
 }
 /** What a rule does to a source's marathon while it wins. */
-type RuleMarathon =
+export type RuleMarathon =
   | { mode: "inherit" }
   | { mode: "disabled" }
   | { mode: "replace"; stretch: StretchSetting };
 
 /** What the owner saves for one programming rule; calendar conditions combine with AND. */
-interface RuleSettings {
+export interface RuleSettings {
   name: string;
   behavior: "join" | "feature";
   /** Higher wins. */

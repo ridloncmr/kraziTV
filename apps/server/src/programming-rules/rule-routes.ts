@@ -89,6 +89,12 @@ export function registerRuleRoutes(
   channels: ChannelRepository,
   schedules: ScheduleService,
 ): void {
+  // The editor shows where rule conditions are evaluated; the browser's
+  // own timezone never decides them.
+  server.get("/programming-timezone", async () => ({
+    programmingTimezone: schedules.programmingTimezone(),
+  }));
+
   server.get("/channels/:id/programming-rules", async (request, reply) => {
     const { id } = idParams.parse(request.params);
     // The repository lists nothing for an unknown channel; the API says so instead.
