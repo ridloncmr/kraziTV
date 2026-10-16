@@ -109,6 +109,22 @@ export async function loadCollectionMembers(
   return members.map(toScheduleMedia);
 }
 
+/**
+ * Loads media items as scheduling sees them, in the order `mediaItemIds`
+ * names them, repeats included; an unknown ID is left out.
+ */
+export async function loadScheduleMedia(
+  trx: Executor,
+  mediaItemIds: readonly string[],
+): Promise<ScheduleMedia[]> {
+  if (mediaItemIds.length === 0) return [];
+  const rows = await selectScheduleMedia(trx)
+    .where("media_items.id", "in", [...new Set(mediaItemIds)])
+    .execute();
+  const byId = new Map(rows.map((row) => [row.id, toScheduleMedia(row)]));
+  return mediaItemIds.flatMap((id) => byId.get(id) ?? []);
+}
+
 // Resolves one member row's media. The table check makes the named source
 // column non-null and its foreign key guarantees the row.
 async function resolveMember(

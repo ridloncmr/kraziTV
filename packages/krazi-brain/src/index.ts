@@ -11,7 +11,10 @@ export {
   assertFollowingCount,
   selectFollowingPlayout,
 } from "./playout/following-playout.js";
-export { buildPlayoutTimeline } from "./playout/playout-item.js";
+export {
+  buildPlayoutTimeline,
+  isPlayableMedia,
+} from "./playout/playout-item.js";
 export type {
   ChannelState,
   FollowingPlayout,
@@ -41,6 +44,7 @@ export type {
   ProgrammingAssignment,
   ProgrammingRule,
   ProgrammingUnschedulableReason,
+  Reservation,
   RuleMarathon,
   RuleSkip,
   RuleSource,

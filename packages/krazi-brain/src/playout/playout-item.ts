@@ -1,6 +1,6 @@
 import type { PlayoutEntry, PlayoutItem, PlayoutMedia } from "./contracts.js";
 
-type PlayableMedia = PlayoutMedia & {
+type PlayableFacts = {
   status: "available";
   durationMs: number;
   hasAudio: boolean;
@@ -9,9 +9,12 @@ type PlayableMedia = PlayoutMedia & {
 /**
  * Media is playable when it is available, has a positive integer duration,
  * and has a known audio fact packaging needs. It shares the schedulable
- * integer check but has no duration floor.
+ * integer check but has no duration floor. Exported so the server can
+ * refuse to reserve what could never be transmitted.
  */
-function isPlayableMedia(media: PlayoutMedia): media is PlayableMedia {
+export function isPlayableMedia<
+  Media extends Pick<PlayoutMedia, "status" | "durationMs" | "hasAudio">,
+>(media: Media): media is Media & PlayableFacts {
   return (
     media.status === "available" &&
     Number.isSafeInteger(media.durationMs) &&

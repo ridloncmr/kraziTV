@@ -45,7 +45,7 @@ export type CatalogRemovalRefusal =
   | { kind: "media_root_not_found"; mediaRootId: string }
   | { kind: "unknown_media_items"; mediaItemIds: string[] }
   | { kind: "scan_in_progress" }
-  /** Programming blocks play these items directly. */
+  /** Assignments or reservations play these items directly. */
   | { kind: "media_item_in_use"; channelIds: string[]; mediaItemIds: string[] }
   /** Removal only: the request did not consent to taking channels off the air. */
   | { kind: "channels_left_unschedulable"; impact: CatalogRemovalImpact };

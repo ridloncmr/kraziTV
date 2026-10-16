@@ -126,7 +126,8 @@ export async function insertBlocks(
         id: block.id,
         channel_id: channelId,
         assignment_id: block.assignmentId,
-        ...toSourceColumns(block.source),
+        reservation_id: block.reservationId,
+        ...toSourceColumns(block),
         round_number: block.roundNumber,
         turn_index: block.turnIndex,
         starts_at: block.startsAt,
@@ -174,11 +175,24 @@ export async function deleteEmptyBlocks(
     .execute();
 }
 
-// Flattens a block's member into the columns the table check expects; a
-// generated block always has its source.
-function toSourceColumns(source: BlockSource | null) {
+// Flattens a block's member into the columns the table check expects. A
+// rotation turn always has its source; a reservation's media-item list has
+// none, which its reservation names instead, so it stores as an item kind
+// with no item, like one whose item was deleted.
+function toSourceColumns({
+  source,
+  reservationId,
+}: Pick<GeneratedBlock, "source" | "reservationId">) {
   if (source === null) {
-    throw new Error("a generated block must name the member that took it");
+    if (reservationId === null) {
+      throw new Error("a generated block must name the member that took it");
+    }
+    return {
+      source_kind: "media_item" as const,
+      media_collection_id: null,
+      media_item_id: null,
+      playback_mode: null,
+    };
   }
   return source.kind === "collection"
     ? {
@@ -202,7 +216,7 @@ function toGeneratedBlock(
   return {
     id: row.id,
     assignmentId: row.assignment_id,
-    reservationId: null,
+    reservationId: row.reservation_id,
     source: toBlockSource(row),
     roundNumber: row.round_number,
     turnIndex: row.turn_index,

@@ -19,6 +19,7 @@ import {
   decideRecommendation,
 } from "../recommendations/recommendation-decisions.js";
 import { readRecommendations } from "../recommendations/recommendations.js";
+import { deleteEndedReservations } from "../../reservations/persistence/reservation-rows.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import { insertCollection, toMediaCollections } from "./collection-rows.js";
 import {
@@ -255,8 +256,9 @@ export class MediaCollectionRepository {
   }
 
   /**
-   * Deletes a collection no programming block uses; its membership cascades
-   * and its media items remain. The block check shares the delete's
+   * Deletes a collection no assignment or unended reservation plays; its
+   * membership and the ended reservations that played it go with it, and
+   * its media items remain. The block check shares the delete's
    * transaction, so its snapshot is the one the delete writes against. If
    * another connection commits a block in between, SQLite refuses the stale
    * write with `SQLITE_BUSY`, which propagates; the foreign key still
@@ -267,10 +269,12 @@ export class MediaCollectionRepository {
       if (!(await collectionExists(trx, id))) {
         return { kind: "not_found" };
       }
-      const channelIds = await findChannelsUsingCollection(trx, id);
+      const now = this.#now();
+      const channelIds = await findChannelsUsingCollection(trx, id, now);
       if (channelIds.length > 0) {
         return { kind: "in_use", channelIds };
       }
+      await deleteEndedReservations(trx, { mediaCollectionId: id }, now);
       await trx.deleteFrom("media_collections").where("id", "=", id).execute();
       return { kind: "deleted" };
     });

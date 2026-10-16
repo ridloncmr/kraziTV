@@ -14,6 +14,12 @@ export interface ProgrammingBlockTable {
   id: string;
   channel_id: string;
   assignment_id: string | null;
+  /**
+   * The reservation whose programs the block airs, or null for a rotation
+   * turn. Plain history with no foreign key, so it outlives the reservation
+   * and the block is still known to have taken no turn.
+   */
+  reservation_id: string | null;
   source_kind: ProgrammingBlockSourceKind;
   media_collection_id: string | null;
   media_item_id: string | null;

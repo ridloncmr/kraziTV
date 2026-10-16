@@ -30,6 +30,13 @@ recurring source eligibility and from transmission fit mechanics.
 Spec 0006 delivers reservations and filler as a server capability with no
 administration UI. This spec owns every owner-facing screen that creates, edits,
 or cancels a reservation, built on that capability, so the two ship together.
+Catalog removal refuses to remove a media item a reservation lists
+(`media_item_in_use`), and collection delete refuses a collection one plays
+(`media_collection_in_use`), as for assignments, until the reservation ends;
+these screens should offer to edit or cancel it first. An ended reservation is
+deleted with the media or collection it aired. A reservation airs only on a
+channel with ordinary programming: one with no usable assignment reports
+itself unschedulable, so these screens should say so.
 
 ## Established Behavior And Proposed Policy
 

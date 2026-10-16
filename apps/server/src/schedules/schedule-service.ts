@@ -8,6 +8,7 @@ import {
   generateProgramming,
   orderFingerprint,
   type ProgrammingAssignment,
+  type Reservation,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -76,6 +77,7 @@ import {
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
+import { loadReservations } from "../reservations/persistence/reservation-rows.js";
 import {
   programmingTimezoneChange,
   recordTimezoneUnlessRulesNeedIt,
@@ -332,6 +334,7 @@ export class ScheduleService {
       const { collections: _, ...inputs } = await loadProgrammingInputs(
         trx,
         channelId,
+        boundary,
         boundary,
       );
       const anchorTime = state?.anchorTime ?? effectiveNow;
@@ -741,6 +744,7 @@ export class ScheduleService {
     const { collections, ...inputs } = await loadProgrammingInputs(
       trx,
       channelId,
+      start.startsAt,
     );
     const generated = generateProgramming({
       channelSeed: start.seed,
@@ -822,19 +826,30 @@ export class ScheduleService {
 }
 
 /**
- * Loads everything kraziPlan reads from storage for a channel. Without
- * `keptBefore` it reads the state as stored, as generation continues it;
- * with it, it reads what a regeneration from that boundary would keep:
- * the latest turn and aired totals before it, and the progress the
- * entries from it would restore to.
+ * Loads everything kraziPlan reads from storage for a channel generating
+ * from `startsAt`. Without `keptBefore` it reads the state as stored, as
+ * generation continues it; with it, it reads what a regeneration from that
+ * boundary would keep: the latest turn and aired totals before it, and the
+ * progress the entries from it would restore to. Only reservations ending
+ * after the latest turn began can still matter to generation.
  */
 async function loadProgrammingInputs(
   trx: Kysely<DatabaseSchema>,
   channelId: string,
+  startsAt: number,
   keptBefore?: number,
 ) {
   const assignments = await loadProgrammingAssignments(trx, channelId);
-  const collections = assignedCollections(assignments);
+  const latestTurn = await loadLatestTurn(trx, channelId, keptBefore);
+  const reservations = await loadReservations(
+    trx,
+    channelId,
+    Math.min(latestTurn?.block.startsAt ?? startsAt, startsAt),
+  );
+  const collections = [
+    ...assignedCollections(assignments),
+    ...reservedCollections(reservations),
+  ];
   const stored = await loadProgress(trx, channelId, collections);
   const restored =
     keptBefore === undefined
@@ -851,15 +866,34 @@ async function loadProgrammingInputs(
   return {
     assignments,
     rules: await loadProgrammingRules(trx, channelId),
-    reservations: [],
+    reservations,
     collections,
     marathons: await loadMarathonSettings(trx, channelId),
-    latestTurn: await loadLatestTurn(trx, channelId, keptBefore),
+    latestTurn,
     progress: [
       ...stored.filter((entry) => !restoredKeys.has(key(entry))),
       ...restored,
     ],
   };
+}
+
+/**
+ * Lists each collection the reservations play, with its mode and members,
+ * because a collection reservation consumes the same progress a generated
+ * turn does and its order is the one the schedule follows.
+ */
+function reservedCollections(reservations: readonly Reservation[]) {
+  return reservations.flatMap(({ source }) =>
+    source.kind === "collection"
+      ? [
+          {
+            mediaCollectionId: source.mediaCollectionId,
+            playbackMode: source.playbackMode,
+            members: source.members,
+          },
+        ]
+      : [],
+  );
 }
 
 /**

@@ -57,7 +57,7 @@ export async function reconcileCollection(
     })
     .where("id", "=", collection.id)
     .execute();
-  return changed ? findChannelsUsingCollection(trx, collection.id) : [];
+  return changed ? findChannelsUsingCollection(trx, collection.id, now) : [];
 }
 
 /**

@@ -96,7 +96,7 @@ function sendRefusal(
         reply,
         409,
         "media_item_in_use",
-        `Programming assignments on channels ${refusal.channelIds.join(", ")} play this media directly; change those assignments first`,
+        `Programming assignments or reservations on channels ${refusal.channelIds.join(", ")} play this media directly; change them first`,
         { channelIds: refusal.channelIds, mediaItemIds: refusal.mediaItemIds },
       );
     case "channels_left_unschedulable":

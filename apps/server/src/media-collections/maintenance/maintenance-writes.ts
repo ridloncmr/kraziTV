@@ -46,7 +46,7 @@ export function maintenanceChange(): ScheduleInputChange<void> {
 }
 
 /**
- * One check of every assigned collection a channel plays in a metadata mode,
+ * One check of every collection a channel plays in a metadata mode,
  * as a schedule input change. Each one's order is recomputed from facts read inside the change's
  * immediate transaction and compared with the order its channel's schedule
  * recorded. Only a channel whose order differs is named and its new order
@@ -60,7 +60,7 @@ export function orderingChange(): ScheduleInputChange<void> {
     for (const {
       recordedFingerprint,
       ...scope
-    } of await listMetadataOrderedMembers(trx)) {
+    } of await listMetadataOrderedMembers(trx, now)) {
       const fingerprint = orderFingerprint(
         await loadCollectionMembers(trx, scope.mediaCollectionId),
         scope.playbackMode,
@@ -76,19 +76,24 @@ export function orderingChange(): ScheduleInputChange<void> {
 }
 
 /**
- * Whether any assignment orders by metadata, read before taking write
- * authority so a channel lineup with none never queues behind the schedule
- * lock. Skipping is safe: an assignment given such a mode later records its
- * order when
- * its schedule regenerates.
+ * Whether any assignment or reservation orders by metadata, read before
+ * taking write authority so a channel lineup with none never queues behind
+ * the schedule lock. Skipping is safe: one given such a mode later records
+ * its order when its schedule regenerates.
  */
-export async function hasMetadataOrderedAssignments(
+export async function hasMetadataOrderedProgramming(
   db: Kysely<DatabaseSchema>,
 ): Promise<boolean> {
   const row = await db
     .selectFrom("programming_source_assignments")
     .select("id")
     .where("playback_mode", "in", METADATA_PLAYBACK_MODES)
+    .union(
+      db
+        .selectFrom("reservations")
+        .select("id")
+        .where("playback_mode", "in", METADATA_PLAYBACK_MODES),
+    )
     .executeTakeFirst();
   return row !== undefined;
 }

@@ -20,6 +20,7 @@ import type { CatalogRemovalService } from "./catalog-removal/catalog-removal-se
 import type { ChannelRepository } from "./channels/repository/channel-repository.js";
 import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import type { RuleRepository } from "./programming-rules/rule-repository.js";
+import type { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 import type { ChannelStreams } from "./channels/contracts.js";
@@ -64,6 +65,7 @@ function createDependencies(
     channelStreams,
     assignments: {} as AssignmentRepository,
     rules: {} as RuleRepository,
+    reservations: {} as ReservationRepository,
     schedules: {
       ensureAllEnabled: async () => undefined,
     } as Partial<ScheduleService> as ScheduleService,

@@ -66,7 +66,7 @@ export function membershipChange(
       value,
       affectedChannelIds:
         value.kind === "replaced"
-          ? await findChannelsUsingCollection(trx, id)
+          ? await findChannelsUsingCollection(trx, id, now)
           : [],
     };
   };

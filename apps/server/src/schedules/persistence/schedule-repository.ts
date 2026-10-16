@@ -261,6 +261,27 @@ export async function recordRebuildKey(
     .execute();
 }
 
+/**
+ * Advances a channel's schedule revision once for a commit that changed
+ * planned transmission without regenerating it, such as a purge of ended
+ * entries or a reservation write whose regeneration changed no entry (ADR
+ * 0014). A channel without a schedule has no revision to advance.
+ */
+export async function advanceScheduleRevision(
+  trx: Executor,
+  channelId: string,
+  now: number,
+): Promise<void> {
+  const state = await loadScheduleState(trx, channelId);
+  if (state === undefined) return;
+  await updateScheduleState(trx, {
+    ...state,
+    scheduleRevision: state.scheduleRevision + 1,
+    // Never earlier than the last mutation, so the clamp stays monotonic.
+    updatedAt: Math.max(state.updatedAt, now),
+  });
+}
+
 /** Overwrites a channel's state with the result of a mutation. */
 export async function updateScheduleState(
   trx: Executor,

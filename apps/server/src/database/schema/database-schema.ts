@@ -19,6 +19,8 @@ import type { ProgrammingBlockTable } from "./programming-block-table.js";
 import type { ProgrammingRuleSourceTable } from "./programming-rule-source-table.js";
 import type { ProgrammingRuleTable } from "./programming-rule-table.js";
 import type { ProgrammingSourceAssignmentTable } from "./programming-source-assignment-table.js";
+import type { ReservationItemTable } from "./reservation-item-table.js";
+import type { ReservationTable } from "./reservation-table.js";
 import type { ScheduleEntryTable } from "./schedule-entry-table.js";
 import type { MediaItemTagTable } from "./media-item-tag-table.js";
 import type { ServerSettingsTable } from "./server-settings-table.js";
@@ -39,6 +41,8 @@ export interface DatabaseSchema {
   programming_blocks: ProgrammingBlockTable;
   programming_rules: ProgrammingRuleTable;
   programming_rule_sources: ProgrammingRuleSourceTable;
+  reservations: ReservationTable;
+  reservation_items: ReservationItemTable;
   channel_schedule_states: ChannelScheduleStateTable;
   schedule_entries: ScheduleEntryTable;
   channel_collection_progress: ChannelCollectionProgressTable;

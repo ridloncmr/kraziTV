@@ -31,6 +31,7 @@ import { assignmentParticipationMigration } from "./023-assignment-participation
 import { programmingRulesMigration } from "./024-programming-rules.js";
 import { configurationRevisionsMigration } from "./025-configuration-revisions.js";
 import { programmingTimezoneMigration } from "./026-programming-timezone.js";
+import { reservationsMigration } from "./027-reservations.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -60,6 +61,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "024_programming_rules": programmingRulesMigration,
   "025_configuration_revisions": configurationRevisionsMigration,
   "026_programming_timezone": programmingTimezoneMigration,
+  "027_reservations": reservationsMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {
