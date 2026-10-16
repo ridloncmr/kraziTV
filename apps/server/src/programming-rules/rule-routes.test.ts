@@ -481,6 +481,41 @@ describe("rule-specific stretch settings", () => {
     });
   });
 
+  it("refuses an assignment edit that breaks a pair whose marathon the rule inherits", async () => {
+    const { server } = await startServer();
+    await send(server, "PATCH", christmasUrl, {
+      ...christmasBody,
+      marathonStretch: { kind: "programs", count: 3 },
+    });
+    // The rule airs two films a turn and inherits the three-film marathon.
+    await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      sources: [
+        {
+          assignmentId: "assignment-002",
+          ordinaryStretch: { kind: "programs", count: 2 },
+          marathon: { mode: "inherit" },
+        },
+      ],
+    });
+
+    await expect(
+      send(server, "PATCH", christmasUrl, {
+        ...christmasBody,
+        marathonStretch: { kind: "programs", count: 2 },
+      }),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "programming_rule_stretch_conflict",
+          ruleId: "rule-001",
+          problem: "a marathon must be longer than the ordinary stretch",
+        },
+      },
+    });
+  });
+
   it("refuses an assignment edit that breaks a rule's effective pair until the rule disables its marathon", async () => {
     const { server } = await startServer();
     const ruleWith = (marathon: unknown) => ({

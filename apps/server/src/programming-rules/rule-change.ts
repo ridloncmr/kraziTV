@@ -2,7 +2,7 @@ import { turnTerms } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { channelInputChange } from "../schedules/channel-input-change.js";
+import { configurationChange } from "../schedules/channel-input-change.js";
 import type { ScheduleInputChange } from "../schedules/contracts.js";
 import { loadProgrammingAssignments } from "../schedules/persistence/assignment-sources.js";
 import {
@@ -27,15 +27,20 @@ export function ruleChange<T extends { kind: string }>(
   timeZone: string,
   write: (trx: Executor, now: number) => Promise<T>,
 ): ScheduleInputChange<T> {
-  return channelInputChange(channelId, changedKind, async (trx, now) => {
+  return configurationChange(channelId, changedKind, async (trx, now) => {
     const started = await findStartedTurn(trx, channelId, now);
+    // A rule write never changes assignments, so they are read once.
+    const assignments =
+      started === undefined
+        ? []
+        : await loadProgrammingAssignments(trx, channelId);
     const terms = async () =>
       started?.block.assignmentId == null
         ? undefined
         : JSON.stringify(
             turnTerms(
               await loadProgrammingRules(trx, channelId),
-              await loadProgrammingAssignments(trx, channelId),
+              assignments,
               started.boundary,
               timeZone,
               started.block.assignmentId,

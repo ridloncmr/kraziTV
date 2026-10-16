@@ -82,7 +82,7 @@ export function RulesEditor({
         loading={rules.loading || mutation.pending}
         error={mutation.error ?? rules.error ?? timezone.error}
       />
-      <ol aria-label="Programming rules">
+      <ol aria-label="Rules by priority">
         {ranked.map((rule, index) => {
           const above = ranked[index - 1];
           const below = ranked[index + 1];
@@ -102,7 +102,11 @@ export function RulesEditor({
                   <h5>{rule.name}</h5>
                   <p className="secondary">{describeRule(rule)}</p>
                   <div className="row-actions">
-                    <button type="button" onClick={() => setEditing(rule.id)}>
+                    <button
+                      type="button"
+                      disabled={mutation.pending}
+                      onClick={() => setEditing(rule.id)}
+                    >
                       Edit rule
                     </button>
                     <button

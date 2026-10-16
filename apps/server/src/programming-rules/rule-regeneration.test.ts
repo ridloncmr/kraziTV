@@ -108,6 +108,23 @@ describe("rule edits and the started turn", () => {
     );
   });
 
+  it("ends the started turn when a reorder makes a rule with other sizes win", async () => {
+    const { server, db, turnId, ruleId } = await ruledMidTurn();
+    const second = await send(server, "POST", RULES_URL, resizeRule(2, "Two"));
+    // Saved order breaks the priority tie, so the first rule still wins.
+    await expect(readBlocks(db)).resolves.toContainEqual(
+      expect.objectContaining({ id: turnId, ended_by_edit: 0 }),
+    );
+
+    await send(server, "PUT", `${RULES_URL}/order`, {
+      ruleIds: [second.body.id as string, ruleId],
+    });
+
+    await expect(readBlocks(db)).resolves.toContainEqual(
+      expect.objectContaining({ id: turnId, ended_by_edit: 1 }),
+    );
+  });
+
   it("ends the started turn when a deleted feature gave it its context", async () => {
     const { server, db, clock } = await startScheduleScenarioServer();
     await insertCollectionOfItems(db, "christmas", [90 * MINUTE, 90 * MINUTE]);

@@ -74,7 +74,7 @@ export function RuleForm({
   onCancel: () => void;
 }) {
   const mutation = useMutation();
-  const [draft, setDraft] = useState<RuleDraft>(() => toDraft(rule));
+  const [draft, setDraft] = useState<RuleDraft>(() => toDraft(rule, choices));
   // Applies one change to the draft.
   const edit = (change: Partial<RuleDraft>) =>
     setDraft((current) => ({ ...current, ...change }));
@@ -101,7 +101,7 @@ export function RuleForm({
           void mutation.run(
             path,
             rule ? "PATCH" : "POST",
-            toSettings(draft, choices),
+            toSettings(draft),
             saved,
           );
         }}
@@ -365,8 +365,15 @@ function newSource(choice: RuleSourceChoice): SourceDraft {
   };
 }
 
-/** Shows a saved rule in the form, or an empty one for a new rule. */
-function toDraft(rule: ProgrammingRule | undefined): RuleDraft {
+/**
+ * Shows a saved rule in the form, or an empty one for a new rule. A source
+ * that inherits its assignment's sizes starts from them, as a newly
+ * selected one does.
+ */
+function toDraft(
+  rule: ProgrammingRule | undefined,
+  choices: readonly RuleSourceChoice[],
+): RuleDraft {
   const { dates } = rule ?? { dates: { kind: "any" as const } };
   return {
     name: rule?.name ?? "",
@@ -390,30 +397,39 @@ function toDraft(rule: ProgrammingRule | undefined): RuleDraft {
     windowStart: rule?.window ? toClock(rule.window.startMinute) : "",
     windowEnd: rule?.window ? toClock(rule.window.endMinute) : "",
     sources: new Map(
-      (rule?.sources ?? []).map((source) => [
-        source.assignmentId,
-        {
-          ownLength: source.ordinaryStretch !== null,
-          ordinary:
-            source.ordinaryStretch === null
+      (rule?.sources ?? []).map((source) => {
+        const inherited = choices.find(
+          ({ assignmentId }) => assignmentId === source.assignmentId,
+        )?.ordinaryStretch;
+        const ordinary =
+          source.ordinaryStretch !== null
+            ? toStretchDraft(source.ordinaryStretch)
+            : inherited === undefined
               ? UNCHOSEN_STRETCH
-              : toStretchDraft(source.ordinaryStretch),
-          marathonMode: source.marathon.mode,
-          marathon:
-            source.marathon.mode === "replace"
-              ? toStretchDraft(source.marathon.stretch)
-              : UNCHOSEN_STRETCH,
-        },
-      ]),
+              : toStretchDraft(inherited);
+        return [
+          source.assignmentId,
+          {
+            ownLength: source.ordinaryStretch !== null,
+            ordinary,
+            marathonMode: source.marathon.mode,
+            marathon:
+              source.marathon.mode === "replace"
+                ? toStretchDraft(source.marathon.stretch)
+                : suggestMarathon(ordinary),
+          },
+        ];
+      }),
     ),
   };
 }
 
-/** Builds the rule the form describes, sources in the channel's assignment order. */
-function toSettings(
-  draft: RuleDraft,
-  choices: readonly RuleSourceChoice[],
-): RuleSettings {
+/**
+ * Builds the rule the form describes. Sources keep their saved order, with
+ * newly selected ones after them, so saving an unchanged rule changes
+ * nothing.
+ */
+function toSettings(draft: RuleDraft): RuleSettings {
   return {
     name: draft.name,
     behavior: draft.behavior,
@@ -435,22 +451,16 @@ function toSettings(
           endMinute: toMinutes(draft.windowEnd),
         }
       : null,
-    sources: choices.flatMap(({ assignmentId }) => {
-      const source = draft.sources.get(assignmentId);
-      if (source === undefined) return [];
-      return [
-        {
-          assignmentId,
-          ordinaryStretch: source.ownLength
-            ? toStretchSetting(source.ordinary)
-            : null,
-          marathon:
-            source.marathonMode === "replace"
-              ? { mode: "replace", stretch: toStretchSetting(source.marathon) }
-              : { mode: source.marathonMode },
-        },
-      ];
-    }),
+    sources: [...draft.sources].map(([assignmentId, source]) => ({
+      assignmentId,
+      ordinaryStretch: source.ownLength
+        ? toStretchSetting(source.ordinary)
+        : null,
+      marathon:
+        source.marathonMode === "replace"
+          ? { mode: "replace", stretch: toStretchSetting(source.marathon) }
+          : { mode: source.marathonMode },
+    })),
   };
 }
 

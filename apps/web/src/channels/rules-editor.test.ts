@@ -221,7 +221,7 @@ it("lists rules by priority and reorders only among equal priorities", async () 
   api.reply(`${RULES}/order`, [], "PUT");
   render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
 
-  const list = await screen.findByRole("list", { name: "Programming rules" });
+  const list = await screen.findByRole("list", { name: "Rules by priority" });
   await waitFor(() =>
     expect(
       within(list)
@@ -247,7 +247,7 @@ it("deletes a rule and offers the rebuild choice", async () => {
   api.reply(`${RULES}/december`, undefined, "DELETE", 204);
   render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
 
-  const list = await screen.findByRole("list", { name: "Programming rules" });
+  const list = await screen.findByRole("list", { name: "Rules by priority" });
   fireEvent.click(
     await within(list).findByRole("button", { name: "Delete rule" }),
   );

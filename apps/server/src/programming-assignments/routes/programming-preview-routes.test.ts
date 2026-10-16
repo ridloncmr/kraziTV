@@ -326,6 +326,19 @@ describe("GET /channels/:id/programming-preview: rule decisions", () => {
     });
     expect(await revision()).toBe(before);
 
+    // A progress reset restarts playback; it is not configuration.
+    const listed = await send(server, "GET", ASSIGNMENTS_URL);
+    const officeId = (listed.body as { id: string }[])[0]?.id ?? "";
+    await send(
+      server,
+      "POST",
+      `${ASSIGNMENTS_URL}/${officeId}/progress-reset`,
+      {
+        mediaCollectionId: COLLECTION_ID,
+      },
+    );
+    expect(await revision()).toBe(before);
+
     await send(server, "DELETE", `${RULES_URL}/${joinedId}`);
 
     expect(await revision()).toBe(before + 1);

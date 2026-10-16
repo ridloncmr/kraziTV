@@ -117,7 +117,7 @@ function describeDecision(
   if (turn.settingOrigins.ordinary === "rule") {
     parts.push("the rule's turn length");
   }
-  if (turn.settingOrigins.marathon === "rule") {
+  if (turn.marathon && turn.settingOrigins.marathon === "rule") {
     parts.push("the rule's marathon length");
   } else if (turn.settingOrigins.marathon === "disabled") {
     parts.push("marathons off under the rule");

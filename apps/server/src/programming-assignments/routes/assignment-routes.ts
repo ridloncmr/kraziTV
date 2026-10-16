@@ -19,7 +19,10 @@ import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, stretchField } from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
-import { channelInputChange } from "../../schedules/channel-input-change.js";
+import {
+  channelInputChange,
+  configurationChange,
+} from "../../schedules/channel-input-change.js";
 import type { AssignmentRepository } from "../persistence/assignment-repository.js";
 import type {
   CreateAssignmentResult,
@@ -160,7 +163,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_created",
-        channelInputChange(id, "created", (trx, now) =>
+        configurationChange(id, "created", (trx, now) =>
           assignments.create(trx, id, body.data, now),
         ),
       );
@@ -184,7 +187,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_changed",
-        channelInputChange(id, "updated", (trx, now) =>
+        configurationChange(id, "updated", (trx, now) =>
           assignments.update(trx, id, assignmentId, body.data, now),
         ),
       );
@@ -199,7 +202,7 @@ export function registerAssignmentRoutes(
             reply,
             409,
             "programming_rule_stretch_conflict",
-            `Rule "${result.ruleName}" inherits this assignment's marathon, which would become invalid: ${result.problem}. Replace or disable the rule's marathon first.`,
+            `Rule "${result.ruleName}" inherits this assignment's settings, and its settings for it would become invalid: ${result.problem}. Change the rule first.`,
             { ruleId: result.ruleId, problem: result.problem },
           );
         default:
@@ -221,7 +224,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignments_reordered",
-        channelInputChange(id, "reordered", (trx, now) =>
+        configurationChange(id, "reordered", (trx, now) =>
           assignments.reorder(trx, id, body.data.assignmentIds, now),
         ),
       );
@@ -314,7 +317,7 @@ export function registerAssignmentRoutes(
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_deleted",
-        channelInputChange(id, "deleted", (trx) =>
+        configurationChange(id, "deleted", (trx) =>
           assignments.delete(trx, id, assignmentId),
         ),
       );
