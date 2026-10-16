@@ -295,7 +295,7 @@ remain independent and unchanged.
 ### Recurring-Rule And Reservation Integration
 
 Spec 0005's winning rule determines active sources before turn selection. Priority
-selects the rule, not source frequency or extra turns. Proposed integration:
+selects the rule, not source frequency or extra turns. Integration:
 
 - Join behavior shares the default round. Insert newly eligible sources once
   into seeded positions in the unplayed portion, preserving pending relative

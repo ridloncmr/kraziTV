@@ -1,6 +1,6 @@
 # Recurring Programming Rules
 
-Status: Draft
+Status: Accepted
 
 ## Problem
 
@@ -32,8 +32,8 @@ and from the exact reservations introduced in spec 0006.
 ## Established Behavior And Proposed Policy
 
 Existing schedule arithmetic uses UTC integer milliseconds and is independent of
-browser timezone. The calendar, precedence, and boundary policies below are
-proposals requiring review before acceptance.
+browser timezone. The calendar, precedence, and boundary policies below were
+reviewed and accepted on 2026-10-15.
 
 ## User-Facing Behavior
 
@@ -75,15 +75,18 @@ boundaries; the UI must not promise a movie starts exactly at its opening time.
 
 ### Calendar Interpretation
 
-Use one explicit IANA programming timezone in server configuration initially.
-Store schedule instants in UTC; evaluate calendar conditions in that timezone.
-Browser display timezone never controls rule eligibility.
+Use one server-wide IANA programming timezone for every channel. Server
+configuration may set it explicitly; when unset, the server detects the host
+timezone at startup. Store schedule instants in UTC; evaluate calendar
+conditions in that timezone. Browser display timezone never controls rule
+eligibility. Per-channel timezones are deferred.
 
 Support local one-off date ranges and annual month/day ranges, including ranges
 crossing year end. Date endpoints are inclusive calendar dates. Time windows are
 half-open local time intervals; a window crossing midnight belongs to the weekday
 and date on which it begins. A missing time window means the whole applicable day.
-Annual February 29 applicability in non-leap years remains an open question.
+In a non-leap year, an annual range endpoint of February 29 is treated as
+February 28.
 
 At repeated local times during daylight-saving fall-back, both occurrences are
 eligible; skipped local times during spring-forward do not create invented
@@ -228,12 +231,14 @@ schedule revisions so previews can identify stale inputs.
 Server composition provides configuration, timezone, typed catalog inputs, and
 persistence. The browser submits rules and displays backend eligibility/preview.
 
-## Open Questions
+## Resolved Questions
 
-- Approve saved-order priority ties and fallback for both behaviors?
-- Should some rules reserve exclusivity and refuse fallback? Defer unless required.
-- Approve a single programming timezone rather than one per channel?
-- How should annual February 29 ranges behave in non-leap years?
+Resolved on 2026-10-15:
+
+- Saved-order priority ties and fallback apply to both behaviors as written.
+- Exclusive rules that refuse fallback are deferred.
+- One server-wide programming timezone, defaulting to the detected host timezone.
+- Annual February 29 endpoints become February 28 in non-leap years.
 
 ## Acceptance Criteria
 
@@ -268,6 +273,8 @@ persistence. The browser submits rules and displays backend eligibility/preview.
 - An airing movie finishes beyond the soft window; the next program follows current eligibility.
 - A higher-priority feature window beginning mid-stretch takes effect at the next program boundary.
 - Overnight, year-crossing, and daylight-saving windows satisfy the documented policies.
+- An annual range ending February 29 ends February 28 in a non-leap year.
+- With no configured timezone, rules evaluate in the detected host timezone.
 - Rule edits preserve current airing by default; explicit stop-and-rebuild follows
   ADR 0003 and starts fresh round/cooldown state under the current winning rule.
   Finish-current-program edits retain continuation and count a shortened started
