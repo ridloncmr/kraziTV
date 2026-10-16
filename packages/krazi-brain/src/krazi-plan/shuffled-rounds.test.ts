@@ -9,7 +9,10 @@ import {
 import { scheduleMedia } from "../testing/schedule-media.js";
 import type { ScheduleMedia } from "../schedule/contracts.js";
 import type { GeneratedBlock, ProgrammingAssignment } from "./contracts.js";
-import { isUsableAssignment } from "./rotation/rotation.js";
+import {
+  canProgramByDefault,
+  isUsableAssignment,
+} from "./rotation/rotation.js";
 import {
   generateProgramming,
   type GenerateProgrammingOptions,
@@ -335,6 +338,23 @@ describe("generateProgramming: rule-only assignments", () => {
 
     expect(generated(result).entries[0]?.programmingBlockId).toBe("later-1");
     expect(generated(result).blocks[0]?.assignmentId).toBe("parks");
+  });
+});
+
+describe("canProgramByDefault", () => {
+  const ruleOnly = collectionAssignment("xmas", "c-xmas", episodes("x", 2), {
+    participation: "rule_only",
+  });
+
+  it("counts only usable assignments in normal rotation", () => {
+    expect(canProgramByDefault([FOUR[0], ruleOnly])).toBe(true);
+    expect(canProgramByDefault([ruleOnly])).toBe(false);
+    expect(
+      canProgramByDefault([
+        collectionAssignment("empty", "c-empty", []),
+        ruleOnly,
+      ]),
+    ).toBe(false);
   });
 });
 

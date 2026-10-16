@@ -185,7 +185,7 @@ describe("024_programming_rules", () => {
       },
     ],
     ["annual dates in the wrong shape", { start_month_day: "12-1" }],
-    ["no weekdays as an empty mask", { weekdays: 0 }],
+    ["a weekday mask past Saturday", { weekdays: 128 }],
     [
       "a window starting and ending together",
       { window_start_minute: 600, window_end_minute: 600 },

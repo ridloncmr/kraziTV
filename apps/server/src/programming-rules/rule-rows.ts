@@ -112,7 +112,7 @@ function toConditions(
             }
           : { kind: "any" },
     weekdays:
-      row.weekdays === null
+      row.weekdays === null || row.weekdays === 0
         ? null
         : [0, 1, 2, 3, 4, 5, 6].filter(
             (day) => ((row.weekdays ?? 0) & (1 << day)) !== 0,

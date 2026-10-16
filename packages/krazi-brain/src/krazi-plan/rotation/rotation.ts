@@ -250,13 +250,24 @@ function avoidRepeat(
     : [...pending];
 }
 
-/**
- * Whether an assignment can take a turn: some member is schedulable. The
- * one usability rule, so callers outside kraziPlan, such as catalog
- * removal's warning, ask it rather than restate it.
- */
+/** Whether an assignment can take a turn: some member is schedulable. */
 export function isUsableAssignment(assignment: ProgrammingAssignment): boolean {
   return unusableReasons(assignment) === undefined;
+}
+
+/**
+ * Whether default rotation can program the channel: some assignment in
+ * normal rotation is usable. Without one, any time no rule wins reports
+ * nothing schedulable, so callers outside kraziPlan, such as catalog
+ * removal's warning, ask this rather than restate it.
+ */
+export function canProgramByDefault(
+  assignments: readonly ProgrammingAssignment[],
+): boolean {
+  return assignments.some(
+    (assignment) =>
+      assignment.participation === "default" && isUsableAssignment(assignment),
+  );
 }
 
 /**

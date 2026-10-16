@@ -72,7 +72,7 @@ describe("resolveProgrammingTimezone", () => {
     expect(log.lines.map((entry) => entry.level)).toEqual(["info"]);
   });
 
-  it.each(["Mars/Olympus_Mons", "not a zone"])(
+  it.each(["Mars/Olympus_Mons", "not a zone", "+05:00", "-0800"])(
     "fails on an invalid name %s with a clear message",
     (value) => {
       expect(() =>

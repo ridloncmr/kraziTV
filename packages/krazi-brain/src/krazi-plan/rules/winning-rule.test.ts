@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { collectionAssignment } from "../../testing/programming-assignments.js";
+import {
+  collectionAssignment,
+  programmingRule as rule,
+} from "../../testing/programming-assignments.js";
 import { scheduleMedia } from "../../testing/schedule-media.js";
 import type { ProgrammingRule } from "../contracts.js";
 import { decideRule, ruleScope } from "./winning-rule.js";
@@ -17,23 +20,6 @@ const empty = collectionAssignment("empty", "c-empty", [], {
   participation: "rule_only",
 });
 const ASSIGNMENTS = [office, parks, christmas, empty];
-
-/** A join rule that applies everywhere unless a test narrows it. */
-function rule(
-  id: string,
-  sources: string[],
-  partial: Partial<ProgrammingRule> = {},
-): ProgrammingRule {
-  return {
-    id,
-    behavior: "join",
-    priority: 0,
-    ruleOrder: 0,
-    conditions: { dates: { kind: "any" }, weekdays: null, window: null },
-    sources: sources.map((assignmentId) => ({ assignmentId })),
-    ...partial,
-  };
-}
 
 describe("decideRule", () => {
   it("picks the applicable rule with the highest priority", () => {

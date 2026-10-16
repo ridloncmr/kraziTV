@@ -38,7 +38,12 @@ const ruleBody = z
     behavior: z.enum(RULE_BEHAVIORS),
     priority: z.number().int(),
     dates: dates.default({ kind: "any" }),
-    weekdays: z.array(z.number()).nullable().default(null),
+    // No weekdays, like none named, means every day.
+    weekdays: z
+      .array(z.number())
+      .nullable()
+      .default(null)
+      .transform((days) => (days?.length === 0 ? null : days)),
     window: z
       .strictObject({ startMinute: z.number(), endMinute: z.number() })
       .nullable()

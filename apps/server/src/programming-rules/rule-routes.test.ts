@@ -197,6 +197,22 @@ describe("programming rule routes", () => {
     expect(await airsChristmas(db, DECEMBER_2 + 3 * 60 * MINUTE)).toBe(false);
   });
 
+  it("saves no weekdays as every day, and reads a stored empty mask the same way", async () => {
+    const { server, db } = await startServer();
+
+    const created = await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      weekdays: [],
+    });
+    expect(created).toMatchObject({ status: 201, body: { weekdays: null } });
+
+    await db.updateTable("programming_rules").set({ weekdays: 0 }).execute();
+    await expect(send(server, "GET", RULES_URL)).resolves.toMatchObject({
+      body: [{ weekdays: null }],
+    });
+    expect(await airsChristmas(db)).toBe(true);
+  });
+
   it("writes nothing for identical settings, even with weekdays in another order", async () => {
     const { server, db } = await startServer();
     const fridays = { ...decemberBody, weekdays: [5, 1] };

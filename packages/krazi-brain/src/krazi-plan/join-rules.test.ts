@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectionAssignment,
   generateInChunks,
+  programmingRule,
   sequentialBlockIds,
 } from "../testing/programming-assignments.js";
 import { scheduleMedia } from "../testing/schedule-media.js";
@@ -54,26 +55,14 @@ const CHRISTMAS = movies("christmas");
 const WINTER = movies("winter");
 const COMEDY = movies("comedy");
 
-const ANYTIME: CalendarConditions = {
-  dates: { kind: "any" },
-  weekdays: null,
-  window: null,
-};
-
+// A join rule under the given conditions and priority.
 function joinRule(
   id: string,
   sources: string[],
   conditions: Partial<CalendarConditions>,
   priority = 0,
 ): ProgrammingRule {
-  return {
-    id,
-    behavior: "join",
-    priority,
-    ruleOrder: 0,
-    conditions: { ...ANYTIME, ...conditions },
-    sources: sources.map((assignmentId) => ({ assignmentId })),
-  };
+  return programmingRule(id, sources, { conditions, priority });
 }
 
 const DECEMBER = joinRule("december", ["christmas"], {
@@ -312,6 +301,77 @@ describe("generateProgramming: join rules", () => {
         entries.filter((entry) => entry.programmingBlockId === block.id),
       ).toHaveLength(2);
     }
+  });
+
+  it.each([1, 2, 7])(
+    "stores the same checkpoints in chunks of %i while a source leaves and rejoins mid-round",
+    (chunkSize) => {
+      // Turns of 150 minutes drift across the evening join, which often
+      // closes while Christmas is still owed a turn in the round.
+      const drifting = ["office", "parks", "scrubs", "frasier", "cheers"].map(
+        (id) =>
+          collectionAssignment(id, `c-${id}`, items(id, 40, 50), {
+            ordinary: { kind: "programs", count: 3 },
+          }),
+      );
+      const evenings = joinRule("evenings", ["christmas"], {
+        window: { startMinute: 18 * 60, endMinute: 20 * 60 },
+      });
+      const run = (size: number) =>
+        generateInChunks(
+          {
+            ...options([...drifting, CHRISTMAS], [evenings], {
+              through: utc("2026-12-08T00:00:00Z"),
+            }),
+            createBlockId: sequentialBlockIds(),
+          },
+          size,
+        );
+
+      const whole = run(100_000);
+      const chunked = run(chunkSize);
+
+      // The scenario really does remember a removed source and recover it.
+      expect(
+        whole.blocks.some(
+          (block) =>
+            (block.checkpoint.contexts.default?.unservedRemoved.length ?? 0) >
+            0,
+        ),
+      ).toBe(true);
+      expect(chunked).toEqual(whole);
+      expect(
+        chunked.blocks.map((block) => JSON.stringify(block.checkpoint)),
+      ).toEqual(whole.blocks.map((block) => JSON.stringify(block.checkpoint)));
+    },
+  );
+
+  it("stops coverage where nothing can air until a rule applies again", () => {
+    const fridayEvenings = joinRule("fridays", ["christmas"], {
+      weekdays: [5],
+      window: { startMinute: 18 * 60, endMinute: 23 * 60 },
+    });
+    const friday6pm = utc("2026-12-04T18:00:00Z");
+
+    const result = generated(
+      generateProgramming(
+        options([CHRISTMAS], [fridayEvenings], { startsAt: friday6pm }),
+      ),
+    );
+
+    // Two whole films air from 18:00; none may start at 23:00.
+    expect(result.entries.map((entry) => entry.startsAt)).toEqual([
+      friday6pm,
+      friday6pm + 150 * MINUTE_MS,
+    ]);
+    expect(result.generatedThrough).toBe(friday6pm + 300 * MINUTE_MS);
+    expect(
+      generateProgramming(
+        options([CHRISTMAS], [fridayEvenings], {
+          startsAt: result.generatedThrough,
+        }),
+      ),
+    ).toEqual({ kind: "unschedulable", reason: "no_schedulable_media" });
   });
 
   it.each([1, 3, 50])(

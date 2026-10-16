@@ -48,12 +48,15 @@ export function resolveProgrammingTimezone(
 /**
  * Returns the IANA name `Intl` resolves a timezone to, so a case-only
  * difference names the same zone, or undefined when it knows no such zone.
+ * A bare UTC offset such as `+05:00` is refused: it never observes
+ * daylight saving, so rules would drift from local time.
  */
 function canonicalTimeZone(name: string): string | undefined {
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    const resolved = new Intl.DateTimeFormat("en-US", {
       timeZone: name,
     }).resolvedOptions().timeZone;
+    return /^[+-]\d/.test(resolved) ? undefined : resolved;
   } catch {
     return undefined;
   }

@@ -158,7 +158,7 @@ async function createRuleTables(trx: Kysely<unknown>): Promise<void> {
         and start_date is null and end_date is null)),
     constraint programming_rules_weekdays
       check (weekdays is null
-        or (typeof(weekdays) = 'integer' and weekdays between 1 and 127)),
+        or (typeof(weekdays) = 'integer' and weekdays between 0 and 127)),
     constraint programming_rules_window check (
       (window_start_minute is null and window_end_minute is null)
       or (typeof(window_start_minute) = 'integer'

@@ -24,7 +24,7 @@ export interface ProgrammingRuleTable {
   end_date: string | null;
   start_month_day: string | null;
   end_month_day: string | null;
-  /** Bit `1 << day` for each local weekday, 0 for Sunday; null means every day. */
+  /** Bit `1 << day` for each local weekday, 0 for Sunday; 0 or null means every day. */
   weekdays: number | null;
   /** Local minutes after midnight, set together; null together for the whole day. */
   window_start_minute: number | null;

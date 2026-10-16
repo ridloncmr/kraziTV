@@ -1,7 +1,9 @@
+import type { CalendarConditions } from "../calendar/contracts.js";
 import type {
   GeneratedBlock,
   LatestTurn,
   ProgrammingAssignment,
+  ProgrammingRule,
 } from "../krazi-plan/contracts.js";
 import {
   generateProgramming,
@@ -50,6 +52,36 @@ export function itemAssignment(
     ordinary: { kind: "programs", count: 3 },
     marathon: null,
     members: [{ kind: "media_item", media }],
+  };
+}
+
+/**
+ * Builds a join rule selecting `sources` that applies everywhere, unless a
+ * test narrows its conditions or changes its behavior or precedence.
+ */
+export function programmingRule(
+  id: string,
+  sources: readonly string[],
+  {
+    conditions = {},
+    ...overrides
+  }: Partial<Omit<ProgrammingRule, "id" | "sources" | "conditions">> & {
+    conditions?: Partial<CalendarConditions>;
+  } = {},
+): ProgrammingRule {
+  return {
+    id,
+    behavior: "join",
+    priority: 0,
+    ruleOrder: 0,
+    conditions: {
+      dates: { kind: "any" },
+      weekdays: null,
+      window: null,
+      ...conditions,
+    },
+    sources: sources.map((assignmentId) => ({ assignmentId })),
+    ...overrides,
   };
 }
 
