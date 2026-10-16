@@ -172,8 +172,11 @@ describe("generateProgramming: feature rules", () => {
     for (const block of resumed) {
       const before = lastDefaultBlockBefore(blocks, block);
       if (before?.roundNumber !== block.roundNumber) continue;
-      const pending = before.checkpoint.contexts.default?.pending.slice(1);
-      expect(pending).toContain(block.assignmentId);
+      // The suspended round's remaining turns, exactly, with no one replayed.
+      const left = before.checkpoint.contexts.default?.pending.slice(1) ?? [];
+      expect(
+        [...(block.checkpoint.contexts.default?.pending ?? [])].sort(),
+      ).toEqual([...left].sort());
     }
   });
 
@@ -265,6 +268,89 @@ describe("generateProgramming: a feature taking over", () => {
       if (entry.startsAt < utc("2026-12-04T23:00:00Z")) {
         expect(entry.mediaCollectionId).toBe(expected);
       }
+    }
+  });
+});
+
+describe("generateProgramming: leaving a feature", () => {
+  const office = sitcom("office");
+  const parks = sitcom("parks");
+  const evenings = programmingRule("evenings", ["christmas"], {
+    behavior: "feature",
+    conditions: { window: EVENINGS },
+  });
+
+  it("never continues the turn a feature interrupted", () => {
+    const { blocks, entries } = generated(
+      generateProgramming(
+        options([office, parks, CHRISTMAS], [evenings], {
+          startsAt: utc("2026-12-04T17:15:00Z"),
+          through: utc("2026-12-05T01:00:00Z"),
+        }),
+      ),
+    );
+
+    const interrupted = blocks[0];
+    const after = entries.find(
+      (entry) => entry.startsAt >= utc("2026-12-04T23:00:00Z"),
+    );
+    expect(after?.programmingBlockId).not.toBe(interrupted?.id);
+    const resumedBlock = blocks.find(
+      ({ id }) => id === after?.programmingBlockId,
+    );
+    expect(resumedBlock?.checkpoint.activeContext).toBe("default");
+    // The interrupted source was served; the round's other source takes over.
+    expect(resumedBlock?.assignmentId).not.toBe(interrupted?.assignmentId);
+    expect(resumedBlock?.roundNumber).toBe(interrupted?.roundNumber);
+  });
+
+  it("resumes a lower feature's round once a higher one ends", () => {
+    const halloween = collectionAssignment(
+      "halloween",
+      "c-halloween",
+      items("halloween", 10, 60),
+      { participation: "rule_only", ordinary: { kind: "programs", count: 1 } },
+    );
+    const extra = collectionAssignment(
+      "extra",
+      "c-extra",
+      items("extra", 10, 60),
+      {
+        participation: "rule_only",
+        ordinary: { kind: "programs", count: 1 },
+      },
+    );
+    const wide = programmingRule("wide", ["christmas", "extra"], {
+      behavior: "feature",
+      conditions: { window: EVENINGS },
+    });
+    const short = programmingRule("short", ["halloween"], {
+      behavior: "feature",
+      priority: 5,
+      conditions: { window: { startMinute: 19 * 60, endMinute: 20 * 60 } },
+    });
+
+    const { blocks } = generated(
+      generateProgramming(
+        options([office, CHRISTMAS, extra, halloween], [wide, short], {
+          startsAt: utc("2026-12-04T18:00:00Z"),
+          through: utc("2026-12-04T23:00:00Z"),
+        }),
+      ),
+    );
+
+    const contexts = blocks.map((block) => block.checkpoint.activeContext);
+    const shortAt = contexts.indexOf("rule:short");
+    expect(shortAt).toBeGreaterThan(0);
+    const before = blocks[shortAt - 1];
+    const after = blocks
+      .slice(shortAt)
+      .find((block) => block.checkpoint.activeContext === "rule:wide");
+    expect(before?.checkpoint.activeContext).toBe("rule:wide");
+    // The wide feature's first round continues, or its next one starts, without a replay.
+    expect(after?.roundNumber).toBeGreaterThanOrEqual(before?.roundNumber ?? 0);
+    if (after?.roundNumber === before?.roundNumber) {
+      expect(after?.assignmentId).not.toBe(before?.assignmentId);
     }
   });
 });
@@ -364,6 +450,114 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
     },
   );
 
+  // Office's last turn of default round 3, starting at 16:00 with cooldown
+  // at `sinceMarathon`, just before the evening feature.
+  function lastDefaultTurn(sinceMarathon: number): LatestTurn {
+    return {
+      block: {
+        id: "office-turn",
+        assignmentId: "office",
+        source: {
+          kind: "collection",
+          mediaCollectionId: "c-office",
+          playbackMode: "chronological",
+        },
+        roundNumber: 3,
+        turnIndex: 1,
+        startsAt: utc("2026-12-04T17:00:00Z"),
+        size: { kind: "programs", value: 2 },
+        marathon: false,
+        winningRuleId: null,
+        endedByEdit: false,
+        checkpoint: {
+          activeContext: "default",
+          contexts: {
+            default: {
+              roundNumber: 3,
+              pending: ["office"],
+              served: ["parks"],
+              skipped: [],
+              unservedRemoved: [],
+              marathonOpportunity: null,
+              roundCommittedProgram: true,
+            },
+          },
+          lastAiredAssignmentId: "parks",
+          nextMemberPositions: {},
+          ordinaryRoundsSinceMarathon: sinceMarathon,
+          rebuildCount: 0,
+        },
+      },
+      airedPrograms: 2,
+      airedMs: 60 * MINUTE_MS,
+    };
+  }
+
+  it("never credits a round that completed before a feature's marathon to the cooldown after it", () => {
+    const untilNine = programmingRule("evenings", ["christmas"], {
+      behavior: "feature",
+      conditions: { window: { startMinute: 18 * 60, endMinute: 21 * 60 } },
+    });
+    const marathonChristmas = {
+      ...CHRISTMAS,
+      marathon: { kind: "programs", count: 2 },
+    } as const;
+
+    const { blocks } = generated(
+      generateProgramming(
+        options([marathonOffice, parks, marathonChristmas], [untilNine], {
+          marathons: { chancePercent: 100, minOrdinaryRounds: 2 },
+          latestTurn: lastDefaultTurn(2),
+          startsAt: utc("2026-12-04T18:00:00Z"),
+          through: utc("2026-12-05T03:00:00Z"),
+        }),
+      ),
+    );
+
+    // Round 3 completed before the 18:00 marathon, and no round completes
+    // after it before default rotation resumes at 21:20.
+    expect(blocks[0]).toMatchObject({
+      assignmentId: "christmas",
+      marathon: true,
+    });
+    const resumed = blocks.find(
+      (block) => block.checkpoint.activeContext === "default",
+    );
+    expect(resumed).toMatchObject({ roundNumber: 4, marathon: false });
+    expect(resumed?.checkpoint.ordinaryRoundsSinceMarathon).toBe(0);
+    expect(
+      resumed?.checkpoint.contexts.default?.marathonOpportunity,
+    ).toBeNull();
+  });
+
+  it("lets rounds completed in a feature context satisfy the default cooldown", () => {
+    const run = (rules: ProgrammingRule[]) =>
+      generated(
+        generateProgramming(
+          options([marathonOffice, parks, CHRISTMAS], rules, {
+            marathons: { chancePercent: 100, minOrdinaryRounds: 2 },
+            // A marathon just ended default round 3.
+            latestTurn: lastDefaultTurn(0),
+            startsAt: utc("2026-12-04T18:00:00Z"),
+            through: utc("2026-12-05T03:00:00Z"),
+          }),
+        ),
+      ).blocks.find((block) => block.checkpoint.activeContext === "default");
+
+    // Round 3 and one one-film feature round complete: round 4 may hold one.
+    const oneFilm = programmingRule("evenings", ["christmas"], {
+      behavior: "feature",
+      conditions: { window: { startMinute: 18 * 60, endMinute: 19 * 60 } },
+    });
+    expect(
+      run([oneFilm])?.checkpoint.contexts.default?.marathonOpportunity,
+    ).not.toBeNull();
+    // Without the feature only round 3 has completed.
+    expect(
+      run([])?.checkpoint.contexts.default?.marathonOpportunity,
+    ).toBeNull();
+  });
+
   it("counts rounds completed in any context toward one cooldown", () => {
     const { blocks } = generated(
       generateProgramming(
@@ -407,31 +601,26 @@ function lastDefaultBlockBefore(
 
 /**
  * Counts ordinary rounds, in any context, that complete after the marathon
- * at `from` starts and by the start of the marathon at `to`: a round
- * completes when its context forms the next one, and counts only if none
- * of its turns was a marathon (programming spec 0004).
+ * at `from` starts and before the marathon at `to` does. A round completes
+ * when its last turn starts, the turn that alone is still pending, and
+ * counts only if none of its turns was a marathon (programming spec 0004).
  */
 function completedRoundsBetween(
   blocks: readonly GeneratedBlock[],
   from: number,
   to: number,
 ): number {
-  const open = new Map<string, { round: number; marathon: boolean }>();
-  let completed = 0;
-  for (let index = 0; index <= to; index += 1) {
-    const block = blocks[index];
-    if (block === undefined) continue;
-    const context = block.checkpoint.activeContext;
-    const current = open.get(context);
-    if (current !== undefined && current.round !== block.roundNumber) {
-      if (index > from && !current.marathon) completed += 1;
-      open.set(context, { round: block.roundNumber, marathon: block.marathon });
-    } else {
-      open.set(context, {
-        round: block.roundNumber,
-        marathon: (current?.marathon ?? false) || block.marathon,
-      });
-    }
-  }
-  return completed;
+  const round = (block: GeneratedBlock) =>
+    `${block.checkpoint.activeContext}#${block.roundNumber}`;
+  const marathonRounds = new Set(
+    blocks.filter((block) => block.marathon).map(round),
+  );
+  return blocks.filter(
+    (block, index) =>
+      index > from &&
+      index < to &&
+      block.checkpoint.contexts[block.checkpoint.activeContext]?.pending
+        .length === 1 &&
+      !marathonRounds.has(round(block)),
+  ).length;
 }

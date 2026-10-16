@@ -55,7 +55,8 @@ interface ChosenTurn {
  * checkpoint it stored: in the turn's context, its assignment leaves
  * `pending` as served and the round has committed a program; channel-wide,
  * it aired last and its member position moves past the member that took the
- * turn. A marathon marks the round's opportunity started and restarts
+ * turn, and the round completes for cooldown if this was its last turn. A
+ * marathon marks the round's opportunity started and restarts
  * cooldown as its first program commits; an opportunity its turn did not
  * use is lost. Pure, so the state after any kept block is reproduced
  * exactly, without storing it separately.
@@ -89,7 +90,16 @@ export function advancePastTurn(
       ? 0
       : state.ordinaryRoundsSinceMarathon,
   };
-  return leaveContext(next, checkpoint.activeContext, checkpoint);
+  // The round completes as its last turn starts, before any other context
+  // can start a marathon, so cooldown counts it now rather than whenever
+  // its context next forms a round.
+  return leaveContext(
+    pending.length === 0
+      ? { ...next, ordinaryRoundsSinceMarathon: closeRound(next) }
+      : next,
+    checkpoint.activeContext,
+    checkpoint,
+  );
 }
 
 /** What one selection attempt found: the turn, if any, and every skip it made. */
@@ -158,7 +168,12 @@ export function chooseTurn(
     const roundNumber = round.roundNumber + 1;
     const formed: RotationState = {
       ...round,
-      ordinaryRoundsSinceMarathon: closeRound(round),
+      // A round whose last turn started was counted then; one this choice
+      // emptied by skipping or removing its turns completes now.
+      ordinaryRoundsSinceMarathon:
+        entered.pending.length === 0
+          ? round.ordinaryRoundsSinceMarathon
+          : closeRound(round),
       roundNumber,
       pending: shuffleRound(
         usable.map(({ id }) => id),
