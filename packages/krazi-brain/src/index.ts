@@ -41,6 +41,7 @@ export type {
   ProgrammingRule,
   ProgrammingUnschedulableReason,
   RuleMarathon,
+  RuleSkip,
   RuleSource,
   SettingOrigins,
   RotationCheckpoint,

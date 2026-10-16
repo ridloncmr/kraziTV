@@ -243,13 +243,20 @@ describe("generateProgramming: join rules", () => {
       joinRule("december", ["christmas"], DECEMBER.conditions, 1),
     ];
 
-    const { blocks } = generated(
+    const { blocks, ruleSkips } = generated(
       generateProgramming(options([...DEFAULTS, CHRISTMAS, empty], rules)),
     );
 
     const winners = new Set(blocks.map((block) => block.winningRuleId));
     expect(winners).toEqual(new Set([null, "december"]));
     expect(blocks.some((block) => block.assignmentId === "empty")).toBe(false);
+    // Every block names the rule passed over before its decision, once.
+    expect(ruleSkips).toHaveLength(blocks.length);
+    for (const block of blocks) {
+      expect(ruleSkips.filter((skip) => skip.blockId === block.id)).toEqual([
+        { blockId: block.id, ruleId: "broken", reason: "no_usable_source" },
+      ]);
+    }
   });
 
   it("finishes a movie that runs past its window, then follows current eligibility", () => {

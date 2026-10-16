@@ -79,7 +79,10 @@ describe("decideRule", () => {
 
     expect(
       decideRule([second, first], ASSIGNMENTS, DECEMBER_4, "UTC"),
-    ).toMatchObject({ winner: second, passedOver: ["first"] });
+    ).toMatchObject({
+      winner: second,
+      passedOver: [{ ruleId: "first", reason: "no_usable_source" }],
+    });
   });
 
   it("falls back to default rotation when no applicable rule can provide a program", () => {
@@ -95,7 +98,11 @@ describe("decideRule", () => {
     );
 
     expect(decision.winner).toBeUndefined();
-    expect(decision.passedOver).toEqual(["first", "gone", "none"]);
+    expect(decision.passedOver).toEqual([
+      { ruleId: "first", reason: "no_usable_source" },
+      { ruleId: "gone", reason: "no_usable_source" },
+      { ruleId: "none", reason: "no_sources" },
+    ]);
   });
 
   it("holds until the earliest instant any rule's applicability can change", () => {

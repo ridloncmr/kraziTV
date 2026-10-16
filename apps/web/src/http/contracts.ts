@@ -220,6 +220,37 @@ export interface AssignmentSettings {
   marathonStretch: StretchSetting | null;
   members: AssignmentMember[];
 }
+/** What a rule does to a source's marathon while it wins. */
+type RuleMarathon =
+  | { mode: "inherit" }
+  | { mode: "disabled" }
+  | { mode: "replace"; stretch: StretchSetting };
+
+/** What the owner saves for one programming rule; calendar conditions combine with AND. */
+interface RuleSettings {
+  name: string;
+  behavior: "join" | "feature";
+  /** Higher wins. */
+  priority: number;
+  dates:
+    | { kind: "any" }
+    | { kind: "one_off"; startDate: string; endDate: string }
+    | { kind: "annual"; startMonthDay: string; endMonthDay: string };
+  /** 0 for Sunday through 6 for Saturday; null means every day. */
+  weekdays: number[] | null;
+  /** Local minutes after midnight; null means the whole day. */
+  window: { startMinute: number; endMinute: number } | null;
+  sources: {
+    assignmentId: string;
+    /** Null inherits the assignment's. */
+    ordinaryStretch: StretchSetting | null;
+    marathon: RuleMarathon;
+  }[];
+}
+/** A saved programming rule. */
+export interface ProgrammingRule extends RuleSettings {
+  id: string;
+}
 /** One turn of a programming preview, with what explains it. */
 export interface PreviewTurn {
   assignmentId: string | null;
@@ -235,6 +266,16 @@ export interface PreviewTurn {
   turnIndex: number;
   /** The turn on air when the preview was read, continuing. */
   continues: boolean;
+  /** The rule that won when the turn was decided; null for default rotation. */
+  winningRuleId: string | null;
+  /** Applicable rules passed over before the winner; null for a continued turn. */
+  skippedRules: { ruleId: string; reason: string }[] | null;
+  /** When the turn was decided: its first program's start. */
+  decidedAt: string;
+  settingOrigins: {
+    ordinary: "assignment" | "rule";
+    marathon: "assignment" | "rule" | "disabled";
+  };
   startsAt: string | null;
   endsAt: string | null;
   size: { kind: "programs" | "airtime"; value: number } | null;
@@ -252,6 +293,8 @@ export interface PreviewTurn {
 }
 /** The channel's next turns as a regeneration from now would air them. */
 export interface ProgrammingPreview {
+  /** The programming configuration the preview was generated from. */
+  configurationRevision: number;
   turns: PreviewTurn[];
   skips: { assignmentId: string; roundNumber: number; reasons: string[] }[];
 }

@@ -1,5 +1,6 @@
 import type {
   AssignmentSkip,
+  RuleSkip,
   GeneratedBlock,
   GeneratedScheduleEntry,
   MarathonSettings,
@@ -194,6 +195,10 @@ export type ProgrammingPreview =
       blocks: GeneratedBlock[];
       entries: GeneratedScheduleEntry[];
       skips: AssignmentSkip[];
+      /** Rules each previewed block's decision passed over. */
+      ruleSkips: (RuleSkip & { blockId: string })[];
+      /** The configuration the preview was generated from. */
+      configurationRevision: number;
     };
 
 /**

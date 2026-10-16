@@ -207,6 +207,15 @@ export interface AssignmentSkip {
   reasons: UnschedulableReason[];
 }
 
+/**
+ * An applicable rule a turn's decision passed over, and why: it names no
+ * source, or none of its sources can take a turn.
+ */
+export interface RuleSkip {
+  ruleId: string;
+  reason: "no_sources" | "no_usable_source";
+}
+
 /** Why a channel's programming can produce no entry. */
 export type ProgrammingUnschedulableReason =
   "no_programming_assignment" | "no_schedulable_media";

@@ -920,6 +920,10 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     roundNumber: 2,
     turnIndex: 0,
     continues: false,
+    winningRuleId: null,
+    skippedRules: [],
+    decidedAt: "2026-10-14T20:00:00.000Z",
+    settingOrigins: { ordinary: "assignment", marathon: "assignment" },
     startsAt: "2026-10-14T20:00:00.000Z",
     endsAt: "2026-10-14T21:06:00.000Z",
     size: { kind: "airtime", value: 60 },
@@ -930,6 +934,7 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     programs: [program("One"), program("Two"), program("Three")],
   };
   api.reply("/channels/one/programming-preview", {
+    configurationRevision: 3,
     turns: [
       {
         ...turn,
@@ -1100,5 +1105,92 @@ it("saves an assignment kept out of normal rotation and shows it when reopened",
       screen.getByLabelText<HTMLInputElement>("Plays in normal rotation")
         .checked,
     ).toBe(false),
+  );
+});
+
+it("explains which rule chose each turn, the rules it passed over, and where its settings came from", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  const rule = (id: string, name: string) => ({
+    id,
+    name,
+    behavior: "feature",
+    priority: 1,
+    dates: { kind: "any" },
+    weekdays: null,
+    window: { startMinute: 18 * 60, endMinute: 23 * 60 },
+    sources: [],
+  });
+  api.reply("/channels/one/programming-rules", [
+    rule("fridays", "Friday movies"),
+    rule("broken", "Nothing to air"),
+  ]);
+  const turn = {
+    assignmentId: "assignment",
+    member: {
+      kind: "collection",
+      mediaCollectionId: "favorites",
+      playbackMode: "chronological",
+    },
+    roundNumber: 1,
+    turnIndex: 0,
+    continues: false,
+    winningRuleId: "fridays",
+    skippedRules: [{ ruleId: "broken", reason: "no_usable_source" }],
+    decidedAt: "2026-10-16T22:00:00.000Z",
+    settingOrigins: { ordinary: "rule", marathon: "disabled" },
+    startsAt: "2026-10-16T22:00:00.000Z",
+    endsAt: "2026-10-16T23:30:00.000Z",
+    size: { kind: "programs", value: 2 },
+    marathon: false,
+    marathonChancePercent: null,
+    airtimeMinutes: 90,
+    overrunMinutes: null,
+    programs: [
+      {
+        mediaItemId: "a",
+        title: "A",
+        startsAt: "2026-10-16T22:00:00.000Z",
+        endsAt: "2026-10-16T23:30:00.000Z",
+      },
+    ],
+  };
+  api.reply("/channels/one/programming-preview", {
+    configurationRevision: 4,
+    turns: [
+      turn,
+      {
+        ...turn,
+        winningRuleId: null,
+        skippedRules: [],
+        settingOrigins: { ordinary: "assignment", marathon: "assignment" },
+      },
+    ],
+    skips: [],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+
+  const turns = await screen.findByRole("list", { name: "Upcoming turns" });
+  await waitFor(() =>
+    expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
+      /chosen by Friday movies/,
+    ),
+  );
+  const [ruled, defaulted] = within(turns)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent);
+  expect(ruled).toMatch(
+    /passed over Nothing to air: none of its sources can air/,
+  );
+  expect(ruled).toMatch(
+    /the rule.s turn length · marathons off under the rule/,
+  );
+  expect(defaulted).toMatch(/normal rotation/);
+  expect(screen.getByText(/checked at program boundaries/).textContent).toMatch(
+    /never promises a program starts exactly when a window opens/,
   );
 });

@@ -1,6 +1,7 @@
 import type {
   GeneratedBlock,
   GeneratedScheduleEntry,
+  RuleSkip,
 } from "@krazitv/krazi-brain";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -25,7 +26,9 @@ const previewQuery = z.strictObject({
 
 /**
  * Registers the programming preview route: the turns a regeneration from
- * now would air, each with why it looks the way it does. Reads only.
+ * now would air, each with why it looks the way it does, and the
+ * configuration revision it was generated from, so the editor can tell when
+ * it is stale. Reads only.
  */
 export function registerProgrammingPreviewRoutes(
   server: FastifyInstance,
@@ -64,11 +67,18 @@ export function registerProgrammingPreviewRoutes(
           ),
           continues,
           preview.marathons.chancePercent,
+          // A continued turn was decided earlier; what it passed over is not kept.
+          continues
+            ? null
+            : preview.ruleSkips
+                .filter((skip) => skip.blockId === block.id)
+                .map(({ ruleId, reason }) => ({ ruleId, reason })),
         ),
       )
       .filter((turn) => turn.programs.length > 0)
       .slice(0, query.data.turns);
     return {
+      configurationRevision: preview.configurationRevision,
       turns,
       skips: preview.skips.filter((skip) =>
         turns.some((turn) => turn.roundNumber === skip.roundNumber),
@@ -78,15 +88,18 @@ export function registerProgrammingPreviewRoutes(
 }
 
 /**
- * Explains one turn: its member, the size it resolved, what it airs, and,
- * for an airtime target the preview starts, by how much whole programs ran
- * over it. A marathon names the channel chance that drew it.
+ * Explains one turn: its member, the size it resolved and where its
+ * settings came from, what it airs, and, for an airtime target the preview
+ * starts, by how much whole programs ran over it. A marathon names the
+ * channel chance that drew it. The rule that won when the turn was decided
+ * and the rules passed over before it say why its source was eligible.
  */
 function toApiTurn(
   block: GeneratedBlock,
   entries: readonly GeneratedScheduleEntry[],
   continues: boolean,
   marathonChancePercent: number,
+  skippedRules: RuleSkip[] | null,
 ) {
   const airedMs = entries.reduce((total, entry) => total + entry.durationMs, 0);
   const first = entries[0];
@@ -97,6 +110,10 @@ function toApiTurn(
     roundNumber: block.roundNumber,
     turnIndex: block.turnIndex,
     continues,
+    winningRuleId: block.winningRuleId,
+    skippedRules,
+    decidedAt: toApiTimestamp(block.startsAt),
+    settingOrigins: block.settingOrigins,
     startsAt: first === undefined ? null : toApiTimestamp(first.startsAt),
     endsAt: last === undefined ? null : toApiTimestamp(last.endsAt),
     size: block.size,

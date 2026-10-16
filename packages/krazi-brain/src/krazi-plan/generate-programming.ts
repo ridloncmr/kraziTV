@@ -17,6 +17,7 @@ import type {
   ProgrammingAssignment,
   ProgrammingRule,
   ProgrammingUnschedulableReason,
+  RuleSkip,
 } from "./contracts.js";
 import {
   advancePastTurn,
@@ -67,6 +68,8 @@ type ProgrammingResult =
       progress: CollectionProgress[];
       /** Assignments the call's rounds passed over, for explaining them. */
       skips: AssignmentSkip[];
+      /** Rules each new block's decision passed over before its winner, for explaining them. */
+      ruleSkips: (RuleSkip & { blockId: string })[];
       nextSequenceNumber: number;
       /** The end of the last entry, or `startsAt` when none was generated. */
       generatedThrough: number;
@@ -107,6 +110,7 @@ export function generateProgramming(
   const blocks: GeneratedBlock[] = [];
   const entries: GeneratedScheduleEntry[] = [];
   const skips: AssignmentSkip[] = [];
+  const ruleSkips: (RuleSkip & { blockId: string })[] = [];
   // A latest block from before a fresh rebuild belongs to a finished slate:
   // its turn is never continued and its rounds, cooldown, and member
   // positions are not carried over. Collection progress still is.
@@ -186,6 +190,9 @@ export function generateProgramming(
         checkpoint: turn.checkpoint,
       };
       blocks.push(block);
+      for (const skip of decision.passedOver) {
+        ruleSkips.push({ blockId: block.id, ...skip });
+      }
       state = advancePastTurn(turn.checkpoint, turn.marathon);
       open = {
         assignmentId: turn.assignment.id,
@@ -238,6 +245,7 @@ export function generateProgramming(
     entries,
     progress: [...advanced].flatMap((key) => progress.get(key) ?? []),
     skips,
+    ruleSkips,
     nextSequenceNumber: sequenceNumber,
     generatedThrough: startsAt,
   };

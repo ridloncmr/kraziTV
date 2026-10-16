@@ -6,6 +6,7 @@ import type {
   ProgrammingAssignment,
   ProgrammingRule,
   RotationScope,
+  RuleSkip,
 } from "../contracts.js";
 import { isUsableAssignment } from "../rotation/rotation.js";
 import { applyRuleSettings } from "./rule-settings.js";
@@ -15,7 +16,7 @@ interface RuleDecision {
   /** Undefined when default rotation programs the instant. */
   winner: ProgrammingRule | undefined;
   /** Applicable rules ranked above the winner whose sources could not take a turn. */
-  passedOver: string[];
+  passedOver: RuleSkip[];
   /** The earliest instant any rule's applicability may change. */
   validUntil: number;
 }
@@ -37,7 +38,7 @@ export function decideRule(
   const usable = new Set(
     assignments.filter(isUsableAssignment).map(({ id }) => id),
   );
-  const passedOver: string[] = [];
+  const passedOver: RuleSkip[] = [];
   let winner: ProgrammingRule | undefined;
   for (const rule of [...rules].sort(byPrecedence)) {
     if (!appliesAt(rule.conditions, instant, timeZone)) continue;
@@ -45,7 +46,10 @@ export function decideRule(
       winner = rule;
       break;
     }
-    passedOver.push(rule.id);
+    passedOver.push({
+      ruleId: rule.id,
+      reason: rule.sources.length === 0 ? "no_sources" : "no_usable_source",
+    });
   }
   return {
     winner,

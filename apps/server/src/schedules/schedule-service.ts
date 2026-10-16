@@ -45,6 +45,7 @@ import {
 import {
   findAssignedCollectionMode,
   loadCollectionMembers,
+  loadConfigurationRevision,
   loadMarathonSettings,
   loadProgrammingAssignments,
 } from "./persistence/assignment-sources.js";
@@ -330,6 +331,11 @@ export class ScheduleService {
             blocks: generated.blocks,
             entries: generated.entries,
             skips: generated.skips,
+            ruleSkips: generated.ruleSkips,
+            configurationRevision: await loadConfigurationRevision(
+              trx,
+              channelId,
+            ),
           };
     });
   }

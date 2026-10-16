@@ -3,6 +3,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
   MediaCollection,
+  ProgrammingRule,
   ScheduleWindow,
   SourceAssignment,
 } from "../http/contracts.js";
@@ -32,6 +33,10 @@ export function ProgrammingEditor({
     "/media-collections",
     visible,
   );
+  const rules = useResource<ProgrammingRule[]>(
+    `${resourcePath("channels", channelId)}/programming-rules`,
+    visible,
+  );
   const reorder = useMutation();
   const [adding, setAdding] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
@@ -52,6 +57,7 @@ export function ProgrammingEditor({
   const changed = () => {
     setChanges((count) => count + 1);
     assignments.refresh();
+    rules.refresh();
     setShowSchedule(true);
     schedule.refresh();
   };
@@ -150,6 +156,7 @@ export function ProgrammingEditor({
           path={`${resourcePath("channels", channelId)}/programming-preview`}
           visible={visible}
           collections={collections.data}
+          rules={rules.data}
         />
       )}
       {listed.length > 0 && (
