@@ -27,6 +27,10 @@ Preserves [recurring rules](0005-recurring-programming-rules.md) when configured
 Drafting, validation, and publication form a transactional lifecycle, separate from
 recurring source eligibility and from transmission fit mechanics.
 
+Spec 0006 delivers reservations and filler as a server capability with no
+administration UI. This spec owns every owner-facing screen that creates, edits,
+or cancels a reservation, built on that capability, so the two ship together.
+
 ## Established Behavior And Proposed Policy
 
 ADR 0009 establishes saved overrides taking precedence over generated blocks and

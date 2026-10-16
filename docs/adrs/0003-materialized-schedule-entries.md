@@ -6,6 +6,14 @@ Accepted. Amended on 2026-10-07: a user may explicitly choose to interrupt
 what is airing as part of an administrative change; kraziTV never interrupts
 on its own.
 
+Amended on 2026-10-16: planned filler before and inside a reservation is
+coverage, not a gap; gap repair fires when coverage lapses; the schedule
+revision counts every change to planned transmission, including a reservation
+change that changes no entry; and where the regeneration boundary and
+transition revalidation below say entry, they mean the airing or candidate
+playout item, program or filler. See
+[ADR 0014](0014-planned-filler-coverage.md).
+
 ## Context
 
 kraziTV's guide, derived playout timeline, channel state, and stream selection must resolve consistently from the same guide-visible programming. These remain distinct domain concepts, but they cannot disagree about which scheduled program applies at a given time. Regenerating schedule windows on demand can make overlapping queries disagree, especially once random playback is supported.
@@ -29,7 +37,7 @@ never chooses to interrupt on its own, and every other regeneration still
 begins at the current program end. See
 [spec 0010](../specs/features/001-mvp/specs/0010-catalog-removal.md).
 
-Horizon maintenance extends schedules without replacing entries in already-covered windows. It runs when the server starts, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. An enabled, schedulable channel with no entry covering the current time requires an explicit, logged gap repair before normal horizon extension continues.
+Horizon maintenance extends schedules without replacing entries in already-covered windows. It runs when the server starts, when a channel becomes enabled or its scheduling inputs change, after a catalog scan makes a channel schedulable, and before guide, channel-state, or stream requests that require coverage. An enabled, schedulable channel with no entry covering the current time requires an explicit, logged gap repair before normal horizon extension continues. Planned filler is coverage, not such a gap ([ADR 0014](0014-planned-filler-coverage.md)).
 
 Catalog availability changes do not rewrite published schedule entries. Channel-state lookup reports unavailable media explicitly instead of silently selecting a replacement.
 
@@ -39,8 +47,10 @@ the schedule and `ChannelScheduleState`, re-evaluates the required work, and
 atomically commits entry changes with state such as `lastGeneratedThrough` and
 `nextSequenceNumber`. `ChannelScheduleState` also stores a monotonic
 `scheduleRevision`. Every transaction that changes the persisted entry set,
-ordering, or contents increments the revision exactly once in the same commit;
-a no-op coverage check does not increment it. Concurrent requests must serialize
+ordering, or contents, or an input that determines planned filler such as a
+reservation ([ADR 0014](0014-planned-filler-coverage.md)), increments the
+revision exactly once in the same commit; a no-op coverage check does not
+increment it. Concurrent requests must serialize
 through the database; an in-process lock alone is insufficient.
 
 With the selected Kysely `SqliteDialect`, schedule mutations use the

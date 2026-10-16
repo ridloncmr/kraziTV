@@ -21,6 +21,12 @@ persist; it never persists either itself. Editing generated blocks (step 5)
 is now the job of programming overrides. See
 [programming spec 0004](../specs/features/002-programming/specs/0004-kraziplan.md).
 
+Amended on 2026-10-16: extension step 4 arrives without a guide grid. A
+reservation's block is a programming block that names its reservation, and
+ADR 0003's gap-repair, regeneration-boundary, and revision rules no longer
+apply unchanged: [ADR 0014](0014-planned-filler-coverage.md) extends them for
+planned filler.
+
 ## Context
 
 kraziTV's end state is a TV programming scheduler. A user assigns collections to

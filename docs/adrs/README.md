@@ -21,6 +21,7 @@ Each ADR's status is the `## Status` section of the ADR itself.
 | [0011](0011-shared-process-package.md)                 | Child-process spawning lives in a shared `process` package         |
 | [0012](0012-first-party-session-auth.md)               | Administration uses first-party sessions, not an identity provider |
 | [0013](0013-metadata-provider-calls-and-stored-key.md) | Only `media` calls TMDB; its token is stored as a gated secret     |
+| [0014](0014-planned-filler-coverage.md)                | Planned filler is derived coverage with its own playout cursor     |
 
 ## Format
 
