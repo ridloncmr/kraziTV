@@ -23,9 +23,10 @@ export function cooldownPermits(
 
 /**
  * Returns the cooldown count once a round completes, in whichever context
- * it ran, since cooldown is channel-wide. Called once per round. A round counts once, and only when
- * it committed a program and started no marathon; an empty or entirely
- * skipped round, and the marathon's own round, never count.
+ * it ran, since cooldown is channel-wide; callers call it once per round.
+ * A round counts only when it committed a program and started no marathon:
+ * an empty or entirely skipped round, and the marathon's own round, never
+ * count.
  */
 export function closeRound(state: RotationState): number | null {
   const counted =

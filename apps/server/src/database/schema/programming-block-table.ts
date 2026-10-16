@@ -30,7 +30,11 @@ export interface ProgrammingBlockTable {
   ended_by_edit: SqliteBoolean;
   /** The rule that won when the turn started; null for default rotation or once the rule is deleted. */
   winning_rule_id: string | null;
-  /** The rotation context the turn ran in: `default`, or `rule:<id>` for a feature rule. */
+  /**
+   * The rotation context the turn ran in: `default`, or `rule:<id>` for a
+   * feature rule. A copy of the checkpoint's `activeContext` for queries and
+   * diagnostics; generation reads the checkpoint.
+   */
   context_key: string;
   /** JSON naming where the turn's ordinary and marathon settings came from. */
   setting_origins: string;

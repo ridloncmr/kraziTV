@@ -335,7 +335,7 @@ without changing the assignments.
 
 **Status**
 
-Complete on 2026-10-16. Migration 025 adds `configuration_revision`, which `channelInputChange` advances with every assignment, rule, marathon-setting, and progress-reset write; the preview returns it with each turn's winning rule, the rules passed over and why (from the same kraziPlan run), its decision time, and setting origins, and **Upcoming programming** shows them with the program-boundary note. A continued turn reports no passed-over rules, since blocks do not keep them.
+Complete on 2026-10-16. Migration 025 adds `configuration_revision`, which `configurationChange` advances with every assignment, rule, and marathon-setting write (a progress reset is not configuration and leaves it); the preview returns it with each turn's winning rule, the rules passed over and why (from the same kraziPlan run), its decision time, and setting origins, and **Upcoming programming** shows them with the program-boundary note. A continued turn reports no passed-over rules, since blocks do not keep them.
 
 **Goal**: The programming preview says which rule won each turn, which rules
 were skipped and why, when fallback happened, and where each size came from.
