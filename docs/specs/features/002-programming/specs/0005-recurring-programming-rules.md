@@ -1,6 +1,6 @@
 # Recurring Programming Rules
 
-Status: Accepted
+Status: Partially Implemented (reservation precedence waits on spec 0006)
 
 ## Problem
 

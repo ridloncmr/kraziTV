@@ -78,6 +78,17 @@ describe("reconcileRound", () => {
     expect(positions.size).toBeGreaterThan(1);
   });
 
+  it("never rerolls the round's marathon chance when a source joins", () => {
+    const reserved = {
+      ...UNDER_WAY,
+      marathonOpportunity: { assignmentId: "b", started: false },
+    };
+
+    expect(
+      reconcileRound(reserved, scope(true), SEED, 4).marathonOpportunity,
+    ).toEqual({ assignmentId: "b", started: false });
+  });
+
   it("removes a source that loses eligibility, and gives its turn back if it returns that round", () => {
     const joined = reconcileRound(UNDER_WAY, scope(true), SEED, 4);
     const left = reconcileRound(joined, scope(false), SEED, 4);

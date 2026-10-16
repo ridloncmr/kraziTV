@@ -235,6 +235,52 @@ describe("generateProgramming: a feature taking over", () => {
     ]);
   });
 
+  it("ends a marathon under way after its current program, without debt", () => {
+    const binge = collectionAssignment(
+      "office",
+      "c-office",
+      items("office", 40, 30),
+      {
+        ordinary: { kind: "programs", count: 1 },
+        marathon: { kind: "programs", count: 6 },
+      },
+    );
+
+    const { blocks, entries } = generated(
+      generateProgramming(
+        options([binge, CHRISTMAS], [evenings], {
+          marathons: { chancePercent: 100, minOrdinaryRounds: 0 },
+          startsAt: utc("2026-12-04T17:00:00Z"),
+          through: utc("2026-12-05T01:00:00Z"),
+        }),
+      ),
+    );
+
+    // Six 30-minute episodes would run to 20:00; two air before 18:00.
+    expect(blocks[0]).toMatchObject({ assignmentId: "office", marathon: true });
+    const marathon = entries.filter(
+      (entry) => entry.programmingBlockId === blocks[0]?.id,
+    );
+    expect(marathon.map((entry) => entry.mediaCollectionId)).toEqual([
+      "c-office",
+      "c-office",
+    ]);
+    expect(
+      entries.find((entry) => entry.startsAt === utc("2026-12-04T18:00:00Z"))
+        ?.mediaCollectionId,
+    ).toBe("c-christmas");
+    // Office's next turn starts at its full size, never the four left over.
+    const later = blocks.find(
+      (block) =>
+        block.assignmentId === "office" &&
+        block.startsAt >= utc("2026-12-04T23:00:00Z"),
+    );
+    expect(later?.size).toEqual({
+      kind: "programs",
+      value: later?.marathon ? 6 : 1,
+    });
+  });
+
   it("lets a higher-priority feature suspend a lower one", () => {
     const halloween = collectionAssignment(
       "halloween",
