@@ -5,11 +5,13 @@ import type { Kysely } from "kysely";
 import {
   collectionFixture,
   itemFixture,
+  titledItemFixture,
   rootFixture,
 } from "./catalog-fixtures.js";
 import {
+  assignmentFixture,
+  assignmentMemberFixture,
   channelFixture,
-  programmingBlockFixture,
   scheduleEntryFixture,
   scheduleStateFixture,
 } from "./channel-fixtures.js";
@@ -31,7 +33,7 @@ export interface ScheduleItemSpec {
 export interface ScheduleScenarioOptions {
   /** The collection's members, in membership order. */
   items: readonly ScheduleItemSpec[];
-  /** What the channel's block plays: the collection in a mode, its first item, or no block. */
+  /** What the channel's one assignment plays: the collection in a mode, its first item, or nothing. */
   source: PlaybackMode | "media_item" | null;
   enabled?: boolean;
 }
@@ -43,8 +45,9 @@ export interface ScheduleScenario {
 }
 
 /**
- * Inserts one channel, one collection of the given items, and a block over
- * them, so a schedule test states only the durations and source it cares about.
+ * Inserts one channel, one collection of the given items, and an
+ * assignment of them, three programs a turn, so a schedule test states only
+ * the durations and source it cares about.
  */
 export async function seedScheduleScenario(
   db: Kysely<DatabaseSchema>,
@@ -107,23 +110,100 @@ export async function seedScheduleScenario(
 
   if (options.source === "media_item") {
     await db
-      .insertInto("programming_blocks")
+      .insertInto("programming_source_assignments")
+      .values({ ...assignmentFixture, playback_mode: null })
+      .execute();
+    await db
+      .insertInto("programming_assignment_members")
       .values({
-        ...programmingBlockFixture,
+        ...assignmentMemberFixture,
         source_kind: "media_item",
         media_collection_id: null,
         media_item_id: itemIds[0],
-        playback_mode: null,
       })
       .execute();
   } else if (options.source !== null) {
-    await db
-      .insertInto("programming_blocks")
-      .values({ ...programmingBlockFixture, playback_mode: options.source })
-      .execute();
+    await insertCollectionAssignment(db, { playbackMode: options.source });
   }
 
   return { channelId, collectionId, itemIds };
+}
+
+/**
+ * Inserts an assignment that plays one collection on a channel, three
+ * programs a turn, defaulting to the fixture channel, collection, and
+ * collection order; insert the channel and collection first.
+ */
+export async function insertCollectionAssignment(
+  db: Kysely<DatabaseSchema>,
+  options: {
+    id?: string;
+    channelId?: string;
+    mediaCollectionId?: string;
+    playbackMode?: PlaybackMode;
+  } = {},
+): Promise<void> {
+  const id = options.id ?? assignmentFixture.id;
+  const channelId = options.channelId ?? channelFixture.id;
+  await db
+    .insertInto("programming_source_assignments")
+    .values({
+      ...assignmentFixture,
+      id,
+      channel_id: channelId,
+      playback_mode: options.playbackMode ?? "chronological",
+    })
+    .execute();
+  await db
+    .insertInto("programming_assignment_members")
+    .values({
+      ...assignmentMemberFixture,
+      assignment_id: id,
+      channel_id: channelId,
+      media_collection_id:
+        options.mediaCollectionId ??
+        assignmentMemberFixture.media_collection_id,
+    })
+    .execute();
+}
+
+/**
+ * Inserts a collection `id` of available items `<id>-1`, `<id>-2`, ... with
+ * the given durations, in that saved order, titled by their IDs, so a
+ * multi-source test can tell every source's airings apart. Insert the
+ * fixture root first.
+ */
+export async function insertCollectionOfItems(
+  db: Kysely<DatabaseSchema>,
+  id: string,
+  durationsMs: readonly number[],
+): Promise<string[]> {
+  const itemIds = durationsMs.map((_, index) => `${id}-${index + 1}`);
+  await db
+    .insertInto("media_collections")
+    .values({ ...collectionFixture, id, name: id })
+    .execute();
+  if (itemIds.length === 0) return itemIds;
+  await db
+    .insertInto("media_items")
+    .values(
+      itemIds.map((itemId, index) =>
+        titledItemFixture(itemId, { duration_ms: durationsMs[index] ?? null }),
+      ),
+    )
+    .execute();
+  await db
+    .insertInto("media_collection_items")
+    .values(
+      itemIds.map((mediaItemId, position) => ({
+        media_collection_id: id,
+        media_item_id: mediaItemId,
+        position,
+        created_at: itemFixture.created_at,
+      })),
+    )
+    .execute();
+  return itemIds;
 }
 
 export interface ScheduleEntrySpec {
@@ -206,4 +286,53 @@ export function readScheduleEntries(
     .where("channel_id", "=", channelId)
     .orderBy("sequence_number")
     .execute();
+}
+
+/** Reads programming blocks in airing order so schedule tests can assert turn history. */
+export function readBlocks(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("programming_blocks")
+    .selectAll()
+    .orderBy("starts_at")
+    .execute();
+}
+
+/**
+ * Groups blocks' assignment IDs by round, in airing order, so rotation tests
+ * can check that each round gives every source one turn.
+ */
+export function assignmentsByRound(
+  blocks: readonly { round_number: number; assignment_id: string | null }[],
+): Map<number, string[]> {
+  const rounds = new Map<number, string[]>();
+  for (const block of blocks) {
+    rounds.set(block.round_number, [
+      ...(rounds.get(block.round_number) ?? []),
+      block.assignment_id ?? "",
+    ]);
+  }
+  return rounds;
+}
+
+/**
+ * Reads a channel's blocks and entries with their generated IDs dropped and
+ * each entry's block named by airing position. Separate runs name rows from
+ * their own ID sources, so this is what must match when the same inputs
+ * generate the same programming.
+ */
+export async function readScheduleShape(
+  db: Kysely<DatabaseSchema>,
+  channelId: string,
+) {
+  const blocks = await readBlocks(db);
+  const entries = await readScheduleEntries(db, channelId);
+  const blockIndex = new Map(blocks.map((block, index) => [block.id, index]));
+  return {
+    // A turn's checkpoint names assignments, never block IDs.
+    blocks: blocks.map(({ id: _, ...block }) => block),
+    entries: entries.map(({ id: _, programming_block_id, ...entry }) => ({
+      ...entry,
+      block: blockIndex.get(programming_block_id ?? ""),
+    })),
+  };
 }

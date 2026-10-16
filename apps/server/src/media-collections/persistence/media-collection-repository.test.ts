@@ -7,10 +7,7 @@ import {
   itemFixture,
   rootFixture,
 } from "../../testing/catalog-fixtures.js";
-import {
-  channelFixture,
-  programmingBlockFixture,
-} from "../../testing/channel-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { MediaCollectionRepository } from "./media-collection-repository.js";
 import {
   cleanUpTestEnvironment,
@@ -18,6 +15,7 @@ import {
   openTestDatabase,
 } from "../../testing/test-environment.js";
 import { sequentialIds } from "../../testing/record-sources.js";
+import { insertCollectionAssignment } from "../../testing/schedule-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -223,18 +221,14 @@ describe("MediaCollectionRepository", () => {
         { ...channelFixture, id: "channel-second", number: "70" },
       ])
       .execute();
-    await database.db
-      .insertInto("programming_blocks")
-      .values([
-        { ...programmingBlockFixture, media_collection_id: "collection-001" },
-        {
-          ...programmingBlockFixture,
-          id: "block-second",
-          channel_id: "channel-second",
-          media_collection_id: "collection-001",
-        },
-      ])
-      .execute();
+    await insertCollectionAssignment(database.db, {
+      mediaCollectionId: "collection-001",
+    });
+    await insertCollectionAssignment(database.db, {
+      id: "assignment-second",
+      channelId: "channel-second",
+      mediaCollectionId: "collection-001",
+    });
 
     await expect(repository.delete("collection-001")).resolves.toEqual({
       kind: "in_use",

@@ -1,4 +1,12 @@
-import type { PlaybackMode, ScheduleSource } from "@krazitv/krazi-brain";
+import type {
+  AssignmentSkip,
+  GeneratedBlock,
+  GeneratedScheduleEntry,
+  MarathonSettings,
+  PlaybackMode,
+  ProgrammingUnschedulableReason,
+  ScheduleMedia,
+} from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
@@ -13,9 +21,12 @@ export type ScheduleLog = Pick<FastifyBaseLogger, "info" | "warn">;
 
 /** Why a schedule input changed or a channel regenerated; logged with each affected channel's outcome. */
 export type ScheduleChangeReason =
-  | "block_created"
-  | "block_changed"
-  | "block_deleted"
+  | "assignment_created"
+  | "assignment_changed"
+  | "assignment_deleted"
+  | "assignments_reordered"
+  | "marathon_settings_changed"
+  | "programming_rebuilt"
   | "membership_changed"
   | "media_removed"
   | "collection_maintained"
@@ -55,18 +66,19 @@ export interface ScheduleState {
   lastGeneratedThrough: number;
   nextSequenceNumber: number;
   scheduleRevision: number;
+  /** Seeds kraziPlan's decisions; independent of the collection playback `seed`. */
+  programmingSeed: number;
+  /** Fresh rebuilds so far; each starts new programming decisions. */
+  rebuildCount: number;
   /** The effective time of the last schedule mutation. */
   updatedAt: number;
 }
 
-/** Why an enabled channel cannot be scheduled; the API reports the same values. */
-type ChannelUnschedulableReason =
-  "no_programming_block" | "no_schedulable_media";
-
 export type EnsureCoverageResult =
   | { kind: "channel_not_found" }
   | { kind: "disabled" }
-  | { kind: "unschedulable"; reason: ChannelUnschedulableReason }
+  /** The API reports the same reasons. */
+  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
   | { kind: "covered"; scheduleRevision: number; generatedThrough: number }
   /** The requested instant lies past the request limit; nothing is written. */
   | { kind: "through_out_of_range"; latestThrough: number };
@@ -88,9 +100,11 @@ export type AdmissionFailure = Extract<
   { kind: "channel_not_found" | "disabled" | "through_out_of_range" }
 >;
 
-/** Where one chunk of generation starts. */
-export interface ChunkStart {
-  seed: number;
+/** Where one chunk of generation starts, with the seeds its decisions hash. */
+export interface ChunkStart extends Pick<
+  ScheduleState,
+  "seed" | "programmingSeed" | "rebuildCount"
+> {
   startsAt: number;
   nextSequenceNumber: number;
   /**
@@ -160,8 +174,30 @@ export interface ScheduleWindow {
   entries: ScheduleEntry[];
 }
 
-/** What a block preview explains: the block's source and its next entries. */
-export interface BlockPreview {
-  source: ScheduleSource;
+/**
+ * What a programming preview shows: the turn a regeneration from now would
+ * continue, then the turns it would start, their entries, and the
+ * assignments its rounds would skip, with the marathon settings that drew
+ * any marathons. Nothing in it is persisted.
+ */
+export type ProgrammingPreview =
+  | { kind: "channel_not_found" }
+  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
+  | {
+      kind: "preview";
+      continuedTurn: GeneratedBlock | undefined;
+      marathons: MarathonSettings;
+      blocks: GeneratedBlock[];
+      entries: GeneratedScheduleEntry[];
+      skips: AssignmentSkip[];
+    };
+
+/**
+ * What a collection preview explains: an assigned collection's members in
+ * saved order, the mode its assignment plays it in, and its next entries.
+ */
+export interface CollectionPreview {
+  playbackMode: PlaybackMode;
+  members: ScheduleMedia[];
   upcoming: ScheduleEntry[];
 }

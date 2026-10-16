@@ -8,10 +8,7 @@ import {
   collectionFixture,
   FIXTURE_TIME,
 } from "../../testing/catalog-fixtures.js";
-import {
-  channelFixture,
-  programmingBlockFixture,
-} from "../../testing/channel-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { seedEpisodes } from "../../testing/collection-fixtures.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import { correctionRow } from "../../testing/metadata-match-fixtures.js";
@@ -25,6 +22,7 @@ import {
 import { exclusionChange } from "../exclusions/exclusion-change.js";
 import { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { CollectionMaintenance } from "./collection-maintenance.js";
+import { insertCollectionAssignment } from "../../testing/schedule-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -90,10 +88,7 @@ async function memberIds({ collections }: Setup, id: string) {
 async function airOffice(context: Setup) {
   const { db, schedules, office, log } = context;
   await db.insertInto("channels").values(channelFixture).execute();
-  await db
-    .insertInto("programming_blocks")
-    .values({ ...programmingBlockFixture, media_collection_id: office })
-    .execute();
+  await insertCollectionAssignment(db, { mediaCollectionId: office });
   await schedules.ensureCoverage(channelFixture.id, log);
 }
 
@@ -396,14 +391,10 @@ describe("CollectionMaintenance: metadata playback orders", () => {
     }).create("Office", ["e3", "e1", "e2"]);
     if (created.kind !== "created") throw new Error("collection not created");
     await db.insertInto("channels").values(channelFixture).execute();
-    await db
-      .insertInto("programming_blocks")
-      .values({
-        ...programmingBlockFixture,
-        media_collection_id: created.collection.id,
-        playback_mode: playbackMode,
-      })
-      .execute();
+    await insertCollectionAssignment(db, {
+      mediaCollectionId: created.collection.id,
+      playbackMode,
+    });
     await schedules.ensureCoverage(channelFixture.id, log);
     clock.set(FIXTURE_TIME + 60_000);
     log.lines.splice(0);

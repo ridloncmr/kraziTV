@@ -1,12 +1,11 @@
-import { isSchedulableMedia } from "@krazitv/krazi-brain";
+import { isUsableAssignment } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { findChannelsUsingCollection } from "../../media-collections/persistence/channels-using-collection.js";
-import type { MediaCollectionMember } from "../../media-collections/contracts.js";
-import { selectMembers } from "../../media-collections/persistence/media-collection-repository.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
+import { loadProgrammingAssignments } from "../../schedules/persistence/assignment-sources.js";
 import type {
   AiringRemovedMedia,
   CatalogRemovalRefusal,
@@ -18,7 +17,7 @@ import { targetItemIds } from "../removal-target.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
-/** A collection that loses items, with the channels whose block draws from it. */
+/** A collection that loses items, with the channels whose assignments play it. */
 interface AffectedCollection {
   id: string;
   channelIds: string[];
@@ -55,11 +54,11 @@ export async function readRemovalImpact(
     return { kind: "scan_in_progress" };
   }
   const inUse = await trx
-    .selectFrom("programming_blocks")
+    .selectFrom("programming_assignment_members")
     .select(["channel_id", "media_item_id"])
     .where("source_kind", "=", "media_item")
     .where("media_item_id", "in", items)
-    // A single-item block always names its item.
+    // A single-item member always names its item.
     .$narrowType<{ media_item_id: string }>()
     .execute();
   if (inUse.length > 0) {
@@ -193,19 +192,29 @@ async function findAffectedCollections(
 }
 
 /**
- * Lists enabled channels the removal takes off the air: their block draws
- * from a collection that has a schedulable member now and would have none
- * left. A collection that was already unschedulable is not this removal's
- * doing, and a disabled channel is off the air already. kraziBrain decides
- * what is schedulable.
+ * Lists enabled channels the removal takes off the air: one of their
+ * assignments plays a collection that loses items, some assignment can take
+ * a turn now, and none could once the removed items leave their
+ * collections. A channel already unschedulable is not this removal's doing,
+ * a disabled channel is off the air already, and another usable assignment
+ * keeps a channel on the air. kraziBrain decides what is usable.
  */
 async function findChannelsLeftUnschedulable(
   trx: Executor,
   target: CatalogRemovalTarget,
   collections: readonly AffectedCollection[],
 ): Promise<ChannelLeftUnschedulable[]> {
-  const used = collections.filter(({ channelIds }) => channelIds.length > 0);
-  if (used.length === 0) return [];
+  const candidates = sortedUnique(
+    collections.flatMap(({ channelIds }) => channelIds),
+  );
+  if (candidates.length === 0) return [];
+  const channels = await trx
+    .selectFrom("channels")
+    .select(["id", "number"])
+    .where("enabled", "=", toSqliteBoolean(true))
+    .where("id", "in", candidates)
+    .orderBy("id")
+    .execute();
 
   const removed = new Set(
     (
@@ -216,32 +225,30 @@ async function findChannelsLeftUnschedulable(
         .execute()
     ).map((row) => row.id),
   );
-  const channelIds: string[] = [];
-  for (const { id, channelIds: users } of used) {
-    const schedulable = (await selectMembers(trx, id)).filter(isSchedulable);
-    const kept = schedulable.filter(
-      (member) => !removed.has(member.mediaItemId),
-    );
-    if (schedulable.length > 0 && kept.length === 0) channelIds.push(...users);
+  const left: ChannelLeftUnschedulable[] = [];
+  for (const channel of channels) {
+    const before = await loadProgrammingAssignments(trx, channel.id);
+    const after = before.map((assignment) => ({
+      ...assignment,
+      members: assignment.members.map((member) =>
+        member.kind === "collection"
+          ? {
+              ...member,
+              members: member.members.filter(({ id }) => !removed.has(id)),
+            }
+          : member,
+      ),
+    }));
+    if (before.some(isUsableAssignment) && !after.some(isUsableAssignment)) {
+      left.push({ channelId: channel.id, channelNumber: channel.number });
+    }
   }
-  if (channelIds.length === 0) return [];
-
-  const channels = await trx
-    .selectFrom("channels")
-    .select(["id", "number"])
-    .where("enabled", "=", toSqliteBoolean(true))
-    .where("id", "in", channelIds)
-    .orderBy("id")
-    .execute();
-  return channels.map((row) => ({
-    channelId: row.id,
-    channelNumber: row.number,
-  }));
+  return left;
 }
 
 /**
- * Names every channel whose schedule the removal changes: each channel whose
- * block draws from a collection that loses items, and each channel with an
+ * Names every channel whose schedule the removal changes: each channel with
+ * an assignment playing a collection that loses items, and each channel with an
  * entry on a removed item that has not ended.
  */
 async function findAffectedChannels(
@@ -261,11 +268,6 @@ async function findAffectedChannels(
     ...collections.flatMap(({ channelIds }) => channelIds),
     ...scheduled.map((row) => row.channel_id),
   ]);
-}
-
-// Applies kraziBrain's schedulable rule to a collection member.
-function isSchedulable(member: MediaCollectionMember): boolean {
-  return isSchedulableMedia(member);
 }
 
 // One stable order for every ID list the API reports.

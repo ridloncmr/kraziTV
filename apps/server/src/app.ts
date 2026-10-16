@@ -41,14 +41,18 @@ import { ChannelLifecycleLock } from "./channels/runtime/channel-lifecycle-lock.
 import {
   DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
   stopChannelUnderLock,
+  type StopInterrupted,
 } from "./channels/runtime/settle-runtime-stop.js";
 import { registerChannelStreamRoutes } from "./channels/routes/channel-stream-routes.js";
-import type { ProgrammingBlockRepository } from "./programming-blocks/programming-block-repository.js";
-import { registerProgrammingBlockRoutes } from "./programming-blocks/programming-block-routes.js";
+import type { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
+import { registerAssignmentRoutes } from "./programming-assignments/routes/assignment-routes.js";
+import { registerMarathonSettingsRoutes } from "./programming-assignments/routes/marathon-settings-routes.js";
+import { registerProgrammingPreviewRoutes } from "./programming-assignments/routes/programming-preview-routes.js";
+import { registerProgrammingRebuildRoutes } from "./programming-assignments/routes/programming-rebuild-routes.js";
 import { registerPlayoutRoutes } from "./playout/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
-import { registerScheduleRoutes } from "./schedules/schedule-routes.js";
+import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
@@ -92,7 +96,7 @@ export type ServerDependencies = {
   channels: ChannelRepository;
   channelRuntime: ChannelRuntime;
   channelStreams: ChannelStreams;
-  programmingBlocks: ProgrammingBlockRepository;
+  assignments: AssignmentRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
 };
@@ -156,17 +160,19 @@ function registerRoutes(
     dependencies.mediaRoots,
   );
   registerMediaItemRoutes(server, dependencies.mediaItems);
+  // Stops a channel's worker after a change the owner chose to interrupt.
+  const stopInterrupted: StopInterrupted = (channelId, log) =>
+    stopChannelUnderLock(
+      lifecycle,
+      dependencies.channelRuntime,
+      channelStopTimeoutMs,
+      log,
+      { channelId, reason: "interrupted" },
+    );
   registerCatalogRemovalRoutes(
     server,
     dependencies.catalogRemovals,
-    (channelId, log) =>
-      stopChannelUnderLock(
-        lifecycle,
-        dependencies.channelRuntime,
-        channelStopTimeoutMs,
-        log,
-        { channelId, reason: "interrupted" },
-      ),
+    stopInterrupted,
   );
   registerMediaCollectionRoutes(
     server,
@@ -188,11 +194,23 @@ function registerRoutes(
     channelStopTimeoutMs,
   );
   registerChannelStreamRoutes(server, dependencies.channelStreams);
-  registerProgrammingBlockRoutes(
+  registerAssignmentRoutes(
     server,
-    dependencies.programmingBlocks,
+    dependencies.assignments,
     dependencies.channels,
     dependencies.schedules,
+  );
+  registerMarathonSettingsRoutes(
+    server,
+    dependencies.assignments,
+    dependencies.channels,
+    dependencies.schedules,
+  );
+  registerProgrammingPreviewRoutes(server, dependencies.schedules);
+  registerProgrammingRebuildRoutes(
+    server,
+    dependencies.schedules,
+    stopInterrupted,
   );
   registerScheduleRoutes(server, dependencies.schedules);
   registerPlayoutRoutes(server, dependencies.playout);

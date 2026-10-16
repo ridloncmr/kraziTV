@@ -71,6 +71,16 @@ export async function settleRuntimeStop(
 }
 
 /**
+ * Stops one interrupted channel's stream worker under its lifecycle lock and
+ * the runtime stop deadline; false when the stop failed or missed it. Routes
+ * whose change the owner chose to interrupt take one after their commit.
+ */
+export type StopInterrupted = (
+  channelId: string,
+  log: StopLog,
+) => Promise<boolean>;
+
+/**
  * Settles one channel's runtime stop while holding its lifecycle lock, for a
  * change that does not otherwise touch the channel's lifecycle, so the stop
  * never interleaves with a disable, delete, or re-enable of that channel.

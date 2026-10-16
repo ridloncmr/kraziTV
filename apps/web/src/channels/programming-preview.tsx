@@ -1,16 +1,20 @@
 import { displayTime } from "../controls/display-time.js";
 import type {
-  BlockPreview,
+  CollectionPreview,
   PreviewMember,
   UpcomingSelection,
 } from "../http/contracts.js";
 
 /**
- * Renders the server's preview of a block: the order the selected mode
+ * Renders the server's preview of an assigned collection: the order the selected mode
  * plays, with the flags the server explains, and what airs next in the
  * saved mode. It never orders anything itself.
  */
-export function ProgrammingPreview({ preview }: { preview: BlockPreview }) {
+export function ProgrammingPreview({
+  preview,
+}: {
+  preview: CollectionPreview;
+}) {
   return (
     <section aria-label="Order preview">
       {preview.ordered === null ? (
@@ -37,7 +41,7 @@ export function ProgrammingPreview({ preview }: { preview: BlockPreview }) {
   );
 }
 
-/** Lists the selections a block airs next, as the schedule holds them. */
+/** Lists the selections a collection airs next, as the schedule holds them. */
 export function UpcomingSelections({
   selections,
 }: {

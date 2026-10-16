@@ -15,6 +15,7 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../testing/test-environment.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -166,14 +167,13 @@ describe("playout timeline acceptance", () => {
       name: "Krazi Main",
     });
     const channelId: string = channel.body.id;
-    const blocksUrl = `/channels/${channelId}/programming-blocks`;
-    const block = await send(first.server, "POST", blocksUrl, {
-      source: {
-        kind: "collection",
-        mediaCollectionId: office.body.id,
-        playbackMode: "chronological",
-      },
-    });
+    const blocksUrl = `/channels/${channelId}/programming-assignments`;
+    const block = await send(
+      first.server,
+      "POST",
+      blocksUrl,
+      collectionAssignment(office.body.id as string),
+    );
     expect([
       office.status,
       movies.status,
@@ -257,13 +257,12 @@ describe("playout timeline acceptance", () => {
     clock.advance(4 * MINUTE);
     const beforeChange = await readNow(first.server, channelId);
     const airing = beforeChange.body.currentItem as ApiPlayoutItem;
-    const changed = await send(first.server, "PATCH", blockUrl, {
-      source: {
-        kind: "collection",
-        mediaCollectionId: movies.body.id,
-        playbackMode: "chronological",
-      },
-    });
+    const changed = await send(
+      first.server,
+      "PATCH",
+      blockUrl,
+      collectionAssignment(movies.body.id as string),
+    );
     expect(changed.status).toBe(200);
     const afterChange = await readNow(first.server, channelId);
     expect(afterChange.body.currentItem).toEqual(airing);

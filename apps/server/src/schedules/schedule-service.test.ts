@@ -1,4 +1,8 @@
-import { deriveChannelSeed, SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
+import {
+  deriveChannelSeed,
+  deriveProgrammingSeed,
+  SCHEDULE_HORIZON_MS,
+} from "@krazitv/krazi-brain";
 import { type Kysely, type Selectable, sql } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -25,13 +29,17 @@ import {
 } from "../testing/test-environment.js";
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
 import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
-import type { ProgrammingBlockSource } from "../programming-blocks/contracts.js";
+import { assignmentChange } from "../programming-assignments/writes/assignment-change.js";
+import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
+import type {
+  AssignmentSettings,
+  MemberSource,
+} from "../programming-assignments/contracts.js";
 import {
+  assignmentFixture,
+  assignmentMemberFixture,
   channelFixture,
-  programmingBlockFixture,
 } from "../testing/channel-fixtures.js";
-import { blockChange } from "../programming-blocks/block-change.js";
-import { ProgrammingBlockRepository } from "../programming-blocks/programming-block-repository.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
 import { ScheduleService } from "./schedule-service.js";
 
@@ -129,6 +137,9 @@ describe("ScheduleService.ensureCoverage", () => {
       last_generated_through: last.ends_at,
       next_sequence_number: entries.length,
       schedule_revision: 1,
+      programming_seed: deriveProgrammingSeed(channelId, T0),
+      rebuild_count: 0,
+      last_rebuild_key: null,
       created_at: T0,
       updated_at: T0,
     });
@@ -576,9 +587,9 @@ describe("ScheduleService.ensureCoverage", () => {
   it.each([
     ["a disabled channel", { enabled: false }, { kind: "disabled" }],
     [
-      "a channel without a block",
+      "a channel without an assignment",
       { source: null },
-      { kind: "unschedulable", reason: "no_programming_block" },
+      { kind: "unschedulable", reason: "no_programming_assignment" },
     ],
     [
       "a collection with no schedulable members",
@@ -720,22 +731,33 @@ describe("ScheduleService gap repair", () => {
   it("writes nothing for a lapsed channel that cannot be scheduled, then reports the true gap", async () => {
     const { db, channelId, clock, service, log, stateBefore } =
       await coveredSetup(HOURLY_RANDOM);
-    const blocks = await db
-      .selectFrom("programming_blocks")
+    const assignments = await db
+      .selectFrom("programming_source_assignments")
       .selectAll()
       .execute();
-    await db.deleteFrom("programming_blocks").execute();
+    const members = await db
+      .selectFrom("programming_assignment_members")
+      .selectAll()
+      .execute();
+    await db.deleteFrom("programming_source_assignments").execute();
     clock.set(T0 + 2 * WEEK);
 
     const result = await service.ensureCoverage(channelId, log);
 
     expect(result).toEqual({
       kind: "unschedulable",
-      reason: "no_programming_block",
+      reason: "no_programming_assignment",
     });
     await expect(readState(db, channelId)).resolves.toEqual(stateBefore);
 
-    await db.insertInto("programming_blocks").values(blocks).execute();
+    await db
+      .insertInto("programming_source_assignments")
+      .values(assignments)
+      .execute();
+    await db
+      .insertInto("programming_assignment_members")
+      .values(members)
+      .execute();
     clock.set(T0 + 3 * WEEK);
     await service.ensureCoverage(channelId, log);
 
@@ -762,10 +784,14 @@ describe("ScheduleService gap repair", () => {
     expect(log.lines).toEqual([]);
   });
 
-  it("keeps a disabled channel's block, state, progress, and entries and stops extending", async () => {
+  it("keeps a disabled channel's blocks, state, progress, and entries and stops extending", async () => {
     const { db, channelId, clock, service, log, before, stateBefore } =
       await coveredSetup(HOURLY_RANDOM);
     const progress = await readProgress(db);
+    const blocks = await db
+      .selectFrom("programming_blocks")
+      .selectAll()
+      .execute();
     await db.updateTable("channels").set({ enabled: 0 }).execute();
     clock.advance(SCHEDULE_HORIZON_MS - HOUR);
 
@@ -779,30 +805,31 @@ describe("ScheduleService gap repair", () => {
     await expect(readState(db, channelId)).resolves.toEqual(stateBefore);
     await expect(readProgress(db)).resolves.toEqual(progress);
     await expect(
-      db.selectFrom("programming_blocks").select("id").execute(),
-    ).resolves.toEqual([{ id: programmingBlockFixture.id }]);
+      db.selectFrom("programming_blocks").selectAll().execute(),
+    ).resolves.toEqual(blocks);
     expect(log.lines).toEqual([]);
   });
 });
 
 describe("ScheduleService.applyInputChange", () => {
-  // Creates the scenario's collection block through the repository, as the block route does.
+  // Creates the scenario's collection assignment through the repository, as the assignment route does.
   function createBlock(
     db: Kysely<DatabaseSchema>,
     channelId: string,
     collectionId: string,
   ) {
-    const blocks = new ProgrammingBlockRepository(db, {
-      createId: () => "block-001",
+    const assignments = new AssignmentRepository(db, {
+      createId: () => "assignment-001",
     });
-    return blockChange(channelId, "created", (trx, effectiveNow) =>
-      blocks.create(
+    return assignmentChange(channelId, "created", (trx, effectiveNow) =>
+      assignments.create(
         trx,
         channelId,
         {
-          kind: "collection",
-          mediaCollectionId: collectionId,
           playbackMode: "chronological",
+          ordinaryStretch: { kind: "programs", count: 3 },
+          marathonStretch: null,
+          members: [{ kind: "collection", mediaCollectionId: collectionId }],
         },
         effectiveNow,
       ),
@@ -817,11 +844,14 @@ describe("ScheduleService.applyInputChange", () => {
 
     const value = await service.applyInputChange(
       log,
-      "block_created",
+      "assignment_created",
       createBlock(db, channelId, collectionId),
     );
 
-    expect(value).toMatchObject({ kind: "created", block: { createdAt: T0 } });
+    expect(value).toMatchObject({
+      kind: "created",
+      assignment: { createdAt: T0 },
+    });
     const entries = await readScheduleEntries(db, channelId);
     expect(entries).toHaveLength(8);
     expect(entries[0]?.starts_at).toBe(T0);
@@ -835,7 +865,7 @@ describe("ScheduleService.applyInputChange", () => {
         level: "info",
         fields: {
           channelId,
-          reason: "block_created",
+          reason: "assignment_created",
           result: covered(3),
         },
         message: expect.any(String),
@@ -896,13 +926,13 @@ describe("ScheduleService.applyInputChange", () => {
     await expect(
       service.applyInputChange(
         log,
-        "block_created",
+        "assignment_created",
         createBlock(db, channelId, collectionId),
       ),
     ).rejects.toThrow(/injected failure/);
 
     await expect(
-      db.selectFrom("programming_blocks").selectAll().execute(),
+      db.selectFrom("programming_source_assignments").selectAll().execute(),
     ).resolves.toEqual([]);
     await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
   });
@@ -920,7 +950,7 @@ describe("ScheduleService.applyInputChange", () => {
 
     const value = await service.applyInputChange(
       log,
-      "block_created",
+      "assignment_created",
       createBlock(db, channelId, collectionId),
     );
 
@@ -931,7 +961,7 @@ describe("ScheduleService.applyInputChange", () => {
         level: "warn",
         fields: {
           channelId,
-          reason: "block_created",
+          reason: "assignment_created",
           err: expect.objectContaining({
             message: expect.stringMatching(/injected failure/),
           }),
@@ -954,14 +984,17 @@ describe("ScheduleService.applyInputChange", () => {
 
       const value = await service.applyInputChange(
         log,
-        "block_created",
+        "assignment_created",
         createBlock(db, channelId, collectionId),
       );
 
       expect(value).toMatchObject({ kind: "created" });
       await expect(
+        db.selectFrom("programming_source_assignments").select("id").execute(),
+      ).resolves.toEqual([{ id: "assignment-001" }]);
+      await expect(
         db.selectFrom("programming_blocks").select("id").execute(),
-      ).resolves.toEqual([{ id: "block-001" }]);
+      ).resolves.toEqual([]);
       await expect(readState(db, channelId)).resolves.toBeUndefined();
       await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     },
@@ -974,10 +1007,14 @@ describe("ScheduleService.applyInputChange", () => {
     clock.set(T0 + HOUR);
     const seen: number[] = [];
 
-    await service.applyInputChange(log, "block_created", async (_, now) => {
-      seen.push(now);
-      return { value: undefined, affectedChannelIds: [] };
-    });
+    await service.applyInputChange(
+      log,
+      "assignment_created",
+      async (_, now) => {
+        seen.push(now);
+        return { value: undefined, affectedChannelIds: [] };
+      },
+    );
 
     expect(seen).toEqual([T0 + 2 * HOUR]);
     expect(log.lines).toEqual([
@@ -991,34 +1028,49 @@ describe("ScheduleService.applyInputChange", () => {
 });
 
 describe("ScheduleService regeneration", () => {
-  const BLOCK_ID = programmingBlockFixture.id;
+  const ASSIGNMENT_ID = assignmentFixture.id;
 
-  // Swaps the scenario block's source through the repository, as the PATCH route does.
-  function changeSource(channelId: string, source: ProgrammingBlockSource) {
-    return blockChange(channelId, "replaced", (trx, now) =>
-      new ProgrammingBlockRepository(trx).replaceSource(
+  // Replaces the scenario assignment's settings through the repository, as the PATCH route does.
+  function changeSource(channelId: string, settings: AssignmentSettings) {
+    return assignmentChange(channelId, "updated", (trx, now) =>
+      new AssignmentRepository(trx).update(
         trx,
         channelId,
-        BLOCK_ID,
-        source,
+        ASSIGNMENT_ID,
+        settings,
         now,
       ),
     );
   }
 
-  // Deletes the scenario block through the repository, as the DELETE route does.
+  // Deletes the scenario assignment through the repository, as the DELETE route does.
   function deleteBlock(channelId: string) {
-    return blockChange(channelId, "deleted", (trx) =>
-      new ProgrammingBlockRepository(trx).delete(trx, channelId, BLOCK_ID),
+    return assignmentChange(channelId, "deleted", (trx) =>
+      new AssignmentRepository(trx).delete(trx, channelId, ASSIGNMENT_ID),
     );
   }
 
-  // The scenario collection played in a mode.
+  // The scenario collection played in a mode, three programs a turn.
   function playCollection(
     mediaCollectionId: string,
     playbackMode: "chronological" | "random",
-  ): ProgrammingBlockSource {
-    return { kind: "collection", mediaCollectionId, playbackMode };
+  ): AssignmentSettings {
+    return {
+      playbackMode,
+      ordinaryStretch: { kind: "programs", count: 3 },
+      marathonStretch: null,
+      members: [{ kind: "collection", mediaCollectionId }],
+    };
+  }
+
+  // One single item on repeat.
+  function playItem(member: Extract<MemberSource, { kind: "media_item" }>) {
+    return {
+      playbackMode: null,
+      ordinaryStretch: { kind: "programs", count: 1 },
+      marathonStretch: null,
+      members: [member],
+    } satisfies AssignmentSettings;
   }
 
   // Covers the horizon at T0, then moves the clock to `airingAt`.
@@ -1039,6 +1091,33 @@ describe("ScheduleService regeneration", () => {
     return { level: "info", fields, message: expect.any(String) };
   }
 
+  it("continues the airing turn's block and drops the blocks of deleted turns", async () => {
+    // A turn is three programs: episodes 0–22, 22–45, and 45–69 minutes.
+    const { db, channelId, service, log, before } = await generatedSetup(
+      T0 + 30 * MINUTE,
+    );
+    const blockIds = [
+      ...new Set(before.map((entry) => entry.programming_block_id)),
+    ];
+
+    await service.regenerate(channelId, log);
+
+    const after = await readScheduleEntries(db, channelId);
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+    // The third program still completes the first turn, in its block.
+    expect(after[2]).toMatchObject({
+      media_item_id: before[2]?.media_item_id,
+      programming_block_id: blockIds[0],
+    });
+    expect(after[3]?.programming_block_id).not.toBe(blockIds[0]);
+    const kept = await db
+      .selectFrom("programming_blocks")
+      .select("id")
+      .where("id", "in", blockIds as string[])
+      .execute();
+    expect(kept).toEqual([{ id: blockIds[0] }]);
+  });
+
   it("keeps the airing entry byte-for-byte and rebuilds from its end", async () => {
     // Episodes air 0–22, 22–45, and 45–69 minutes past T0.
     const { db, channelId, collectionId, service, log, before, stateBefore } =
@@ -1046,7 +1125,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
 
@@ -1068,7 +1147,7 @@ describe("ScheduleService regeneration", () => {
     expect(log.lines).toEqual([
       regenerationLine({
         channelId,
-        reason: "block_changed",
+        reason: "assignment_changed",
         boundary: T0 + 45 * MINUTE,
         deletedEntryCount: before.length - 2,
         insertedEntryCount: after.length - 2,
@@ -1084,7 +1163,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
 
@@ -1120,7 +1199,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
 
@@ -1143,7 +1222,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
 
@@ -1205,7 +1284,7 @@ describe("ScheduleService regeneration", () => {
     // Item 2 airs; the other collection takes over after it.
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection("other", "chronological")),
     );
     // The other collection's item 1 airs from 45 minutes for 22 minutes.
@@ -1213,7 +1292,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "chronological")),
     );
 
@@ -1236,7 +1315,7 @@ describe("ScheduleService regeneration", () => {
       await generatedSetup(T0 + 30 * MINUTE);
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
     // The first random entry airs from 45 minutes for at least 22 minutes.
@@ -1244,7 +1323,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "chronological")),
     );
 
@@ -1352,21 +1431,30 @@ describe("ScheduleService regeneration", () => {
     });
   });
 
-  it("keeps the airing entry without its block when the block is deleted", async () => {
-    const { db, channelId, service, log } = await generatedSetup(
+  it("keeps the airing entry and its block as history when the assignment is deleted", async () => {
+    const { db, channelId, service, log, before } = await generatedSetup(
       T0 + 30 * MINUTE,
     );
 
     await service.applyInputChange(
       log,
-      "block_deleted",
+      "assignment_deleted",
       deleteBlock(channelId),
     );
 
     const after = await readScheduleEntries(db, channelId);
-    expect(after.map((entry) => entry.programming_block_id)).toEqual([
-      null,
-      null,
+    expect(after).toEqual(before.slice(0, 2));
+    await expect(
+      db
+        .selectFrom("programming_blocks")
+        .select(["id", "assignment_id", "media_collection_id"])
+        .execute(),
+    ).resolves.toEqual([
+      {
+        id: before[0]?.programming_block_id,
+        assignment_id: null,
+        media_collection_id: before[0]?.media_collection_id,
+      },
     ]);
     await expect(readState(db, channelId)).resolves.toMatchObject({
       last_generated_through: T0 + 45 * MINUTE,
@@ -1374,25 +1462,25 @@ describe("ScheduleService regeneration", () => {
     });
     await expect(service.ensureCoverage(channelId, log)).resolves.toEqual({
       kind: "unschedulable",
-      reason: "no_programming_block",
+      reason: "no_programming_assignment",
     });
   });
 
-  it("resumes after the airing entry when a block is created again", async () => {
+  it("resumes after the airing entry when an assignment is created again", async () => {
     const { db, channelId, collectionId, service, log } = await generatedSetup(
       T0 + 30 * MINUTE,
     );
     await service.applyInputChange(
       log,
-      "block_deleted",
+      "assignment_deleted",
       deleteBlock(channelId),
     );
 
     await service.applyInputChange(
       log,
-      "block_created",
-      blockChange(channelId, "created", (trx, now) =>
-        new ProgrammingBlockRepository(trx).create(
+      "assignment_created",
+      assignmentChange(channelId, "created", (trx, now) =>
+        new AssignmentRepository(trx).create(
           trx,
           channelId,
           playCollection(collectionId, "chronological"),
@@ -1409,14 +1497,17 @@ describe("ScheduleService regeneration", () => {
     expectContiguous(after);
   });
 
-  it("lets a collection be deleted after its block switched source", async () => {
+  it("lets a collection be deleted after its assignment switched source, keeping blocks as history", async () => {
     const { db, channelId, collectionId, service, log } = await generatedSetup(
       T0 + 30 * MINUTE,
     );
     await service.applyInputChange(
       log,
-      "block_changed",
-      changeSource(channelId, { kind: "media_item", mediaItemId: "item-001" }),
+      "assignment_changed",
+      changeSource(
+        channelId,
+        playItem({ kind: "media_item", mediaItemId: "item-001" }),
+      ),
     );
 
     await expect(
@@ -1429,6 +1520,17 @@ describe("ScheduleService regeneration", () => {
     );
     // The playback index stays behind as history.
     expect(after[1]?.playback_index).toBe(1);
+    await expect(
+      db
+        .selectFrom("programming_blocks")
+        .select(["source_kind", "media_collection_id", "playback_mode"])
+        .where("id", "=", after[0]?.programming_block_id ?? "")
+        .executeTakeFirst(),
+    ).resolves.toEqual({
+      source_kind: "collection",
+      media_collection_id: null,
+      playback_mode: "chronological",
+    });
   });
 
   it("deletes future entries and restores progress without generating on a disabled channel", async () => {
@@ -1439,7 +1541,7 @@ describe("ScheduleService regeneration", () => {
 
     await service.applyInputChange(
       log,
-      "block_changed",
+      "assignment_changed",
       changeSource(channelId, playCollection(collectionId, "random")),
     );
 
@@ -1476,13 +1578,16 @@ describe("ScheduleService regeneration", () => {
     await expect(
       service.applyInputChange(
         log,
-        "block_changed",
+        "assignment_changed",
         changeSource(channelId, playCollection(collectionId, "random")),
       ),
     ).rejects.toThrow(/injected failure/);
 
     await expect(
-      db.selectFrom("programming_blocks").select("playback_mode").execute(),
+      db
+        .selectFrom("programming_source_assignments")
+        .select("playback_mode")
+        .execute(),
     ).resolves.toEqual([{ playback_mode: "chronological" }]);
     await expect(readScheduleEntries(db, channelId)).resolves.toEqual(before);
   });
@@ -1518,7 +1623,7 @@ describe("ScheduleService regeneration", () => {
       const regenerate = (service: ScheduleService) =>
         service.applyInputChange(
           recordingLog(),
-          "block_changed",
+          "assignment_changed",
           changeSource(channelId, playCollection(collectionId, "random")),
         );
       const extend = (service: ScheduleService) =>
@@ -1680,7 +1785,7 @@ describe("ScheduleService.readWindow", () => {
 });
 
 describe("ScheduleService.ensureAllEnabled", () => {
-  // Adds another channel with a block over the scenario's collection.
+  // Adds another channel with an assignment of the scenario's collection.
   async function addChannel(
     db: Kysely<DatabaseSchema>,
     id: string,
@@ -1692,8 +1797,16 @@ describe("ScheduleService.ensureAllEnabled", () => {
       .values({ ...channelFixture, id, number, enabled: enabled ? 1 : 0 })
       .execute();
     await db
-      .insertInto("programming_blocks")
-      .values({ ...programmingBlockFixture, id: `block-${id}`, channel_id: id })
+      .insertInto("programming_source_assignments")
+      .values({ ...assignmentFixture, id: `assignment-${id}`, channel_id: id })
+      .execute();
+    await db
+      .insertInto("programming_assignment_members")
+      .values({
+        ...assignmentMemberFixture,
+        assignment_id: `assignment-${id}`,
+        channel_id: id,
+      })
       .execute();
   }
 

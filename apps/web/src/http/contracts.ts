@@ -198,18 +198,68 @@ export interface Channel {
   name: string;
   enabled: boolean;
 }
-/** How a collection block orders its collection; mirrors the server's modes. */
+/** How an assignment orders its collections; mirrors the server's modes. */
 export type PlaybackMode = "chronological" | "episode" | "release" | "random";
-export type BlockSource =
-  | {
-      kind: "collection";
-      mediaCollectionId: string;
-      playbackMode: PlaybackMode;
-    }
+/** One member an assignment plays: a collection, or one media item. */
+export type AssignmentMember =
+  | { kind: "collection"; mediaCollectionId: string }
   | { kind: "media_item"; mediaItemId: string };
-export interface ProgrammingBlock {
+/** How long one of an assignment's turns runs; airtime in whole minutes. */
+export type StretchSetting =
+  | { kind: "programs"; count: number }
+  | { kind: "airtime"; minutes: number }
+  | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
+/** What the owner saves for one programming source assignment. */
+export interface AssignmentSettings {
+  /** Required with a collection; null for single items only. */
+  playbackMode: PlaybackMode | null;
+  ordinaryStretch: StretchSetting;
+  /** A longer turn in the same unit, or null while marathons are off. */
+  marathonStretch: StretchSetting | null;
+  members: AssignmentMember[];
+}
+/** One turn of a programming preview, with what explains it. */
+export interface PreviewTurn {
+  assignmentId: string | null;
+  member:
+    | {
+        kind: "collection";
+        mediaCollectionId: string;
+        playbackMode: PlaybackMode;
+      }
+    | { kind: "media_item"; mediaItemId: string }
+    | null;
+  roundNumber: number;
+  turnIndex: number;
+  /** The turn on air when the preview was read, continuing. */
+  continues: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  size: { kind: "programs" | "airtime"; value: number } | null;
+  marathon: boolean;
+  marathonChancePercent: number | null;
+  airtimeMinutes: number;
+  /** Minutes past an airtime target the turn's whole programs run. */
+  overrunMinutes: number | null;
+  programs: {
+    mediaItemId: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+  }[];
+}
+/** The channel's next turns as a regeneration from now would air them. */
+export interface ProgrammingPreview {
+  turns: PreviewTurn[];
+  skips: { assignmentId: string; roundNumber: number; reasons: string[] }[];
+}
+/** A channel's marathon controls, shared by all its assignments. */
+export interface MarathonSettings {
+  marathonChancePercent: number;
+  marathonMinOrdinaryRounds: number;
+}
+export interface SourceAssignment extends AssignmentSettings {
   id: string;
-  source: BlockSource;
 }
 /** One collection member in the order a mode plays, with the server's flags. */
 export interface PreviewMember {
@@ -223,7 +273,7 @@ export interface PreviewMember {
   startsSeriesGroup: boolean;
   duplicateEpisode: boolean;
 }
-/** One schedule entry a block will air next. */
+/** One schedule entry a collection will air next. */
 export interface UpcomingSelection {
   id: string;
   mediaItemId: string;
@@ -231,8 +281,8 @@ export interface UpcomingSelection {
   startsAt: string;
   endsAt: string;
 }
-/** A block's order for one mode; random has no order, and only the saved mode has upcoming selections. */
-export interface BlockPreview {
+/** An assigned collection's order for one mode; random has no order, and only the saved mode has upcoming selections. */
+export interface CollectionPreview {
   playbackMode: PlaybackMode;
   ordered: PreviewMember[] | null;
   upcoming: UpcomingSelection[] | null;
@@ -331,6 +381,11 @@ export interface CatalogRemoval {
   interruptedChannelIds: string[];
   stopFailedChannelIds: string[];
   affectedChannelIds: string[];
+}
+/** `POST /channels/:id/programming/rebuild`: whether it rebuilt now, and whether the worker stop failed. */
+export interface ProgrammingRebuild {
+  rebuilt: boolean;
+  stopFailed: boolean;
 }
 export interface PlexSetup {
   tunerBaseUrl: string;

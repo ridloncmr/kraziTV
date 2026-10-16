@@ -1,5 +1,11 @@
 import { createElement } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { vi } from "vitest";
 import type { AuthState } from "../http/contracts.js";
 import { App } from "../app.js";
@@ -41,7 +47,8 @@ export function stubAuthApi(state: unknown, status = 200): BrowserApi {
  * Boots the app root on `state` and waits for the desktop, so a test starts
  * from the logged-in desktop the app root holds the account for. `script`
  * adds replies before anything renders, for requests the desktop sends as it
- * starts.
+ * starts. Returns only once the desktop's startup reads have gone out, so a
+ * test counting a program's requests never counts the shell's.
  */
 export async function bootDesktop(
   state: AuthState = loggedIn,
@@ -51,6 +58,12 @@ export async function bootDesktop(
   script?.(api);
   render(createElement(App));
   await screen.findByRole("button", { name: "start" });
+  // The shell reads media roots last as it starts, for the TMDB reminder.
+  await waitFor(() => {
+    if (api.requestsTo("/media-roots").length === 0) {
+      throw new Error("the desktop has not read media roots yet");
+    }
+  });
   return api;
 }
 

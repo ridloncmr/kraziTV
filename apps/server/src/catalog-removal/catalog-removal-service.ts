@@ -5,7 +5,7 @@ import { runImmediateTransaction } from "../database/writes/immediate-transactio
 import type { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import type { ScheduleLog } from "../schedules/contracts.js";
 import { effectiveNow } from "../schedules/schedule-coverage.js";
-import { findLatestScheduleMutation } from "../schedules/schedule-repository.js";
+import { findLatestScheduleMutation } from "../schedules/persistence/schedule-repository.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type {
   CatalogRemoval,

@@ -1,36 +1,39 @@
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
-import { runImmediateTransaction } from "../database/writes/immediate-transaction.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import {
   collectionFixture,
   FIXTURE_TIME,
   itemFixture,
   rootFixture,
-} from "../testing/catalog-fixtures.js";
-import { channelFixture } from "../testing/channel-fixtures.js";
-import { sequentialIds } from "../testing/record-sources.js";
+} from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
-} from "../testing/test-environment.js";
-import type { ProgrammingBlockSource } from "./contracts.js";
-import { ProgrammingBlockRepository } from "./programming-block-repository.js";
+} from "../../testing/test-environment.js";
+import { AssignmentRepository } from "../persistence/assignment-repository.js";
+import type { AssignmentSettings } from "../contracts.js";
 
 afterEach(cleanUpTestEnvironment);
 
 const LATER = FIXTURE_TIME + 60_000;
 
-const chronological: ProgrammingBlockSource = {
-  kind: "collection",
-  mediaCollectionId: collectionFixture.id,
+const chronological: AssignmentSettings = {
   playbackMode: "chronological",
+  ordinaryStretch: { kind: "programs", count: 3 },
+  marathonStretch: null,
+  members: [{ kind: "collection", mediaCollectionId: collectionFixture.id }],
 };
 
-const singleItem: ProgrammingBlockSource = {
-  kind: "media_item",
-  mediaItemId: itemFixture.id,
+const singleItem: AssignmentSettings = {
+  playbackMode: null,
+  ordinaryStretch: { kind: "programs", count: 1 },
+  marathonStretch: null,
+  members: [{ kind: "media_item", mediaItemId: itemFixture.id }],
 };
 
 // Seeds two channels, one item, and one collection, and builds a repository with sequential IDs.
@@ -46,8 +49,8 @@ async function setup() {
   await db.insertInto("media_roots").values(rootFixture).execute();
   await db.insertInto("media_items").values(itemFixture).execute();
   await db.insertInto("media_collections").values(collectionFixture).execute();
-  const repository = new ProgrammingBlockRepository(db, {
-    createId: sequentialIds("block"),
+  const repository = new AssignmentRepository(db, {
+    createId: sequentialIds("assignment"),
   });
   return { db, repository };
 }
@@ -60,31 +63,31 @@ function write<T>(
   return runImmediateTransaction(db, work);
 }
 
-describe("ProgrammingBlockRepository", () => {
-  it("creates a collection-sourced block and lists it for its channel", async () => {
+describe("AssignmentRepository", () => {
+  it("creates a collection assignment and lists it for its channel", async () => {
     const { db, repository } = await setup();
 
     const result = await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
-    const block = {
-      id: "block-001",
+    const assignment = {
+      id: "assignment-001",
       channelId: channelFixture.id,
-      source: chronological,
+      ...chronological,
       createdAt: FIXTURE_TIME,
       updatedAt: FIXTURE_TIME,
     };
-    expect(result).toEqual({ kind: "created", block });
+    expect(result).toEqual({ kind: "created", assignment });
     await expect(repository.listForChannel(channelFixture.id)).resolves.toEqual(
-      [block],
+      [assignment],
     );
     await expect(repository.listForChannel("channel-second")).resolves.toEqual(
       [],
     );
   });
 
-  it("creates a single-item block", async () => {
+  it("creates a single-item assignment", async () => {
     const { db, repository } = await setup();
 
     const result = await write(db, (trx) =>
@@ -93,24 +96,40 @@ describe("ProgrammingBlockRepository", () => {
 
     expect(result).toMatchObject({
       kind: "created",
-      block: { source: singleItem },
+      assignment: singleItem,
     });
   });
 
-  it("reports limit_reached for a second block on one channel", async () => {
+  it("adds a second assignment after the first and refuses a member it already plays", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
-    const result = await write(db, (trx) =>
+    await write(db, (trx) =>
       repository.create(trx, channelFixture.id, singleItem, LATER),
     );
+    const again = await write(db, (trx) =>
+      repository.create(trx, channelFixture.id, chronological, LATER),
+    );
 
-    expect(result).toEqual({ kind: "limit_reached" });
+    expect(again).toEqual({
+      kind: "member_assigned",
+      member: chronological.members[0],
+      assignmentId: "assignment-001",
+    });
     await expect(
       repository.listForChannel(channelFixture.id),
-    ).resolves.toHaveLength(1);
+    ).resolves.toMatchObject([
+      { id: "assignment-001", ...chronological },
+      { id: "assignment-002", ...singleItem },
+    ]);
+    // Another channel may play the same member.
+    await expect(
+      write(db, (trx) =>
+        repository.create(trx, "channel-second", chronological, LATER),
+      ),
+    ).resolves.toMatchObject({ kind: "created" });
   });
 
   it("reports channel_not_found for an unknown channel", async () => {
@@ -131,7 +150,12 @@ describe("ProgrammingBlockRepository", () => {
         repository.create(
           trx,
           channelFixture.id,
-          { ...chronological, mediaCollectionId: "missing-collection" },
+          {
+            ...chronological,
+            members: [
+              { kind: "collection", mediaCollectionId: "missing-collection" },
+            ],
+          },
           FIXTURE_TIME,
         ),
       ),
@@ -144,7 +168,10 @@ describe("ProgrammingBlockRepository", () => {
         repository.create(
           trx,
           channelFixture.id,
-          { kind: "media_item", mediaItemId: "missing-item" },
+          {
+            ...singleItem,
+            members: [{ kind: "media_item", mediaItemId: "missing-item" }],
+          },
           FIXTURE_TIME,
         ),
       ),
@@ -157,32 +184,32 @@ describe("ProgrammingBlockRepository", () => {
     );
   });
 
-  it("replaces a block's source and advances only updatedAt", async () => {
+  it("replaces an assignment's settings and members and advances only updatedAt", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
     const result = await write(db, (trx) =>
-      repository.replaceSource(
+      repository.update(
         trx,
         channelFixture.id,
-        "block-001",
+        "assignment-001",
         singleItem,
         LATER,
       ),
     );
 
-    const block = {
-      id: "block-001",
+    const assignment = {
+      id: "assignment-001",
       channelId: channelFixture.id,
-      source: singleItem,
+      ...singleItem,
       createdAt: FIXTURE_TIME,
       updatedAt: LATER,
     };
-    expect(result).toEqual({ kind: "replaced", block });
+    expect(result).toEqual({ kind: "updated", assignment });
     await expect(repository.listForChannel(channelFixture.id)).resolves.toEqual(
-      [block],
+      [assignment],
     );
   });
 
@@ -190,7 +217,7 @@ describe("ProgrammingBlockRepository", () => {
     ["collection", chronological],
     ["single-item", singleItem],
   ])(
-    "reports an identical %s source as unchanged without writing",
+    "reports identical %s settings as unchanged without writing",
     async (_, source) => {
       const { db, repository } = await setup();
       const created = await write(db, (trx) =>
@@ -198,53 +225,59 @@ describe("ProgrammingBlockRepository", () => {
       );
 
       const result = await write(db, (trx) =>
-        repository.replaceSource(
+        repository.update(
           trx,
           channelFixture.id,
-          "block-001",
+          "assignment-001",
           { ...source },
           LATER,
         ),
       );
 
-      const block = created.kind === "created" ? created.block : undefined;
-      expect(result).toEqual({ kind: "unchanged", block });
+      const assignment =
+        created.kind === "created" ? created.assignment : undefined;
+      expect(result).toEqual({ kind: "unchanged", assignment });
       await expect(
         repository.listForChannel(channelFixture.id),
-      ).resolves.toEqual([block]);
+      ).resolves.toEqual([assignment]);
     },
   );
 
-  it("reports not_found when replacing an unknown block or another channel's block", async () => {
+  it("reports not_found when updating an unknown assignment or another channel's", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
-    for (const [channelId, blockId] of [
-      [channelFixture.id, "missing-block"],
-      ["channel-second", "block-001"],
+    for (const [channelId, assignmentId] of [
+      [channelFixture.id, "missing-assignment"],
+      ["channel-second", "assignment-001"],
     ] as const) {
       await expect(
         write(db, (trx) =>
-          repository.replaceSource(trx, channelId, blockId, singleItem, LATER),
+          repository.update(trx, channelId, assignmentId, singleItem, LATER),
         ),
       ).resolves.toEqual({ kind: "not_found" });
     }
   });
 
-  it("reports an unknown replacement source and keeps the old one", async () => {
+  it("reports an unknown member in an update and keeps the old settings", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, singleItem, FIXTURE_TIME),
     );
 
     const result = await write(db, (trx) =>
-      repository.replaceSource(
+      repository.update(
         trx,
         channelFixture.id,
-        "block-001",
-        { ...chronological, mediaCollectionId: "missing-collection" },
+        "assignment-001",
+        {
+          ...chronological,
+          members: [
+            { kind: "collection", mediaCollectionId: "missing-collection" },
+          ],
+        },
         LATER,
       ),
     );
@@ -255,14 +288,17 @@ describe("ProgrammingBlockRepository", () => {
     });
     await expect(
       repository.listForChannel(channelFixture.id),
-    ).resolves.toMatchObject([{ source: singleItem, updatedAt: FIXTURE_TIME }]);
+    ).resolves.toMatchObject([{ ...singleItem, updatedAt: FIXTURE_TIME }]);
     await expect(
       write(db, (trx) =>
-        repository.replaceSource(
+        repository.update(
           trx,
           channelFixture.id,
-          "block-001",
-          { kind: "media_item", mediaItemId: "missing-item" },
+          "assignment-001",
+          {
+            ...singleItem,
+            members: [{ kind: "media_item", mediaItemId: "missing-item" }],
+          },
           LATER,
         ),
       ),
@@ -272,26 +308,28 @@ describe("ProgrammingBlockRepository", () => {
     });
     await expect(
       repository.listForChannel(channelFixture.id),
-    ).resolves.toMatchObject([{ source: singleItem, updatedAt: FIXTURE_TIME }]);
+    ).resolves.toMatchObject([{ ...singleItem, updatedAt: FIXTURE_TIME }]);
   });
 
-  it("deletes a block only through its own channel", async () => {
+  it("deletes an assignment only through its own channel", async () => {
     const { db, repository } = await setup();
     await write(db, (trx) =>
       repository.create(trx, channelFixture.id, chronological, FIXTURE_TIME),
     );
 
     await expect(
-      write(db, (trx) => repository.delete(trx, "channel-second", "block-001")),
+      write(db, (trx) =>
+        repository.delete(trx, "channel-second", "assignment-001"),
+      ),
     ).resolves.toEqual({ kind: "not_found" });
     await expect(
       write(db, (trx) =>
-        repository.delete(trx, channelFixture.id, "block-001"),
+        repository.delete(trx, channelFixture.id, "assignment-001"),
       ),
     ).resolves.toEqual({ kind: "deleted" });
     await expect(
       write(db, (trx) =>
-        repository.delete(trx, channelFixture.id, "block-001"),
+        repository.delete(trx, channelFixture.id, "assignment-001"),
       ),
     ).resolves.toEqual({ kind: "not_found" });
     await expect(repository.listForChannel(channelFixture.id)).resolves.toEqual(

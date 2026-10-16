@@ -1,4 +1,4 @@
-import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import {
@@ -7,6 +7,7 @@ import {
   sendMediaRootNotFound,
   sendUnknownMediaItems,
 } from "../../http/api-error.js";
+import type { StopInterrupted } from "../../channels/runtime/settle-runtime-stop.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { uniqueMediaItemIds } from "../../http/request-schemas.js";
 import type { CatalogRemovalService } from "../catalog-removal-service.js";
@@ -27,15 +28,6 @@ const removalBody = z.strictObject({
   airing: z.enum(["finish", "interrupt"]).default("finish"),
   allowUnschedulable: z.boolean().default(false),
 });
-
-/**
- * Stops one interrupted channel's stream worker under its lifecycle lock and
- * the runtime stop deadline; false when the stop failed or missed it.
- */
-type StopInterrupted = (
-  channelId: string,
-  log: Pick<FastifyBaseLogger, "error">,
-) => Promise<boolean>;
 
 /**
  * Registers the catalog removal routes; validation and status mapping live
@@ -104,7 +96,7 @@ function sendRefusal(
         reply,
         409,
         "media_item_in_use",
-        `Programming blocks on channels ${refusal.channelIds.join(", ")} play this media directly; change those blocks first`,
+        `Programming assignments on channels ${refusal.channelIds.join(", ")} play this media directly; change those assignments first`,
         { channelIds: refusal.channelIds, mediaItemIds: refusal.mediaItemIds },
       );
     case "channels_left_unschedulable":

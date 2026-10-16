@@ -20,6 +20,7 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../testing/test-environment.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -67,7 +68,10 @@ const STATE_COLUMNS = [
   "channel_id",
   "created_at",
   "last_generated_through",
+  "last_rebuild_key",
   "next_sequence_number",
+  "programming_seed",
+  "rebuild_count",
   "schedule_revision",
   "seed",
   "updated_at",
@@ -154,7 +158,7 @@ describe("schedule generation acceptance", () => {
       201, 201, 201,
     ]);
     const channelId: string = channel.body.id;
-    const blocksUrl = `/channels/${channelId}/programming-blocks`;
+    const assignmentsUrl = `/channels/${channelId}/programming-assignments`;
 
     const unprogrammed = await readWindow(
       first.server,
@@ -165,26 +169,18 @@ describe("schedule generation acceptance", () => {
     expect(unprogrammed.status).toBe(409);
     expect(unprogrammed.body.error).toMatchObject({
       code: "channel_unschedulable",
-      reason: "no_programming_block",
+      reason: "no_programming_assignment",
     });
 
-    // One chronological block; a second block is rejected.
-    const block = await send(first.server, "POST", blocksUrl, {
-      source: {
-        kind: "collection",
-        mediaCollectionId: office.body.id,
-        playbackMode: "chronological",
-      },
-    });
-    expect(block.status).toBe(201);
-    const blockUrl = `${blocksUrl}/${block.body.id}`;
-    expect(
-      (
-        await send(first.server, "POST", blocksUrl, {
-          source: { kind: "media_item", mediaItemId: "pilot" },
-        })
-      ).status,
-    ).toBe(409);
+    // One chronological assignment.
+    const assignment = await send(
+      first.server,
+      "POST",
+      assignmentsUrl,
+      collectionAssignment(office.body.id as string),
+    );
+    expect(assignment.status).toBe(201);
+    const assignmentUrl = `${assignmentsUrl}/${assignment.body.id}`;
 
     // Materialized entries follow collection order, back to back, in
     // integer milliseconds, with at least a full horizon persisted.
@@ -250,7 +246,7 @@ describe("schedule generation acceptance", () => {
       (await readOnlyScheduleState(first.db)).last_generated_through,
     ).toBeGreaterThanOrEqual(clock.now() + SCHEDULE_HORIZON_MS);
 
-    // A block change mid-program keeps the airing entry and regenerates from
+    // An assignment change mid-program keeps the airing entry and regenerates from
     // its end with the new source.
     clock.advance(10 * MINUTE);
     const midAiring = clock.now();
@@ -261,13 +257,12 @@ describe("schedule generation acceptance", () => {
       midAiring + 6 * HOUR,
     );
     const airing = airingAt(beforeChange.body.entries, midAiring);
-    const changed = await send(first.server, "PATCH", blockUrl, {
-      source: {
-        kind: "collection",
-        mediaCollectionId: movies.body.id,
-        playbackMode: "chronological",
-      },
-    });
+    const changed = await send(
+      first.server,
+      "PATCH",
+      assignmentUrl,
+      collectionAssignment(movies.body.id as string),
+    );
     expect(changed.status).toBe(200);
     const afterChange = await readWindow(
       first.server,
@@ -310,7 +305,7 @@ describe("schedule generation acceptance", () => {
         .map((entry) => entry.mediaItemId),
     ).toEqual(["feature-b", "feature-a", "feature-b"]);
 
-    // The block's collection cannot be deleted while it is referenced.
+    // The assigned collection cannot be deleted while it is referenced.
     const inUse = await send(
       first.server,
       "DELETE",
@@ -408,9 +403,11 @@ describe("schedule generation acceptance", () => {
       ).body,
     ).toEqual(afterRepair.body);
 
-    // Deleting the block keeps the airing entry as history, drops the
-    // future, and frees its collection for deletion.
-    expect((await send(second.server, "DELETE", blockUrl)).status).toBe(204);
+    // Deleting the assignment keeps the airing entry and its block as
+    // history, drops the future, and frees its collection for deletion.
+    expect((await send(second.server, "DELETE", assignmentUrl)).status).toBe(
+      204,
+    );
     const afterDelete = await readWindow(
       second.server,
       channelId,
@@ -421,7 +418,7 @@ describe("schedule generation acceptance", () => {
     expect(afterDelete.body.entries).toEqual([
       expect.objectContaining({
         id: resumed.id,
-        programmingBlockId: null,
+        programmingBlockId: resumed.programmingBlockId,
       }),
     ]);
     const unprogrammedAgain = await readWindow(
@@ -431,7 +428,9 @@ describe("schedule generation acceptance", () => {
       Date.parse(resumed.endsAt) + HOUR,
     );
     expect(unprogrammedAgain.status).toBe(409);
-    expect(unprogrammedAgain.body.error.reason).toBe("no_programming_block");
+    expect(unprogrammedAgain.body.error.reason).toBe(
+      "no_programming_assignment",
+    );
     expect(
       (
         await send(
@@ -445,7 +444,10 @@ describe("schedule generation acceptance", () => {
       (await readScheduleEntries(second.db, channelId)).find(
         (entry) => entry.id === resumed.id,
       ),
-    ).toMatchObject({ media_collection_id: null, programming_block_id: null });
+    ).toMatchObject({
+      media_collection_id: null,
+      programming_block_id: resumed.programmingBlockId,
+    });
 
     // Provider-neutral storage: no provider, FFmpeg, segment, or URL columns.
     expect(await columnsOf(second.db, "schedule_entries")).toEqual(

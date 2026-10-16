@@ -1,3 +1,4 @@
+import type { PlaybackMode } from "@krazitv/krazi-brain";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
@@ -5,10 +6,8 @@ import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { createChannel, send } from "../testing/api-requests.js";
-import {
-  channelFixture,
-  programmingBlockFixture,
-} from "../testing/channel-fixtures.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import {
   correct,
   idOf,
@@ -26,6 +25,7 @@ import { SCAN_FIREFLY } from "../testing/scan-metadata.js";
 import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 import { CollectionMaintenance } from "./maintenance/collection-maintenance.js";
 import { MediaCollectionRepository } from "./persistence/media-collection-repository.js";
+import { insertCollectionAssignment } from "../testing/schedule-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -52,21 +52,15 @@ async function airCollection(
   server: FastifyInstance,
   number: string,
   collectionId: string,
-  playbackMode: string,
+  playbackMode: PlaybackMode,
 ): Promise<string> {
   const channel = await createChannel(server, { number, name: number });
   const { id } = channel.json<{ id: string }>();
   const block = await send(
     server,
     "POST",
-    `/channels/${id}/programming-blocks`,
-    {
-      source: {
-        kind: "collection",
-        mediaCollectionId: collectionId,
-        playbackMode,
-      },
-    },
+    `/channels/${id}/programming-assignments`,
+    collectionAssignment(collectionId, playbackMode),
   );
   expect(block.status).toBe(201);
   return id;
@@ -164,14 +158,10 @@ describe("metadata writes and active playback orders", () => {
     }).create("Mixed", [ambiguous, episode, alien]);
     if (created.kind !== "created") throw new Error("collection not created");
     await db.insertInto("channels").values(channelFixture).execute();
-    await db
-      .insertInto("programming_blocks")
-      .values({
-        ...programmingBlockFixture,
-        media_collection_id: created.collection.id,
-        playback_mode: "release",
-      })
-      .execute();
+    await insertCollectionAssignment(db, {
+      mediaCollectionId: created.collection.id,
+      playbackMode: "release",
+    });
     await schedules.ensureCoverage(channelFixture.id, log);
     scheduleClock.advance(1_000);
     const [airing, next] = await readScheduleEntries(db, channelFixture.id);

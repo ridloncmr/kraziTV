@@ -1,3 +1,4 @@
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ScheduleService } from "../schedules/schedule-service.js";
@@ -72,14 +73,8 @@ describe("Plex adapter acceptance", () => {
     const block = await send(
       server,
       "POST",
-      `/channels/${enabled.id}/programming-blocks`,
-      {
-        source: {
-          kind: "collection",
-          mediaCollectionId: collectionFixture.id,
-          playbackMode: "chronological",
-        },
-      },
+      `/channels/${enabled.id}/programming-assignments`,
+      collectionAssignment(collectionFixture.id),
       admin,
     );
     expect(block.status).toBe(201);

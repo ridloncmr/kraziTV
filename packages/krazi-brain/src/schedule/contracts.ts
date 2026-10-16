@@ -131,11 +131,22 @@ export interface ProgressReset {
   resetSequenceNumber: number;
 }
 
-/** The progress one collection and mode returns to after regeneration. */
-export interface RestoredProgress {
+/** One collection's progress in one playback mode, as generation and regeneration write it. */
+export interface CollectionProgress {
   mediaCollectionId: string;
   playbackMode: PlaybackMode;
   progress: PlaybackProgress;
+}
+
+/**
+ * How far one programming turn has run toward its size: a program count, or
+ * an airtime target in milliseconds. The turn is complete once `accumulated`
+ * meets or passes `target`.
+ */
+export interface TurnSize {
+  kind: "programs" | "airtime";
+  target: number;
+  accumulated: number;
 }
 
 export type GenerationResult =
@@ -147,4 +158,6 @@ export type GenerationResult =
       nextSequenceNumber: number;
       /** The end of the last entry, or `startsAt` when none was generated. */
       generatedThrough: number;
+      /** The turn the call was given, with what its entries added. */
+      turn?: TurnSize | undefined;
     };

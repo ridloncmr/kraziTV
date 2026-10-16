@@ -19,6 +19,8 @@ import {
 } from "../testing/catalog-fixtures.js";
 import {
   channelFixture,
+  assignmentFixture,
+  assignmentMemberFixture,
   programmingBlockFixture,
 } from "../testing/channel-fixtures.js";
 import {
@@ -26,6 +28,7 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
+import { insertCollectionAssignment } from "../testing/schedule-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -48,6 +51,7 @@ describe("openDatabase", () => {
       expect.arrayContaining([
         "accounts",
         "channel_collection_progress",
+        "channel_programming_settings",
         "channel_schedule_states",
         "channels",
         "kysely_migration",
@@ -56,7 +60,9 @@ describe("openDatabase", () => {
         "media_collections",
         "media_items",
         "media_roots",
+        "programming_assignment_members",
         "programming_blocks",
+        "programming_source_assignments",
         "schedule_entries",
         "server_settings",
         "sessions",
@@ -74,7 +80,7 @@ describe("openDatabase", () => {
     const migrations = await sql<{ count: number }>`
       select count(*) as count from kysely_migration
     `.execute(database.db);
-    expect(migrations.rows[0]?.count).toBe(20);
+    expect(migrations.rows[0]?.count).toBe(22);
   });
 
   it("reproduces the same logical schema in independent clean environments", async () => {
@@ -417,7 +423,7 @@ describe("openDatabase", () => {
     ).resolves.toHaveLength(1);
   });
 
-  it("enforces a programming block's single, well-formed source", async () => {
+  it("enforces a generated block's single, well-formed source and turn", async () => {
     const database = await seedProgrammingInputs();
     const collectionBlock = programmingBlockFixture;
     const itemBlock: Insertable<ProgrammingBlockTable> = {
@@ -426,17 +432,23 @@ describe("openDatabase", () => {
       media_collection_id: null,
       media_item_id: itemFixture.id,
       playback_mode: null,
+      resolved_kind: null,
+      resolved_value: null,
     };
 
     const invalidBlocks: Insertable<ProgrammingBlockTable>[] = [
-      { ...collectionBlock, media_collection_id: null },
-      { ...itemBlock, media_item_id: null },
       { ...collectionBlock, media_item_id: itemFixture.id },
       { ...itemBlock, media_collection_id: collectionFixture.id },
       { ...collectionBlock, playback_mode: null },
       { ...itemBlock, playback_mode: "chronological" },
       { ...collectionBlock, playback_mode: "shuffle" as "random" },
       { ...collectionBlock, source_kind: "playlist" as "collection" },
+      { ...collectionBlock, round_number: 0 },
+      { ...collectionBlock, turn_index: -1 },
+      { ...collectionBlock, resolved_value: null },
+      { ...collectionBlock, resolved_kind: "minutes" as "airtime" },
+      { ...collectionBlock, marathon: 2 },
+      { ...collectionBlock, checkpoint: "{not json" },
       { ...collectionBlock, created_at: -1 },
       { ...collectionBlock, updated_at: 1.5 },
     ];
@@ -451,21 +463,20 @@ describe("openDatabase", () => {
     ).resolves.toBeDefined();
   });
 
-  it("allows one programming block per channel", async () => {
+  it("allows many generated blocks per channel", async () => {
     const database = await seedProgrammingInputs();
+
     await database.db
       .insertInto("programming_blocks")
-      .values(programmingBlockFixture)
+      .values([
+        programmingBlockFixture,
+        { ...programmingBlockFixture, id: "block-second", round_number: 2 },
+      ])
       .execute();
 
     await expect(
-      database.db
-        .insertInto("programming_blocks")
-        .values({ ...programmingBlockFixture, id: "block-second" })
-        .execute(),
-    ).rejects.toThrow(
-      /unique constraint failed: programming_blocks\.channel_id/i,
-    );
+      database.db.selectFrom("programming_blocks").select("id").execute(),
+    ).resolves.toHaveLength(2);
   });
 
   it("enforces programming block references", async () => {
@@ -473,6 +484,7 @@ describe("openDatabase", () => {
 
     const dangling: Insertable<ProgrammingBlockTable>[] = [
       { ...programmingBlockFixture, channel_id: "missing-channel" },
+      { ...programmingBlockFixture, assignment_id: "missing-assignment" },
       { ...programmingBlockFixture, media_collection_id: "missing-collection" },
       {
         ...programmingBlockFixture,
@@ -480,6 +492,8 @@ describe("openDatabase", () => {
         media_collection_id: null,
         media_item_id: "missing-item",
         playback_mode: null,
+        resolved_kind: null,
+        resolved_value: null,
       },
     ];
 
@@ -490,11 +504,15 @@ describe("openDatabase", () => {
     }
   });
 
-  it("deletes a channel's programming block with the channel", async () => {
+  it("deletes a channel's assignments and blocks with the channel", async () => {
     const database = await seedProgrammingInputs();
+    await insertCollectionAssignment(database.db);
     await database.db
       .insertInto("programming_blocks")
-      .values(programmingBlockFixture)
+      .values({
+        ...programmingBlockFixture,
+        assignment_id: assignmentFixture.id,
+      })
       .execute();
 
     await database.db
@@ -502,32 +520,47 @@ describe("openDatabase", () => {
       .where("id", "=", channelFixture.id)
       .execute();
 
-    await expect(
-      database.db.selectFrom("programming_blocks").selectAll().execute(),
-    ).resolves.toEqual([]);
+    for (const table of [
+      "programming_blocks",
+      "programming_source_assignments",
+      "programming_assignment_members",
+    ] as const) {
+      await expect(
+        database.db.selectFrom(table).selectAll().execute(),
+      ).resolves.toEqual([]);
+    }
   });
 
-  it("rejects deleting a collection or item a programming block references", async () => {
+  it("rejects deleting an assigned collection or item, and keeps an unassigned one's blocks as history", async () => {
     const database = await seedProgrammingInputs();
-    await database.db
-      .insertInto("programming_blocks")
-      .values(programmingBlockFixture)
-      .execute();
+    await insertCollectionAssignment(database.db);
     await database.db
       .insertInto("channels")
       .values({ ...channelFixture, id: "channel-item", number: "70" })
       .execute();
     await database.db
-      .insertInto("programming_blocks")
+      .insertInto("programming_source_assignments")
       .values({
-        ...programmingBlockFixture,
-        id: "block-item",
+        ...assignmentFixture,
+        id: "assignment-item",
+        channel_id: "channel-item",
+        playback_mode: null,
+      })
+      .execute();
+    await database.db
+      .insertInto("programming_assignment_members")
+      .values({
+        ...assignmentMemberFixture,
+        assignment_id: "assignment-item",
         channel_id: "channel-item",
         source_kind: "media_item",
         media_collection_id: null,
         media_item_id: itemFixture.id,
-        playback_mode: null,
       })
+      .execute();
+    await database.db
+      .insertInto("programming_blocks")
+      .values(programmingBlockFixture)
       .execute();
 
     await expect(
@@ -542,18 +575,36 @@ describe("openDatabase", () => {
         .where("id", "=", itemFixture.id)
         .execute(),
     ).rejects.toThrow(/foreign key constraint/i);
+
+    await database.db.deleteFrom("programming_source_assignments").execute();
+    await database.db
+      .deleteFrom("media_collections")
+      .where("id", "=", collectionFixture.id)
+      .execute();
+    await expect(
+      database.db
+        .selectFrom("programming_blocks")
+        .select(["source_kind", "media_collection_id", "playback_mode"])
+        .execute(),
+    ).resolves.toEqual([
+      {
+        source_kind: "collection",
+        media_collection_id: null,
+        playback_mode: "chronological",
+      },
+    ]);
   });
 
-  it("indexes programming blocks by collection so in-use lookups avoid a table scan", async () => {
+  it("indexes assignment members by collection so in-use lookups avoid a table scan", async () => {
     const database = await openTestDatabase();
 
     const plan = await sql<{ detail: string }>`
       explain query plan
-      select channel_id from programming_blocks where media_collection_id = 'c'
+      select channel_id from programming_assignment_members where media_collection_id = 'c'
     `.execute(database.db);
 
     expect(plan.rows.map(({ detail }) => detail).join("\n")).toMatch(
-      /SEARCH programming_blocks USING (COVERING )?INDEX programming_blocks_media_collection_id/,
+      /SEARCH programming_assignment_members USING (COVERING )?INDEX programming_assignment_members_media_collection_id/,
     );
   });
 });

@@ -7,26 +7,27 @@ import { useMutation } from "../http/use-resource.js";
 import { UpcomingSelections } from "./programming-preview.js";
 
 /**
- * Confirms restarting a channel's progress through one collection in one
- * playback mode. It names every block sharing that progress, since they all
- * restart, then shows the selections the regenerated schedule airs next.
- * The dialog owns its request, so a refusal stays beside the confirmation.
+ * Confirms restarting a channel's progress through one assigned collection
+ * in its playback mode, then shows the selections the regenerated schedule
+ * airs next. The dialog owns its request, so a refusal stays beside the
+ * confirmation.
  */
 export function ProgressResetDialog({
   path,
+  mediaCollectionId,
   collectionName,
   modeLabel,
-  sharingBlocks,
   upcoming,
   upcomingError,
   reset,
   onClose,
 }: {
   path: string;
+  /** The assigned collection whose progress restarts. */
+  mediaCollectionId: string;
   collectionName: string;
   modeLabel: string;
-  sharingBlocks: readonly string[];
-  /** The block's upcoming selections, refreshed by the owner after `reset`. */
+  /** The collection's upcoming selections, refreshed by the owner after `reset`. */
   upcoming: UpcomingSelection[] | null;
   /** Why refreshing the upcoming selections failed, if it did. */
   upcomingError: Error | undefined;
@@ -67,18 +68,12 @@ export function ProgressResetDialog({
             {modeLabel.toLowerCase()} from the beginning on this channel? What
             is airing now finishes; every later schedule entry is regenerated.
           </p>
-          <p>These programming blocks share this progress and all restart:</p>
-          <ul aria-label="Blocks sharing this progress">
-            {sharingBlocks.map((block) => (
-              <li key={block}>{block}</li>
-            ))}
-          </ul>
           <RequestFeedback loading={mutation.pending} error={mutation.error} />
           <div className="dialog-actions">
             <button
               disabled={mutation.pending}
               onClick={() =>
-                void mutation.run(path, "POST", undefined, () => {
+                void mutation.run(path, "POST", { mediaCollectionId }, () => {
                   setBefore(upcoming);
                   reset();
                 })

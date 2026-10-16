@@ -13,7 +13,9 @@ import {
 import type { ChannelCollectionProgressTable } from "../database/schema/channel-collection-progress-table.js";
 import type { ChannelScheduleStateTable } from "../database/schema/channel-schedule-state-table.js";
 import type { ChannelTable } from "../database/schema/channel-table.js";
+import type { ProgrammingAssignmentMemberTable } from "../database/schema/programming-assignment-member-table.js";
 import type { ProgrammingBlockTable } from "../database/schema/programming-block-table.js";
+import type { ProgrammingSourceAssignmentTable } from "../database/schema/programming-source-assignment-table.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 
 /** Parses a test input that must be canonical, failing loudly on a typo. */
@@ -42,6 +44,9 @@ export const scheduleStateFixture: Insertable<ChannelScheduleStateTable> = {
   last_generated_through: FIXTURE_TIME + 3_600_000,
   next_sequence_number: 1,
   schedule_revision: 1,
+  programming_seed: 654_321,
+  rebuild_count: 0,
+  last_rebuild_key: null,
   created_at: FIXTURE_TIME,
   updated_at: FIXTURE_TIME,
 };
@@ -56,7 +61,8 @@ export const scheduleEntryFixture: Insertable<ScheduleEntryTable> = {
   ends_at: FIXTURE_TIME + 3_600_000,
   duration_ms: 3_600_000,
   sequence_number: 0,
-  programming_block_id: "block-fixture-001",
+  // Hand-placed, so no generated block holds it.
+  programming_block_id: null,
   media_collection_id: collectionFixture.id,
   playback_mode: "chronological",
   playback_index: 0,
@@ -81,14 +87,65 @@ export const collectionProgressFixture: Insertable<ChannelCollectionProgressTabl
     updated_at: FIXTURE_TIME,
   };
 
-/** A collection-sourced block; reference the catalog fixtures' collection before inserting it. */
+/** The fixture channel's one assignment: the fixture collection in saved order, three programs a turn. */
+export const assignmentFixture: Insertable<ProgrammingSourceAssignmentTable> = {
+  id: "assignment-fixture-001",
+  channel_id: channelFixture.id,
+  playback_mode: "chronological",
+  assignment_order: 0,
+  ordinary_kind: "programs",
+  ordinary_min: 3,
+  ordinary_max: null,
+  marathon_kind: null,
+  marathon_min: null,
+  marathon_max: null,
+  created_at: FIXTURE_TIME,
+  updated_at: FIXTURE_TIME,
+};
+
+/** The fixture assignment's only member, the fixture collection; insert the catalog fixtures first. */
+export const assignmentMemberFixture: Insertable<ProgrammingAssignmentMemberTable> =
+  {
+    assignment_id: assignmentFixture.id,
+    channel_id: channelFixture.id,
+    position: 0,
+    source_kind: "collection",
+    media_collection_id: collectionFixture.id,
+    media_item_id: null,
+    created_at: FIXTURE_TIME,
+  };
+
+/**
+ * A generated turn of the fixture collection whose assignment is gone, as
+ * history, so it inserts beside the catalog fixtures alone. Set
+ * `assignment_id` after inserting the assignment fixture to keep it live.
+ */
 export const programmingBlockFixture: Insertable<ProgrammingBlockTable> = {
   id: "block-fixture-001",
   channel_id: channelFixture.id,
+  assignment_id: null,
   source_kind: "collection",
   media_collection_id: collectionFixture.id,
   media_item_id: null,
   playback_mode: "chronological",
+  round_number: 1,
+  turn_index: 0,
+  starts_at: FIXTURE_TIME,
+  resolved_kind: "programs",
+  resolved_value: 3,
+  marathon: 0,
+  ended_by_edit: 0,
+  checkpoint: JSON.stringify({
+    roundNumber: 1,
+    pending: [assignmentFixture.id],
+    served: [],
+    skipped: [],
+    lastAiredAssignmentId: null,
+    nextMemberPositions: { [assignmentFixture.id]: 0 },
+    marathonOpportunity: null,
+    roundCommittedProgram: false,
+    ordinaryRoundsSinceMarathon: null,
+  }),
   created_at: FIXTURE_TIME,
   updated_at: FIXTURE_TIME,
 };

@@ -8,6 +8,7 @@ import {
   type PlaybackProgress,
   type ScheduleMedia,
   type ScheduleSource,
+  type TurnSize,
 } from "./contracts.js";
 import { generateScheduleEntries } from "./generate-schedule-entries.js";
 import { SCHEDULE_HORIZON_MS } from "./schedule-policy.js";
@@ -62,6 +63,7 @@ interface GenerateOverrides {
   through?: number;
   nextSequenceNumber?: number;
   maxEntries?: number;
+  turn?: TurnSize;
 }
 
 function generate(
@@ -639,5 +641,89 @@ describe("generateScheduleEntries: bounds and timing", () => {
     };
 
     expect(generate(source, options)).toEqual(generate(source, options));
+  });
+});
+
+describe("generateScheduleEntries: turn sizes", () => {
+  const members = [
+    scheduleMedia("a", { durationMs: 22 * 60_000 }),
+    scheduleMedia("b", { durationMs: 22 * 60_000 }),
+    scheduleMedia("c", { durationMs: 22 * 60_000 }),
+    scheduleMedia("d", { durationMs: 22 * 60_000 }),
+  ];
+  const DAY = STARTS_AT + 24 * HOUR_MS;
+
+  it("stops after a program count and reports what the turn accumulated", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: DAY,
+        turn: { kind: "programs", target: 3, accumulated: 0 },
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["a", "b", "c"]);
+    expect(result.turn).toEqual({
+      kind: "programs",
+      target: 3,
+      accumulated: 3,
+    });
+  });
+
+  it("continues a turn from what it already accumulated", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: DAY,
+        progress: afterSelecting("a", 0),
+        turn: { kind: "programs", target: 3, accumulated: 1 },
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["b", "c"]);
+    expect(result.turn?.accumulated).toBe(3);
+  });
+
+  it("ends an airtime turn once accumulated airtime meets or passes the target", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: DAY,
+        turn: { kind: "airtime", target: 60 * 60_000, accumulated: 0 },
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["a", "b", "c"]);
+    expect(result.turn?.accumulated).toBe(66 * 60_000);
+  });
+
+  it("reports an unfinished turn when maxEntries stops it first", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: DAY,
+        maxEntries: 2,
+        turn: { kind: "programs", target: 3, accumulated: 0 },
+      }),
+    );
+
+    expect(mediaIds(result.entries)).toEqual(["a", "b"]);
+    expect(result.turn?.accumulated).toBe(2);
+  });
+
+  it("generates nothing for a turn that is already complete", () => {
+    const result = generated(
+      generate(chronological(members), {
+        through: DAY,
+        turn: { kind: "programs", target: 3, accumulated: 3 },
+      }),
+    );
+
+    expect(result.entries).toEqual([]);
+  });
+
+  it("runs to through without a turn, as a single loop always has", () => {
+    const result = generated(
+      generate(chronological(members), { through: STARTS_AT + HOUR_MS }),
+    );
+
+    expect(result.entries).toHaveLength(3);
+    expect(result.turn).toBeUndefined();
   });
 });

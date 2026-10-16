@@ -6,11 +6,11 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
+import { loadCollectionMembers } from "../../schedules/persistence/assignment-sources.js";
 import {
-  listMetadataOrderedBlocks,
-  loadBlockSource,
+  listMetadataOrderedMembers,
   recordOrderFingerprint,
-} from "../../schedules/schedule-repository.js";
+} from "../../schedules/persistence/collection-progress.js";
 import { readMatchableItems } from "../criteria/matchable-items.js";
 import { reconcileCollection } from "./reconcile-collection.js";
 
@@ -46,8 +46,8 @@ export function maintenanceChange(): ScheduleInputChange<void> {
 }
 
 /**
- * One check of every metadata-ordered block as a schedule input change.
- * Each block's order is recomputed from facts read inside the change's
+ * One check of every assigned collection a channel plays in a metadata mode,
+ * as a schedule input change. Each one's order is recomputed from facts read inside the change's
  * immediate transaction and compared with the order its channel's schedule
  * recorded. Only a channel whose order differs is named and its new order
  * recorded, so a metadata write that changes no order regenerates nothing,
@@ -57,38 +57,36 @@ export function maintenanceChange(): ScheduleInputChange<void> {
 export function orderingChange(): ScheduleInputChange<void> {
   return async (trx, now) => {
     const affectedChannelIds: string[] = [];
-    for (const block of await listMetadataOrderedBlocks(trx)) {
-      const source = await loadBlockSource(trx, block.channelId, block.blockId);
-      if (source?.kind !== "collection") continue;
-      const fingerprint = orderFingerprint(source.members, source.playbackMode);
-      if (fingerprint === null || fingerprint === block.recordedFingerprint) {
+    for (const {
+      recordedFingerprint,
+      ...scope
+    } of await listMetadataOrderedMembers(trx)) {
+      const fingerprint = orderFingerprint(
+        await loadCollectionMembers(trx, scope.mediaCollectionId),
+        scope.playbackMode,
+      );
+      if (fingerprint === null || fingerprint === recordedFingerprint) {
         continue;
       }
-      await recordOrderFingerprint(
-        trx,
-        block.channelId,
-        source.mediaCollectionId,
-        source.playbackMode,
-        fingerprint,
-        now,
-      );
-      affectedChannelIds.push(block.channelId);
+      await recordOrderFingerprint(trx, scope, fingerprint, now);
+      affectedChannelIds.push(scope.channelId);
     }
     return { value: undefined, affectedChannelIds };
   };
 }
 
 /**
- * Whether any block orders by metadata, read before taking write authority
- * so a channel lineup with none never queues behind the schedule lock.
- * Skipping is safe: a block given such a mode later records its order when
+ * Whether any assignment orders by metadata, read before taking write
+ * authority so a channel lineup with none never queues behind the schedule
+ * lock. Skipping is safe: an assignment given such a mode later records its
+ * order when
  * its schedule regenerates.
  */
-export async function hasMetadataOrderedBlocks(
+export async function hasMetadataOrderedAssignments(
   db: Kysely<DatabaseSchema>,
 ): Promise<boolean> {
   const row = await db
-    .selectFrom("programming_blocks")
+    .selectFrom("programming_source_assignments")
     .select("id")
     .where("playback_mode", "in", METADATA_PLAYBACK_MODES)
     .executeTakeFirst();

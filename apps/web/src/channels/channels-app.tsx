@@ -4,7 +4,7 @@ import { rowClickProps } from "../controls/row-click.js";
 import { WindowDialog } from "../controls/window-dialog.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
-import type { Channel } from "../http/contracts.js";
+import type { Channel, ProgrammingRebuild } from "../http/contracts.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { ChannelEditor } from "./channel-editor.js";
 import { CreateChannelDialog } from "./create-channel-dialog.js";
@@ -62,6 +62,12 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
         ? { ...channel, enabled: false }
         : channel,
     );
+  // A pending disable or delete must finish before the channel's lifecycle
+  // changes again; a rebuild retry does not block it, since both stop the worker.
+  const lifecycleRetryPending = (channelId: string) =>
+    cleanup.retries.some(
+      (retry) => retry.id === channelId && retry.operation !== "rebuild",
+    );
   const selectedChannel = displayedChannels?.find(
     (channel) => channel.id === selected,
   );
@@ -85,22 +91,41 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
         message={deleting ? undefined : mutation.message}
       />
       {cleanup.retries.map((retry) => (
-        <div key={retry.id} className="cleanup-notice" role="alert">
+        <div
+          key={`${retry.operation}-${retry.id}`}
+          className="cleanup-notice"
+          role="alert"
+        >
           <strong>
-            {retry.committed
-              ? `Channel ${retry.operation === "delete" ? "deleted" : "disabled"}. Configuration saved.`
-              : "Channel remains disabled. Re-enable was not saved."}
+            {retry.operation === "rebuild"
+              ? "Schedule rebuilt with fresh programming."
+              : retry.committed
+                ? `Channel ${retry.operation === "delete" ? "deleted" : "disabled"}. Configuration saved.`
+                : "Channel remains disabled. Re-enable was not saved."}
           </strong>
           <p>{retry.message}</p>
           <button
             disabled={mutation.pending}
             onClick={() => {
+              // A rebuild retry repeats its key, so the server only stops
+              // the worker again; it stays listed while the stop still fails.
+              if (retry.operation === "rebuild") {
+                void mutation.run<ProgrammingRebuild>(
+                  `${resourcePath("channels", retry.id)}/programming/rebuild`,
+                  "POST",
+                  { idempotencyKey: retry.key },
+                  (result) => {
+                    if (!result.stopFailed) cleanup.settle(retry.id, "rebuild");
+                  },
+                );
+                return;
+              }
               void mutation.run(
                 resourcePath("channels", retry.id),
                 retry.operation === "delete" ? "DELETE" : "PATCH",
                 retry.operation === "delete" ? undefined : { enabled: false },
                 () => {
-                  cleanup.settle(retry.id);
+                  cleanup.settle(retry.id, retry.operation);
                   channels.refresh();
                 },
               );
@@ -151,17 +176,18 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                     <div className="row-actions">
                       <button
                         disabled={
-                          mutation.pending ||
-                          cleanup.retries.some(
-                            (retry) => retry.id === channel.id,
-                          )
+                          mutation.pending || lifecycleRetryPending(channel.id)
                         }
                         onClick={() => {
                           void mutation.run(
                             resourcePath("channels", channel.id),
                             "PATCH",
                             { enabled: !channel.enabled },
-                            channels.refresh,
+                            () => {
+                              if (channel.enabled)
+                                cleanup.settle(channel.id, "disable");
+                              channels.refresh();
+                            },
                           );
                         }}
                       >
@@ -169,10 +195,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                       </button>
                       <button
                         disabled={
-                          mutation.pending ||
-                          cleanup.retries.some(
-                            (retry) => retry.id === channel.id,
-                          )
+                          mutation.pending || lifecycleRetryPending(channel.id)
                         }
                         onClick={() =>
                           setDeleting({ channel, attempted: false })
@@ -225,6 +248,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                   "DELETE",
                   undefined,
                   () => {
+                    cleanup.settle(deleting.channel.id, "delete");
                     setDeleting(undefined);
                     setSelected("");
                     channels.refresh();

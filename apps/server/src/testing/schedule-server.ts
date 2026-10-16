@@ -58,6 +58,7 @@ export async function startScheduleServer(
       schedules: new ScheduleService(db, {
         now: clock.now,
         createId: sequentialIds(`${boot}-entry`),
+        createBlockId: sequentialIds(`${boot}-block`),
       }),
     }),
   });
@@ -72,11 +73,14 @@ export async function startScheduleServer(
  * clock. The data directory is returned so a test can open a second
  * connection to the same file, and the dependencies so a test can reach
  * the default recording runtime. Pass a logger to assert what the server
- * logs, or a stop deadline for hung-stop tests.
+ * logs, a stop deadline for hung-stop tests, or a small transaction size
+ * to prove chunked generation writes what one transaction would.
  */
 export async function startScheduleScenarioServer(
   scenario: Partial<ScheduleScenarioOptions> = {},
-  options: Pick<StartTestServerOptions, "logger" | "channelStopTimeoutMs"> = {},
+  options: Pick<StartTestServerOptions, "logger" | "channelStopTimeoutMs"> & {
+    entriesPerTransaction?: number;
+  } = {},
 ) {
   const dataDirectory = await createTemporaryDirectory();
   const clock = manualClock(FIXTURE_TIME);
@@ -91,6 +95,8 @@ export async function startScheduleScenarioServer(
       schedules: new ScheduleService(db, {
         now: clock.now,
         createId: sequentialIds("entry"),
+        createBlockId: sequentialIds("block"),
+        entriesPerTransaction: options.entriesPerTransaction,
       }),
     }),
   });

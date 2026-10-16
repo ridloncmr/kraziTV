@@ -8,6 +8,19 @@ when that item has left the collection, and every playback mode keeps its own
 progress. See
 [programming spec 0003](../specs/features/002-programming/specs/0003-playback-ordering.md).
 
+Amended on 2026-10-14: extension step 3 has arrived. A channel's programming
+configuration is its **programming source assignments**, which hold the
+members (collections or single items), the playback mode, and the stretch
+settings; playback mode belongs to the assignment. A programming block is
+now one generated kraziPlan turn: it records the member that took the turn,
+its mode, its resolved size, and the rotation checkpoint from before it, and
+it stays as history, like an entry, with its assignment and source
+references set null when they are deleted. The one-block MVP constraint is
+gone. kraziPlan returns blocks and the entries they air for the server to
+persist; it never persists either itself. Editing generated blocks (step 5)
+is now the job of programming overrides. See
+[programming spec 0004](../specs/features/002-programming/specs/0004-kraziplan.md).
+
 ## Context
 
 kraziTV's end state is a TV programming scheduler. A user assigns collections to

@@ -14,7 +14,7 @@ import { findCoveringPlayoutEntries } from "../../playout/playout-repository.js"
 import {
   findChannelEnabled,
   loadScheduleState,
-} from "../../schedules/schedule-repository.js";
+} from "../../schedules/persistence/schedule-repository.js";
 
 interface SqliteTransitionCoordinatorOptions {
   /**

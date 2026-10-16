@@ -1,5 +1,6 @@
 import type { AccountTable } from "./account-table.js";
 import type { ChannelCollectionProgressTable } from "./channel-collection-progress-table.js";
+import type { ChannelProgrammingSettingsTable } from "./channel-programming-settings-table.js";
 import type { ChannelScheduleStateTable } from "./channel-schedule-state-table.js";
 import type { ChannelTable } from "./channel-table.js";
 import type { CollectionRecommendationDecisionTable } from "./collection-recommendation-decision-table.js";
@@ -13,7 +14,9 @@ import type { MediaCollectionItemTable } from "./media-collection-item-table.js"
 import type { MediaCollectionTable } from "./media-collection-table.js";
 import type { MediaItemTable } from "./media-item-table.js";
 import type { MediaRootTable } from "./media-root-table.js";
+import type { ProgrammingAssignmentMemberTable } from "./programming-assignment-member-table.js";
 import type { ProgrammingBlockTable } from "./programming-block-table.js";
+import type { ProgrammingSourceAssignmentTable } from "./programming-source-assignment-table.js";
 import type { ScheduleEntryTable } from "./schedule-entry-table.js";
 import type { MediaItemTagTable } from "./media-item-tag-table.js";
 import type { ServerSettingsTable } from "./server-settings-table.js";
@@ -28,6 +31,9 @@ export interface DatabaseSchema {
   media_collection_items: MediaCollectionItemTable;
   media_collection_exclusions: MediaCollectionExclusionTable;
   channels: ChannelTable;
+  programming_source_assignments: ProgrammingSourceAssignmentTable;
+  programming_assignment_members: ProgrammingAssignmentMemberTable;
+  channel_programming_settings: ChannelProgrammingSettingsTable;
   programming_blocks: ProgrammingBlockTable;
   channel_schedule_states: ChannelScheduleStateTable;
   schedule_entries: ScheduleEntryTable;
