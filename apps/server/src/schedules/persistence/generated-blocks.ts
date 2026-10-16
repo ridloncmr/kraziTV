@@ -3,6 +3,7 @@ import type {
   GeneratedBlock,
   LatestTurn,
   RotationCheckpoint,
+  SettingOrigins,
 } from "@krazitv/krazi-brain";
 import { findRegenerationBoundary } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
@@ -113,11 +114,7 @@ export async function insertBlocks(
         marathon: toSqliteBoolean(block.marathon),
         winning_rule_id: block.winningRuleId,
         context_key: block.checkpoint.activeContext,
-        // Every turn takes its assignment's settings until rules can override them.
-        setting_origins: JSON.stringify({
-          ordinary: "assignment",
-          marathon: "assignment",
-        }),
+        setting_origins: JSON.stringify(block.settingOrigins),
         ended_by_edit: toSqliteBoolean(block.endedByEdit),
         checkpoint: JSON.stringify(block.checkpoint),
         created_at: now,
@@ -194,6 +191,7 @@ function toGeneratedBlock(
         : { kind: row.resolved_kind, value: row.resolved_value },
     marathon: fromSqliteBoolean(row.marathon),
     winningRuleId: row.winning_rule_id,
+    settingOrigins: JSON.parse(row.setting_origins) as SettingOrigins,
     endedByEdit: fromSqliteBoolean(row.ended_by_edit),
     // Migration 024 rewrote every stored checkpoint into this shape.
     checkpoint: JSON.parse(row.checkpoint) as RotationCheckpoint,

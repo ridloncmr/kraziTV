@@ -49,6 +49,8 @@ type ApiErrorCode =
   | "programming_assignment_order_mismatch"
   | "programming_rule_not_found"
   | "programming_rule_order_mismatch"
+  | "programming_rule_stretch_invalid"
+  | "programming_rule_stretch_conflict"
   | "programming_member_assigned"
   | "scan_cancelled"
   | "scan_in_progress"

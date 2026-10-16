@@ -35,7 +35,13 @@ const decemberBody = {
   dates: { kind: "annual", startMonthDay: "12-01", endMonthDay: "12-31" },
   weekdays: null,
   window: null,
-  sources: [{ assignmentId: "assignment-002" }],
+  sources: [
+    {
+      assignmentId: "assignment-002",
+      ordinaryStretch: null,
+      marathon: { mode: "inherit" },
+    },
+  ],
 };
 
 // Boots the real composition at `now` over a channel playing the fixture
@@ -384,5 +390,131 @@ describe("programming rule routes", () => {
         body: { error: { code: "programming_rule_not_found" } },
       });
     }
+  });
+});
+
+describe("rule-specific stretch settings", () => {
+  const christmasUrl = `${ASSIGNMENTS_URL}/assignment-002`;
+  const christmasBody = {
+    ...collectionAssignment("christmas"),
+    participation: "rule_only",
+    ordinaryStretch: { kind: "programs", count: 1 },
+  };
+
+  it("saves a source's own sizes and airs them while the rule wins, leaving the assignment alone", async () => {
+    const { server, db } = await startServer();
+    const body = {
+      ...decemberBody,
+      sources: [
+        {
+          assignmentId: "assignment-002",
+          ordinaryStretch: { kind: "programs", count: 2 },
+          marathon: {
+            mode: "replace",
+            stretch: { kind: "programs", count: 3 },
+          },
+        },
+      ],
+    };
+
+    const created = await send(server, "POST", RULES_URL, body);
+
+    expect(created).toMatchObject({
+      status: 201,
+      body: { sources: body.sources },
+    });
+    const blocks = await db
+      .selectFrom("programming_blocks")
+      .select(["resolved_value", "setting_origins"])
+      .where("media_collection_id", "=", "christmas")
+      .execute();
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      expect(block.resolved_value).toBe(2);
+      expect(JSON.parse(block.setting_origins)).toEqual({
+        ordinary: "rule",
+        marathon: "rule",
+      });
+    }
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toMatchObject({
+      body: [{}, { ordinaryStretch: { kind: "programs", count: 1 } }],
+    });
+  });
+
+  it("refuses an effective pair that is invalid, naming the source", async () => {
+    const { server } = await startServer();
+
+    await expect(
+      send(server, "POST", RULES_URL, {
+        ...decemberBody,
+        sources: [
+          {
+            assignmentId: "assignment-002",
+            ordinaryStretch: { kind: "programs", count: 3 },
+            marathon: {
+              mode: "replace",
+              stretch: { kind: "programs", count: 2 },
+            },
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        error: {
+          code: "programming_rule_stretch_invalid",
+          assignmentId: "assignment-002",
+          problem: "a marathon must be longer than the ordinary stretch",
+        },
+      },
+    });
+  });
+
+  it("refuses an assignment edit that breaks a rule's effective pair until the rule disables its marathon", async () => {
+    const { server } = await startServer();
+    const ruleWith = (marathon: unknown) => ({
+      ...decemberBody,
+      sources: [
+        { assignmentId: "assignment-002", ordinaryStretch: null, marathon },
+      ],
+    });
+    // The rule inherits one-film turns and replaces the marathon with three.
+    await send(
+      server,
+      "POST",
+      RULES_URL,
+      ruleWith({ mode: "replace", stretch: { kind: "programs", count: 3 } }),
+    );
+    const raised = {
+      ...christmasBody,
+      ordinaryStretch: { kind: "programs", count: 4 },
+      marathonStretch: { kind: "programs", count: 5 },
+    };
+
+    await expect(
+      send(server, "PATCH", christmasUrl, raised),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "programming_rule_stretch_conflict",
+          ruleId: "rule-001",
+          problem: "a marathon must be longer than the ordinary stretch",
+        },
+      },
+    });
+
+    await send(
+      server,
+      "PATCH",
+      `${RULES_URL}/rule-001`,
+      ruleWith({ mode: "disabled" }),
+    );
+    await expect(
+      send(server, "PATCH", christmasUrl, raised),
+    ).resolves.toMatchObject({
+      status: 200,
+      body: { ordinaryStretch: { kind: "programs", count: 4 } },
+    });
   });
 });

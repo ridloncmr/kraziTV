@@ -26,6 +26,7 @@ import {
   memberSource,
 } from "./rotation/rotation.js";
 import type { DecisionSeed } from "./programming-decisions.js";
+import { settingOrigins } from "./rules/rule-settings.js";
 import { decideRule, ruleScope } from "./rules/winning-rule.js";
 import { resolveSize } from "./stretches/stretch-settings.js";
 import { turnSize } from "./stretches/turn-size.js";
@@ -180,6 +181,7 @@ export function generateProgramming(
         ),
         marathon: turn.marathon,
         winningRuleId: decision.winner?.id ?? null,
+        settingOrigins: settingOrigins(decision.winner, turn.assignment.id),
         endedByEdit: false,
         checkpoint: turn.checkpoint,
       };

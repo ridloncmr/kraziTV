@@ -1,7 +1,6 @@
-import type { StretchKind } from "./programming-source-assignment-table.js";
+import type { RuleMarathon } from "@krazitv/krazi-brain";
 
-/** Whether a rule source keeps, turns off, or replaces its assignment's marathon. */
-type RuleMarathonMode = "inherit" | "disabled" | "replace";
+import type { StretchKind } from "./programming-source-assignment-table.js";
 
 /**
  * One assignment a rule selects, in saved source order, with the stretch
@@ -17,7 +16,8 @@ export interface ProgrammingRuleSourceTable {
   ordinary_kind: StretchKind | null;
   ordinary_min: number | null;
   ordinary_max: number | null;
-  marathon_mode: RuleMarathonMode;
+  /** Whether the source keeps, turns off, or replaces its assignment's marathon. */
+  marathon_mode: RuleMarathon["mode"];
   marathon_kind: StretchKind | null;
   marathon_min: number | null;
   marathon_max: number | null;

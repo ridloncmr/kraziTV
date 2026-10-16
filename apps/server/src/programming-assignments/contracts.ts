@@ -1,3 +1,4 @@
+import type { RuleStretchConflict } from "../programming-rules/contracts.js";
 import type {
   AssignmentParticipation,
   MarathonSettings,
@@ -54,7 +55,8 @@ export type UpdateAssignmentResult =
   | { kind: "unchanged"; assignment: SourceAssignment }
   | { kind: "not_found" }
   | UnknownMemberResult
-  | MemberAssignedResult;
+  | MemberAssignedResult
+  | RuleStretchConflict;
 
 /** A reorder must name exactly the channel's assignments, each once. */
 export type ReorderAssignmentsResult =

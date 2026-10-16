@@ -51,7 +51,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Programming Spec 0002 Implementation Plan: Recommended And Automatic Collections](002-programming/0002-automatic-collections.md) - 11 of 12 tickets complete
 - [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 6 of 6 tickets complete
 - [Programming Spec 0004 Implementation Plan: Continuous Multi-Source Programming With kraziPlan](002-programming/0004-kraziplan.md) - 9 of 9 tickets complete
-- [Programming Spec 0005 Implementation Plan: Recurring Programming Rules](002-programming/0005-recurring-programming-rules.md) - 4 of 9 tickets complete
+- [Programming Spec 0005 Implementation Plan: Recurring Programming Rules](002-programming/0005-recurring-programming-rules.md) - 5 of 9 tickets complete
 
 ### 003-auth
 

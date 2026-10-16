@@ -1,19 +1,26 @@
 import { randomUUID } from "node:crypto";
 
+import { findRuleSourceProblem } from "@krazitv/krazi-brain";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
+import { toAssignmentStretches } from "../schedules/persistence/assignment-sources.js";
 import type {
   CreateRuleResult,
   DeleteRuleResult,
   ReorderRulesResult,
   RuleSettings,
+  RuleSourceRefusal,
   SavedRule,
-  UnknownAssignmentResult,
   UpdateRuleResult,
 } from "./contracts.js";
-import { readRules, toRuleColumns } from "./rule-rows.js";
+import {
+  readRules,
+  toRuleColumns,
+  toRuleSource,
+  toSourceColumns,
+} from "./rule-rows.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -43,8 +50,9 @@ export class RuleRepository {
 
   /**
    * Adds a rule after the channel's others in saved order. Every source must
-   * be one of the channel's assignments; the check shares the write's
-   * immediate transaction, and the foreign key is the final guard.
+   * be one of the channel's assignments with a valid effective stretch
+   * pair; the checks share the write's immediate transaction, and the
+   * foreign key is the final guard.
    */
   async create(
     trx: Executor,
@@ -58,8 +66,8 @@ export class RuleRepository {
       .where("id", "=", channelId)
       .executeTakeFirst();
     if (channel === undefined) return { kind: "channel_not_found" };
-    const unknown = await findUnknownAssignment(trx, channelId, settings);
-    if (unknown !== undefined) return unknown;
+    const refused = await findSourceRefusal(trx, channelId, settings);
+    if (refused !== undefined) return refused;
     const last = await trx
       .selectFrom("programming_rules")
       .select((eb) => eb.fn.max("rule_order").as("order"))
@@ -98,8 +106,8 @@ export class RuleRepository {
     if (isSameSettings(current, settings)) {
       return { kind: "unchanged", rule: current };
     }
-    const unknown = await findUnknownAssignment(trx, channelId, settings);
-    if (unknown !== undefined) return unknown;
+    const refused = await findSourceRefusal(trx, channelId, settings);
+    if (refused !== undefined) return refused;
     await trx
       .updateTable("programming_rules")
       .set({ ...toRuleColumns(settings), updated_at: now })
@@ -181,7 +189,7 @@ async function readRule(
   return rule;
 }
 
-// Inserts a rule's sources in saved order, each inheriting its assignment's settings.
+// Inserts a rule's sources in saved order with the settings each applies while the rule wins.
 async function writeSources(
   trx: Executor,
   channelId: string,
@@ -192,50 +200,57 @@ async function writeSources(
   await trx
     .insertInto("programming_rule_sources")
     .values(
-      settings.sources.map(({ assignmentId }, position) => ({
+      settings.sources.map((source, position) => ({
         rule_id: ruleId,
         channel_id: channelId,
-        assignment_id: assignmentId,
+        assignment_id: source.assignmentId,
         position,
-        ordinary_kind: null,
-        ordinary_min: null,
-        ordinary_max: null,
-        marathon_mode: "inherit" as const,
-        marathon_kind: null,
-        marathon_min: null,
-        marathon_max: null,
+        ...toSourceColumns(source),
         created_at: now,
       })),
     )
     .execute();
 }
 
-// Reports the first source that is not one of the channel's assignments.
-async function findUnknownAssignment(
+// Reports the first source that is not one of the channel's assignments,
+// or whose ordinary and marathon pair with its assignment's is invalid.
+async function findSourceRefusal(
   trx: Executor,
   channelId: string,
   settings: RuleSettings,
-): Promise<UnknownAssignmentResult | undefined> {
-  const known = new Set(
+): Promise<RuleSourceRefusal | undefined> {
+  const assignments = new Map(
     (
       await trx
         .selectFrom("programming_source_assignments")
-        .select("id")
+        .selectAll()
         .where("channel_id", "=", channelId)
         .execute()
-    ).map(({ id }) => id),
+    ).map((row) => [row.id, toAssignmentStretches(row)]),
   );
-  const unknown = settings.sources.find(
-    ({ assignmentId }) => !known.has(assignmentId),
-  );
-  return unknown === undefined
-    ? undefined
-    : { kind: "unknown_assignment", assignmentId: unknown.assignmentId };
+  for (const source of settings.sources) {
+    const { assignmentId } = source;
+    const stretches = assignments.get(assignmentId);
+    if (stretches === undefined) {
+      return { kind: "unknown_assignment", assignmentId };
+    }
+    const problem = findRuleSourceProblem(toRuleSource(source), stretches);
+    if (problem !== null) {
+      return { kind: "invalid_stretch", assignmentId, problem };
+    }
+  }
+  return undefined;
 }
 
 // Compares settings by their stored form, so field and weekday order never matter.
 function isSameSettings(current: RuleSettings, next: RuleSettings): boolean {
   const normalized = (settings: RuleSettings) =>
-    JSON.stringify([toRuleColumns(settings), settings.sources]);
+    JSON.stringify([
+      toRuleColumns(settings),
+      settings.sources.map((source) => [
+        source.assignmentId,
+        toSourceColumns(source),
+      ]),
+    ]);
   return normalized(current) === normalized(next);
 }

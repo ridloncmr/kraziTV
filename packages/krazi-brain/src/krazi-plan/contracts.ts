@@ -71,6 +71,26 @@ export interface ProgrammingAssignment {
  */
 export const RULE_BEHAVIORS = ["join", "feature"] as const;
 
+/** What a rule does to a source's marathon while it wins: keep, turn off, or replace the assignment's. */
+export type RuleMarathon =
+  | { mode: "inherit" }
+  | { mode: "disabled" }
+  | { mode: "replace"; stretch: StretchSetting };
+
+/** One assignment a rule selects, with the settings that apply only while it wins. */
+export interface RuleSource {
+  assignmentId: string;
+  /** Replaces the assignment's ordinary stretch; null inherits it. */
+  ordinary: StretchSetting | null;
+  marathon: RuleMarathon;
+}
+
+/** Where a turn's ordinary and marathon settings came from. */
+export interface SettingOrigins {
+  ordinary: "assignment" | "rule";
+  marathon: "assignment" | "rule" | "disabled";
+}
+
 /** A programming rule as kraziPlan reads it: enduring channel configuration. */
 export interface ProgrammingRule {
   id: string;
@@ -81,7 +101,7 @@ export interface ProgrammingRule {
   ruleOrder: number;
   conditions: CalendarConditions;
   /** The assignments the rule selects, in saved source order. */
-  sources: readonly { assignmentId: string }[];
+  sources: readonly RuleSource[];
 }
 
 /** The sources a decision lets take turns, and the rotation context they take them in. */
@@ -165,6 +185,8 @@ export interface GeneratedBlock {
   marathon: boolean;
   /** The rule that won when the turn started, or null for default rotation. */
   winningRuleId: string | null;
+  /** Where the settings the turn resolved its size from came from. */
+  settingOrigins: SettingOrigins;
   /** A mode or stretch edit ended the turn; generation never continues it. */
   endedByEdit: boolean;
   checkpoint: RotationCheckpoint;

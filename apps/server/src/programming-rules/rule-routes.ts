@@ -9,10 +9,10 @@ import {
   sendInvalidRequest,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams } from "../http/request-schemas.js";
+import { idParams, nameField, stretchField } from "../http/request-schemas.js";
 import { channelInputChange } from "../schedules/channel-input-change.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
-import type { SavedRule, UnknownAssignmentResult } from "./contracts.js";
+import type { RuleSourceRefusal, SavedRule } from "./contracts.js";
 import type { RuleRepository } from "./rule-repository.js";
 
 // Date shapes only; kraziBrain's calendar rule decides which values are valid.
@@ -30,11 +30,24 @@ const dates = z.discriminatedUnion("kind", [
   }),
 ]);
 
+// A selected assignment, inheriting its settings unless the body overrides them.
+const ruleSource = z.strictObject({
+  assignmentId: z.string(),
+  ordinaryStretch: stretchField.nullable().default(null),
+  marathon: z
+    .discriminatedUnion("mode", [
+      z.strictObject({ mode: z.literal("inherit") }),
+      z.strictObject({ mode: z.literal("disabled") }),
+      z.strictObject({ mode: z.literal("replace"), stretch: stretchField }),
+    ])
+    .default({ mode: "inherit" }),
+});
+
 // Create and PATCH share one body: PATCH replaces the whole rule, sources in
 // saved order. Omitted conditions are unrestricted. Each source appears once.
 const ruleBody = z
   .strictObject({
-    name: z.string().trim().min(1).max(100),
+    name: nameField,
     behavior: z.enum(RULE_BEHAVIORS),
     priority: z.number().int(),
     dates: dates.default({ kind: "any" }),
@@ -49,7 +62,7 @@ const ruleBody = z
       .nullable()
       .default(null),
     sources: z
-      .array(z.strictObject({ assignmentId: z.string() }))
+      .array(ruleSource)
       .min(1)
       .refine(
         (sources) =>
@@ -104,7 +117,7 @@ export function registerRuleRoutes(
       case "channel_not_found":
         return sendChannelNotFound(reply, id);
       default:
-        return sendUnknownAssignment(reply, result);
+        return sendSourceRefusal(reply, result);
     }
   });
 
@@ -131,7 +144,7 @@ export function registerRuleRoutes(
         case "not_found":
           return sendRuleNotFound(reply, id, ruleId);
         default:
-          return sendUnknownAssignment(reply, result);
+          return sendSourceRefusal(reply, result);
       }
     },
   );
@@ -204,10 +217,17 @@ function sendRuleNotFound(
 }
 
 // A body's unknown reference is a 400, not a 404: the rule itself exists.
-function sendUnknownAssignment(
-  reply: FastifyReply,
-  result: UnknownAssignmentResult,
-) {
+// An invalid effective stretch pair names the source and kraziBrain's reason.
+function sendSourceRefusal(reply: FastifyReply, result: RuleSourceRefusal) {
+  if (result.kind === "invalid_stretch") {
+    return sendApiError(
+      reply,
+      400,
+      "programming_rule_stretch_invalid",
+      `Rule settings for programming assignment ${result.assignmentId} are invalid: ${result.problem}`,
+      { assignmentId: result.assignmentId, problem: result.problem },
+    );
+  }
   return sendApiError(
     reply,
     400,

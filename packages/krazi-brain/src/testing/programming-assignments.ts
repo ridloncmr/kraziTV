@@ -4,6 +4,7 @@ import type {
   LatestTurn,
   ProgrammingAssignment,
   ProgrammingRule,
+  RuleSource,
 } from "../krazi-plan/contracts.js";
 import {
   generateProgramming,
@@ -57,11 +58,12 @@ export function itemAssignment(
 
 /**
  * Builds a join rule selecting `sources` that applies everywhere, unless a
- * test narrows its conditions or changes its behavior or precedence.
+ * test narrows its conditions or changes its behavior or precedence. A
+ * source named by ID alone inherits its assignment's settings.
  */
 export function programmingRule(
   id: string,
-  sources: readonly string[],
+  sources: readonly (string | RuleSource)[],
   {
     conditions = {},
     ...overrides
@@ -80,7 +82,15 @@ export function programmingRule(
       window: null,
       ...conditions,
     },
-    sources: sources.map((assignmentId) => ({ assignmentId })),
+    sources: sources.map((source) =>
+      typeof source === "string"
+        ? {
+            assignmentId: source,
+            ordinary: null,
+            marathon: { mode: "inherit" },
+          }
+        : source,
+    ),
     ...overrides,
   };
 }

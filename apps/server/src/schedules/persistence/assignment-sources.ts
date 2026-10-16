@@ -140,11 +140,11 @@ interface StretchColumns {
 
 /**
  * Reads a stretch from its columns: a count or minutes in `min`, and `max`
- * for a range only. The only decoder of stored stretches, so every reader
- * agrees on what a valid row is; the table checks make any other shape
- * corruption.
+ * for a range only. The only decoder of stored stretches, assignment and
+ * rule source alike, so every reader agrees on what a valid row is; the
+ * table checks make any other shape corruption.
  */
-function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
+export function toStretch({ kind, min, max }: StretchColumns): StretchSetting {
   switch (kind) {
     case "programs":
       return { kind, count: min };

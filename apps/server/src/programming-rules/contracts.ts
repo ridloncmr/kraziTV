@@ -1,4 +1,17 @@
-import type { CalendarConditions, ProgrammingRule } from "@krazitv/krazi-brain";
+import type {
+  CalendarConditions,
+  ProgrammingRule,
+  RuleMarathon,
+  StretchSetting,
+} from "@krazitv/krazi-brain";
+
+/** One assignment a rule selects, with the settings that apply only while it wins. */
+export interface RuleSourceSettings {
+  assignmentId: string;
+  /** Replaces the assignment's ordinary stretch; null inherits it. */
+  ordinaryStretch: StretchSetting | null;
+  marathon: RuleMarathon;
+}
 
 /**
  * What the owner saves for one programming rule; the API accepts and
@@ -11,7 +24,7 @@ export interface RuleSettings extends CalendarConditions {
   /** Higher wins. */
   priority: number;
   /** The channel's assignments the rule selects, in saved source order. */
-  sources: { assignmentId: string }[];
+  sources: RuleSourceSettings[];
 }
 
 /** A saved programming rule. */
@@ -22,21 +35,28 @@ export interface SavedRule extends RuleSettings {
   updatedAt: number;
 }
 
-/** A source naming an assignment the channel does not have. */
-export interface UnknownAssignmentResult {
-  kind: "unknown_assignment";
-  assignmentId: string;
+/** A source naming an assignment the channel does not have, or whose effective stretch pair is invalid. */
+export type RuleSourceRefusal =
+  | { kind: "unknown_assignment"; assignmentId: string }
+  | { kind: "invalid_stretch"; assignmentId: string; problem: string };
+
+/** A rule whose inherited stretch pair an assignment edit would make invalid. */
+export interface RuleStretchConflict {
+  kind: "rule_stretch_conflict";
+  ruleId: string;
+  ruleName: string;
+  problem: string;
 }
 
 export type CreateRuleResult =
   | { kind: "created"; rule: SavedRule }
   | { kind: "channel_not_found" }
-  | UnknownAssignmentResult;
+  | RuleSourceRefusal;
 
 export type UpdateRuleResult =
   | { kind: "updated" | "unchanged"; rule: SavedRule }
   | { kind: "not_found" }
-  | UnknownAssignmentResult;
+  | RuleSourceRefusal;
 
 export type DeleteRuleResult = { kind: "deleted" } | { kind: "not_found" };
 

@@ -130,6 +130,7 @@ describe("generateProgramming: one assignment", () => {
       size: { kind: "programs", value: 3 },
       marathon: false,
       winningRuleId: null,
+      settingOrigins: { ordinary: "assignment", marathon: "assignment" },
       endedByEdit: false,
       checkpoint: {
         activeContext: "default",

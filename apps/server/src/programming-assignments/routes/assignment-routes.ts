@@ -16,7 +16,7 @@ import {
   sendUnknownMediaItems,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
-import { idParams } from "../../http/request-schemas.js";
+import { idParams, stretchField } from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import { channelInputChange } from "../../schedules/channel-input-change.js";
@@ -38,17 +38,6 @@ const member = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("media_item"), mediaItemId: z.string() }),
 ]);
 
-// The three stretch shapes; kraziBrain's rule decides which values are valid.
-const stretch = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("programs"), count: z.number() }),
-  z.strictObject({ kind: z.literal("airtime"), minutes: z.number() }),
-  z.strictObject({
-    kind: z.literal("airtime_range"),
-    minMinutes: z.number(),
-    maxMinutes: z.number(),
-  }),
-]);
-
 // Create and PATCH share one body: PATCH replaces the whole assignment,
 // members in saved order. A collection needs a playback mode; single items
 // alone take none. Each member appears once.
@@ -57,9 +46,9 @@ const settingsBody = z
     // Omitted means the assignment rotates normally.
     participation: z.enum(ASSIGNMENT_PARTICIPATIONS).default("default"),
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
-    ordinaryStretch: stretch,
+    ordinaryStretch: stretchField,
     // Omitted means marathons are disabled for the assignment.
-    marathonStretch: stretch.nullable().default(null),
+    marathonStretch: stretchField.nullable().default(null),
     members: z
       .array(member)
       .min(1)
@@ -205,6 +194,14 @@ export function registerAssignmentRoutes(
           return toApiAssignment(result.assignment);
         case "not_found":
           return sendAssignmentNotFound(reply, id, assignmentId);
+        case "rule_stretch_conflict":
+          return sendApiError(
+            reply,
+            409,
+            "programming_rule_stretch_conflict",
+            `Rule "${result.ruleName}" inherits this assignment's marathon, which would become invalid: ${result.problem}. Replace or disable the rule's marathon first.`,
+            { ruleId: result.ruleId, problem: result.problem },
+          );
         default:
           return sendMemberRefused(reply, result);
       }

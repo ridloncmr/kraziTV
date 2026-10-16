@@ -17,6 +17,7 @@ import {
   writeMembers,
 } from "./assignment-members.js";
 import { endStartedTurn } from "../../schedules/persistence/generated-blocks.js";
+import { findRuleStretchConflict } from "../../programming-rules/rule-rows.js";
 import {
   loadMarathonSettings,
   toAssignmentStretches,
@@ -222,8 +223,10 @@ export class AssignmentRepository {
 
   /**
    * Replaces an assignment's settings and members; one owned by another
-   * channel is not found. Identical settings write nothing and report
-   * `unchanged`, so callers can skip regeneration.
+   * channel is not found. A stretch change that would make a rule's
+   * inherited ordinary and marathon pair invalid is refused naming the rule,
+   * which must replace or disable its marathon first. Identical settings
+   * write nothing and report `unchanged`, so callers can skip regeneration.
    */
   async update(
     trx: Executor,
@@ -250,7 +253,11 @@ export class AssignmentRepository {
         channelId,
         settings.members,
         assignmentId,
-      ));
+      )) ??
+      (await findRuleStretchConflict(trx, assignmentId, {
+        ordinary: settings.ordinaryStretch,
+        marathon: settings.marathonStretch,
+      }));
     if (refused !== undefined) return refused;
 
     // A mode or stretch change ends the started turn after the airing

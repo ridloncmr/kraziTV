@@ -123,6 +123,7 @@ const RESERVED_TURN = {
     size: { kind: "programs" as const, value: 2 },
     marathon: false,
     winningRuleId: null,
+    settingOrigins: { ordinary: "assignment", marathon: "assignment" } as const,
     endedByEdit: false,
     checkpoint: reservedCheckpoint(),
   },

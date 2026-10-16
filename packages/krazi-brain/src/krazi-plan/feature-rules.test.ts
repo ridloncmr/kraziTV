@@ -416,6 +416,7 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
         size: { kind: "programs", value: 1 },
         marathon: false,
         winningRuleId: "evenings",
+        settingOrigins: { ordinary: "assignment", marathon: "assignment" },
         endedByEdit: false,
         checkpoint,
       },
@@ -468,6 +469,7 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
         size: { kind: "programs", value: 2 },
         marathon: false,
         winningRuleId: null,
+        settingOrigins: { ordinary: "assignment", marathon: "assignment" },
         endedByEdit: false,
         checkpoint: {
           activeContext: "default",

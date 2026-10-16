@@ -8,6 +8,7 @@ import type {
   RotationScope,
 } from "../contracts.js";
 import { isUsableAssignment } from "../rotation/rotation.js";
+import { applyRuleSettings } from "./rule-settings.js";
 
 /** Which rule won at an instant, which applicable rules it passed over, and how long that holds. */
 interface RuleDecision {
@@ -61,6 +62,9 @@ export function decideRule(
  * Resolves which assignments take turns under a winning rule: default
  * assignments with no winner; defaults plus a join rule's sources, each
  * once; or only a feature rule's sources, in that rule's own context.
+ * Each carries the stretch settings it runs with while the rule wins, so
+ * marathon candidates and turn sizes follow them; losing rules contribute
+ * nothing.
  */
 export function ruleScope(
   winner: ProgrammingRule | undefined,
@@ -70,16 +74,21 @@ export function ruleScope(
     winner?.sources.map(({ assignmentId }) => assignmentId) ?? [],
   );
   if (winner?.behavior === "feature") {
-    const eligible = assignments.filter(({ id }) => selected.has(id));
+    const eligible = assignments
+      .filter(({ id }) => selected.has(id))
+      .map((assignment) => applyRuleSettings(assignment, winner));
     return {
       contextKey: `rule:${winner.id}`,
       eligible,
       ruleDriven: new Set(eligible.map(({ id }) => id)),
     };
   }
-  const eligible = assignments.filter(
-    ({ id, participation }) => participation === "default" || selected.has(id),
-  );
+  const eligible = assignments
+    .filter(
+      ({ id, participation }) =>
+        participation === "default" || selected.has(id),
+    )
+    .map((assignment) => applyRuleSettings(assignment, winner));
   return {
     contextKey: "default",
     eligible,
