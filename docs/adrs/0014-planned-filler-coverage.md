@@ -8,6 +8,10 @@ revalidation rules, and the matching revalidation wording in
 [ADR 0008](0008-shared-active-channel-stream-workers.md) and the "applies
 unchanged" note in [ADR 0009](0009-programming-blocks.md).
 
+Amended on 2026-10-16: the user's explicit interruption of airing filler is
+an interrupting reservation, which ends the filler at the reservation's start.
+See [ADR 0015](0015-scheduled-interruption.md).
+
 ## Context
 
 [Programming spec 0006](../specs/features/002-programming/specs/0006-clock-anchored-blocks.md)

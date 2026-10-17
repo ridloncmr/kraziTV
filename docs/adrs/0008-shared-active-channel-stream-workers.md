@@ -7,6 +7,11 @@ or preserves an entry, it means the candidate or airing playout item, program
 or filler. One worker transmits programs and filler on one shared signal. See
 [ADR 0014](0014-planned-filler-coverage.md).
 
+Amended on 2026-10-16: the transmitting item keeps its end unless the owner
+explicitly chose an interrupting reservation; the worker then crosses into
+the reservation at its start, keeping its subscribers. See
+[ADR 0015](0015-scheduled-interruption.md).
+
 ## Context
 
 kraziTV channels should behave like broadcasts, not viewer sessions. The earlier MVP streaming shape allowed each viewer request to own its own FFmpeg process or process sequence. That can prove basic playback, but it does not match the product model where a channel exists independently of its viewers.

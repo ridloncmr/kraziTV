@@ -34,7 +34,7 @@ in its own `Status:` line. Detailed implementation tickets belong in
 | [0004 — Continuous Multi-Source Programming With kraziPlan](specs/0004-kraziplan.md)           | Enduring source assignments and repeating whole-program stretches                |
 | [0005 — Recurring Programming Rules](specs/0005-recurring-programming-rules.md)                | Calendar applicability, priority, default programming, and explained selection   |
 | [0006 — Clock-Anchored Programming And Boundary Coverage](specs/0006-clock-anchored-blocks.md) | Exact reservations and non-guide transmission coverage                           |
-| [0007 — Manual Programming Overrides And Publishing](specs/0007-manual-programming.md)         | Drafts, conflict validation, publication, cancellation, and generated resumption |
+| [0007 — Manual Programming Overrides And Publishing](specs/0007-manual-programming.md)         | Preview and publish, interruption, cancellation, and generated resumption        |
 
 ## Dependency Shape
 

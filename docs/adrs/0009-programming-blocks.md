@@ -27,6 +27,15 @@ ADR 0003's gap-repair, regeneration-boundary, and revision rules no longer
 apply unchanged: [ADR 0014](0014-planned-filler-coverage.md) extends them for
 planned filler.
 
+Amended on 2026-10-16: extension step 5 arrives as reservations the owner
+creates. Creating, editing, or cancelling one regenerates ordinary programming
+from the regeneration boundary like any other input change, instead of
+replacing only the edited block's own entries. Its fixed range moves no other
+reservation and never the airing item, and regeneration restores the progress
+that deleted decisions consumed, so no second schedule is stored beneath it.
+Saving after a preview publishes; there are no drafts. See
+[programming spec 0007](../specs/features/002-programming/specs/0007-manual-programming.md).
+
 ## Context
 
 kraziTV's end state is a TV programming scheduler. A user assigns collections to

@@ -14,6 +14,11 @@ transition revalidation below say entry, they mean the airing or candidate
 playout item, program or filler. See
 [ADR 0014](0014-planned-filler-coverage.md).
 
+Amended on 2026-10-16: an interruption may also be a reservation the owner
+marks as interrupting, which cuts the airing item at the reservation's start,
+now or later, without deleting its entry or stopping the stream worker. See
+[ADR 0015](0015-scheduled-interruption.md).
+
 ## Context
 
 kraziTV's guide, derived playout timeline, channel state, and stream selection must resolve consistently from the same guide-visible programming. These remain distinct domain concepts, but they cannot disagree about which scheduled program applies at a given time. Regenerating schedule windows on demand can make overlapping queries disagree, especially once random playback is supported.
