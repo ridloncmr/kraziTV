@@ -17,13 +17,15 @@ import { AiringFillerConflictError } from "./airing-filler-conflict-error.js";
  * regeneration; otherwise the whole commit rolls back with
  * `AiringFillerConflictError`, so no routine write can move an airing
  * resume time. Only an interrupting reservation starting inside that filler,
- * before or after the write, may move it: a cut, or a withdrawn one, is the
- * owner's explicit choice (ADR 0015).
+ * before or after the write, may move it, and so may ending a running
+ * reservation early (`endsEarly`): a cut, a withdrawn one, or an early end is
+ * the owner's explicit choice (ADR 0015).
  */
 export function reservationChange<T extends { kind: string }>(
   channelId: string,
   changedKind: T["kind"],
   write: (trx: Kysely<DatabaseSchema>, now: number) => Promise<T>,
+  { endsEarly = false }: { endsEarly?: boolean } = {},
 ): ScheduleInputChange<T> {
   const change = channelInputChange(channelId, changedKind, write);
   return async (trx, now) => {
@@ -37,7 +39,7 @@ export function reservationChange<T extends { kind: string }>(
     return {
       ...changed,
       afterRegeneration: async (trx, advanced) => {
-        if (airing?.kind === "filler" && !cutBefore) {
+        if (airing?.kind === "filler" && !cutBefore && !endsEarly) {
           const after = await findAiringItem(trx, channelId, now);
           const moved =
             after?.kind !== "filler" || after.endsAt !== airing.endsAt;

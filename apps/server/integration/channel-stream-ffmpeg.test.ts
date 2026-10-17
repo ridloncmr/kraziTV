@@ -424,6 +424,65 @@ describe("real FFmpeg cut", () => {
   );
 });
 
+describe("real FFmpeg early end", () => {
+  it(
+    "ends a running special inside its program and cuts to ordinary programming within a second",
+    async () => {
+      const { server, baseUrl, packager, entries } = await startRealChannel();
+      const first = entryAt(entries, 0);
+      // The special airs the six-second second file from the first one's end.
+      const reservation = await send(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations`,
+        {
+          startsAt: iso(first.ends_at),
+          source: { kind: "media_items", mediaItemIds: ["item-002"] },
+        },
+      );
+      expect(reservation.status, "reservation status").toBe(201);
+      await sleepUntil(first.starts_at + 1_000);
+      const viewer = await tune(baseUrl);
+      await receivesBytes(viewer);
+      await sleepUntil(first.ends_at + 1_000);
+      const cutAt = first.ends_at + 3_000;
+
+      const ended = await send(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations/${reservation.body.id as string}/end`,
+        { endsAt: iso(cutAt) },
+      );
+      expect(ended.status, "end status").toBe(200);
+      await sleepUntil(cutAt + 2_000);
+
+      expect(packager.sessions).toHaveLength(1);
+      expect(packager.sessions[0]?.commits).toHaveLength(2);
+      const [special, resumed] = packager.sessions[0]?.commits ?? [];
+      expect(special?.item).toMatchObject({ mediaItemId: "item-002" });
+      // Ordinary programming resumes at the cut with its own entry: listed
+      // items consume no progress, so rotation may air the same file.
+      expect(resumed?.item).toMatchObject({
+        kind: "program",
+        mediaOffsetMs: 0,
+      });
+      expect(
+        resumed?.item.kind === "program" && special?.item.kind === "program"
+          ? resumed.item.scheduleEntryId !== special.item.scheduleEntryId
+          : false,
+      ).toBe(true);
+      expect(resumed?.committedAt).toBeGreaterThanOrEqual(cutAt);
+      expect(resumed?.committedAt).toBeLessThan(cutAt + 1_000);
+      expect(viewer.response.closed).toBe(false);
+      const watchedMs = Date.now() - viewer.tunedAt;
+      expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
+        watchedMs - DRIFT_CEILING_MS,
+      );
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
 describe("real FFmpeg runtime cleanup", () => {
   // Spec 0006's idle grace as composed for the server.
   const IDLE_GRACE_MS = 5_000;

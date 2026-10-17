@@ -5,10 +5,15 @@ import type { Kysely } from "kysely";
 import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
-import { findAiringItem } from "../../playout/persistence/playout-reads.js";
+import {
+  findAiringItem,
+  readAiringAt,
+} from "../../playout/persistence/playout-reads.js";
 import type {
   CreateReservationResult,
   DeleteReservationResult,
+  EarlyEnd,
+  EndReservationResult,
   ReservationRefusal,
   ReservationSettings,
   SavedReservation,
@@ -137,6 +142,55 @@ export class ReservationRepository {
   }
 
   /**
+   * Ends a running reservation early by moving its end earlier, the only
+   * change a started one takes (programming spec 0007). Letting the airing
+   * program finish ends it with that program, or now during its filler; a
+   * chosen instant must fall from now through the current end, and inside
+   * a program it cuts that program there (ADR 0015). The end becomes
+   * explicit; an end that does not move writes nothing.
+   */
+  async endEarly(
+    trx: Executor,
+    channelId: string,
+    reservationId: string,
+    end: EarlyEnd,
+    now: number,
+  ): Promise<EndReservationResult> {
+    const [current] = await readReservations(trx, channelId, { reservationId });
+    if (current === undefined) return { kind: "not_found" };
+    if (current.startsAt > now) {
+      return { kind: "reservation_not_started", startsAt: current.startsAt };
+    }
+    if (current.endsAt <= now) {
+      return { kind: "reservation_ended", endsAt: current.endsAt };
+    }
+    const earliestEndsAt = Math.max(now, current.startsAt + 1);
+    const endsAt =
+      "endsAt" in end
+        ? end.endsAt
+        : await findAiringProgramEnd(trx, current, now);
+    if (endsAt < earliestEndsAt || endsAt > current.endsAt) {
+      return {
+        kind: "reservation_end_out_of_range",
+        earliestEndsAt,
+        latestEndsAt: current.endsAt,
+      };
+    }
+    if (endsAt === current.endsAt) {
+      return { kind: "unchanged", reservation: current };
+    }
+    await trx
+      .updateTable("reservations")
+      .set({ ends_at: endsAt, end_kind: "explicit", updated_at: now })
+      .where("id", "=", reservationId)
+      .execute();
+    return {
+      kind: "ended",
+      reservation: await readReservation(trx, channelId, reservationId),
+    };
+  }
+
+  /**
    * Deletes a reservation; one owned by another channel is not found, and
    * one the airing filler leads into is refused. Its block stays as
    * history, and regeneration after what airs returns its range to ordinary
@@ -190,6 +244,24 @@ async function findAiringFillerConflict(
     return { kind: "airing_filler_conflict", fillerEndsAt: airing.endsAt };
   }
   return undefined;
+}
+
+/**
+ * Returns when the program airing inside a running reservation ends, or
+ * `now` when its filler airs or nothing of it does, so letting what airs
+ * finish never runs the reservation past that program.
+ */
+async function findAiringProgramEnd(
+  trx: Executor,
+  reservation: SavedReservation,
+  now: number,
+): Promise<number> {
+  const airing = await readAiringAt(trx, reservation.channelId, now);
+  return airing?.kind === "program" &&
+    airing.startsAt >= reservation.startsAt &&
+    airing.endsAt <= reservation.endsAt
+    ? airing.endsAt
+    : now;
 }
 
 // Reads back the reservation a write just saved, which must exist.

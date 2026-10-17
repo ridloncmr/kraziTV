@@ -103,6 +103,7 @@ const GATED_ROUTES = [
   "POST /channels/:id/reservations",
   "POST /channels/:id/reservations/preview",
   "PATCH /channels/:id/reservations/:reservationId",
+  "POST /channels/:id/reservations/:reservationId/end",
   "DELETE /channels/:id/reservations/:reservationId",
   "GET /channels/:id/playout",
   "GET /channels/:id/now",

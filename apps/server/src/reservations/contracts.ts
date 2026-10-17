@@ -52,6 +52,14 @@ export interface SavedReservation {
 export type ReservationRefusal =
   | { kind: "reservation_in_past"; startsAt: number }
   | { kind: "reservation_started"; startsAt: number }
+  /** Only a running reservation can end early; one not started is edited or cancelled. */
+  | { kind: "reservation_not_started"; startsAt: number }
+  | { kind: "reservation_ended"; endsAt: number }
+  | {
+      kind: "reservation_end_out_of_range";
+      earliestEndsAt: number;
+      latestEndsAt: number;
+    }
   /** The filler airing now depends on this reservation, so changing it would change what airs. */
   | { kind: "airing_filler_conflict"; fillerEndsAt: number }
   | { kind: "reservation_crosses_airing"; airingEndsAt: number }
@@ -70,6 +78,26 @@ export type UpdateReservationResult =
   | { kind: "updated" | "unchanged"; reservation: SavedReservation }
   | { kind: "not_found" }
   | ReservationRefusal;
+
+/**
+ * When a running reservation should end instead (ADR 0015): at a chosen
+ * instant from now through its current end, or when the program airing in
+ * it ends, which is now during its filler.
+ */
+export type EarlyEnd = { endsAt: number } | { after: "airing" };
+
+export type EndReservationResult =
+  | { kind: "ended" | "unchanged"; reservation: SavedReservation }
+  | { kind: "not_found" }
+  | Extract<
+      ReservationRefusal,
+      {
+        kind:
+          | "reservation_not_started"
+          | "reservation_ended"
+          | "reservation_end_out_of_range";
+      }
+    >;
 
 export type DeleteReservationResult =
   | { kind: "deleted" }

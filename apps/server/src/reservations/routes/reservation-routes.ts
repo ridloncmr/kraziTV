@@ -1,4 +1,4 @@
-import { listPlannedFiller, PLAYBACK_MODES } from "@krazitv/krazi-brain";
+import { PLAYBACK_MODES } from "@krazitv/krazi-brain";
 import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { Kysely } from "kysely";
 import { z } from "zod";
@@ -10,19 +10,19 @@ import {
   sendChannelNotFound,
   sendInvalidRequest,
 } from "../../http/api-error.js";
-import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, isoInstantField } from "../../http/request-schemas.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleChangeReason } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
-import type {
-  ReservationPreview,
-  ReservationRefusal,
-  SavedReservation,
-} from "../contracts.js";
+import type { ReservationRefusal } from "../contracts.js";
 import type { ReservationRepository } from "../persistence/reservation-repository.js";
 import { AiringFillerConflictError } from "../airing-filler-conflict-error.js";
 import { reservationChange } from "../reservation-change.js";
+import {
+  describeRefusal,
+  toApiReservation,
+  toApiReservationPreview,
+} from "./reservation-responses.js";
 
 // What a reservation airs: media items in order, repeats allowed, or one
 // collection in one mode.
@@ -62,12 +62,21 @@ const reservationBody = z
     path: ["endsAt"],
   });
 
+// Ending a running reservation early: at an instant, or after what airs.
+const earlyEndBody = z.union([
+  z.strictObject({ endsAt: isoInstantField }),
+  z.strictObject({ after: z.literal("airing") }),
+]);
+
 const reservationParams = z.object({
   id: z.string(),
   reservationId: z.string(),
 });
 
-/** Registers reservation HTTP routes; validation and status mapping live only here. */
+/**
+ * Registers reservation HTTP routes; validation lives here and status
+ * mapping in `reservation-responses.ts`.
+ */
 export function registerReservationRoutes(
   server: FastifyInstance,
   reservations: ReservationRepository,
@@ -174,6 +183,37 @@ export function registerReservationRoutes(
     },
   );
 
+  // Ends a running reservation early, the only change a started one takes.
+  server.post(
+    "/channels/:id/reservations/:reservationId/end",
+    async (request, reply) => {
+      const { id, reservationId } = reservationParams.parse(request.params);
+      const body = earlyEndBody.safeParse(request.body);
+      if (!body.success) {
+        return sendInvalidRequest(reply, body.error);
+      }
+      const result = await applyReservationWrite(
+        { schedules, runtime },
+        request.log,
+        id,
+        "reservation_ended_early",
+        "ended",
+        (trx, now) =>
+          reservations.endEarly(trx, id, reservationId, body.data, now),
+        { endsEarly: true },
+      );
+      switch (result.kind) {
+        case "ended":
+        case "unchanged":
+          return toApiReservation(result.reservation);
+        case "not_found":
+          return sendReservationNotFound(reply, id, reservationId);
+        default:
+          return sendRefusal(reply, result);
+      }
+    },
+  );
+
   server.delete(
     "/channels/:id/reservations/:reservationId",
     async (request, reply) => {
@@ -215,12 +255,13 @@ function applyReservationWrite<T extends { kind: string }>(
   reason: ScheduleChangeReason,
   changedKind: T["kind"],
   write: (trx: Kysely<DatabaseSchema>, now: number) => Promise<T>,
+  options: Parameters<typeof reservationChange>[3] = {},
 ) {
   return refusingAiringFillerChanges(() =>
     schedules.applyInputChange(
       log,
       reason,
-      reservationChange(channelId, changedKind, write),
+      reservationChange(channelId, changedKind, write, options),
       (value) => {
         if (value.kind === changedKind) {
           notifyScheduleChanged(runtime, channelId, log);
@@ -291,158 +332,4 @@ function sendReservationNotFound(
 function sendRefusal(reply: FastifyReply, refusal: ReservationRefusal) {
   const { status, code, message, ...details } = describeRefusal(refusal);
   return sendApiError(reply, status, code, message, details);
-}
-
-/**
- * Describes each refusal once, for a save and a preview alike: a body naming
- * what does not exist or cannot fit is a 400; a range the schedule or
- * catalog refuses now is a 409.
- */
-function describeRefusal(refusal: ReservationRefusal): {
-  status: 400 | 409;
-  code: ReservationRefusal["kind"];
-  message: string;
-  [detail: string]: unknown;
-} {
-  switch (refusal.kind) {
-    case "media_item_not_found":
-      return {
-        status: 400,
-        code: refusal.kind,
-        message: `Unknown media items: ${refusal.mediaItemIds.join(", ")}`,
-      };
-    case "media_collection_not_found":
-      return {
-        status: 400,
-        code: refusal.kind,
-        message: `Media collection ${refusal.mediaCollectionId} does not exist`,
-      };
-    case "reservation_does_not_fit":
-      return {
-        status: 400,
-        code: refusal.kind,
-        message: "The listed programs do not fit before the reservation's end",
-        programsEndAt: toApiTimestamp(refusal.programsEndAt),
-      };
-    case "reservation_in_past":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message: "A reservation must start in the future",
-        startsAt: toApiTimestamp(refusal.startsAt),
-      };
-    case "reservation_started":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message:
-          "A reservation that has started cannot be edited; delete it instead",
-        startsAt: toApiTimestamp(refusal.startsAt),
-      };
-    case "airing_filler_conflict":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message:
-          "The filler airing now depends on this reservation, so changing it would change what airs",
-        fillerEndsAt: toApiTimestamp(refusal.fillerEndsAt),
-      };
-    case "reservation_crosses_airing":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message: "A reservation cannot start before what is airing ends",
-        airingEndsAt: toApiTimestamp(refusal.airingEndsAt),
-      };
-    case "reservation_overlap":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message: `The range overlaps reservation ${refusal.reservationId}`,
-        reservationId: refusal.reservationId,
-      };
-    case "reservation_media_unplayable":
-      return {
-        status: 409,
-        code: refusal.kind,
-        message: `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
-        mediaItemIds: refusal.mediaItemIds,
-      };
-  }
-}
-
-/**
- * Explains a previewed reservation: its exact range, the programs it airs,
- * the planned filler before it and inside its range, and the ordinary
- * program deferred past it. The start is an exact commitment, unlike a
- * programming rule's soft calendar preference.
- */
-function toApiReservationPreview(
-  channelId: string,
-  preview: Extract<ReservationPreview, { kind: "preview" }>,
-) {
-  const reserved = preview.entries.filter(
-    (entry) => entry.programmingBlockId === preview.reservationBlockId,
-  );
-  const filler = listPlannedFiller({
-    channelId,
-    scheduleRevision: preview.scheduleRevision ?? 0,
-    reservations: preview.reservations,
-    // Nothing before the boundary is previewed, so filler starts there at the earliest.
-    anchorTime: preview.boundary,
-    window: { start: preview.boundary, end: preview.endsAt },
-    entries: preview.entries,
-  });
-  const before = filler.find(
-    (interval) => interval.startsAt < preview.startsAt,
-  );
-  const inside = filler.find(
-    (interval) => interval.startsAt >= preview.startsAt,
-  );
-  const deferred =
-    before === undefined
-      ? undefined
-      : preview.entries.find(
-          (entry) =>
-            entry.startsAt >= preview.endsAt &&
-            entry.programmingBlockId !== preview.reservationBlockId,
-        );
-  const interval = (item: { startsAt: number; endsAt: number }) => ({
-    startsAt: toApiTimestamp(item.startsAt),
-    endsAt: toApiTimestamp(item.endsAt),
-  });
-  return {
-    scheduleRevision: preview.scheduleRevision,
-    commitment: "exact",
-    startsAt: toApiTimestamp(preview.startsAt),
-    endsAt: toApiTimestamp(preview.endsAt),
-    endKind: preview.endKind,
-    programs: reserved.map((entry) => ({
-      mediaItemId: entry.mediaItemId,
-      title: entry.title,
-      ...interval(entry),
-    })),
-    fillerBefore: before === undefined ? null : interval(before),
-    fillerInside: inside === undefined ? null : interval(inside),
-    deferredProgram:
-      deferred === undefined
-        ? null
-        : { mediaItemId: deferred.mediaItemId, title: deferred.title },
-    conflicts: [],
-  };
-}
-
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
-function toApiReservation(reservation: SavedReservation) {
-  return {
-    id: reservation.id,
-    channelId: reservation.channelId,
-    startsAt: toApiTimestamp(reservation.startsAt),
-    endsAt: toApiTimestamp(reservation.endsAt),
-    endKind: reservation.endKind,
-    interrupts: reservation.interrupts,
-    source: reservation.source,
-    createdAt: toApiTimestamp(reservation.createdAt),
-    updatedAt: toApiTimestamp(reservation.updatedAt),
-  };
 }

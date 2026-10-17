@@ -535,3 +535,190 @@ describe("interrupting reservations", () => {
     });
   });
 });
+
+// A movie then the third episode reserved from 22, when the first episode
+// ends, so the special airs the movie 22-112 and the episode 112-136; the
+// clock then stands 18 minutes into the movie.
+async function runningSpecial() {
+  const context = await airingFirstEpisode();
+  const special = await reserveItems(context.server, at(22), [
+    context.movie,
+    "item-003",
+  ]);
+  context.clock.set(at(40));
+  return { ...context, special, endUrl: `${special}/end` };
+}
+
+describe("ending a running special early", () => {
+  it("lets the airing program finish, then resumes ordinary programming", async () => {
+    const context = await runningSpecial();
+    const { server, db, movie, endUrl } = context;
+    const revision = (await readOnlyScheduleState(db)).schedule_revision;
+
+    const ended = await send(server, "POST", endUrl, { after: "airing" });
+
+    expect(ended.status).toBe(200);
+    expect(ended.body).toMatchObject({
+      endsAt: iso(at(112)),
+      endKind: "explicit",
+    });
+    await expect(readGuideAirings(server, at(22), at(140))).resolves.toEqual([
+      `${movie}@22-112`,
+      "item-002@112-135",
+      "item-003@135-159",
+    ]);
+    expect((await readOnlyScheduleState(db)).schedule_revision).toBe(
+      revision + 1,
+    );
+    expect(notices(context)).toEqual([CHANNEL_ID, CHANNEL_ID]);
+  });
+
+  it("cuts the airing program at a chosen instant", async () => {
+    const { server, movie, endUrl } = await runningSpecial();
+
+    const ended = await send(server, "POST", endUrl, { endsAt: iso(at(50)) });
+
+    expect(ended.body).toMatchObject({ endsAt: iso(at(50)) });
+    await expect(readGuideAirings(server, at(22), at(80))).resolves.toEqual([
+      `${movie}@22-50`,
+      "item-002@50-73",
+      "item-003@73-97",
+    ]);
+  });
+
+  it("ends at once during filler inside the special when told to let it finish", async () => {
+    const { server, clock } = await airingFirstEpisode();
+    const special = await reserveItems(server, at(22), ["item-003"], at(60));
+    clock.set(at(50));
+
+    const ended = await send(server, "POST", `${special}/end`, {
+      after: "airing",
+    });
+
+    expect(ended.status).toBe(200);
+    expect(ended.body).toMatchObject({ endsAt: iso(at(50)) });
+    await expect(readGuideAirings(server, at(22), at(75))).resolves.toEqual([
+      "item-003@22-46",
+      "item-002@50-73",
+      "item-003@73-97",
+    ]);
+  });
+
+  it.each([
+    { name: "before now", endsAt: 30 },
+    { name: "after its current end", endsAt: 200 },
+  ])("refuses an end $name", async ({ endsAt }) => {
+    const { server, db, endUrl } = await runningSpecial();
+    const revision = (await readOnlyScheduleState(db)).schedule_revision;
+
+    const refused = await send(server, "POST", endUrl, {
+      endsAt: iso(at(endsAt)),
+    });
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatchObject({
+      code: "reservation_end_out_of_range",
+      earliestEndsAt: iso(at(40)),
+      latestEndsAt: iso(at(136)),
+    });
+    expect((await readOnlyScheduleState(db)).schedule_revision).toBe(revision);
+  });
+
+  it("refuses ending a special that has not started, pointing at edit or cancel", async () => {
+    const { server, movie } = await airingFirstEpisode();
+    const later = await reserveItems(server, at(300), [movie]);
+
+    const refused = await send(server, "POST", `${later}/end`, {
+      after: "airing",
+    });
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe("reservation_not_started");
+    expect(refused.body.error.message).toMatch(/edit or cancel/);
+  });
+
+  it("keeps refusing other edits to a running special and reports unknown ones", async () => {
+    const { server, movie, special } = await runningSpecial();
+
+    const edited = await send(server, "PATCH", special, {
+      startsAt: iso(at(22)),
+      endsAt: iso(at(200)),
+      source: { kind: "media_items", mediaItemIds: [movie] },
+    });
+    const unknown = await send(server, "POST", `${URL}/nope/end`, {
+      after: "airing",
+    });
+    const invalid = await send(server, "POST", `${special}/end`, {});
+
+    expect(edited.body.error.code).toBe("reservation_started");
+    expect(unknown.status).toBe(404);
+    expect(invalid.status).toBe(400);
+  });
+
+  it("stops the airing program now", async () => {
+    const { server, db, movie, endUrl } = await runningSpecial();
+    const revision = (await readOnlyScheduleState(db)).schedule_revision;
+
+    const ended = await send(server, "POST", endUrl, { endsAt: iso(at(40)) });
+
+    expect(ended.body).toMatchObject({ endsAt: iso(at(40)) });
+    await expect(readGuideAirings(server, at(22), at(70))).resolves.toEqual([
+      `${movie}@22-40`,
+      "item-002@40-63",
+      "item-003@63-87",
+    ]);
+    expect((await readOnlyScheduleState(db)).schedule_revision).toBe(
+      revision + 1,
+    );
+  });
+
+  it("drops a later program that no longer fits and fills to the new end", async () => {
+    const { server, movie, endUrl } = await runningSpecial();
+
+    await send(server, "POST", endUrl, { endsAt: iso(at(120)) });
+    const window = await send(
+      server,
+      "GET",
+      windowUrl(`/channels/${CHANNEL_ID}/schedule`, at(100), at(150)),
+    );
+
+    await expect(readGuideAirings(server, at(22), at(145))).resolves.toEqual([
+      `${movie}@22-112`,
+      "item-002@120-143",
+      "item-003@143-167",
+    ]);
+    expect(window.body.fillerIntervals).toMatchObject([
+      { startsAt: iso(at(112)), endsAt: iso(at(120)) },
+    ]);
+  });
+
+  it("ends an interrupting special early and keeps the cut it made", async () => {
+    const { server, clock, movie } = await airingFirstEpisode();
+    const special = await reserveItems(server, at(10), [movie], undefined, {
+      interrupts: true,
+    });
+    clock.set(at(30));
+
+    await send(server, "POST", `${special}/end`, { endsAt: iso(at(40)) });
+
+    await expect(readGuideAirings(server, T0, at(70))).resolves.toEqual([
+      "item-001@0-10",
+      `${movie}@10-40`,
+      "item-002@40-63",
+      "item-003@63-87",
+    ]);
+  });
+
+  it("says a special that already ended has ended", async () => {
+    const { server, clock, endUrl } = await runningSpecial();
+    clock.set(at(140));
+
+    const refused = await send(server, "POST", endUrl, { after: "airing" });
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatchObject({
+      code: "reservation_ended",
+      endsAt: iso(at(136)),
+    });
+  });
+});

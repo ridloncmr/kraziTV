@@ -34,6 +34,7 @@ export type ScheduleChangeReason =
   | "reservation_created"
   | "reservation_changed"
   | "reservation_deleted"
+  | "reservation_ended_early"
   | "programming_timezone_changed"
   | "programming_rebuilt"
   | "membership_changed"
