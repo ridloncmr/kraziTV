@@ -44,6 +44,8 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly completion: Promise<void>;
   private readonly sessionOutput = new PassThrough();
   private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
+  /** Continuity counters the output carries across all of this session's processes. */
+  private readonly continuity = new Map<number, number>();
   private readonly resolveReady: () => void;
   private readonly rejectReady: (reason: unknown) => void;
   private readonly resolveCompletion: () => void;
@@ -145,6 +147,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     const forwarder = new MpegTsPacketForwarder(
       process.output,
       this.sessionOutput,
+      this.continuity,
     );
     const inspector = this.options.createReadinessInspector();
     let usableOutputSeen = false;

@@ -194,7 +194,10 @@ export async function readAiringAt(
  * starting now cuts an entry that itself only starts now. Airing
  * filler ends where an interrupting reservation starts inside it: before
  * that reservation's programs are generated, derivation would merge the
- * filler across it.
+ * filler across it. Filler at or past the end of coverage is not airing
+ * either: that time was never generated, so a reservation ahead only makes
+ * lapsed coverage look planned, and gap repair must rebuild from now rather
+ * than from past the reservation.
  */
 export async function findAiringItem(
   trx: Executor,
@@ -215,6 +218,12 @@ export async function findAiringItem(
   if (startsNow !== undefined) return undefined;
   const airing = await readAiringAt(trx, channelId, at, options);
   if (airing === undefined) return undefined;
+  if (airing.kind === "filler") {
+    const state = await loadScheduleState(trx, channelId);
+    if (state !== undefined && at >= state.lastGeneratedThrough) {
+      return undefined;
+    }
+  }
   const cutAt =
     airing.kind === "filler"
       ? await findInterruptionStart(

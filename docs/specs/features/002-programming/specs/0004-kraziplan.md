@@ -1,6 +1,6 @@
 # Continuous Multi-Source Programming With kraziPlan
 
-Status: Partially Implemented (remaining criteria wait on spec 0007)
+Status: Implemented
 
 ## Problem
 

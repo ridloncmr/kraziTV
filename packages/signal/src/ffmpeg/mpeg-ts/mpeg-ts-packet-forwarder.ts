@@ -1,5 +1,8 @@
 import type { PassThrough, Readable } from "node:stream";
 
+/** The PID of null packets, whose continuity counter carries no meaning. */
+const NULL_PID = 0x1fff;
+
 import {
   MPEG_TS_PACKET_BYTES,
   packetPid,
@@ -12,6 +15,10 @@ import {
  * FFmpeg writes video PES packets without a length, so only the next start
  * proves a frame complete; holding it lets a cut mid-media (ADR 0015) drop
  * an unfinished frame instead of splicing a corrupt one into the signal.
+ * Every FFmpeg process counts each stream's continuity counter from zero, so
+ * the counters are rewritten from `continuity`, which the signal session
+ * shares across its processes: a decoder sees one continuous stream and never
+ * marks the frame before a boundary corrupt.
  */
 export class MpegTsPacketForwarder {
   private remainder = Buffer.alloc(0);
@@ -24,6 +31,8 @@ export class MpegTsPacketForwarder {
   constructor(
     private readonly source: Readable,
     private readonly destination: PassThrough,
+    /** Per PID, the next continuity counter the session's output carries. */
+    private readonly continuity = new Map<number, number>(),
   ) {
     source.on("data", this.forward);
     source.on("end", this.flush);
@@ -80,9 +89,31 @@ export class MpegTsPacketForwarder {
     this.reset();
   };
 
-  /** Writes packets as one chunk, without letting backpressure stall FFmpeg. */
+  /**
+   * Writes packets as one chunk, without letting backpressure stall FFmpeg,
+   * each carrying the session's next continuity counter for its PID. A
+   * packet without payload repeats the last counter, as the standard
+   * requires; null packets, and the reserved field value no real packet
+   * carries, keep theirs.
+   */
   private write(packets: readonly Buffer[]): void {
-    if (packets.length > 0) this.destination.write(Buffer.concat(packets));
+    if (packets.length === 0) return;
+    const chunk = Buffer.concat(packets);
+    for (
+      let offset = 0;
+      offset < chunk.byteLength;
+      offset += MPEG_TS_PACKET_BYTES
+    ) {
+      const pid = packetPid(chunk, offset);
+      const header = chunk[offset + 3] ?? 0;
+      if (pid === NULL_PID || (header & 0x30) === 0) continue;
+      const next = this.continuity.get(pid) ?? header & 0x0f;
+      const hasPayload = (header & 0x10) !== 0;
+      const counter = hasPayload ? next : (next + 15) & 0x0f;
+      chunk[offset + 3] = (header & 0xf0) | counter;
+      if (hasPayload) this.continuity.set(pid, (next + 1) & 0x0f);
+    }
+    this.destination.write(chunk);
   }
 
   /** Forgets everything held, so nothing of this process escapes later. */

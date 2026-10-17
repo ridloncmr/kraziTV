@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
-import { movieFacts } from "../../testing/collection-fixtures.js";
 import {
+  FILM_MS,
+  insertFilmSeries,
   insertMovie,
   saveReservation,
 } from "../../testing/reservation-fixtures.js";
 import {
-  insertCollectionOfItems,
   readOnlyScheduleState,
   readScheduleEntries,
 } from "../../testing/schedule-fixtures.js";
@@ -227,25 +227,11 @@ describe("POST /channels/:id/reservations/preview", () => {
   });
 
   describe("a collection from the beginning", () => {
-    const FILM_MS = 100 * MINUTE;
-
-    // Eight films saved last-released first, so release order is the
-    // reverse of saved order and the ordinary rotation's next film is not
-    // the first one.
+    // Eight films whose release order is the reverse of saved order, so the
+    // ordinary rotation's next film is not the first one.
     async function films() {
       const context = await scheduled();
-      const ids = await insertCollectionOfItems(
-        context.db,
-        "films",
-        Array.from({ length: 8 }, () => FILM_MS),
-      );
-      await context.db
-        .insertInto("content_facts")
-        .values(
-          ids.map((id, index) => movieFacts(id, null, `${2010 - index}-07-01`)),
-        )
-        .execute();
-      return { ...context, ids };
+      return { ...context, ids: await insertFilmSeries(context.db, 8) };
     }
 
     const fromTheBeginning = (playbackMode: string) => ({

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BlockingSpecials } from "../../controls/blocking-specials.js";
+import { channelNumberIn } from "../../controls/channel-number.js";
 import { displayClockTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
@@ -72,8 +73,7 @@ export function RemoveMediaDialog({
   const title = subject.kind === "root" ? "Delete media root" : "Delete media";
 
   if (failure) {
-    const numberOf = (id: string) =>
-      channels.data?.find((channel) => channel.id === id)?.number ?? id;
+    const numberOf = (id: string) => channelNumberIn(channels.data, id);
     const waiting = inUse && channels.loading && !channels.data;
     return (
       <WindowDialog title={title} onClose={onClose}>

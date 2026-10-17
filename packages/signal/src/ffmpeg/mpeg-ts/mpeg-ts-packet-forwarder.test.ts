@@ -102,4 +102,33 @@ describe("MpegTsPacketForwarder", () => {
       }),
     ).then(() => undefined);
   });
+
+  it("keeps each stream's continuity counter continuous across the processes of one signal", () => {
+    const destination = new PassThrough();
+    const written = collect(destination);
+    const continuity = new Map<number, number>();
+    const first = new PassThrough();
+    const second = new PassThrough();
+    // Each FFmpeg process counts from zero, so a splice would jump back.
+    const counted = (cc: number, pesStart = false) => {
+      const packet = transportPacket({ pid: 0x100, fill: 1, pesStart });
+      packet[3] = 0x10 | cc;
+      return packet;
+    };
+    const forwarder = new MpegTsPacketForwarder(first, destination, continuity);
+    first.write(
+      Buffer.concat([counted(7, true), counted(8), counted(9, true)]),
+    );
+    forwarder.detach();
+    new MpegTsPacketForwarder(second, destination, continuity);
+    second.write(
+      Buffer.concat([counted(0, true), counted(1), counted(2, true)]),
+    );
+
+    const counters = [];
+    for (let offset = 0; offset < written().byteLength; offset += 188) {
+      counters.push((written()[offset + 3] ?? 0) & 0x0f);
+    }
+    expect(counters).toEqual([7, 8, 9, 10]);
+  });
 });

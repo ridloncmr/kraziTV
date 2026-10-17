@@ -25,10 +25,9 @@ type PreviewedSettings = {
   source: SpecialPreviewSource;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
- * Builds or edits one special: a start up to a year ahead, an optional end,
+ * Builds or edits one special: a start (the server refuses one more than a
+ * year ahead, as a preview conflict), an optional end,
  * and what airs, as media items in order, a collection block, or a
  * collection from the beginning. A save sends exactly the settings its
  * preview was made from, with that preview's schedule revision, so the
@@ -193,9 +192,6 @@ export function SpecialEditor({
     );
   };
 
-  const latest = toLocalInput(
-    new Date(Date.now() + 365 * DAY_MS).toISOString(),
-  );
   const incomplete =
     startsAt === "" ||
     (kind !== "media_items" && collectionId === "") ||
@@ -209,7 +205,6 @@ export function SpecialEditor({
           <input
             type="datetime-local"
             required
-            max={latest}
             value={startsAt}
             onChange={(event) =>
               edit(() => {

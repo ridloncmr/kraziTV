@@ -8,12 +8,39 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { iso, send, windowUrl } from "./api-requests.js";
 import { FIXTURE_TIME } from "./catalog-fixtures.js";
 import { channelFixture } from "./channel-fixtures.js";
+import { movieFacts } from "./collection-fixtures.js";
 import { insertCollectionOfItems } from "./schedule-fixtures.js";
 
 /** Catalogs a `movies` collection of one 90-minute movie and returns its ID. */
 export async function insertMovie(db: Kysely<DatabaseSchema>): Promise<string> {
   const [movie = ""] = await insertCollectionOfItems(db, "movies", [5_400_000]);
   return movie;
+}
+
+/** How long each film of `insertFilmSeries` runs. */
+export const FILM_MS = 100 * 60_000;
+
+/**
+ * Catalogs a `films` collection of `count` films saved last-released first,
+ * so release order is the reverse of saved order, and returns their IDs in
+ * saved order. A full-series event's first film is then the last one saved.
+ */
+export async function insertFilmSeries(
+  db: Kysely<DatabaseSchema>,
+  count: number,
+): Promise<string[]> {
+  const ids = await insertCollectionOfItems(
+    db,
+    "films",
+    Array.from({ length: count }, () => FILM_MS),
+  );
+  await db
+    .insertInto("content_facts")
+    .values(
+      ids.map((id, index) => movieFacts(id, null, `${2010 - index}-07-01`)),
+    )
+    .execute();
+  return ids;
 }
 
 /**

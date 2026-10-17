@@ -6,6 +6,7 @@ import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import { BlockingSpecials } from "../../controls/blocking-specials.js";
+import { channelNumberIn } from "../../controls/channel-number.js";
 import type {
   Channel,
   CollectionMember,
@@ -208,9 +209,7 @@ export function CollectionEditor({
           />
           <BlockingSpecials
             error={deleting.attempted ? mutation.error : undefined}
-            channelNumber={(id) =>
-              channels.data?.find((channel) => channel.id === id)?.number ?? id
-            }
+            channelNumber={(id) => channelNumberIn(channels.data, id)}
             onOpenChannels={onOpenChannels}
           />
           <div className="dialog-actions">
