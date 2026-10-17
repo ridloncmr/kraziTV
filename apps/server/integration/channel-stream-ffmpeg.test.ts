@@ -34,6 +34,7 @@ import {
   runningFfmpegProcesses,
 } from "../src/testing/real-ffmpeg.js";
 import { RecordingSignalPackager } from "../src/testing/recording-signal-packager.js";
+import { saveReservation } from "../src/testing/reservation-fixtures.js";
 import {
   seedScheduleScenario,
   type ScheduleItemSpec,
@@ -332,7 +333,7 @@ describe("real FFmpeg reserved start", () => {
       // The next episode would end past the reservation, so filler covers
       // three seconds after the first one before the reserved program.
       const reservedAt = first.ends_at + 3_000;
-      const created = await send(
+      const created = await saveReservation(
         server,
         "POST",
         `/channels/${CHANNEL_ID}/reservations`,
@@ -390,7 +391,7 @@ describe("real FFmpeg cut", () => {
       await sleepUntil(first.starts_at + 2_000);
       const savedAt = Date.now();
 
-      const created = await send(
+      const created = await saveReservation(
         server,
         "POST",
         `/channels/${CHANNEL_ID}/reservations`,
@@ -431,7 +432,7 @@ describe("real FFmpeg early end", () => {
       const { server, baseUrl, packager, entries } = await startRealChannel();
       const first = entryAt(entries, 0);
       // The special airs the six-second second file from the first one's end.
-      const reservation = await send(
+      const reservation = await saveReservation(
         server,
         "POST",
         `/channels/${CHANNEL_ID}/reservations`,
@@ -474,9 +475,13 @@ describe("real FFmpeg early end", () => {
       expect(resumed?.committedAt).toBeGreaterThanOrEqual(cutAt);
       expect(resumed?.committedAt).toBeLessThan(cutAt + 1_000);
       expect(viewer.response.closed).toBe(false);
+      // One drift ceiling per transition: this viewer crosses two, into the
+      // special and at the cut, and the cut also drops what the truncated
+      // FFmpeg process had not yet emitted. Under the full suite's load the
+      // shortfall measured about 2.4 seconds, past a single ceiling.
       const watchedMs = Date.now() - viewer.tunedAt;
       expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
-        watchedMs - DRIFT_CEILING_MS,
+        watchedMs - 2 * DRIFT_CEILING_MS,
       );
     },
     TEST_TIMEOUT_MS,

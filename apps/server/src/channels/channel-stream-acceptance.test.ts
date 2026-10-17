@@ -10,6 +10,7 @@ import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { RecordingSignalPackager } from "../testing/recording-signal-packager.js";
+import { saveReservation } from "../testing/reservation-fixtures.js";
 import {
   seedScheduleScenario,
   type ScheduleScenarioOptions,
@@ -348,11 +349,16 @@ describe("interrupting reservations", () => {
     await readChunk(viewer.response);
     clock.set(MID_SECOND + MINUTE);
 
-    const created = await send(server, "POST", `${CHANNEL_URL}/reservations`, {
-      startsAt: "now",
-      interrupts: true,
-      source: { kind: "media_items", mediaItemIds: ["item-001"] },
-    });
+    const created = await saveReservation(
+      server,
+      "POST",
+      `${CHANNEL_URL}/reservations`,
+      {
+        startsAt: "now",
+        interrupts: true,
+        source: { kind: "media_items", mediaItemIds: ["item-001"] },
+      },
+    );
 
     expect(created.status).toBe(201);
     expect(created.body.startsAt).toBe(iso(MID_SECOND + MINUTE));

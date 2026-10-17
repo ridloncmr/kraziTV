@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
+import { loadScheduleState } from "../../schedules/persistence/schedule-repository.js";
 import {
   findAiringItem,
   readAiringAt,
@@ -13,6 +14,7 @@ import type {
   CreateReservationResult,
   DeleteReservationResult,
   EarlyEnd,
+  SaveGuards,
   EndReservationResult,
   ReservationRefusal,
   ReservationSettings,
@@ -54,11 +56,18 @@ export class ReservationRepository {
     return readReservations(this.#db, channelId);
   }
 
-  /** Saves a new reservation once every check in `resolveReservationRange` passes. */
+  /**
+   * Saves a new reservation once every check in `resolveReservationRange`
+   * passes. A save whose key already created one returns it unchanged, so a
+   * retry duplicates nothing; the key names the save, so a retry's body is
+   * not compared, as for a fresh rebuild's key. Any other save made from a
+   * preview of another schedule revision is refused before it writes.
+   */
   async create(
     trx: Executor,
     channelId: string,
     settings: ReservationSettings,
+    guards: SaveGuards,
     now: number,
   ): Promise<CreateReservationResult> {
     const channel = await trx
@@ -67,6 +76,16 @@ export class ReservationRepository {
       .where("id", "=", channelId)
       .executeTakeFirst();
     if (channel === undefined) return { kind: "channel_not_found" };
+    if (guards.requestKey !== undefined) {
+      const [repeated] = await readReservations(trx, channelId, {
+        requestKey: guards.requestKey,
+      });
+      if (repeated !== undefined) {
+        return { kind: "repeated", reservation: repeated };
+      }
+    }
+    const stale = await findStalePreview(trx, channelId, guards);
+    if (stale !== undefined) return stale;
     const range = await resolveReservationRange(trx, channelId, settings, now);
     if (range.kind !== "resolved") return range;
     const id = this.#createId();
@@ -79,6 +98,7 @@ export class ReservationRepository {
         ends_at: range.endsAt,
         end_kind: range.endKind,
         interrupts: toSqliteBoolean(range.interrupts),
+        request_key: guards.requestKey ?? null,
         ...toSourceColumns(settings.source),
         created_at: now,
         updated_at: now,
@@ -102,6 +122,7 @@ export class ReservationRepository {
     channelId: string,
     reservationId: string,
     settings: ReservationSettings,
+    guards: SaveGuards,
     now: number,
   ): Promise<UpdateReservationResult> {
     const [current] = await readReservations(trx, channelId, { reservationId });
@@ -112,6 +133,8 @@ export class ReservationRepository {
     if (isSameSettings(current, settings)) {
       return { kind: "unchanged", reservation: current };
     }
+    const stale = await findStalePreview(trx, channelId, guards);
+    if (stale !== undefined) return stale;
     const conflict = await findAiringFillerConflict(trx, current, now);
     if (conflict !== undefined) return conflict;
     const range = await resolveReservationRange(
@@ -244,6 +267,26 @@ async function findAiringFillerConflict(
     return { kind: "airing_filler_conflict", fillerEndsAt: airing.endsAt };
   }
   return undefined;
+}
+
+/**
+ * Returns a refusal when the channel's schedule revision is not the one the
+ * save's preview read, so a save never publishes a schedule the owner did
+ * not see. Read inside the write's immediate transaction. Coverage extended
+ * by an ordinary read since the preview also makes it stale: it fails
+ * closed, and the owner previews again. The refusal names no revision, so a
+ * browser can only recover by previewing, never by resending.
+ */
+async function findStalePreview(
+  trx: Executor,
+  channelId: string,
+  { expectedScheduleRevision }: SaveGuards,
+): Promise<Extract<ReservationRefusal, { kind: "preview_stale" }> | undefined> {
+  const scheduleRevision =
+    (await loadScheduleState(trx, channelId))?.scheduleRevision ?? null;
+  return scheduleRevision === expectedScheduleRevision
+    ? undefined
+    : { kind: "preview_stale" };
 }
 
 /**

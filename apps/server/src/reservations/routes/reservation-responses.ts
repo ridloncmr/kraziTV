@@ -64,6 +64,20 @@ export function describeRefusal(refusal: ReservationRefusal): {
           "A special that has not started cannot end early; edit or cancel it instead",
         startsAt: toApiTimestamp(refusal.startsAt),
       };
+    case "reservation_too_far":
+      return {
+        status: 409,
+        code: refusal.kind,
+        message: "A special can start at most a year ahead",
+        latestStartsAt: toApiTimestamp(refusal.latestStartsAt),
+      };
+    case "preview_stale":
+      return {
+        status: 409,
+        code: refusal.kind,
+        message:
+          "The schedule changed since this preview; preview again before saving",
+      };
     case "reservation_ended":
       return {
         status: 409,

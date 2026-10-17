@@ -1,4 +1,6 @@
 // Reservation setup for route and acceptance tests only; production code must never import this module.
+import { randomUUID } from "node:crypto";
+
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 
@@ -15,6 +17,36 @@ export async function insertMovie(db: Kysely<DatabaseSchema>): Promise<string> {
 }
 
 /**
+ * Saves a reservation on the fixture channel as the browser does: previews
+ * the settings to read the schedule revision, then sends the save with it
+ * and, for a create, a fresh request key. A body may override either guard,
+ * as a stale or retried save would. Answers the save's response.
+ */
+export async function saveReservation(
+  server: FastifyInstance,
+  method: "POST" | "PATCH",
+  url: string,
+  body: Record<string, unknown>,
+) {
+  const { expectedScheduleRevision: _, requestKey: __, ...settings } = body;
+  const preview = await send(
+    server,
+    "POST",
+    `/channels/${channelFixture.id}/reservations/preview`,
+    settings,
+  );
+  return send(server, method, url, {
+    expectedScheduleRevision:
+      // An unschedulable channel's preview names it on its refusal.
+      ((preview.body?.scheduleRevision ??
+        preview.body?.error?.scheduleRevision) as number | null | undefined) ??
+      null,
+    ...(method === "POST" ? { requestKey: randomUUID() } : {}),
+    ...body,
+  });
+}
+
+/**
  * Reserves media items on the fixture channel through the API, with a
  * program-derived end unless one is given, and returns the reservation's URL.
  * A start of "now" and `interrupts` pass through as the owner sends them.
@@ -26,7 +58,7 @@ export async function reserveItems(
   endsAt?: number,
   { interrupts }: { interrupts?: boolean } = {},
 ): Promise<string> {
-  const created = await send(
+  const created = await saveReservation(
     server,
     "POST",
     `/channels/${channelFixture.id}/reservations`,

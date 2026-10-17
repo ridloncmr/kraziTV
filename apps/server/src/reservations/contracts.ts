@@ -31,6 +31,17 @@ export interface ReservationSettings {
   source: ReservationSourceSettings;
 }
 
+/**
+ * What a save must carry beyond the settings (programming spec 0007): the
+ * schedule revision its preview read, so a save never publishes a schedule
+ * the owner did not see, and, for a create, the browser's key for this save,
+ * so a retry finds what it created.
+ */
+export interface SaveGuards {
+  expectedScheduleRevision: number | null;
+  requestKey?: string;
+}
+
 /** A saved reservation, with the end it stores whichever kind it is. */
 export interface SavedReservation {
   id: string;
@@ -51,6 +62,9 @@ export interface SavedReservation {
  */
 export type ReservationRefusal =
   | { kind: "reservation_in_past"; startsAt: number }
+  | { kind: "reservation_too_far"; latestStartsAt: number }
+  /** The schedule changed since the preview the save was made from. */
+  | { kind: "preview_stale" }
   | { kind: "reservation_started"; startsAt: number }
   /** Only a running reservation can end early; one not started is edited or cancelled. */
   | { kind: "reservation_not_started"; startsAt: number }
@@ -71,6 +85,8 @@ export type ReservationRefusal =
 
 export type CreateReservationResult =
   | { kind: "created"; reservation: SavedReservation }
+  /** A retry of a save that already created this reservation. */
+  | { kind: "repeated"; reservation: SavedReservation }
   | { kind: "channel_not_found" }
   | ReservationRefusal;
 
@@ -111,7 +127,12 @@ export type DeleteReservationResult =
  */
 export type ReservationPreview =
   | { kind: "channel_not_found" }
-  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
+  | {
+      kind: "unschedulable";
+      reason: ProgrammingUnschedulableReason;
+      /** A reservation still airs on such a channel, so a save needs this. */
+      scheduleRevision: number | null;
+    }
   | {
       kind: "refused";
       refusal: ReservationRefusal;

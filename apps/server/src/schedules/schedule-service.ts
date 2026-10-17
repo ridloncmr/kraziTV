@@ -422,7 +422,9 @@ export class ScheduleService {
             effectiveNow,
             reservation,
           );
-        if (generated.kind === "unschedulable") return generated;
+        if (generated.kind === "unschedulable") {
+          return { ...generated, scheduleRevision };
+        }
         return {
           kind: "preview",
           scheduleRevision,

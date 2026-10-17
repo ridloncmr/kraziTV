@@ -17,6 +17,9 @@ import type {
 
 type Executor = Kysely<DatabaseSchema>;
 
+/** How far ahead a reservation may start (programming spec 0007). */
+const MAX_LEAD_MS = 365 * 24 * 60 * 60 * 1000;
+
 /**
  * A reservation that may be saved, with the start and end it stores, and
  * whether it interrupts: only a flagged one starting inside the airing item
@@ -33,7 +36,8 @@ interface ResolvedRange {
 /**
  * Returns the first reason a reservation cannot be saved on the channel at
  * `now`, or the range it stores: what it airs must exist and be playable,
- * it must start in the future, or now when asked, and at or after the
+ * it must start in the future, or now when asked, at most a year ahead, and
+ * at or after the
  * regeneration boundary unless the owner marked it interrupting (ADR 0015),
  * a media-item list must fit its range whole, and it must not overlap
  * another of the channel's reservations. The boundary is read without the
@@ -53,6 +57,9 @@ export async function resolveReservationRange(
   const startsAt = settings.startsAt === "now" ? now : settings.startsAt;
   if (settings.startsAt !== "now" && startsAt <= now) {
     return { kind: "reservation_in_past", startsAt };
+  }
+  if (startsAt > now + MAX_LEAD_MS) {
+    return { kind: "reservation_too_far", latestStartsAt: now + MAX_LEAD_MS };
   }
   const boundary = findRegenerationBoundary(
     await findAiringItem(trx, channelId, now, {

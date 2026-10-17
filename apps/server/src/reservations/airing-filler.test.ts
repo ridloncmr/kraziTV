@@ -12,7 +12,11 @@ import {
   readOnlyScheduleState,
   readScheduleEntries,
 } from "../testing/schedule-fixtures.js";
-import { insertMovie, reserveItems } from "../testing/reservation-fixtures.js";
+import {
+  insertMovie,
+  reserveItems,
+  saveReservation,
+} from "../testing/reservation-fixtures.js";
 import { startScheduleScenarioServer } from "../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 
@@ -107,7 +111,10 @@ describe("edits while planned filler airs", () => {
       const revisionBefore = await revision();
       const [method, body] = request(movie);
 
-      const refused = await send(server, method, leadsInto, body);
+      const refused =
+        method === "PATCH"
+          ? await saveReservation(server, method, leadsInto, body)
+          : await send(server, method, leadsInto, body);
 
       expect(refused.status).toBe(409);
       expect(refused.body.error).toMatchObject({
@@ -125,7 +132,7 @@ describe("edits while planned filler airs", () => {
   it("refuses a new reservation starting before the airing filler ends", async () => {
     const { server, movie } = await duringFiller();
 
-    const refused = await send(server, "POST", RESERVATIONS, {
+    const refused = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(55)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
@@ -151,7 +158,7 @@ describe("edits while planned filler airs", () => {
       iso(at(300)),
     );
 
-    const moved = await send(server, "PATCH", later, {
+    const moved = await saveReservation(server, "PATCH", later, {
       startsAt: iso(at(330)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
@@ -276,7 +283,7 @@ describe("edits while a reservation's own tail filler airs", () => {
     const revisionBefore = (await readOnlyScheduleState(db)).schedule_revision;
 
     // Nothing in an empty collection fits, so its range would extend the airing filler.
-    const refused = await send(server, "POST", RESERVATIONS, {
+    const refused = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(170)),
       endsAt: iso(at(180)),
       source: {

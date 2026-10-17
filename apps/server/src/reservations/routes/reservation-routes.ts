@@ -38,29 +38,59 @@ const reservationSource = z.discriminatedUnion("kind", [
   }),
 ]);
 
-// Create and PATCH share one body: PATCH replaces the whole reservation. A
-// null end is derived from the listed programs, so a collection, whose fit
-// is unknown until it airs, needs an explicit one. A start of "now" is
-// resolved on the server inside the write; `interrupts` lets the start fall
-// inside the airing item and cut it (ADR 0015).
-const reservationBody = z
-  .strictObject({
-    startsAt: z.union([z.literal("now"), isoInstantField]),
-    endsAt: isoInstantField.nullable().default(null),
-    interrupts: z.boolean().default(false),
-    source: reservationSource,
-  })
-  .refine(
-    (body) =>
-      body.endsAt === null ||
-      body.startsAt === "now" ||
-      body.endsAt > body.startsAt,
-    { message: "endsAt must be after startsAt", path: ["endsAt"] },
-  )
-  .refine((body) => body.source.kind !== "collection" || body.endsAt !== null, {
-    message: "a collection reservation needs an explicit endsAt",
-    path: ["endsAt"],
-  });
+// Preview, create, and PATCH share these fields: PATCH replaces the whole
+// reservation. A null end is derived from the listed programs, so a
+// collection, whose fit is unknown until it airs, needs an explicit one. A
+// start of "now" is resolved on the server inside the write; `interrupts`
+// lets the start fall inside the airing item and cut it (ADR 0015).
+const reservationFields = {
+  startsAt: z.union([z.literal("now"), isoInstantField]),
+  endsAt: isoInstantField.nullable().default(null),
+  interrupts: z.boolean().default(false),
+  source: reservationSource,
+};
+
+// A save also names the schedule revision its preview read; a create adds
+// the browser's key for this save, repeated unchanged on a retry.
+const expectedScheduleRevision = z.number().int().nonnegative().nullable();
+
+const reservationObject = z.strictObject(reservationFields);
+
+/** The fields the range checks read, whichever body carries them. */
+type RangeFields = Pick<
+  z.output<typeof reservationObject>,
+  "startsAt" | "endsAt" | "source"
+>;
+
+/** Adds the range checks every body shares to one of the bodies. */
+function withRangeChecks<T extends z.ZodType<RangeFields>>(schema: T) {
+  return schema
+    .refine(
+      (body) =>
+        body.endsAt === null ||
+        body.startsAt === "now" ||
+        body.endsAt > body.startsAt,
+      { message: "endsAt must be after startsAt", path: ["endsAt"] },
+    )
+    .refine(
+      (body) => body.source.kind !== "collection" || body.endsAt !== null,
+      {
+        message: "a collection reservation needs an explicit endsAt",
+        path: ["endsAt"],
+      },
+    );
+}
+
+const previewBody = withRangeChecks(reservationObject);
+const createBody = withRangeChecks(
+  reservationObject.extend({
+    expectedScheduleRevision,
+    requestKey: z.string().min(1).max(200),
+  }),
+);
+const updateBody = withRangeChecks(
+  reservationObject.extend({ expectedScheduleRevision }),
+);
 
 // Ending a running reservation early: at an instant, or after what airs.
 const earlyEndBody = z.union([
@@ -95,7 +125,7 @@ export function registerReservationRoutes(
 
   server.post("/channels/:id/reservations", async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const body = reservationBody.safeParse(request.body);
+    const body = createBody.safeParse(request.body);
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
@@ -105,11 +135,23 @@ export function registerReservationRoutes(
       id,
       "reservation_created",
       "created",
-      (trx, now) => reservations.create(trx, id, body.data, now),
+      (trx, now) => {
+        const { expectedScheduleRevision, requestKey, ...settings } = body.data;
+        return reservations.create(
+          trx,
+          id,
+          settings,
+          { expectedScheduleRevision, requestKey },
+          now,
+        );
+      },
     );
     switch (result.kind) {
       case "created":
         return reply.status(201).send(toApiReservation(result.reservation));
+      // A retried save answers with what the first one created.
+      case "repeated":
+        return toApiReservation(result.reservation);
       case "channel_not_found":
         return sendChannelNotFound(reply, id);
       default:
@@ -120,7 +162,7 @@ export function registerReservationRoutes(
   // What saving the body would air, computed without writing anything.
   server.post("/channels/:id/reservations/preview", async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    const body = reservationBody.safeParse(request.body);
+    const body = previewBody.safeParse(request.body);
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
@@ -138,7 +180,10 @@ export function registerReservationRoutes(
           409,
           "channel_unschedulable",
           `Channel ${id} cannot generate a schedule`,
-          { reason: preview.reason },
+          {
+            reason: preview.reason,
+            scheduleRevision: preview.scheduleRevision,
+          },
         );
       case "refused": {
         const { status: _, ...conflict } = describeRefusal(preview.refusal);
@@ -157,7 +202,7 @@ export function registerReservationRoutes(
     "/channels/:id/reservations/:reservationId",
     async (request, reply) => {
       const { id, reservationId } = reservationParams.parse(request.params);
-      const body = reservationBody.safeParse(request.body);
+      const body = updateBody.safeParse(request.body);
       if (!body.success) {
         return sendInvalidRequest(reply, body.error);
       }
@@ -168,8 +213,17 @@ export function registerReservationRoutes(
         id,
         "reservation_changed",
         "updated",
-        (trx, now) =>
-          reservations.update(trx, id, reservationId, body.data, now),
+        (trx, now) => {
+          const { expectedScheduleRevision, ...settings } = body.data;
+          return reservations.update(
+            trx,
+            id,
+            reservationId,
+            settings,
+            { expectedScheduleRevision },
+            now,
+          );
+        },
       );
       switch (result.kind) {
         case "updated":

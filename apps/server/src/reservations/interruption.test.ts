@@ -10,6 +10,7 @@ import {
   insertMovie,
   readGuideAirings,
   reserveItems,
+  saveReservation,
 } from "../testing/reservation-fixtures.js";
 import {
   insertCollectionOfItems,
@@ -92,7 +93,7 @@ describe("interrupting reservations", () => {
     const { server, db, movie } = context;
     const revision = (await readOnlyScheduleState(db)).schedule_revision;
 
-    const created = await send(server, "POST", URL, {
+    const created = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(10)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -130,11 +131,11 @@ describe("interrupting reservations", () => {
     const { server, db, movie } = await airingFirstEpisode();
     const revision = (await readOnlyScheduleState(db)).schedule_revision;
 
-    const unflagged = await send(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(10)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const past = await send(server, "POST", URL, {
+    const past = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(3)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -152,11 +153,11 @@ describe("interrupting reservations", () => {
   it("starts now on the server clock, and refuses now without the flag while something airs", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const unflagged = await send(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", URL, {
       startsAt: "now",
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const created = await send(server, "POST", URL, {
+    const created = await saveReservation(server, "POST", URL, {
       startsAt: "now",
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -198,11 +199,11 @@ describe("interrupting reservations", () => {
     });
 
     // An unflagged edit is judged against the episode's full airtime.
-    const unflagged = await send(server, "PATCH", reservation, {
+    const unflagged = await saveReservation(server, "PATCH", reservation, {
       startsAt: iso(at(15)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const moved = await send(server, "PATCH", reservation, {
+    const moved = await saveReservation(server, "PATCH", reservation, {
       startsAt: iso(at(15)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -240,7 +241,7 @@ describe("interrupting reservations", () => {
     await reserveItems(server, at(60), [movie]);
     clock.set(at(50));
 
-    const unflagged = await send(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(52)),
       source: { kind: "media_items", mediaItemIds: [clip] },
     });
@@ -340,7 +341,7 @@ describe("interrupting reservations", () => {
     });
     runtimeOf(context).noticeFailure = new Error("worker unreachable");
 
-    const created = await send(context.server, "POST", URL, {
+    const created = await saveReservation(context.server, "POST", URL, {
       startsAt: iso(at(10)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [context.movie] },
@@ -364,11 +365,11 @@ describe("interrupting reservations", () => {
       interrupts: true,
     });
 
-    const unflagged = await send(server, "PATCH", special, {
+    const unflagged = await saveReservation(server, "PATCH", special, {
       startsAt: iso(at(54)),
       source: { kind: "media_items", mediaItemIds: [clip] },
     });
-    const moved = await send(server, "PATCH", special, {
+    const moved = await saveReservation(server, "PATCH", special, {
       startsAt: iso(at(54)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [clip] },
@@ -430,7 +431,7 @@ describe("interrupting reservations", () => {
   it("stores the flag only on a special that cuts what airs", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const later = await send(server, "POST", URL, {
+    const later = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(300)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -445,7 +446,7 @@ describe("interrupting reservations", () => {
   it("refuses an explicit end at or before a start of now", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const refused = await send(server, "POST", URL, {
+    const refused = await saveReservation(server, "POST", URL, {
       startsAt: "now",
       endsAt: iso(at(4)),
       interrupts: true,
@@ -479,7 +480,7 @@ describe("interrupting reservations", () => {
       interrupts: true,
     });
 
-    await send(server, "PATCH", special, {
+    await saveReservation(server, "PATCH", special, {
       startsAt: iso(at(10)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -640,7 +641,7 @@ describe("ending a running special early", () => {
   it("keeps refusing other edits to a running special and reports unknown ones", async () => {
     const { server, movie, special } = await runningSpecial();
 
-    const edited = await send(server, "PATCH", special, {
+    const edited = await saveReservation(server, "PATCH", special, {
       startsAt: iso(at(22)),
       endsAt: iso(at(200)),
       source: { kind: "media_items", mediaItemIds: [movie] },

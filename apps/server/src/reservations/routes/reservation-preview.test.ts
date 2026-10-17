@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
-import { insertMovie } from "../../testing/reservation-fixtures.js";
+import {
+  insertMovie,
+  saveReservation,
+} from "../../testing/reservation-fixtures.js";
 import {
   readOnlyScheduleState,
   readScheduleEntries,
@@ -68,7 +71,7 @@ describe("POST /channels/:id/reservations/preview", () => {
       conflicts: [],
     });
 
-    await send(server, "POST", RESERVATIONS, movieAt(movie, at(60)));
+    await saveReservation(server, "POST", RESERVATIONS, movieAt(movie, at(60)));
     const saved = await send(
       server,
       "GET",
@@ -138,7 +141,7 @@ describe("POST /channels/:id/reservations/preview", () => {
 
   it("leaves reservation programs out of the rotation turns a programming preview shows", async () => {
     const { server, movie } = await scheduled();
-    await send(server, "POST", RESERVATIONS, movieAt(movie, at(60)));
+    await saveReservation(server, "POST", RESERVATIONS, movieAt(movie, at(60)));
 
     const programming = await send(
       server,

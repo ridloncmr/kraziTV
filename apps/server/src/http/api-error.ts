@@ -61,6 +61,8 @@ type ApiErrorCode =
   | "reservation_overlap"
   | "reservation_started"
   | "reservation_not_started"
+  | "reservation_too_far"
+  | "preview_stale"
   | "reservation_ended"
   | "reservation_end_out_of_range"
   | "scan_cancelled"

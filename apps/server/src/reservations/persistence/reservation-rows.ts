@@ -70,16 +70,18 @@ export async function resolveReservation(
 
 /**
  * Reads a channel's saved reservations in start order, only the one named
- * by `reservationId` (one owned by another channel is not found), or only
- * those ending after `endingAfter`.
+ * by `reservationId` (one owned by another channel is not found), only the
+ * one a save with `requestKey` created, or only those ending after
+ * `endingAfter`.
  */
 export async function readReservations(
   trx: Executor,
   channelId: string,
   {
     reservationId,
+    requestKey,
     endingAfter,
-  }: { reservationId?: string; endingAfter?: number } = {},
+  }: { reservationId?: string; requestKey?: string; endingAfter?: number } = {},
 ): Promise<SavedReservation[]> {
   let query = trx
     .selectFrom("reservations")
@@ -87,6 +89,9 @@ export async function readReservations(
     .where("channel_id", "=", channelId);
   if (reservationId !== undefined) {
     query = query.where("id", "=", reservationId);
+  }
+  if (requestKey !== undefined) {
+    query = query.where("request_key", "=", requestKey);
   }
   if (endingAfter !== undefined) {
     query = query.where("ends_at", ">", endingAfter);
