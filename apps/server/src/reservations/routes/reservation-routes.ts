@@ -1,4 +1,4 @@
-import { PLAYBACK_MODES } from "@krazitv/krazi-brain";
+import { listPlannedFiller, PLAYBACK_MODES } from "@krazitv/krazi-brain";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
@@ -7,12 +7,15 @@ import {
   sendApiError,
   sendChannelNotFound,
   sendInvalidRequest,
-  sendUnknownMediaItems,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, isoInstantField } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
-import type { ReservationRefusal, SavedReservation } from "../contracts.js";
+import type {
+  ReservationPreview,
+  ReservationRefusal,
+  SavedReservation,
+} from "../contracts.js";
 import type { ReservationRepository } from "../persistence/reservation-repository.js";
 import { AiringFillerConflictError } from "../airing-filler-conflict-error.js";
 import { reservationChange } from "../reservation-change.js";
@@ -92,6 +95,42 @@ export function registerReservationRoutes(
         return sendChannelNotFound(reply, id);
       default:
         return sendRefusal(reply, result);
+    }
+  });
+
+  // What saving the body would air, computed without writing anything.
+  server.post("/channels/:id/reservations/preview", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const body = reservationBody.safeParse(request.body);
+    if (!body.success) {
+      return sendInvalidRequest(reply, body.error);
+    }
+    const preview = await schedules.previewReservation(
+      id,
+      body.data,
+      request.log,
+    );
+    switch (preview.kind) {
+      case "channel_not_found":
+        return sendChannelNotFound(reply, id);
+      case "unschedulable":
+        return sendApiError(
+          reply,
+          409,
+          "channel_unschedulable",
+          `Channel ${id} cannot generate a schedule`,
+          { reason: preview.reason },
+        );
+      case "refused": {
+        const { status: _, ...conflict } = describeRefusal(preview.refusal);
+        return {
+          scheduleRevision: preview.scheduleRevision,
+          commitment: "exact",
+          conflicts: [conflict],
+        };
+      }
+      case "preview":
+        return toApiReservationPreview(id, preview);
     }
   });
 
@@ -186,76 +225,149 @@ function sendReservationNotFound(
   );
 }
 
-// Maps each refusal to its status: a body naming what does not exist or
-// cannot fit is a 400; a range the schedule or catalog refuses now is a 409.
+/** Sends a refusal with the status, code, and words `describeRefusal` gives it. */
 function sendRefusal(reply: FastifyReply, refusal: ReservationRefusal) {
+  const { status, code, message, ...details } = describeRefusal(refusal);
+  return sendApiError(reply, status, code, message, details);
+}
+
+/**
+ * Describes each refusal once, for a save and a preview alike: a body naming
+ * what does not exist or cannot fit is a 400; a range the schedule or
+ * catalog refuses now is a 409.
+ */
+function describeRefusal(refusal: ReservationRefusal): {
+  status: 400 | 409;
+  code: ReservationRefusal["kind"];
+  message: string;
+  [detail: string]: unknown;
+} {
   switch (refusal.kind) {
     case "media_item_not_found":
-      return sendUnknownMediaItems(reply, refusal.mediaItemIds);
+      return {
+        status: 400,
+        code: refusal.kind,
+        message: `Unknown media items: ${refusal.mediaItemIds.join(", ")}`,
+      };
     case "media_collection_not_found":
-      return sendApiError(
-        reply,
-        400,
-        "media_collection_not_found",
-        `Media collection ${refusal.mediaCollectionId} does not exist`,
-      );
+      return {
+        status: 400,
+        code: refusal.kind,
+        message: `Media collection ${refusal.mediaCollectionId} does not exist`,
+      };
     case "reservation_does_not_fit":
-      return sendApiError(
-        reply,
-        400,
-        refusal.kind,
-        "The listed programs do not fit before the reservation's end",
-        { programsEndAt: toApiTimestamp(refusal.programsEndAt) },
-      );
+      return {
+        status: 400,
+        code: refusal.kind,
+        message: "The listed programs do not fit before the reservation's end",
+        programsEndAt: toApiTimestamp(refusal.programsEndAt),
+      };
     case "reservation_in_past":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        "A reservation must start in the future",
-        { startsAt: toApiTimestamp(refusal.startsAt) },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message: "A reservation must start in the future",
+        startsAt: toApiTimestamp(refusal.startsAt),
+      };
     case "reservation_started":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        "A reservation that has started cannot be edited; delete it instead",
-        { startsAt: toApiTimestamp(refusal.startsAt) },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message:
+          "A reservation that has started cannot be edited; delete it instead",
+        startsAt: toApiTimestamp(refusal.startsAt),
+      };
     case "airing_filler_conflict":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        "The filler airing now depends on this reservation, so changing it would change what airs",
-        { fillerEndsAt: toApiTimestamp(refusal.fillerEndsAt) },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message:
+          "The filler airing now depends on this reservation, so changing it would change what airs",
+        fillerEndsAt: toApiTimestamp(refusal.fillerEndsAt),
+      };
     case "reservation_crosses_airing":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        "A reservation cannot start before what is airing ends",
-        { airingEndsAt: toApiTimestamp(refusal.airingEndsAt) },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message: "A reservation cannot start before what is airing ends",
+        airingEndsAt: toApiTimestamp(refusal.airingEndsAt),
+      };
     case "reservation_overlap":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        `The range overlaps reservation ${refusal.reservationId}`,
-        { reservationId: refusal.reservationId },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message: `The range overlaps reservation ${refusal.reservationId}`,
+        reservationId: refusal.reservationId,
+      };
     case "reservation_media_unplayable":
-      return sendApiError(
-        reply,
-        409,
-        refusal.kind,
-        `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
-        { mediaItemIds: refusal.mediaItemIds },
-      );
+      return {
+        status: 409,
+        code: refusal.kind,
+        message: `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
+        mediaItemIds: refusal.mediaItemIds,
+      };
   }
+}
+
+/**
+ * Explains a previewed reservation: its exact range, the programs it airs,
+ * the planned filler before it and inside its range, and the ordinary
+ * program deferred past it. The start is an exact commitment, unlike a
+ * programming rule's soft calendar preference.
+ */
+function toApiReservationPreview(
+  channelId: string,
+  preview: Extract<ReservationPreview, { kind: "preview" }>,
+) {
+  const reserved = preview.entries.filter(
+    (entry) => entry.programmingBlockId === preview.reservationBlockId,
+  );
+  const filler = listPlannedFiller({
+    channelId,
+    scheduleRevision: preview.scheduleRevision ?? 0,
+    reservations: preview.reservations,
+    // Nothing before the boundary is previewed, so filler starts there at the earliest.
+    anchorTime: preview.boundary,
+    window: { start: preview.boundary, end: preview.endsAt },
+    entries: preview.entries,
+  });
+  const before = filler.find(
+    (interval) => interval.startsAt < preview.startsAt,
+  );
+  const inside = filler.find(
+    (interval) => interval.startsAt >= preview.startsAt,
+  );
+  const deferred =
+    before === undefined
+      ? undefined
+      : preview.entries.find(
+          (entry) =>
+            entry.startsAt >= preview.endsAt &&
+            entry.programmingBlockId !== preview.reservationBlockId,
+        );
+  const interval = (item: { startsAt: number; endsAt: number }) => ({
+    startsAt: toApiTimestamp(item.startsAt),
+    endsAt: toApiTimestamp(item.endsAt),
+  });
+  return {
+    scheduleRevision: preview.scheduleRevision,
+    commitment: "exact",
+    startsAt: toApiTimestamp(preview.startsAt),
+    endsAt: toApiTimestamp(preview.endsAt),
+    endKind: preview.endKind,
+    programs: reserved.map((entry) => ({
+      mediaItemId: entry.mediaItemId,
+      title: entry.title,
+      ...interval(entry),
+    })),
+    fillerBefore: before === undefined ? null : interval(before),
+    fillerInside: inside === undefined ? null : interval(inside),
+    deferredProgram:
+      deferred === undefined
+        ? null
+        : { mediaItemId: deferred.mediaItemId, title: deferred.title },
+    conflicts: [],
+  };
 }
 
 // Converts internal epoch milliseconds to the ISO 8601 strings the API promises.

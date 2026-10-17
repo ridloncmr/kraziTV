@@ -7,6 +7,7 @@ import type {
   PlayoutEntry,
   ReservedTimeRange,
 } from "./contracts.js";
+import { listPlannedFiller } from "./filler.js";
 import { selectFollowingPlayout } from "./following-playout.js";
 import { buildPlayoutTimeline } from "./playout-item.js";
 
@@ -292,5 +293,18 @@ describe("planned filler", () => {
       "p2@120-150",
       "p3@170-200",
     ]);
+  });
+
+  it("lists planned filler among entries known only by their times", () => {
+    const filler = listPlannedFiller({
+      channelId: CHANNEL_ID,
+      scheduleRevision: SCHEDULE_REVISION,
+      reservations: RESERVATIONS,
+      anchorTime: at(0),
+      window: { start: at(0), end: at(150) },
+      entries: ENTRIES.map(({ startsAt, endsAt }) => ({ startsAt, endsAt })),
+    });
+
+    expect(shape(filler)).toEqual(["filler@60-75", "filler@105-120"]);
   });
 });

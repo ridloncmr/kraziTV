@@ -4,7 +4,7 @@ import type {
   PlayoutMedia,
   ProgramPlayoutItem,
 } from "./contracts.js";
-import { findFillerAt, type FillerInputs } from "./filler.js";
+import { findFillerAt, type FillerInputs, walkCoverage } from "./filler.js";
 
 type PlayableFacts = {
   status: "available";
@@ -99,31 +99,15 @@ export function buildPlayoutTimeline({
   window: { start: number; end: number };
   entries: readonly PlayoutEntry[];
 }): PlayoutItem[] {
-  const items: PlayoutItem[] = [];
-  let at = window.start;
-  while (at < window.end) {
-    const instant = at;
-    const covering = entries.find(
-      (entry) => entry.startsAt <= instant && instant < entry.endsAt,
-    );
-    const planned =
-      covering === undefined ? findFillerAt(at, entries, filler) : undefined;
-    if (covering !== undefined) {
+  return walkCoverage(window, entries, filler).flatMap(
+    (step): PlayoutItem[] => {
+      if ("filler" in step) return [step.filler];
       const item = toPlayoutItem(
-        covering,
+        step.entry,
         filler.channelId,
         filler.scheduleRevision,
       );
-      if (item !== null) items.push(item);
-      at = covering.endsAt;
-    } else if (planned !== undefined) {
-      items.push(planned);
-      at = planned.endsAt;
-    } else {
-      // An unexplained gap: skip to the next entry, if any.
-      at =
-        entries.find((entry) => entry.startsAt > instant)?.startsAt ?? Infinity;
-    }
-  }
-  return items;
+      return item === null ? [] : [item];
+    },
+  );
 }

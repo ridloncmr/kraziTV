@@ -1,4 +1,9 @@
-import type { PlaybackMode } from "@krazitv/krazi-brain";
+import type {
+  GeneratedScheduleEntry,
+  PlaybackMode,
+  ProgrammingUnschedulableReason,
+  Reservation,
+} from "@krazitv/krazi-brain";
 
 /**
  * What a reservation airs, as the owner saves it: media items in order, or
@@ -64,3 +69,30 @@ export type DeleteReservationResult =
   | { kind: "deleted" }
   | { kind: "not_found" }
   | Extract<ReservationRefusal, { kind: "airing_filler_conflict" }>;
+
+/**
+ * What saving a reservation would air, computed without writing: its range,
+ * the programming a regeneration with it would generate from the boundary,
+ * and every reservation that programming honors, or why it cannot be saved.
+ */
+export type ReservationPreview =
+  | { kind: "channel_not_found" }
+  | { kind: "unschedulable"; reason: ProgrammingUnschedulableReason }
+  | {
+      kind: "refused";
+      refusal: ReservationRefusal;
+      scheduleRevision: number | null;
+    }
+  | {
+      kind: "preview";
+      scheduleRevision: number | null;
+      startsAt: number;
+      endsAt: number;
+      endKind: SavedReservation["endKind"];
+      /** Where the previewed programming starts: after what airs now. */
+      boundary: number;
+      reservations: Reservation[];
+      /** The block the reservation's programs air in; none when nothing fits. */
+      reservationBlockId: string | undefined;
+      entries: GeneratedScheduleEntry[];
+    };

@@ -30,27 +30,35 @@ export async function loadReservations(
   const saved = await readReservations(trx, channelId, { endingAfter: after });
   const reservations: Reservation[] = [];
   for (const reservation of saved) {
-    const { source } = reservation;
-    reservations.push({
-      id: reservation.id,
-      startsAt: reservation.startsAt,
-      endsAt: reservation.endsAt,
-      source:
-        source.kind === "media_items"
-          ? {
-              kind: "media_items",
-              items: await loadScheduleMedia(trx, source.mediaItemIds),
-            }
-          : {
-              ...source,
-              members: await loadCollectionMembers(
-                trx,
-                source.mediaCollectionId,
-              ),
-            },
-    });
+    reservations.push(await resolveReservation(trx, reservation));
   }
   return reservations;
+}
+
+/**
+ * Resolves a reservation's range and source into what kraziPlan reads, its
+ * media as scheduling sees it, whether it is saved or only previewed.
+ */
+export async function resolveReservation(
+  trx: Executor,
+  reservation: Pick<SavedReservation, "id" | "startsAt" | "endsAt" | "source">,
+): Promise<Reservation> {
+  const { source } = reservation;
+  return {
+    id: reservation.id,
+    startsAt: reservation.startsAt,
+    endsAt: reservation.endsAt,
+    source:
+      source.kind === "media_items"
+        ? {
+            kind: "media_items",
+            items: await loadScheduleMedia(trx, source.mediaItemIds),
+          }
+        : {
+            ...source,
+            members: await loadCollectionMembers(trx, source.mediaCollectionId),
+          },
+  };
 }
 
 /**

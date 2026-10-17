@@ -101,6 +101,7 @@ const GATED_ROUTES = [
   "DELETE /channels/:id/programming-rules/:ruleId",
   "GET /channels/:id/reservations",
   "POST /channels/:id/reservations",
+  "POST /channels/:id/reservations/preview",
   "PATCH /channels/:id/reservations/:reservationId",
   "DELETE /channels/:id/reservations/:reservationId",
   "GET /channels/:id/playout",

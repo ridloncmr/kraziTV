@@ -31,7 +31,7 @@ export interface FillerInputs {
  */
 export function findFillerAt(
   at: number,
-  entries: readonly PlayoutEntry[],
+  entries: readonly Pick<PlayoutEntry, "startsAt" | "endsAt">[],
   { channelId, scheduleRevision, reservations, anchorTime }: FillerInputs,
 ): FillerPlayoutItem | undefined {
   if (entries.some((entry) => entry.startsAt <= at && at < entry.endsAt)) {
@@ -75,4 +75,60 @@ export function findFillerAt(
     startsAt,
     endsAt: Math.min(endsAt, nextStart),
   };
+}
+
+/**
+ * Walks `window` in time order, yielding each entry airing in it and each
+ * planned filler between them, and skipping gaps no reservation explains:
+ * the one walk every window read shares, so programs and filler never
+ * overlap or double up. `entries` must be in start order and hold the one
+ * before the window and the one after it.
+ */
+export function walkCoverage<
+  Entry extends Pick<PlayoutEntry, "startsAt" | "endsAt">,
+>(
+  window: { start: number; end: number },
+  entries: readonly Entry[],
+  filler: FillerInputs,
+): ({ entry: Entry } | { filler: FillerPlayoutItem })[] {
+  const walked: ({ entry: Entry } | { filler: FillerPlayoutItem })[] = [];
+  let at = window.start;
+  while (at < window.end) {
+    const instant = at;
+    const covering = entries.find(
+      (entry) => entry.startsAt <= instant && instant < entry.endsAt,
+    );
+    if (covering !== undefined) {
+      walked.push({ entry: covering });
+      at = covering.endsAt;
+      continue;
+    }
+    const planned = findFillerAt(instant, entries, filler);
+    if (planned !== undefined) {
+      walked.push({ filler: planned });
+      at = planned.endsAt;
+      continue;
+    }
+    // An unexplained gap: skip to the next entry, if any.
+    at =
+      entries.find((entry) => entry.startsAt > instant)?.startsAt ?? Infinity;
+  }
+  return walked;
+}
+
+/**
+ * Lists the planned filler in `window` among entries known only by their
+ * times, such as programming a preview generated but never stored.
+ */
+export function listPlannedFiller({
+  window,
+  entries,
+  ...filler
+}: FillerInputs & {
+  window: { start: number; end: number };
+  entries: readonly Pick<PlayoutEntry, "startsAt" | "endsAt">[];
+}): FillerPlayoutItem[] {
+  return walkCoverage(window, entries, filler).flatMap((step) =>
+    "filler" in step ? [step.filler] : [],
+  );
 }
