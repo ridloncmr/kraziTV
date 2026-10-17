@@ -1,4 +1,5 @@
 import type { ChannelState, PlayoutEntry } from "./contracts.js";
+import { cutAtReservations } from "./cuts.js";
 import { findFillerAt, type FillerInputs } from "./filler.js";
 import { itemStartingAt, toPlayoutItem } from "./playout-item.js";
 
@@ -11,16 +12,17 @@ import { itemStartingAt, toPlayoutItem } from "./playout-item.js";
  *
  * `entries` must be in start order and hold the entry covering
  * `evaluatedAt`, or else the last one before it, and the entries starting
- * after it up to the next program.
+ * after it up to the next program. They are read with their cuts.
  */
 export function deriveChannelState({
   evaluatedAt,
-  entries,
+  entries: stored,
   ...filler
 }: FillerInputs & {
   evaluatedAt: number;
   entries: readonly PlayoutEntry[];
 }): ChannelState {
+  const entries = cutAtReservations(stored, filler.reservations);
   const { channelId, scheduleRevision } = filler;
   const base = { channelId, scheduleRevision, evaluatedAt };
   const covering = entries.find(
