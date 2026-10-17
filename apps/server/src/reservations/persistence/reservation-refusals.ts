@@ -7,7 +7,7 @@ import type { Kysely } from "kysely";
 
 import { fromNullableSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import { findEntryAiringAt } from "../../schedules/persistence/schedule-repository.js";
+import { findAiringItem } from "../../playout/persistence/playout-reads.js";
 import type {
   ReservationRefusal,
   ReservationSettings,
@@ -43,7 +43,7 @@ export async function resolveReservationRange(
   const { startsAt } = settings;
   if (startsAt <= now) return { kind: "reservation_in_past", startsAt };
   const boundary = findRegenerationBoundary(
-    await findEntryAiringAt(trx, channelId, now),
+    await findAiringItem(trx, channelId, now),
     now,
   );
   if (startsAt < boundary) {

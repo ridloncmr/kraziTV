@@ -41,6 +41,8 @@ export interface SavedReservation {
 export type ReservationRefusal =
   | { kind: "reservation_in_past"; startsAt: number }
   | { kind: "reservation_started"; startsAt: number }
+  /** The filler airing now depends on this reservation, so changing it would change what airs. */
+  | { kind: "airing_filler_conflict"; fillerEndsAt: number }
   | { kind: "reservation_crosses_airing"; airingEndsAt: number }
   | { kind: "reservation_overlap"; reservationId: string }
   | { kind: "reservation_does_not_fit"; programsEndAt: number }
@@ -59,4 +61,6 @@ export type UpdateReservationResult =
   | ReservationRefusal;
 
 export type DeleteReservationResult =
-  { kind: "deleted" } | { kind: "not_found" };
+  | { kind: "deleted" }
+  | { kind: "not_found" }
+  | Extract<ReservationRefusal, { kind: "airing_filler_conflict" }>;

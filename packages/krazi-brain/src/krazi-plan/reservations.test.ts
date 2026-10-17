@@ -537,3 +537,48 @@ describe("generateProgramming: resuming around reservations", () => {
     );
   });
 });
+
+describe("generateProgramming: reservations without ordinary programming", () => {
+  it("airs reservations on a channel with no assignment, covering the time before each with filler", () => {
+    const result = generated(
+      generateProgramming(
+        options(
+          [],
+          [
+            itemsReservation("r1", at(90), at(210), [MOVIE]),
+            itemsReservation("r2", at(300), at(420), [MOVIE]),
+          ],
+          { through: at(12 * 60) },
+        ),
+      ),
+    );
+
+    expect(airings(result.entries)).toEqual(["movie@90", "movie@300"]);
+    expect(result.generatedThrough).toBe(at(420));
+  });
+
+  it("still reports an assignment-less channel with no reservation ahead unschedulable", () => {
+    expect(
+      generateProgramming(
+        options([], [itemsReservation("r1", at(0), at(120), [MOVIE])], {
+          startsAt: at(200),
+        }),
+      ),
+    ).toEqual({ kind: "unschedulable", reason: "no_programming_assignment" });
+  });
+
+  it("reaches a reservation after the last schedulable ordinary program", () => {
+    // Ordinary media all missing: nothing ordinary can air.
+    const missing = collectionAssignment("gone", "c-gone", [
+      scheduleMedia("m1", { status: "missing" }),
+    ]);
+
+    const result = generated(
+      generateProgramming(
+        options([missing], [itemsReservation("r1", at(90), at(210), [MOVIE])]),
+      ),
+    );
+
+    expect(airings(result.entries)).toEqual(["movie@90"]);
+  });
+});

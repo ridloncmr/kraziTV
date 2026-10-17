@@ -4,9 +4,11 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
+import { findAiringItem } from "../../playout/persistence/playout-reads.js";
 import type {
   CreateReservationResult,
   DeleteReservationResult,
+  ReservationRefusal,
   ReservationSettings,
   SavedReservation,
   UpdateReservationResult,
@@ -84,7 +86,7 @@ export class ReservationRepository {
   /**
    * Replaces a reservation that has not started; one owned by another
    * channel is not found. A started one is refused, because editing it
-   * would change what is airing; it may still be deleted. Identical settings write
+   * would change what is airing. Identical settings write
    * nothing and report `unchanged`, so callers can skip regeneration.
    */
   async update(
@@ -102,6 +104,8 @@ export class ReservationRepository {
     if (isSameSettings(current, settings)) {
       return { kind: "unchanged", reservation: current };
     }
+    const conflict = await findAiringFillerConflict(trx, current, now);
+    if (conflict !== undefined) return conflict;
     const range = await resolveReservationRange(
       trx,
       channelId,
@@ -129,15 +133,21 @@ export class ReservationRepository {
   }
 
   /**
-   * Deletes a reservation; one owned by another channel is not found. Its
-   * block stays as history, and regeneration after the airing program
-   * returns its range to ordinary programming.
+   * Deletes a reservation; one owned by another channel is not found, and
+   * one the airing filler leads into is refused. Its block stays as
+   * history, and regeneration after what airs returns its range to ordinary
+   * programming.
    */
   async delete(
     trx: Executor,
     channelId: string,
     reservationId: string,
+    now: number,
   ): Promise<DeleteReservationResult> {
+    const [current] = await readReservations(trx, channelId, { reservationId });
+    if (current === undefined) return { kind: "not_found" };
+    const conflict = await findAiringFillerConflict(trx, current, now);
+    if (conflict !== undefined) return conflict;
     const deleted = await trx
       .deleteFrom("reservations")
       .where("id", "=", reservationId)
@@ -147,6 +157,30 @@ export class ReservationRepository {
       ? { kind: "deleted" }
       : { kind: "not_found" };
   }
+}
+
+/**
+ * Returns a refusal when planned filler airing at `now` depends on the
+ * reservation, by leading into it or covering part of its range: changing
+ * or removing it would change the airing filler's end and on-screen resume
+ * time, which routine edits never do (programming spec 0006, ADR 0014).
+ */
+async function findAiringFillerConflict(
+  trx: Executor,
+  reservation: SavedReservation,
+  now: number,
+): Promise<
+  Extract<ReservationRefusal, { kind: "airing_filler_conflict" }> | undefined
+> {
+  const airing = await findAiringItem(trx, reservation.channelId, now);
+  if (
+    airing?.kind === "filler" &&
+    reservation.startsAt <= airing.endsAt &&
+    airing.startsAt < reservation.endsAt
+  ) {
+    return { kind: "airing_filler_conflict", fillerEndsAt: airing.endsAt };
+  }
+  return undefined;
 }
 
 // Reads back the reservation a write just saved, which must exist.

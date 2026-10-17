@@ -14,6 +14,7 @@ import { idParams, isoInstantField } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type { ReservationRefusal, SavedReservation } from "../contracts.js";
 import type { ReservationRepository } from "../persistence/reservation-repository.js";
+import { AiringFillerConflictError } from "../airing-filler-conflict-error.js";
 import { reservationChange } from "../reservation-change.js";
 
 // What a reservation airs: media items in order, repeats allowed, or one
@@ -75,11 +76,13 @@ export function registerReservationRoutes(
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
-    const result = await schedules.applyInputChange(
-      request.log,
-      "reservation_created",
-      reservationChange(id, "created", (trx, now) =>
-        reservations.create(trx, id, body.data, now),
+    const result = await refusingAiringFillerChanges(() =>
+      schedules.applyInputChange(
+        request.log,
+        "reservation_created",
+        reservationChange(id, "created", (trx, now) =>
+          reservations.create(trx, id, body.data, now),
+        ),
       ),
     );
     switch (result.kind) {
@@ -101,11 +104,13 @@ export function registerReservationRoutes(
         return sendInvalidRequest(reply, body.error);
       }
       // Unchanged settings affect no channel, so nothing regenerates.
-      const result = await schedules.applyInputChange(
-        request.log,
-        "reservation_changed",
-        reservationChange(id, "updated", (trx, now) =>
-          reservations.update(trx, id, reservationId, body.data, now),
+      const result = await refusingAiringFillerChanges(() =>
+        schedules.applyInputChange(
+          request.log,
+          "reservation_changed",
+          reservationChange(id, "updated", (trx, now) =>
+            reservations.update(trx, id, reservationId, body.data, now),
+          ),
         ),
       );
       switch (result.kind) {
@@ -124,19 +129,47 @@ export function registerReservationRoutes(
     "/channels/:id/reservations/:reservationId",
     async (request, reply) => {
       const { id, reservationId } = reservationParams.parse(request.params);
-      const result = await schedules.applyInputChange(
-        request.log,
-        "reservation_deleted",
-        reservationChange(id, "deleted", (trx) =>
-          reservations.delete(trx, id, reservationId),
+      const result = await refusingAiringFillerChanges(() =>
+        schedules.applyInputChange(
+          request.log,
+          "reservation_deleted",
+          reservationChange(id, "deleted", (trx, now) =>
+            reservations.delete(trx, id, reservationId, now),
+          ),
         ),
       );
-      if (result.kind === "not_found") {
-        return sendReservationNotFound(reply, id, reservationId);
+      switch (result.kind) {
+        case "deleted":
+          return reply.status(204).send();
+        case "not_found":
+          return sendReservationNotFound(reply, id, reservationId);
+        default:
+          return sendRefusal(reply, result);
       }
-      return reply.status(204).send();
     },
   );
+}
+
+/**
+ * Runs a reservation write, answering one that rolled back because it would
+ * change the planned filler airing now as that refusal.
+ */
+async function refusingAiringFillerChanges<T>(
+  run: () => Promise<T>,
+): Promise<
+  T | Extract<ReservationRefusal, { kind: "airing_filler_conflict" }>
+> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof AiringFillerConflictError) {
+      return {
+        kind: "airing_filler_conflict",
+        fillerEndsAt: error.fillerEndsAt,
+      };
+    }
+    throw error;
+  }
 }
 
 // A reservation owned by another channel is reported the same as a missing one.
@@ -189,6 +222,14 @@ function sendRefusal(reply: FastifyReply, refusal: ReservationRefusal) {
         refusal.kind,
         "A reservation that has started cannot be edited; delete it instead",
         { startsAt: toApiTimestamp(refusal.startsAt) },
+      );
+    case "airing_filler_conflict":
+      return sendApiError(
+        reply,
+        409,
+        refusal.kind,
+        "The filler airing now depends on this reservation, so changing it would change what airs",
+        { fillerEndsAt: toApiTimestamp(refusal.fillerEndsAt) },
       );
     case "reservation_crosses_airing":
       return sendApiError(

@@ -122,12 +122,16 @@ export function generateProgramming(
   options: GenerateProgrammingOptions,
 ): ProgrammingResult {
   const { assignments, latestTurn, through, maxEntries } = options;
-  if (assignments.length === 0) {
-    return { kind: "unschedulable", reason: "no_programming_assignment" };
-  }
   const reservations = [...options.reservations].sort(
     (a, b) => a.startsAt - b.startsAt,
   );
+  // A reservation still to come airs even without ordinary programming.
+  if (
+    assignments.length === 0 &&
+    !reservations.some(({ endsAt }) => endsAt > options.startsAt)
+  ) {
+    return { kind: "unschedulable", reason: "no_programming_assignment" };
+  }
   const progress = new Map(
     options.progress.map((entry) => [
       progressKey(entry.mediaCollectionId, entry.playbackMode),
@@ -286,10 +290,24 @@ export function generateProgramming(
       );
       if (turn === undefined) {
         skips.push(...skipped);
+        // With nothing ordinary to air, filler covers the time until the
+        // next reservation, which airs at its exact start regardless.
+        const next = findNextReservation(reservations, startsAt);
+        if (next !== undefined && next.startsAt < through) {
+          open = undefined;
+          startsAt = next.startsAt;
+          continue;
+        }
         // A later program could only come from a calendar change, which
         // generation does not wait for, so coverage stops here.
         if (entries.length > 0) break;
-        return { kind: "unschedulable", reason: "no_schedulable_media" };
+        return {
+          kind: "unschedulable",
+          reason:
+            assignments.length === 0
+              ? "no_programming_assignment"
+              : "no_schedulable_media",
+        };
       }
       const position = {
         roundNumber:

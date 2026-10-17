@@ -8,15 +8,16 @@ import {
 } from "./contracts.js";
 
 /**
- * Returns the instant regeneration rebuilds from: the end of the entry airing
- * at the effective current time, so viewers never see it change, or that time
- * itself when nothing airs.
+ * Returns the instant regeneration rebuilds from: the end of the playout
+ * item airing at the effective current time, a program or planned filler,
+ * so viewers never see it change (ADR 0014), or that time itself when
+ * nothing airs.
  */
 export function findRegenerationBoundary(
-  airingEntry: { endsAt: number } | undefined,
+  airingItem: { endsAt: number } | undefined,
   effectiveNow: number,
 ): number {
-  return airingEntry?.endsAt ?? effectiveNow;
+  return airingItem?.endsAt ?? effectiveNow;
 }
 
 /**

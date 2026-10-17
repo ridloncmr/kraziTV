@@ -5,6 +5,7 @@ import { WriteAuthorityBusyError } from "../database/writes/immediate-transactio
 import { toApiTimestamp } from "./api-timestamp.js";
 
 type ApiErrorCode =
+  | "airing_filler_conflict"
   | "already_set_up"
   | "channel_disabled"
   | "channel_not_found"

@@ -14,7 +14,7 @@ import {
 } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ProgrammingBlockTable } from "../../database/schema/programming-block-table.js";
-import { findEntryAiringAt } from "./schedule-repository.js";
+import { findAiringItem } from "../../playout/persistence/playout-reads.js";
 
 // Every function here takes the caller's executor: blocks are written only
 // inside the schedule transaction that writes their entries.
@@ -73,7 +73,7 @@ export async function findStartedTurn(
   effectiveNow: number,
 ): Promise<{ block: GeneratedBlock; boundary: number } | undefined> {
   const boundary = findRegenerationBoundary(
-    await findEntryAiringAt(trx, channelId, effectiveNow),
+    await findAiringItem(trx, channelId, effectiveNow),
     effectiveNow,
   );
   const latest = await loadLatestTurn(trx, channelId, boundary);

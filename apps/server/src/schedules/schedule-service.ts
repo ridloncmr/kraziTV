@@ -76,7 +76,10 @@ import {
   loadScheduleState,
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
-import { readTimeline } from "../playout/persistence/playout-reads.js";
+import {
+  findAiringItem,
+  readTimeline,
+} from "../playout/persistence/playout-reads.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
 import { loadReservations } from "../reservations/persistence/reservation-rows.js";
 import {
@@ -349,7 +352,7 @@ export class ScheduleService {
         { channelId },
       );
       const boundary = findRegenerationBoundary(
-        await findEntryAiringAt(trx, channelId, effectiveNow),
+        await findAiringItem(trx, channelId, effectiveNow),
         effectiveNow,
       );
       const { collections: _, ...inputs } = await loadProgrammingInputs(
@@ -533,9 +536,9 @@ export class ScheduleService {
 
   /**
    * Rebuilds a scheduled channel from the regeneration boundary in the
-   * caller's transaction. The airing entry is never touched (ADR 0003):
-   * entries from the end of the airing entry, or from now when nothing airs,
-   * are replaced.
+   * caller's transaction. What airs is never touched (ADR 0003, ADR 0014):
+   * entries from the end of the airing program or planned filler, or from
+   * now when nothing airs, are replaced.
    */
   async #regenerateChunk(
     trx: Kysely<DatabaseSchema>,
@@ -543,7 +546,7 @@ export class ScheduleService {
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
-    const airing = await findEntryAiringAt(trx, state.channelId, effectiveNow);
+    const airing = await findAiringItem(trx, state.channelId, effectiveNow);
     const boundary = findRegenerationBoundary(airing, effectiveNow);
     return this.#rebuildChunk(
       trx,

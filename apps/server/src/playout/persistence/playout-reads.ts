@@ -12,6 +12,10 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import {
+  findEntryAiringAt,
+  loadScheduleState,
+} from "../../schedules/persistence/schedule-repository.js";
+import {
   findPlayoutEntryById,
   listPlayoutEntriesAround,
   listPlayoutEntriesInWindow,
@@ -111,4 +115,39 @@ export async function readTimeline(
     window: { start, end },
     entries: [...byId.values()].sort((a, b) => a.startsAt - b.startsAt),
   });
+}
+
+/**
+ * Finds the playout item airing at `at`, a program or planned filler,
+ * whose end is where regeneration may rebuild from: nothing airing is ever
+ * changed by a routine edit (ADR 0003, ADR 0014). Undefined when nothing
+ * airs, such as in an unexplained gap.
+ */
+export async function findAiringItem(
+  trx: Executor,
+  channelId: string,
+  at: number,
+): Promise<
+  { kind: "program" | "filler"; startsAt: number; endsAt: number } | undefined
+> {
+  const entry = await findEntryAiringAt(trx, channelId, at);
+  if (entry !== undefined) return { kind: "program", ...entry };
+  const state = await loadScheduleState(trx, channelId);
+  if (state === undefined) return undefined;
+  const airing = await readChannelStateAt(
+    trx,
+    {
+      channelId,
+      scheduleRevision: state.scheduleRevision,
+      anchorTime: state.anchorTime,
+    },
+    at,
+  );
+  return airing.kind === "current" && airing.currentItem.type === "filler"
+    ? {
+        kind: "filler",
+        startsAt: airing.currentItem.startsAt,
+        endsAt: airing.currentItem.endsAt,
+      }
+    : undefined;
 }

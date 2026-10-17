@@ -11,10 +11,13 @@ import {
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import { recordingLog } from "../../testing/recording-log.js";
 import {
-  insertCollectionOfItems,
   readOnlyScheduleState,
   readScheduleEntries,
 } from "../../testing/schedule-fixtures.js";
+import {
+  insertMovie,
+  reserveItems,
+} from "../../testing/reservation-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 import { resumeMessage } from "../../playout/resume-message.js";
@@ -36,18 +39,8 @@ const MESSAGE = "Programming resumes at 7:00 PM";
 // covers 45-60 before a 90-minute movie reserved at 60.
 async function reservedAtSixty() {
   const context = await startScheduleScenarioServer();
-  const [movie] = await insertCollectionOfItems(context.db, "movies", [
-    90 * MINUTE,
-  ]);
-  const created = await send(
-    context.server,
-    "POST",
-    `/channels/${CHANNEL_ID}/reservations`,
-    {
-      startsAt: iso(at(60)),
-      source: { kind: "media_items", mediaItemIds: [movie] },
-    },
-  );
+  const movie = await insertMovie(context.db);
+  const reservationUrl = await reserveItems(context.server, at(60), [movie]);
   const adapter = new SignalPlayoutAdapter(
     context.dependencies.playout,
     context.dependencies.channels,
@@ -63,7 +56,7 @@ async function reservedAtSixty() {
     ...context,
     adapter,
     coordinator,
-    reservationUrl: `/channels/${CHANNEL_ID}/reservations/${created.body.id as string}`,
+    reservationUrl,
   };
 }
 
