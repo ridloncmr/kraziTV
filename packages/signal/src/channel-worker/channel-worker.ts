@@ -199,6 +199,11 @@ export class ChannelWorker {
     return this.broadcaster.trySubscribe();
   }
 
+  /** Lets the transitions re-read the airing item's end after a schedule write. */
+  scheduleChanged(): void {
+    this.transitions.scheduleChanged();
+  }
+
   /**
    * Shares active cleanup, retains success, and releases failure for retry.
    * Halting and session stop run together so a slow discard cannot keep the

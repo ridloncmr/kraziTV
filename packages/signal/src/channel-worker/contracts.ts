@@ -47,6 +47,8 @@ export interface ManagedChannelWorker {
   readonly completion: Promise<void>;
   /** Creates a viewer only while this worker remains joinable. */
   trySubscribe(): ChannelBroadcastSubscription | undefined;
+  /** Re-reads the airing item's end, which a cut may have moved earlier. */
+  scheduleChanged(): void;
   /** Settles all runtime resources owned by this worker. */
   stop(): Promise<void>;
 }
