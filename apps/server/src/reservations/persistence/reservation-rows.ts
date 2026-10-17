@@ -1,4 +1,4 @@
-import type { Reservation } from "@krazitv/krazi-brain";
+import { describeOrderedView, type Reservation } from "@krazitv/krazi-brain";
 import {
   type ExpressionBuilder,
   type Kysely,
@@ -15,6 +15,7 @@ import {
   loadScheduleMedia,
 } from "../../schedules/persistence/assignment-sources.js";
 import type {
+  FromBeginningSource,
   ReservationSourceSettings,
   SavedReservation,
 } from "../contracts.js";
@@ -66,6 +67,28 @@ export async function resolveReservation(
             members: await loadCollectionMembers(trx, source.mediaCollectionId),
           },
   };
+}
+
+/**
+ * Resolves a collection played from the beginning into every member once,
+ * in the order its mode plays them, through the same ordered view the
+ * assignment preview shows (programming spec 0007). Undefined when the
+ * collection does not exist.
+ */
+export async function listFromBeginning(
+  trx: Executor,
+  source: FromBeginningSource,
+): Promise<string[] | undefined> {
+  const collection = await trx
+    .selectFrom("media_collections")
+    .select("id")
+    .where("id", "=", source.mediaCollectionId)
+    .executeTakeFirst();
+  if (collection === undefined) return undefined;
+  const members = await loadCollectionMembers(trx, source.mediaCollectionId);
+  return (describeOrderedView(members, source.playbackMode) ?? []).map(
+    (member) => member.media.id,
+  );
 }
 
 /**

@@ -18,6 +18,23 @@ export type ReservationSourceSettings =
     };
 
 /**
+ * A collection played once through from its first member in an ordered
+ * mode (programming spec 0007): only a preview takes it, resolving it into
+ * the media-item list the owner then saves, so the event keeps its own
+ * placements whatever the collection does later.
+ */
+export interface FromBeginningSource {
+  kind: "collection_from_beginning";
+  mediaCollectionId: string;
+  playbackMode: Exclude<PlaybackMode, "random">;
+}
+
+/** What a preview takes: what a save takes, or a collection from the beginning. */
+export type PreviewSettings = Omit<ReservationSettings, "source"> & {
+  source: ReservationSourceSettings | FromBeginningSource;
+};
+
+/**
  * What the owner saves for one reservation; the API accepts it. An end of
  * null asks for a program-derived end, which only a media-item list has. A
  * start of "now" is the server's clock inside the write, so browser clock
@@ -151,6 +168,8 @@ export type ReservationPreview =
       beyondHorizon: boolean;
       /** What it airs: a collection's programs are estimated beyond the horizon. */
       sourceKind: ReservationSourceSettings["kind"];
+      /** A collection from the beginning, resolved into the list to save. */
+      mediaItemIds?: string[];
       /** Where the previewed programming starts: after what airs now. */
       boundary: number;
       reservations: Reservation[];

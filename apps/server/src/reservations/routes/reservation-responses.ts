@@ -175,6 +175,9 @@ export function toApiReservationPreview(
     startsAt: toApiTimestamp(preview.startsAt),
     endsAt: toApiTimestamp(preview.endsAt),
     endKind: preview.endKind,
+    ...(preview.mediaItemIds === undefined
+      ? {}
+      : { mediaItemIds: preview.mediaItemIds }),
     beyondHorizon: preview.beyondHorizon,
     programs: reserved.map((entry) => ({
       mediaItemId: entry.mediaItemId,

@@ -84,12 +84,14 @@ import {
 } from "../playout/persistence/playout-reads.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
 import type {
+  PreviewSettings,
   ReservationPreview,
   ReservationSettings,
 } from "../reservations/contracts.js";
 import { resolveReservationRange } from "../reservations/persistence/reservation-refusals.js";
 import {
   clearUnstartedInterruptions,
+  listFromBeginning,
   loadReservations,
   resolveReservation,
 } from "../reservations/persistence/reservation-rows.js";
@@ -391,7 +393,7 @@ export class ScheduleService {
    */
   async previewReservation(
     channelId: string,
-    settings: ReservationSettings,
+    previewed: PreviewSettings,
     log: ScheduleLog,
   ): Promise<ReservationPreview> {
     return this.#previewSnapshot(
@@ -399,6 +401,31 @@ export class ScheduleService {
       log,
       async (trx, state, effectiveNow) => {
         const scheduleRevision = state?.scheduleRevision ?? null;
+        // A collection from the beginning previews as the list it saves as.
+        let resolved: string[] | undefined;
+        if (previewed.source.kind === "collection_from_beginning") {
+          resolved = await listFromBeginning(trx, previewed.source);
+          if (resolved === undefined || resolved.length === 0) {
+            return {
+              kind: "refused",
+              refusal:
+                resolved === undefined
+                  ? {
+                      kind: "media_collection_not_found",
+                      mediaCollectionId: previewed.source.mediaCollectionId,
+                    }
+                  : { kind: "reservation_media_unplayable", mediaItemIds: [] },
+              scheduleRevision,
+            };
+          }
+        }
+        const settings: ReservationSettings = {
+          ...previewed,
+          source:
+            previewed.source.kind === "collection_from_beginning"
+              ? { kind: "media_items", mediaItemIds: resolved ?? [] }
+              : previewed.source,
+        };
         const range = await resolveReservationRange(
           trx,
           channelId,
@@ -437,6 +464,7 @@ export class ScheduleService {
             reservation.startsAt >=
             (state?.lastGeneratedThrough ?? effectiveNow),
           sourceKind: settings.source.kind,
+          ...(resolved === undefined ? {} : { mediaItemIds: resolved }),
           boundary,
           reservations,
           reservationBlockId: generated.blocks.find(

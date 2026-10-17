@@ -57,10 +57,11 @@ const expectedScheduleRevision = z.number().int().nonnegative().nullable();
 const reservationObject = z.strictObject(reservationFields);
 
 /** The fields the range checks read, whichever body carries them. */
-type RangeFields = Pick<
-  z.output<typeof reservationObject>,
-  "startsAt" | "endsAt" | "source"
->;
+type RangeFields = {
+  startsAt: number | "now";
+  endsAt: number | null;
+  source: { kind: string };
+};
 
 /** Adds the range checks every body shares to one of the bodies. */
 function withRangeChecks<T extends z.ZodType<RangeFields>>(schema: T) {
@@ -81,7 +82,19 @@ function withRangeChecks<T extends z.ZodType<RangeFields>>(schema: T) {
     );
 }
 
-const previewBody = withRangeChecks(reservationObject);
+// Only a preview plays a collection from the beginning, in an ordered mode:
+// the owner saves the list it resolves to (programming spec 0007).
+const previewSource = z.discriminatedUnion("kind", [
+  ...reservationSource.options,
+  z.strictObject({
+    kind: z.literal("collection_from_beginning"),
+    mediaCollectionId: z.string(),
+    playbackMode: z.enum(["chronological", "episode", "release"]),
+  }),
+]);
+const previewBody = withRangeChecks(
+  reservationObject.extend({ source: previewSource }),
+);
 const createBody = withRangeChecks(
   reservationObject.extend({
     expectedScheduleRevision,

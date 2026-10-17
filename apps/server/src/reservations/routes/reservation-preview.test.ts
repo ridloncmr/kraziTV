@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { movieFacts } from "../../testing/collection-fixtures.js";
 import {
   insertMovie,
   saveReservation,
 } from "../../testing/reservation-fixtures.js";
 import {
+  insertCollectionOfItems,
   readOnlyScheduleState,
   readScheduleEntries,
 } from "../../testing/schedule-fixtures.js";
@@ -216,6 +218,108 @@ describe("POST /channels/:id/reservations/preview", () => {
 
       expect(preview.body.beyondHorizon).toBe(false);
       expect(preview.body.programs).toMatchObject([{ estimated: false }]);
+    });
+  });
+
+  describe("a collection from the beginning", () => {
+    const FILM_MS = 100 * MINUTE;
+
+    // Eight films saved last-released first, so release order is the
+    // reverse of saved order and the ordinary rotation's next film is not
+    // the first one.
+    async function films() {
+      const context = await scheduled();
+      const ids = await insertCollectionOfItems(
+        context.db,
+        "films",
+        Array.from({ length: 8 }, () => FILM_MS),
+      );
+      await context.db
+        .insertInto("content_facts")
+        .values(
+          ids.map((id, index) => movieFacts(id, null, `${2010 - index}-07-01`)),
+        )
+        .execute();
+      return { ...context, ids };
+    }
+
+    const fromTheBeginning = (playbackMode: string) => ({
+      startsAt: iso(at(60)),
+      source: {
+        kind: "collection_from_beginning",
+        mediaCollectionId: "films",
+        playbackMode,
+      },
+    });
+
+    it("resolves every film once in release order, first film first, with a program-derived end", async () => {
+      const { server, ids } = await films();
+
+      const preview = await send(
+        server,
+        "POST",
+        PREVIEW,
+        fromTheBeginning("release"),
+      );
+
+      const firstReleased = [...ids].reverse();
+      expect(preview.body).toMatchObject({
+        mediaItemIds: firstReleased,
+        endsAt: iso(at(60) + 8 * FILM_MS),
+        endKind: "program_derived",
+      });
+      expect(
+        (preview.body.programs as { mediaItemId: string }[]).map(
+          (program) => program.mediaItemId,
+        ),
+      ).toEqual(firstReleased);
+      const saved = await saveReservation(server, "POST", RESERVATIONS, {
+        startsAt: iso(at(60)),
+        source: {
+          kind: "media_items",
+          mediaItemIds: preview.body.mediaItemIds,
+        },
+      });
+      expect(saved.status).toBe(201);
+    });
+
+    it("refuses a collection with an unavailable film, naming it", async () => {
+      const { server, db } = await films();
+      await db
+        .updateTable("media_items")
+        .set({ status: "missing" })
+        .where("id", "=", "films-3")
+        .execute();
+
+      const preview = await send(
+        server,
+        "POST",
+        PREVIEW,
+        fromTheBeginning("release"),
+      );
+
+      expect(preview.body.conflicts).toMatchObject([
+        { code: "reservation_media_unplayable", mediaItemIds: ["films-3"] },
+      ]);
+    });
+
+    it("refuses random playback, and saving the collection itself, as invalid", async () => {
+      const { server } = await films();
+
+      const random = await send(
+        server,
+        "POST",
+        PREVIEW,
+        fromTheBeginning("random"),
+      );
+      const saved = await send(server, "POST", RESERVATIONS, {
+        ...fromTheBeginning("release"),
+        expectedScheduleRevision: null,
+        requestKey: "save-1",
+      });
+
+      expect(random.body.error.code).toBe("invalid_request");
+      expect(saved.body.error.code).toBe("invalid_request");
     });
   });
 });
