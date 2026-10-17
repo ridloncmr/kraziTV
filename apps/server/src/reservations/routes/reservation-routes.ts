@@ -111,7 +111,7 @@ const updateBody = withRangeChecks(
 
 // Ending a running reservation early: at an instant, or after what airs.
 const earlyEndBody = z.union([
-  z.strictObject({ endsAt: isoInstantField }),
+  z.strictObject({ endsAt: z.union([z.literal("now"), isoInstantField]) }),
   z.strictObject({ after: z.literal("airing") }),
 ]);
 

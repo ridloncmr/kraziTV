@@ -122,7 +122,7 @@ export type UpdateReservationResult =
  * instant from now through its current end, or when the program airing in
  * it ends, which is now during its filler.
  */
-export type EarlyEnd = { endsAt: number } | { after: "airing" };
+export type EarlyEnd = { endsAt: number | "now" } | { after: "airing" };
 
 export type EndReservationResult =
   | { kind: "ended" | "unchanged"; reservation: SavedReservation }

@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Special, SpecialPreview } from "./contracts.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
@@ -238,6 +238,9 @@ it("shows a start more than a year ahead as a conflict and offers no save", asyn
   });
   expect(within(conflicts).getByText(/at most a year ahead/)).toBeTruthy();
   expect(
+    screen.queryByRole("group", { name: "What is airing now" }),
+  ).toBeNull();
+  expect(
     screen.getByRole<HTMLButtonElement>("button", { name: "Save special" })
       .disabled,
   ).toBe(true);
@@ -340,4 +343,139 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
     expect(lastBody(api, LIST, "POST")?.expectedScheduleRevision).toBe(8),
   );
   expect(lastBody(api, LIST, "POST")?.requestKey).not.toBe(firstKey);
+});
+
+describe("what is airing now", () => {
+  const AIRING_ENDS = new Date("2099-06-01T20:25").toISOString();
+  const crossing = {
+    scheduleRevision: 7,
+    commitment: "exact",
+    conflicts: [
+      {
+        code: "reservation_crosses_airing",
+        message: "A reservation cannot start before what is airing ends",
+        airingEndsAt: AIRING_ENDS,
+      },
+    ],
+  };
+
+  // Previews a new special whose start crosses what airs, offering the choice.
+  async function crossingPreview(api: BrowserApi) {
+    await startNewSpecial();
+    api.reply(PREVIEW, crossing, "POST");
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    return screen.findByRole("group", { name: "What is airing now" });
+  }
+
+  it("lets what airs finish, starting the special when it ends", async () => {
+    const api = renderSection();
+    const choice = await crossingPreview(api);
+    api.reply(PREVIEW, planned({ startsAt: AIRING_ENDS }), "POST");
+
+    fireEvent.click(within(choice).getByLabelText("Let it finish"));
+
+    await screen.findByRole("region", { name: "Special preview" });
+    expect(lastBody(api, PREVIEW, "POST")).toMatchObject({
+      startsAt: AIRING_ENDS,
+      interrupts: false,
+    });
+    api.reply(LIST, saved, "POST", 201);
+    fireEvent.click(screen.getByRole("button", { name: "Save special" }));
+    await waitFor(() =>
+      expect(lastBody(api, LIST, "POST")).toMatchObject({
+        startsAt: AIRING_ENDS,
+        interrupts: false,
+      }),
+    );
+  });
+
+  it("stops what airs at the special's start", async () => {
+    const api = renderSection();
+    const choice = await crossingPreview(api);
+    api.reply(PREVIEW, planned(), "POST");
+
+    fireEvent.click(
+      within(choice).getByLabelText("Stop it at the special's start"),
+    );
+
+    await screen.findByRole("region", { name: "Special preview" });
+    expect(lastBody(api, PREVIEW, "POST")).toMatchObject({
+      startsAt: START,
+      interrupts: true,
+    });
+    expect(
+      within(choice).getByText(/cut straight into the special/),
+    ).toBeTruthy();
+  });
+
+  it("starts the special now, cutting what airs", async () => {
+    const api = renderSection();
+    const choice = await crossingPreview(api);
+    api.reply(PREVIEW, planned(), "POST");
+
+    fireEvent.click(within(choice).getByRole("button", { name: "Start now" }));
+
+    await screen.findByRole("region", { name: "Special preview" });
+    expect(lastBody(api, PREVIEW, "POST")).toMatchObject({
+      startsAt: "now",
+      interrupts: true,
+    });
+  });
+});
+
+describe("ending a running special early", () => {
+  const running: Special = {
+    ...saved,
+    startsAt: "2020-01-01T00:00:00.000Z",
+    endsAt: END,
+  };
+  const END_URL = `${LIST}/special-1/end`;
+
+  it.each([
+    { choice: "Let it finish", body: { after: "airing" } },
+    { choice: "Stop it now", body: { endsAt: "now" } },
+  ])("sends $choice", async ({ choice, body }) => {
+    const api = renderSection([running]);
+    fireEvent.click(await screen.findByRole("button", { name: "End early…" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "End this special early",
+    });
+    api.reply(END_URL, running, "POST");
+
+    fireEvent.click(within(dialog).getByLabelText(choice));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "End special" }),
+    );
+
+    await waitFor(() => expect(lastBody(api, END_URL, "POST")).toEqual(body));
+  });
+
+  it("stops it at a chosen time", async () => {
+    const api = renderSection([running]);
+    fireEvent.click(await screen.findByRole("button", { name: "End early…" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "End this special early",
+    });
+    api.reply(END_URL, running, "POST");
+
+    fireEvent.click(within(dialog).getByLabelText("Stop it at"));
+    fireEvent.change(within(dialog).getByLabelText("Ends at"), {
+      target: { value: "2099-06-01T20:40" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "End special" }),
+    );
+
+    await waitFor(() =>
+      expect(lastBody(api, END_URL, "POST")).toEqual({
+        endsAt: new Date("2099-06-01T20:40").toISOString(),
+      }),
+    );
+  });
+
+  it("offers no End early for a special that has not started", async () => {
+    renderSection([saved]);
+    await screen.findByRole("button", { name: "Edit" });
+    expect(screen.queryByRole("button", { name: "End early…" })).toBeNull();
+  });
 });

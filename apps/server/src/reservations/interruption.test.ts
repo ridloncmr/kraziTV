@@ -660,7 +660,8 @@ describe("ending a running special early", () => {
     const { server, db, movie, endUrl } = await runningSpecial();
     const revision = (await readOnlyScheduleState(db)).schedule_revision;
 
-    const ended = await send(server, "POST", endUrl, { endsAt: iso(at(40)) });
+    // "now" is the server's clock, which stands at 40.
+    const ended = await send(server, "POST", endUrl, { endsAt: "now" });
 
     expect(ended.body).toMatchObject({ endsAt: iso(at(40)) });
     await expect(readGuideAirings(server, at(22), at(70))).resolves.toEqual([

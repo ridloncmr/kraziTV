@@ -36,7 +36,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * and a preview that answers after an edit is dropped. Each preview gets a
  * fresh request key, so resending a save finds what it created but a save
  * of new settings never returns an earlier one. A save the server finds
- * stale asks for a fresh preview instead of resending.
+ * stale asks for a fresh preview instead of resending. When the start falls
+ * before what airs now ends, it asks What is airing now, as the Rebuild the
+ * schedule dialog does: let it finish, starting when it ends, or stop it at
+ * the special's start, now or later (ADR 0015).
  */
 export function SpecialEditor({
   channelId,
@@ -64,6 +67,12 @@ export function SpecialEditor({
   // Until the owner changes a time, the stored instant is sent unchanged, so
   // an edit never moves it by the input's minute or a repeated DST hour.
   const [startTouched, setStartTouched] = useState(false);
+  // What the What is airing now choice set: an exact start ("now", or when
+  // the airing item ends) and whether the special cuts what airs.
+  const [exactStart, setExactStart] = useState<string>();
+  const [interrupts, setInterrupts] = useState(special?.interrupts ?? false);
+  // When what airs now ends, once a preview found the start crossing it.
+  const [airingEndsAt, setAiringEndsAt] = useState<string>();
   const [endTouched, setEndTouched] = useState(false);
   const [kind, setKind] = useState<SourceKind>(source?.kind ?? "media_items");
   const [items, setItems] = useState<string[]>(
@@ -109,16 +118,20 @@ export function SpecialEditor({
   };
   const ordered = kind === "collection_from_beginning";
 
-  // Reads the form as the settings a preview is asked about.
-  const settings = (): PreviewedSettings => ({
+  // Reads the form, with any What is airing now choice in `choice`, as the
+  // settings a preview is asked about.
+  const settings = (
+    choice: { exactStart?: string; interrupts?: boolean } = {},
+  ): PreviewedSettings => ({
     startsAt:
-      special && !startTouched ? special.startsAt : fromLocalInput(startsAt),
+      choice.exactStart ??
+      exactStart ??
+      (special && !startTouched ? special.startsAt : fromLocalInput(startsAt)),
     endsAt:
       special?.endKind === "explicit" && !endTouched
         ? special.endsAt
         : (fromLocalInput(endsAt) ?? null),
-    // An edit keeps whether the saved special cuts what airs.
-    interrupts: special?.interrupts ?? false,
+    interrupts: choice.interrupts ?? interrupts,
     source:
       kind === "media_items"
         ? { kind, mediaItemIds: items.filter((item) => item !== "") }
@@ -131,9 +144,12 @@ export function SpecialEditor({
             },
   });
 
-  // Asks the server what saving the current settings would air.
-  const requestPreview = () => {
-    const asked = settings();
+  // Asks the server what saving the current settings would air, with any
+  // choice just made; a start that crosses what airs offers the choice.
+  const requestPreview = (
+    choice: { exactStart?: string; interrupts?: boolean } = {},
+  ) => {
+    const asked = settings(choice);
     const at = edits.current;
     setStale(false);
     setSaveFailed(false);
@@ -143,6 +159,12 @@ export function SpecialEditor({
       special ? { ...asked, replacesReservationId: special.id } : asked,
       (result) => {
         if (edits.current !== at) return;
+        const crossing = result.conflicts.find(
+          (conflict) => conflict.code === "reservation_crosses_airing",
+        );
+        if (typeof crossing?.airingEndsAt === "string") {
+          setAiringEndsAt(crossing.airingEndsAt);
+        }
         setPreviewed({
           settings: asked,
           result,
@@ -193,6 +215,10 @@ export function SpecialEditor({
               edit(() => {
                 setStartsAt(event.target.value);
                 setStartTouched(true);
+                // A new start asks the What is airing now question afresh.
+                setExactStart(undefined);
+                setInterrupts(false);
+                setAiringEndsAt(undefined);
               })
             }
           />
@@ -312,6 +338,52 @@ export function SpecialEditor({
           The schedule changed since this preview. Preview again before saving.
         </p>
       )}
+      {airingEndsAt && (
+        <fieldset>
+          <legend>What is airing now</legend>
+          <label>
+            <input
+              type="radio"
+              name="airing-choice"
+              checked={!interrupts && exactStart === airingEndsAt}
+              onChange={() => {
+                setInterrupts(false);
+                setExactStart(airingEndsAt);
+                setStartsAt(toLocalInput(airingEndsAt));
+                requestPreview({ exactStart: airingEndsAt, interrupts: false });
+              }}
+            />
+            Let it finish
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="airing-choice"
+              checked={interrupts && exactStart !== "now"}
+              onChange={() => {
+                setInterrupts(true);
+                requestPreview({ interrupts: true });
+              }}
+            />
+            Stop it at the special's start
+          </label>
+          <p>
+            {interrupts
+              ? "What is airing is cut at the special's start. Viewers stay tuned and see it cut straight into the special."
+              : "Let it finish to start the special when what is airing ends, or stop it at the special's start."}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setInterrupts(true);
+              setExactStart("now");
+              requestPreview({ exactStart: "now", interrupts: true });
+            }}
+          >
+            Start now
+          </button>
+        </fieldset>
+      )}
       {previewed && <SpecialPreview preview={previewed.result} />}
       <RequestFeedback
         loading={previewing.pending || saving.pending}
@@ -323,7 +395,7 @@ export function SpecialEditor({
         <button
           type="button"
           disabled={previewing.pending || incomplete}
-          onClick={requestPreview}
+          onClick={() => requestPreview()}
         >
           Preview
         </button>

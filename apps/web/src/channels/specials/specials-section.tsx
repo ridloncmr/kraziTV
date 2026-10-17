@@ -7,12 +7,14 @@ import type { MediaCollection } from "../../http/contracts.js";
 import type { Special } from "./contracts.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "../playback-mode-choices.js";
+import { EndEarlyDialog } from "./end-early-dialog.js";
 import { SpecialEditor } from "./special-editor.js";
 
 /**
  * Lists the channel's specials with when they air and what they air, and
- * lets the owner add one, or edit or cancel one that has not started. Each
- * accepted write refreshes the list; the server regenerates around it.
+ * lets the owner add one, edit or cancel one that has not started, or end
+ * one that is running early. Each accepted write refreshes the list; the
+ * server regenerates around it.
  */
 export function SpecialsSection({
   channelId,
@@ -29,6 +31,7 @@ export function SpecialsSection({
   );
   const cancel = useMutation();
   const [editing, setEditing] = useState<string>();
+  const [ending, setEnding] = useState<Special>();
   // Closes the editor and reads the list again after any accepted write.
   const changed = () => {
     setEditing(undefined);
@@ -66,7 +69,9 @@ export function SpecialsSection({
       )}
       <ul aria-label="Channel specials">
         {listed.map((special) => {
-          const started = Date.parse(special.startsAt) <= Date.now();
+          const now = Date.now();
+          const started = Date.parse(special.startsAt) <= now;
+          const running = started && Date.parse(special.endsAt) > now;
           return (
             <li key={special.id}>
               {editing === special.id ? (
@@ -83,8 +88,13 @@ export function SpecialsSection({
                   <span>
                     {displayTime(special.startsAt)} –{" "}
                     {displayTime(special.endsAt)} · {describe(special)}
-                    {started && " · On air or ended"}
+                    {running ? " · On air" : started && " · Ended"}
                   </span>
+                  {running && (
+                    <button type="button" onClick={() => setEnding(special)}>
+                      End early…
+                    </button>
+                  )}
                   {!started && (
                     <>
                       <button
@@ -115,6 +125,14 @@ export function SpecialsSection({
           );
         })}
       </ul>
+      {ending && (
+        <EndEarlyDialog
+          special={ending}
+          path={`${path}/${ending.id}`}
+          ended={changed}
+          onClose={() => setEnding(undefined)}
+        />
+      )}
       {editing === "new" ? (
         <SpecialEditor
           channelId={channelId}

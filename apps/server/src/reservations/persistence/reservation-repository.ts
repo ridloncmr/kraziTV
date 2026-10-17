@@ -188,9 +188,13 @@ export class ReservationRepository {
       return { kind: "reservation_ended", endsAt: current.endsAt };
     }
     const earliestEndsAt = Math.max(now, current.startsAt + 1);
+    // "now" is the server's clock inside the write, so a browser clock
+    // behind it never refuses stopping what airs now.
     const endsAt =
       "endsAt" in end
-        ? end.endsAt
+        ? end.endsAt === "now"
+          ? now
+          : end.endsAt
         : await findAiringProgramEnd(trx, current, now);
     if (endsAt < earliestEndsAt || endsAt > current.endsAt) {
       return {
