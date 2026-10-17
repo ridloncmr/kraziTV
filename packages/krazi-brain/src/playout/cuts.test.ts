@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { playoutEntry } from "../testing/playout-entries.js";
-import { deriveChannelState } from "./channel-state.js";
+import { deriveChannelState, findAiringAt } from "./channel-state.js";
 import type {
   PlayoutCursor,
   PlayoutEntry,
@@ -189,5 +189,50 @@ describe("cuts at reservation boundaries (ADR 0015)", () => {
       scheduleEntryId: "episode",
       endsAt: at(35),
     });
+  });
+});
+
+describe("findAiringAt", () => {
+  const airingAt = (
+    minutes: number,
+    entries: readonly PlayoutEntry[] = CUT,
+    reservations: readonly ReservedTimeRange[] = INTERRUPTING,
+  ) => findAiringAt({ ...inputs(reservations), at: at(minutes), entries });
+
+  it("reports the cut program before the cut and the special after it", () => {
+    expect(airingAt(10)).toEqual({
+      kind: "program",
+      scheduleEntryId: "episode",
+      startsAt: at(0),
+      endsAt: at(15),
+    });
+    expect(airingAt(15)).toMatchObject({ scheduleEntryId: "special-1" });
+  });
+
+  it("still reports a program whose media cannot air, since it holds its airtime", () => {
+    const unplayable = playoutEntry("broken", {
+      startsAt: at(0),
+      endsAt: at(30),
+      media: { status: "missing" },
+    });
+
+    expect(airingAt(10, [unplayable], [])).toEqual({
+      kind: "program",
+      scheduleEntryId: "broken",
+      startsAt: at(0),
+      endsAt: at(30),
+    });
+  });
+
+  it("reports planned filler, and nothing in an unexplained gap", () => {
+    const reservations = [range(60, 90)];
+    const entries = [entry("before", 0, 30), entry("reserved", 60, 90)];
+
+    expect(airingAt(40, entries, reservations)).toEqual({
+      kind: "filler",
+      startsAt: at(30),
+      endsAt: at(60),
+    });
+    expect(airingAt(40, entries, [])).toBeUndefined();
   });
 });

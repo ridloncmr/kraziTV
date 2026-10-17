@@ -19,11 +19,15 @@ export type ReservationSourceSettings =
 
 /**
  * What the owner saves for one reservation; the API accepts it. An end of
- * null asks for a program-derived end, which only a media-item list has.
+ * null asks for a program-derived end, which only a media-item list has. A
+ * start of "now" is the server's clock inside the write, so browser clock
+ * skew never places a cut. `interrupts` lets it start inside the airing
+ * item and cut it there (ADR 0015).
  */
 export interface ReservationSettings {
-  startsAt: number;
+  startsAt: number | "now";
   endsAt: number | null;
+  interrupts: boolean;
   source: ReservationSourceSettings;
 }
 
@@ -34,6 +38,8 @@ export interface SavedReservation {
   startsAt: number;
   endsAt: number;
   endKind: "explicit" | "program_derived";
+  /** The owner let it cut the airing item at its start; kept once it starts. */
+  interrupts: boolean;
   source: ReservationSourceSettings;
   createdAt: number;
   updatedAt: number;

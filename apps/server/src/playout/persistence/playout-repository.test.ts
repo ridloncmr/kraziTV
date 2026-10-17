@@ -12,7 +12,6 @@ import {
   openTestDatabase,
 } from "../../testing/test-environment.js";
 import {
-  findCoveringPlayoutEntries,
   findPlayoutEntryById,
   listPlayoutEntriesAround,
   listReservedTimeRanges,
@@ -98,7 +97,7 @@ describe("playout queries", () => {
   it("projects an entry with its media facts as stored", async () => {
     const { db, channelId } = await setup();
 
-    const [entry] = await findCoveringPlayoutEntries(db, channelId, T0);
+    const entry = await findPlayoutEntryById(db, channelId, "entry-0");
 
     expect(entry).toEqual({
       id: "entry-0",
@@ -121,53 +120,9 @@ describe("playout queries", () => {
   it("projects an audio-only item's missing video stream", async () => {
     const { db, channelId } = await setup();
 
-    const [entry] = await findCoveringPlayoutEntries(
-      db,
-      channelId,
-      T0 + 50 * MINUTE,
-    );
+    const entry = await findPlayoutEntryById(db, channelId, "entry-2");
 
     expect(entry?.media).toMatchObject({ hasVideo: false });
-  });
-
-  it("finds the covering entry and its successor, whatever its media status", async () => {
-    const { db, channelId } = await setup();
-
-    const entries = await findCoveringPlayoutEntries(
-      db,
-      channelId,
-      T0 + 30 * MINUTE,
-    );
-
-    expect(ids(entries)).toEqual(["entry-1", "entry-2"]);
-    expect(entries[0]?.media).toMatchObject({
-      status: "missing",
-      hasAudio: null,
-    });
-  });
-
-  it("treats an entry's end as exclusive and finds the successor across a gap", async () => {
-    const { db, channelId } = await setup();
-
-    await expect(
-      findCoveringPlayoutEntries(db, channelId, T0 + 45 * MINUTE).then(ids),
-    ).resolves.toEqual(["entry-2", "entry-7"]);
-  });
-
-  it("finds nothing at an instant no entry covers", async () => {
-    const { db, channelId } = await setup();
-
-    await expect(
-      findCoveringPlayoutEntries(db, channelId, T0 + 70 * MINUTE),
-    ).resolves.toEqual([]);
-  });
-
-  it("finds the last entry alone when nothing follows it", async () => {
-    const { db, channelId } = await setup();
-
-    await expect(
-      findCoveringPlayoutEntries(db, channelId, T0 + 90 * MINUTE).then(ids),
-    ).resolves.toEqual(["entry-7"]);
   });
 
   it("finds an entry by ID, only on its own channel", async () => {
@@ -188,10 +143,6 @@ describe("playout queries", () => {
     const { db, channelId } = await setup();
     const otherEntryId = `${OTHER_CHANNEL_ID}-entry-3`;
 
-    // Only the other channel covers this instant.
-    await expect(
-      findCoveringPlayoutEntries(db, channelId, T0 + 70 * MINUTE),
-    ).resolves.toEqual([]);
     await expect(
       findPlayoutEntryById(db, channelId, otherEntryId),
     ).resolves.toBeUndefined();
@@ -210,7 +161,7 @@ describe("playout queries", () => {
       ),
     ).resolves.toEqual([]);
     await expect(
-      findCoveringPlayoutEntries(db, OTHER_CHANNEL_ID, T0 + 70 * MINUTE).then(
+      listPlayoutEntriesAround(db, OTHER_CHANNEL_ID, T0 + 70 * MINUTE, 1).then(
         ids,
       ),
     ).resolves.toEqual([otherEntryId, `${OTHER_CHANNEL_ID}-entry-9`]);

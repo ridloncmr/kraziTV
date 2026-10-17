@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Kysely } from "kysely";
 
+import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RecordSources } from "../../database/writes/record-sources.js";
 import { findAiringItem } from "../../playout/persistence/playout-reads.js";
@@ -16,6 +17,7 @@ import type {
 import { resolveReservationRange } from "./reservation-refusals.js";
 import {
   readReservations,
+  settleAiredCuts,
   toSourceColumns,
   writeReservationItems,
 } from "./reservation-rows.js";
@@ -68,9 +70,10 @@ export class ReservationRepository {
       .values({
         id,
         channel_id: channelId,
-        starts_at: settings.startsAt,
+        starts_at: range.startsAt,
         ends_at: range.endsAt,
         end_kind: range.endKind,
+        interrupts: toSqliteBoolean(range.interrupts),
         ...toSourceColumns(settings.source),
         created_at: now,
         updated_at: now,
@@ -117,9 +120,10 @@ export class ReservationRepository {
     await trx
       .updateTable("reservations")
       .set({
-        starts_at: settings.startsAt,
+        starts_at: range.startsAt,
         ends_at: range.endsAt,
         end_kind: range.endKind,
+        interrupts: toSqliteBoolean(range.interrupts),
         ...toSourceColumns(settings.source),
         updated_at: now,
       })
@@ -148,6 +152,7 @@ export class ReservationRepository {
     if (current === undefined) return { kind: "not_found" };
     const conflict = await findAiringFillerConflict(trx, current, now);
     if (conflict !== undefined) return conflict;
+    await settleAiredCuts(trx, [current], now);
     const deleted = await trx
       .deleteFrom("reservations")
       .where("id", "=", reservationId)
@@ -163,7 +168,10 @@ export class ReservationRepository {
  * Returns a refusal when planned filler airing at `now` depends on the
  * reservation, by leading into it or covering part of its range: changing
  * or removing it would change the airing filler's end and on-screen resume
- * time, which routine edits never do (programming spec 0006, ADR 0014).
+ * time, which routine edits never do (programming spec 0006, ADR 0014). An
+ * interrupting reservation that has not started cuts the airing item, which
+ * was the owner's explicit choice to move that end (ADR 0015), so editing or
+ * cancelling one is never refused here.
  */
 async function findAiringFillerConflict(
   trx: Executor,
@@ -172,6 +180,7 @@ async function findAiringFillerConflict(
 ): Promise<
   Extract<ReservationRefusal, { kind: "airing_filler_conflict" }> | undefined
 > {
+  if (reservation.interrupts && reservation.startsAt > now) return undefined;
   const airing = await findAiringItem(trx, reservation.channelId, now);
   if (
     airing?.kind === "filler" &&
@@ -199,7 +208,9 @@ async function readReservation(
 }
 
 // Whether saving `settings` would leave the reservation as it is: the same
-// start, source, and end, with a program-derived end matching a null one.
+// start, source, end, and interrupting choice, with a program-derived end
+// matching a null one. A start of "now" is never the saved one: the saved
+// reservation has not started, so it starts later.
 function isSameSettings(
   current: SavedReservation,
   settings: ReservationSettings,
@@ -210,6 +221,7 @@ function isSameSettings(
       : current.endKind === "explicit" && current.endsAt === settings.endsAt;
   return (
     current.startsAt === settings.startsAt &&
+    current.interrupts === settings.interrupts &&
     sameEnd &&
     JSON.stringify(current.source) === JSON.stringify(settings.source)
   );

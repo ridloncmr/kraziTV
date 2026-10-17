@@ -373,6 +373,57 @@ describe("real FFmpeg reserved start", () => {
   );
 });
 
+describe("real FFmpeg cut", () => {
+  it.each([
+    { name: "at a later instant", startsAt: "later" as const },
+    { name: "now", startsAt: "now" as const },
+  ])(
+    "cuts the airing program $name into the special within a second on one signal",
+    async ({ startsAt }) => {
+      const { server, baseUrl, packager, entries } = await startRealChannel();
+      const first = entryAt(entries, 0);
+      await sleepUntil(first.starts_at + 1_000);
+      const viewer = await tune(baseUrl);
+      await receivesBytes(viewer);
+      // Two seconds into the six-second first program: cut it at three
+      // seconds, or as soon as the owner saves.
+      await sleepUntil(first.starts_at + 2_000);
+      const savedAt = Date.now();
+
+      const created = await send(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations`,
+        {
+          startsAt: startsAt === "now" ? "now" : iso(first.starts_at + 3_000),
+          interrupts: true,
+          source: { kind: "media_items", mediaItemIds: ["item-002"] },
+        },
+      );
+      expect(created.status, "reservation status").toBe(201);
+      const cutAt = Date.parse(created.body.startsAt as string);
+      expect(cutAt).toBeGreaterThanOrEqual(savedAt - 1_000);
+      await sleepUntil(cutAt + 2_000);
+
+      expect(packager.sessions).toHaveLength(1);
+      const [special] = packager.sessions[0]?.commits ?? [];
+      expect(special?.item).toMatchObject({
+        kind: "program",
+        mediaItemId: "item-002",
+      });
+      // Spec 0007's exact-start tolerance: within a second of the cut.
+      expect(special?.committedAt).toBeGreaterThanOrEqual(cutAt);
+      expect(special?.committedAt).toBeLessThan(cutAt + 1_000);
+      expect(viewer.response.closed).toBe(false);
+      const watchedMs = Date.now() - viewer.tunedAt;
+      expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
+        watchedMs - DRIFT_CEILING_MS,
+      );
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
 describe("real FFmpeg runtime cleanup", () => {
   // Spec 0006's idle grace as composed for the server.
   const IDLE_GRACE_MS = 5_000;

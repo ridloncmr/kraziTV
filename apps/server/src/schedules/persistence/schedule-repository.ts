@@ -126,24 +126,6 @@ export async function insertEntries(
     .execute();
 }
 
-/** Finds the entry airing at `at`: started at or before it and not yet ended. */
-export async function findEntryAiringAt(
-  trx: Executor,
-  channelId: string,
-  at: number,
-): Promise<{ startsAt: number; endsAt: number } | undefined> {
-  const row = await trx
-    .selectFrom("schedule_entries")
-    .select(["starts_at", "ends_at"])
-    .where("channel_id", "=", channelId)
-    .where("starts_at", "<=", at)
-    .where("ends_at", ">", at)
-    .executeTakeFirst();
-  return row === undefined
-    ? undefined
-    : { startsAt: row.starts_at, endsAt: row.ends_at };
-}
-
 /**
  * Lists the collection bookkeeping of the channel's entries starting at or
  * after `boundary`: what a regeneration from there would delete, read
@@ -177,6 +159,50 @@ export async function deleteEntriesFrom(
     .deleteFrom("schedule_entries")
     .where("channel_id", "=", channelId)
     .where("starts_at", ">=", boundary)
+    .returning(RESTORABLE_COLUMNS)
+    .execute();
+  return rows.map(toRestorableEntry);
+}
+
+/**
+ * Deletes the entries a withdrawn cut left behind: a reservation block's
+ * entry starting after `now` whose reservation is gone or now starts later
+ * (ADR 0015). Left in place, they would hide the restored airing item from
+ * the regeneration boundary; every other entry stays for that regeneration
+ * to judge. Returns what it deleted so progress is restored with the rest.
+ */
+export async function deleteWithdrawnCutEntries(
+  trx: Executor,
+  channelId: string,
+  now: number,
+): Promise<RestorableEntry[]> {
+  const rows = await trx
+    .deleteFrom("schedule_entries")
+    .where("channel_id", "=", channelId)
+    .where("starts_at", ">", now)
+    .where("id", "in", (eb) =>
+      eb
+        .selectFrom("schedule_entries as stale")
+        .innerJoin(
+          "programming_blocks",
+          "programming_blocks.id",
+          "stale.programming_block_id",
+        )
+        .leftJoin(
+          "reservations",
+          "reservations.id",
+          "programming_blocks.reservation_id",
+        )
+        .select("stale.id")
+        .where("stale.channel_id", "=", channelId)
+        .where("programming_blocks.reservation_id", "is not", null)
+        .where((inner) =>
+          inner.or([
+            inner("reservations.id", "is", null),
+            inner("reservations.starts_at", ">", inner.ref("stale.starts_at")),
+          ]),
+        ),
+    )
     .returning(RESTORABLE_COLUMNS)
     .execute();
   return rows.map(toRestorableEntry);

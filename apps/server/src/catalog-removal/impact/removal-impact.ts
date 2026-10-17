@@ -5,6 +5,7 @@ import { toSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { findChannelsUsingCollection } from "../../media-collections/persistence/channels-using-collection.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
+import { readAiringAt } from "../../playout/persistence/playout-reads.js";
 import { loadProgrammingAssignments } from "../../schedules/persistence/assignment-sources.js";
 import type {
   AiringRemovedMedia,
@@ -146,8 +147,10 @@ async function countRemovedItems(
 }
 
 /**
- * Lists enabled channels whose entry airing at `now` plays a removed item.
- * A disabled channel transmits nothing, so nothing of it is on air.
+ * Lists enabled channels whose entry airing at `now` plays a removed item,
+ * ending where any cut ends it (ADR 0015): a stored covering entry is only a
+ * candidate, since a cut entry and its special both cover the instants after
+ * the cut. A disabled channel transmits nothing, so nothing of it is on air.
  */
 async function findAiringRemovedMedia(
   trx: Executor,
@@ -158,6 +161,7 @@ async function findAiringRemovedMedia(
     .selectFrom("schedule_entries")
     .innerJoin("channels", "channels.id", "schedule_entries.channel_id")
     .select([
+      "schedule_entries.id",
       "schedule_entries.channel_id",
       "channels.number",
       "schedule_entries.media_item_id",
@@ -170,13 +174,19 @@ async function findAiringRemovedMedia(
     .where("schedule_entries.media_item_id", "in", targetItemIds(target))
     .orderBy("schedule_entries.channel_id")
     .execute();
-  return rows.map((row) => ({
-    channelId: row.channel_id,
-    channelNumber: row.number,
-    mediaItemId: row.media_item_id,
-    title: row.title,
-    endsAt: row.ends_at,
-  }));
+  const airing: AiringRemovedMedia[] = [];
+  for (const row of rows) {
+    const span = await readAiringAt(trx, row.channel_id, now);
+    if (span?.kind !== "program" || span.scheduleEntryId !== row.id) continue;
+    airing.push({
+      channelId: row.channel_id,
+      channelNumber: row.number,
+      mediaItemId: row.media_item_id,
+      title: row.title,
+      endsAt: span.endsAt,
+    });
+  }
+  return airing;
 }
 
 /**

@@ -57,13 +57,38 @@ export class ScriptedSignalPackager implements SignalPackager {
       finish = resolve;
     });
     if (this.readiness === "ready") output.write(JOINABLE_OUTPUT);
+    let outstanding = false;
     return {
       ready:
         this.readiness === "ready" ? Promise.resolve() : new Promise(() => {}),
       completion,
       output,
-      // Boundaries sit minutes past the test clock, so preparation never runs.
-      prepare: () => Promise.reject(new Error("unexpected prepare")),
+      // Prepares any item at once, as the real session validates and holds
+      // it, with the real contract's limits: one outstanding preparation, none
+      // after stop, and one commit or discard each. Committing changes no
+      // scripted output; tests read what aired through RecordingSignalPackager.
+      prepare: async () => {
+        if (session.stopped) throw new Error("session stopped");
+        if (outstanding) throw new Error("a preparation is outstanding");
+        outstanding = true;
+        let settled = false;
+        const settle = (): void => {
+          if (settled || session.stopped) {
+            throw new Error("preparation already settled");
+          }
+          settled = true;
+          outstanding = false;
+        };
+        return {
+          commit: settle,
+          discard: async () => {
+            if (!settled) {
+              settled = true;
+              outstanding = false;
+            }
+          },
+        };
+      },
       stop: async () => {
         if (this.stopFailure !== undefined) throw this.stopFailure;
         session.stopped = true;

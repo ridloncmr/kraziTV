@@ -40,6 +40,7 @@ function create(
         {
           startsAt,
           endsAt: null,
+          interrupts: false,
           source: { kind: "media_items", mediaItemIds: ["movie"] },
         },
         now,

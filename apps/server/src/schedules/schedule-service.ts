@@ -9,6 +9,7 @@ import {
   orderFingerprint,
   type ProgrammingAssignment,
   type Reservation,
+  type RestorableEntry,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -65,12 +66,11 @@ import {
 import {
   createScheduleState,
   deleteEntriesFrom,
+  deleteWithdrawnCutEntries,
   findChannelEnabled,
-  findEntryAiringAt,
   findLatestScheduleMutation,
   insertEntries,
   listEnabledChannelIds,
-  listEntriesInWindow,
   listRestorableEntriesFrom,
   listUpcomingCollectionEntries,
   loadScheduleState,
@@ -78,6 +78,8 @@ import {
 } from "./persistence/schedule-repository.js";
 import {
   findAiringItem,
+  readAiringAt,
+  readGuideEntries,
   readTimeline,
 } from "../playout/persistence/playout-reads.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
@@ -87,6 +89,7 @@ import type {
 } from "../reservations/contracts.js";
 import { resolveReservationRange } from "../reservations/persistence/reservation-refusals.js";
 import {
+  clearUnstartedInterruptions,
   loadReservations,
   resolveReservation,
 } from "../reservations/persistence/reservation-rows.js";
@@ -280,7 +283,7 @@ export class ScheduleService {
   ): Promise<ScheduleWindow> {
     return this.#db.transaction().execute(async (trx) => {
       const state = await loadScheduleState(trx, channelId);
-      const entries = await listEntriesInWindow(trx, channelId, start, end);
+      const entries = await readGuideEntries(trx, channelId, start, end);
       const items =
         state === undefined
           ? []
@@ -407,7 +410,7 @@ export class ScheduleService {
         }
         const reservation = await resolveReservation(trx, {
           id: PREVIEW_RESERVATION_ID,
-          startsAt: settings.startsAt,
+          startsAt: range.startsAt,
           endsAt: range.endsAt,
           source: settings.source,
         });
@@ -479,9 +482,14 @@ export class ScheduleService {
     effectiveNow: number,
     added?: Reservation,
   ) {
-    const boundary = findRegenerationBoundary(
-      await findAiringItem(trx, channelId, effectiveNow),
-      effectiveNow,
+    // An unsaved interrupting reservation cuts what airs at its start
+    // (ADR 0015); a save refuses any other that starts before the boundary.
+    const boundary = Math.min(
+      findRegenerationBoundary(
+        await findAiringItem(trx, channelId, effectiveNow),
+        effectiveNow,
+      ),
+      added?.startsAt ?? Infinity,
     );
     const { collections: _, ...stored } = await loadProgrammingInputs(
       trx,
@@ -518,13 +526,15 @@ export class ScheduleService {
    * already has a schedule regenerates from its boundary; one without gets
    * its first chunk, and one the user chose to interrupt is rebuilt from the
    * effective time instead. The change's `afterRegeneration` step then runs
-   * in the same transaction. Completes coverage after the commit. Returns the
-   * change's value.
+   * in the same transaction. Completes coverage after the commit, first
+   * handing the committed value to `onCommitted`, so a caller can act on a
+   * change the moment it stands. Returns the change's value.
    */
   async applyInputChange<T>(
     log: ScheduleLog,
     reason: ScheduleChangeReason,
     change: ScheduleInputChange<T>,
+    onCommitted?: (value: T) => void,
   ): Promise<T> {
     const { value, chunks } = await this.#immediate(async (trx) => {
       // Computed before the change runs, when its affected channels are still
@@ -560,6 +570,7 @@ export class ScheduleService {
       );
       return { value: changed.value, chunks };
     });
+    onCommitted?.(value);
 
     // A failure here is logged, not thrown: the change already stands, and
     // the next ensure resumes from the committed chunk.
@@ -654,7 +665,10 @@ export class ScheduleService {
    * Rebuilds a scheduled channel from the regeneration boundary in the
    * caller's transaction. What airs is never touched (ADR 0003, ADR 0014):
    * entries from the end of the airing program or planned filler, or from
-   * now when nothing airs, are replaced.
+   * now when nothing airs, are replaced. A withdrawn cut's entries are
+   * deleted first, so they cannot hide the restored airing item, and any
+   * entry starting after now but before the boundary goes too: only a
+   * withdrawn cut or a deleted early end leaves one (ADR 0015).
    */
   async #regenerateChunk(
     trx: Kysely<DatabaseSchema>,
@@ -662,12 +676,21 @@ export class ScheduleService {
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
+    const withdrawn = await deleteWithdrawnCutEntries(
+      trx,
+      state.channelId,
+      effectiveNow,
+    );
     const airing = await findAiringItem(trx, state.channelId, effectiveNow);
     const boundary = findRegenerationBoundary(airing, effectiveNow);
     return this.#rebuildChunk(
       trx,
       state,
-      { deleteFrom: boundary, startsAt: boundary },
+      {
+        deleteFrom: Math.min(boundary, effectiveNow + 1),
+        startsAt: boundary,
+        alreadyDeleted: withdrawn,
+      },
       effectiveNow,
       target,
     );
@@ -678,7 +701,8 @@ export class ScheduleService {
    * entry airing now. Only a user's explicit choice reaches this (the ADR
    * 0003 amendment): the airing entry and every later one are deleted and
    * their progress restored, and the interval from the deleted entry's start
-   * to now is left empty, in the past.
+   * to now is left empty, in the past. A special that cut the replaced entry
+   * no longer cuts anything, so its interrupting flag is cleared.
    */
   async #interruptChunk(
     trx: Kysely<DatabaseSchema>,
@@ -686,14 +710,16 @@ export class ScheduleService {
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
-    const airing = await findEntryAiringAt(trx, state.channelId, effectiveNow);
+    const airing = await readAiringAt(trx, state.channelId, effectiveNow);
+    const program = airing?.kind === "program" ? airing : undefined;
+    await clearUnstartedInterruptions(trx, state.channelId, effectiveNow);
     return this.#rebuildChunk(
       trx,
       state,
       {
-        deleteFrom: airing?.startsAt ?? effectiveNow,
+        deleteFrom: program?.startsAt ?? effectiveNow,
         startsAt: effectiveNow,
-        interruptedFrom: airing?.startsAt,
+        interruptedFrom: program?.startsAt,
       },
       effectiveNow,
       target,
@@ -711,13 +737,22 @@ export class ScheduleService {
   async #rebuildChunk(
     trx: Kysely<DatabaseSchema>,
     state: ScheduleState,
-    span: { deleteFrom: number; startsAt: number; interruptedFrom?: number },
+    span: {
+      deleteFrom: number;
+      startsAt: number;
+      interruptedFrom?: number;
+      /** Entries the caller already deleted, whose progress restores here too. */
+      alreadyDeleted?: RestorableEntry[];
+    },
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
     const { channelId } = state;
     const { startsAt: boundary } = span;
-    const deleted = await deleteEntriesFrom(trx, channelId, span.deleteFrom);
+    const deleted = [
+      ...(span.alreadyDeleted ?? []),
+      ...(await deleteEntriesFrom(trx, channelId, span.deleteFrom)),
+    ];
     await restoreDeletedProgress(trx, channelId, deleted, effectiveNow);
     await deleteEmptyBlocks(trx, channelId);
 

@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { findAiringItem } from "../playout/persistence/playout-reads.js";
+import { findInterruptionStart } from "../playout/persistence/playout-repository.js";
 import { channelInputChange } from "../schedules/channel-input-change.js";
 import type { ScheduleInputChange } from "../schedules/contracts.js";
 import { advanceScheduleRevision } from "../schedules/persistence/schedule-repository.js";
@@ -14,7 +15,10 @@ import { AiringFillerConflictError } from "./airing-filler-conflict-error.js";
  * because a reservation also decides planned filler (ADR 0014). The planned
  * filler airing before the write must end where it did after the
  * regeneration; otherwise the whole commit rolls back with
- * `AiringFillerConflictError`, so no write can move an airing resume time.
+ * `AiringFillerConflictError`, so no routine write can move an airing
+ * resume time. Only an interrupting reservation starting inside that filler,
+ * before or after the write, may move it: a cut, or a withdrawn one, is the
+ * owner's explicit choice (ADR 0015).
  */
 export function reservationChange<T extends { kind: string }>(
   channelId: string,
@@ -24,14 +28,28 @@ export function reservationChange<T extends { kind: string }>(
   const change = channelInputChange(channelId, changedKind, write);
   return async (trx, now) => {
     const airing = await findAiringItem(trx, channelId, now);
+    const cutBefore =
+      airing?.kind === "filler" &&
+      (await findInterruptionStart(trx, channelId, now, airing.endsAt)) !==
+        undefined;
     const changed = await change(trx, now);
     if (changed.affectedChannelIds.length === 0) return changed;
     return {
       ...changed,
       afterRegeneration: async (trx, advanced) => {
-        if (airing?.kind === "filler") {
+        if (airing?.kind === "filler" && !cutBefore) {
           const after = await findAiringItem(trx, channelId, now);
-          if (after?.kind !== "filler" || after.endsAt !== airing.endsAt) {
+          const moved =
+            after?.kind !== "filler" || after.endsAt !== airing.endsAt;
+          if (
+            moved &&
+            (await findInterruptionStart(
+              trx,
+              channelId,
+              now,
+              airing.endsAt,
+            )) === undefined
+          ) {
             throw new AiringFillerConflictError(airing.endsAt);
           }
         }

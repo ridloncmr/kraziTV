@@ -10,8 +10,7 @@ import {
   type ImmediateTransactionHooks,
   runImmediateTransaction,
 } from "../../database/writes/immediate-transaction.js";
-import { readChannelStateAt } from "../../playout/persistence/playout-reads.js";
-import { findCoveringPlayoutEntries } from "../../playout/persistence/playout-repository.js";
+import { readAiringAt } from "../../playout/persistence/playout-reads.js";
 import {
   findChannelEnabled,
   loadScheduleState,
@@ -103,7 +102,8 @@ export class SqliteTransitionCoordinator implements TransitionCoordinator {
  * channel still exists and is enabled, the schedule revision it was
  * prepared under is still current, and its program's entry covers
  * `boundaryTime`, or the planned filler airing then ends where its cursor
- * says (ADR 0014).
+ * says (ADR 0014). Both are read with their cuts, so a preparation made
+ * before a cut, or before one was withdrawn, is stale (ADR 0015).
  */
 async function isStillCurrent(
   trx: Kysely<DatabaseSchema>,
@@ -114,26 +114,9 @@ async function isStillCurrent(
   if ((await findChannelEnabled(trx, channelId)) !== true) return false;
   const state = await loadScheduleState(trx, channelId);
   if (state?.scheduleRevision !== candidate.scheduleRevision) return false;
-  if (cursor.kind === "program") {
-    const [covering] = await findCoveringPlayoutEntries(
-      trx,
-      channelId,
-      boundaryTime,
-    );
-    return covering?.id === cursor.scheduleEntryId;
-  }
-  const airing = await readChannelStateAt(
-    trx,
-    {
-      channelId,
-      scheduleRevision: state.scheduleRevision,
-      anchorTime: state.anchorTime,
-    },
-    boundaryTime,
-  );
-  return (
-    airing.kind === "current" &&
-    airing.currentItem.type === "filler" &&
-    airing.currentItem.endsAt === cursor.endsAt
-  );
+  const airing = await readAiringAt(trx, channelId, boundaryTime);
+  return cursor.kind === "program"
+    ? airing?.kind === "program" &&
+        airing.scheduleEntryId === cursor.scheduleEntryId
+    : airing?.kind === "filler" && airing.endsAt === cursor.endsAt;
 }

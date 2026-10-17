@@ -1,7 +1,9 @@
 import { listPlannedFiller, PLAYBACK_MODES } from "@krazitv/krazi-brain";
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
+import type { Kysely } from "kysely";
 import { z } from "zod";
 
+import type { ChannelRuntime } from "../../channels/contracts.js";
 import type { ChannelRepository } from "../../channels/repository/channel-repository.js";
 import {
   sendApiError,
@@ -10,6 +12,8 @@ import {
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, isoInstantField } from "../../http/request-schemas.js";
+import type { DatabaseSchema } from "../../database/schema/database-schema.js";
+import type { ScheduleChangeReason } from "../../schedules/contracts.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type {
   ReservationPreview,
@@ -36,17 +40,23 @@ const reservationSource = z.discriminatedUnion("kind", [
 
 // Create and PATCH share one body: PATCH replaces the whole reservation. A
 // null end is derived from the listed programs, so a collection, whose fit
-// is unknown until it airs, needs an explicit one.
+// is unknown until it airs, needs an explicit one. A start of "now" is
+// resolved on the server inside the write; `interrupts` lets the start fall
+// inside the airing item and cut it (ADR 0015).
 const reservationBody = z
   .strictObject({
-    startsAt: isoInstantField,
+    startsAt: z.union([z.literal("now"), isoInstantField]),
     endsAt: isoInstantField.nullable().default(null),
+    interrupts: z.boolean().default(false),
     source: reservationSource,
   })
-  .refine((body) => body.endsAt === null || body.endsAt > body.startsAt, {
-    message: "endsAt must be after startsAt",
-    path: ["endsAt"],
-  })
+  .refine(
+    (body) =>
+      body.endsAt === null ||
+      body.startsAt === "now" ||
+      body.endsAt > body.startsAt,
+    { message: "endsAt must be after startsAt", path: ["endsAt"] },
+  )
   .refine((body) => body.source.kind !== "collection" || body.endsAt !== null, {
     message: "a collection reservation needs an explicit endsAt",
     path: ["endsAt"],
@@ -63,6 +73,7 @@ export function registerReservationRoutes(
   reservations: ReservationRepository,
   channels: ChannelRepository,
   schedules: ScheduleService,
+  runtime: ChannelRuntime,
 ): void {
   server.get("/channels/:id/reservations", async (request, reply) => {
     const { id } = idParams.parse(request.params);
@@ -79,14 +90,13 @@ export function registerReservationRoutes(
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
-    const result = await refusingAiringFillerChanges(() =>
-      schedules.applyInputChange(
-        request.log,
-        "reservation_created",
-        reservationChange(id, "created", (trx, now) =>
-          reservations.create(trx, id, body.data, now),
-        ),
-      ),
+    const result = await applyReservationWrite(
+      { schedules, runtime },
+      request.log,
+      id,
+      "reservation_created",
+      "created",
+      (trx, now) => reservations.create(trx, id, body.data, now),
     );
     switch (result.kind) {
       case "created":
@@ -143,14 +153,14 @@ export function registerReservationRoutes(
         return sendInvalidRequest(reply, body.error);
       }
       // Unchanged settings affect no channel, so nothing regenerates.
-      const result = await refusingAiringFillerChanges(() =>
-        schedules.applyInputChange(
-          request.log,
-          "reservation_changed",
-          reservationChange(id, "updated", (trx, now) =>
-            reservations.update(trx, id, reservationId, body.data, now),
-          ),
-        ),
+      const result = await applyReservationWrite(
+        { schedules, runtime },
+        request.log,
+        id,
+        "reservation_changed",
+        "updated",
+        (trx, now) =>
+          reservations.update(trx, id, reservationId, body.data, now),
       );
       switch (result.kind) {
         case "updated":
@@ -168,14 +178,13 @@ export function registerReservationRoutes(
     "/channels/:id/reservations/:reservationId",
     async (request, reply) => {
       const { id, reservationId } = reservationParams.parse(request.params);
-      const result = await refusingAiringFillerChanges(() =>
-        schedules.applyInputChange(
-          request.log,
-          "reservation_deleted",
-          reservationChange(id, "deleted", (trx, now) =>
-            reservations.delete(trx, id, reservationId, now),
-          ),
-        ),
+      const result = await applyReservationWrite(
+        { schedules, runtime },
+        request.log,
+        id,
+        "reservation_deleted",
+        "deleted",
+        (trx, now) => reservations.delete(trx, id, reservationId, now),
       );
       switch (result.kind) {
         case "deleted":
@@ -187,6 +196,59 @@ export function registerReservationRoutes(
       }
     },
   );
+}
+
+/**
+ * Runs one reservation write as a schedule input change that regenerates
+ * when the write reports `changedKind`, answering one rolled back for
+ * moving the airing filler as that refusal. The channel's worker is told the
+ * moment a change commits, before coverage completes, so a cut now reaches
+ * the signal at once (ADR 0015).
+ */
+function applyReservationWrite<T extends { kind: string }>(
+  {
+    schedules,
+    runtime,
+  }: { schedules: ScheduleService; runtime: ChannelRuntime },
+  log: FastifyBaseLogger,
+  channelId: string,
+  reason: ScheduleChangeReason,
+  changedKind: T["kind"],
+  write: (trx: Kysely<DatabaseSchema>, now: number) => Promise<T>,
+) {
+  return refusingAiringFillerChanges(() =>
+    schedules.applyInputChange(
+      log,
+      reason,
+      reservationChange(channelId, changedKind, write),
+      (value) => {
+        if (value.kind === changedKind) {
+          notifyScheduleChanged(runtime, channelId, log);
+        }
+      },
+    ),
+  );
+}
+
+/**
+ * Tells the channel's stream worker that a committed reservation write
+ * changed its schedule, so a cut reaches the live signal (ADR 0015). A
+ * failure is logged and never undoes the commit: the worker still settles
+ * the change at its next boundary.
+ */
+function notifyScheduleChanged(
+  runtime: ChannelRuntime,
+  channelId: string,
+  log: FastifyBaseLogger,
+): void {
+  try {
+    runtime.scheduleChanged(channelId);
+  } catch (err) {
+    log.warn(
+      { channelId, err },
+      "Reservation saved but notifying the channel stream worker failed",
+    );
+  }
 }
 
 /**
@@ -378,6 +440,7 @@ function toApiReservation(reservation: SavedReservation) {
     startsAt: toApiTimestamp(reservation.startsAt),
     endsAt: toApiTimestamp(reservation.endsAt),
     endKind: reservation.endKind,
+    interrupts: reservation.interrupts,
     source: reservation.source,
     createdAt: toApiTimestamp(reservation.createdAt),
     updatedAt: toApiTimestamp(reservation.updatedAt),

@@ -14,6 +14,7 @@ import {
   readOnlyScheduleState,
 } from "../../testing/schedule-fixtures.js";
 import { orderingChange } from "../../media-collections/maintenance/maintenance-writes.js";
+import { readGuideAirings } from "../../testing/reservation-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
@@ -51,24 +52,6 @@ function itemsBody(
   };
 }
 
-// The schedule's entries in a window as `<media>@<minutes after T0>-<end>`.
-async function airings(
-  server: Awaited<ReturnType<typeof scheduled>>["server"],
-  start: number,
-  end: number,
-): Promise<string[]> {
-  const window = await send(server, "GET", windowUrl(SCHEDULE_URL, start, end));
-  const entries = window.body.entries as {
-    mediaItemId: string;
-    startsAt: string;
-    endsAt: string;
-  }[];
-  return entries.map(
-    (entry) =>
-      `${entry.mediaItemId}@${(Date.parse(entry.startsAt) - T0) / MINUTE}-${(Date.parse(entry.endsAt) - T0) / MINUTE}`,
-  );
-}
-
 describe("reservation routes", () => {
   it("airs the reserved program at its exact start after whole programs, leaving the gap empty", async () => {
     const { server, movie } = await scheduled();
@@ -85,7 +68,7 @@ describe("reservation routes", () => {
     });
     // The third episode would end at 69, past 60: it waits until after the
     // movie, and nothing is listed from 45 to 60.
-    await expect(airings(server, T0, at(175))).resolves.toEqual([
+    await expect(readGuideAirings(server, T0, at(175))).resolves.toEqual([
       "item-001@0-22",
       "item-002@22-45",
       `${movie}@60-150`,
@@ -108,7 +91,7 @@ describe("reservation routes", () => {
       endsAt: iso(at(180)),
       endKind: "explicit",
     });
-    await expect(airings(server, at(140), at(200))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(140), at(200))).resolves.toEqual([
       `${movie}@60-150`,
       "item-003@180-204",
     ]);
@@ -132,7 +115,7 @@ describe("reservation routes", () => {
     expect(deleted.status).toBe(204);
     expect(await revision()).toBe(before + 3);
     // Deleting returns the range to ordinary programming.
-    await expect(airings(server, at(115), at(135))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(115), at(135))).resolves.toEqual([
       "item-003@114-138",
     ]);
   });
@@ -311,7 +294,7 @@ describe("reservation routes", () => {
     await send(server, "POST", URL, collection(at(60), at(180)));
     await send(server, "POST", URL, collection(at(300), at(360)));
 
-    const listed = await airings(server, at(55), at(370));
+    const listed = await readGuideAirings(server, at(55), at(370));
     expect(listed).toContain("specials-1@60-110");
     expect(listed).toContain("specials-2@110-160");
     expect(listed).toContain("specials-3@300-350");
@@ -398,7 +381,7 @@ describe("reservation routes: revision, progress, and history", () => {
 
     await send(server, "POST", URL, specialsBody(at(300), at(360)));
 
-    await expect(airings(server, at(290), at(360))).resolves.toContain(
+    await expect(readGuideAirings(server, at(290), at(360))).resolves.toContain(
       "specials-3@300-350",
     );
   });
@@ -426,7 +409,7 @@ describe("reservation routes: revision, progress, and history", () => {
       orderingChange(),
     );
 
-    await expect(airings(server, at(55), at(215))).resolves.toEqual(
+    await expect(readGuideAirings(server, at(55), at(215))).resolves.toEqual(
       expect.arrayContaining([
         "specials-2@60-110",
         "specials-3@110-160",
@@ -507,7 +490,7 @@ describe("reservation routes: revision, progress, and history", () => {
     );
 
     expect(deleted.status).toBe(204);
-    await expect(airings(server, at(55), at(160))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(55), at(160))).resolves.toEqual([
       `${movie}@60-150`,
       "item-003@150-174",
     ]);
@@ -526,7 +509,7 @@ describe("reservation routes: revision, progress, and history", () => {
       mediaItemIds: ["pilot", "specials-1"],
     });
 
-    await expect(airings(server, at(55), at(160))).resolves.toEqual(
+    await expect(readGuideAirings(server, at(55), at(160))).resolves.toEqual(
       expect.arrayContaining(["pilot@60-100", "specials-1@100-150"]),
     );
   });

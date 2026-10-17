@@ -36,7 +36,10 @@ without being stopped.
   times. Playout, the guide, and the regeneration boundary read the item as
   ending at the interrupting reservation's start, derived in the same schedule
   snapshot as filler. Editing or deleting the reservation before that instant
-  restores the item's full airtime with nothing to undo.
+  restores the item's full airtime with nothing to undo. Once a cut instant
+  has aired it can never be withdrawn, so deleting its reservation afterward,
+  directly or with the media or collection it aired, first writes the cut
+  into the cut entry's stored end; nothing else ever stores a cut.
 - **The cut is seamless.** At the cut instant the channel stream worker
   crosses into the reservation the way it crosses any boundary, keeping its
   subscribers. After a schedule revision change it re-reads the airing item's

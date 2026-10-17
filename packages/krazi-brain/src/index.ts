@@ -6,7 +6,12 @@
 
 // Current channel state, following items, and window timelines the server
 // derives from one schedule snapshot.
-export { deriveChannelState } from "./playout/channel-state.js";
+export {
+  type AiringSpan,
+  deriveChannelState,
+  findAiringAt,
+} from "./playout/channel-state.js";
+export { cutAtReservations } from "./playout/cuts.js";
 export { listPlannedFiller } from "./playout/filler.js";
 export {
   assertFollowingCount,
