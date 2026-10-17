@@ -14,7 +14,7 @@ import {
 } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ProgrammingBlockTable } from "../../database/schema/programming-block-table.js";
-import { findEntryAiringAt } from "./schedule-repository.js";
+import { findAiringItem } from "../../playout/persistence/playout-reads.js";
 
 // Every function here takes the caller's executor: blocks are written only
 // inside the schedule transaction that writes their entries.
@@ -48,19 +48,16 @@ export async function loadLatestTurn(
   if (row === undefined) return undefined;
   let entries = trx
     .selectFrom("schedule_entries")
-    .select((eb) => [
-      eb.fn.countAll<number>().as("programs"),
-      eb.fn.coalesce(eb.fn.sum<number>("duration_ms"), eb.lit(0)).as("ms"),
-    ])
+    .select(["media_item_id", "duration_ms"])
     .where("programming_block_id", "=", row.id);
   if (keptBefore !== undefined) {
     entries = entries.where("starts_at", "<", keptBefore);
   }
-  const aired = await entries.executeTakeFirstOrThrow();
+  const aired = await entries.orderBy("sequence_number").execute();
   return {
     block: toGeneratedBlock(row),
-    airedPrograms: Number(aired.programs),
-    airedMs: Number(aired.ms),
+    airedMediaItemIds: aired.map((entry) => entry.media_item_id),
+    airedMs: aired.reduce((total, entry) => total + entry.duration_ms, 0),
   };
 }
 
@@ -76,7 +73,7 @@ export async function findStartedTurn(
   effectiveNow: number,
 ): Promise<{ block: GeneratedBlock; boundary: number } | undefined> {
   const boundary = findRegenerationBoundary(
-    await findEntryAiringAt(trx, channelId, effectiveNow),
+    await findAiringItem(trx, channelId, effectiveNow),
     effectiveNow,
   );
   const latest = await loadLatestTurn(trx, channelId, boundary);
@@ -129,7 +126,8 @@ export async function insertBlocks(
         id: block.id,
         channel_id: channelId,
         assignment_id: block.assignmentId,
-        ...toSourceColumns(block.source),
+        reservation_id: block.reservationId,
+        ...toSourceColumns(block),
         round_number: block.roundNumber,
         turn_index: block.turnIndex,
         starts_at: block.startsAt,
@@ -177,11 +175,24 @@ export async function deleteEmptyBlocks(
     .execute();
 }
 
-// Flattens a block's member into the columns the table check expects; a
-// generated block always has its source.
-function toSourceColumns(source: BlockSource | null) {
+// Flattens a block's member into the columns the table check expects. A
+// rotation turn always has its source; a reservation's media-item list has
+// none, which its reservation names instead, so it stores as an item kind
+// with no item, like one whose item was deleted.
+function toSourceColumns({
+  source,
+  reservationId,
+}: Pick<GeneratedBlock, "source" | "reservationId">) {
   if (source === null) {
-    throw new Error("a generated block must name the member that took it");
+    if (reservationId === null) {
+      throw new Error("a generated block must name the member that took it");
+    }
+    return {
+      source_kind: "media_item" as const,
+      media_collection_id: null,
+      media_item_id: null,
+      playback_mode: null,
+    };
   }
   return source.kind === "collection"
     ? {
@@ -205,6 +216,7 @@ function toGeneratedBlock(
   return {
     id: row.id,
     assignmentId: row.assignment_id,
+    reservationId: row.reservation_id,
     source: toBlockSource(row),
     roundNumber: row.round_number,
     turnIndex: row.turn_index,

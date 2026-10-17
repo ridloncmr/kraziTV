@@ -5,10 +5,10 @@ import {
   generateInChunks,
   programmingRule,
   sequentialBlockIds,
+  generatedProgramming as generated,
 } from "../testing/programming-assignments.js";
-import { scheduleMedia } from "../testing/schedule-media.js";
+import { numberedMedia as items } from "../testing/schedule-media.js";
 import type { CalendarConditions } from "../calendar/contracts.js";
-import type { ScheduleMedia } from "../schedule/contracts.js";
 import type {
   GeneratedBlock,
   ProgrammingAssignment,
@@ -23,17 +23,6 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 const utc = (iso: string) => Date.parse(iso);
-
-// `count` items of `minutes` each, named `<prefix>1`, `<prefix>2`, ...
-function items(
-  prefix: string,
-  count: number,
-  minutes: number,
-): ScheduleMedia[] {
-  return Array.from({ length: count }, (_, index) =>
-    scheduleMedia(`${prefix}${index + 1}`, { durationMs: minutes * MINUTE_MS }),
-  );
-}
 
 // A sitcom of 30-minute episodes, two a turn.
 function sitcom(id: string): ProgrammingAssignment {
@@ -81,6 +70,7 @@ function options(
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     assignments,
     rules,
+    reservations: [],
     timeZone: "UTC",
     latestTurn: undefined,
     progress: [],
@@ -91,13 +81,6 @@ function options(
     createBlockId: sequentialBlockIds(),
     ...overrides,
   };
-}
-
-function generated(result: ReturnType<typeof generateProgramming>) {
-  if (result.kind !== "generated") {
-    throw new Error(`expected generated, got ${result.reason}`);
-  }
-  return result;
 }
 
 // Each block's assignment, grouped by its context and round.

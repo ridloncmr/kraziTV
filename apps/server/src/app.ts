@@ -52,7 +52,9 @@ import { registerProgrammingPreviewRoutes } from "./programming-assignments/rout
 import { registerProgrammingRebuildRoutes } from "./programming-assignments/routes/programming-rebuild-routes.js";
 import type { RuleRepository } from "./programming-rules/rule-repository.js";
 import { registerRuleRoutes } from "./programming-rules/rule-routes.js";
-import { registerPlayoutRoutes } from "./playout/playout-routes.js";
+import type { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
+import { registerReservationRoutes } from "./reservations/routes/reservation-routes.js";
+import { registerPlayoutRoutes } from "./playout/routes/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";
@@ -101,6 +103,7 @@ export type ServerDependencies = {
   channelStreams: ChannelStreams;
   assignments: AssignmentRepository;
   rules: RuleRepository;
+  reservations: ReservationRepository;
   schedules: ScheduleService;
   playout: PlayoutService;
 };
@@ -237,6 +240,12 @@ function registerRoutes(
     dependencies.channels,
     dependencies.schedules,
   );
+  registerReservationRoutes(
+    server,
+    dependencies.reservations,
+    dependencies.channels,
+    dependencies.schedules,
+  );
   registerMarathonSettingsRoutes(
     server,
     dependencies.assignments,
@@ -250,7 +259,7 @@ function registerRoutes(
     stopInterrupted,
   );
   registerScheduleRoutes(server, dependencies.schedules);
-  registerPlayoutRoutes(server, dependencies.playout);
+  registerPlayoutRoutes(server, dependencies.playout, dependencies.schedules);
   registerPlexRoutes(
     server,
     dependencies.channels,

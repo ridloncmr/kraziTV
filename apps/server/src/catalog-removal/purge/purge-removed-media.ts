@@ -1,10 +1,8 @@
 import { sql, type Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import {
-  loadScheduleState,
-  updateScheduleState,
-} from "../../schedules/persistence/schedule-repository.js";
+import { deleteEndedReservations } from "../../reservations/persistence/reservation-rows.js";
+import { advanceScheduleRevision } from "../../schedules/persistence/schedule-repository.js";
 
 /**
  * Deletes every removed item that no schedule entry holds past `now`,
@@ -40,6 +38,9 @@ export async function purgeRemovedMedia(
     .deleteFrom("schedule_entries")
     .where("media_item_id", "in", purgeable)
     .execute();
+  // Only ended reservations can still list a removed item, since an
+  // unended one refuses its removal; they go with it.
+  await deleteEndedReservations(trx, { mediaItemIds: purgeable }, now);
   // Purgeable items have no entries left now; held ones still have some.
   await trx
     .deleteFrom("media_items")
@@ -72,13 +73,6 @@ export async function purgeRemovedMedia(
 
   for (const { channel_id } of channels) {
     if (alreadyAdvanced.has(channel_id)) continue;
-    const state = await loadScheduleState(trx, channel_id);
-    if (state === undefined) continue;
-    await updateScheduleState(trx, {
-      ...state,
-      scheduleRevision: state.scheduleRevision + 1,
-      // Never earlier than the last mutation, so the clamp stays monotonic.
-      updatedAt: Math.max(state.updatedAt, now),
-    });
+    await advanceScheduleRevision(trx, channel_id, now);
   }
 }

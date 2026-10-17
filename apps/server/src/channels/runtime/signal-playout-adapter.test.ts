@@ -49,6 +49,7 @@ async function setup(scenario: Partial<ScheduleScenarioOptions> = {}) {
     new PlayoutService(db, schedules),
     channels,
     log,
+    "UTC",
   );
   return { db, channelId, itemIds, clock, channels, adapter, log };
 }
@@ -67,6 +68,7 @@ describe("SignalPlayoutAdapter.getCurrent", () => {
       evaluatedAt: MID_SECOND,
       mediaOffsetMs: 8 * MINUTE,
       item: {
+        kind: "program",
         channelId,
         scheduleEntryId: "entry-002",
         scheduleRevision: schedule_revision,
@@ -145,6 +147,7 @@ describe("SignalPlayoutAdapter.getCurrent", () => {
       new PlayoutService(db, unwrittenCoverage(clock.now)),
       channels,
       log,
+      "UTC",
     );
 
     await expect(adapter.getCurrent(channelId, MID_SECOND)).rejects.toThrow(
@@ -175,7 +178,11 @@ describe("SignalPlayoutAdapter.getFollowing", () => {
     const { channelId, adapter } = await setup();
     await adapter.getCurrent(channelId, T0);
 
-    const result = await adapter.getFollowing(channelId, "entry-001", 2);
+    const result = await adapter.getFollowing(
+      channelId,
+      { kind: "program", scheduleEntryId: "entry-001" },
+      2,
+    );
 
     expect(result).toMatchObject({
       status: "selected",
@@ -193,7 +200,11 @@ describe("SignalPlayoutAdapter.getFollowing", () => {
     await adapter.getCurrent(channelId, T0);
 
     await expect(
-      adapter.getFollowing(channelId, "entry-gone", 1),
+      adapter.getFollowing(
+        channelId,
+        { kind: "program", scheduleEntryId: "entry-gone" },
+        1,
+      ),
     ).resolves.toMatchObject({ status: "stale_entry", items: [] });
   });
 
@@ -201,7 +212,11 @@ describe("SignalPlayoutAdapter.getFollowing", () => {
     const { channelId, adapter } = await setup({ enabled: false });
 
     await expect(
-      adapter.getFollowing(channelId, "entry-001", 1),
+      adapter.getFollowing(
+        channelId,
+        { kind: "program", scheduleEntryId: "entry-001" },
+        1,
+      ),
     ).rejects.toThrow(expect.objectContaining({ code: "channel_disabled" }));
   });
 });

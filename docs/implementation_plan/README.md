@@ -52,6 +52,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 6 of 6 tickets complete
 - [Programming Spec 0004 Implementation Plan: Continuous Multi-Source Programming With kraziPlan](002-programming/0004-kraziplan.md) - 9 of 9 tickets complete
 - [Programming Spec 0005 Implementation Plan: Recurring Programming Rules](002-programming/0005-recurring-programming-rules.md) - 9 of 9 tickets complete
+- [Programming Spec 0006 Implementation Plan: Clock-Anchored Programming](002-programming/0006-clock-anchored-blocks.md) - 10 of 10 tickets complete
 
 ### 003-auth
 

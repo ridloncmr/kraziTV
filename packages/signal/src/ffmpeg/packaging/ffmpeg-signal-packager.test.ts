@@ -17,9 +17,10 @@ class MarkerInspector implements OutputReadinessInspector {
   }
 }
 
-const initialItem = (
-  overrides: Partial<SignalPlayoutItem> = {},
-): SignalPlayoutItem => ({
+type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
+
+const initialItem = (overrides: Partial<ProgramItem> = {}): ProgramItem => ({
+  kind: "program",
   channelId: "channel-1",
   scheduleEntryId: "entry-1",
   mediaItemId: "media-1",

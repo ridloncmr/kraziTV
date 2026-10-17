@@ -26,6 +26,8 @@ type FfmpegSignalPackagerDependencies = {
   terminationGraceMs?: number;
   itemReadinessTimeoutMs?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
+  /** The font filler messages are drawn in; unset uses fontconfig's default. */
+  fillerFontFile?: string | undefined;
 };
 
 const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
@@ -60,7 +62,7 @@ export class FfmpegSignalPackager implements SignalPackager {
         (() => new MpegTsReadinessInspector()),
       // Building the argv is the item validation, so prepare and start agree.
       validateItem: (item) => {
-        buildFfmpegArguments(item);
+        this.argumentsFor(item);
       },
       startProcess: (item) => this.startProcess(item),
       timers: this.dependencies.timers,
@@ -69,10 +71,17 @@ export class FfmpegSignalPackager implements SignalPackager {
     });
   }
 
+  /** Builds one item's argv with this packager's rendering options. */
+  private argumentsFor(item: SignalPlayoutItem): readonly string[] {
+    return buildFfmpegArguments(item, {
+      fontFile: this.dependencies.fillerFontFile,
+    });
+  }
+
   /** Starts one item's FFmpeg process, whose normal exit remains internal to its session. */
   private startProcess(item: SignalPlayoutItem): FfmpegProcess {
     const process = FfmpegProcess.start({
-      args: buildFfmpegArguments(item),
+      args: this.argumentsFor(item),
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,
@@ -80,7 +89,7 @@ export class FfmpegSignalPackager implements SignalPackager {
       terminationGraceMs: this.dependencies.terminationGraceMs,
       diagnosticContext: itemContext(item),
       // FFmpeg names its input in errors; logs must never carry the path.
-      redactions: [item.mediaPath],
+      redactions: item.kind === "program" ? [item.mediaPath] : [],
     });
     this.dependencies.logger.info("ffmpeg_process_started", itemContext(item));
     return process;

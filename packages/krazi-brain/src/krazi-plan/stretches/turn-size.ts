@@ -11,8 +11,8 @@ const MINUTE_MS = 60_000;
  */
 export function turnSize(
   size: ResolvedSize | null,
-  aired: Pick<LatestTurn, "airedPrograms" | "airedMs"> = {
-    airedPrograms: 0,
+  aired: Pick<LatestTurn, "airedMediaItemIds" | "airedMs"> = {
+    airedMediaItemIds: [],
     airedMs: 0,
   },
 ): TurnSize {
@@ -26,6 +26,6 @@ export function turnSize(
   return {
     kind: "programs",
     target: size?.value ?? 1,
-    accumulated: aired.airedPrograms,
+    accumulated: aired.airedMediaItemIds.length,
   };
 }

@@ -229,13 +229,16 @@ async function upsertProgressColumns(
 }
 
 /**
- * Lists every assigned collection a channel plays in a metadata mode, with
- * the order fingerprint its channel's schedule records, or null before one.
+ * Lists every collection a channel plays in a metadata mode, through an
+ * assignment or a reservation that has not ended by `now`, once each, in
+ * channel and collection order, with the order fingerprint its channel's
+ * schedule records, or null before one.
  */
 export async function listMetadataOrderedMembers(
   trx: Executor,
+  now: number,
 ): Promise<(ProgressScope & { recordedFingerprint: string | null })[]> {
-  const rows = await trx
+  const assigned = await trx
     .selectFrom("programming_assignment_members as member")
     .innerJoin(
       "programming_source_assignments as assignment",
@@ -260,15 +263,48 @@ export async function listMetadataOrderedMembers(
     ])
     .where("assignment.playback_mode", "in", METADATA_PLAYBACK_MODES)
     .where("member.source_kind", "=", "collection")
-    .orderBy("member.channel_id")
-    .orderBy("member.media_collection_id")
     // A metadata-mode collection member always names both.
     .$narrowType<{ media_collection_id: string; playback_mode: PlaybackMode }>()
     .execute();
-  return rows.map((row) => ({
-    channelId: row.channel_id,
-    mediaCollectionId: row.media_collection_id,
-    playbackMode: row.playback_mode,
-    recordedFingerprint: row.order_fingerprint,
-  }));
+  const reserved = await trx
+    .selectFrom("reservations as reservation")
+    .leftJoin("channel_collection_progress as progress", (join) =>
+      join
+        .onRef("progress.channel_id", "=", "reservation.channel_id")
+        .onRef(
+          "progress.media_collection_id",
+          "=",
+          "reservation.media_collection_id",
+        )
+        .onRef("progress.playback_mode", "=", "reservation.playback_mode"),
+    )
+    .select([
+      "reservation.channel_id",
+      "reservation.media_collection_id",
+      "reservation.playback_mode",
+      "progress.order_fingerprint",
+    ])
+    .where("reservation.playback_mode", "in", METADATA_PLAYBACK_MODES)
+    .where("reservation.ends_at", ">", now)
+    // A collection reservation always names both.
+    .$narrowType<{ media_collection_id: string; playback_mode: PlaybackMode }>()
+    .execute();
+  const scopes = new Map(
+    [...assigned, ...reserved].map((row) => [
+      JSON.stringify([
+        row.channel_id,
+        row.media_collection_id,
+        row.playback_mode,
+      ]),
+      row,
+    ]),
+  );
+  return [...scopes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, row]) => ({
+      channelId: row.channel_id,
+      mediaCollectionId: row.media_collection_id,
+      playbackMode: row.playback_mode,
+      recordedFingerprint: row.order_fingerprint,
+    }));
 }

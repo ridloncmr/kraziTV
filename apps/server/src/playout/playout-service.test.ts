@@ -222,7 +222,7 @@ describe("PlayoutService.getFollowing", () => {
 
     const following = await playout.getFollowing(
       channelId,
-      "entry-001",
+      { kind: "program", scheduleEntryId: "entry-001" },
       2,
       log,
     );
@@ -240,7 +240,12 @@ describe("PlayoutService.getFollowing", () => {
     const { channelId, playout, log } = await setup();
 
     await expect(
-      playout.getFollowing(channelId, "entry-gone", 2, log),
+      playout.getFollowing(
+        channelId,
+        { kind: "program", scheduleEntryId: "entry-gone" },
+        2,
+        log,
+      ),
     ).resolves.toMatchObject({ status: "stale_entry", items: [] });
   });
 
@@ -249,7 +254,7 @@ describe("PlayoutService.getFollowing", () => {
 
     const following = await playout.getFollowing(
       channelId,
-      "entry-001",
+      { kind: "program", scheduleEntryId: "entry-001" },
       1,
       log,
     );
@@ -268,7 +273,12 @@ describe("PlayoutService.getFollowing", () => {
       const { db, channelId, playout, log } = await setup();
 
       await expect(
-        playout.getFollowing(channelId, "entry-001", count, log),
+        playout.getFollowing(
+          channelId,
+          { kind: "program", scheduleEntryId: "entry-001" },
+          count,
+          log,
+        ),
       ).rejects.toThrow("following count must be a positive integer");
       await expect(readScheduleEntries(db, channelId)).resolves.toEqual([]);
     },
@@ -278,7 +288,12 @@ describe("PlayoutService.getFollowing", () => {
     const { channelId, playout, log } = await setup({ enabled: false });
 
     await expect(
-      playout.getFollowing(channelId, "entry-001", 1, log),
+      playout.getFollowing(
+        channelId,
+        { kind: "program", scheduleEntryId: "entry-001" },
+        1,
+        log,
+      ),
     ).resolves.toEqual({ kind: "disabled" });
   });
 });

@@ -175,6 +175,7 @@ export const programmingBlockFixture: Insertable<ProgrammingBlockTable> = {
   marathon: 0,
   ended_by_edit: 0,
   winning_rule_id: null,
+  reservation_id: null,
   context_key: "default",
   setting_origins: JSON.stringify({
     ordinary: "assignment",

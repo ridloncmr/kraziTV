@@ -19,7 +19,11 @@ import {
   WorkerCreationCleanupError,
 } from "./channel-worker-errors.js";
 import type { AiringItem, TransitionCoordinator } from "./contracts.js";
-import { requireCurrent, toSignalItem } from "./playout-projection.js";
+import {
+  requireCurrent,
+  toSignalItem,
+  cursorOf,
+} from "./playout-projection.js";
 import {
   awaitControlled,
   createStartupGuard,
@@ -118,7 +122,7 @@ export class ChannelWorker {
               session,
               broadcaster,
               {
-                scheduleEntryId: current.item.scheduleEntryId,
+                cursor: cursorOf(current.item),
                 endsAt: current.item.endsAt,
               },
               options,

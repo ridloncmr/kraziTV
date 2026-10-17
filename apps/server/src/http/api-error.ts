@@ -5,6 +5,7 @@ import { WriteAuthorityBusyError } from "../database/writes/immediate-transactio
 import { toApiTimestamp } from "./api-timestamp.js";
 
 type ApiErrorCode =
+  | "airing_filler_conflict"
   | "already_set_up"
   | "channel_disabled"
   | "channel_not_found"
@@ -52,6 +53,13 @@ type ApiErrorCode =
   | "programming_rule_stretch_invalid"
   | "programming_rule_stretch_conflict"
   | "programming_member_assigned"
+  | "reservation_crosses_airing"
+  | "reservation_does_not_fit"
+  | "reservation_in_past"
+  | "reservation_media_unplayable"
+  | "reservation_not_found"
+  | "reservation_overlap"
+  | "reservation_started"
   | "scan_cancelled"
   | "scan_in_progress"
   | "scan_not_found"

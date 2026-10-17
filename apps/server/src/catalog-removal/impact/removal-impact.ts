@@ -53,6 +53,8 @@ export async function readRemovalImpact(
   if (roots.some(isScanning)) {
     return { kind: "scan_in_progress" };
   }
+  // Items a single-item member or an unended reservation names directly;
+  // removing one would leave its programming nothing to air.
   const inUse = await trx
     .selectFrom("programming_assignment_members")
     .select(["channel_id", "media_item_id"])
@@ -60,6 +62,18 @@ export async function readRemovalImpact(
     .where("media_item_id", "in", items)
     // A single-item member always names its item.
     .$narrowType<{ media_item_id: string }>()
+    .union(
+      trx
+        .selectFrom("reservation_items")
+        .innerJoin(
+          "reservations",
+          "reservations.id",
+          "reservation_items.reservation_id",
+        )
+        .select(["reservations.channel_id", "reservation_items.media_item_id"])
+        .where("reservation_items.media_item_id", "in", items)
+        .where("reservations.ends_at", ">", now),
+    )
     .execute();
   if (inUse.length > 0) {
     return {
@@ -69,7 +83,7 @@ export async function readRemovalImpact(
     };
   }
 
-  const collections = await findAffectedCollections(trx, target);
+  const collections = await findAffectedCollections(trx, target, now);
   return {
     kind: "impact",
     impact: {
@@ -173,6 +187,7 @@ async function findAiringRemovedMedia(
 async function findAffectedCollections(
   trx: Executor,
   target: CatalogRemovalTarget,
+  now: number,
 ): Promise<AffectedCollection[]> {
   const rows = await trx
     .selectFrom("media_collection_items")
@@ -185,7 +200,7 @@ async function findAffectedCollections(
   for (const { media_collection_id: id } of rows) {
     collections.push({
       id,
-      channelIds: await findChannelsUsingCollection(trx, id),
+      channelIds: await findChannelsUsingCollection(trx, id, now),
     });
   }
   return collections;

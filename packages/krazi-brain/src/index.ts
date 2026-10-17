@@ -7,14 +7,19 @@
 // Current channel state, following items, and window timelines the server
 // derives from one schedule snapshot.
 export { deriveChannelState } from "./playout/channel-state.js";
+export { listPlannedFiller } from "./playout/filler.js";
 export {
   assertFollowingCount,
   selectFollowingPlayout,
 } from "./playout/following-playout.js";
-export { buildPlayoutTimeline } from "./playout/playout-item.js";
+export {
+  buildPlayoutTimeline,
+  isPlayableMedia,
+} from "./playout/playout-item.js";
 export type {
   ChannelState,
   FollowingPlayout,
+  PlayoutCursor,
   PlayoutEntry,
   PlayoutItem,
 } from "./playout/contracts.js";
@@ -41,6 +46,7 @@ export type {
   ProgrammingAssignment,
   ProgrammingRule,
   ProgrammingUnschedulableReason,
+  Reservation,
   RuleMarathon,
   RuleSkip,
   RuleSource,
@@ -65,6 +71,7 @@ export {
 } from "./schedule/regeneration.js";
 export {
   SCHEDULE_HORIZON_MS,
+  fitsBefore,
   isSchedulableMedia,
 } from "./schedule/schedule-policy.js";
 export {

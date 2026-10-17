@@ -12,6 +12,8 @@ export type CreateFfmpegSignalPackagerOptions = {
   ffmpegPath: string;
   terminationGraceMs?: number;
   itemReadinessTimeoutMs?: number;
+  /** The server's resolved `FFMPEG_FONT_FILE`, for filler messages. */
+  fillerFontFile?: string | undefined;
 };
 
 /** Creates the production FFmpeg packager without exposing process internals. */
@@ -25,5 +27,6 @@ export function createFfmpegSignalPackager(
     ffmpegPath: options.ffmpegPath,
     terminationGraceMs: options.terminationGraceMs,
     itemReadinessTimeoutMs: options.itemReadinessTimeoutMs,
+    fillerFontFile: options.fillerFontFile,
   });
 }

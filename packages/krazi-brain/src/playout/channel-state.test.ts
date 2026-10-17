@@ -39,6 +39,8 @@ function stateAt(
   return deriveChannelState({
     channelId: CHANNEL_ID,
     scheduleRevision: SCHEDULE_REVISION,
+    reservations: [],
+    anchorTime: 0,
     evaluatedAt,
     entries,
   });
@@ -95,14 +97,14 @@ describe("deriveChannelState", () => {
   it("joins at offset zero exactly at the entry's start", () => {
     const state = stateAt(EPISODE_STARTS_AT, [episode, successor]);
 
-    expect(state.currentItem?.scheduleEntryId).toBe("entry_456");
+    expect(state.currentItem).toMatchObject({ scheduleEntryId: "entry_456" });
     expect(state.currentItem?.offsetMs).toBe(0);
   });
 
   it("makes the successor current exactly at the entry's end", () => {
     const state = stateAt(EPISODE_ENDS_AT, [episode, successor]);
 
-    expect(state.currentItem?.scheduleEntryId).toBe("entry_457");
+    expect(state.currentItem).toMatchObject({ scheduleEntryId: "entry_457" });
     expect(state.currentItem?.offsetMs).toBe(0);
   });
 
@@ -114,8 +116,8 @@ describe("deriveChannelState", () => {
 
     const state = stateAt(TUNED_AT, [earlier, episode, successor]);
 
-    expect(state.currentItem?.scheduleEntryId).toBe("entry_456");
-    expect(state.nextItem?.scheduleEntryId).toBe("entry_457");
+    expect(state.currentItem).toMatchObject({ scheduleEntryId: "entry_456" });
+    expect(state.nextItem).toMatchObject({ scheduleEntryId: "entry_457" });
   });
 
   describe("media shorter than its airtime", () => {
@@ -166,7 +168,7 @@ describe("deriveChannelState", () => {
     const state = stateAt(TUNED_AT, [lengthened]);
 
     expect(state.currentItem?.offsetMs).toBe(555_000);
-    expect(state.currentItem?.durationMs).toBe(60 * MINUTE_MS);
+    expect(state.currentItem).toMatchObject({ durationMs: 60 * MINUTE_MS });
   });
 
   it.each([
@@ -227,7 +229,9 @@ describe("deriveChannelState", () => {
       media: { hasAudio: false },
     });
 
-    expect(stateAt(TUNED_AT, [silent]).currentItem?.hasAudio).toBe(false);
+    expect(stateAt(TUNED_AT, [silent]).currentItem).toMatchObject({
+      hasAudio: false,
+    });
   });
 
   describe("next item", () => {

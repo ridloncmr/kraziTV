@@ -59,6 +59,8 @@ export function registerProgrammingPreviewRoutes(
         : [{ block: preview.continuedTurn, continues: true }]),
       ...preview.blocks.map((block) => ({ block, continues: false })),
     ]
+      // A reservation's block takes no rotation turn; its preview is its own.
+      .filter(({ block }) => block.reservationId === null)
       .map(({ block, continues }) =>
         toApiTurn(
           block,

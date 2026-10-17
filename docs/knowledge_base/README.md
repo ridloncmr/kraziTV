@@ -14,6 +14,7 @@ This folder stores research notes, references, useful commands, and operational 
 ## Notes
 
 - [Child process and stream safety](child-process-stream-safety.md)
+- [FFmpeg filler text](ffmpeg-filler-text.md)
 - [FFmpeg real-time startup](ffmpeg-real-time-startup.md)
 - [Plex signal compatibility spike](plex-signal-spike.md)
 - [Project licensing](licensing.md)

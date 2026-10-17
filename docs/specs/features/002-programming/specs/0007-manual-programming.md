@@ -27,6 +27,16 @@ Preserves [recurring rules](0005-recurring-programming-rules.md) when configured
 Drafting, validation, and publication form a transactional lifecycle, separate from
 recurring source eligibility and from transmission fit mechanics.
 
+Spec 0006 delivers reservations and filler as a server capability with no
+administration UI. This spec owns every owner-facing screen that creates, edits,
+or cancels a reservation, built on that capability, so the two ship together.
+Catalog removal refuses to remove a media item a reservation lists
+(`media_item_in_use`), and collection delete refuses a collection one plays
+(`media_collection_in_use`), as for assignments, until the reservation ends;
+these screens should offer to edit or cancel it first. An ended reservation is
+deleted with the media or collection it aired. A reservation airs even on a
+channel with no usable ordinary programming, which shows filler until it.
+
 ## Established Behavior And Proposed Policy
 
 ADR 0009 establishes saved overrides taking precedence over generated blocks and

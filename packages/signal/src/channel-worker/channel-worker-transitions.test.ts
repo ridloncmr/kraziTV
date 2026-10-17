@@ -6,6 +6,7 @@ import type {
   FollowingPlayoutResult,
   SelectedPlayoutItem,
 } from "../playout/contracts.js";
+import { signalItemLabel } from "../testing/signal-item-label.js";
 import { Deferred } from "../testing/deferred.js";
 import { FakeClock } from "../testing/fake-clock.js";
 import { FakePlayoutProvider } from "../testing/fake-playout-provider.js";
@@ -20,6 +21,8 @@ import type { TransitionCoordinator } from "./contracts.js";
 import { expectSignalError } from "../testing/expect-signal-error.js";
 import { settlePromises } from "../testing/settle-promises.js";
 
+type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
+
 const CHANNEL = "channel-1";
 const PREPARE_LEAD_MS = 2_000;
 
@@ -27,8 +30,9 @@ const PREPARE_LEAD_MS = 2_000;
 const entry = (
   scheduleEntryId: string,
   startsAt: number,
-  overrides: Partial<SelectedPlayoutItem> = {},
-): SelectedPlayoutItem => ({
+  overrides: Partial<SelectedProgram> = {},
+): SelectedProgram => ({
+  kind: "program",
   channelId: CHANNEL,
   scheduleEntryId,
   scheduleRevision: 7,
@@ -45,7 +49,7 @@ const entry = (
 });
 
 const current = (
-  item: SelectedPlayoutItem,
+  item: SelectedProgram,
   evaluatedAt: number,
 ): CurrentPlayoutResult => ({
   status: "current",
@@ -121,7 +125,7 @@ const startWorker = async (
 };
 
 const committedEntries = (session: FakeSignalSession): string[] =>
-  session.committedItems.map((item) => item.scheduleEntryId);
+  session.committedItems.map(signalItemLabel);
 
 /** A dependency call that never answers, as a stalled database or FFmpeg process. */
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
@@ -151,10 +155,15 @@ describe("ChannelWorker following-item transitions", () => {
 
     await advanceTo(setup.clock, 8_000);
     expect(setup.provider.followingCalls).toEqual([
-      { channelId: CHANNEL, afterScheduleEntryId: "entry-1", count: 1 },
+      {
+        channelId: CHANNEL,
+        after: { kind: "program", scheduleEntryId: "entry-1" },
+        count: 1,
+      },
     ]);
     expect(session.prepareCalls).toEqual([
       {
+        kind: "program",
         channelId: CHANNEL,
         scheduleEntryId: "entry-2",
         mediaItemId: "media-entry-2",
@@ -186,7 +195,7 @@ describe("ChannelWorker following-item transitions", () => {
       {
         candidate: {
           channelId: CHANNEL,
-          scheduleEntryId: "entry-2",
+          cursor: { kind: "program", scheduleEntryId: "entry-2" },
           scheduleRevision: 7,
         },
         atMs: 10_000,
@@ -208,9 +217,10 @@ describe("ChannelWorker following-item transitions", () => {
     expect(session.prepareCalls).toHaveLength(1);
     await advanceTo(setup.clock, 20_000);
 
-    expect(
-      setup.provider.followingCalls.map((call) => call.afterScheduleEntryId),
-    ).toEqual(["entry-1", "entry-2"]);
+    expect(setup.provider.followingCalls.map((call) => call.after)).toEqual([
+      { kind: "program", scheduleEntryId: "entry-1" },
+      { kind: "program", scheduleEntryId: "entry-2" },
+    ]);
     expect(committedEntries(session)).toEqual([
       "entry-1",
       "entry-2",
@@ -236,9 +246,7 @@ describe("ChannelWorker following-item transitions", () => {
     setup.provider.enqueueCurrent(current(regenerated, 10_000));
     await advanceTo(setup.clock, 10_000);
 
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.provider.currentCalls.at(-1)).toEqual({
       channelId: CHANNEL,
       atMs: 10_000,
@@ -299,9 +307,7 @@ describe("ChannelWorker following-item transitions", () => {
     await advanceTo(setup.clock, 8_000);
 
     await worker.stop();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
 
     await advanceTo(setup.clock, 10_000);
@@ -358,9 +364,7 @@ describe("ChannelWorker following-item transitions", () => {
     );
     expect(error.cause).toBe(failure);
     expect(session.stopCalls).toBe(1);
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(committedEntries(session)).toEqual(["entry-1"]);
   });
 
@@ -496,9 +500,7 @@ describe("ChannelWorker following-item transitions", () => {
 
       await advanceTo(setup.clock, 10_000);
 
-      expect(
-        session.discardedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-2"]);
+      expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
       expect(committedEntries(session)).toEqual(["entry-1", nextEntryId]);
 
       await worker.stop();
@@ -534,9 +536,7 @@ describe("ChannelWorker following-item transitions", () => {
     await expect(worker.completion).rejects.toBe(failure);
     await settlePromises(5);
 
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
   });
 
@@ -555,9 +555,7 @@ describe("ChannelWorker following-item transitions", () => {
     await advanceTo(setup.clock, 10_000);
 
     await expectSignalError(worker.completion, "transition_failed");
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(session.stopCalls).toBe(1);
   });
   it("stop resolves once the loop's own retry discards a preparation halt failed to release", async () => {
@@ -568,9 +566,7 @@ describe("ChannelWorker following-item transitions", () => {
     session.failDiscards(new Error("discard failed once"));
 
     await expect(worker.stop()).resolves.toBeUndefined();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
   });
 
   it("rejects a stop whose session cleanup fails and succeeds on retry", async () => {
@@ -583,9 +579,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     await expect(worker.stop()).rejects.toBe(failure);
     await expect(worker.stop()).resolves.toBeUndefined();
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
   });
 
   it("stops the session without waiting for a slow discard", async () => {
@@ -741,9 +735,7 @@ describe("ChannelWorker following-item transitions", () => {
 
     expect(() => commit?.()).toThrow();
     expect(committedEntries(session)).toEqual(["entry-1"]);
-    expect(session.discardedItems.map((item) => item.scheduleEntryId)).toEqual([
-      "entry-2",
-    ]);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
     expect(setup.clock.pendingTimerCount).toBe(0);
   });
 
@@ -840,5 +832,133 @@ describe("ChannelWorker following-item transitions", () => {
     await expect(worker.stop()).resolves.toBeUndefined();
     await expect(worker.completion).resolves.toBeUndefined();
     expect(setup.clock.pendingTimerCount).toBe(0);
+  });
+});
+
+describe("ChannelWorker planned filler", () => {
+  const MESSAGE = "Programming resumes at 8:00 PM";
+
+  /** Planned filler from `startsAt` until programming resumes at `endsAt`. */
+  const filler = (
+    startsAt: number,
+    endsAt: number,
+  ): Extract<SelectedPlayoutItem, { kind: "filler" }> => ({
+    kind: "filler",
+    channelId: CHANNEL,
+    scheduleRevision: 7,
+    startsAt,
+    endsAt,
+    message: MESSAGE,
+  });
+
+  it("transmits a program, its filler, and the reserved program on one session", async () => {
+    const setup = harness();
+    setup.coordinator.setSchedule(CHANNEL, 7, [
+      entry("entry-1", 0),
+      filler(10_000, 15_000),
+      entry("reserved", 15_000),
+    ]);
+    setup.provider.enqueueFollowing(following(filler(10_000, 15_000)));
+    setup.provider.enqueueFollowing(following(entry("reserved", 15_000)));
+    const { worker, session } = await startWorker(setup);
+
+    await advanceTo(setup.clock, 10_000);
+    await advanceTo(setup.clock, 15_000);
+
+    expect(setup.packager.sessions).toHaveLength(1);
+    expect(committedEntries(session)).toEqual([
+      "entry-1",
+      `filler(${MESSAGE}, 5000ms)`,
+      "reserved",
+    ]);
+    // The filler is asked for by its end, the reserved program by its entry.
+    expect(setup.provider.followingCalls.map((call) => call.after)).toEqual([
+      { kind: "program", scheduleEntryId: "entry-1" },
+      { kind: "filler", endsAt: 15_000 },
+    ]);
+    expect(
+      setup.coordinator.calls.map((call) => call.candidate.cursor),
+    ).toEqual([
+      { kind: "filler", endsAt: 15_000 },
+      { kind: "program", scheduleEntryId: "reserved" },
+    ]);
+
+    await worker.stop();
+  });
+
+  it("starts mid-filler with only its remaining airtime, then reaches the reserved program", async () => {
+    const clock = new FakeClock(12_000);
+    const provider = new FakePlayoutProvider();
+    const coordinator = new InMemoryTransitionCoordinator(clock);
+    coordinator.setSchedule(CHANNEL, 7, [
+      filler(10_000, 15_000),
+      entry("reserved", 15_000),
+    ]);
+    const tunedDuringFiller: CurrentPlayoutResult = {
+      status: "current",
+      channelId: CHANNEL,
+      scheduleRevision: 7,
+      evaluatedAt: 12_000,
+      mediaOffsetMs: 2_000,
+      item: filler(10_000, 15_000),
+    };
+    provider.enqueueCurrent(tunedDuringFiller);
+    provider.enqueueCurrent(tunedDuringFiller);
+    provider.enqueueFollowing(following(entry("reserved", 15_000)));
+    const setup = {
+      clock,
+      provider,
+      packager: new FakeSignalPackager(),
+      coordinator,
+    };
+    const { worker, session } = await startWorker(setup);
+
+    expect(session.committedItems[0]).toEqual({
+      kind: "filler",
+      channelId: CHANNEL,
+      message: MESSAGE,
+      airtimeMs: 3_000,
+    });
+    await advanceTo(clock, 15_000);
+    expect(committedEntries(session)).toEqual([
+      `filler(${MESSAGE}, 3000ms)`,
+      "reserved",
+    ]);
+
+    await worker.stop();
+  });
+
+  it("discards a filler preparation an edit made stale and recovers what airs now", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(filler(10_000, 15_000)));
+    const { worker, session } = await startWorker(setup);
+    // An edit moved the reservation: no filler ends at 15s any more.
+    const shortened = { ...filler(10_000, 12_000), scheduleRevision: 8 };
+    const moved = { ...entry("reserved", 12_000), scheduleRevision: 8 };
+    setup.coordinator.setSchedule(CHANNEL, 8, [
+      entry("entry-1", 0),
+      shortened,
+      moved,
+    ]);
+    setup.provider.enqueueCurrent({
+      status: "current",
+      channelId: CHANNEL,
+      scheduleRevision: 8,
+      evaluatedAt: 10_000,
+      mediaOffsetMs: 0,
+      item: shortened,
+    });
+
+    await advanceTo(setup.clock, 10_000);
+
+    expect(session.discardedItems.map(signalItemLabel)).toEqual([
+      `filler(${MESSAGE}, 5000ms)`,
+    ]);
+    expect(committedEntries(session)).toEqual([
+      "entry-1",
+      `filler(${MESSAGE}, 2000ms)`,
+    ]);
+
+    await worker.stop();
   });
 });

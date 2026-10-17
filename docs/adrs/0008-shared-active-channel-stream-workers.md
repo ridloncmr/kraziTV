@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Accepted. Amended on 2026-10-16: where this ADR says a transition revalidates
+or preserves an entry, it means the candidate or airing playout item, program
+or filler. One worker transmits programs and filler on one shared signal. See
+[ADR 0014](0014-planned-filler-coverage.md).
 
 ## Context
 

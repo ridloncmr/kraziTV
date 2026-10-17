@@ -2,8 +2,8 @@ import type {
   ChannelId,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
+  PlayoutCursor,
   PlayoutProvider,
-  ScheduleEntryId,
 } from "../playout/contracts.js";
 
 /** Answers playout lookups from scripted queues and records every call. */
@@ -11,7 +11,7 @@ export class FakePlayoutProvider implements PlayoutProvider {
   readonly currentCalls: Array<{ channelId: ChannelId; atMs: number }> = [];
   readonly followingCalls: Array<{
     channelId: ChannelId;
-    afterScheduleEntryId: ScheduleEntryId;
+    after: PlayoutCursor;
     count: number;
   }> = [];
   private readonly currentResults: CurrentPlayoutResult[] = [];
@@ -41,10 +41,10 @@ export class FakePlayoutProvider implements PlayoutProvider {
   /** Throws when nothing was queued, so an unexpected lookup fails the test loudly. */
   async getFollowing(
     channelId: ChannelId,
-    afterScheduleEntryId: ScheduleEntryId,
+    after: PlayoutCursor,
     count: number,
   ): Promise<FollowingPlayoutResult> {
-    this.followingCalls.push({ channelId, afterScheduleEntryId, count });
+    this.followingCalls.push({ channelId, after, count });
     const result = this.followingResults.shift();
     if (!result) throw new Error("No following playout result was arranged");
     return result;

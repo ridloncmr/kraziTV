@@ -26,6 +26,7 @@ import type {
   TransitionStep,
 } from "./contracts.js";
 import {
+  cursorOf,
   requireCurrent,
   selectContiguousFollowing,
   toFollowingSignalItem,
@@ -120,7 +121,7 @@ export class TransitionLoop {
         () =>
           this.options.playoutProvider.getFollowing(
             this.options.channelId,
-            this.airing.scheduleEntryId,
+            this.airing.cursor,
             1,
           ),
         { interruptible: true },
@@ -135,7 +136,7 @@ export class TransitionLoop {
         {
           candidate: {
             channelId: this.options.channelId,
-            scheduleEntryId: following.scheduleEntryId,
+            cursor: cursorOf(following),
             scheduleRevision: following.scheduleRevision,
           },
           item: toFollowingSignalItem(following),
@@ -174,7 +175,7 @@ export class TransitionLoop {
         {
           candidate: {
             channelId: this.options.channelId,
-            scheduleEntryId: current.item.scheduleEntryId,
+            cursor: cursorOf(current.item),
             scheduleRevision: current.item.scheduleRevision,
           },
           item: toSignalItem(current, this.options.channelId),
@@ -246,7 +247,7 @@ export class TransitionLoop {
         throw committedWithoutCommit(this.options.channelId);
       }
       this.airing = {
-        scheduleEntryId: planned.candidate.scheduleEntryId,
+        cursor: planned.candidate.cursor,
         endsAt: planned.endsAt,
       };
       return true;

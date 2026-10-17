@@ -1,6 +1,12 @@
-import type { PlayoutEntry, PlayoutItem, PlayoutMedia } from "./contracts.js";
+import type {
+  PlayoutEntry,
+  PlayoutItem,
+  PlayoutMedia,
+  ProgramPlayoutItem,
+} from "./contracts.js";
+import { findFillerAt, type FillerInputs, walkCoverage } from "./filler.js";
 
-type PlayableMedia = PlayoutMedia & {
+type PlayableFacts = {
   status: "available";
   durationMs: number;
   hasAudio: boolean;
@@ -9,9 +15,12 @@ type PlayableMedia = PlayoutMedia & {
 /**
  * Media is playable when it is available, has a positive integer duration,
  * and has a known audio fact packaging needs. It shares the schedulable
- * integer check but has no duration floor.
+ * integer check but has no duration floor. Exported so the server can
+ * refuse to reserve what could never be transmitted.
  */
-function isPlayableMedia(media: PlayoutMedia): media is PlayableMedia {
+export function isPlayableMedia<
+  Media extends Pick<PlayoutMedia, "status" | "durationMs" | "hasAudio">,
+>(media: Media): media is Media & PlayableFacts {
   return (
     media.status === "available" &&
     Number.isSafeInteger(media.durationMs) &&
@@ -28,7 +37,7 @@ export function toPlayoutItem(
   entry: PlayoutEntry,
   channelId: string,
   scheduleRevision: number,
-): PlayoutItem | null {
+): ProgramPlayoutItem | null {
   const { media } = entry;
   if (!isPlayableMedia(media)) {
     return null;
@@ -55,20 +64,50 @@ export function toPlayoutItem(
 }
 
 /**
- * Maps a window's entries to the playout items the channel transmits, in
- * order. Unplayable entries are omitted rather than replaced, because the
- * playout timeline never invents programming the schedule does not list.
+ * Returns the playable item starting exactly at `at`, a program or planned
+ * filler, or null, because only an item airing exactly when the previous
+ * one ends follows it.
+ */
+export function itemStartingAt(
+  at: number,
+  entries: readonly PlayoutEntry[],
+  filler: FillerInputs,
+): PlayoutItem | null {
+  const next = entries.find((entry) => entry.startsAt === at);
+  if (next !== undefined) {
+    return toPlayoutItem(next, filler.channelId, filler.scheduleRevision);
+  }
+  const planned = findFillerAt(at, entries, filler);
+  return planned?.startsAt === at ? planned : null;
+}
+
+/**
+ * Lists everything a channel transmits overlapping `window`, in order:
+ * programs for playable entries and planned filler between them (ADR
+ * 0014). Unplayable entries and unexplained gaps are omitted rather than
+ * replaced, because the playout timeline never invents programming the
+ * schedule does not list.
+ *
+ * `entries` must be in start order and hold every entry overlapping the
+ * window, the last one before it, and the first one after it.
  */
 export function buildPlayoutTimeline({
-  channelId,
-  scheduleRevision,
+  window,
   entries,
-}: {
-  channelId: string;
-  scheduleRevision: number;
+  ...filler
+}: FillerInputs & {
+  window: { start: number; end: number };
   entries: readonly PlayoutEntry[];
 }): PlayoutItem[] {
-  return entries.flatMap(
-    (entry) => toPlayoutItem(entry, channelId, scheduleRevision) ?? [],
+  return walkCoverage(window, entries, filler).flatMap(
+    (step): PlayoutItem[] => {
+      if ("filler" in step) return [step.filler];
+      const item = toPlayoutItem(
+        step.entry,
+        filler.channelId,
+        filler.scheduleRevision,
+      );
+      return item === null ? [] : [item];
+    },
   );
 }

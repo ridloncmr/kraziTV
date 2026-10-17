@@ -73,12 +73,14 @@ export const adminFixtures: {
   now: {
     evaluatedAt: "2026-10-05T15:00:00.000Z",
     currentItem: {
+      type: "program",
       title: "Alpha",
       startsAt: "2026-10-05T14:50:00.000Z",
       endsAt: "2026-10-05T15:10:00.000Z",
       offsetMs: 600_000,
     },
     nextItem: {
+      type: "program",
       title: "Zulu",
       startsAt: "2026-10-05T15:10:00.000Z",
       endsAt: "2026-10-05T15:31:40.000Z",

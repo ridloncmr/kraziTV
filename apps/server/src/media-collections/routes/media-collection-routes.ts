@@ -173,7 +173,7 @@ export function registerMediaCollectionRoutes(
         reply,
         409,
         "media_collection_in_use",
-        `Media collection ${id} is used by programming blocks on channels: ${result.channelIds.join(", ")}`,
+        `Media collection ${id} is played by assignments or reservations on channels: ${result.channelIds.join(", ")}`,
         { channelIds: result.channelIds },
       );
     }

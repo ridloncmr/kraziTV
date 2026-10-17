@@ -6,7 +6,7 @@ import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-co
 
 const candidate: TransitionCandidate = {
   channelId: "comedy",
-  scheduleEntryId: "entry-2",
+  cursor: { kind: "program", scheduleEntryId: "entry-2" },
   scheduleRevision: 7,
 };
 
@@ -17,7 +17,7 @@ const coordinatorWith = (
 ): InMemoryTransitionCoordinator => {
   const coordinator = new InMemoryTransitionCoordinator(new FakeClock(1_000));
   coordinator.setSchedule("comedy", revision, [
-    { scheduleEntryId, startsAt: 0, endsAt: 2_000 },
+    { kind: "program", scheduleEntryId, startsAt: 0, endsAt: 2_000 },
   ]);
   return coordinator;
 };

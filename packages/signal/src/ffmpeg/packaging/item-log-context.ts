@@ -7,6 +7,9 @@ import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
  * path can never leak through one call site that spelled the fields out.
  */
 export function itemContext(item: SignalPlayoutItem): LogContext {
+  if (item.kind === "filler") {
+    return { channelId: item.channelId, item: "filler" };
+  }
   return {
     channelId: item.channelId,
     scheduleEntryId: item.scheduleEntryId,

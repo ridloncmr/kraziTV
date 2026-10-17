@@ -13,6 +13,7 @@ import type {
   FollowingPlayoutResult,
   SelectedPlayoutItem,
 } from "./playout/contracts.js";
+import { signalItemLabel } from "./testing/signal-item-label.js";
 import { FakeClock } from "./testing/fake-clock.js";
 import { FakePlayoutProvider } from "./testing/fake-playout-provider.js";
 import {
@@ -23,6 +24,8 @@ import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-co
 import { RecordingLogger } from "./testing/recording-logger.js";
 import { expectSignalError } from "./testing/expect-signal-error.js";
 import { settlePromises } from "./testing/settle-promises.js";
+
+type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
 
 // Package-level scenarios: the real manager, worker, broadcaster, and
 // transition loop run together. Only playout, packaging, coordination, and
@@ -37,7 +40,8 @@ const entry = (
   scheduleEntryId: string,
   startsAt: number,
   channelId: ChannelId = CHANNEL,
-): SelectedPlayoutItem => ({
+): SelectedProgram => ({
+  kind: "program",
   channelId,
   scheduleEntryId,
   scheduleRevision: 7,
@@ -54,7 +58,7 @@ const entry = (
 
 /** Selected playout as the provider reports it at one evaluation instant. */
 const current = (
-  item: SelectedPlayoutItem,
+  item: SelectedProgram,
   evaluatedAt: number,
 ): CurrentPlayoutResult => ({
   status: "current",
@@ -142,7 +146,7 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
     manager,
 
     /** Arranges the worker's preliminary and final pre-spawn state lookups. */
-    arrangeStartup(item: SelectedPlayoutItem, atMs = clock.now()): void {
+    arrangeStartup(item: SelectedProgram, atMs = clock.now()): void {
       provider.enqueueCurrent(current(item, atMs));
       provider.enqueueCurrent(current(item, atMs));
     },
@@ -432,9 +436,7 @@ describe("createChannelStreamManager scenarios", () => {
           await run.advanceTo(atMs);
         }
 
-        const committed = run
-          .session(0)
-          .committedItems.map((item) => item.scheduleEntryId);
+        const committed = run.session(0).committedItems.map(signalItemLabel);
         if (expected !== undefined) expect(committed).toEqual(expected);
         expect(committed.slice(0, 1)).toEqual(["entry-1"]);
         expect(committed.length).toBeLessThanOrEqual(2);
@@ -465,9 +467,11 @@ describe("createChannelStreamManager scenarios", () => {
       run.session(0).pushOutput("-after");
       await settlePromises(10);
 
-      expect(
-        run.session(0).committedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-1", "entry-2", "entry-3"]);
+      expect(run.session(0).committedItems.map(signalItemLabel)).toEqual([
+        "entry-1",
+        "entry-2",
+        "entry-3",
+      ]);
       expect(run.session(0).discardedItems).toEqual([]);
       expect(viewer.received()).toBe("INIT-output-after");
       expect(viewer.subscription.stream.destroyed).toBe(false);
@@ -494,12 +498,13 @@ describe("createChannelStreamManager scenarios", () => {
       run.provider.enqueueCurrent(current(regenerated, 10_000));
       await run.advanceTo(10_000);
 
-      expect(
-        run.session(0).discardedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-2"]);
-      expect(
-        run.session(0).committedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-1", "entry-2b"]);
+      expect(run.session(0).discardedItems.map(signalItemLabel)).toEqual([
+        "entry-2",
+      ]);
+      expect(run.session(0).committedItems.map(signalItemLabel)).toEqual([
+        "entry-1",
+        "entry-2b",
+      ]);
       expect(viewer.subscription.stream.destroyed).toBe(false);
 
       await run.manager.shutdown();
@@ -553,9 +558,9 @@ describe("createChannelStreamManager scenarios", () => {
       await run.manager.stopChannel(CHANNEL, "disabled");
       await settlePromises(10);
 
-      expect(
-        run.session(0).discardedItems.map((item) => item.scheduleEntryId),
-      ).toEqual(["entry-2"]);
+      expect(run.session(0).discardedItems.map(signalItemLabel)).toEqual([
+        "entry-2",
+      ]);
       run.expectNoLeaks();
 
       await run.advanceTo(10_000);

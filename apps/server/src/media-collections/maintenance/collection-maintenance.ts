@@ -5,7 +5,7 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import {
   hasAutomaticCollections,
-  hasMetadataOrderedAssignments,
+  hasMetadataOrderedProgramming,
   maintenanceChange,
   orderingChange,
   recordMaintenanceFailure,
@@ -123,7 +123,7 @@ export class CollectionMaintenance {
   async #checkOrders(): Promise<void> {
     const { db, schedules, log } = this.#options;
     try {
-      if (!(await hasMetadataOrderedAssignments(db))) return;
+      if (!(await hasMetadataOrderedProgramming(db))) return;
       await schedules.applyInputChange(
         log,
         "ordering_changed",

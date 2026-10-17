@@ -5,11 +5,15 @@ import type {
 import type { ChannelId, ScheduleEntryId } from "../playout/contracts.js";
 import type { Clock, TimestampMs } from "../runtime/clock.js";
 
-export type CoordinatedScheduleEntry = {
-  scheduleEntryId: ScheduleEntryId;
-  startsAt: TimestampMs;
-  endsAt: TimestampMs;
-};
+/** One persisted program, or one derived filler, as revalidation sees it. */
+export type CoordinatedScheduleEntry =
+  | {
+      kind: "program";
+      scheduleEntryId: ScheduleEntryId;
+      startsAt: TimestampMs;
+      endsAt: TimestampMs;
+    }
+  | { kind: "filler"; startsAt: TimestampMs; endsAt: TimestampMs };
 
 type CoordinatedSchedule = {
   revision: number;
@@ -34,7 +38,10 @@ export class InMemoryTransitionCoordinator implements TransitionCoordinator {
     this.schedules.set(channelId, { revision, entries });
   }
 
-  /** Commits only a candidate that covers boundary time under the current revision. */
+  /**
+   * Commits only a candidate that covers boundary time under the current
+   * revision: a program by its entry, a filler by its end.
+   */
   async commitPreparedTransition(
     candidate: TransitionCandidate,
     commit: () => void,
@@ -45,10 +52,18 @@ export class InMemoryTransitionCoordinator implements TransitionCoordinator {
     const covering = schedule?.entries.find(
       (entry) => entry.startsAt <= boundaryTime && boundaryTime < entry.endsAt,
     );
+    const { cursor } = candidate;
+    const matches =
+      covering?.kind === "program"
+        ? cursor.kind === "program" &&
+          covering.scheduleEntryId === cursor.scheduleEntryId
+        : covering?.kind === "filler" &&
+          cursor.kind === "filler" &&
+          covering.endsAt === cursor.endsAt;
     if (
       schedule === undefined ||
       schedule.revision !== candidate.scheduleRevision ||
-      covering?.scheduleEntryId !== candidate.scheduleEntryId
+      !matches
     ) {
       return "stale";
     }

@@ -21,6 +21,7 @@ import { composeChannelStreamManager } from "./channels/runtime/channel-stream-c
 import { toSignalLogger } from "./channels/runtime/signal-log.js";
 import { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import { RuleRepository } from "./programming-rules/rule-repository.js";
+import { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
@@ -28,7 +29,7 @@ import { CatalogScanner } from "./catalog-scan/scanner/catalog-scanner.js";
 import { ConcurrencyLimitedProber } from "./catalog-scan/scanner/concurrency-limited-prober.js";
 import { CatalogRemovalService } from "./catalog-removal/catalog-removal-service.js";
 import { parseProbeConfig } from "./config/probe.js";
-import { parseFfmpegPath } from "./config/ffmpeg.js";
+import { parseFfmpegFontFile, parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
 import { resolveProgrammingTimezone } from "./config/programming-timezone.js";
 import {
@@ -51,6 +52,7 @@ const logger = pino();
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
+const fillerFontFile = parseFfmpegFontFile(process.env, process.platform);
 const programmingTimezone = resolveProgrammingTimezone(process.env, logger);
 const database = await openDatabase({ dataDirectory });
 
@@ -66,6 +68,7 @@ const mediaCollections = new MediaCollectionRepository(database.db);
 const channels = new ChannelRepository(database.db);
 const assignments = new AssignmentRepository(database.db);
 const rules = new RuleRepository(database.db);
+const reservations = new ReservationRepository(database.db);
 const schedules = new ScheduleService(database.db, { programmingTimezone });
 const playout = new PlayoutService(database.db, schedules);
 
@@ -138,10 +141,12 @@ const channelStreams = composeChannelStreamManager({
   playout,
   channels,
   log: logger,
+  programmingTimezone,
   packager: createFfmpegSignalPackager({
     logger: toSignalLogger(logger),
     timers: runtime,
     ffmpegPath,
+    fillerFontFile,
   }),
   runtime,
 });
@@ -169,6 +174,7 @@ const server = buildServer(
     channelStreams,
     assignments,
     rules,
+    reservations,
     schedules,
     playout,
   },

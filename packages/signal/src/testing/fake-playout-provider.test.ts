@@ -10,6 +10,7 @@ const currentResult: CurrentPlayoutResult = {
   evaluatedAt: 1_000,
   mediaOffsetMs: 250,
   item: {
+    kind: "program",
     channelId: "comedy",
     scheduleEntryId: "entry-1",
     scheduleRevision: 4,
@@ -41,15 +42,23 @@ describe("FakePlayoutProvider", () => {
     await expect(provider.getCurrent("comedy", 1_000)).resolves.toBe(
       currentResult,
     );
-    await expect(provider.getFollowing("comedy", "entry-1", 2)).resolves.toBe(
-      followingResult,
-    );
+    await expect(
+      provider.getFollowing(
+        "comedy",
+        { kind: "program", scheduleEntryId: "entry-1" },
+        2,
+      ),
+    ).resolves.toBe(followingResult);
 
     expect(provider.currentCalls).toEqual([
       { channelId: "comedy", atMs: 1_000 },
     ]);
     expect(provider.followingCalls).toEqual([
-      { channelId: "comedy", afterScheduleEntryId: "entry-1", count: 2 },
+      {
+        channelId: "comedy",
+        after: { kind: "program", scheduleEntryId: "entry-1" },
+        count: 2,
+      },
     ]);
   });
 

@@ -22,12 +22,27 @@ export interface PlayoutEntry {
   media: PlayoutMedia;
 }
 
-/** One thing a channel transmits, derived from one schedule entry. */
-export interface PlayoutItem {
+/** A reservation's half-open range: all filler derivation knows of it. */
+export interface ReservedTimeRange {
+  startsAt: number;
+  endsAt: number;
+}
+
+/**
+ * Where a channel stream worker continues from (ADR 0014): a program by its
+ * schedule entry, or planned filler by its end, which stays fixed while it
+ * airs even if purge moves its start.
+ */
+export type PlayoutCursor =
+  | { kind: "program"; scheduleEntryId: string }
+  | { kind: "filler"; endsAt: number };
+
+/** One program a channel transmits, derived from one schedule entry. */
+export interface ProgramPlayoutItem {
   type: "program";
   channelId: string;
   scheduleRevision: number;
-  /** The source entry's ID: the item's MVP identity and playout cursor. */
+  /** The source entry's ID: the item's identity and program cursor. */
   scheduleEntryId: string;
   mediaItemId: string;
   /** Internal packaging input; public responses omit it. */
@@ -46,14 +61,29 @@ export interface PlayoutItem {
   updatedAt: number;
 }
 
+/**
+ * Planned filler (ADR 0014): non-guide transmission covering time a
+ * reservation explains. Its end is when guide-visible programming resumes.
+ */
+export interface FillerPlayoutItem {
+  type: "filler";
+  channelId: string;
+  scheduleRevision: number;
+  startsAt: number;
+  endsAt: number;
+}
+
+/** One thing on a channel's playout timeline: a program or planned filler. */
+export type PlayoutItem = ProgramPlayoutItem | FillerPlayoutItem;
+
 interface FollowingPlayoutBase {
   channelId: string;
   scheduleRevision: number;
 }
 
 /**
- * The contiguous playable items after a cursor entry, possibly none, or
- * `stale_entry` when regeneration deleted the cursor entry.
+ * The contiguous playable items after a cursor, possibly none, or
+ * `stale_entry` when regeneration deleted the cursor's entry or filler.
  */
 export type FollowingPlayout =
   | (FollowingPlayoutBase & {
@@ -66,9 +96,7 @@ export type FollowingPlayout =
     });
 
 /** The current playout item with the join offset for a viewer tuning now. */
-interface CurrentPlayoutItem extends PlayoutItem {
-  offsetMs: number;
-}
+type CurrentPlayoutItem = PlayoutItem & { offsetMs: number };
 
 interface ChannelStateBase {
   channelId: string;

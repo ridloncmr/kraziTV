@@ -4,9 +4,11 @@ import { SignalError } from "../../errors.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
 
-const item = (
-  overrides: Partial<SignalPlayoutItem> = {},
-): SignalPlayoutItem => ({
+type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
+type FillerItem = Extract<SignalPlayoutItem, { kind: "filler" }>;
+
+const item = (overrides: Partial<ProgramItem> = {}): ProgramItem => ({
+  kind: "program",
   channelId: "channel-1",
   scheduleEntryId: "entry-1",
   mediaItemId: "media-1",
@@ -206,7 +208,7 @@ describe("buildFfmpegArguments", () => {
     (hasVideo) => {
       expect(() =>
         buildFfmpegArguments(
-          item({ hasVideo } as unknown as Partial<SignalPlayoutItem>),
+          item({ hasVideo } as unknown as Partial<ProgramItem>),
         ),
       ).toThrowError(
         expect.objectContaining<Partial<SignalError>>({
@@ -222,7 +224,7 @@ describe("buildFfmpegArguments", () => {
     (hasAudio) => {
       expect(() =>
         buildFfmpegArguments(
-          item({ hasAudio } as unknown as Partial<SignalPlayoutItem>),
+          item({ hasAudio } as unknown as Partial<ProgramItem>),
         ),
       ).toThrowError(
         expect.objectContaining<Partial<SignalError>>({
@@ -232,4 +234,106 @@ describe("buildFfmpegArguments", () => {
       );
     },
   );
+});
+
+describe("buildFfmpegArguments: filler", () => {
+  const filler = (overrides: Partial<FillerItem> = {}): FillerItem => ({
+    kind: "filler",
+    channelId: "channel-1",
+    message: "Programming resumes at 8:00 PM",
+    airtimeMs: 900_000,
+    ...overrides,
+  });
+
+  it("renders black video with the message over silence for exactly its airtime, with no media input", () => {
+    expect(buildFfmpegArguments(filler())).toEqual([
+      "-hide_banner",
+      "-nostdin",
+      "-loglevel",
+      "warning",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=black:s=1920x1080:r=30",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-t",
+      "900.000",
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "libx264",
+      "-tune",
+      "zerolatency",
+      "-pix_fmt",
+      "yuv420p",
+      "-r",
+      "30",
+      "-g",
+      "30",
+      "-keyint_min",
+      "30",
+      "-sc_threshold",
+      "0",
+      "-vf",
+      "drawtext=text=Programming resumes at 8\\\\:00 PM:expansion=none:fontcolor=white:fontsize=64:x=(w-text_w)/2:y=(h-text_h)/2",
+      // Generated sources are unpaced; pacing the audio holds the video too.
+      "-af",
+      "arealtime",
+      "-c:a",
+      "aac",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      "-streamid",
+      "0:256",
+      "-streamid",
+      "1:257",
+      "-mpegts_start_pid",
+      "256",
+      "-mpegts_pmt_start_pid",
+      "4096",
+      "-f",
+      "mpegts",
+      "pipe:1",
+    ]);
+  });
+
+  it("escapes what the filter options or the filtergraph would read as syntax, leaving % literal", () => {
+    const args = buildFfmpegArguments(
+      filler({ message: "It's 50%: a\\b, [c]; d" }),
+    );
+
+    // Option level: \ ' : gain a backslash; then filtergraph level: \ ' [ ] , ;
+    expect(args[args.indexOf("-vf") + 1]).toMatch(
+      /^drawtext=text=It\\\\\\'s 50%\\\\: a\\\\\\\\b\\, \\\[c\\\]\\; d:expansion=none:/,
+    );
+  });
+
+  it("names a configured font file, escaped like the message", () => {
+    const args = buildFfmpegArguments(filler(), {
+      fontFile: "C:/Windows/Fonts/arial.ttf",
+    });
+
+    expect(args[args.indexOf("-vf") + 1]).toContain(
+      ":fontfile=C\\\\:/Windows/Fonts/arial.ttf:",
+    );
+  });
+
+  it.each([
+    { name: "a zero airtime", overrides: { airtimeMs: 0 }, field: "airtimeMs" },
+    { name: "an empty message", overrides: { message: "" }, field: "message" },
+  ])("refuses $name", ({ overrides, field }) => {
+    expect(() => buildFfmpegArguments(filler(overrides))).toThrow(
+      expect.objectContaining({
+        code: "invalid_playout_item",
+        details: { field },
+      }),
+    );
+  });
 });

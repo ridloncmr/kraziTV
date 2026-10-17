@@ -25,8 +25,10 @@ function following(
   return selectFollowingPlayout({
     channelId: CHANNEL_ID,
     scheduleRevision: SCHEDULE_REVISION,
-    cursor: from,
-    candidates,
+    reservations: [],
+    anchorTime: 0,
+    cursor: { kind: "program", scheduleEntryId: from.id },
+    entries: [from, ...candidates],
     count,
   });
 }
@@ -34,7 +36,9 @@ function following(
 // The selected items' entry IDs, so stop-condition tests read as sequences.
 function selectedIds(result: FollowingPlayout): string[] {
   expect(result.status).toBe("selected");
-  return result.items.map((item) => item.scheduleEntryId);
+  return result.items.map((item) =>
+    item.type === "program" ? item.scheduleEntryId : "filler",
+  );
 }
 
 describe("selectFollowingPlayout", () => {
@@ -132,8 +136,10 @@ describe("selectFollowingPlayout", () => {
     const result = selectFollowingPlayout({
       channelId: CHANNEL_ID,
       scheduleRevision: SCHEDULE_REVISION,
-      cursor: undefined,
-      candidates: [first, second],
+      reservations: [],
+      anchorTime: 0,
+      cursor: { kind: "program", scheduleEntryId: "entry_gone" },
+      entries: [first, second],
       count: 2,
     });
 

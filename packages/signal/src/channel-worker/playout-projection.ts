@@ -8,12 +8,14 @@ import type {
   ChannelId,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
+  PlayoutCursor,
   SelectedPlayoutItem,
 } from "../playout/contracts.js";
 import type { TimestampMs } from "../runtime/clock.js";
 import type { SignalPlayoutItem } from "../signal-packager/contracts.js";
 
 type CurrentPlayout = Extract<CurrentPlayoutResult, { status: "current" }>;
+type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
 
 /** Converts one atomic current-state projection into route-safe failures. */
 export function requireCurrent(
@@ -49,21 +51,37 @@ export function requireCurrent(
   return result;
 }
 
+/** Names the selected item the way the provider and coordinator identify it. */
+export function cursorOf(item: SelectedPlayoutItem): PlayoutCursor {
+  return item.kind === "program"
+    ? { kind: "program", scheduleEntryId: item.scheduleEntryId }
+    : { kind: "filler", endsAt: item.endsAt };
+}
+
 /** Preserves the absolute end while translating selected playout for packaging. */
 export function toSignalItem(
   current: CurrentPlayout,
   channelId: ChannelId,
 ): SignalPlayoutItem {
-  const item = toPackagedItem(
-    current.item,
-    current.mediaOffsetMs,
-    current.item.endsAt - current.evaluatedAt,
-  );
+  const airtimeMs = current.item.endsAt - current.evaluatedAt;
+  const item =
+    current.item.kind === "program"
+      ? toPackagedProgram(current.item, current.mediaOffsetMs, airtimeMs)
+      : toPackagedFiller(current.item, airtimeMs);
+  // A filler joined before its start, or with nothing to say, would air
+  // time or text kraziBrain never chose; a program's offset checks the same.
+  const offsetValid =
+    current.item.kind === "filler"
+      ? current.evaluatedAt >= current.item.startsAt &&
+        current.item.message !== ""
+      : isNonNegativeSafeInteger(current.mediaOffsetMs);
   if (
     !Number.isSafeInteger(current.evaluatedAt) ||
     !Number.isSafeInteger(current.item.endsAt) ||
-    !isNonNegativeSafeInteger(current.mediaOffsetMs) ||
-    !isPositiveSafeInteger(item.playDurationMs)
+    !offsetValid ||
+    !isPositiveSafeInteger(
+      item.kind === "program" ? item.playDurationMs : item.airtimeMs,
+    )
   ) {
     throw invalidItem(channelId, "invalid_current_timing");
   }
@@ -90,8 +108,9 @@ export function selectContiguousFollowing(
     item.startsAt !== boundaryAt ||
     !Number.isSafeInteger(item.endsAt) ||
     item.endsAt <= item.startsAt ||
-    !isNonNegativeSafeInteger(item.startOffsetMs) ||
-    item.startOffsetMs >= item.durationMs
+    (item.kind === "program" &&
+      (!isNonNegativeSafeInteger(item.startOffsetMs) ||
+        item.startOffsetMs >= item.durationMs))
   ) {
     return undefined;
   }
@@ -102,22 +121,26 @@ export function selectContiguousFollowing(
 export function toFollowingSignalItem(
   item: SelectedPlayoutItem,
 ): SignalPlayoutItem {
-  return toPackagedItem(item, item.startOffsetMs, item.endsAt - item.startsAt);
+  const airtimeMs = item.endsAt - item.startsAt;
+  return item.kind === "program"
+    ? toPackagedProgram(item, item.startOffsetMs, airtimeMs)
+    : toPackagedFiller(item, airtimeMs);
 }
 
 /**
- * Builds the packaging input for an item airing from `mediaOffsetMs` for
+ * Builds the packaging input for a program airing from `mediaOffsetMs` for
  * `airtimeMs`. Media plays for as much of the airtime as it covers and a black
  * tail fills the rest, so short media never leaves the signal quiet before
  * the boundary.
  */
-function toPackagedItem(
-  item: SelectedPlayoutItem,
+function toPackagedProgram(
+  item: SelectedProgram,
   mediaOffsetMs: number,
   airtimeMs: number,
 ): SignalPlayoutItem {
   const playDurationMs = Math.min(airtimeMs, item.durationMs - mediaOffsetMs);
   return {
+    kind: "program",
     channelId: item.channelId,
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,
@@ -127,6 +150,19 @@ function toPackagedItem(
     mediaOffsetMs,
     playDurationMs,
     blackTailMs: airtimeMs - playDurationMs,
+  };
+}
+
+/** Builds the packaging input for filler showing its message for `airtimeMs`. */
+function toPackagedFiller(
+  item: Extract<SelectedPlayoutItem, { kind: "filler" }>,
+  airtimeMs: number,
+): SignalPlayoutItem {
+  return {
+    kind: "filler",
+    channelId: item.channelId,
+    message: item.message,
+    airtimeMs,
   };
 }
 

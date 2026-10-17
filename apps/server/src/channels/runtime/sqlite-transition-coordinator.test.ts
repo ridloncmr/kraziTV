@@ -56,7 +56,7 @@ async function setup() {
   // The worker's prepared transition into the second entry.
   const candidate: TransitionCandidate = {
     channelId,
-    scheduleEntryId: "original-002",
+    cursor: { kind: "program", scheduleEntryId: "original-002" },
     scheduleRevision,
   };
   return {
@@ -104,7 +104,7 @@ describe("SqliteTransitionCoordinator", () => {
       name: "an entry that does not cover the boundary",
       change: (c: TransitionCandidate) => ({
         ...c,
-        scheduleEntryId: "original-003",
+        cursor: { kind: "program" as const, scheduleEntryId: "original-003" },
       }),
     },
     {

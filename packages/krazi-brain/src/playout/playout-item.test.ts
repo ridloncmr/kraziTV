@@ -10,26 +10,41 @@ import { buildPlayoutTimeline } from "./playout-item.js";
 const CHANNEL_ID = "channel_69";
 const SCHEDULE_REVISION = 12;
 
-// Builds the example channel's timeline from the given entries.
-function timeline(entries: readonly PlayoutEntry[]): string[] {
-  return buildPlayoutTimeline({
+// The example channel's timeline inputs over exactly its entries' span,
+// with no reservation, so every item is a program.
+function programsOnly(entries: readonly PlayoutEntry[]) {
+  return {
     channelId: CHANNEL_ID,
     scheduleRevision: SCHEDULE_REVISION,
+    reservations: [],
+    anchorTime: 0,
+    window: {
+      start: entries[0]?.startsAt ?? 0,
+      end: entries.at(-1)?.endsAt ?? 0,
+    },
     entries,
-  }).map((item) => item.scheduleEntryId);
+  };
+}
+
+// Builds the example channel's timeline from the given entries.
+function timeline(entries: readonly PlayoutEntry[]): string[] {
+  return buildPlayoutTimeline(programsOnly(entries)).map((item) =>
+    item.type === "program" ? item.scheduleEntryId : "filler",
+  );
+}
+
+// The one program item a timeline of one entry holds.
+function onlyProgram(entry: PlayoutEntry) {
+  const [item] = buildPlayoutTimeline(programsOnly([entry]));
+  if (item?.type !== "program") throw new Error("expected a program");
+  return item;
 }
 
 describe("buildPlayoutTimeline", () => {
   it("maps each playable entry to a playout item carrying the revision", () => {
     const entry = halfHourPlayoutEntry("entry_1", 0);
 
-    expect(
-      buildPlayoutTimeline({
-        channelId: CHANNEL_ID,
-        scheduleRevision: SCHEDULE_REVISION,
-        entries: [entry],
-      }),
-    ).toEqual([
+    expect(buildPlayoutTimeline(programsOnly([entry]))).toEqual([
       {
         type: "program",
         channelId: CHANNEL_ID,
@@ -51,25 +66,21 @@ describe("buildPlayoutTimeline", () => {
   });
 
   it("carries a missing video stream so packaging can render black", () => {
-    const [item] = buildPlayoutTimeline({
-      channelId: CHANNEL_ID,
-      scheduleRevision: SCHEDULE_REVISION,
-      entries: [halfHourPlayoutEntry("entry_1", 0, { hasVideo: false })],
-    });
+    const item = onlyProgram(
+      halfHourPlayoutEntry("entry_1", 0, { hasVideo: false }),
+    );
 
-    expect(item?.hasVideo).toBe(false);
+    expect(item.hasVideo).toBe(false);
   });
 
   // Video detection arrived after the first catalogs; until a rescan records
   // the fact, an item keeps the video it was always packaged with.
   it("assumes video for media cataloged before video detection", () => {
-    const [item] = buildPlayoutTimeline({
-      channelId: CHANNEL_ID,
-      scheduleRevision: SCHEDULE_REVISION,
-      entries: [halfHourPlayoutEntry("entry_1", 0, { hasVideo: null })],
-    });
+    const item = onlyProgram(
+      halfHourPlayoutEntry("entry_1", 0, { hasVideo: null }),
+    );
 
-    expect(item?.hasVideo).toBe(true);
+    expect(item.hasVideo).toBe(true);
   });
 
   it("omits unplayable entries and keeps the rest in order", () => {

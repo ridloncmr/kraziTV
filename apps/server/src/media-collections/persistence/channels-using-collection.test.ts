@@ -46,10 +46,42 @@ describe("findChannelsUsingCollection", () => {
       .execute();
 
     await expect(
-      findChannelsUsingCollection(db, collectionFixture.id),
+      findChannelsUsingCollection(db, collectionFixture.id, 0),
     ).resolves.toEqual([channelFixture.id, "channel-second"]);
     await expect(
-      findChannelsUsingCollection(db, "unused-collection"),
+      findChannelsUsingCollection(db, "unused-collection", 0),
+    ).resolves.toEqual([]);
+  });
+
+  it("counts a reservation of the collection only until it ends", async () => {
+    const { db } = await openTestDatabase();
+    await db.insertInto("channels").values(channelFixture).execute();
+    await db.insertInto("media_roots").values(rootFixture).execute();
+    await db
+      .insertInto("media_collections")
+      .values(collectionFixture)
+      .execute();
+    await db
+      .insertInto("reservations")
+      .values({
+        id: "reservation-1",
+        channel_id: channelFixture.id,
+        starts_at: 1_000,
+        ends_at: 2_000,
+        end_kind: "explicit",
+        source_kind: "collection",
+        media_collection_id: collectionFixture.id,
+        playback_mode: "chronological",
+        created_at: 0,
+        updated_at: 0,
+      })
+      .execute();
+
+    await expect(
+      findChannelsUsingCollection(db, collectionFixture.id, 1_999),
+    ).resolves.toEqual([channelFixture.id]);
+    await expect(
+      findChannelsUsingCollection(db, collectionFixture.id, 2_000),
     ).resolves.toEqual([]);
   });
 });

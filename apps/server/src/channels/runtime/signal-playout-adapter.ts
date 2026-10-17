@@ -3,6 +3,7 @@ import type {
   ChannelAuthorizationResult,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
+  PlayoutCursor,
   PlayoutProvider,
 } from "@krazitv/signal";
 
@@ -26,16 +27,20 @@ export class SignalPlayoutAdapter
   readonly #playout: PlayoutService;
   readonly #channels: Pick<ChannelRepository, "findById">;
   readonly #log: ScheduleLog;
+  readonly #programmingTimezone: string;
 
-  // The log is fixed here because worker calls carry no request logger.
+  // The log is fixed here because worker calls carry no request logger; the
+  // timezone words filler's resume time.
   constructor(
     playout: PlayoutService,
     channels: Pick<ChannelRepository, "findById">,
     log: ScheduleLog,
+    programmingTimezone: string,
   ) {
     this.#playout = playout;
     this.#channels = channels;
     this.#log = log;
+    this.#programmingTimezone = programmingTimezone;
   }
 
   /** Reports whether a worker may start for the channel; never throws for state. */
@@ -56,22 +61,22 @@ export class SignalPlayoutAdapter
     if (state.kind !== "current" && state.kind !== "no_current") {
       throw playoutFailureError(state, channelId);
     }
-    return toCurrentPlayoutResult(state);
+    return toCurrentPlayoutResult(state, this.#programmingTimezone);
   }
 
-  /** Selects up to `count` items after the cursor entry for preparation. */
+  /** Selects up to `count` items after the cursor for preparation. */
   async getFollowing(
     channelId: string,
-    afterScheduleEntryId: string,
+    after: PlayoutCursor,
     count: number,
   ): Promise<FollowingPlayoutResult> {
     const following = await this.#playout.getFollowing(
       channelId,
-      afterScheduleEntryId,
+      after,
       count,
       this.#log,
     );
     if ("kind" in following) throw playoutFailureError(following, channelId);
-    return toFollowingPlayoutResult(following);
+    return toFollowingPlayoutResult(following, this.#programmingTimezone);
   }
 }

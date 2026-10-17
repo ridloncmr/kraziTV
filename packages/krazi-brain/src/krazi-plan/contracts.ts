@@ -170,12 +170,24 @@ export interface ResolvedSize {
   value: number;
 }
 
-/** One generated kraziPlan turn: the programming block persisted for it. */
+/**
+ * One generated kraziPlan turn, or one reservation's programs: the
+ * programming block persisted for it.
+ */
 export interface GeneratedBlock {
   id: string;
-  /** Null once the assignment is deleted; the block remains as history. */
+  /** Null for a reservation's block, and once the assignment is deleted; the block remains as history. */
   assignmentId: string | null;
-  /** Null once the member's collection or item is deleted. */
+  /**
+   * The reservation whose programs the block airs, or null for a rotation
+   * turn. It outlives the reservation, so a block that took no turn is
+   * always known.
+   */
+  reservationId: string | null;
+  /**
+   * Null once the member's collection or item is deleted, and for a
+   * reservation of media items, which its reservation names instead.
+   */
   source: BlockSource | null;
   roundNumber: number;
   turnIndex: number;
@@ -192,10 +204,41 @@ export interface GeneratedBlock {
   checkpoint: RotationCheckpoint;
 }
 
+/**
+ * What a reservation airs (programming spec 0006): an ordered list of media
+ * items, or one collection in one playback mode, which consumes the
+ * channel's progress like a generated turn.
+ */
+type ReservationSource =
+  | { kind: "media_items"; items: readonly ScheduleMedia[] }
+  | {
+      kind: "collection";
+      mediaCollectionId: string;
+      playbackMode: PlaybackMode;
+      /** Collection members in saved membership order. */
+      members: readonly ScheduleMedia[];
+    };
+
+/**
+ * A reservation as kraziPlan reads it: an exact start, a stored end, and
+ * what airs in the half-open range between them. Ordinary programming stops
+ * whole before it and resumes at its end.
+ */
+export interface Reservation {
+  id: string;
+  startsAt: number;
+  endsAt: number;
+  source: ReservationSource;
+}
+
 /** A channel's latest kept block and how much of its turn has aired. */
 export interface LatestTurn {
   block: GeneratedBlock;
-  airedPrograms: number;
+  /**
+   * The media each of the block's kept entries airs, in airing order: a
+   * turn counts them, and a reserved list resumes after them by identity.
+   */
+  airedMediaItemIds: readonly string[];
   airedMs: number;
 }
 

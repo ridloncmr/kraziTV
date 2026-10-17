@@ -69,6 +69,7 @@ function firstPick(progress: PlaybackProgress): string | undefined {
     rebuildCount: 0,
     marathons: { chancePercent: 0, minOrdinaryRounds: 2 },
     rules: [],
+    reservations: [],
     timeZone: "UTC",
     assignments: [
       {

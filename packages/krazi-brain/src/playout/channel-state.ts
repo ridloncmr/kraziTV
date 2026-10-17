@@ -1,37 +1,47 @@
 import type { ChannelState, PlayoutEntry } from "./contracts.js";
-import { toPlayoutItem } from "./playout-item.js";
+import { findFillerAt, type FillerInputs } from "./filler.js";
+import { itemStartingAt, toPlayoutItem } from "./playout-item.js";
 
 /**
  * Derives what a channel transmits at `evaluatedAt` and the offset a viewer
- * joins at. Never substitutes another program for unplayable media, because
- * that would disagree with the published schedule.
+ * joins at: the program airing, or planned filler, which reports itself
+ * current like a program (ADR 0014). Never substitutes another program for
+ * unplayable media, because that would disagree with the published
+ * schedule; time neither covers is a schedule gap.
  *
- * `entries` must be in channel sequence order; normally it holds only the
- * covering entry and its successor.
+ * `entries` must be in start order and hold the entry covering
+ * `evaluatedAt`, or else the last one before it, and the entries starting
+ * after it up to the next program.
  */
 export function deriveChannelState({
-  channelId,
-  scheduleRevision,
   evaluatedAt,
   entries,
-}: {
-  channelId: string;
-  scheduleRevision: number;
+  ...filler
+}: FillerInputs & {
   evaluatedAt: number;
   entries: readonly PlayoutEntry[];
 }): ChannelState {
+  const { channelId, scheduleRevision } = filler;
   const base = { channelId, scheduleRevision, evaluatedAt };
-  const index = entries.findIndex(
+  const covering = entries.find(
     (entry) => entry.startsAt <= evaluatedAt && evaluatedAt < entry.endsAt,
   );
-  const covering = entries[index];
-  if (!covering) {
+  if (covering === undefined) {
+    const airing = findFillerAt(evaluatedAt, entries, filler);
+    if (airing === undefined) {
+      return {
+        ...base,
+        kind: "no_current",
+        currentItem: null,
+        nextItem: null,
+        reason: "schedule_gap",
+      };
+    }
     return {
       ...base,
-      kind: "no_current",
-      currentItem: null,
-      nextItem: null,
-      reason: "schedule_gap",
+      kind: "current",
+      currentItem: { ...airing, offsetMs: evaluatedAt - airing.startsAt },
+      nextItem: itemStartingAt(airing.endsAt, entries, filler),
     };
   }
 
@@ -53,17 +63,10 @@ export function deriveChannelState({
   if (offsetMs >= item.durationMs) {
     return mediaUnavailable;
   }
-
-  // Only a successor airing exactly when this item ends follows it.
-  const successor = entries[index + 1];
-  const nextItem =
-    successor && successor.startsAt === covering.endsAt
-      ? toPlayoutItem(successor, channelId, scheduleRevision)
-      : null;
   return {
     ...base,
     kind: "current",
     currentItem: { ...item, offsetMs },
-    nextItem,
+    nextItem: itemStartingAt(covering.endsAt, entries, filler),
   };
 }

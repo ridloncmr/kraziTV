@@ -1,6 +1,7 @@
 // Factories the server composes the signal runtime from.
 export { createChannelStreamManager } from "./create-channel-stream-manager.js";
 export { createFfmpegSignalPackager } from "./create-ffmpeg-signal-packager.js";
+export { defaultFillerFontFile } from "./ffmpeg/packaging/default-filler-font.js";
 export { SystemRuntime } from "./runtime/system-runtime.js";
 
 // What callers receive from the channel stream manager.
@@ -24,6 +25,7 @@ export type {
 export type {
   CurrentPlayoutResult,
   FollowingPlayoutResult,
+  PlayoutCursor,
   PlayoutProvider,
   SelectedPlayoutItem,
 } from "./playout/contracts.js";

@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   ChannelId,
+  SelectedPlayoutItem,
   CurrentPlayoutResult,
   FollowingPlayoutResult,
   PlayoutProvider,
-  ScheduleEntryId,
+  PlayoutCursor,
 } from "../playout/contracts.js";
 import { SignalError } from "../errors.js";
 import { FakeClock } from "../testing/fake-clock.js";
@@ -17,16 +18,22 @@ import { WorkerCreationCleanupError } from "./channel-worker-errors.js";
 import { expectSignalError } from "../testing/expect-signal-error.js";
 import { settlePromises } from "../testing/settle-promises.js";
 
+// A current result airing a program, so tests can spread and vary its item.
+type CurrentProgram = Extract<CurrentPlayoutResult, { status: "current" }> & {
+  item: Extract<SelectedPlayoutItem, { kind: "program" }>;
+};
+
 const currentItem = (
   evaluatedAt: number,
-  overrides: Partial<Extract<CurrentPlayoutResult, { status: "current" }>> = {},
-): Extract<CurrentPlayoutResult, { status: "current" }> => ({
+  overrides: Partial<CurrentProgram> = {},
+): CurrentProgram => ({
   status: "current",
   channelId: "channel-1",
   scheduleRevision: 7,
   evaluatedAt,
   mediaOffsetMs: evaluatedAt + 500,
   item: {
+    kind: "program",
     channelId: "channel-1",
     scheduleEntryId: "entry-1",
     scheduleRevision: 7,
@@ -84,7 +91,7 @@ class SequencePlayoutProvider implements PlayoutProvider {
   /** Following selection belongs to SIG-008, not worker startup. */
   async getFollowing(
     _channelId: ChannelId,
-    _afterScheduleEntryId: ScheduleEntryId,
+    _after: PlayoutCursor,
     _count: number,
   ): Promise<FollowingPlayoutResult> {
     throw new Error("Unexpected following lookup");
@@ -138,6 +145,7 @@ describe("ChannelWorker startup", () => {
     ]);
     expect(packager.startCalls).toEqual([
       {
+        kind: "program",
         channelId: "channel-1",
         scheduleEntryId: "entry-1",
         mediaItemId: "media-1",

@@ -1,6 +1,7 @@
 import {
   type CollectionProgress,
   type GeneratedScheduleEntry,
+  type GenerationResult,
   NO_PROGRESS,
   type ScheduleSource,
   type TurnSize,
@@ -17,6 +18,7 @@ import type {
   ProgrammingAssignment,
   ProgrammingRule,
   ProgrammingUnschedulableReason,
+  Reservation,
   RuleSkip,
 } from "./contracts.js";
 import {
@@ -27,6 +29,13 @@ import {
   memberSource,
 } from "./rotation/rotation.js";
 import type { DecisionSeed } from "./programming-decisions.js";
+import {
+  airListedItems,
+  findNextReservation,
+  findReservationAt,
+  reservationBlock,
+  reservationEndedTurn,
+} from "./reservations/reservation-programs.js";
 import { settingOrigins } from "./rules/rule-settings.js";
 import { decideRule, ruleScope } from "./rules/winning-rule.js";
 import { resolveSize } from "./stretches/stretch-settings.js";
@@ -41,6 +50,12 @@ export interface GenerateProgrammingOptions extends DecisionSeed {
   assignments: readonly ProgrammingAssignment[];
   /** The channel's programming rules, in any order; kraziPlan ranks them. */
   rules: readonly ProgrammingRule[];
+  /**
+   * The channel's reservations, in any order and never overlapping.
+   * Ordinary programs stop whole before each one, and its own programs air
+   * from its start until the next would end past its end.
+   */
+  reservations: readonly Reservation[];
   /** The server-wide IANA programming timezone rules are evaluated in. */
   timeZone: string;
   /** The channel's latest kept block, or undefined before its first turn. */
@@ -48,7 +63,10 @@ export interface GenerateProgrammingOptions extends DecisionSeed {
   /** The channel's progress for collections its assignments play; absent means none yet. */
   progress: readonly CollectionProgress[];
   startsAt: number;
-  /** No entry starts at or after this instant; the last one may end past it. */
+  /**
+   * No ordinary entry starts at or after this instant; the last one may end
+   * past it. A reservation generation has entered still airs to its end.
+   */
   through: number;
   nextSequenceNumber: number;
   /** Caps one call so a caller can persist long horizons in bounded chunks. */
@@ -71,7 +89,10 @@ type ProgrammingResult =
       /** Rules each new block's decision passed over before its winner, for explaining them. */
       ruleSkips: (RuleSkip & { blockId: string })[];
       nextSequenceNumber: number;
-      /** The end of the last entry, or `startsAt` when none was generated. */
+      /**
+       * Where coverage now reaches: the end of the last entry, or of any
+       * reservation entered, past whose last program filler covers the rest.
+       */
       generatedThrough: number;
     };
 
@@ -88,7 +109,11 @@ interface OpenTurn {
  * assignment stays eligible in the same rotation context and its size is
  * unmet, and otherwise asks kraziPlan for the next turn and lets schedule
  * generation choose its whole programs. A program is never cut for a
- * calendar window; the next one follows current eligibility. Stops at
+ * calendar window; the next one follows current eligibility. Reservations
+ * are hard ends (programming spec 0006): the next program that cannot
+ * finish before one is deferred, a turn it interrupts is over, and a turn
+ * none of whose programs fit is dropped and drawn again identically after
+ * the reservation, whose own programs air from its exact start. Stops at
  * `through` or `maxEntries`, and returns what to persist so the next call
  * resumes exactly, from the blocks and progress alone. Never touches
  * persistence; the output depends only on the inputs.
@@ -97,7 +122,14 @@ export function generateProgramming(
   options: GenerateProgrammingOptions,
 ): ProgrammingResult {
   const { assignments, latestTurn, through, maxEntries } = options;
-  if (assignments.length === 0) {
+  const reservations = [...options.reservations].sort(
+    (a, b) => a.startsAt - b.startsAt,
+  );
+  // A reservation still to come airs even without ordinary programming.
+  if (
+    assignments.length === 0 &&
+    !reservations.some(({ endsAt }) => endsAt > options.startsAt)
+  ) {
     return { kind: "unschedulable", reason: "no_programming_assignment" };
   }
   const progress = new Map(
@@ -118,17 +150,110 @@ export function generateProgramming(
     latestTurn?.block.checkpoint.rebuildCount === options.rebuildCount
       ? latestTurn
       : undefined;
+  // A reservation's block took no turn, so its state stands as it is.
   let state =
     continued === undefined
       ? { ...FIRST_CHECKPOINT, rebuildCount: options.rebuildCount }
-      : advancePastTurn(continued.block.checkpoint, continued.block.marathon);
+      : continued.block.reservationId !== null
+        ? continued.block.checkpoint
+        : advancePastTurn(continued.block.checkpoint, continued.block.marathon);
   let open =
-    continued === undefined ? undefined : resumeTurn(continued, assignments);
+    continued === undefined || continued.block.reservationId !== null
+      ? undefined
+      : resumeTurn(continued, assignments, reservations, options.startsAt);
   let startsAt = options.startsAt;
   let sequenceNumber = options.nextSequenceNumber;
   let decision: ReturnType<typeof decideRule> | undefined;
 
-  while (startsAt < through && entries.length < maxEntries) {
+  // Generates from one source at `startsAt` and keeps its entries and
+  // progress, so ordinary turns and collection reservations share one path.
+  const airSource = (
+    source: ScheduleSource,
+    window: { through: number; hardEnd: number | undefined; turn?: TurnSize },
+  ): GenerationResult => {
+    const key =
+      source.kind === "collection"
+        ? progressKey(source.mediaCollectionId, source.playbackMode)
+        : undefined;
+    const generated = generateScheduleEntries({
+      channelSeed: options.channelSeed,
+      source,
+      progress:
+        (key === undefined ? undefined : progress.get(key)?.progress) ??
+        NO_PROGRESS,
+      startsAt,
+      through: window.through,
+      hardEnd: window.hardEnd,
+      nextSequenceNumber: sequenceNumber,
+      maxEntries: maxEntries - entries.length,
+      turn: window.turn,
+    });
+    if (generated.kind !== "generated" || generated.entries.length === 0) {
+      return generated;
+    }
+    entries.push(...generated.entries);
+    sequenceNumber = generated.nextSequenceNumber;
+    if (key !== undefined && source.kind === "collection") {
+      progress.set(key, {
+        mediaCollectionId: source.mediaCollectionId,
+        playbackMode: source.playbackMode,
+        progress: generated.progress,
+      });
+      advanced.add(key);
+    }
+    return generated;
+  };
+
+  while (entries.length < maxEntries) {
+    const reservation = findReservationAt(reservations, startsAt);
+    if (reservation !== undefined) {
+      // A reservation generation has entered airs to its end, so coverage
+      // always reaches the end of every reservation it starts.
+      // Its block holds no rotation decision, so even a fresh rebuild
+      // continues a reservation's block where its kept entries left off.
+      const resumed =
+        latestTurn?.block.reservationId === reservation.id &&
+        entries.length === 0
+          ? latestTurn
+          : undefined;
+      const block =
+        resumed?.block ??
+        reservationBlock(reservation, options.createBlockId(), startsAt, state);
+      const { source } = reservation;
+      let done: boolean;
+      if (source.kind === "media_items") {
+        const listed = airListedItems(source.items, reservation.endsAt, {
+          programmingBlockId: block.id,
+          startsAt,
+          aired: resumed?.airedMediaItemIds ?? [],
+          nextSequenceNumber: sequenceNumber,
+          maxEntries: maxEntries - entries.length,
+        });
+        entries.push(...listed.entries);
+        sequenceNumber += listed.entries.length;
+        done = listed.done;
+      } else {
+        const generated = airSource(
+          { ...source, programmingBlockId: block.id },
+          { through: reservation.endsAt, hardEnd: reservation.endsAt },
+        );
+        done =
+          generated.kind !== "generated" ||
+          generated.deferred ||
+          generated.generatedThrough >= reservation.endsAt;
+      }
+      const last = entries.at(-1);
+      // A block holds at least one entry, so a range none of whose programs
+      // fit leaves only filler.
+      if (resumed === undefined && last?.programmingBlockId === block.id) {
+        blocks.push(block);
+      }
+      open = undefined;
+      startsAt = done || last === undefined ? reservation.endsAt : last.endsAt;
+      continue;
+    }
+    if (startsAt >= through) break;
+
     // The winning rule stands until some rule's applicability can change,
     // so it is decided again only at the first program from then on.
     if (decision === undefined || startsAt >= decision.validUntil) {
@@ -149,6 +274,13 @@ export function generateProgramming(
     ) {
       open = undefined;
     }
+    let chosen:
+      | {
+          block: GeneratedBlock;
+          before: typeof state;
+          skips: AssignmentSkip[];
+        }
+      | undefined;
     if (open === undefined) {
       const { chosen: turn, skips: skipped } = chooseTurn(
         state,
@@ -156,12 +288,26 @@ export function generateProgramming(
         options,
         options.marathons,
       );
-      skips.push(...skipped);
       if (turn === undefined) {
+        skips.push(...skipped);
+        // With nothing ordinary to air, filler covers the time until the
+        // next reservation, which airs at its exact start regardless.
+        const next = findNextReservation(reservations, startsAt);
+        if (next !== undefined && next.startsAt < through) {
+          open = undefined;
+          startsAt = next.startsAt;
+          continue;
+        }
         // A later program could only come from a calendar change, which
         // generation does not wait for, so coverage stops here.
         if (entries.length > 0) break;
-        return { kind: "unschedulable", reason: "no_schedulable_media" };
+        return {
+          kind: "unschedulable",
+          reason:
+            assignments.length === 0
+              ? "no_programming_assignment"
+              : "no_schedulable_media",
+        };
       }
       const position = {
         roundNumber:
@@ -172,6 +318,7 @@ export function generateProgramming(
       const block: GeneratedBlock = {
         id: options.createBlockId(),
         assignmentId: turn.assignment.id,
+        reservationId: null,
         source: toBlockSource(turn.source),
         ...position,
         startsAt,
@@ -189,10 +336,7 @@ export function generateProgramming(
         endedByEdit: false,
         checkpoint: turn.checkpoint,
       };
-      blocks.push(block);
-      for (const skip of decision.passedOver) {
-        ruleSkips.push({ blockId: block.id, ...skip });
-      }
+      chosen = { block, before: state, skips: skipped };
       state = advancePastTurn(turn.checkpoint, turn.marathon);
       open = {
         assignmentId: turn.assignment.id,
@@ -201,37 +345,37 @@ export function generateProgramming(
       };
     }
 
-    const key =
-      open.source.kind === "collection"
-        ? progressKey(open.source.mediaCollectionId, open.source.playbackMode)
-        : undefined;
-    const generated = generateScheduleEntries({
-      channelSeed: options.channelSeed,
-      source: open.source,
-      progress:
-        (key === undefined ? undefined : progress.get(key)?.progress) ??
-        NO_PROGRESS,
-      startsAt,
+    const hardEnd = findNextReservation(reservations, startsAt)?.startsAt;
+    const generated = airSource(open.source, {
       // Every program starting before the decision can change shares its winner.
       through: Math.min(through, decision.validUntil),
-      nextSequenceNumber: sequenceNumber,
-      maxEntries: maxEntries - entries.length,
+      hardEnd,
       turn: open.size,
     });
     // An open turn's member is always schedulable, so this never happens.
     if (generated.kind !== "generated" || generated.turn === undefined) {
       throw new Error("an open turn must generate from a schedulable member");
     }
-    entries.push(...generated.entries);
+    if (chosen !== undefined) {
+      if (generated.entries.length === 0 && generated.deferred) {
+        // The turn never started, so the same decision is drawn again
+        // after the reservation, as if it had never been made.
+        state = chosen.before;
+      } else {
+        blocks.push(chosen.block);
+        skips.push(...chosen.skips);
+        for (const skip of decision.passedOver) {
+          ruleSkips.push({ blockId: chosen.block.id, ...skip });
+        }
+      }
+    }
     startsAt = generated.generatedThrough;
-    sequenceNumber = generated.nextSequenceNumber;
-    if (key !== undefined && open.source.kind === "collection") {
-      progress.set(key, {
-        mediaCollectionId: open.source.mediaCollectionId,
-        playbackMode: open.source.playbackMode,
-        progress: generated.progress,
-      });
-      advanced.add(key);
+    if (generated.deferred && hardEnd !== undefined) {
+      // The deferred program waits for the next turn; filler covers the
+      // time until the reservation starts.
+      open = undefined;
+      startsAt = hardEnd;
+      continue;
     }
     open =
       generated.turn.accumulated < generated.turn.target
@@ -253,17 +397,25 @@ export function generateProgramming(
 
 /**
  * Returns the latest turn to continue, or undefined when it is over: an
- * edit ended it, its size is met, or its assignment, its member, or the
- * member's mode no longer stands as it did, or its member has nothing left
- * to air. Whether it is still eligible is decided before each program.
+ * edit or a reservation ended it, its size is met, or its assignment, its
+ * member, or the member's mode no longer stands as it did, or its member
+ * has nothing left to air. Whether it is still eligible is decided before
+ * each program.
  */
 function resumeTurn(
   latest: LatestTurn,
   assignments: readonly ProgrammingAssignment[],
+  reservations: readonly Reservation[],
+  startsAt: number,
 ): OpenTurn | undefined {
   const { block } = latest;
   const assignment = assignments.find(({ id }) => id === block.assignmentId);
-  if (block.endedByEdit || assignment === undefined || block.source === null) {
+  if (
+    block.endedByEdit ||
+    assignment === undefined ||
+    block.source === null ||
+    reservationEndedTurn(reservations, block.startsAt, startsAt)
+  ) {
     return undefined;
   }
   const member = findBlockMember(assignment, block.source);

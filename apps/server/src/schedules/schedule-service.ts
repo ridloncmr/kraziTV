@@ -8,6 +8,7 @@ import {
   generateProgramming,
   orderFingerprint,
   type ProgrammingAssignment,
+  type Reservation,
   SCHEDULE_HORIZON_MS,
 } from "@krazitv/krazi-brain";
 import { assertPositiveSafeInteger } from "@krazitv/process";
@@ -75,7 +76,20 @@ import {
   loadScheduleState,
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
+import {
+  findAiringItem,
+  readTimeline,
+} from "../playout/persistence/playout-reads.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
+import type {
+  ReservationPreview,
+  ReservationSettings,
+} from "../reservations/contracts.js";
+import { resolveReservationRange } from "../reservations/persistence/reservation-refusals.js";
+import {
+  loadReservations,
+  resolveReservation,
+} from "../reservations/persistence/reservation-rows.js";
 import {
   programmingTimezoneChange,
   recordTimezoneUnlessRulesNeedIt,
@@ -101,6 +115,9 @@ const ENTRIES_PER_TRANSACTION = 500;
 
 // Bounds one programming preview, as a transaction bounds one chunk.
 const PREVIEW_MAX_ENTRIES = 2000;
+
+// Names the reservation a preview adds, which is never saved.
+const PREVIEW_RESERVATION_ID = "preview-reservation";
 
 // How many upcoming selections a collection preview shows.
 const PREVIEW_UPCOMING_ENTRIES = 10;
@@ -250,10 +267,11 @@ export class ScheduleService {
   }
 
   /**
-   * Reads the channel's entries overlapping `[start, end)` in one deferred
-   * snapshot that reads the revision first, so a reader never pairs new
-   * programming with an old revision. Never writes; callers ensure coverage
-   * first.
+   * Reads the channel's entries overlapping `[start, end)`, and the planned
+   * filler between them, in one deferred snapshot that reads the revision
+   * first, so a reader never pairs new programming with an old revision.
+   * Filler is derived, never an entry (ADR 0014). Never writes; callers
+   * ensure coverage first.
    */
   async readWindow(
     channelId: string,
@@ -262,9 +280,28 @@ export class ScheduleService {
   ): Promise<ScheduleWindow> {
     return this.#db.transaction().execute(async (trx) => {
       const state = await loadScheduleState(trx, channelId);
+      const entries = await listEntriesInWindow(trx, channelId, start, end);
+      const items =
+        state === undefined
+          ? []
+          : await readTimeline(
+              trx,
+              {
+                channelId,
+                scheduleRevision: state.scheduleRevision,
+                anchorTime: state.anchorTime,
+              },
+              start,
+              end,
+            );
       return {
         scheduleRevision: state?.scheduleRevision ?? null,
-        entries: await listEntriesInWindow(trx, channelId, start, end),
+        entries,
+        fillerIntervals: items.flatMap((item) =>
+          item.type === "filler"
+            ? [{ startsAt: item.startsAt, endsAt: item.endsAt }]
+            : [],
+        ),
       };
     });
   }
@@ -314,9 +351,109 @@ export class ScheduleService {
     channelId: string,
     log: ScheduleLog,
   ): Promise<ProgrammingPreview> {
+    return this.#previewSnapshot(
+      channelId,
+      log,
+      async (trx, state, effectiveNow) => {
+        const { inputs, generated } = await this.#previewGeneration(
+          trx,
+          channelId,
+          state,
+          effectiveNow,
+        );
+        return generated.kind === "unschedulable"
+          ? generated
+          : {
+              kind: "preview",
+              continuedTurn: inputs.latestTurn?.block,
+              marathons: inputs.marathons,
+              blocks: generated.blocks,
+              entries: generated.entries,
+              skips: generated.skips,
+              ruleSkips: generated.ruleSkips,
+              configurationRevision: await loadConfigurationRevision(
+                trx,
+                channelId,
+              ),
+            };
+      },
+    );
+  }
+
+  /**
+   * Previews what saving a reservation would air, without writing: the same
+   * checks a save runs, then the programming a regeneration with it would
+   * generate, through at least its end, from copied inputs in one deferred
+   * snapshot. A refused reservation is previewed as its refusal.
+   */
+  async previewReservation(
+    channelId: string,
+    settings: ReservationSettings,
+    log: ScheduleLog,
+  ): Promise<ReservationPreview> {
+    return this.#previewSnapshot(
+      channelId,
+      log,
+      async (trx, state, effectiveNow) => {
+        const scheduleRevision = state?.scheduleRevision ?? null;
+        const range = await resolveReservationRange(
+          trx,
+          channelId,
+          settings,
+          effectiveNow,
+        );
+        if (range.kind !== "resolved") {
+          return { kind: "refused", refusal: range, scheduleRevision };
+        }
+        const reservation = await resolveReservation(trx, {
+          id: PREVIEW_RESERVATION_ID,
+          startsAt: settings.startsAt,
+          endsAt: range.endsAt,
+          source: settings.source,
+        });
+        const { boundary, reservations, generated } =
+          await this.#previewGeneration(
+            trx,
+            channelId,
+            state,
+            effectiveNow,
+            reservation,
+          );
+        if (generated.kind === "unschedulable") return generated;
+        return {
+          kind: "preview",
+          scheduleRevision,
+          startsAt: reservation.startsAt,
+          endsAt: reservation.endsAt,
+          endKind: range.endKind,
+          boundary,
+          reservations,
+          reservationBlockId: generated.blocks.find(
+            (block) => block.reservationId === PREVIEW_RESERVATION_ID,
+          )?.id,
+          entries: generated.entries,
+        };
+      },
+    );
+  }
+
+  /**
+   * Opens the one deferred snapshot a preview reads in, refusing an unknown
+   * channel, and hands it the channel's state and the effective time a
+   * regeneration from now would use. Previews never write.
+   */
+  #previewSnapshot<T>(
+    channelId: string,
+    log: ScheduleLog,
+    read: (
+      trx: Kysely<DatabaseSchema>,
+      state: ScheduleState | undefined,
+      effectiveNow: number,
+    ) => Promise<T>,
+  ): Promise<T | { kind: "channel_not_found" }> {
     return this.#db.transaction().execute(async (trx) => {
       if ((await findChannelEnabled(trx, channelId)) === undefined) {
-        return { kind: "channel_not_found" };
+        return { kind: "channel_not_found" as const };
       }
       const state = await loadScheduleState(trx, channelId);
       const effectiveNow = clampToLastMutation(
@@ -325,47 +462,53 @@ export class ScheduleService {
         log,
         { channelId },
       );
-      const boundary = findRegenerationBoundary(
-        await findEntryAiringAt(trx, channelId, effectiveNow),
-        effectiveNow,
-      );
-      const { collections: _, ...inputs } = await loadProgrammingInputs(
-        trx,
-        channelId,
-        boundary,
-      );
-      const anchorTime = state?.anchorTime ?? effectiveNow;
-      let previewed = 0;
-      const generated = generateProgramming({
-        channelSeed: state?.seed ?? deriveChannelSeed(channelId, anchorTime),
-        programmingSeed:
-          state?.programmingSeed ??
-          deriveProgrammingSeed(channelId, anchorTime),
-        rebuildCount: state?.rebuildCount ?? 0,
-        ...inputs,
-        timeZone: this.#programmingTimezone,
-        startsAt: boundary,
-        through: boundary + SCHEDULE_HORIZON_MS,
-        nextSequenceNumber: state?.nextSequenceNumber ?? 0,
-        maxEntries: PREVIEW_MAX_ENTRIES,
-        createBlockId: () => `preview-${(previewed += 1)}`,
-      });
-      return generated.kind === "unschedulable"
-        ? generated
-        : {
-            kind: "preview",
-            continuedTurn: inputs.latestTurn?.block,
-            marathons: inputs.marathons,
-            blocks: generated.blocks,
-            entries: generated.entries,
-            skips: generated.skips,
-            ruleSkips: generated.ruleSkips,
-            configurationRevision: await loadConfigurationRevision(
-              trx,
-              channelId,
-            ),
-          };
+      return read(trx, state, effectiveNow);
     });
+  }
+
+  /**
+   * Runs kraziPlan from the regeneration boundary on copied inputs, as a
+   * regeneration from now would, adding a reservation not yet saved when
+   * one is given and generating through at least its end. The one
+   * generator both previews share; it never writes.
+   */
+  async #previewGeneration(
+    trx: Kysely<DatabaseSchema>,
+    channelId: string,
+    state: ScheduleState | undefined,
+    effectiveNow: number,
+    added?: Reservation,
+  ) {
+    const boundary = findRegenerationBoundary(
+      await findAiringItem(trx, channelId, effectiveNow),
+      effectiveNow,
+    );
+    const { collections: _, ...stored } = await loadProgrammingInputs(
+      trx,
+      channelId,
+      boundary,
+      boundary,
+    );
+    const inputs =
+      added === undefined
+        ? stored
+        : { ...stored, reservations: [...stored.reservations, added] };
+    const anchorTime = state?.anchorTime ?? effectiveNow;
+    let previewed = 0;
+    const generated = generateProgramming({
+      channelSeed: state?.seed ?? deriveChannelSeed(channelId, anchorTime),
+      programmingSeed:
+        state?.programmingSeed ?? deriveProgrammingSeed(channelId, anchorTime),
+      rebuildCount: state?.rebuildCount ?? 0,
+      ...inputs,
+      timeZone: this.#programmingTimezone,
+      startsAt: boundary,
+      through: Math.max(boundary + SCHEDULE_HORIZON_MS, added?.endsAt ?? 0),
+      nextSequenceNumber: state?.nextSequenceNumber ?? 0,
+      maxEntries: PREVIEW_MAX_ENTRIES,
+      createBlockId: () => `preview-${(previewed += 1)}`,
+    });
+    return { boundary, inputs, reservations: inputs.reservations, generated };
   }
 
   /**
@@ -509,9 +652,9 @@ export class ScheduleService {
 
   /**
    * Rebuilds a scheduled channel from the regeneration boundary in the
-   * caller's transaction. The airing entry is never touched (ADR 0003):
-   * entries from the end of the airing entry, or from now when nothing airs,
-   * are replaced.
+   * caller's transaction. What airs is never touched (ADR 0003, ADR 0014):
+   * entries from the end of the airing program or planned filler, or from
+   * now when nothing airs, are replaced.
    */
   async #regenerateChunk(
     trx: Kysely<DatabaseSchema>,
@@ -519,7 +662,7 @@ export class ScheduleService {
     effectiveNow: number,
     target: number,
   ): Promise<ChannelChunk> {
-    const airing = await findEntryAiringAt(trx, state.channelId, effectiveNow);
+    const airing = await findAiringItem(trx, state.channelId, effectiveNow);
     const boundary = findRegenerationBoundary(airing, effectiveNow);
     return this.#rebuildChunk(
       trx,
@@ -741,6 +884,7 @@ export class ScheduleService {
     const { collections, ...inputs } = await loadProgrammingInputs(
       trx,
       channelId,
+      start.startsAt,
     );
     const generated = generateProgramming({
       channelSeed: start.seed,
@@ -822,19 +966,30 @@ export class ScheduleService {
 }
 
 /**
- * Loads everything kraziPlan reads from storage for a channel. Without
- * `keptBefore` it reads the state as stored, as generation continues it;
- * with it, it reads what a regeneration from that boundary would keep:
- * the latest turn and aired totals before it, and the progress the
- * entries from it would restore to.
+ * Loads everything kraziPlan reads from storage for a channel generating
+ * from `startsAt`. Without `keptBefore` it reads the state as stored, as
+ * generation continues it; with it, it reads what a regeneration from that
+ * boundary would keep: the latest turn and aired totals before it, and the
+ * progress the entries from it would restore to. Only reservations ending
+ * after the latest turn began can still matter to generation.
  */
 async function loadProgrammingInputs(
   trx: Kysely<DatabaseSchema>,
   channelId: string,
+  startsAt: number,
   keptBefore?: number,
 ) {
   const assignments = await loadProgrammingAssignments(trx, channelId);
-  const collections = assignedCollections(assignments);
+  const latestTurn = await loadLatestTurn(trx, channelId, keptBefore);
+  const reservations = await loadReservations(
+    trx,
+    channelId,
+    Math.min(latestTurn?.block.startsAt ?? startsAt, startsAt),
+  );
+  const collections = [
+    ...assignedCollections(assignments),
+    ...reservedCollections(reservations),
+  ];
   const stored = await loadProgress(trx, channelId, collections);
   const restored =
     keptBefore === undefined
@@ -851,14 +1006,34 @@ async function loadProgrammingInputs(
   return {
     assignments,
     rules: await loadProgrammingRules(trx, channelId),
+    reservations,
     collections,
     marathons: await loadMarathonSettings(trx, channelId),
-    latestTurn: await loadLatestTurn(trx, channelId, keptBefore),
+    latestTurn,
     progress: [
       ...stored.filter((entry) => !restoredKeys.has(key(entry))),
       ...restored,
     ],
   };
+}
+
+/**
+ * Lists each collection the reservations play, with its mode and members,
+ * because a collection reservation consumes the same progress a generated
+ * turn does and its order is the one the schedule follows.
+ */
+function reservedCollections(reservations: readonly Reservation[]) {
+  return reservations.flatMap(({ source }) =>
+    source.kind === "collection"
+      ? [
+          {
+            mediaCollectionId: source.mediaCollectionId,
+            playbackMode: source.playbackMode,
+            members: source.members,
+          },
+        ]
+      : [],
+  );
 }
 
 /**
