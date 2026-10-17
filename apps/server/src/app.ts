@@ -259,7 +259,7 @@ function registerRoutes(
     stopInterrupted,
   );
   registerScheduleRoutes(server, dependencies.schedules);
-  registerPlayoutRoutes(server, dependencies.playout);
+  registerPlayoutRoutes(server, dependencies.playout, dependencies.schedules);
   registerPlexRoutes(
     server,
     dependencies.channels,

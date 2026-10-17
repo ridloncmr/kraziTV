@@ -10,6 +10,7 @@ import {
   sendThroughOutOfRange,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { resumeTime } from "../resume-message.js";
 import {
   idParams,
   isoInstantField,
@@ -17,6 +18,7 @@ import {
 } from "../../http/request-schemas.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
 import type { PlayoutFailure } from "../contracts.js";
+import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type { PlayoutService } from "../playout-service.js";
 
 // Production callers omit `at`; tests and debugging pin the evaluation time.
@@ -29,6 +31,7 @@ const playoutWindowQuery = windowQuery(SCHEDULE_REQUEST_LIMIT_MS);
 export function registerPlayoutRoutes(
   server: FastifyInstance,
   playout: PlayoutService,
+  schedules: Pick<ScheduleService, "programmingTimezone">,
 ): void {
   server.get("/channels/:id/now", async (request, reply) => {
     const { id } = idParams.parse(request.params);
@@ -41,7 +44,7 @@ export function registerPlayoutRoutes(
     if (state.kind !== "current" && state.kind !== "no_current") {
       return sendPlayoutFailure(reply, id, state, "at");
     }
-    return toApiChannelState(state);
+    return toApiChannelState(state, schedules.programmingTimezone());
   });
 
   server.get("/channels/:id/playout", async (request, reply) => {
@@ -63,7 +66,9 @@ export function registerPlayoutRoutes(
     return {
       channelId: timeline.channelId,
       scheduleRevision: timeline.scheduleRevision,
-      items: timeline.items.map(toApiPlayoutItem),
+      items: timeline.items.map((item) =>
+        toApiPlayoutItem(item, schedules.programmingTimezone()),
+      ),
     };
   });
 }
@@ -91,7 +96,7 @@ function sendPlayoutFailure(
 
 // Builds the public shape field by field, so internal packaging inputs such
 // as the media path and audio fact can never leak into a response.
-function toApiChannelState(state: ChannelState) {
+function toApiChannelState(state: ChannelState, timeZone: string) {
   const base = {
     channelId: state.channelId,
     scheduleRevision: state.scheduleRevision,
@@ -101,10 +106,10 @@ function toApiChannelState(state: ChannelState) {
     return {
       ...base,
       currentItem: {
-        ...toApiPlayoutItem(state.currentItem),
+        ...toApiPlayoutItem(state.currentItem, timeZone),
         offsetMs: state.currentItem.offsetMs,
       },
-      nextItem: state.nextItem && toApiPlayoutItem(state.nextItem),
+      nextItem: state.nextItem && toApiPlayoutItem(state.nextItem, timeZone),
     };
   }
   return {
@@ -119,13 +124,15 @@ function toApiChannelState(state: ChannelState) {
 }
 
 // Converts one item's instants; durations and offsets stay in milliseconds.
-// Planned filler carries only its interval, whose end is the resume time.
-function toApiPlayoutItem(item: PlayoutItem) {
+// Planned filler carries only its interval, whose end is the resume time,
+// also worded in the programming timezone for the Program Guide.
+function toApiPlayoutItem(item: PlayoutItem, timeZone: string) {
   if (item.type === "filler") {
     return {
       type: item.type,
       startsAt: toApiTimestamp(item.startsAt),
       endsAt: toApiTimestamp(item.endsAt),
+      resumeTime: resumeTime(item.endsAt, timeZone),
     };
   }
   return {

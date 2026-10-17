@@ -1744,6 +1744,7 @@ describe("ScheduleService.readWindow", () => {
 
     expect(window).toEqual({
       scheduleRevision: 1,
+      fillerIntervals: [],
       entries: [second, third].map((row) => ({
         id: row.id,
         channelId,
@@ -1782,7 +1783,7 @@ describe("ScheduleService.readWindow", () => {
     const { channelId, service } = await setup();
 
     await expect(service.readWindow(channelId, T0, T0 + HOUR)).resolves.toEqual(
-      { scheduleRevision: null, entries: [] },
+      { scheduleRevision: null, entries: [], fillerIntervals: [] },
     );
   });
 });

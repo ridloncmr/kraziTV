@@ -11,6 +11,7 @@ import {
 } from "@krazitv/signal";
 
 import type { PlayoutFailure } from "../../playout/contracts.js";
+import { resumeMessage } from "../../playout/resume-message.js";
 
 /**
  * Carries kraziBrain's channel state onto the signal port unchanged in
@@ -135,22 +136,4 @@ function toSelectedPlayoutItem(
     durationMs: item.durationMs,
     startOffsetMs: item.startOffsetMs,
   };
-}
-
-/**
- * Words filler's on-screen message: when programming resumes, in the
- * programming timezone and 12-hour form, such as "Programming resumes at
- * 8:00 PM" (programming spec 0006). Intl's narrow no-break spaces become
- * plain ones, which every font draws.
- */
-export function resumeMessage(resumesAt: number, timeZone: string): string {
-  const time = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
-    .format(resumesAt)
-    .replace(/[\u00a0\u202f]/g, " ");
-  return `Programming resumes at ${time}`;
 }

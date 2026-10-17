@@ -9,6 +9,7 @@ import {
   sendThroughOutOfRange,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
+import { resumeTime } from "../../playout/resume-message.js";
 import {
   idParams,
   isoInstantField,
@@ -63,7 +64,7 @@ export function registerScheduleRoutes(
     if (coverage.kind === "unschedulable" && window.entries.length === 0) {
       return sendCoverageFailure(reply, id, coverage);
     }
-    return toApiScheduleWindow(window);
+    return toApiScheduleWindow(window, schedules.programmingTimezone());
   });
 
   server.post("/channels/:id/schedule/generate", async (request, reply) => {
@@ -113,10 +114,18 @@ function sendCoverageFailure(
 }
 
 // Shapes one schedule window for the API; each entry converts its own instants.
-function toApiScheduleWindow(window: ScheduleWindow) {
+function toApiScheduleWindow(window: ScheduleWindow, timeZone: string) {
   return {
     scheduleRevision: window.scheduleRevision,
     entries: window.entries.map(toApiScheduleEntry),
+    // Filler is listed apart from entries, so XMLTV and entry readers never
+    // mistake it for a program; its resume time is worded where the
+    // on-screen message is.
+    fillerIntervals: window.fillerIntervals.map((interval) => ({
+      startsAt: toApiTimestamp(interval.startsAt),
+      endsAt: toApiTimestamp(interval.endsAt),
+      resumeTime: resumeTime(interval.endsAt, timeZone),
+    })),
   };
 }
 

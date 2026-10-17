@@ -176,11 +176,15 @@ export interface ScheduleEntry {
 
 /**
  * A channel's entries overlapping a window, read in one snapshot with the
- * revision they belong to. The revision is null before the first generation.
+ * revision they belong to, and the planned filler intervals between them,
+ * which are coverage the guide shows as **Off air**, never entries. The
+ * revision is null before the first generation.
  */
 export interface ScheduleWindow {
   scheduleRevision: number | null;
   entries: ScheduleEntry[];
+  /** Each one ends when guide-visible programming resumes. */
+  fillerIntervals: { startsAt: number; endsAt: number }[];
 }
 
 /**

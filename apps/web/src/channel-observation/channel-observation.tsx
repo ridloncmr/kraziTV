@@ -84,7 +84,7 @@ export function ChannelObservation({
                 <dl className="facts">
                   <dt>On air</dt>
                   <dd>
-                    <strong>{now.data.currentItem.title}</strong>
+                    <strong>{itemLabel(now.data.currentItem)}</strong>
                   </dd>
                   <dt>Playback offset</dt>
                   <dd>{now.data.currentItem.offsetMs ?? "Unavailable"} ms</dd>
@@ -95,7 +95,9 @@ export function ChannelObservation({
                   </dd>
                   <dt>Next program</dt>
                   <dd>
-                    {now.data.nextItem?.title ?? "No next program available"}
+                    {now.data.nextItem
+                      ? itemLabel(now.data.nextItem)
+                      : "No next program available"}
                   </dd>
                 </dl>
               ) : (
@@ -114,13 +116,13 @@ export function ChannelObservation({
             <>
               <h2>Upcoming generated schedule</h2>
               <RequestFeedback error={schedule.error} />
-              {schedule.data?.entries.length === 0 && (
+              {schedule.data && guideRows(schedule.data).length === 0 && (
                 <p className="empty-state">
                   No generated schedule entries. Check the channel's programming
                   source in My Channels.
                 </p>
               )}
-              {schedule.data && schedule.data.entries.length > 0 && (
+              {schedule.data && guideRows(schedule.data).length > 0 && (
                 <div className="table-scroll">
                   <table>
                     <thead>
@@ -131,11 +133,11 @@ export function ChannelObservation({
                       </tr>
                     </thead>
                     <tbody>
-                      {schedule.data.entries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td>{displayTime(entry.startsAt)}</td>
-                          <td>{displayTime(entry.endsAt)}</td>
-                          <td>{entry.title}</td>
+                      {guideRows(schedule.data).map((row) => (
+                        <tr key={row.key}>
+                          <td>{displayTime(row.startsAt)}</td>
+                          <td>{displayTime(row.endsAt)}</td>
+                          <td>{row.label}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -148,4 +150,35 @@ export function ChannelObservation({
       )}
     </>
   );
+}
+
+/**
+ * Names what airs: a program by its title, planned filler as Off air with
+ * the resume time the server worded in the programming timezone.
+ */
+function itemLabel(item: NonNullable<ChannelState["currentItem"]>): string {
+  return item.type === "filler"
+    ? `Off air — programming resumes at ${item.resumeTime}`
+    : item.title;
+}
+
+/**
+ * Lists the guide's rows in time order: each scheduled program, and each
+ * planned filler interval as Off air, which is coverage, not an entry.
+ */
+function guideRows(window: ScheduleWindow) {
+  return [
+    ...window.entries.map((entry) => ({
+      key: entry.id,
+      startsAt: entry.startsAt,
+      endsAt: entry.endsAt,
+      label: entry.title,
+    })),
+    ...window.fillerIntervals.map((interval) => ({
+      key: `off-air-${interval.startsAt}`,
+      startsAt: interval.startsAt,
+      endsAt: interval.endsAt,
+      label: "Off air",
+    })),
+  ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }

@@ -76,6 +76,7 @@ import {
   loadScheduleState,
   updateScheduleState,
 } from "./persistence/schedule-repository.js";
+import { readTimeline } from "../playout/persistence/playout-reads.js";
 import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
 import { loadReservations } from "../reservations/persistence/reservation-rows.js";
 import {
@@ -252,10 +253,11 @@ export class ScheduleService {
   }
 
   /**
-   * Reads the channel's entries overlapping `[start, end)` in one deferred
-   * snapshot that reads the revision first, so a reader never pairs new
-   * programming with an old revision. Never writes; callers ensure coverage
-   * first.
+   * Reads the channel's entries overlapping `[start, end)`, and the planned
+   * filler between them, in one deferred snapshot that reads the revision
+   * first, so a reader never pairs new programming with an old revision.
+   * Filler is derived, never an entry (ADR 0014). Never writes; callers
+   * ensure coverage first.
    */
   async readWindow(
     channelId: string,
@@ -264,9 +266,28 @@ export class ScheduleService {
   ): Promise<ScheduleWindow> {
     return this.#db.transaction().execute(async (trx) => {
       const state = await loadScheduleState(trx, channelId);
+      const entries = await listEntriesInWindow(trx, channelId, start, end);
+      const items =
+        state === undefined
+          ? []
+          : await readTimeline(
+              trx,
+              {
+                channelId,
+                scheduleRevision: state.scheduleRevision,
+                anchorTime: state.anchorTime,
+              },
+              start,
+              end,
+            );
       return {
         scheduleRevision: state?.scheduleRevision ?? null,
-        entries: await listEntriesInWindow(trx, channelId, start, end),
+        entries,
+        fillerIntervals: items.flatMap((item) =>
+          item.type === "filler"
+            ? [{ startsAt: item.startsAt, endsAt: item.endsAt }]
+            : [],
+        ),
       };
     });
   }

@@ -3,7 +3,11 @@
 // through it, and the coordinator revalidates it by its end.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { iso, send } from "../../testing/api-requests.js";
+import { iso, send, windowUrl } from "../../testing/api-requests.js";
+import {
+  readGuideProgrammes,
+  xmltvTimestamp,
+} from "../../testing/xmltv-programmes.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import { recordingLog } from "../../testing/recording-log.js";
 import {
@@ -13,7 +17,7 @@ import {
 } from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
-import { resumeMessage } from "./signal-playout-mapping.js";
+import { resumeMessage } from "../../playout/resume-message.js";
 import { SignalPlayoutAdapter } from "./signal-playout-adapter.js";
 import { SqliteTransitionCoordinator } from "./sqlite-transition-coordinator.js";
 
@@ -257,5 +261,51 @@ describe("planned filler in playout reads", () => {
       ],
     });
     expect(stale).toMatchObject({ status: "stale_entry", items: [] });
+  });
+});
+
+describe("planned filler in guide output", () => {
+  it("lists filler apart from schedule entries, with its resume time, and never as an XMLTV programme", async () => {
+    const { server } = await reservedAtSixty();
+
+    const window = await send(
+      server,
+      "GET",
+      windowUrl(`/channels/${CHANNEL_ID}/schedule`, at(30), at(70)),
+    );
+    const guide = await server.inject("/plex/xmltv.xml");
+
+    // The scenario server evaluates in UTC, so programming resumes at 1:00 AM.
+    expect(window.body.fillerIntervals).toEqual([
+      { startsAt: iso(at(45)), endsAt: iso(at(60)), resumeTime: "1:00 AM" },
+    ]);
+    expect(
+      (window.body.entries as { startsAt: string }[]).map(
+        (entry) => entry.startsAt,
+      ),
+    ).toEqual([iso(at(22)), iso(at(60))]);
+    const programmes = readGuideProgrammes(guide.body);
+    expect(
+      programmes.some(({ start }) => start === xmltvTimestamp(at(45))),
+    ).toBe(false);
+    // The movie follows the second episode directly: nothing fills 45-60.
+    expect(programmes.slice(0, 3).map(({ start }) => start)).toEqual(
+      [0, 22, 60].map((minutes) => xmltvTimestamp(at(minutes))),
+    );
+  });
+
+  it("words filler's resume time on the now route", async () => {
+    const { server } = await reservedAtSixty();
+
+    const now = await send(
+      server,
+      "GET",
+      `/channels/${CHANNEL_ID}/now?at=${iso(at(50))}`,
+    );
+
+    expect(now.body.currentItem).toMatchObject({
+      type: "filler",
+      resumeTime: "1:00 AM",
+    });
   });
 });

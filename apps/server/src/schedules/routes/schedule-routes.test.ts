@@ -47,6 +47,7 @@ describe("GET /channels/:id/schedule", () => {
     expect(status).toBe(200);
     expect(body).toEqual({
       scheduleRevision: 1,
+      fillerIntervals: [],
       entries: [
         {
           id: "entry-001",
@@ -163,7 +164,7 @@ describe("GET /channels/:id/schedule", () => {
       send(server, "GET", windowUrl(SCHEDULE_URL, T0, T0 + HOUR)),
     ).resolves.toEqual({
       status: 200,
-      body: { scheduleRevision: null, entries: [] },
+      body: { scheduleRevision: null, entries: [], fillerIntervals: [] },
     });
   });
 
