@@ -6,6 +6,7 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { findChannelsUsingCollection } from "../../media-collections/persistence/channels-using-collection.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import { readAiringAt } from "../../playout/persistence/playout-reads.js";
+import { listBlockingReservations } from "../../reservations/persistence/reservation-rows.js";
 import { loadProgrammingAssignments } from "../../schedules/persistence/assignment-sources.js";
 import type {
   AiringRemovedMedia,
@@ -81,6 +82,11 @@ export async function readRemovalImpact(
       kind: "media_item_in_use",
       channelIds: sortedUnique(inUse.map((row) => row.channel_id)),
       mediaItemIds: sortedUnique(inUse.map((row) => row.media_item_id)),
+      reservations: await listBlockingReservations(
+        trx,
+        { mediaItemIds: items },
+        now,
+      ),
     };
   }
 

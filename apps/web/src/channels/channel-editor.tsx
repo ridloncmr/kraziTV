@@ -4,6 +4,7 @@ import { resourcePath } from "../http/api-client.js";
 import type { Channel } from "../http/contracts.js";
 import { useMutation } from "../http/use-resource.js";
 import { ProgrammingEditor } from "./programming-editor.js";
+import { SpecialsSection } from "./specials/specials-section.js";
 
 /** Identity editing never exposes source or scheduling policy on the channel itself. */
 export function ChannelEditor({
@@ -55,6 +56,7 @@ export function ChannelEditor({
         />
       </fieldset>
       <ProgrammingEditor channelId={channel.id} visible={visible} />
+      <SpecialsSection channelId={channel.id} visible={visible} />
     </>
   );
 }

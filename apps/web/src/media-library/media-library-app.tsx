@@ -28,7 +28,14 @@ const PAGE_SIZE = 50;
  * items. A scan's progress, a removal's outcome, and an item's match state
  * come from the server, never assumed here.
  */
-export function MediaLibraryApp({ visible }: { visible: boolean }) {
+export function MediaLibraryApp({
+  visible,
+  onOpenChannels,
+}: {
+  visible: boolean;
+  /** Opens My Channels, where a special blocking a removal is resolved. */
+  onOpenChannels?: () => void;
+}) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   const [search, setSearch] = useState("");
   const [needsChoice, setNeedsChoice] = useState(false);
@@ -315,6 +322,7 @@ export function MediaLibraryApp({ visible }: { visible: boolean }) {
             refresh();
           }}
           onClose={() => setRemoving(undefined)}
+          onOpenChannels={onOpenChannels}
         />
       )}
       {detailed && (

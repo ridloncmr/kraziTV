@@ -20,34 +20,9 @@ import {
   toStretchSetting,
   UNCHOSEN_STRETCH,
 } from "./stretch-fields.js";
+import { PLAYBACK_MODE_CHOICES } from "./playback-mode-choices.js";
 
 // Every playback mode the editor offers, with the one line that explains it.
-const PLAYBACK_MODE_CHOICES: readonly {
-  mode: PlaybackMode;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    mode: "chronological",
-    label: "Collection order",
-    hint: "Plays the collection in its saved order.",
-  },
-  {
-    mode: "episode",
-    label: "Episode order",
-    hint: "Plays by series, season, and episode; items without episode details play last, in saved order.",
-  },
-  {
-    mode: "release",
-    label: "Release order",
-    hint: "Plays by release or air date, earliest first; items without a date play last, in saved order.",
-  },
-  {
-    mode: "random",
-    label: "Random",
-    hint: "Picks reproducibly at random from the collection; items can repeat.",
-  },
-];
 
 /**
  * Edits one programming source assignment, or adds one when none is given:

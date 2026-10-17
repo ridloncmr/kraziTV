@@ -120,7 +120,10 @@ export function describeRefusal(refusal: ReservationRefusal): {
       return {
         status: 409,
         code: refusal.kind,
-        message: `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
+        message:
+          refusal.mediaItemIds.length === 0
+            ? "This collection has nothing to air"
+            : `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
         mediaItemIds: refusal.mediaItemIds,
       };
   }
@@ -128,8 +131,8 @@ export function describeRefusal(refusal: ReservationRefusal): {
 
 /**
  * Explains a previewed reservation: its exact range, the programs it airs,
- * the planned filler before it and inside its range, and the ordinary
- * program deferred past it. The start is an exact commitment, unlike a
+ * the planned filler before it and inside its range, the ordinary program
+ * deferred past it, and the ordinary program that resumes after it. The start is an exact commitment, unlike a
  * programming rule's soft calendar preference. Beyond the horizon the
  * ordinary programming around it is not planned yet, so nothing is shown
  * before it or displaced, and a collection's programs are estimated: they
@@ -157,14 +160,15 @@ export function toApiReservationPreview(
   const inside = filler.find(
     (interval) => interval.startsAt >= preview.startsAt,
   );
-  const deferred =
-    before === undefined || preview.beyondHorizon
-      ? undefined
-      : preview.entries.find(
-          (entry) =>
-            entry.startsAt >= preview.endsAt &&
-            entry.programmingBlockId !== preview.reservationBlockId,
-        );
+  const resumes = preview.beyondHorizon
+    ? undefined
+    : preview.entries.find(
+        (entry) =>
+          entry.startsAt >= preview.endsAt &&
+          entry.programmingBlockId !== preview.reservationBlockId,
+      );
+  // The program a lead-in filler pushed past the special is the one resuming.
+  const deferred = before === undefined ? undefined : resumes;
   const interval = (item: { startsAt: number; endsAt: number }) => ({
     startsAt: toApiTimestamp(item.startsAt),
     endsAt: toApiTimestamp(item.endsAt),
@@ -192,6 +196,14 @@ export function toApiReservationPreview(
       deferred === undefined
         ? null
         : { mediaItemId: deferred.mediaItemId, title: deferred.title },
+    resumesWith:
+      resumes === undefined
+        ? null
+        : {
+            mediaItemId: resumes.mediaItemId,
+            title: resumes.title,
+            startsAt: toApiTimestamp(resumes.startsAt),
+          },
     conflicts: [],
   };
 }

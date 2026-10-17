@@ -92,8 +92,12 @@ const previewSource = z.discriminatedUnion("kind", [
     playbackMode: z.enum(["chronological", "episode", "release"]),
   }),
 ]);
+// An edit's preview names the special it replaces, which it leaves out.
 const previewBody = withRangeChecks(
-  reservationObject.extend({ source: previewSource }),
+  reservationObject.extend({
+    source: previewSource,
+    replacesReservationId: z.string().optional(),
+  }),
 );
 const createBody = withRangeChecks(
   reservationObject.extend({

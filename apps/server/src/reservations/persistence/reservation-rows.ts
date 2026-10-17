@@ -158,6 +158,39 @@ export async function deleteEndedReservations(
     .execute();
 }
 
+/** A reservation that refuses removing what it plays, as an owner finds it. */
+export interface BlockingReservation {
+  id: string;
+  channelId: string;
+  startsAt: number;
+}
+
+/**
+ * Lists the reservations that have not ended by `now` and play a collection
+ * or any of the given media items, in start order: the specials a removal
+ * or collection delete names so the owner can edit or cancel them first
+ * (programming spec 0007).
+ */
+export async function listBlockingReservations(
+  trx: Executor,
+  playing: { mediaCollectionId: string } | { mediaItemIds: RawBuilder<string> },
+  now: number,
+): Promise<BlockingReservation[]> {
+  const rows = await trx
+    .selectFrom("reservations")
+    .select(["id", "channel_id", "starts_at"])
+    .where("ends_at", ">", now)
+    .where((eb) => playingFilter(eb, playing))
+    .orderBy("starts_at")
+    .orderBy("id")
+    .execute();
+  return rows.map((row) => ({
+    id: row.id,
+    channelId: row.channel_id,
+    startsAt: row.starts_at,
+  }));
+}
+
 /**
  * Writes every cut a reservation made that has already aired into the cut
  * entry's stored end, before the reservation is deleted (ADR 0015): an aired

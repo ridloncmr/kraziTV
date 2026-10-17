@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BlockingSpecials } from "../../controls/blocking-specials.js";
 import { displayClockTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
@@ -31,11 +32,14 @@ export function RemoveMediaDialog({
   subject,
   removed,
   onClose,
+  onOpenChannels,
 }: {
   subject: RemovalSubject;
   /** Called with the feedback line once the server committed the removal. */
   removed: (feedback: string) => void;
   onClose: () => void;
+  /** Opens My Channels, where a special that blocks the removal is resolved. */
+  onOpenChannels?: () => void;
 }) {
   // Built once, so the preview's POST body keeps its identity across renders.
   const [previewBody] = useState(() => ({ target: toTarget(subject) }));
@@ -80,6 +84,11 @@ export function RemoveMediaDialog({
             {refusalMessage(failure, numberOf) ?? failure.message}
           </p>
         )}
+        <BlockingSpecials
+          error={failure}
+          channelNumber={numberOf}
+          onOpenChannels={onOpenChannels}
+        />
         <div className="dialog-actions">
           <button onClick={onClose}>Close</button>
         </div>

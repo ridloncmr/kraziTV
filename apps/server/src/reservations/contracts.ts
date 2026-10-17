@@ -29,9 +29,14 @@ export interface FromBeginningSource {
   playbackMode: Exclude<PlaybackMode, "random">;
 }
 
-/** What a preview takes: what a save takes, or a collection from the beginning. */
+/**
+ * What a preview takes: what a save takes, or a collection from the
+ * beginning, and for an edit the reservation it would replace, which the
+ * preview leaves out as the save will.
+ */
 export type PreviewSettings = Omit<ReservationSettings, "source"> & {
   source: ReservationSourceSettings | FromBeginningSource;
+  replacesReservationId?: string;
 };
 
 /**

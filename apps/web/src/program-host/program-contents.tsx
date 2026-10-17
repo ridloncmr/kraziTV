@@ -14,7 +14,7 @@ import type { AccountProfile } from "../http/contracts.js";
  * Memoized because the shell re-renders on every window move, focus and health poll; a program
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
- * `onTmdbKeyChanged` stable and changes `tmdbTaskRequest` only when the tray asks.
+ * `onTmdbKeyChanged` and `openProgram` stable and changes `tmdbTaskRequest` only when the tray asks.
  */
 export const ProgramContents = memo(function ProgramContents({
   id,
@@ -24,6 +24,7 @@ export const ProgramContents = memo(function ProgramContents({
   onAccountChanged,
   tmdbTaskRequest,
   onTmdbKeyChanged,
+  openProgram,
 }: {
   id: ProgramId;
   visible: boolean;
@@ -32,14 +33,19 @@ export const ProgramContents = memo(function ProgramContents({
   onAccountChanged: (account: AccountProfile) => void;
   tmdbTaskRequest: number;
   onTmdbKeyChanged: () => void;
+  /** Opens another program, as a refusal's link to where it is resolved does. */
+  openProgram: (id: ProgramId) => void;
 }) {
+  const openChannels = () => openProgram("channels");
   switch (id) {
     case "channels":
       return <ChannelsApp visible={visible} />;
     case "media":
-      return <MediaLibraryApp visible={visible} />;
+      return (
+        <MediaLibraryApp visible={visible} onOpenChannels={openChannels} />
+      );
     case "collections":
-      return <CollectionsApp visible={visible} />;
+      return <CollectionsApp visible={visible} onOpenChannels={openChannels} />;
     case "guide":
       return <ProgramGuideApp visible={visible} />;
     case "plex":

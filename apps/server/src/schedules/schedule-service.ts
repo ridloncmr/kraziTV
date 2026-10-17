@@ -419,8 +419,9 @@ export class ScheduleService {
             };
           }
         }
+        const { replacesReservationId, ...asSaved } = previewed;
         const settings: ReservationSettings = {
-          ...previewed,
+          ...asSaved,
           source:
             previewed.source.kind === "collection_from_beginning"
               ? { kind: "media_items", mediaItemIds: resolved ?? [] }
@@ -431,6 +432,7 @@ export class ScheduleService {
           channelId,
           settings,
           effectiveNow,
+          replacesReservationId,
         );
         if (range.kind !== "resolved") {
           return { kind: "refused", refusal: range, scheduleRevision };
@@ -448,6 +450,7 @@ export class ScheduleService {
             state,
             effectiveNow,
             reservation,
+            replacesReservationId,
           );
         if (generated.kind === "unschedulable") {
           return { ...generated, scheduleRevision };
@@ -508,8 +511,9 @@ export class ScheduleService {
   /**
    * Runs kraziPlan from the regeneration boundary on copied inputs, as a
    * regeneration from now would, adding a reservation not yet saved when
-   * one is given and generating through at least its end. The one
-   * generator both previews share; it never writes.
+   * one is given, in place of `replaced` for an edit, and generating
+   * through at least its end. The one generator both previews share; it
+   * never writes.
    */
   async #previewGeneration(
     trx: Kysely<DatabaseSchema>,
@@ -517,12 +521,15 @@ export class ScheduleService {
     state: ScheduleState | undefined,
     effectiveNow: number,
     added?: Reservation,
+    replaced?: string,
   ) {
     // An unsaved interrupting reservation cuts what airs at its start
     // (ADR 0015); a save refuses any other that starts before the boundary.
     const boundary = Math.min(
       findRegenerationBoundary(
-        await findAiringItem(trx, channelId, effectiveNow),
+        await findAiringItem(trx, channelId, effectiveNow, {
+          ...(replaced === undefined ? {} : { excludeReservationId: replaced }),
+        }),
         effectiveNow,
       ),
       added?.startsAt ?? Infinity,
@@ -533,10 +540,13 @@ export class ScheduleService {
       boundary,
       boundary,
     );
+    const kept = stored.reservations.filter(
+      (reservation) => reservation.id !== replaced,
+    );
     const inputs =
       added === undefined
         ? stored
-        : { ...stored, reservations: [...stored.reservations, added] };
+        : { ...stored, reservations: [...kept, added] };
     const anchorTime = state?.anchorTime ?? effectiveNow;
     let previewed = 0;
     const generated = generateProgramming({

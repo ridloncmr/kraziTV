@@ -233,6 +233,7 @@ describe("MediaCollectionRepository", () => {
     await expect(repository.delete("collection-001")).resolves.toEqual({
       kind: "in_use",
       channelIds: [channelFixture.id, "channel-second"],
+      reservations: [],
     });
     await expect(repository.listMembers("collection-001")).resolves.toEqual([
       expect.objectContaining({ mediaItemId: "item-a" }),

@@ -338,11 +338,16 @@ describe("reservation routes", () => {
     expect(listed).toContain("specials-3@300-350");
   });
 
-  it("refuses removing media or deleting a collection a reservation plays", async () => {
+  it("refuses removing media or deleting a collection a reservation plays, naming the special", async () => {
     const { server, db, movie } = await scheduled();
     await insertCollectionOfItems(db, "specials", [50 * MINUTE]);
-    await saveReservation(server, "POST", URL, itemsBody(at(60), [movie]));
-    await saveReservation(server, "POST", URL, {
+    const movieNight = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
+    const marathon = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(300)),
       endsAt: iso(at(400)),
       source: {
@@ -365,9 +370,21 @@ describe("reservation routes", () => {
     expect(removal.body.error).toMatchObject({
       code: "media_item_in_use",
       channelIds: [CHANNEL_ID],
+      reservations: [
+        {
+          id: movieNight.body.id,
+          channelId: CHANNEL_ID,
+          startsAt: iso(at(60)),
+        },
+      ],
     });
     expect(deletion.status).toBe(409);
-    expect(deletion.body.error.code).toBe("media_collection_in_use");
+    expect(deletion.body.error).toMatchObject({
+      code: "media_collection_in_use",
+      reservations: [
+        { id: marathon.body.id, channelId: CHANNEL_ID, startsAt: iso(at(300)) },
+      ],
+    });
   });
 });
 

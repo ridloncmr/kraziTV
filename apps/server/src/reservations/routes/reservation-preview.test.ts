@@ -72,6 +72,11 @@ describe("POST /channels/:id/reservations/preview", () => {
       fillerBefore: { startsAt: iso(at(45)), endsAt: iso(at(60)) },
       fillerInside: null,
       deferredProgram: { mediaItemId: "item-003", title: "Item 3" },
+      resumesWith: {
+        mediaItemId: "item-003",
+        title: "Item 3",
+        startsAt: iso(at(150)),
+      },
       conflicts: [],
     });
 
@@ -320,6 +325,30 @@ describe("POST /channels/:id/reservations/preview", () => {
 
       expect(random.body.error.code).toBe("invalid_request");
       expect(saved.body.error.code).toBe("invalid_request");
+    });
+  });
+
+  it("previews an edit without the special it replaces", async () => {
+    const { server, movie } = await scheduled();
+    const saved = await saveReservation(
+      server,
+      "POST",
+      RESERVATIONS,
+      movieAt(movie, at(60)),
+    );
+
+    const asNew = await send(server, "POST", PREVIEW, movieAt(movie, at(90)));
+    const asEdit = await send(server, "POST", PREVIEW, {
+      ...movieAt(movie, at(90)),
+      replacesReservationId: saved.body.id,
+    });
+
+    expect(asNew.body.conflicts).toMatchObject([
+      { code: "reservation_overlap" },
+    ]);
+    expect(asEdit.body).toMatchObject({
+      conflicts: [],
+      programs: [{ mediaItemId: movie, startsAt: iso(at(90)) }],
     });
   });
 });
