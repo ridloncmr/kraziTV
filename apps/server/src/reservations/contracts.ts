@@ -144,6 +144,13 @@ export type ReservationPreview =
       startsAt: number;
       endsAt: number;
       endKind: SavedReservation["endKind"];
+      /**
+       * Whether it starts past the channel's coverage, where ordinary
+       * programming is planned only when generation reaches it.
+       */
+      beyondHorizon: boolean;
+      /** What it airs: a collection's programs are estimated beyond the horizon. */
+      sourceKind: ReservationSourceSettings["kind"];
       /** Where the previewed programming starts: after what airs now. */
       boundary: number;
       reservations: Reservation[];

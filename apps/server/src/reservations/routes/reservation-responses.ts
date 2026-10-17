@@ -130,7 +130,10 @@ export function describeRefusal(refusal: ReservationRefusal): {
  * Explains a previewed reservation: its exact range, the programs it airs,
  * the planned filler before it and inside its range, and the ordinary
  * program deferred past it. The start is an exact commitment, unlike a
- * programming rule's soft calendar preference.
+ * programming rule's soft calendar preference. Beyond the horizon the
+ * ordinary programming around it is not planned yet, so nothing is shown
+ * before it or displaced, and a collection's programs are estimated: they
+ * depend on progress when generation reaches them (programming spec 0007).
  */
 export function toApiReservationPreview(
   channelId: string,
@@ -155,7 +158,7 @@ export function toApiReservationPreview(
     (interval) => interval.startsAt >= preview.startsAt,
   );
   const deferred =
-    before === undefined
+    before === undefined || preview.beyondHorizon
       ? undefined
       : preview.entries.find(
           (entry) =>
@@ -172,12 +175,15 @@ export function toApiReservationPreview(
     startsAt: toApiTimestamp(preview.startsAt),
     endsAt: toApiTimestamp(preview.endsAt),
     endKind: preview.endKind,
+    beyondHorizon: preview.beyondHorizon,
     programs: reserved.map((entry) => ({
       mediaItemId: entry.mediaItemId,
       title: entry.title,
       ...interval(entry),
+      estimated: preview.beyondHorizon && preview.sourceKind === "collection",
     })),
-    fillerBefore: before === undefined ? null : interval(before),
+    fillerBefore:
+      before === undefined || preview.beyondHorizon ? null : interval(before),
     fillerInside: inside === undefined ? null : interval(inside),
     deferredProgram:
       deferred === undefined

@@ -56,12 +56,14 @@ describe("POST /channels/:id/reservations/preview", () => {
       startsAt: iso(at(60)),
       endsAt: iso(at(150)),
       endKind: "program_derived",
+      beyondHorizon: false,
       programs: [
         {
           mediaItemId: movie,
           title: movie,
           startsAt: iso(at(60)),
           endsAt: iso(at(150)),
+          estimated: false,
         },
       ],
       // The third episode would end at 69, so it waits until after the movie.
@@ -154,5 +156,66 @@ describe("POST /channels/:id/reservations/preview", () => {
     ).flatMap((turn) => turn.programs.map(({ mediaItemId }) => mediaItemId));
     expect(aired.length).toBeGreaterThan(0);
     expect(aired).not.toContain(movie);
+  });
+
+  describe("beyond the horizon", () => {
+    const DAY = 24 * 60 * MINUTE;
+    const later = T0 + 5 * DAY;
+
+    it("says the surrounding schedule is planned later and displaces nothing, previewing listed items exactly", async () => {
+      const { server, movie } = await scheduled();
+
+      const preview = await send(
+        server,
+        "POST",
+        PREVIEW,
+        movieAt(movie, later),
+      );
+
+      expect(preview.body).toMatchObject({
+        beyondHorizon: true,
+        programs: [
+          { mediaItemId: movie, startsAt: iso(later), estimated: false },
+        ],
+        fillerBefore: null,
+        deferredProgram: null,
+      });
+    });
+
+    it("marks a collection's programs as estimated", async () => {
+      const { server } = await scheduled();
+
+      const preview = await send(server, "POST", PREVIEW, {
+        startsAt: iso(later),
+        endsAt: iso(later + 120 * MINUTE),
+        source: {
+          kind: "collection",
+          mediaCollectionId: "movies",
+          playbackMode: "chronological",
+        },
+      });
+
+      expect(preview.body.beyondHorizon).toBe(true);
+      expect(preview.body.programs).toMatchObject([
+        { startsAt: iso(later), estimated: true },
+      ]);
+    });
+
+    it("treats a special inside the horizon as planned", async () => {
+      const { server } = await scheduled();
+
+      const preview = await send(server, "POST", PREVIEW, {
+        startsAt: iso(at(60)),
+        endsAt: iso(at(180)),
+        source: {
+          kind: "collection",
+          mediaCollectionId: "movies",
+          playbackMode: "chronological",
+        },
+      });
+
+      expect(preview.body.beyondHorizon).toBe(false);
+      expect(preview.body.programs).toMatchObject([{ estimated: false }]);
+    });
   });
 });

@@ -431,6 +431,12 @@ export class ScheduleService {
           startsAt: reservation.startsAt,
           endsAt: reservation.endsAt,
           endKind: range.endKind,
+          // Coverage read in the preview's own snapshot; none yet means the
+          // first save plans everything, so nothing is planned already.
+          beyondHorizon:
+            reservation.startsAt >=
+            (state?.lastGeneratedThrough ?? effectiveNow),
+          sourceKind: settings.source.kind,
           boundary,
           reservations,
           reservationBlockId: generated.blocks.find(
