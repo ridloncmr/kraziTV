@@ -2,7 +2,10 @@ import type {
   GeneratedScheduleEntry,
   ScheduleMedia,
 } from "../../schedule/contracts.js";
-import { isSchedulableMedia } from "../../schedule/schedule-policy.js";
+import {
+  fitsBefore,
+  isSchedulableMedia,
+} from "../../schedule/schedule-policy.js";
 import type {
   GeneratedBlock,
   Reservation,
@@ -121,7 +124,7 @@ export function airListedItems(
   for (const media of items.slice(next).filter(isSchedulableMedia)) {
     // The schedulability filter guarantees an integer duration.
     const durationMs = media.durationMs ?? 0;
-    if (at + durationMs > endsAt) break;
+    if (!fitsBefore(at, durationMs, endsAt)) break;
     if (entries.length === maxEntries) return { entries, done: false };
     entries.push({
       mediaItemId: media.id,

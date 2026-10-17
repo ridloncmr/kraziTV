@@ -46,3 +46,16 @@ export function findUnschedulableReason(
     ? null
     : "no_schedulable_members";
 }
+
+/**
+ * Whether a program starting at `startsAt` ends at or before a hard end,
+ * such as a reservation's start or end: the one fit rule (programming spec
+ * 0006). A program that does not fit is deferred whole, never cut.
+ */
+export function fitsBefore(
+  startsAt: number,
+  durationMs: number,
+  hardEnd: number,
+): boolean {
+  return startsAt + durationMs <= hardEnd;
+}

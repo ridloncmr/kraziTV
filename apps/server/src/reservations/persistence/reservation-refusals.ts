@@ -1,5 +1,6 @@
 import {
   findRegenerationBoundary,
+  fitsBefore,
   isPlayableMedia,
   isSchedulableMedia,
 } from "@krazitv/krazi-brain";
@@ -49,10 +50,10 @@ export async function resolveReservationRange(
   if (startsAt < boundary) {
     return { kind: "reservation_crosses_airing", airingEndsAt: boundary };
   }
-  const programsEndAt =
-    startsAt + durations.reduce((total, duration) => total + duration, 0);
+  const programsMs = durations.reduce((total, duration) => total + duration, 0);
+  const programsEndAt = startsAt + programsMs;
   const endsAt = settings.endsAt ?? programsEndAt;
-  if (programsEndAt > endsAt) {
+  if (!fitsBefore(startsAt, programsMs, endsAt)) {
     return { kind: "reservation_does_not_fit", programsEndAt };
   }
   const overlapping = await trx

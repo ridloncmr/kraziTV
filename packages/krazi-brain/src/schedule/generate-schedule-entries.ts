@@ -9,7 +9,7 @@ import type {
 } from "./contracts.js";
 import { orderMembers } from "./ordered-view.js";
 import { selectOrdered, selectRandom } from "./playback-selection.js";
-import { findUnschedulableReason } from "./schedule-policy.js";
+import { findUnschedulableReason, fitsBefore } from "./schedule-policy.js";
 import { deriveCollectionSeed } from "./seeded-hash.js";
 
 interface GenerateScheduleEntriesOptions {
@@ -141,7 +141,7 @@ export function generateScheduleEntries(
     const durationMs = airing.media.durationMs ?? 0;
     if (
       options.hardEnd !== undefined &&
-      nextStartsAt + durationMs > options.hardEnd
+      !fitsBefore(nextStartsAt, durationMs, options.hardEnd)
     ) {
       deferred = true;
       break;

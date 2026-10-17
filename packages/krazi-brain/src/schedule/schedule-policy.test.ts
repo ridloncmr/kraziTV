@@ -7,6 +7,7 @@ import {
   isSchedulableMedia,
   MIN_SCHEDULABLE_DURATION_MS,
   SCHEDULE_HORIZON_MS,
+  fitsBefore,
 } from "./schedule-policy.js";
 
 function collectionOf(members: ScheduleMedia[]): ScheduleSource {
@@ -87,5 +88,12 @@ describe("findUnschedulableReason", () => {
       media: scheduleMedia("a"),
     };
     expect(findUnschedulableReason(source)).toBeNull();
+  });
+});
+
+describe("fitsBefore", () => {
+  it("lets a program end exactly at the hard end and defers one that would end past it", () => {
+    expect(fitsBefore(0, 60_000, 60_000)).toBe(true);
+    expect(fitsBefore(0, 60_001, 60_000)).toBe(false);
   });
 });

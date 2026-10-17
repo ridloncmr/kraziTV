@@ -71,6 +71,7 @@ export {
 } from "./schedule/regeneration.js";
 export {
   SCHEDULE_HORIZON_MS,
+  fitsBefore,
   isSchedulableMedia,
 } from "./schedule/schedule-policy.js";
 export {
