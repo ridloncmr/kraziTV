@@ -5,10 +5,12 @@ import {
 import { pino } from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { send } from "../testing/api-requests.js";
+import { iso, send } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
+import { RecordingSignalPackager } from "../testing/recording-signal-packager.js";
+import { saveReservation } from "../testing/reservation-fixtures.js";
 import {
   seedScheduleScenario,
   type ScheduleScenarioOptions,
@@ -61,6 +63,7 @@ async function startStreamingServer(
 ) {
   const clock = manualClock(FIXTURE_TIME);
   const packager = new ScriptedSignalPackager();
+  const recording = new RecordingSignalPackager(packager);
   const timers = new SystemRuntime();
   const { server } = await startTestServer({
     seed: async (db) => {
@@ -78,7 +81,7 @@ async function startStreamingServer(
         channels: defaults.channels,
         log: pino({ level: "silent" }),
         programmingTimezone: "UTC",
-        packager,
+        packager: recording,
         runtime: {
           now: clock.now,
           setTimeout: (callback, delayMs) =>
@@ -98,7 +101,7 @@ async function startStreamingServer(
   });
   await server.ready();
   clock.set(MID_SECOND);
-  return { server, packager };
+  return { server, packager, recording, clock };
 }
 
 describe("channel stream acceptance", () => {
@@ -335,5 +338,39 @@ describe("server shutdown", () => {
     const { response } = await tune;
     expect(response.statusCode).toBe(503);
     expect(packager.sessions[0]?.stopped).toBe(true);
+  });
+});
+
+describe("interrupting reservations", () => {
+  it("cuts into a special started now on the live signal without dropping the viewer", async () => {
+    const { server, recording, clock } = await startStreamingServer();
+    const baseUrl = await listenOnLoopback(server);
+    const viewer = await openStreamRequest(`${baseUrl}${STREAM_URL}`);
+    await readChunk(viewer.response);
+    clock.set(MID_SECOND + MINUTE);
+
+    const created = await saveReservation(
+      server,
+      "POST",
+      `${CHANNEL_URL}/reservations`,
+      {
+        startsAt: "now",
+        interrupts: true,
+        source: { kind: "media_items", mediaItemIds: ["item-001"] },
+      },
+    );
+
+    expect(created.status).toBe(201);
+    expect(created.body.startsAt).toBe(iso(MID_SECOND + MINUTE));
+    await vi.waitFor(() =>
+      expect(recording.sessions[0]?.commits).toHaveLength(1),
+    );
+    expect(recording.sessions).toHaveLength(1);
+    expect(recording.sessions[0]?.commits[0]?.item).toMatchObject({
+      kind: "program",
+      mediaItemId: "item-001",
+      mediaOffsetMs: 0,
+    });
+    expect(viewer.response.closed).toBe(false);
   });
 });

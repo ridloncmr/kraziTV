@@ -31,12 +31,12 @@ const collections = [
 ];
 
 // Serves two collections, favorites holding both fixture media, and renders the program.
-function renderApp() {
+function renderApp(onOpenChannels?: () => void) {
   const api = new BrowserApi();
   api.reply("/media-collections", collections);
   serveCollection(api, "favorites", ["z", "a"]);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(CollectionsApp, { visible: true }));
+  render(createElement(CollectionsApp, { visible: true, onOpenChannels }));
   return api;
 }
 
@@ -183,6 +183,45 @@ it("reports a rejected delete inside its confirmation", async () => {
       await screen.findByText("A channel programs from this collection")
     ).closest('[role="dialog"]'),
   ).toBe(screen.getByRole("dialog", { name: "Delete collection" }));
+});
+
+it("names the special a refused delete waits on and opens My Channels to change it", async () => {
+  const openChannels = vi.fn();
+  const api = renderApp(openChannels);
+  api.reply("/channels", adminFixtures.channels);
+  api.reply(
+    "/media-collections/favorites",
+    {
+      error: {
+        code: "media_collection_in_use",
+        message: "Media collection favorites is played by reservations",
+        channelIds: ["one"],
+        reservations: [
+          {
+            id: "special-1",
+            channelId: "one",
+            startsAt: "2026-10-31T00:00:00.000Z",
+          },
+        ],
+      },
+    },
+    "DELETE",
+    409,
+  );
+  await open("Favorites");
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Delete collection" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Delete collection permanently" }),
+  );
+
+  const blocking = await screen.findByLabelText("Blocking specials");
+  await within(blocking).findByText(/Channel 69 · special at/);
+  fireEvent.click(
+    within(blocking).getByRole("button", { name: "Open My Channels" }),
+  );
+  expect(openChannels).toHaveBeenCalledOnce();
 });
 
 it("marks an automatic card kept incomplete by expired TMDB data", async () => {

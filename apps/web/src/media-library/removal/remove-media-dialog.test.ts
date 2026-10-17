@@ -87,12 +87,12 @@ async function findSelectionDelete() {
 }
 
 /** The Media Library over one root and the two fixture items. */
-function renderLibrary() {
+function renderLibrary(onOpenChannels?: () => void) {
   const api = new BrowserApi();
   api.reply("/media-roots", [mediaRoot()]);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(createElement(MediaLibraryApp, { visible: true, onOpenChannels }));
   return api;
 }
 
@@ -316,6 +316,41 @@ it("names a single channel playing an item directly", async () => {
   await screen.findByText(
     "Channel 69 plays an item from this media root directly. Change that block first.",
   );
+});
+
+it("names the special that plays an item and opens My Channels to change it", async () => {
+  const openChannels = vi.fn();
+  const api = renderLibrary(openChannels);
+  api.reply("/channels", adminFixtures.channels);
+  api.reply(
+    PREVIEW,
+    {
+      error: {
+        code: "media_item_in_use",
+        message: "server text",
+        channelIds: ["one"],
+        mediaItemIds: ["z"],
+        reservations: [
+          {
+            id: "special-1",
+            channelId: "one",
+            startsAt: "2026-10-31T00:00:00.000Z",
+          },
+        ],
+      },
+    },
+    "POST",
+    409,
+  );
+  fireEvent.click(await rootDelete());
+
+  const blocking = await screen.findByLabelText("Blocking specials");
+  // The channel number arrives with the channel list the refusal loads.
+  await within(blocking).findByText(/Channel 69 · special at/);
+  fireEvent.click(
+    within(blocking).getByRole("button", { name: "Open My Channels" }),
+  );
+  expect(openChannels).toHaveBeenCalledOnce();
 });
 
 it("shows a changed impact and asks again when the removal finds new channels left unschedulable", async () => {

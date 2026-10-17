@@ -17,6 +17,7 @@ import {
 import {
   insertMovie,
   reserveItems,
+  saveReservation,
 } from "../../testing/reservation-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
@@ -171,7 +172,7 @@ describe("planned filler on the signal port", () => {
       scheduleRevision: (await readOnlyScheduleState(db)).schedule_revision,
     };
     // The worker prepared the filler; then the owner moved the movie to 75.
-    await send(server, "PATCH", reservationUrl, {
+    await saveReservation(server, "PATCH", reservationUrl, {
       startsAt: iso(at(75)),
       source: { kind: "media_items", mediaItemIds: ["movies-1"] },
     });

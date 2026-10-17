@@ -35,6 +35,8 @@ export type PendingLifecycle = {
   readonly observation: WorkerObservation;
   readonly publicationInterruption: Interruption;
   worker?: ManagedChannelWorker;
+  /** A schedule changed before the worker was ready; it is told once it is. */
+  scheduleChangeNoticed: boolean;
   cancelling: boolean;
   cleanupError?: unknown;
 };

@@ -20,3 +20,26 @@ export function startsAlignedPacketRun(
   }
   return true;
 }
+
+/** Extracts the MPEG-TS PID while masking transport-error and payload flags. */
+export function packetPid(buffer: Buffer, offset: number): number {
+  return ((buffer[offset + 1] ?? 0) & 0x1f) * 256 + (buffer[offset + 2] ?? 0);
+}
+
+/**
+ * Reports whether the packet at `offset` begins a PES packet: its payload
+ * unit starts with the PES start code. Program tables also set the
+ * unit-start flag, but start with a pointer field instead.
+ */
+export function startsPesPacket(buffer: Buffer, offset: number): boolean {
+  if (((buffer[offset + 1] ?? 0) & 0x40) === 0) return false;
+  const adaptation = ((buffer[offset + 3] ?? 0) >> 4) & 0x3;
+  if ((adaptation & 0x1) === 0) return false;
+  const payload =
+    offset + 4 + (adaptation === 0x3 ? 1 + (buffer[offset + 4] ?? 0) : 0);
+  return (
+    buffer[payload] === 0x00 &&
+    buffer[payload + 1] === 0x00 &&
+    buffer[payload + 2] === 0x01
+  );
+}

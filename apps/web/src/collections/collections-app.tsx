@@ -17,7 +17,14 @@ import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
  * it while a draft is unsaved is blocked, because the draft would be dropped
  * silently.
  */
-export function CollectionsApp({ visible }: { visible: boolean }) {
+export function CollectionsApp({
+  visible,
+  onOpenChannels,
+}: {
+  visible: boolean;
+  /** Opens My Channels, where a special blocking a delete is resolved. */
+  onOpenChannels?: () => void;
+}) {
   const collections = useResource<MediaCollectionSummary[]>(
     "/media-collections",
     visible,
@@ -78,6 +85,7 @@ export function CollectionsApp({ visible }: { visible: boolean }) {
               collections.refresh();
             }}
             onDirtyChange={setDirty}
+            onOpenChannels={onOpenChannels}
           />
         </>
       ) : (

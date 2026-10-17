@@ -4,6 +4,7 @@ import type {
   PlayoutEntry,
   PlayoutItem,
 } from "./contracts.js";
+import { cutAtReservations } from "./cuts.js";
 import { findFillerAt, type FillerInputs } from "./filler.js";
 import { itemStartingAt } from "./playout-item.js";
 
@@ -28,11 +29,11 @@ export function assertFollowingCount(count: number): void {
  * A program cursor is stale when its entry is gone; a filler cursor when no
  * filler ends at its instant any more (ADR 0014). `entries` must be in
  * start order and hold the cursor's entry, or the program before a filler
- * cursor, and the entries after it.
+ * cursor, and the entries after it. They are read with their cuts.
  */
 export function selectFollowingPlayout({
   cursor,
-  entries,
+  entries: stored,
   count,
   ...filler
 }: FillerInputs & {
@@ -41,6 +42,7 @@ export function selectFollowingPlayout({
   count: number;
 }): FollowingPlayout {
   assertFollowingCount(count);
+  const entries = cutAtReservations(stored, filler.reservations);
   const base = {
     channelId: filler.channelId,
     scheduleRevision: filler.scheduleRevision,

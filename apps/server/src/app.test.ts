@@ -29,6 +29,7 @@ import { ControlledChannelStreams } from "./testing/controlled-channel-streams.j
 import { plexSettingsFixture } from "./testing/plex-fixtures.js";
 import { IdleMetadataRefresh } from "./testing/idle-metadata-refresh.js";
 import { SignedInAuthenticator } from "./testing/signed-in-authenticator.js";
+import { RecordingChannelRuntime } from "./testing/recording-channel-runtime.js";
 
 const servers: ReturnType<typeof buildServer>[] = [];
 
@@ -61,7 +62,7 @@ function createDependencies(
       purge: async () => undefined,
     } as Partial<CatalogRemovalService> as CatalogRemovalService,
     channels: {} as ChannelRepository,
-    channelRuntime: { stopChannel: async () => undefined },
+    channelRuntime: new RecordingChannelRuntime(),
     channelStreams,
     assignments: {} as AssignmentRepository,
     rules: {} as RuleRepository,

@@ -34,6 +34,7 @@ import {
   runningFfmpegProcesses,
 } from "../src/testing/real-ffmpeg.js";
 import { RecordingSignalPackager } from "../src/testing/recording-signal-packager.js";
+import { saveReservation } from "../src/testing/reservation-fixtures.js";
 import {
   seedScheduleScenario,
   type ScheduleItemSpec,
@@ -332,7 +333,7 @@ describe("real FFmpeg reserved start", () => {
       // The next episode would end past the reservation, so filler covers
       // three seconds after the first one before the reserved program.
       const reservedAt = first.ends_at + 3_000;
-      const created = await send(
+      const created = await saveReservation(
         server,
         "POST",
         `/channels/${CHANNEL_ID}/reservations`,
@@ -367,6 +368,120 @@ describe("real FFmpeg reserved start", () => {
       const watchedMs = Date.now() - viewer.tunedAt;
       expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
         watchedMs - DRIFT_CEILING_MS,
+      );
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("real FFmpeg cut", () => {
+  it.each([
+    { name: "at a later instant", startsAt: "later" as const },
+    { name: "now", startsAt: "now" as const },
+  ])(
+    "cuts the airing program $name into the special within a second on one signal",
+    async ({ startsAt }) => {
+      const { server, baseUrl, packager, entries } = await startRealChannel();
+      const first = entryAt(entries, 0);
+      await sleepUntil(first.starts_at + 1_000);
+      const viewer = await tune(baseUrl);
+      await receivesBytes(viewer);
+      // Two seconds into the six-second first program: cut it at three
+      // seconds, or as soon as the owner saves.
+      await sleepUntil(first.starts_at + 2_000);
+      const savedAt = Date.now();
+
+      const created = await saveReservation(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations`,
+        {
+          startsAt: startsAt === "now" ? "now" : iso(first.starts_at + 3_000),
+          interrupts: true,
+          source: { kind: "media_items", mediaItemIds: ["item-002"] },
+        },
+      );
+      expect(created.status, "reservation status").toBe(201);
+      const cutAt = Date.parse(created.body.startsAt as string);
+      expect(cutAt).toBeGreaterThanOrEqual(savedAt - 1_000);
+      await sleepUntil(cutAt + 2_000);
+
+      expect(packager.sessions).toHaveLength(1);
+      const [special] = packager.sessions[0]?.commits ?? [];
+      expect(special?.item).toMatchObject({
+        kind: "program",
+        mediaItemId: "item-002",
+      });
+      // Spec 0007's exact-start tolerance: within a second of the cut.
+      expect(special?.committedAt).toBeGreaterThanOrEqual(cutAt);
+      expect(special?.committedAt).toBeLessThan(cutAt + 1_000);
+      expect(viewer.response.closed).toBe(false);
+      const watchedMs = Date.now() - viewer.tunedAt;
+      expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
+        watchedMs - DRIFT_CEILING_MS,
+      );
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("real FFmpeg early end", () => {
+  it(
+    "ends a running special inside its program and cuts to ordinary programming within a second",
+    async () => {
+      const { server, baseUrl, packager, entries } = await startRealChannel();
+      const first = entryAt(entries, 0);
+      // The special airs the six-second second file from the first one's end.
+      const reservation = await saveReservation(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations`,
+        {
+          startsAt: iso(first.ends_at),
+          source: { kind: "media_items", mediaItemIds: ["item-002"] },
+        },
+      );
+      expect(reservation.status, "reservation status").toBe(201);
+      await sleepUntil(first.starts_at + 1_000);
+      const viewer = await tune(baseUrl);
+      await receivesBytes(viewer);
+      await sleepUntil(first.ends_at + 1_000);
+      const cutAt = first.ends_at + 3_000;
+
+      const ended = await send(
+        server,
+        "POST",
+        `/channels/${CHANNEL_ID}/reservations/${reservation.body.id as string}/end`,
+        { endsAt: iso(cutAt) },
+      );
+      expect(ended.status, "end status").toBe(200);
+      await sleepUntil(cutAt + 2_000);
+
+      expect(packager.sessions).toHaveLength(1);
+      expect(packager.sessions[0]?.commits).toHaveLength(2);
+      const [special, resumed] = packager.sessions[0]?.commits ?? [];
+      expect(special?.item).toMatchObject({ mediaItemId: "item-002" });
+      // Ordinary programming resumes at the cut with its own entry: listed
+      // items consume no progress, so rotation may air the same file.
+      expect(resumed?.item).toMatchObject({
+        kind: "program",
+        mediaOffsetMs: 0,
+      });
+      expect(
+        resumed?.item.kind === "program" && special?.item.kind === "program"
+          ? resumed.item.scheduleEntryId !== special.item.scheduleEntryId
+          : false,
+      ).toBe(true);
+      expect(resumed?.committedAt).toBeGreaterThanOrEqual(cutAt);
+      expect(resumed?.committedAt).toBeLessThan(cutAt + 1_000);
+      expect(viewer.response.closed).toBe(false);
+      // One drift ceiling per transition: this viewer crosses two, into the
+      // special and at the cut, and the cut also drops what the truncated
+      // FFmpeg process had not yet emitted. Under the full suite's load the
+      // shortfall measured about 2.4 seconds, past a single ceiling.
+      const watchedMs = Date.now() - viewer.tunedAt;
+      expect(decodedVideoMs(viewer.capture())).toBeGreaterThan(
+        watchedMs - 2 * DRIFT_CEILING_MS,
       );
     },
     TEST_TIMEOUT_MS,

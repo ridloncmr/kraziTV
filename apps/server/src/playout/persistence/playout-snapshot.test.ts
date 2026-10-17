@@ -14,7 +14,7 @@ import {
 } from "../../testing/test-environment.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
 import type { CoverageRequirement } from "../contracts.js";
-import { findCoveringPlayoutEntries } from "./playout-repository.js";
+import { findPlayoutEntryById } from "./playout-repository.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";
 
 afterEach(cleanUpTestEnvironment);
@@ -248,13 +248,13 @@ describe("readPlayoutSnapshot", () => {
           statementsAtHook = counter.count();
         },
       },
-      (trx) => findCoveringPlayoutEntries(trx, channelId, T0),
+      (trx) => findPlayoutEntryById(trx, channelId, "entry-0"),
     );
 
     expect(snapshot).toMatchObject({
       kind: "ok",
       scheduleRevision: 4,
-      value: [{ id: "entry-0" }],
+      value: { id: "entry-0" },
     });
     // The hook runs after the revision read and before the channel read.
     expect(statementsAtHook).toBe(1);

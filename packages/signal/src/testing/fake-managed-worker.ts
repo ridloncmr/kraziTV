@@ -11,6 +11,7 @@ export class FakeManagedWorker implements ManagedChannelWorker {
   readonly broadcaster: ChannelBroadcaster;
   readonly completion: Promise<void>;
   stopCalls = 0;
+  scheduleChangeCalls = 0;
 
   private readonly output = new PassThrough();
   private readonly completionState = new Deferred<void>();
@@ -35,6 +36,11 @@ export class FakeManagedWorker implements ManagedChannelWorker {
   /** Delegates viewer creation to the worker's single shared broadcaster. */
   trySubscribe() {
     return this.broadcaster.trySubscribe();
+  }
+
+  /** Counts notices so tests can prove the manager forwards them only here. */
+  scheduleChanged(): void {
+    this.scheduleChangeCalls += 1;
   }
 
   /** Settles this fake worker once while preserving stop idempotence. */

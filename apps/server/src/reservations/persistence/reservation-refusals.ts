@@ -17,20 +17,33 @@ import type {
 
 type Executor = Kysely<DatabaseSchema>;
 
-/** A reservation that may be saved, with the end it stores. */
+/** How far ahead a reservation may start (programming spec 0007). */
+const MAX_LEAD_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * A reservation that may be saved, with the start and end it stores, and
+ * whether it interrupts: only a flagged one starting inside the airing item
+ * stores the flag, so a stored flag always means it cut what aired.
+ */
 interface ResolvedRange {
   kind: "resolved";
+  startsAt: number;
   endsAt: number;
+  interrupts: boolean;
   endKind: "explicit" | "program_derived";
 }
 
 /**
  * Returns the first reason a reservation cannot be saved on the channel at
- * `now`, or the end it stores: what it airs must exist and be playable, it
- * must start in the future and at or after the regeneration boundary so the
- * airing program is never cut, a media-item list must fit its range whole,
- * and it must not overlap another of the channel's reservations. Runs in
- * the write's immediate transaction, so concurrent saves see each other.
+ * `now`, or the range it stores: what it airs must exist and be playable,
+ * it must start in the future, or now when asked, at most a year ahead, and
+ * at or after the
+ * regeneration boundary unless the owner marked it interrupting (ADR 0015),
+ * a media-item list must fit its range whole, and it must not overlap
+ * another of the channel's reservations. The boundary is read without the
+ * reservation being replaced, so its own old cut never hides what airs.
+ * Runs in the write's immediate transaction, so concurrent saves see each
+ * other.
  */
 export async function resolveReservationRange(
   trx: Executor,
@@ -41,18 +54,28 @@ export async function resolveReservationRange(
 ): Promise<ResolvedRange | ReservationRefusal> {
   const durations = await findSourceRefusal(trx, settings.source);
   if (!Array.isArray(durations)) return durations;
-  const { startsAt } = settings;
-  if (startsAt <= now) return { kind: "reservation_in_past", startsAt };
+  const startsAt = settings.startsAt === "now" ? now : settings.startsAt;
+  if (settings.startsAt !== "now" && startsAt <= now) {
+    return { kind: "reservation_in_past", startsAt };
+  }
+  if (startsAt > now + MAX_LEAD_MS) {
+    return { kind: "reservation_too_far", latestStartsAt: now + MAX_LEAD_MS };
+  }
   const boundary = findRegenerationBoundary(
-    await findAiringItem(trx, channelId, now),
+    await findAiringItem(trx, channelId, now, {
+      ...(excludeReservationId === undefined ? {} : { excludeReservationId }),
+    }),
     now,
   );
-  if (startsAt < boundary) {
+  if (startsAt < boundary && !settings.interrupts) {
     return { kind: "reservation_crosses_airing", airingEndsAt: boundary };
   }
   const programsMs = durations.reduce((total, duration) => total + duration, 0);
   const programsEndAt = startsAt + programsMs;
   const endsAt = settings.endsAt ?? programsEndAt;
+  // An explicit end can only fall at or before a start of "now" here.
+  if (endsAt <= startsAt)
+    return { kind: "reservation_in_past", startsAt: endsAt };
   if (!fitsBefore(startsAt, programsMs, endsAt)) {
     return { kind: "reservation_does_not_fit", programsEndAt };
   }
@@ -72,7 +95,9 @@ export async function resolveReservationRange(
   }
   return {
     kind: "resolved",
+    startsAt,
     endsAt,
+    interrupts: settings.interrupts && startsAt < boundary,
     endKind: settings.endsAt === null ? "program_derived" : "explicit",
   };
 }

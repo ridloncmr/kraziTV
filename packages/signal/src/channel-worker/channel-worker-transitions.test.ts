@@ -962,3 +962,287 @@ describe("ChannelWorker planned filler", () => {
     await worker.stop();
   });
 });
+
+describe("ChannelWorker schedule-change notices", () => {
+  /** The program a cut-in reservation airs, starting at `startsAt`. */
+  const special = (startsAt: number) =>
+    entry("special", startsAt, { scheduleRevision: 8 });
+
+  /** entry-1 as kraziBrain reads it after a cut at `cutAt` (ADR 0015). */
+  const cutEntry = (cutAt: number) =>
+    entry("entry-1", 0, { scheduleRevision: 8, endsAt: cutAt });
+
+  /** Publishes a revision where an interrupting reservation starts at `cutAt`. */
+  const cutSchedule = (setup: Harness, cutAt: number): void => {
+    setup.coordinator.setSchedule(CHANNEL, 8, [
+      cutEntry(cutAt),
+      special(cutAt),
+    ]);
+  };
+
+  it("crosses into the next item at an earlier end it learns of before the prepare lead", async () => {
+    const setup = harness();
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 3_000);
+
+    cutSchedule(setup, 6_000);
+    setup.provider.enqueueCurrent(current(cutEntry(6_000), 3_000));
+    setup.provider.enqueueFollowing(following(special(6_000)));
+    worker.scheduleChanged();
+    await advanceTo(setup.clock, 3_999);
+    expect(session.prepareCalls).toEqual([]);
+
+    await advanceTo(setup.clock, 4_000);
+    expect(setup.provider.followingCalls.map((call) => call.after)).toEqual([
+      { kind: "program", scheduleEntryId: "entry-1" },
+    ]);
+    await advanceTo(setup.clock, 5_999);
+    expect(committedEntries(session)).toEqual(["entry-1"]);
+
+    await advanceTo(setup.clock, 6_000);
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+    expect(setup.coordinator.calls.map((call) => call.atMs)).toEqual([6_000]);
+    expect(setup.packager.sessions).toHaveLength(1);
+
+    await worker.stop();
+  });
+
+  it("keeps the boundary when a notice finds the airing item's end unchanged", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 3_000);
+
+    setup.provider.enqueueCurrent(current(entry("entry-1", 0), 3_000));
+    worker.scheduleChanged();
+    await settlePromises(5);
+    await advanceTo(setup.clock, 7_999);
+    expect(setup.provider.currentCalls.at(-1)).toEqual({
+      channelId: CHANNEL,
+      atMs: 3_000,
+    });
+    expect(setup.provider.followingCalls).toEqual([]);
+
+    await advanceTo(setup.clock, 10_000);
+    expect(committedEntries(session)).toEqual(["entry-1", "entry-2"]);
+    expect(session.discardedItems).toEqual([]);
+
+    await worker.stop();
+  });
+
+  it("discards a preparation made for the old boundary and commits the special at the cut", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 8_500);
+    expect(session.prepareCalls.map(signalItemLabel)).toEqual(["entry-2"]);
+
+    cutSchedule(setup, 9_000);
+    setup.provider.enqueueCurrent(current(cutEntry(9_000), 8_500));
+    setup.provider.enqueueFollowing(following(special(9_000)));
+    worker.scheduleChanged();
+    await settlePromises(5);
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
+
+    await advanceTo(setup.clock, 9_000);
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+    await advanceTo(setup.clock, 10_000);
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+
+    await worker.stop();
+  });
+
+  it("applies a notice that lands while a preparation is in flight", async () => {
+    const setup = harness();
+    setup.provider.enqueueFollowing(following(entry("entry-2", 10_000)));
+    const { worker, session } = await startWorker(setup);
+    const gate = session.pauseNextPrepare();
+    await advanceTo(setup.clock, 8_000);
+
+    cutSchedule(setup, 9_000);
+    setup.provider.enqueueCurrent(current(cutEntry(9_000), 8_000));
+    setup.provider.enqueueFollowing(following(special(9_000)));
+    worker.scheduleChanged();
+    gate.resolve(undefined);
+    await settlePromises(5);
+    await advanceTo(setup.clock, 9_000);
+
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+
+    await worker.stop();
+  });
+
+  it("crosses at once, at the special's offset, when the cut is already past", async () => {
+    const setup = harness();
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 3_500);
+
+    // A cut "now" that the server resolved at 3s, noticed half a second later.
+    cutSchedule(setup, 3_000);
+    setup.provider.enqueueCurrent(current(special(3_000), 3_500));
+    setup.provider.enqueueCurrent(current(special(3_000), 3_500));
+    worker.scheduleChanged();
+    await settlePromises(5);
+
+    expect(session.prepareCalls.at(-1)).toMatchObject({
+      scheduleEntryId: "special",
+      mediaOffsetMs: 500,
+      playDurationMs: 9_500,
+    });
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+    expect(setup.coordinator.calls.map((call) => call.atMs)).toEqual([3_500]);
+    expect(setup.provider.followingCalls).toEqual([]);
+
+    await worker.stop();
+  });
+
+  it("rejoins a cut airing filler at its offset, so its card shows the new resume time", async () => {
+    const clock = new FakeClock(12_000);
+    const provider = new FakePlayoutProvider();
+    const coordinator = new InMemoryTransitionCoordinator(clock);
+    const filler = (
+      endsAt: number,
+      scheduleRevision: number,
+      message: string,
+    ) => ({
+      kind: "filler" as const,
+      channelId: CHANNEL,
+      scheduleRevision,
+      startsAt: 10_000,
+      endsAt,
+      message,
+    });
+    const atFiller = (item: ReturnType<typeof filler>) => ({
+      status: "current" as const,
+      channelId: CHANNEL,
+      scheduleRevision: item.scheduleRevision,
+      evaluatedAt: 12_000,
+      mediaOffsetMs: 2_000,
+      item,
+    });
+    const before = filler(20_000, 7, "Programming resumes at 8:00 PM");
+    const cut = filler(15_000, 8, "Programming resumes at 7:45 PM");
+    provider.enqueueCurrent(atFiller(before));
+    provider.enqueueCurrent(atFiller(before));
+    const setup = {
+      clock,
+      provider,
+      packager: new FakeSignalPackager(),
+      coordinator,
+    };
+    const { worker, session } = await startWorker(setup);
+
+    coordinator.setSchedule(CHANNEL, 8, [cut, special(15_000)]);
+    provider.enqueueCurrent(atFiller(cut));
+    provider.enqueueCurrent(atFiller(cut));
+    provider.enqueueFollowing(following(special(15_000)));
+    worker.scheduleChanged();
+    await settlePromises(5);
+    await advanceTo(clock, 15_000);
+
+    expect(committedEntries(session)).toEqual([
+      "filler(Programming resumes at 8:00 PM, 8000ms)",
+      "filler(Programming resumes at 7:45 PM, 3000ms)",
+      "special",
+    ]);
+    expect(provider.followingCalls.map((call) => call.after)).toEqual([
+      { kind: "filler", endsAt: 15_000 },
+    ]);
+
+    await worker.stop();
+  });
+
+  it("moves the boundary back when the cut is withdrawn, without restarting the program", async () => {
+    const setup = harness();
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 3_000);
+
+    cutSchedule(setup, 6_000);
+    setup.provider.enqueueCurrent(current(cutEntry(6_000), 3_000));
+    worker.scheduleChanged();
+    await settlePromises(5);
+    // The owner deletes the special before it starts.
+    setup.coordinator.setSchedule(CHANNEL, 9, [
+      entry("entry-1", 0, { scheduleRevision: 9 }),
+      entry("entry-2", 10_000, { scheduleRevision: 9 }),
+    ]);
+    setup.provider.enqueueCurrent(
+      current(entry("entry-1", 0, { scheduleRevision: 9 }), 3_500),
+    );
+    setup.provider.enqueueFollowing(
+      following(entry("entry-2", 10_000, { scheduleRevision: 9 })),
+    );
+    await advanceTo(setup.clock, 3_500);
+    worker.scheduleChanged();
+    await settlePromises(5);
+
+    await advanceTo(setup.clock, 9_999);
+    expect(committedEntries(session)).toEqual(["entry-1"]);
+    await advanceTo(setup.clock, 10_000);
+    expect(committedEntries(session)).toEqual(["entry-1", "entry-2"]);
+    expect(session.prepareCalls.map(signalItemLabel)).toEqual(["entry-2"]);
+
+    await worker.stop();
+  });
+
+  it("keeps a notice that lands during the following lookup for the boundary wait", async () => {
+    const setup = harness();
+    const lookup = new Deferred<FollowingPlayoutResult>();
+    vi.spyOn(setup.provider, "getFollowing").mockReturnValueOnce(
+      lookup.promise,
+    );
+    const { worker, session } = await startWorker(setup);
+    await advanceTo(setup.clock, 8_000);
+
+    cutSchedule(setup, 9_000);
+    setup.provider.enqueueCurrent(current(cutEntry(9_000), 8_000));
+    setup.provider.enqueueFollowing(following(special(9_000)));
+    worker.scheduleChanged();
+    lookup.resolve(following(entry("entry-2", 10_000)));
+    await settlePromises(5);
+    await advanceTo(setup.clock, 9_000);
+
+    expect(session.discardedItems.map(signalItemLabel)).toEqual(["entry-2"]);
+    expect(committedEntries(session)).toEqual(["entry-1", "special"]);
+
+    await worker.stop();
+  });
+
+  it("stops without waiting for a cut lookup that never answers", async () => {
+    const setup = harness();
+    const { worker } = await startWorker(setup);
+    vi.spyOn(setup.provider, "getCurrent").mockReturnValueOnce(never());
+    worker.scheduleChanged();
+    await settlePromises(5);
+
+    await worker.stop();
+    await expect(worker.completion).resolves.toBeUndefined();
+    expect(setup.clock.pendingTimerCount).toBe(0);
+  });
+
+  it("fails the worker within the recovery window when a cut lookup stalls", async () => {
+    const setup = harness();
+    const { worker } = await startWorker(setup);
+    vi.spyOn(setup.provider, "getCurrent").mockReturnValueOnce(never());
+    worker.scheduleChanged();
+    await settlePromises(5);
+
+    // From 1s, five seconds of recovery window, well before entry-1's end.
+    await advanceTo(setup.clock, 6_000);
+    await expectSignalError(worker.completion, "transition_failed");
+  });
+
+  it("fails the worker with the cause when a cut lookup rejects", async () => {
+    const setup = harness();
+    const { worker } = await startWorker(setup);
+    worker.scheduleChanged();
+    await settlePromises(5);
+
+    const error = await expectSignalError(
+      worker.completion,
+      "transition_failed",
+    );
+    expect(error.cause).toBeInstanceOf(Error);
+  });
+});

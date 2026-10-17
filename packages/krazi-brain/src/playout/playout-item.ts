@@ -4,6 +4,7 @@ import type {
   PlayoutMedia,
   ProgramPlayoutItem,
 } from "./contracts.js";
+import { cutAtReservations } from "./cuts.js";
 import { findFillerAt, type FillerInputs, walkCoverage } from "./filler.js";
 
 type PlayableFacts = {
@@ -89,7 +90,8 @@ export function itemStartingAt(
  * schedule does not list.
  *
  * `entries` must be in start order and hold every entry overlapping the
- * window, the last one before it, and the first one after it.
+ * window, the last one before it, and the first one after it. They are read
+ * with their cuts.
  */
 export function buildPlayoutTimeline({
   window,
@@ -99,15 +101,14 @@ export function buildPlayoutTimeline({
   window: { start: number; end: number };
   entries: readonly PlayoutEntry[];
 }): PlayoutItem[] {
-  return walkCoverage(window, entries, filler).flatMap(
-    (step): PlayoutItem[] => {
-      if ("filler" in step) return [step.filler];
-      const item = toPlayoutItem(
-        step.entry,
-        filler.channelId,
-        filler.scheduleRevision,
-      );
-      return item === null ? [] : [item];
-    },
-  );
+  const cut = cutAtReservations(entries, filler.reservations);
+  return walkCoverage(window, cut, filler).flatMap((step): PlayoutItem[] => {
+    if ("filler" in step) return [step.filler];
+    const item = toPlayoutItem(
+      step.entry,
+      filler.channelId,
+      filler.scheduleRevision,
+    );
+    return item === null ? [] : [item];
+  });
 }

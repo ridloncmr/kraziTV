@@ -97,7 +97,14 @@ function sendRefusal(
         409,
         "media_item_in_use",
         `Programming assignments or reservations on channels ${refusal.channelIds.join(", ")} play this media directly; change them first`,
-        { channelIds: refusal.channelIds, mediaItemIds: refusal.mediaItemIds },
+        {
+          channelIds: refusal.channelIds,
+          mediaItemIds: refusal.mediaItemIds,
+          reservations: refusal.reservations.map((reservation) => ({
+            ...reservation,
+            startsAt: toApiTimestamp(reservation.startsAt),
+          })),
+        },
       );
     case "channels_left_unschedulable":
       return sendApiError(

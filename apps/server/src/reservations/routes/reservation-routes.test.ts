@@ -14,6 +14,10 @@ import {
   readOnlyScheduleState,
 } from "../../testing/schedule-fixtures.js";
 import { orderingChange } from "../../media-collections/maintenance/maintenance-writes.js";
+import {
+  readGuideAirings,
+  saveReservation,
+} from "../../testing/reservation-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
@@ -51,29 +55,16 @@ function itemsBody(
   };
 }
 
-// The schedule's entries in a window as `<media>@<minutes after T0>-<end>`.
-async function airings(
-  server: Awaited<ReturnType<typeof scheduled>>["server"],
-  start: number,
-  end: number,
-): Promise<string[]> {
-  const window = await send(server, "GET", windowUrl(SCHEDULE_URL, start, end));
-  const entries = window.body.entries as {
-    mediaItemId: string;
-    startsAt: string;
-    endsAt: string;
-  }[];
-  return entries.map(
-    (entry) =>
-      `${entry.mediaItemId}@${(Date.parse(entry.startsAt) - T0) / MINUTE}-${(Date.parse(entry.endsAt) - T0) / MINUTE}`,
-  );
-}
-
 describe("reservation routes", () => {
   it("airs the reserved program at its exact start after whole programs, leaving the gap empty", async () => {
     const { server, movie } = await scheduled();
 
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
 
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({
@@ -85,7 +76,7 @@ describe("reservation routes", () => {
     });
     // The third episode would end at 69, past 60: it waits until after the
     // movie, and nothing is listed from 45 to 60.
-    await expect(airings(server, T0, at(175))).resolves.toEqual([
+    await expect(readGuideAirings(server, T0, at(175))).resolves.toEqual([
       "item-001@0-22",
       "item-002@22-45",
       `${movie}@60-150`,
@@ -97,7 +88,7 @@ describe("reservation routes", () => {
   it("stores an explicit end and leaves the unused range without entries", async () => {
     const { server, movie } = await scheduled();
 
-    const created = await send(
+    const created = await saveReservation(
       server,
       "POST",
       URL,
@@ -108,7 +99,7 @@ describe("reservation routes", () => {
       endsAt: iso(at(180)),
       endKind: "explicit",
     });
-    await expect(airings(server, at(140), at(200))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(140), at(200))).resolves.toEqual([
       `${movie}@60-150`,
       "item-003@180-204",
     ]);
@@ -120,27 +111,42 @@ describe("reservation routes", () => {
       (await readOnlyScheduleState(db)).schedule_revision;
     const before = await revision();
 
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
     expect(await revision()).toBe(before + 1);
     const reservationUrl = `${URL}/${created.body.id as string}`;
-    await send(server, "PATCH", reservationUrl, itemsBody(at(120), [movie]));
+    await saveReservation(
+      server,
+      "PATCH",
+      reservationUrl,
+      itemsBody(at(120), [movie]),
+    );
     expect(await revision()).toBe(before + 2);
     // Saving the same settings changes nothing, so nothing regenerates.
-    await send(server, "PATCH", reservationUrl, itemsBody(at(120), [movie]));
+    await saveReservation(
+      server,
+      "PATCH",
+      reservationUrl,
+      itemsBody(at(120), [movie]),
+    );
     expect(await revision()).toBe(before + 2);
     const deleted = await send(server, "DELETE", reservationUrl);
     expect(deleted.status).toBe(204);
     expect(await revision()).toBe(before + 3);
     // Deleting returns the range to ordinary programming.
-    await expect(airings(server, at(115), at(135))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(115), at(135))).resolves.toEqual([
       "item-003@114-138",
     ]);
   });
 
   it("lists a channel's reservations in start order and reports an unknown channel", async () => {
     const { server, movie } = await scheduled();
-    await send(server, "POST", URL, itemsBody(at(300), [movie]));
-    await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    await saveReservation(server, "POST", URL, itemsBody(at(300), [movie]));
+    await saveReservation(server, "POST", URL, itemsBody(at(60), [movie]));
 
     const listed = await send(server, "GET", URL);
     const unknown = await send(server, "GET", "/channels/nope/reservations");
@@ -207,7 +213,7 @@ describe("reservation routes", () => {
     const { server, db, movie } = await scheduled();
     const before = await readOnlyScheduleState(db);
 
-    const refused = await send(server, "POST", URL, body(movie));
+    const refused = await saveReservation(server, "POST", URL, body(movie));
 
     expect(refused.status).toBe(status);
     expect(refused.body.error.code).toBe(code);
@@ -226,7 +232,7 @@ describe("reservation routes", () => {
       .values(titledItemFixture("gone", { status: "missing" }))
       .execute();
 
-    const refused = await send(
+    const refused = await saveReservation(
       server,
       "POST",
       URL,
@@ -242,16 +248,26 @@ describe("reservation routes", () => {
 
   it("refuses a range overlapping another reservation, before or after an edit", async () => {
     const { server, movie } = await scheduled();
-    const first = await send(server, "POST", URL, itemsBody(at(60), [movie]));
-    const second = await send(server, "POST", URL, itemsBody(at(200), [movie]));
+    const first = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
+    const second = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(200), [movie]),
+    );
 
-    const overlapping = await send(
+    const overlapping = await saveReservation(
       server,
       "POST",
       URL,
       itemsBody(at(140), [movie]),
     );
-    const moved = await send(
+    const moved = await saveReservation(
       server,
       "PATCH",
       `${URL}/${second.body.id as string}`,
@@ -269,11 +285,16 @@ describe("reservation routes", () => {
 
   it("refuses editing a reservation that has started and reports one on another channel as missing", async () => {
     const { server, clock, movie } = await scheduled();
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
     const reservationUrl = `${URL}/${created.body.id as string}`;
     clock.set(at(70));
 
-    const started = await send(
+    const started = await saveReservation(
       server,
       "PATCH",
       reservationUrl,
@@ -308,20 +329,25 @@ describe("reservation routes", () => {
       },
     });
 
-    await send(server, "POST", URL, collection(at(60), at(180)));
-    await send(server, "POST", URL, collection(at(300), at(360)));
+    await saveReservation(server, "POST", URL, collection(at(60), at(180)));
+    await saveReservation(server, "POST", URL, collection(at(300), at(360)));
 
-    const listed = await airings(server, at(55), at(370));
+    const listed = await readGuideAirings(server, at(55), at(370));
     expect(listed).toContain("specials-1@60-110");
     expect(listed).toContain("specials-2@110-160");
     expect(listed).toContain("specials-3@300-350");
   });
 
-  it("refuses removing media or deleting a collection a reservation plays", async () => {
+  it("refuses removing media or deleting a collection a reservation plays, naming the special", async () => {
     const { server, db, movie } = await scheduled();
     await insertCollectionOfItems(db, "specials", [50 * MINUTE]);
-    await send(server, "POST", URL, itemsBody(at(60), [movie]));
-    await send(server, "POST", URL, {
+    const movieNight = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
+    const marathon = await saveReservation(server, "POST", URL, {
       startsAt: iso(at(300)),
       endsAt: iso(at(400)),
       source: {
@@ -344,9 +370,21 @@ describe("reservation routes", () => {
     expect(removal.body.error).toMatchObject({
       code: "media_item_in_use",
       channelIds: [CHANNEL_ID],
+      reservations: [
+        {
+          id: movieNight.body.id,
+          channelId: CHANNEL_ID,
+          startsAt: iso(at(60)),
+        },
+      ],
     });
     expect(deletion.status).toBe(409);
-    expect(deletion.body.error.code).toBe("media_collection_in_use");
+    expect(deletion.body.error).toMatchObject({
+      code: "media_collection_in_use",
+      reservations: [
+        { id: marathon.body.id, channelId: CHANNEL_ID, startsAt: iso(at(300)) },
+      ],
+    });
   });
 });
 
@@ -377,7 +415,12 @@ describe("reservation routes: revision, progress, and history", () => {
       (await readOnlyScheduleState(db)).schedule_revision;
     const before = await revision();
 
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
     expect(created.status).toBe(201);
     expect(await revision()).toBe(before + 1);
     await send(server, "DELETE", `${URL}/${created.body.id as string}`);
@@ -391,14 +434,14 @@ describe("reservation routes: revision, progress, and history", () => {
       "specials",
       [50, 50, 50].map((minutes) => minutes * MINUTE),
     );
-    await send(server, "POST", URL, specialsBody(at(60), at(180)));
+    await saveReservation(server, "POST", URL, specialsBody(at(60), at(180)));
     // The first reservation's programs have aired, so the next write keeps
     // them and must read where they left the collection from storage.
     clock.set(at(170));
 
-    await send(server, "POST", URL, specialsBody(at(300), at(360)));
+    await saveReservation(server, "POST", URL, specialsBody(at(300), at(360)));
 
-    await expect(airings(server, at(290), at(360))).resolves.toContain(
+    await expect(readGuideAirings(server, at(290), at(360))).resolves.toContain(
       "specials-3@300-350",
     );
   });
@@ -414,7 +457,12 @@ describe("reservation routes: revision, progress, and history", () => {
       .insertInto("content_facts")
       .values(ids.map((id, index) => episodeFacts(id, 1399, 1, index + 1)))
       .execute();
-    await send(server, "POST", URL, specialsBody(at(60), at(240), "episode"));
+    await saveReservation(
+      server,
+      "POST",
+      URL,
+      specialsBody(at(60), at(240), "episode"),
+    );
     await db
       .insertInto("metadata_corrections")
       .values(correctionRow("specials-1", { episode_number: 9 }))
@@ -426,7 +474,7 @@ describe("reservation routes: revision, progress, and history", () => {
       orderingChange(),
     );
 
-    await expect(airings(server, at(55), at(215))).resolves.toEqual(
+    await expect(readGuideAirings(server, at(55), at(215))).resolves.toEqual(
       expect.arrayContaining([
         "specials-2@60-110",
         "specials-3@110-160",
@@ -437,9 +485,9 @@ describe("reservation routes: revision, progress, and history", () => {
 
   it("accepts a reservation that starts exactly when another ends", async () => {
     const { server, movie } = await scheduled();
-    await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    await saveReservation(server, "POST", URL, itemsBody(at(60), [movie]));
 
-    const touching = await send(
+    const touching = await saveReservation(
       server,
       "POST",
       URL,
@@ -456,7 +504,7 @@ describe("reservation routes: revision, progress, and history", () => {
       .values(titledItemFixture("removed", { removed_at: T0 }))
       .execute();
 
-    const refused = await send(
+    const refused = await saveReservation(
       server,
       "POST",
       URL,
@@ -471,15 +519,20 @@ describe("reservation routes: revision, progress, and history", () => {
 
   it("edits a reservation to an explicit end and reports unknown ones on the right channel", async () => {
     const { server, movie } = await scheduled();
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
 
-    const edited = await send(
+    const edited = await saveReservation(
       server,
       "PATCH",
       `${URL}/${created.body.id as string}`,
       itemsBody(at(60), [movie], at(200)),
     );
-    const patchUnknown = await send(
+    const patchUnknown = await saveReservation(
       server,
       "PATCH",
       `${URL}/nope`,
@@ -497,7 +550,12 @@ describe("reservation routes: revision, progress, and history", () => {
 
   it("keeps the airing program when its reservation is deleted and returns the rest to rotation", async () => {
     const { server, clock, movie } = await scheduled();
-    const created = await send(server, "POST", URL, itemsBody(at(60), [movie]));
+    const created = await saveReservation(
+      server,
+      "POST",
+      URL,
+      itemsBody(at(60), [movie]),
+    );
     clock.set(at(70));
 
     const deleted = await send(
@@ -507,7 +565,7 @@ describe("reservation routes: revision, progress, and history", () => {
     );
 
     expect(deleted.status).toBe(204);
-    await expect(airings(server, at(55), at(160))).resolves.toEqual([
+    await expect(readGuideAirings(server, at(55), at(160))).resolves.toEqual([
       `${movie}@60-150`,
       "item-003@150-174",
     ]);
@@ -520,13 +578,13 @@ describe("reservation routes: revision, progress, and history", () => {
       .insertInto("media_items")
       .values(titledItemFixture("pilot", { duration_ms: 40 * MINUTE }))
       .execute();
-    await send(server, "POST", URL, specialsBody(at(60), at(180)));
+    await saveReservation(server, "POST", URL, specialsBody(at(60), at(180)));
 
     await send(server, "PUT", "/media-collections/specials/items", {
       mediaItemIds: ["pilot", "specials-1"],
     });
 
-    await expect(airings(server, at(55), at(160))).resolves.toEqual(
+    await expect(readGuideAirings(server, at(55), at(160))).resolves.toEqual(
       expect.arrayContaining(["pilot@60-100", "specials-1@100-150"]),
     );
   });
@@ -534,8 +592,8 @@ describe("reservation routes: revision, progress, and history", () => {
   it("lets ended reservations go when their media is removed or their collection deleted", async () => {
     const { server, db, clock, movie } = await scheduled();
     await insertCollectionOfItems(db, "specials", [50 * MINUTE]);
-    await send(server, "POST", URL, itemsBody(at(60), [movie]));
-    await send(server, "POST", URL, specialsBody(at(150), at(200)));
+    await saveReservation(server, "POST", URL, itemsBody(at(60), [movie]));
+    await saveReservation(server, "POST", URL, specialsBody(at(150), at(200)));
     clock.set(at(210));
 
     const removal = await send(server, "POST", "/catalog-removals", {

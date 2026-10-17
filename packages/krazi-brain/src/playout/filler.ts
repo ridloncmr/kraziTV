@@ -3,6 +3,7 @@ import type {
   PlayoutEntry,
   ReservedTimeRange,
 } from "./contracts.js";
+import { cutAtReservations } from "./cuts.js";
 
 /** What every playout read derives filler from, read in one snapshot. */
 export interface FillerInputs {
@@ -128,7 +129,8 @@ export function listPlannedFiller({
   window: { start: number; end: number };
   entries: readonly Pick<PlayoutEntry, "startsAt" | "endsAt">[];
 }): FillerPlayoutItem[] {
-  return walkCoverage(window, entries, filler).flatMap((step) =>
+  const cut = cutAtReservations(entries, filler.reservations);
+  return walkCoverage(window, cut, filler).flatMap((step) =>
     "filler" in step ? [step.filler] : [],
   );
 }

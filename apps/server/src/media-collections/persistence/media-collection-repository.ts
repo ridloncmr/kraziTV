@@ -42,6 +42,7 @@ import type {
   Recommendation,
   RecommendationAcceptance,
 } from "../contracts.js";
+import { listBlockingReservations } from "../../reservations/persistence/reservation-rows.js";
 
 type Executor = Kysely<DatabaseSchema>;
 
@@ -272,7 +273,15 @@ export class MediaCollectionRepository {
       const now = this.#now();
       const channelIds = await findChannelsUsingCollection(trx, id, now);
       if (channelIds.length > 0) {
-        return { kind: "in_use", channelIds };
+        return {
+          kind: "in_use",
+          channelIds,
+          reservations: await listBlockingReservations(
+            trx,
+            { mediaCollectionId: id },
+            now,
+          ),
+        };
       }
       await deleteEndedReservations(trx, { mediaCollectionId: id }, now);
       await trx.deleteFrom("media_collections").where("id", "=", id).execute();

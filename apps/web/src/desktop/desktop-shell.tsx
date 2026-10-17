@@ -13,7 +13,7 @@ import { Taskbar } from "./chrome/taskbar.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { windowReducer } from "./windows/window-state.js";
-import type { DesktopViewport } from "./contracts.js";
+import type { DesktopViewport, ProgramId } from "./contracts.js";
 
 /** Reads the desktop area above the 32px taskbar from the browser window. */
 function usableViewport(): DesktopViewport {
@@ -43,6 +43,11 @@ export function DesktopShell({
   onLoggedOff: () => void;
 }) {
   const [windows, dispatch] = useReducer(windowReducer, []);
+  // Stable, so memoized program contents never re-render for it.
+  const openProgram = useCallback(
+    (id: ProgramId) => dispatch({ type: "open", id }),
+    [],
+  );
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
   const [pageVisible, setPageVisible] = useState(
@@ -136,6 +141,7 @@ export function DesktopShell({
                 onAccountChanged={onAccountChanged}
                 tmdbTaskRequest={tmdbTaskRequest}
                 onTmdbKeyChanged={tmdbKey.refresh}
+                openProgram={openProgram}
               />
             </AppWindow>
           ))}

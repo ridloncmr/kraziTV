@@ -1,6 +1,13 @@
-import type { Reservation } from "@krazitv/krazi-brain";
-import type { Kysely, RawBuilder, Selectable } from "kysely";
+import { describeOrderedView, type Reservation } from "@krazitv/krazi-brain";
+import {
+  type ExpressionBuilder,
+  type Kysely,
+  type RawBuilder,
+  type Selectable,
+  sql,
+} from "kysely";
 
+import { fromSqliteBoolean } from "../../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ReservationTable } from "../../database/schema/reservation-table.js";
 import {
@@ -8,6 +15,7 @@ import {
   loadScheduleMedia,
 } from "../../schedules/persistence/assignment-sources.js";
 import type {
+  FromBeginningSource,
   ReservationSourceSettings,
   SavedReservation,
 } from "../contracts.js";
@@ -62,17 +70,41 @@ export async function resolveReservation(
 }
 
 /**
+ * Resolves a collection played from the beginning into every member once,
+ * in the order its mode plays them, through the same ordered view the
+ * assignment preview shows (programming spec 0007). Undefined when the
+ * collection does not exist.
+ */
+export async function listFromBeginning(
+  trx: Executor,
+  source: FromBeginningSource,
+): Promise<string[] | undefined> {
+  const collection = await trx
+    .selectFrom("media_collections")
+    .select("id")
+    .where("id", "=", source.mediaCollectionId)
+    .executeTakeFirst();
+  if (collection === undefined) return undefined;
+  const members = await loadCollectionMembers(trx, source.mediaCollectionId);
+  return (describeOrderedView(members, source.playbackMode) ?? []).map(
+    (member) => member.media.id,
+  );
+}
+
+/**
  * Reads a channel's saved reservations in start order, only the one named
- * by `reservationId` (one owned by another channel is not found), or only
- * those ending after `endingAfter`.
+ * by `reservationId` (one owned by another channel is not found), only the
+ * one a save with `requestKey` created, or only those ending after
+ * `endingAfter`.
  */
 export async function readReservations(
   trx: Executor,
   channelId: string,
   {
     reservationId,
+    requestKey,
     endingAfter,
-  }: { reservationId?: string; endingAfter?: number } = {},
+  }: { reservationId?: string; requestKey?: string; endingAfter?: number } = {},
 ): Promise<SavedReservation[]> {
   let query = trx
     .selectFrom("reservations")
@@ -80,6 +112,9 @@ export async function readReservations(
     .where("channel_id", "=", channelId);
   if (reservationId !== undefined) {
     query = query.where("id", "=", reservationId);
+  }
+  if (requestKey !== undefined) {
+    query = query.where("request_key", "=", requestKey);
   }
   if (endingAfter !== undefined) {
     query = query.where("ends_at", ">", endingAfter);
@@ -102,21 +137,121 @@ export async function deleteEndedReservations(
   playing: { mediaCollectionId: string } | { mediaItemIds: RawBuilder<string> },
   now: number,
 ): Promise<void> {
+  await settleAiredCuts(
+    trx,
+    await trx
+      .selectFrom("reservations")
+      .select([
+        "channel_id as channelId",
+        "starts_at as startsAt",
+        "ends_at as endsAt",
+      ])
+      .where("ends_at", "<=", now)
+      .where((eb) => playingFilter(eb, playing))
+      .execute(),
+    now,
+  );
   await trx
     .deleteFrom("reservations")
     .where("ends_at", "<=", now)
-    .where((eb) =>
-      "mediaCollectionId" in playing
-        ? eb("media_collection_id", "=", playing.mediaCollectionId)
-        : eb(
-            "id",
-            "in",
-            eb
-              .selectFrom("reservation_items")
-              .select("reservation_id")
-              .where("media_item_id", "in", playing.mediaItemIds),
-          ),
-    )
+    .where((eb) => playingFilter(eb, playing))
+    .execute();
+}
+
+/** A reservation that refuses removing what it plays, as an owner finds it. */
+export interface BlockingReservation {
+  id: string;
+  channelId: string;
+  startsAt: number;
+}
+
+/**
+ * Lists the reservations that have not ended by `now` and play a collection
+ * or any of the given media items, in start order: the specials a removal
+ * or collection delete names so the owner can edit or cancel them first
+ * (programming spec 0007).
+ */
+export async function listBlockingReservations(
+  trx: Executor,
+  playing: { mediaCollectionId: string } | { mediaItemIds: RawBuilder<string> },
+  now: number,
+): Promise<BlockingReservation[]> {
+  const rows = await trx
+    .selectFrom("reservations")
+    .select(["id", "channel_id", "starts_at"])
+    .where("ends_at", ">", now)
+    .where((eb) => playingFilter(eb, playing))
+    .orderBy("starts_at")
+    .orderBy("id")
+    .execute();
+  return rows.map((row) => ({
+    id: row.id,
+    channelId: row.channel_id,
+    startsAt: row.starts_at,
+  }));
+}
+
+/**
+ * Writes every cut a reservation made that has already aired into the cut
+ * entry's stored end, before the reservation is deleted (ADR 0015): an aired
+ * cut can never be withdrawn, and without its reservation nothing would
+ * derive it, so history would show the cut program overlapping what aired.
+ */
+export async function settleAiredCuts(
+  trx: Executor,
+  reservations: readonly Pick<
+    SavedReservation,
+    "channelId" | "startsAt" | "endsAt"
+  >[],
+  now: number,
+): Promise<void> {
+  for (const reservation of reservations) {
+    for (const cut of [reservation.startsAt, reservation.endsAt]) {
+      if (cut > now) continue;
+      await trx
+        .updateTable("schedule_entries")
+        .set({ ends_at: cut, duration_ms: sql<number>`${cut} - starts_at` })
+        .where("channel_id", "=", reservation.channelId)
+        .where("starts_at", "<", cut)
+        .where("ends_at", ">", cut)
+        .execute();
+    }
+  }
+}
+
+// Matches the reservations that play a collection or any of the given items.
+function playingFilter(
+  eb: ExpressionBuilder<DatabaseSchema, "reservations">,
+  playing: { mediaCollectionId: string } | { mediaItemIds: RawBuilder<string> },
+) {
+  return "mediaCollectionId" in playing
+    ? eb("media_collection_id", "=", playing.mediaCollectionId)
+    : eb(
+        "id",
+        "in",
+        eb
+          .selectFrom("reservation_items")
+          .select("reservation_id")
+          .where("media_item_id", "in", playing.mediaItemIds),
+      );
+}
+
+/**
+ * Clears the interrupting flag on the channel's reservations that have not
+ * started, when the owner's interruption replaces what airs: the item they
+ * cut is gone, and a stored flag must always mean a cut of what airs.
+ */
+export async function clearUnstartedInterruptions(
+  trx: Executor,
+  channelId: string,
+  now: number,
+): Promise<void> {
+  await trx
+    .updateTable("reservations")
+    .set({ interrupts: 0 })
+    .where("channel_id", "=", channelId)
+    .where("interrupts", "=", 1)
+    .where("starts_at", ">", now)
     .execute();
 }
 
@@ -196,6 +331,7 @@ function toSavedReservation(
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     endKind: row.end_kind,
+    interrupts: fromSqliteBoolean(row.interrupts),
     source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

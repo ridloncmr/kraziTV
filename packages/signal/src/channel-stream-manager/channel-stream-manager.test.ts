@@ -588,6 +588,51 @@ describe("ChannelStreamManager", () => {
     await manager.shutdown();
   });
 
+  it("forwards a schedule-change notice only to the channel's running worker", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = createManager({
+      authorization: new PermissiveAuthorization(),
+      workerFactory,
+    });
+    manager.scheduleChanged("channel-1");
+
+    const subscribing = manager.subscribe("channel-1");
+    const other = manager.subscribe("channel-2");
+    await settlePromises();
+    const worker = new FakeManagedWorker("channel-1");
+    const otherWorker = new FakeManagedWorker("channel-2");
+    workerFactory.calls[0]?.result.resolve(worker);
+    workerFactory.calls[1]?.result.resolve(otherWorker);
+    const viewer = await subscribing;
+    (await other).close();
+    manager.scheduleChanged("channel-1");
+
+    expect(worker.scheduleChangeCalls).toBe(1);
+    expect(otherWorker.scheduleChangeCalls).toBe(0);
+    viewer.close();
+    await manager.shutdown();
+  });
+
+  it("passes on a notice that arrives while the channel's worker is still starting", async () => {
+    const workerFactory = new ControlledWorkerFactory();
+    const manager = createManager({
+      authorization: new MutableAuthorization(),
+      workerFactory,
+    });
+    const subscribing = manager.subscribe("channel-1");
+    await settlePromises();
+
+    // The worker read the airing item before this write committed.
+    manager.scheduleChanged("channel-1");
+    const worker = new FakeManagedWorker("channel-1");
+    workerFactory.calls[0]?.result.resolve(worker);
+    const viewer = await subscribing;
+
+    expect(worker.scheduleChangeCalls).toBe(1);
+    viewer.close();
+    await manager.shutdown();
+  });
+
   it("treats abort after subscription creation as caller-owned closure", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({

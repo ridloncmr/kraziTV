@@ -6,6 +6,7 @@ import type {
   ContentIdentity,
   ContentMetadata,
 } from "../media-items/contracts.js";
+import type { BlockingReservation } from "../reservations/persistence/reservation-rows.js";
 
 /**
  * What an automatic collection matches on. `criteria/collection-criterion.ts`
@@ -157,4 +158,9 @@ export type ExclusionChangeResult =
 export type DeleteMediaCollectionResult =
   | { kind: "deleted" }
   | { kind: "not_found" }
-  | { kind: "in_use"; channelIds: string[] };
+  | {
+      kind: "in_use";
+      channelIds: string[];
+      /** The specials among the blockers, which the owner edits or cancels. */
+      reservations: BlockingReservation[];
+    };

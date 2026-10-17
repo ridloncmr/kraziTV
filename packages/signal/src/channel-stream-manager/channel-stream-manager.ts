@@ -122,6 +122,19 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
     );
   }
 
+  /**
+   * Tells the channel's worker its schedule changed, so it re-reads the
+   * airing item's end (ADR 0015). Runs outside the transition queue: a cut
+   * must not wait behind a queued join or stop. A worker still starting
+   * hears of it once ready, because its startup lookup may predate the write.
+   */
+  scheduleChanged(channelId: ChannelId): void {
+    const lifecycle = this.lifecycles.get(channelId);
+    if (lifecycle?.worker !== undefined) lifecycle.worker.scheduleChanged();
+    else if (lifecycle?.kind === "pending")
+      lifecycle.scheduleChangeNoticed = true;
+  }
+
   /** Permanently rejects new work and settles every worker known to this manager. */
   shutdown(): Promise<void> {
     return this.shutdownAttempt.run(() => this.shutDownChannels());
@@ -316,6 +329,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       waiters: new Set([firstWaiter]),
       observation: { terminated: false },
       publicationInterruption: createInterruption(),
+      scheduleChangeNoticed: false,
       cancelling: false,
     };
 
@@ -323,6 +337,7 @@ export class ChannelStreamManager implements ChannelStreamManagerContract {
       if (outcome.status === "ready") {
         const { worker } = outcome;
         pending.worker = worker;
+        if (pending.scheduleChangeNoticed) worker.scheduleChanged();
         const observeTermination = (): void => {
           pending.observation.terminated = true;
           this.runInBackground(channelId, () =>

@@ -245,6 +245,7 @@ function registerRoutes(
     dependencies.reservations,
     dependencies.channels,
     dependencies.schedules,
+    dependencies.channelRuntime,
   );
   registerMarathonSettingsRoutes(
     server,

@@ -27,6 +27,7 @@ import type {
 } from "./contracts.js";
 import {
   cursorOf,
+  findMovedEnd,
   requireCurrent,
   selectContiguousFollowing,
   toFollowingSignalItem,
@@ -61,14 +62,25 @@ export class TransitionLoop {
   private halted = false;
   /** Cancels the current interruptible wait and lets the loop observe a halt. */
   private wake: (() => void) | undefined;
+  /** Set by a schedule-change notice until a boundary wait re-reads the airing item. */
+  private scheduleChangeNoticed = false;
+  /** Ends only a boundary wait, never a dependency call, when a notice arrives. */
+  private wakeForScheduleChange: (() => void) | undefined;
   private preparation: SignalPreparation | undefined;
   private discarding: Promise<void> | undefined;
+  /**
+   * The end the airing item's FFmpeg process was started for, which a cut
+   * never changes, so a withdrawn cut can move the boundary back to it.
+   */
+  private playsUntil: TimestampMs;
 
   /** Starts from the item the worker's session is already transmitting. */
   constructor(
     private readonly options: TransitionLoopOptions,
     private airing: AiringItem,
-  ) {}
+  ) {
+    this.playsUntil = airing.endsAt;
+  }
 
   /**
    * Runs until halted, rejecting only with a failure fatal to the worker. A
@@ -96,6 +108,16 @@ export class TransitionLoop {
     return this.preparation !== undefined;
   }
 
+  /**
+   * Notes that the channel's schedule changed so the next boundary wait
+   * re-reads the airing item's end (ADR 0015). A notice that lands during a
+   * lookup or preparation waits for that wait instead of failing the call.
+   */
+  scheduleChanged(): void {
+    this.scheduleChangeNoticed = true;
+    this.wakeForScheduleChange?.();
+  }
+
   /** Stops future work and releases any preparation the loop still holds. */
   async halt(): Promise<void> {
     this.halted = true;
@@ -113,7 +135,14 @@ export class TransitionLoop {
   private async transitionOnce(): Promise<void> {
     const boundaryAt = this.airing.endsAt;
     const deadlineAt = boundaryAt + this.options.recoveryTimeoutMs;
-    await this.sleepUntil(boundaryAt - this.options.prepareLeadMs);
+    // A boundary already past, such as a cut the notice found behind it,
+    // joins what airs now at its offset instead of airing the next item late.
+    if (boundaryAt <= this.options.clock.now()) {
+      await this.recover(deadlineAt);
+      return;
+    }
+    const leadAt = boundaryAt - this.options.prepareLeadMs;
+    if ((await this.sleepUntilCut(leadAt, deadlineAt)) === "cut") return;
     const following = selectContiguousFollowing(
       await this.bounded(
         "following_lookup",
@@ -132,7 +161,7 @@ export class TransitionLoop {
     this.checkHalted();
 
     if (following !== undefined) {
-      const committed = await this.prepareAndCommit(
+      const outcome = await this.prepareAndCommit(
         {
           candidate: {
             channelId: this.options.channelId,
@@ -145,10 +174,10 @@ export class TransitionLoop {
         boundaryAt,
         deadlineAt,
       );
-      if (committed) return;
+      if (outcome !== "stale") return;
     }
 
-    await this.sleepUntil(boundaryAt);
+    if ((await this.sleepUntilCut(boundaryAt, deadlineAt)) === "cut") return;
     await this.recover(deadlineAt);
   }
 
@@ -171,7 +200,7 @@ export class TransitionLoop {
       this.checkHalted();
       this.checkDeadline("recovery", deadlineAt);
 
-      const committed = await this.prepareAndCommit(
+      const outcome = await this.prepareAndCommit(
         {
           candidate: {
             channelId: this.options.channelId,
@@ -185,7 +214,7 @@ export class TransitionLoop {
         this.airing.endsAt,
         deadlineAt,
       );
-      if (committed) return;
+      if (outcome !== "stale") return;
       this.checkDeadline("recovery", deadlineAt);
     }
     throw recoveryAttemptsExhausted(this.options.channelId);
@@ -193,13 +222,14 @@ export class TransitionLoop {
 
   /**
    * Prepares one item, waits for its boundary, and lets the coordinator decide.
-   * Returns false after discarding a stale preparation.
+   * Returns "stale" after discarding a stale preparation, and "cut" after
+   * discarding one whose boundary a schedule-change notice moved.
    */
   private async prepareAndCommit(
     planned: PlannedTransition,
     boundaryAt: TimestampMs,
     deadlineAt: TimestampMs,
-  ): Promise<boolean> {
+  ): Promise<"committed" | "stale" | "cut"> {
     let preparation: SignalPreparation;
     try {
       // Not interruptible: stopping the session ends an in-flight prepare
@@ -216,7 +246,10 @@ export class TransitionLoop {
     this.preparation = preparation;
     this.checkHalted();
 
-    await this.sleepUntil(boundaryAt);
+    if ((await this.sleepUntilCut(boundaryAt, deadlineAt)) === "cut") {
+      await this.releasePreparation(deadlineAt);
+      return "cut";
+    }
     const outcome = await this.bounded(
       "commit",
       deadlineAt,
@@ -250,19 +283,62 @@ export class TransitionLoop {
         cursor: planned.candidate.cursor,
         endsAt: planned.endsAt,
       };
-      return true;
+      this.playsUntil = planned.endsAt;
+      return "committed";
     }
     await this.releasePreparation(deadlineAt);
-    return false;
+    return "stale";
+  }
+
+  /**
+   * Waits for a boundary, ending early only when a schedule-change notice
+   * moved the airing item's end; a notice that changed nothing keeps waiting.
+   * The lookup is bounded by the recovery window from now, not from a
+   * boundary that may be hours away, so a stalled one fails promptly.
+   */
+  private async sleepUntilCut(
+    atMs: TimestampMs,
+    deadlineAt: TimestampMs,
+  ): Promise<"elapsed" | "cut"> {
+    while ((await this.sleepUntil(atMs)) === "schedule_changed") {
+      const at = this.options.clock.now();
+      const result = await this.bounded(
+        "current_lookup",
+        Math.min(deadlineAt, at + this.options.recoveryTimeoutMs),
+        () =>
+          this.options.playoutProvider.getCurrent(this.options.channelId, at),
+        { interruptible: true },
+      );
+      this.checkHalted();
+      const moved = findMovedEnd(
+        result,
+        this.options.channelId,
+        this.airing,
+        this.playsUntil,
+        at,
+      );
+      if (moved !== undefined) {
+        this.airing = moved;
+        return "cut";
+      }
+    }
+    return "elapsed";
   }
 
   /**
    * Waits on the injected scheduler until wall time reaches the target.
    * Real timers can fire early, so the clock, not the timer, ends the wait.
+   * A pending or arriving schedule-change notice also ends it.
    */
-  private async sleepUntil(atMs: TimestampMs): Promise<void> {
+  private async sleepUntil(
+    atMs: TimestampMs,
+  ): Promise<"elapsed" | "schedule_changed"> {
     this.checkHalted();
     while (this.options.clock.now() < atMs) {
+      if (this.scheduleChangeNoticed) {
+        this.scheduleChangeNoticed = false;
+        return "schedule_changed";
+      }
       const delayMs = atMs - this.options.clock.now();
       await new Promise<void>((resolve) => {
         const task = this.options.timers.setTimeout(resolve, delayMs);
@@ -270,10 +346,13 @@ export class TransitionLoop {
           task.cancel();
           resolve();
         };
+        this.wakeForScheduleChange = this.wake;
       });
       this.wake = undefined;
+      this.wakeForScheduleChange = undefined;
       this.checkHalted();
     }
+    return "elapsed";
   }
 
   /**

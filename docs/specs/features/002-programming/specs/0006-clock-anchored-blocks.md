@@ -1,6 +1,6 @@
 # Clock-Anchored Programming And Boundary Coverage
 
-Status: Implemented (owner screens ship with spec 0007)
+Status: Implemented
 
 ## Problem
 

@@ -1,3 +1,5 @@
+import type { BlockingReservation } from "../reservations/persistence/reservation-rows.js";
+
 /**
  * What a catalog removal takes out of the catalog: one media root with every
  * item under it, or one or more unique items.
@@ -46,7 +48,13 @@ export type CatalogRemovalRefusal =
   | { kind: "unknown_media_items"; mediaItemIds: string[] }
   | { kind: "scan_in_progress" }
   /** Assignments or reservations play these items directly. */
-  | { kind: "media_item_in_use"; channelIds: string[]; mediaItemIds: string[] }
+  | {
+      kind: "media_item_in_use";
+      channelIds: string[];
+      mediaItemIds: string[];
+      /** The specials among the blockers, which the owner edits or cancels. */
+      reservations: BlockingReservation[];
+    }
   /** Removal only: the request did not consent to taking channels off the air. */
   | { kind: "channels_left_unschedulable"; impact: CatalogRemovalImpact };
 

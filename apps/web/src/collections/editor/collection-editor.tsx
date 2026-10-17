@@ -4,7 +4,11 @@ import { displayDuration } from "../../controls/display-duration.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
+import { ApiError } from "../../http/api-error.js";
+import { BlockingSpecials } from "../../controls/blocking-specials.js";
+import { channelNumberIn } from "../../controls/channel-number.js";
 import type {
+  Channel,
   CollectionMember,
   CollectionStatus,
   MediaCollection,
@@ -34,12 +38,15 @@ export function CollectionEditor({
   changed,
   deleted,
   onDirtyChange,
+  onOpenChannels,
 }: {
   collection: MediaCollection;
   visible: boolean;
   changed: () => void;
   deleted: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** Opens My Channels, where a special blocking the delete is resolved. */
+  onOpenChannels?: () => void;
 }) {
   const path = resourcePath("media-collections", collection.id);
   const members = useResource<CollectionMember[]>(`${path}/items`, visible);
@@ -47,6 +54,15 @@ export function CollectionEditor({
   const mutation = useMutation();
   // `attempted` keeps an earlier rename or save error out of a newly opened confirmation.
   const [deleting, setDeleting] = useState<{ attempted: boolean }>();
+  // Channel numbers name the specials a refused delete lists.
+  const channels = useResource<Channel[]>(
+    deleting?.attempted &&
+      mutation.error instanceof ApiError &&
+      mutation.error.code === "media_collection_in_use"
+      ? "/channels"
+      : null,
+    visible,
+  );
   const [converting, setConverting] = useState(false);
   const [changingCriterion, setChangingCriterion] = useState(false);
   // Unsaved edits, or the order a save returned until the refetch replaces it,
@@ -190,6 +206,11 @@ export function CollectionEditor({
           <RequestFeedback
             loading={mutation.pending}
             error={deleting.attempted ? mutation.error : undefined}
+          />
+          <BlockingSpecials
+            error={deleting.attempted ? mutation.error : undefined}
+            channelNumber={(id) => channelNumberIn(channels.data, id)}
+            onOpenChannels={onOpenChannels}
           />
           <div className="dialog-actions">
             <button

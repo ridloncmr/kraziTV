@@ -36,10 +36,15 @@ export type UpdateChannelResult =
   | DuplicateNumberResult;
 
 /**
- * The slice of the channel stream manager the channel routes need: an
- * administrative stop that settles a channel's runtime after disable or delete.
+ * The slice of the channel stream manager administrative routes need: an
+ * administrative stop that settles a channel's runtime after disable or
+ * delete, and the notice that a committed schedule write may have cut what
+ * airs (ADR 0015).
  */
-export type ChannelRuntime = Pick<ChannelStreamManagerContract, "stopChannel">;
+export type ChannelRuntime = Pick<
+  ChannelStreamManagerContract,
+  "stopChannel" | "scheduleChanged"
+>;
 
 /**
  * The slice of the channel stream manager the server owns: one viewer's tune,

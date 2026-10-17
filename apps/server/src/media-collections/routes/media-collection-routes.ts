@@ -17,6 +17,7 @@ import type {
   MediaCollectionMember,
   MediaCollectionSummary,
 } from "../contracts.js";
+import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { collectionCriterionSchema } from "../criteria/collection-criterion.js";
 import type { MediaCollectionRepository } from "../persistence/media-collection-repository.js";
 import { membershipChange } from "../persistence/replace-collection-members.js";
@@ -174,7 +175,13 @@ export function registerMediaCollectionRoutes(
         409,
         "media_collection_in_use",
         `Media collection ${id} is played by assignments or reservations on channels: ${result.channelIds.join(", ")}`,
-        { channelIds: result.channelIds },
+        {
+          channelIds: result.channelIds,
+          reservations: result.reservations.map((reservation) => ({
+            ...reservation,
+            startsAt: toApiTimestamp(reservation.startsAt),
+          })),
+        },
       );
     }
     return reply.status(204).send();

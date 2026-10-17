@@ -13,6 +13,7 @@ import type {
 } from "../playout/contracts.js";
 import type { TimestampMs } from "../runtime/clock.js";
 import type { SignalPlayoutItem } from "../signal-packager/contracts.js";
+import type { AiringItem } from "./contracts.js";
 
 type CurrentPlayout = Extract<CurrentPlayoutResult, { status: "current" }>;
 type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
@@ -56,6 +57,48 @@ export function cursorOf(item: SelectedPlayoutItem): PlayoutCursor {
   return item.kind === "program"
     ? { kind: "program", scheduleEntryId: item.scheduleEntryId }
     : { kind: "filler", endsAt: item.endsAt };
+}
+
+/**
+ * Reads where the airing item now ends from what airs at `at` (ADR 0015).
+ * The same program with another end moves the boundary there, earlier for a
+ * cut or back for a withdrawn one, but never past `playsUntil`, the end its
+ * FFmpeg process was started for. Anything else airing means the cut
+ * already passed, so the boundary is `at`; a filler counts as something
+ * else once its end moved, because its end names it and its card shows it.
+ * No current playout, another channel's answer, or a lookup made at or
+ * after the boundary changes nothing: the coordinator settles those there.
+ */
+export function findMovedEnd(
+  result: CurrentPlayoutResult,
+  channelId: ChannelId,
+  airing: AiringItem,
+  playsUntil: TimestampMs,
+  at: TimestampMs,
+): AiringItem | undefined {
+  if (
+    result.status !== "current" ||
+    result.channelId !== channelId ||
+    result.item.channelId !== channelId ||
+    at >= airing.endsAt
+  ) {
+    return undefined;
+  }
+  const { item } = result;
+  const { cursor } = airing;
+  if (item.kind === "filler") {
+    const same = cursor.kind === "filler" && cursor.endsAt === item.endsAt;
+    return same ? undefined : { cursor, endsAt: at };
+  }
+  if (
+    cursor.kind !== "program" ||
+    cursor.scheduleEntryId !== item.scheduleEntryId
+  ) {
+    return { cursor, endsAt: at };
+  }
+  return item.endsAt === airing.endsAt || item.endsAt > playsUntil
+    ? undefined
+    : { cursor, endsAt: item.endsAt };
 }
 
 /** Preserves the absolute end while translating selected playout for packaging. */

@@ -1,6 +1,7 @@
 import {
   ALIGNED_PACKET_RUN,
   MPEG_TS_PACKET_BYTES,
+  packetPid,
   startsAlignedPacketRun,
 } from "./mpeg-ts-packet-run.js";
 
@@ -25,9 +26,4 @@ export function findMpegTsJoinPoint(retained: Buffer): number | undefined {
     }
   }
   return undefined;
-}
-
-/** Extracts the MPEG-TS PID while masking transport-error and payload flags. */
-function packetPid(buffer: Buffer, offset: number): number {
-  return ((buffer[offset + 1] ?? 0) & 0x1f) * 256 + (buffer[offset + 2] ?? 0);
 }

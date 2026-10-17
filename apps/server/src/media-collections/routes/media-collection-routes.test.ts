@@ -361,6 +361,7 @@ describe("DELETE /media-collections/:id", () => {
         code: "media_collection_in_use",
         message: expect.stringContaining(collectionFixture.id),
         channelIds: [channelFixture.id],
+        reservations: [],
       },
     });
     expect(
