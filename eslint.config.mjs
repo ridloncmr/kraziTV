@@ -49,7 +49,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["**/*.test.ts", "**/src/testing/**"],
+    files: ["**/*.test.ts", "**/src/testing/**", "**/integration/**"],
     rules: {
       // HTTP inject bodies are `any`; tests assert on their shape directly.
       "@typescript-eslint/no-unsafe-assignment": "off",
