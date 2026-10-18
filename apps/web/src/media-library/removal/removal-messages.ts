@@ -65,8 +65,8 @@ export function refusalMessage(
         channelNumber(String(id)),
       );
       return numbers.length === 1
-        ? `Channel ${numbers[0]} plays an item from this media root directly. Change that block first.`
-        : `Channels ${numbers.join(", ")} play an item from this media root directly. Change those blocks first.`;
+        ? `Channel ${numbers[0]} plays one of these items directly from a programming assignment. Change that assignment first.`
+        : `Channels ${numbers.join(", ")} play one of these items directly from a programming assignment. Change those assignments first.`;
     }
     default:
       return undefined;

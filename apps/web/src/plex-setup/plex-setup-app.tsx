@@ -73,7 +73,8 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
         <legend>Setup in Plex</legend>
         <ol className="setup-steps">
           <li>
-            Create and enable a channel with a programming block in My Channels.
+            Create and enable a channel with a programming assignment in My
+            Channels.
           </li>
           <li>
             In Plex server settings, open Live TV &amp; DVR and add a tuner
