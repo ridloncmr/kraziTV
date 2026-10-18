@@ -7,7 +7,11 @@ import {
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { MediaCollectionTable } from "../../database/schema/media-collection-table.js";
 import { parameterChunks } from "../../database/writes/parameter-chunks.js";
-import type { CollectionCriterion, MediaCollection } from "../contracts.js";
+import type {
+  CollectionCriterion,
+  MediaCollection,
+  MediaCollectionMember,
+} from "../contracts.js";
 import {
   criterionKey,
   readStoredCriterion,
@@ -57,7 +61,53 @@ export async function insertCollection(
   return collection;
 }
 
-// Writes contiguous zero-based positions in request order.
+/** Answers existence without loading the row. */
+export async function collectionExists(
+  executor: Executor,
+  id: string,
+): Promise<boolean> {
+  const row = await executor
+    .selectFrom("media_collections")
+    .select("id")
+    .where("id", "=", id)
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+/** Joins each membership to its item summary in one query, ordered by position. */
+export async function selectMembers(
+  executor: Executor,
+  mediaCollectionId: string,
+): Promise<MediaCollectionMember[]> {
+  const rows = await executor
+    .selectFrom("media_collection_items")
+    .innerJoin(
+      "media_items",
+      "media_items.id",
+      "media_collection_items.media_item_id",
+    )
+    .select([
+      "media_collection_items.position",
+      "media_items.id",
+      "media_items.title",
+      "media_items.path",
+      "media_items.status",
+      "media_items.duration_ms",
+    ])
+    .where("media_collection_items.media_collection_id", "=", mediaCollectionId)
+    .orderBy("media_collection_items.position")
+    .execute();
+  return rows.map((row) => ({
+    position: row.position,
+    mediaItemId: row.id,
+    title: row.title,
+    path: row.path,
+    status: row.status,
+    durationMs: row.duration_ms,
+  }));
+}
+
+/** Writes contiguous zero-based positions in request order. */
 export async function insertMembers(
   executor: Executor,
   mediaCollectionId: string,

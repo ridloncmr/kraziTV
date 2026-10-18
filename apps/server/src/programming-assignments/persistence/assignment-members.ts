@@ -3,7 +3,7 @@ import type { Kysely, Selectable } from "kysely";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ProgrammingAssignmentMemberTable } from "../../database/schema/programming-assignment-member-table.js";
 import type { ProgrammingSourceAssignmentTable } from "../../database/schema/programming-source-assignment-table.js";
-import { collectionExists } from "../../media-collections/persistence/media-collection-repository.js";
+import { collectionExists } from "../../media-collections/persistence/collection-rows.js";
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import type {
   MemberAssignedResult,
