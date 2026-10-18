@@ -9,7 +9,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { ScheduleEntryTable } from "../database/schema/schedule-entry-table.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
+import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
+import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
+import type {
+  AssignmentSettings,
+  MemberSource,
+} from "../programming-assignments/contracts.js";
+import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import {
+  assignmentFixture,
+  assignmentMemberFixture,
+  channelFixture,
+} from "../testing/channel-fixtures.js";
 import { episodeFacts, movieFacts } from "../testing/collection-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { correctionRow } from "../testing/metadata-match-fixtures.js";
@@ -27,19 +39,7 @@ import {
   createTemporaryDirectory,
   openTestDatabase,
 } from "../testing/test-environment.js";
-import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
-import { membershipChange } from "../media-collections/persistence/replace-collection-members.js";
 import { channelInputChange } from "./channel-input-change.js";
-import { AssignmentRepository } from "../programming-assignments/persistence/assignment-repository.js";
-import type {
-  AssignmentSettings,
-  MemberSource,
-} from "../programming-assignments/contracts.js";
-import {
-  assignmentFixture,
-  assignmentMemberFixture,
-  channelFixture,
-} from "../testing/channel-fixtures.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "./schedule-coverage.js";
 import { ScheduleService } from "./schedule-service.js";
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { Insertable } from "kysely";
 
 import {
   FIXTURE_TIME,
@@ -13,8 +14,6 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
-import type { Insertable } from "kysely";
-
 import type { MetadataMatchTable } from "../../database/schema/metadata-match-table.js";
 import { MetadataMatchRepository } from "./metadata-match-repository.js";
 

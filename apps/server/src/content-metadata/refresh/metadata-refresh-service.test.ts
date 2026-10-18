@@ -1,19 +1,16 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { MediaItemRepository } from "../../media-items/media-item-repository.js";
+import { rootFixture } from "../../testing/catalog-fixtures.js";
+import { correctionRow } from "../../testing/metadata-match-fixtures.js";
 import {
   scannedLibrary,
   changeAlien,
   stored,
 } from "../../testing/metadata-refresh-fixtures.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { MediaItemRepository } from "../../media-items/media-item-repository.js";
-import { rootFixture } from "../../testing/catalog-fixtures.js";
-
-import { correctionRow } from "../../testing/metadata-match-fixtures.js";
-
 import { SCAN_ALIEN } from "../../testing/scan-metadata.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
-
 import { MatchChoiceService } from "../match-choice/match-choice-service.js";
 import { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
 import { MetadataRefreshService } from "./metadata-refresh-service.js";

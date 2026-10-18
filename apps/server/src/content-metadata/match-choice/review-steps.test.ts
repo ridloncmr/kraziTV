@@ -1,6 +1,6 @@
-import { waiting } from "../../testing/metadata-match-fixtures.js";
 import { describe, expect, it } from "vitest";
 
+import { waiting } from "../../testing/metadata-match-fixtures.js";
 import { groupReviewSteps } from "./review-steps.js";
 
 describe("groupReviewSteps", () => {

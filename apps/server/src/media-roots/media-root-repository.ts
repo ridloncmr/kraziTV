@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { Kysely, Selectable } from "kysely";
+import type { NormalizedMediaPath } from "@krazitv/media";
 
 import {
   fromSqliteBoolean,
@@ -10,7 +11,6 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { RecordSources } from "../database/writes/record-sources.js";
 import { isUniqueViolation } from "../database/writes/unique-violation.js";
-import type { NormalizedMediaPath } from "@krazitv/media";
 import type { CreateMediaRootResult, MediaRoot } from "./contracts.js";
 
 /** Persists media roots and translates SQLite rows into typed domain records. */

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { iso, send, windowUrl } from "../testing/api-requests.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { readScheduleEntries } from "../testing/schedule-fixtures.js";
@@ -15,7 +16,6 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../testing/test-environment.js";
-import { collectionAssignment } from "../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 

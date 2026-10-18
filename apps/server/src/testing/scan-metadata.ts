@@ -1,9 +1,11 @@
-import { join } from "node:path";
-import { PROBE_RESULT } from "./discovery-fixtures.js";
 // Test-only scanner metadata wiring; production code must never import this module.
+
+import { join } from "node:path";
+
 import { MediaProbeError, TmdbClient, type MediaProber } from "@krazitv/media";
 
 import type { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
+import { PROBE_RESULT } from "./discovery-fixtures.js";
 import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 
 /**

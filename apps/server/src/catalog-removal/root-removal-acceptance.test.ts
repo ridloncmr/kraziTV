@@ -2,11 +2,11 @@
 // startup, and re-adding a path interact with removed rows.
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { ScheduleService } from "../schedules/schedule-service.js";

@@ -1,11 +1,12 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
+import { ScheduleService } from "../schedules/schedule-service.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { recordingLog } from "../testing/recording-log.js";
-import { unwrittenCoverage } from "../testing/unwritten-coverage.js";
 import {
   readOnlyScheduleState,
   readScheduleEntries,
@@ -16,8 +17,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedules/schedule-coverage.js";
-import { ScheduleService } from "../schedules/schedule-service.js";
+import { unwrittenCoverage } from "../testing/unwritten-coverage.js";
 import type { PlayoutTimeline } from "./contracts.js";
 import { PlayoutService } from "./playout-service.js";
 

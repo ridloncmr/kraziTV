@@ -1,4 +1,5 @@
 import { TmdbClient } from "@krazitv/media";
+
 import { MetadataRefreshService } from "../content-metadata/refresh/metadata-refresh-service.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { rootFixture } from "./catalog-fixtures.js";
@@ -13,6 +14,7 @@ import { RecordingCollectionMaintenance } from "./recording-collection-maintenan
 import { recordingLog } from "./recording-log.js";
 import { SCAN_ALIEN, SCAN_FIREFLY } from "./scan-metadata.js";
 import { TrackedRuntime } from "./tracked-runtime.js";
+
 const EPISODE_PATH = "Firefly/Season 1/s01e05.mkv";
 const AMBIGUOUS_PATH = "The Thing/movie.mkv";
 /**

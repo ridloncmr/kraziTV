@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
+
 import { countQueries } from "../../testing/query-counter.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 import { catalog, DISC_1, DISC_2 } from "../../testing/track-catalog.js";
 import { readTrackFolder } from "./track-folder.js";
+
 afterEach(cleanUpTestEnvironment);
 
 describe("readTrackFolder", () => {

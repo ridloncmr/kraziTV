@@ -219,7 +219,9 @@ export class CatalogScanner {
   #refuseScan(
     rootId: string,
     found: MediaRoot | undefined,
-  ): { kind: "admitted"; root: MediaRoot } | ScanStart {
+  ):
+    | { kind: "admitted"; root: MediaRoot }
+    | Exclude<ScanStart, { kind: "started" }> {
     if (this.#closing) return { kind: "shutting_down" };
     const admission = admitRoot(found);
     if (admission.kind !== "admitted") return admission;

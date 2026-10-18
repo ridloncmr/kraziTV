@@ -1,6 +1,8 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
+import { ScheduleService } from "../../schedules/schedule-service.js";
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";
@@ -17,8 +19,6 @@ import {
   openTestDatabase,
   startTestServer,
 } from "../../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
-import { ScheduleService } from "../../schedules/schedule-service.js";
 import { unwrittenCoverage } from "../../testing/unwritten-coverage.js";
 import { PlayoutService } from "../playout-service.js";
 

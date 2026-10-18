@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type { FolderTrack } from "../contracts.js";
 import { compareTracks, proposeTrackMapping } from "./track-proposal.js";
-
 import { track } from "../../testing/track-proposal-fixtures.js";
 
 // Each row as `id: episode`, with `-` for a skipped track.

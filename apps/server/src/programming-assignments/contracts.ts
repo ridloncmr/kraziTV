@@ -1,10 +1,11 @@
-import type { RuleStretchConflict } from "../programming-rules/contracts.js";
 import type {
   AssignmentParticipation,
   MarathonSettings,
   PlaybackMode,
   StretchSetting,
 } from "@krazitv/krazi-brain";
+
+import type { RuleStretchConflict } from "../programming-rules/contracts.js";
 
 /** One member an assignment plays: a collection, or one media item. */
 export type MemberSource =

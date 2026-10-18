@@ -9,9 +9,9 @@ const DEFAULT_ORIGINS = sql.raw(
 );
 
 // Requires a stored integer within `min..MAX_SAFE_INTEGER`.
-function safeIntegerAtLeast(column: string, min: string): RawBuilder<unknown> {
+function safeIntegerAtLeast(column: string, min: number): RawBuilder<unknown> {
   const ref = sql.ref(column);
-  return sql`typeof(${ref}) = 'integer' and ${ref} between ${sql.raw(min)} and ${MAX_SAFE_INTEGER}`;
+  return sql`typeof(${ref}) = 'integer' and ${ref} between ${sql.raw(String(min))} and ${MAX_SAFE_INTEGER}`;
 }
 
 // A stretch's columns: a positive count or minutes in `_min`, and `_max` at
@@ -19,10 +19,10 @@ function safeIntegerAtLeast(column: string, min: string): RawBuilder<unknown> {
 function stretchShape(prefix: string): RawBuilder<unknown> {
   const kind = sql.ref(`${prefix}_kind`);
   const max = sql.ref(`${prefix}_max`);
-  return sql`${safeIntegerAtLeast(`${prefix}_min`, "1")}
+  return sql`${safeIntegerAtLeast(`${prefix}_min`, 1)}
     and ((${kind} in ('programs', 'airtime') and ${max} is null)
       or (${kind} = 'airtime_range' and ${max} is not null
-        and ${safeIntegerAtLeast(`${prefix}_max`, "1")}
+        and ${safeIntegerAtLeast(`${prefix}_max`, 1)}
         and ${max} >= ${sql.ref(`${prefix}_min`)}))`;
 }
 
@@ -142,7 +142,7 @@ async function createRuleTables(trx: Kysely<unknown>): Promise<void> {
       check (typeof(priority) = 'integer'
         and priority between -${MAX_SAFE_INTEGER} and ${MAX_SAFE_INTEGER}),
     constraint programming_rules_order
-      check (${safeIntegerAtLeast("rule_order", "0")}),
+      check (${safeIntegerAtLeast("rule_order", 0)}),
     constraint programming_rules_dates check (
       (date_kind = 'any'
         and start_date is null and end_date is null
@@ -167,9 +167,9 @@ async function createRuleTables(trx: Kysely<unknown>): Promise<void> {
         and window_end_minute between 0 and 1439
         and window_start_minute != window_end_minute)),
     constraint programming_rules_created_at_safe_integer
-      check (${safeIntegerAtLeast("created_at", "0")}),
+      check (${safeIntegerAtLeast("created_at", 0)}),
     constraint programming_rules_updated_at_safe_integer
-      check (${safeIntegerAtLeast("updated_at", "0")})
+      check (${safeIntegerAtLeast("updated_at", 0)})
   )`.execute(trx);
   await sql`create index programming_rules_channel_order
     on programming_rules (channel_id, rule_order)`.execute(trx);
@@ -195,7 +195,7 @@ async function createRuleTables(trx: Kysely<unknown>): Promise<void> {
       references programming_source_assignments(id, channel_id) on delete cascade,
     constraint programming_rule_sources_once unique (rule_id, assignment_id),
     constraint programming_rule_sources_position
-      check (${safeIntegerAtLeast("position", "0")}),
+      check (${safeIntegerAtLeast("position", 0)}),
     constraint programming_rule_sources_ordinary
       check ((${noStretch("ordinary")})
         or (ordinary_kind is not null and ${stretchShape("ordinary")})),
@@ -204,7 +204,7 @@ async function createRuleTables(trx: Kysely<unknown>): Promise<void> {
       or (marathon_mode = 'replace'
         and marathon_kind is not null and ${stretchShape("marathon")})),
     constraint programming_rule_sources_created_at_safe_integer
-      check (${safeIntegerAtLeast("created_at", "0")})
+      check (${safeIntegerAtLeast("created_at", 0)})
   )`.execute(trx);
   // Serves the cascade when an assignment row is deleted.
   await sql`create index programming_rule_sources_assignment_id

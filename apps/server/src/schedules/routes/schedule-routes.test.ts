@@ -13,8 +13,8 @@ import { manualClock } from "../../testing/manual-clock.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 import {
   readOnlyScheduleState,
-  seedScheduleScenario,
   readScheduleEntries,
+  seedScheduleScenario,
 } from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import {

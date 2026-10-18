@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { orderingChange } from "../../media-collections/maintenance/maintenance-writes.js";
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import {
   FIXTURE_TIME,
@@ -14,14 +15,13 @@ import { episodeFacts } from "../../testing/collection-fixtures.js";
 import { correctionRow } from "../../testing/metadata-match-fixtures.js";
 import { recordingLog } from "../../testing/recording-log.js";
 import {
-  insertCollectionOfItems,
-  readOnlyScheduleState,
-} from "../../testing/schedule-fixtures.js";
-import { orderingChange } from "../../media-collections/maintenance/maintenance-writes.js";
-import {
   readGuideAirings,
   saveReservation,
 } from "../../testing/reservation-fixtures.js";
+import {
+  insertCollectionOfItems,
+  readOnlyScheduleState,
+} from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 

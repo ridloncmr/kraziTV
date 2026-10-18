@@ -1,5 +1,6 @@
 import { TmdbClient } from "../tmdb/tmdb-client.js";
 import { routedFetch } from "./tmdb-fetch.js";
+
 /** A TMDB `/search/movie` result as TMDB sends it, trimmed to the fields kraziTV reads plus one it ignores. */
 export function searchResult(
   id: number,

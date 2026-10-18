@@ -1,16 +1,23 @@
-import { openTestDatabase } from "./test-environment.js";
-import { derivePathHints } from "@krazitv/media";
-import type { HintedCandidate } from "../catalog-scan/contracts.js";
-import type { EpisodeLookup, MovieLookup, PathHints } from "@krazitv/media";
-import type { CatalogCandidate } from "../catalog-scan/contracts.js";
+import {
+  derivePathHints,
+  type EpisodeLookup,
+  type MovieLookup,
+  type PathHints,
+} from "@krazitv/media";
+import type { Insertable, Kysely } from "kysely";
+
+import type {
+  CatalogCandidate,
+  HintedCandidate,
+} from "../catalog-scan/contracts.js";
 import type { MetadataMatchRecord } from "../content-metadata/contracts.js";
-import type { Insertable } from "kysely";
+import { replaceItemTags } from "../content-metadata/corrections/item-tags.js";
+import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MetadataCorrectionTable } from "../database/schema/metadata-correction-table.js";
 import type { ContentMetadata } from "../media-items/contracts.js";
 import { FIXTURE_TIME, itemFixture, rootFixture } from "./catalog-fixtures.js";
-import type { Kysely } from "kysely";
-import { replaceItemTags } from "../content-metadata/corrections/item-tags.js";
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import { openTestDatabase } from "./test-environment.js";
+
 /** Lookup time shared by staged records and their expected persistence. */
 export const LOOKED_UP_AT = FIXTURE_TIME + 45_000;
 /** A matched movie and its path evidence for metadata writer tests. */

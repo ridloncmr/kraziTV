@@ -1,7 +1,3 @@
-import {
-  SCAN_FIREFLY as FIREFLY,
-  SCAN_DOCTOR_WHO as DOCTOR_WHO,
-} from "../../testing/scan-metadata.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { rootFixture } from "../../testing/catalog-fixtures.js";
@@ -11,6 +7,10 @@ import {
   setupEnrichmentScan,
   waitForScanEnd,
 } from "../../testing/enrichment-scan.js";
+import {
+  SCAN_FIREFLY as FIREFLY,
+  SCAN_DOCTOR_WHO as DOCTOR_WHO,
+} from "../../testing/scan-metadata.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 

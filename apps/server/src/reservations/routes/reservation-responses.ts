@@ -208,7 +208,6 @@ export function toApiReservationPreview(
   };
 }
 
-// Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
 /**
  * Projects a saved reservation for the API, with its status at `now`, the
  * server's clock: the browser never decides whether a special has started,

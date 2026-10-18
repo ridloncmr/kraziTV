@@ -1,4 +1,5 @@
 import type { FolderTrack } from "../content-metadata/contracts.js";
+
 const MINUTE = 60_000;
 
 // A track named by its disc and number, running `minutes`.

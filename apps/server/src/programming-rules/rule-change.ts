@@ -16,7 +16,7 @@ type Executor = Kysely<DatabaseSchema>;
 /**
  * Wraps a rule write as a channel input change that ends the started turn
  * after the airing program when the write changes the terms that turn runs
- * under at the regeneration boundary: its rotation context, its source\x27s
+ * under at the regeneration boundary: its rotation context, its source's
  * eligibility, or its effective stretch settings (programming spec 0005).
  * An edit that changes none of them keeps the turn running. kraziBrain
  * decides the terms; this only compares them before and after.

@@ -235,6 +235,33 @@
       "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     },
     {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/005-schedules.ts",
+        "apps/server/src/database/migrations/024-programming-rules.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/005-schedules.ts",
+        "apps/server/src/database/migrations/027-reservations.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts",
+        "apps/server/src/database/migrations/024-programming-rules.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
       "rule": "grouping",
       "files": ["apps/server/src/media-collections/persistence/"],
       "reason": "Every file serves one capability, collection persistence: the repository, row inserts and conversion, membership replacement, criterion labels, and the channels-using-collection read.",
