@@ -1,7 +1,7 @@
 import { ProgramIcon } from "../branding/program-icon.js";
 import type { AccountProfile, AuthState } from "../http/contracts/auth.js";
-import { LogonBackdrop } from "./logon-backdrop.js";
 import { AccountTile } from "./account-tile.js";
+import { LogonBackdrop } from "./logon-backdrop.js";
 
 /**
  * The logon screen for a browser without a session: kraziTV branding on the

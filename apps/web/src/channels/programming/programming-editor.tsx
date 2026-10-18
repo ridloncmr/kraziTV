@@ -10,9 +10,9 @@ import type {
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { scheduleWindowPath } from "../../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "../assignments/assignment-form.js";
+import { RulesEditor } from "../rules/rules-editor.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
 import { RebuildDialog } from "./rebuild-dialog.js";
-import { RulesEditor } from "../rules/rules-editor.js";
 import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**

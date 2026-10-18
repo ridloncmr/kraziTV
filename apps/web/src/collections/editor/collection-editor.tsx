@@ -1,12 +1,12 @@
-import { formText } from "../../controls/form-text.js";
 import { useEffect, useMemo, useState } from "react";
+import { BlockingSpecials } from "../../controls/blocking-specials.js";
+import { channelNumberIn } from "../../controls/channel-number.js";
 import { displayDuration } from "../../controls/display-duration.js";
+import { formText } from "../../controls/form-text.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import { BlockingSpecials } from "../../controls/blocking-specials.js";
-import { channelNumberIn } from "../../controls/channel-number.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import type {
   CollectionMember,
@@ -19,10 +19,10 @@ import {
   MaintenanceReport,
 } from "../automatic/automatic-status.js";
 import { ChangeCriterionDialog } from "../automatic/change-criterion-dialog.js";
+import type { DraftMember } from "../contracts.js";
 import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import { ConvertToManualDialog } from "./convert-to-manual-dialog.js";
-import type { DraftMember } from "../contracts.js";
 import { MemberList } from "./member-list.js";
 import { appendMedia } from "./member-order.js";
 

@@ -359,10 +359,10 @@ button:disabled {
 }
 .start-menu {
   position: absolute;
-  bottom: 32px;
+  bottom: var(--xp-taskbar-height);
   left: 0;
   width: min(440px, 100vw);
-  max-height: calc(100dvh - 32px);
+  max-height: calc(100dvh - var(--xp-taskbar-height));
   overflow: auto;
   border: 2px solid var(--xp-title-primary);
   border-radius: 7px 7px 0 0;
@@ -597,7 +597,7 @@ button:disabled {
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
-    height: calc(100dvh - 32px) !important;
+    height: calc(100dvh - var(--xp-taskbar-height)) !important;
   }
   .resize-grip {
     display: none;

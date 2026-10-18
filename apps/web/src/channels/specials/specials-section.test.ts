@@ -9,10 +9,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { Special, SpecialPreview } from "./contracts.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
+import type { Special, SpecialPreview } from "./contracts.js";
 import { SpecialsSection } from "./specials-section.js";
 
 afterEach(() => {

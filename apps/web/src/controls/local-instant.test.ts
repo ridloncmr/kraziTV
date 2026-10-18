@@ -1,5 +1,4 @@
 import { expect, it } from "vitest";
-
 import { fromLocalInput, toLocalInput } from "./local-instant.js";
 
 it("round-trips a local time through the instant it names", () => {
