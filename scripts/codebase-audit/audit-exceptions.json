@@ -167,6 +167,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["packages/signal/src/ffmpeg/mpeg-ts/"],
+      "reason": "Every file serves one capability, carrying MPEG-TS packets from FFmpeg processes to the session output: packet alignment, the join point, readiness, forwarding, and continuity counters.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/web/src/http/contracts/"],
       "reason": "contracts/ is a kind folder holding the browser-side wire types, one file per API area; every file serves one capability, declaring what the API answers.",
       "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged)"

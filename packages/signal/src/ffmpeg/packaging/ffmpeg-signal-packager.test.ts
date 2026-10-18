@@ -5,6 +5,7 @@ import { FakeClock } from "../../testing/fake-clock.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
 import type { OutputReadinessInspector } from "../contracts.js";
+import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
 import { transportPacket } from "../../testing/transport-packet.js";
@@ -192,7 +193,7 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(false);
   });
 
-  it("prepares without spawning, then synchronously starts the next FFmpeg process on commit", async () => {
+  it("starts the next FFmpeg process on prepare, holds its output, and releases it on commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -203,10 +204,13 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MpegTsReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const output = session.output;
+    const forwarded: Buffer[] = [];
+    output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    const held = Buffer.concat([packet(2), packet(3), packet(4)]);
 
     const preparation = await session.prepare(
       initialItem({
@@ -215,13 +219,22 @@ describe("FfmpegSignalPackager", () => {
         mediaPath: "C:/private/media/next.mkv",
       }),
     );
-    expect(spawner.spawnCalls).toHaveLength(1);
+
+    // The process starts at once, but nothing of it reaches the broadcast
+    // before the commit, however much it has emitted.
+    expect(spawner.spawnCalls).toHaveLength(2);
+    expect(spawner.spawnCalls[1]?.args).toContain("C:/private/media/next.mkv");
+    second.writeStdout(held);
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded)).toEqual(Buffer.alloc(0));
 
     preparation.commit();
 
     expect(session.output).toBe(output);
-    expect(spawner.spawnCalls).toHaveLength(2);
-    expect(spawner.spawnCalls[1]?.args).toContain("C:/private/media/next.mkv");
+    expect(Buffer.concat(forwarded)).toEqual(held);
+    second.writeStdout(packet(5));
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded)).toEqual(Buffer.concat([held, packet(5)]));
     expect(first.terminationSignals).toEqual(["SIGTERM"]);
     first.exit({ code: null, signal: "SIGTERM" });
     await flushMicrotasks(2);
@@ -244,15 +257,16 @@ describe("FfmpegSignalPackager", () => {
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
     await session.ready;
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({
         scheduleEntryId: "entry-2",
         mediaItemId: "media-2",
         mediaPath: "C:/private/media/secret-next.mkv",
       }),
     );
-    preparation.commit();
     second.writeStdout("usable-output");
+    const preparation = await preparing;
+    preparation.commit();
     first.exit({ code: null, signal: "SIGTERM" });
     const stopped = session.stop();
     second.exit({ code: null, signal: "SIGTERM" });
@@ -262,8 +276,8 @@ describe("FfmpegSignalPackager", () => {
       "ffmpeg_process_started",
       "signal_initial_output_ready",
       "ffmpeg_process_started",
+      "signal_prepared_item_ready",
       "signal_transition_committed",
-      "signal_committed_item_ready",
       "signal_session_stopped",
     ]);
     expect(logger.infos[3]?.context).toMatchObject({
@@ -286,25 +300,27 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MpegTsReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const output: Buffer[] = [];
     session.output.on("data", (chunk: Buffer) => output.push(chunk));
     const firstPacket = packet(1);
-    const secondPacket = packet(2);
+    const ready = Buffer.concat([packet(2), packet(3), packet(4)]);
+    const latePacket = packet(5);
 
     first.writeStdout(Buffer.concat([firstPacket, Buffer.alloc(17, 9)]));
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout(Buffer.concat([ready, latePacket.subarray(0, 50)]));
+    const preparation = await preparing;
     preparation.commit();
-    second.writeStdout(secondPacket.subarray(0, 50));
-    second.writeStdout(secondPacket.subarray(50));
+    second.writeStdout(latePacket.subarray(50));
     await flushMicrotasks(2);
 
     expect(Buffer.concat(output)).toEqual(
-      Buffer.concat([firstPacket, secondPacket]),
+      Buffer.concat([firstPacket, ready, latePacket]),
     );
     first.exit({ code: null, signal: "SIGTERM" });
     const stopped = session.stop();
@@ -312,52 +328,204 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
-  it("discards a prepared item without spawning and rejects its later commit", async () => {
-    const { packager, spawner, child } = createHarness();
+  it("discards a prepared item by stopping its FFmpeg process and rejects its later commit", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MarkerInspector(),
+    });
     const session = packager.start(initialItem());
-    session.output.resume();
-    const preparation = await session.prepare(
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
+    second.writeStdout(packet(2));
 
-    await preparation.discard();
+    const discarding = preparation.discard();
+    expect(second.terminationSignals).toEqual(["SIGTERM"]);
+    second.exit({ code: null, signal: "SIGTERM" });
+    await discarding;
 
-    expect(spawner.spawnCalls).toHaveLength(1);
+    // What the discarded process held never reaches the broadcast.
+    expect(Buffer.concat(forwarded)).toEqual(Buffer.alloc(0));
     expect(() => preparation.commit()).toThrow(/discarded/i);
     const stopped = session.stop();
-    child.exit({ code: null, signal: "SIGTERM" });
+    first.exit({ code: null, signal: "SIGTERM" });
     await stopped;
   });
 
-  it("consumes a preparation when its synchronous FFmpeg process start fails", async () => {
-    const { packager, child } = createHarness();
+  it("rejects a preparation whose FFmpeg process cannot start and keeps the session airing", async () => {
+    const { packager, child, spawner } = createHarness();
     const session = packager.start(initialItem());
-    const completion = expectSignalError(
-      session.completion,
-      "packaging_start_failed",
+    child.writeStdout("usable-output");
+    await session.ready;
+    let completed = false;
+    void session.completion.finally(() => {
+      completed = true;
+    });
+
+    await expect(
+      session.prepare(
+        initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+      ),
+    ).rejects.toMatchObject({ code: "packaging_start_failed" });
+    await flushMicrotasks(2);
+
+    expect(completed).toBe(false);
+    // The next preparation is free to start once a process can.
+    const next = new FakeProcess();
+    spawner.enqueue(next);
+    const preparing = session.prepare(
+      initialItem({ scheduleEntryId: "entry-3", mediaItemId: "media-3" }),
     );
-    const preparation = await session.prepare(
+    next.writeStdout("usable-output");
+    await expect(preparing).resolves.toBeDefined();
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    next.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("fails the commit of a prepared process that died before its boundary", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MarkerInspector(),
+    });
+    const session = packager.start(initialItem());
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
+    const completion = expectSignalError(
+      session.completion,
+      "packaging_failed",
+    );
+
+    second.exit({ code: 1, signal: null });
+    await flushMicrotasks(2);
 
     expect(() => preparation.commit()).toThrowError(
-      expect.objectContaining({ code: "packaging_start_failed" }),
+      expect.objectContaining({ code: "packaging_failed" }),
     );
-    expect(() => preparation.commit()).toThrow(/already committed/i);
-    await expect(preparation.discard()).resolves.toBeUndefined();
-
-    child.exit({ code: null, signal: "SIGTERM" });
     await completion;
+    first.exit({ code: null, signal: "SIGTERM" });
+  });
+
+  it("releases everything a short prepared item finished emitting before its commit", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MpegTsReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    const whole = Buffer.concat([packet(2), packet(3), packet(4), packet(5)]);
+    const preparing = session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    second.writeStdout(whole);
+    const preparation = await preparing;
+    second.exit({ code: 0, signal: null });
+    await flushMicrotasks(2);
+    let completed = false;
+    void session.completion.finally(() => {
+      completed = true;
+    });
+
+    preparation.commit();
+    await flushMicrotasks(2);
+
+    expect(Buffer.concat(forwarded)).toEqual(whole);
+    expect(completed).toBe(false);
+    const stopped = session.stop();
+    first.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("fails the session when a prepared process holds more output than its limit", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      preparedOutputLimitBytes: 188 * 4,
+      createReadinessInspector: () => new MpegTsReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+    session.output.resume();
+    const preparing = session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    second.writeStdout(Buffer.concat([packet(2), packet(3), packet(4)]));
+    await preparing;
+    const completion = expectSignalError(
+      session.completion,
+      "packaging_failed",
+    );
+
+    second.writeStdout(Buffer.concat([packet(5), packet(6)]));
+
+    const error = await completion;
+    expect(error.details).toMatchObject({ reason: "prepared_output_limit" });
+    first.exit({ code: null, signal: "SIGTERM" });
+    second.exit({ code: null, signal: "SIGTERM" });
   });
 
   it("makes outstanding and future preparations inert once stop begins", async () => {
-    const { packager, child } = createHarness();
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MarkerInspector(),
+    });
     const session = packager.start(initialItem());
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
 
     const stopped = session.stop();
+    expect(second.terminationSignals).toEqual(["SIGTERM"]);
+    second.exit({ code: null, signal: "SIGTERM" });
     await expect(preparation.discard()).resolves.toBeUndefined();
     expect(() => preparation.commit()).toThrow();
     await expect(
@@ -366,8 +534,47 @@ describe("FfmpegSignalPackager", () => {
       ),
     ).rejects.toMatchObject({ code: "packaging_stopped" });
 
-    child.exit({ code: null, signal: "SIGTERM" });
+    first.exit({ code: null, signal: "SIGTERM" });
     await stopped;
+  });
+
+  it("fails the session when a committed FFmpeg process produces no usable output in time", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    const timers = new FakeClock();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers,
+      logger: new RecordingLogger(),
+      itemReadinessTimeoutMs: 25,
+      createReadinessInspector: () => new MarkerInspector(),
+    });
+    const session = packager.start(initialItem());
+    session.output.resume();
+    first.writeStdout("usable-output");
+    await session.ready;
+    const preparation = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    // The boundary arrives before the process says anything: the commit goes
+    // ahead, and the readiness timeout, counted from its start, still bounds it.
+    preparation.commit();
+    first.exit({ code: null, signal: "SIGTERM" });
+    const completion = expectSignalError(
+      session.completion,
+      "packaging_failed",
+    );
+
+    timers.advanceBy(25);
+
+    const error = await completion;
+    expect(error.details).toMatchObject({ reason: "item_readiness_timeout" });
+    expect(second.terminationSignals).toEqual(["SIGTERM"]);
+    second.exit({ code: null, signal: "SIGTERM" });
   });
 
   it("stops every FFmpeg process retained across a committed transition before settling", async () => {
@@ -388,9 +595,11 @@ describe("FfmpegSignalPackager", () => {
     const outputEnded = new Promise<void>((resolve) => {
       session.output.once("end", resolve);
     });
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
     preparation.commit();
 
     const stopped = session.stop();
@@ -430,9 +639,11 @@ describe("FfmpegSignalPackager", () => {
     const outputEnded = new Promise<void>((resolve) => {
       session.output.once("end", resolve);
     });
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
     preparation.commit();
     const failed = expectSignalError(session.completion, "packaging_failed");
 
@@ -452,7 +663,7 @@ describe("FfmpegSignalPackager", () => {
     first.exit({ code: null, signal: "SIGTERM" });
   });
 
-  it("fails the session when a committed FFmpeg process produces no usable output", async () => {
+  it("stops a prepared process that produces no usable output in time and fails its later commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -474,34 +685,44 @@ describe("FfmpegSignalPackager", () => {
     session.output.on("error", outputError);
     first.writeStdout("usable-output");
     await session.ready;
+    let completed = false;
+    void session.completion.finally(() => {
+      completed = true;
+    });
     const preparation = await session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
-    );
-    preparation.commit();
-    first.exit({ code: null, signal: "SIGTERM" });
-    const completion = expectSignalError(
-      session.completion,
-      "packaging_failed",
     );
 
     timers.advanceBy(24);
     await flushMicrotasks(2);
     expect(second.terminationSignals).toEqual([]);
     timers.advanceBy(1);
+    await flushMicrotasks(2);
 
-    const error = await completion;
-    expect(error.details).toMatchObject({ reason: "item_readiness_timeout" });
+    // The airing item plays on; the silent process is stopped and never
+    // reaches the output, and the commit that would have aired it fails.
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
     expect(second.stdout.listenerCount("data")).toBe(0);
+    expect(completed).toBe(false);
     const bytesAtFailure = Buffer.concat(forwarded);
     second.writeStdout(packet(7));
     await flushMicrotasks(2);
     expect(Buffer.concat(forwarded)).toEqual(bytesAtFailure);
     expect(outputError).not.toHaveBeenCalled();
     second.exit({ code: null, signal: "SIGTERM" });
+    const completion = expectSignalError(
+      session.completion,
+      "packaging_failed",
+    );
+    expect(() => preparation.commit()).toThrowError(
+      expect.objectContaining({ code: "packaging_failed" }),
+    );
+    const error = await completion;
+    expect(error.details).toMatchObject({ reason: "item_readiness_timeout" });
+    first.exit({ code: null, signal: "SIGTERM" });
   });
 
-  it("cancels each committed FFmpeg process readiness timeout on usable output", async () => {
+  it("cancels each prepared FFmpeg process readiness timeout on usable output", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -519,13 +740,14 @@ describe("FfmpegSignalPackager", () => {
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
     await session.ready;
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
+    second.writeStdout("usable-output");
+    const preparation = await preparing;
     preparation.commit();
     first.exit({ code: null, signal: "SIGTERM" });
 
-    second.writeStdout("usable-output");
     timers.advanceBy(25);
     await flushMicrotasks(2);
     let completed = false;
@@ -560,11 +782,12 @@ describe("FfmpegSignalPackager", () => {
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
     await session.ready;
-    const preparation = await session.prepare(
+    const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    preparation.commit();
     second.writeStdout("usable-output");
+    const preparation = await preparing;
+    preparation.commit();
     const completion = expectSignalError(
       session.completion,
       "runtime_cleanup_failed",

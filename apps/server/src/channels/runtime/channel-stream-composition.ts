@@ -18,7 +18,10 @@ import { SqliteTransitionCoordinator } from "./sqlite-transition-coordinator.js"
 // The MVP defaults SIG-011 selected from the Linux/Plex compatibility run;
 // spec 0006 records the evidence.
 const STARTUP_TIMEOUT_MS = 2_000;
-const PREPARE_LEAD_MS = 2_000;
+// How far ahead of a boundary the next FFmpeg process starts (ADR 0016): the
+// spike measured about 1.7 s to usable output, so this leaves a margin while
+// holding only a little over a second of output.
+const PREPARE_LEAD_MS = 3_000;
 const IDLE_GRACE_MS = 5_000;
 const BUFFER_LIMIT_BYTES = 4 * 1024 * 1024;
 

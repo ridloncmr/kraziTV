@@ -16,7 +16,7 @@ import type {
 } from "../contracts.js";
 
 /** What airing a reservation produced, for the generator to record. */
-export interface ReservationAiring {
+interface ReservationAiring {
   /** The block to record: one this call started that an entry aired in. */
   started: GeneratedBlock | undefined;
   /** A listed source's entries; a collection's are recorded by `airCollection`. */

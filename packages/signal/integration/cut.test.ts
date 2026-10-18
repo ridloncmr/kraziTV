@@ -173,9 +173,9 @@ describe("real FFmpeg cut", () => {
     subscription.close();
     await manager.shutdown();
 
-    // The viewer kept receiving the special after the cut. Delivery pauses
-    // for the next FFmpeg process's startup, as at every boundary, because a
-    // preparation starts no process before commit.
+    // The viewer kept receiving the special after the cut. A cut learned
+    // inside the prepare lead still pays the next FFmpeg process's startup
+    // once (ADR 0016), so delivery resumes a little after the cut.
     expect(arrivals.some((at) => at > cutAt + 1_000)).toBe(true);
 
     const analysis = runFfmpeg(
