@@ -202,8 +202,9 @@ function airListedItems(
 ): { entries: GeneratedScheduleEntry[]; done: boolean } {
   let next = 0;
   for (const id of aired) {
-    while (next < items.length && items[next]?.id !== id) next += 1;
-    next += 1;
+    const index = items.findIndex((item, at) => at >= next && item.id === id);
+    // An aired item removed from the list since leaves the resume point alone.
+    if (index !== -1) next = index + 1;
   }
   const entries: GeneratedScheduleEntry[] = [];
   let at = startsAt;

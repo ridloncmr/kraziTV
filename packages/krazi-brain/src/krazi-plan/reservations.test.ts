@@ -490,6 +490,33 @@ describe("generateProgramming: resuming around reservations", () => {
     expect(airings(entries)).toEqual(["b1@150", "c1@210", "office4@270"]);
   });
 
+  it("resumes a list after the items it aired even when one has been removed from the list", () => {
+    const { block } = keptThroughFirstItem();
+    const rest =
+      LIST.source.kind === "media_items" ? LIST.source.items.slice(1) : [];
+
+    const { entries } = generated(
+      generateProgramming(
+        options(
+          [office],
+          [{ ...LIST, source: { kind: "media_items", items: rest } }],
+          {
+            startsAt: at(150),
+            through: at(280),
+            progress: officeProgress,
+            latestTurn: {
+              block,
+              airedMediaItemIds: ["a1"],
+              airedMs: 60 * MINUTE_MS,
+            },
+          },
+        ),
+      ),
+    );
+
+    expect(airings(entries)).toEqual(["b1@150", "c1@210", "office4@270"]);
+  });
+
   it("continues a reservation's list through a fresh rebuild instead of airing it from the top", () => {
     const { block } = keptThroughFirstItem();
 
