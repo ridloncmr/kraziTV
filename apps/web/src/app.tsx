@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BootScreen } from "./desktop/chrome/boot-screen.js";
 import { DesktopShell } from "./desktop/desktop-shell.js";
 import { onUnauthorized } from "./http/api-client.js";
-import type { AccountProfile, AuthState } from "./http/contracts.js";
+import type { AccountProfile, AuthState } from "./http/contracts/auth.js";
 import { useResource } from "./http/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
 import { SetupScreen } from "./logon/setup-screen.js";

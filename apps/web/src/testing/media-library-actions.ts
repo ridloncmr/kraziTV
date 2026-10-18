@@ -1,7 +1,8 @@
 import { createElement } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
-import type { MediaItem, ReviewStep } from "../http/contracts.js";
+import type { MediaItem } from "../http/contracts/media.js";
+import type { ReviewStep } from "../http/contracts/metadata.js";
 import { MediaLibraryApp } from "../media-library/media-library-app.js";
 import { BrowserApi } from "./browser-api.js";
 

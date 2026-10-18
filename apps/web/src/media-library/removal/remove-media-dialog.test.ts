@@ -14,7 +14,7 @@ import { displayClockTime } from "../../controls/display-time.js";
 import type {
   CatalogRemoval,
   CatalogRemovalImpact,
-} from "../../http/contracts.js";
+} from "../../http/contracts/media.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { mediaRoot } from "../../testing/scan-fixtures.js";

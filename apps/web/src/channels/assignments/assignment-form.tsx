@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   AssignmentSettings,
   CollectionPreview,
-  MediaCollection,
   PlaybackMode,
   SourceAssignment,
   StretchSetting,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { type MemberDraft, MemberRows, NEW_MEMBER } from "./member-rows.js";
 import { ProgrammingPreview } from "./programming-preview.js";

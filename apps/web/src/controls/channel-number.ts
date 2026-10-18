@@ -1,4 +1,4 @@
-import type { Channel } from "../http/contracts.js";
+import type { Channel } from "../http/contracts/channels.js";
 
 /**
  * Names a channel the server identified only by ID by its number, or by

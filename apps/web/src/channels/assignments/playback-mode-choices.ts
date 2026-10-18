@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "../../http/contracts.js";
+import type { PlaybackMode } from "../../http/contracts/programming.js";
 
 /**
  * Every playback mode with the words My Channels shows for it, so an

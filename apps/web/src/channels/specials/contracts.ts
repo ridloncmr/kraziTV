@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "../../http/contracts.js";
+import type { PlaybackMode } from "../../http/contracts/programming.js";
 
 // The API shapes of specials that My Channels' specials files share.
 

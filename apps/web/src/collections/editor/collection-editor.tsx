@@ -7,12 +7,12 @@ import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import { BlockingSpecials } from "../../controls/blocking-specials.js";
 import { channelNumberIn } from "../../controls/channel-number.js";
+import type { Channel } from "../../http/contracts/channels.js";
 import type {
-  Channel,
   CollectionMember,
   CollectionStatus,
   MediaCollection,
-} from "../../http/contracts.js";
+} from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import {
   criterionBasis,

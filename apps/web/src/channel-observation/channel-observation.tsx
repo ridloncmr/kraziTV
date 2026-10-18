@@ -6,7 +6,7 @@ import type {
   Channel,
   ChannelState,
   ScheduleWindow,
-} from "../http/contracts.js";
+} from "../http/contracts/channels.js";
 import { useResource } from "../http/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 

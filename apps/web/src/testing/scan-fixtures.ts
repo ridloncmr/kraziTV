@@ -1,4 +1,5 @@
-import type { MediaRoot, ScanStatus } from "../http/contracts.js";
+import type { MediaRoot } from "../http/contracts/media.js";
+import type { ScanStatus } from "../http/contracts/scan.js";
 
 /** A wire scan status for root `root`; tests override only the facts they assert. */
 export function scanStatus(overrides: Partial<ScanStatus> = {}): ScanStatus {

@@ -1,0 +1,95 @@
+// Wire shapes of media roots and items and of catalog removals; internal database fields stay server-side.
+import type { ScanStatus } from "./scan.js";
+export interface MediaRoot {
+  id: string;
+  path: string;
+  enabled: boolean;
+  lastScannedAt: string | null;
+  /**
+   * The root's running or latest scan job since the server started, if any.
+   * Only `GET /media-roots` carries it; POST and PATCH responses do not.
+   */
+  scan: ScanStatus | null;
+}
+/** One level of server folders offered when picking a media root. */
+export interface FolderListing {
+  /** The listed folder, or null for the server's top level (drives or `/`). */
+  path: string | null;
+  /** Where Up goes; null means the top level. */
+  parent: string | null;
+  folders: { name: string; path: string }[];
+}
+export interface MediaItem {
+  id: string;
+  title: string;
+  path: string;
+  status: "available" | "missing" | "probe_failed";
+  durationMs: number | null;
+  probeError: string | null;
+  metadata: ContentMetadata;
+}
+/** An item's effective content metadata, as the server decided it; unknown facts are null. */
+export interface ContentMetadata {
+  matchState:
+    | "not_looked_up"
+    | "unmatched"
+    | "ambiguous"
+    | "matched"
+    | "rejected"
+    | "extra";
+  lookupError: string | null;
+  /** The file's duration changed since it was matched; the match stays. */
+  fileChanged: boolean;
+  title: string | null;
+  seriesName: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  lastEpisodeNumber: number | null;
+  releaseDate: string | null;
+  genres: string[];
+  franchiseName: string | null;
+  description: string | null;
+  /** TMDB's image path, loaded straight from TMDB's image server. */
+  posterPath: string | null;
+  /** When the TMDB facts were fetched; null when the item has none. */
+  refreshedAt: string | null;
+  /** Why the last background refresh failed; the match stays. */
+  refreshError: string | null;
+  /** True once TMDB facts went six months unrefreshed and were dropped. */
+  tmdbDataExpired: boolean;
+  /** The owner's tags and themes; TMDB never sets them. */
+  tags: string[];
+  /** Fields showing the owner's correction, which TMDB never changes. */
+  correctedFields: CorrectableField[];
+}
+/** A content fact the owner can correct over what TMDB says. */
+export type CorrectableField =
+  "title" | "seriesName" | "seasonNumber" | "episodeNumber";
+export interface MediaItemPage {
+  items: MediaItem[];
+  total: number;
+}
+/** What a catalog removal takes out: one root with its items, or listed items. */
+export type CatalogRemovalTarget =
+  { mediaRootId: string } | { mediaItemIds: string[] };
+/** What a removal would do, as `POST /catalog-removals/preview` reports it. */
+export interface CatalogRemovalImpact {
+  itemCount: number;
+  airing: {
+    channelId: string;
+    channelNumber: string;
+    mediaItemId: string;
+    title: string;
+    endsAt: string;
+  }[];
+  channelsLeftUnschedulable: { channelId: string; channelNumber: string }[];
+  affectedChannelIds: string[];
+}
+/** What a committed removal did, as `POST /catalog-removals` reports it. */
+export interface CatalogRemoval {
+  removedItemCount: number;
+  finishing: { channelId: string; endsAt: string }[];
+  interruptedChannelIds: string[];
+  stopFailedChannelIds: string[];
+  affectedChannelIds: string[];
+}

@@ -1,4 +1,4 @@
-import type { MediaItem } from "../../http/contracts.js";
+import type { MediaItem } from "../../http/contracts/media.js";
 import type { DraftMember } from "../contracts.js";
 
 // Numeric collation orders "Episode 2" before "Episode 10"; a fixed locale keeps

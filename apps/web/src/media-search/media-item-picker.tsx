@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type { MediaItem } from "../http/contracts.js";
+import type { MediaItem } from "../http/contracts/media.js";
 import { useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 

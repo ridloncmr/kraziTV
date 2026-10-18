@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
-import type { PlexSetup } from "../http/contracts.js";
+import type { PlexSetup } from "../http/contracts/plex.js";
 import { useResource } from "../http/use-resource.js";
 
 /** Uses backend-configured public URLs so Plex reaches the server even from a different host. */

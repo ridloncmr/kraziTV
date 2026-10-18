@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
-import type { AccountProfile } from "../http/contracts.js";
+import type { AccountProfile } from "../http/contracts/auth.js";
 import { ChangeNameView } from "./change-name-view.js";
 import { ChangePasswordView } from "./change-password-view.js";
 import { ChangePictureView } from "./change-picture-view.js";

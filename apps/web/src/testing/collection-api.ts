@@ -1,4 +1,5 @@
-import type { CatalogGroup, MediaItem } from "../http/contracts.js";
+import type { CatalogGroup } from "../http/contracts/collections.js";
+import type { MediaItem } from "../http/contracts/media.js";
 import { adminFixtures, collectionWith, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
 

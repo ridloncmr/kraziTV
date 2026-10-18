@@ -3,7 +3,7 @@ import type {
   CollectionPreview,
   PreviewMember,
   UpcomingSelection,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 
 /**
  * Renders the server's preview of an assigned collection: the order the selected mode

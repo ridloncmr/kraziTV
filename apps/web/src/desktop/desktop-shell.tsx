@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
-import type {
-  AccountProfile,
-  MediaRoot,
-  TmdbKeyStatus,
-} from "../http/contracts.js";
+import type { AccountProfile } from "../http/contracts/auth.js";
+import type { MediaRoot } from "../http/contracts/media.js";
+import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";

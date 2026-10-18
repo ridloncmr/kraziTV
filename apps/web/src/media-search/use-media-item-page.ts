@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MediaItemPage } from "../http/contracts.js";
+import type { MediaItemPage } from "../http/contracts/media.js";
 import { useResource } from "../http/use-resource.js";
 
 const SEARCH_DELAY_MS = 250;

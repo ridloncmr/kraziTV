@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { WindowDialogFrame } from "../controls/window-dialog.js";
-import type { FolderListing, MediaRoot } from "../http/contracts.js";
+import type { FolderListing, MediaRoot } from "../http/contracts/media.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import {

@@ -1,5 +1,5 @@
 import { displayTime } from "../../controls/display-time.js";
-import type { MediaCollection } from "../../http/contracts.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import { kindLabel } from "./criterion-picker.js";
 
 /**

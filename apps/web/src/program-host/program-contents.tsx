@@ -7,7 +7,7 @@ import { ProgramGuideApp } from "../program-guide/program-guide-app.js";
 import { PlexSetupApp } from "../plex-setup/plex-setup-app.js";
 import { LiveMonitorApp } from "../live-monitor/live-monitor-app.js";
 import { AccountSettingsApp } from "../account-settings/account-settings-app.js";
-import type { AccountProfile } from "../http/contracts.js";
+import type { AccountProfile } from "../http/contracts/auth.js";
 
 /**
  * Application composition maps navigation identity to programs without teaching windows domain behavior.

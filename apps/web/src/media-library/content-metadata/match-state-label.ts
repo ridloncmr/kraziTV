@@ -1,4 +1,4 @@
-import type { ContentMetadata } from "../../http/contracts.js";
+import type { ContentMetadata } from "../../http/contracts/media.js";
 
 const LABELS: Record<ContentMetadata["matchState"], string> = {
   not_looked_up: "Not looked up",

@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import type {
   MediaCollection,
   MediaCollectionSummary,
-} from "../../http/contracts.js";
+} from "../../http/contracts/collections.js";
 import {
   CardMaintenanceStatus,
   criterionBasis,

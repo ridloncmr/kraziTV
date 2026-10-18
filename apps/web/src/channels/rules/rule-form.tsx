@@ -5,7 +5,7 @@ import type {
   RuleMarathon,
   RuleSettings,
   StretchSetting,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/use-resource.js";
 import {
   type StretchDraft,
@@ -75,10 +75,10 @@ export function RuleForm({
 }) {
   const mutation = useMutation();
   const [draft, setDraft] = useState<RuleDraft>(() => toDraft(rule, choices));
-  // Applies one change to the draft.
+  // Every field edits through these two, so a change never drops the rest
+  // of the draft or of another selected source.
   const edit = (change: Partial<RuleDraft>) =>
     setDraft((current) => ({ ...current, ...change }));
-  // Applies one change to a selected source.
   const editSource = (assignmentId: string, change: Partial<SourceDraft>) =>
     setDraft((current) => {
       const sources = new Map(current.sources);

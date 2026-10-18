@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import type { MarathonSettings } from "../../http/contracts.js";
+import type { MarathonSettings } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 
 // What spec 0004 suggests when marathons are first turned on.

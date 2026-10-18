@@ -1,7 +1,8 @@
 import { formText } from "../../controls/form-text.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
-import type { MediaCollection } from "../../http/contracts.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
+
 import { useMutation } from "../../http/use-resource.js";
 
 /**

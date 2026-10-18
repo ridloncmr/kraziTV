@@ -4,11 +4,8 @@ import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
-import type {
-  ContentMetadata,
-  MediaItem,
-  TrackFolder,
-} from "../../http/contracts.js";
+import type { ContentMetadata, MediaItem } from "../../http/contracts/media.js";
+import type { TrackFolder } from "../../http/contracts/metadata.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { CorrectDetailsDialog } from "./correct-details-dialog.js";
 import { matchStateLabel } from "./match-state-label.js";

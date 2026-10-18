@@ -5,11 +5,11 @@ import { displayClockTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { ApiError } from "../../http/api-error.js";
+import type { Channel } from "../../http/contracts/channels.js";
 import type {
   CatalogRemoval,
   CatalogRemovalImpact,
-  Channel,
-} from "../../http/contracts.js";
+} from "../../http/contracts/media.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import {
   isRefusal,

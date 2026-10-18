@@ -4,7 +4,7 @@ import type {
   CatalogRemovalImpact,
   CatalogRemovalTarget,
   MediaRoot,
-} from "../../http/contracts.js";
+} from "../../http/contracts/media.js";
 
 /** What a removal dialog removes; transient desktop shell state. */
 export type RemovalSubject =

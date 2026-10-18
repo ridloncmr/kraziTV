@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
+import type { ScheduleWindow } from "../../http/contracts/channels.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
-  MediaCollection,
   ProgrammingRule,
-  ScheduleWindow,
   SourceAssignment,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { scheduleWindowPath } from "../../schedule-view/schedule-window-path.js";
 import { AssignmentForm } from "../assignments/assignment-form.js";

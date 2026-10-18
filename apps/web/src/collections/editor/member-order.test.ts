@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { MediaItem } from "../../http/contracts.js";
+import type { MediaItem } from "../../http/contracts/media.js";
 import { noMetadata } from "../../testing/admin-fixtures.js";
 import type { DraftMember } from "../contracts.js";
 import { appendMedia, moveMembers, sortMembers } from "./member-order.js";

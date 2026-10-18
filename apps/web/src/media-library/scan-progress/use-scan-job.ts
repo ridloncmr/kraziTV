@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { apiRequest, resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type {
-  MediaRoot,
-  RetryScope,
-  ScanStatus,
-} from "../../http/contracts.js";
+import type { MediaRoot } from "../../http/contracts/media.js";
+import type { RetryScope } from "../../http/contracts/metadata.js";
+import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
 
 /** The scan job a progress dialog follows, with the root path its status line names. */

@@ -1,11 +1,11 @@
 import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
-  MediaCollection,
   PreviewTurn,
   ProgrammingPreview,
   ProgrammingRule,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 import { useResource } from "../../http/use-resource.js";
 
 // Names why kraziPlan passed over an assignment's member.

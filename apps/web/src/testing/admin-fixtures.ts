@@ -1,15 +1,13 @@
+import type { Channel, ChannelState } from "../http/contracts/channels.js";
+import type { MediaCollectionSummary } from "../http/contracts/collections.js";
+import type { ContentMetadata, MediaItem } from "../http/contracts/media.js";
 import type {
-  Channel,
-  ChannelState,
-  ContentMetadata,
   MatchCandidates,
-  MediaCollectionSummary,
-  MediaItem,
-  ProgrammingRule,
   SeriesSearch,
   TrackFolder,
   TrackProposal,
-} from "../http/contracts.js";
+} from "../http/contracts/metadata.js";
+import type { ProgrammingRule } from "../http/contracts/programming.js";
 
 /** A media item's metadata before any lookup: every fact unknown. */
 export const noMetadata: ContentMetadata = {

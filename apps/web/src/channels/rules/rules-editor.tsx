@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
-  MediaCollection,
   ProgrammingRule,
   SourceAssignment,
-} from "../../http/contracts.js";
+} from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { RebuildDialog } from "../programming/rebuild-dialog.js";
 import {
