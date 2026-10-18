@@ -10,6 +10,7 @@ import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
 import { transportPacket } from "../../testing/transport-packet.js";
 import { flushMicrotasks } from "../../testing/settle-promises.js";
+import { trackSettlement } from "../../testing/settlement-flag.js";
 
 type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
 
@@ -175,14 +176,11 @@ describe("FfmpegSignalPackager", () => {
     child.writeStdout("usable-output");
     await expect(session.ready).resolves.toBeUndefined();
 
-    let completed = false;
-    void session.completion.finally(() => {
-      completed = true;
-    });
+    const completed = trackSettlement(session.completion);
     child.exit({ code: 0, signal: null });
     await flushMicrotasks(2);
 
-    expect(completed).toBe(false);
+    expect(completed.settled).toBe(false);
     expect(session.output.readableEnded).toBe(false);
   });
 
@@ -362,10 +360,7 @@ describe("FfmpegSignalPackager", () => {
     const session = packager.start(initialItem());
     child.writeStdout("usable-output");
     await session.ready;
-    let completed = false;
-    void session.completion.finally(() => {
-      completed = true;
-    });
+    const completed = trackSettlement(session.completion);
 
     await expect(
       session.prepare(
@@ -374,7 +369,7 @@ describe("FfmpegSignalPackager", () => {
     ).rejects.toMatchObject({ code: "packaging_start_failed" });
     await flushMicrotasks(2);
 
-    expect(completed).toBe(false);
+    expect(completed.settled).toBe(false);
     // The next preparation is free to start once a process can.
     const next = new FakeProcess();
     spawner.enqueue(next);
@@ -447,16 +442,13 @@ describe("FfmpegSignalPackager", () => {
     const preparation = await preparing;
     second.exit({ code: 0, signal: null });
     await flushMicrotasks(2);
-    let completed = false;
-    void session.completion.finally(() => {
-      completed = true;
-    });
+    const completed = trackSettlement(session.completion);
 
     preparation.commit();
     await flushMicrotasks(2);
 
     expect(Buffer.concat(forwarded)).toEqual(whole);
-    expect(completed).toBe(false);
+    expect(completed.settled).toBe(false);
     const stopped = session.stop();
     first.exit({ code: null, signal: "SIGTERM" });
     await stopped;
@@ -678,10 +670,7 @@ describe("FfmpegSignalPackager", () => {
     session.output.on("error", outputError);
     first.writeStdout("usable-output");
     await session.ready;
-    let completed = false;
-    void session.completion.finally(() => {
-      completed = true;
-    });
+    const completed = trackSettlement(session.completion);
     const preparation = await session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
@@ -696,7 +685,7 @@ describe("FfmpegSignalPackager", () => {
     // reaches the output, and the commit that would have aired it fails.
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
     expect(second.stdout.listenerCount("data")).toBe(0);
-    expect(completed).toBe(false);
+    expect(completed.settled).toBe(false);
     const bytesAtFailure = Buffer.concat(forwarded);
     second.writeStdout(packet(7));
     await flushMicrotasks(2);
@@ -743,12 +732,9 @@ describe("FfmpegSignalPackager", () => {
 
     timers.advanceBy(25);
     await flushMicrotasks(2);
-    let completed = false;
-    void session.completion.finally(() => {
-      completed = true;
-    });
+    const completed = trackSettlement(session.completion);
     await flushMicrotasks(2);
-    expect(completed).toBe(false);
+    expect(completed.settled).toBe(false);
 
     const stopped = session.stop();
     second.exit({ code: null, signal: "SIGTERM" });
