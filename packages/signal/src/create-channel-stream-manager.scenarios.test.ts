@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  ChannelAuthorization,
-  ChannelAuthorizationResult,
-} from "./channel-worker/contracts.js";
 import type { ChannelSubscription } from "./channel-stream-manager/contracts.js";
 import { createChannelStreamManager } from "./create-channel-stream-manager.js";
 import { SignalError } from "./errors.js";
@@ -22,6 +18,7 @@ import {
 } from "./testing/fake-signal-packager.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
 import { RecordingLogger } from "./testing/recording-logger.js";
+import { ScriptedAuthorization } from "./testing/scripted-authorization.js";
 import { expectSignalError } from "./testing/expect-signal-error.js";
 import { settlePromises } from "./testing/settle-promises.js";
 
@@ -82,25 +79,6 @@ const following = (
 /** A dependency call that never answers, as a stalled database would. */
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
 
-/** Drains stream and promise reactions so assertions see settled state. */
-class SwitchableAuthorization implements ChannelAuthorization {
-  private readonly disabled = new Set<ChannelId>();
-
-  /** Mirrors an administrative disable that later lookups observe. */
-  disable(channelId: ChannelId): void {
-    this.disabled.add(channelId);
-  }
-
-  /** Enables every channel unless a scenario has disabled it. */
-  async getChannelAuthorization(
-    channelId: ChannelId,
-  ): Promise<ChannelAuthorizationResult> {
-    return this.disabled.has(channelId)
-      ? { status: "disabled", channelId }
-      : { status: "enabled", channelId };
-  }
-}
-
 /** One joined viewer and everything its stream has delivered so far. */
 type Viewer = {
   subscription: ChannelSubscription;
@@ -113,7 +91,7 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
   const provider = new FakePlayoutProvider();
   const packager = new FakeSignalPackager();
   const coordinator = new InMemoryTransitionCoordinator(clock);
-  const authorization = new SwitchableAuthorization();
+  const authorization = new ScriptedAuthorization();
   const viewers: Viewer[] = [];
   coordinator.setSchedule(CHANNEL, 7, [
     entry("entry-1", 0),

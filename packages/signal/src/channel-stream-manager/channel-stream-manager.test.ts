@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { SignalError, type SignalErrorCode } from "../errors.js";
-import type { ChannelId } from "../playout/contracts.js";
 import { Deferred } from "../testing/deferred.js";
 import { FakeClock } from "../testing/fake-clock.js";
 import type {
@@ -14,62 +13,8 @@ import { ControlledWorkerFactory } from "../testing/controlled-worker-factory.js
 import { expectSignalError } from "../testing/expect-signal-error.js";
 import { FakeManagedWorker } from "../testing/fake-managed-worker.js";
 import { RecordingLogger } from "../testing/recording-logger.js";
+import { ScriptedAuthorization } from "../testing/scripted-authorization.js";
 import { settlePromises } from "../testing/settle-promises.js";
-
-class MutableAuthorization implements ChannelAuthorization {
-  readonly calls: ChannelId[] = [];
-
-  constructor(
-    private result: ChannelAuthorizationResult = {
-      status: "enabled",
-      channelId: "channel-1",
-    },
-  ) {}
-
-  /** Records each serialized authorization decision made by the manager. */
-  async getChannelAuthorization(
-    channelId: ChannelId,
-  ): Promise<ChannelAuthorizationResult> {
-    this.calls.push(channelId);
-    return this.result;
-  }
-
-  /** Lets race tests change the state observed at publication. */
-  setResult(result: ChannelAuthorizationResult): void {
-    this.result = result;
-  }
-}
-
-class PermissiveAuthorization implements ChannelAuthorization {
-  /** Authorizes the requested channel so multi-channel lifecycle tests stay focused. */
-  async getChannelAuthorization(
-    channelId: ChannelId,
-  ): Promise<ChannelAuthorizationResult> {
-    return { status: "enabled", channelId };
-  }
-}
-
-class SequencedAuthorization implements ChannelAuthorization {
-  readonly calls: ChannelId[] = [];
-
-  constructor(
-    private readonly results: Array<
-      ChannelAuthorizationResult | Promise<ChannelAuthorizationResult>
-    >,
-  ) {}
-
-  /** Returns arranged authorization states so publication can be held in flight. */
-  async getChannelAuthorization(
-    channelId: ChannelId,
-  ): Promise<ChannelAuthorizationResult> {
-    this.calls.push(channelId);
-    const result = this.results.shift();
-    if (result === undefined) {
-      throw new Error("No authorization result was arranged");
-    }
-    return result;
-  }
-}
 
 /** Supplies deterministic lifecycle defaults while individual tests override policy. */
 const createManager = (options: {
@@ -123,7 +68,7 @@ describe("ChannelStreamManager", () => {
       expect(
         () =>
           new ChannelStreamManager({
-            authorization: new MutableAuthorization(),
+            authorization: new ScriptedAuthorization(),
             workerFactory: new ControlledWorkerFactory(),
             timers: new FakeClock(),
             idleGraceMs,
@@ -134,7 +79,7 @@ describe("ChannelStreamManager", () => {
   );
 
   it("deduplicates concurrent creation and publishes only a ready worker", async () => {
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
       authorization,
@@ -167,7 +112,7 @@ describe("ChannelStreamManager", () => {
   it("shares startup failure across all remaining waiters without publishing", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const first = manager.subscribe("channel-1");
@@ -188,7 +133,7 @@ describe("ChannelStreamManager", () => {
   it("cancels one waiter without cancelling creation for another", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const firstAbort = new AbortController();
@@ -215,7 +160,7 @@ describe("ChannelStreamManager", () => {
   it("stops a creation that becomes ready after its final waiter cancels", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const firstAbort = new AbortController();
@@ -245,7 +190,7 @@ describe("ChannelStreamManager", () => {
   it("does not overlap a replacement with cancelled-creation cleanup", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const abort = new AbortController();
@@ -279,7 +224,7 @@ describe("ChannelStreamManager", () => {
   });
 
   it("revalidates authorization before reusing an active worker", async () => {
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({ authorization, workerFactory });
     const first = manager.subscribe("channel-1");
@@ -298,7 +243,7 @@ describe("ChannelStreamManager", () => {
   });
 
   it("lets authorization loss defeat publication and stops the losing worker", async () => {
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({ authorization, workerFactory });
     const subscribing = manager.subscribe("channel-1");
@@ -317,7 +262,7 @@ describe("ChannelStreamManager", () => {
 
   it("lets caller cancellation defeat an in-flight initial authorization failure", async () => {
     const initialAuthorization = new Deferred<ChannelAuthorizationResult>();
-    const authorization = new SequencedAuthorization([
+    const authorization = ScriptedAuthorization.sequence([
       initialAuthorization.promise,
     ]);
     const workerFactory = new ControlledWorkerFactory();
@@ -341,7 +286,7 @@ describe("ChannelStreamManager", () => {
     const publicationAuthorization = new Deferred<ChannelAuthorizationResult>();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         publicationAuthorization.promise,
       ]),
@@ -370,7 +315,7 @@ describe("ChannelStreamManager", () => {
     );
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         { status: "enabled", channelId: "channel-1" },
         publicationAuthorization.promise,
@@ -399,7 +344,7 @@ describe("ChannelStreamManager", () => {
     const workerFactory = new ControlledWorkerFactory();
     const publicationAuthorization = new Deferred<ChannelAuthorizationResult>();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         publicationAuthorization.promise,
       ]),
@@ -426,7 +371,7 @@ describe("ChannelStreamManager", () => {
   it("rejects a ready worker that is no longer joinable at publication", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -446,7 +391,7 @@ describe("ChannelStreamManager", () => {
   it("rejects only the new viewer when an active worker is temporarily not joinable", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const first = manager.subscribe("channel-1");
@@ -483,7 +428,7 @@ describe("ChannelStreamManager", () => {
   it("removes a terminated active worker before creating its replacement", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const first = manager.subscribe("channel-1");
@@ -514,7 +459,7 @@ describe("ChannelStreamManager", () => {
     const workerFactory = new ControlledWorkerFactory();
     const logger = new RecordingLogger();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       logger,
     });
@@ -545,7 +490,7 @@ describe("ChannelStreamManager", () => {
     const workerFactory = new ControlledWorkerFactory();
     const logger = new RecordingLogger();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       logger,
     });
@@ -563,7 +508,7 @@ describe("ChannelStreamManager", () => {
   it("closes viewers on an interrupt and starts a fresh worker for the next tune", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -591,7 +536,7 @@ describe("ChannelStreamManager", () => {
   it("forwards a schedule-change notice only to the channel's running worker", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new PermissiveAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     manager.scheduleChanged("channel-1");
@@ -616,7 +561,7 @@ describe("ChannelStreamManager", () => {
   it("passes on a notice that arrives while the channel's worker is still starting", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -636,7 +581,7 @@ describe("ChannelStreamManager", () => {
   it("treats abort after subscription creation as caller-owned closure", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const abort = new AbortController();
@@ -660,7 +605,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 100,
@@ -695,7 +640,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 50,
@@ -728,7 +673,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 25,
@@ -754,7 +699,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 10,
@@ -791,7 +736,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 0,
@@ -827,7 +772,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 0,
@@ -872,7 +817,7 @@ describe("ChannelStreamManager", () => {
       const timers = new FakeClock();
       const workerFactory = new ControlledWorkerFactory();
       const manager = createManager({
-        authorization: new MutableAuthorization(),
+        authorization: new ScriptedAuthorization(),
         workerFactory,
         timers,
         idleGraceMs: 100,
@@ -903,7 +848,7 @@ describe("ChannelStreamManager", () => {
       const authorization = new Deferred<ChannelAuthorizationResult>();
       const workerFactory = new ControlledWorkerFactory();
       const manager = createManager({
-        authorization: new SequencedAuthorization([authorization.promise]),
+        authorization: ScriptedAuthorization.sequence([authorization.promise]),
         workerFactory,
       });
       const subscribing = manager.subscribe("channel-1");
@@ -936,7 +881,7 @@ describe("ChannelStreamManager", () => {
     const authorization = new Deferred<ChannelAuthorizationResult>();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([authorization.promise]),
+      authorization: ScriptedAuthorization.sequence([authorization.promise]),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -954,7 +899,7 @@ describe("ChannelStreamManager", () => {
   it("closes active streams before delayed administrative cleanup settles", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -982,7 +927,7 @@ describe("ChannelStreamManager", () => {
   it("waits for administrative cleanup before starting a replacement", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -1010,7 +955,7 @@ describe("ChannelStreamManager", () => {
   });
 
   it("revalidates authorization when a queued join reaches its transition", async () => {
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({ authorization, workerFactory });
     const subscribing = manager.subscribe("channel-1");
@@ -1038,7 +983,7 @@ describe("ChannelStreamManager", () => {
   it("treats an administrative stop without runtime state as successful", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
 
@@ -1050,7 +995,7 @@ describe("ChannelStreamManager", () => {
 
   it("closes subscribers immediately and retries only unsettled administrative cleanup", async () => {
     const timers = new FakeClock();
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
       authorization,
@@ -1096,7 +1041,7 @@ describe("ChannelStreamManager", () => {
   it("names the worker_stop phase and keeps the cause when a worker stop fails", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -1126,7 +1071,7 @@ describe("ChannelStreamManager", () => {
   it("retries failed private startup cleanup from later viewers and administrative stops", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const retryCleanup = vi
@@ -1181,7 +1126,7 @@ describe("ChannelStreamManager", () => {
     const timers = new FakeClock();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
       timers,
       idleGraceMs: 100,
@@ -1210,7 +1155,7 @@ describe("ChannelStreamManager", () => {
   it("retries only failed channel records on a later terminal shutdown", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new PermissiveAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const first = manager.subscribe("channel-1");
@@ -1241,7 +1186,7 @@ describe("ChannelStreamManager", () => {
   it("makes shutdown terminal and cleans a late-ready pending worker", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -1265,7 +1210,7 @@ describe("ChannelStreamManager", () => {
     const publicationAuthorization = new Deferred<ChannelAuthorizationResult>();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         publicationAuthorization.promise,
       ]),
@@ -1292,7 +1237,7 @@ describe("ChannelStreamManager", () => {
   it("stops an active worker during terminal shutdown", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const subscribing = manager.subscribe("channel-1");
@@ -1314,7 +1259,7 @@ describe("ChannelStreamManager", () => {
   it("awaits every channel stop before reporting one cleanup failure", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new PermissiveAuthorization(),
+      authorization: new ScriptedAuthorization(),
       workerFactory,
     });
     const first = manager.subscribe("channel-1");
@@ -1360,7 +1305,7 @@ describe("ChannelStreamManager", () => {
     async ({ stop, rejectionCode }) => {
       const workerFactory = new ControlledWorkerFactory();
       const manager = createManager({
-        authorization: new SequencedAuthorization([
+        authorization: ScriptedAuthorization.sequence([
           { status: "enabled", channelId: "channel-1" },
           new Deferred<ChannelAuthorizationResult>().promise,
         ]),
@@ -1391,7 +1336,7 @@ describe("ChannelStreamManager", () => {
       const timers = new FakeClock();
       const workerFactory = new ControlledWorkerFactory();
       const manager = createManager({
-        authorization: new MutableAuthorization(),
+        authorization: new ScriptedAuthorization(),
         workerFactory,
         timers,
         idleGraceMs: 100,
@@ -1421,7 +1366,7 @@ describe("ChannelStreamManager", () => {
     const returningAuthorization = new Deferred<ChannelAuthorizationResult>();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         { status: "enabled", channelId: "channel-1" },
         returningAuthorization.promise,
@@ -1462,7 +1407,7 @@ describe("ChannelStreamManager", () => {
   it("lets shutdown overtake initial authorization without awaiting the provider", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         new Deferred<ChannelAuthorizationResult>().promise,
       ]),
       workerFactory,
@@ -1482,7 +1427,7 @@ describe("ChannelStreamManager", () => {
   it("lets shutdown overtake a join authorizing against an active worker", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new SequencedAuthorization([
+      authorization: ScriptedAuthorization.sequence([
         { status: "enabled", channelId: "channel-1" },
         { status: "enabled", channelId: "channel-1" },
         new Deferred<ChannelAuthorizationResult>().promise,
@@ -1512,7 +1457,7 @@ describe("ChannelStreamManager", () => {
   it.each(lifecycleStops)(
     "retains a failed unpublished-worker stop until $name retries it once",
     async ({ stop }) => {
-      const authorization = new MutableAuthorization();
+      const authorization = new ScriptedAuthorization();
       const workerFactory = new ControlledWorkerFactory();
       const manager = createManager({ authorization, workerFactory });
       const subscribing = manager.subscribe("channel-1");
@@ -1547,7 +1492,7 @@ describe("ChannelStreamManager", () => {
   it("rejects mismatched authorization without creating a worker", async () => {
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({
-      authorization: new MutableAuthorization({
+      authorization: new ScriptedAuthorization({
         status: "enabled",
         channelId: "different-channel",
       }),
@@ -1563,7 +1508,7 @@ describe("ChannelStreamManager", () => {
   });
 
   it("rejects an already-aborted request without authorization or creation", async () => {
-    const authorization = new MutableAuthorization();
+    const authorization = new ScriptedAuthorization();
     const workerFactory = new ControlledWorkerFactory();
     const manager = createManager({ authorization, workerFactory });
     const abort = new AbortController();

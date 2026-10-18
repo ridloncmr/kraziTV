@@ -123,6 +123,22 @@ describe("FakeSignalPackager", () => {
     expect(session.hasOutstandingPreparation).toBe(false);
   });
 
+  it("leaves a commit the stopping session refuses committed, so a later discard changes nothing", async () => {
+    const session = new FakeSignalPackager().start(item("entry-1"));
+    const preparation = await session.prepare(item("entry-2"));
+
+    const stopping = session.stop();
+    expect(() => preparation.commit()).toThrow(/stopped/i);
+    await stopping;
+
+    expect(preparation.pending).toBe(false);
+    await expect(preparation.discard()).resolves.toBeUndefined();
+    expect(session.committedItems).toEqual([item("entry-1")]);
+    expect(session.discardedItems).toEqual([]);
+    expect(session.hasOutstandingPreparation).toBe(false);
+    expect(session.unreleasedAtStop).toBe(0);
+  });
+
   it("rejects preparation once stopped and makes stale preparations inert", async () => {
     const session = new FakeSignalPackager().start(item("entry-1"));
     const preparation = await session.prepare(item("entry-2"));

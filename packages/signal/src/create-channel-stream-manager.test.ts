@@ -1,31 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { ChannelAuthorization } from "./channel-worker/contracts.js";
 import type { ChannelStreamManagerContract } from "./channel-stream-manager/contracts.js";
 import { createChannelStreamManager } from "./create-channel-stream-manager.js";
-import type { OutputReadinessInspector } from "./ffmpeg/contracts.js";
 import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
 import type { CurrentPlayoutResult } from "./playout/contracts.js";
 import { FakeClock } from "./testing/fake-clock.js";
+import { MarkerReadinessInspector } from "./testing/marker-readiness-inspector.js";
 import { InMemoryTransitionCoordinator } from "./testing/in-memory-transition-coordinator.js";
 import { FakePlayoutProvider } from "./testing/fake-playout-provider.js";
 import { FakeProcess, FakeProcessSpawner } from "./testing/fake-process.js";
 import { RecordingLogger } from "./testing/recording-logger.js";
+import { ScriptedAuthorization } from "./testing/scripted-authorization.js";
 import { settlePromises } from "./testing/settle-promises.js";
-
-class MarkerInspector implements OutputReadinessInspector {
-  /** Treats an explicit test marker as usable media output. */
-  observe(chunk: Uint8Array): boolean {
-    return Buffer.from(chunk).includes("usable-output");
-  }
-}
-
-class EnabledAuthorization implements ChannelAuthorization {
-  /** Authorizes the requested channel so cleanup is the only behavior under test. */
-  async getChannelAuthorization(channelId: string) {
-    return { status: "enabled" as const, channelId };
-  }
-}
 
 const currentItem = (evaluatedAt: number): CurrentPlayoutResult => ({
   status: "current",
@@ -67,7 +53,7 @@ const createHarness = () => {
   playoutProvider.enqueueCurrent(currentItem(1_000));
   playoutProvider.enqueueCurrent(currentItem(1_000));
   const manager = createChannelStreamManager({
-    authorization: new EnabledAuthorization(),
+    authorization: new ScriptedAuthorization(),
     idleGraceMs: 1_000,
     logger: new RecordingLogger(),
     playoutProvider,
@@ -77,7 +63,7 @@ const createHarness = () => {
       timers: clock,
       logger: new RecordingLogger(),
       terminationGraceMs: 500,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     }),
     clock,
     timers: clock,

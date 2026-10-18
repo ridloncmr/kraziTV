@@ -27,7 +27,17 @@ export class FakeSignalPreparation implements SignalPreparation {
     return this.discardWasRequested;
   }
 
-  /** Refuses a second outcome so a worker that commits twice fails its test. */
+  /** Whether neither outcome has been chosen yet. */
+  get pending(): boolean {
+    return this.state === "pending";
+  }
+
+  /**
+   * Refuses a second outcome so a worker that commits twice fails its test.
+   * The state changes before the session is told, as the real preparation's
+   * does, so a commit the stopping session refuses still leaves the handle
+   * committed and a later discard changes nothing.
+   */
   commit(): void {
     if (this.state === "committed") {
       throw new Error("Preparation was already committed");
@@ -35,8 +45,8 @@ export class FakeSignalPreparation implements SignalPreparation {
     if (this.state === "discarded") {
       throw new Error("Preparation was already discarded");
     }
-    this.owner.commitPreparation(this);
     this.state = "committed";
+    this.owner.commitPreparation(this);
   }
 
   /** Lets the session's stop observe every release still in flight. */
@@ -225,11 +235,19 @@ export class FakeSignalSession implements SignalSession {
     this.stopCalls += 1;
     this.stopRequested.resolve(undefined);
     await this.preparing?.catch(() => undefined);
-    if (this.currentPreparation?.discardRequested === false) {
+    if (
+      this.currentPreparation?.pending === true &&
+      !this.currentPreparation.discardRequested
+    ) {
       this.unreleasedAtStop += 1;
     }
     await this.currentPreparation?.discard();
     await Promise.allSettled([...this.discarding]);
+    // A commit this stop refused left its handle committed; the real session
+    // stops that process with the rest, so nothing stays outstanding.
+    if (this.currentPreparation?.pending === false) {
+      this.currentPreparation = undefined;
+    }
     this.readyState.reject(packagingStoppedError());
     this.output.end();
     this.completionState.resolve(undefined);

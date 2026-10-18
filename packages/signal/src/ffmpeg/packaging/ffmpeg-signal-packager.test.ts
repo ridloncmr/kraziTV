@@ -2,21 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 import { FakeClock } from "../../testing/fake-clock.js";
+import { MarkerReadinessInspector } from "../../testing/marker-readiness-inspector.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
-import type { OutputReadinessInspector } from "../contracts.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
 import { transportPacket } from "../../testing/transport-packet.js";
 import { flushMicrotasks } from "../../testing/settle-promises.js";
-
-class MarkerInspector implements OutputReadinessInspector {
-  /** Treats an explicit test marker as usable media output. */
-  observe(chunk: Uint8Array): boolean {
-    return Buffer.from(chunk).includes("usable-output");
-  }
-}
 
 type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
 
@@ -46,7 +39,7 @@ const createHarness = () => {
     spawner,
     timers,
     logger,
-    createReadinessInspector: () => new MarkerInspector(),
+    createReadinessInspector: () => new MarkerReadinessInspector(),
   });
 
   return { child, spawner, timers, logger, packager };
@@ -106,7 +99,7 @@ describe("FfmpegSignalPackager", () => {
       timers: new FakeClock(),
       logger: new RecordingLogger(),
       ffmpegPath: "C:/tools/ffmpeg.exe",
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
 
     packager.start(initialItem());
@@ -252,7 +245,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
@@ -339,7 +332,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const forwarded: Buffer[] = [];
@@ -407,7 +400,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const preparing = session.prepare(
@@ -514,7 +507,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const preparing = session.prepare(
@@ -551,7 +544,7 @@ describe("FfmpegSignalPackager", () => {
       timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     session.output.resume();
@@ -588,7 +581,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger: new RecordingLogger(),
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     session.output.resume();
@@ -632,7 +625,7 @@ describe("FfmpegSignalPackager", () => {
       spawner,
       timers: new FakeClock(),
       logger,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     session.output.resume();
@@ -676,7 +669,7 @@ describe("FfmpegSignalPackager", () => {
       timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     const forwarded: Buffer[] = [];
@@ -735,7 +728,7 @@ describe("FfmpegSignalPackager", () => {
       timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
@@ -777,7 +770,7 @@ describe("FfmpegSignalPackager", () => {
       logger: new RecordingLogger(),
       terminationGraceMs: 10,
       itemReadinessTimeoutMs: 100,
-      createReadinessInspector: () => new MarkerInspector(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
     first.writeStdout("usable-output");
