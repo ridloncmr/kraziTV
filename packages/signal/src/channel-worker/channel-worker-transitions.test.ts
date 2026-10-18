@@ -964,7 +964,7 @@ describe("ChannelWorker planned filler", () => {
 });
 
 describe("ChannelWorker schedule-change notices", () => {
-  /** The program a cut-in reservation airs, starting at `startsAt`. */
+  /** The program an interrupting reservation airs, starting at `startsAt`. */
   const special = (startsAt: number) =>
     entry("special", startsAt, { scheduleRevision: 8 });
 

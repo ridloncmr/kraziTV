@@ -115,10 +115,7 @@ const earlyEndBody = z.union([
   z.strictObject({ after: z.literal("airing") }),
 ]);
 
-const reservationParams = z.object({
-  id: z.string(),
-  reservationId: z.string(),
-});
+const reservationParams = idParams.extend({ reservationId: z.string() });
 
 /**
  * Registers reservation HTTP routes; validation lives here and status

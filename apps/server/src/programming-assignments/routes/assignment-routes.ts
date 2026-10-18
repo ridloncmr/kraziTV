@@ -82,7 +82,7 @@ const settingsBody = z
     },
   );
 
-const assignmentParams = z.object({ id: z.string(), assignmentId: z.string() });
+const assignmentParams = idParams.extend({ assignmentId: z.string() });
 
 // Comma-separated ID lists, so the editor can refetch as members change.
 const idList = z

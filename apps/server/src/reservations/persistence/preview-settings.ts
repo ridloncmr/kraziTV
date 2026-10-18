@@ -9,7 +9,7 @@ import type {
 import { listFromBeginning } from "./reservation-rows.js";
 
 /** What a preview would save, or why its source cannot be saved. */
-export type ResolvedPreviewSettings =
+type ResolvedPreviewSettings =
   | {
       kind: "resolved";
       /** The settings a save made from this preview carries. */

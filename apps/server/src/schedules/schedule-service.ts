@@ -128,12 +128,12 @@ const PREVIEW_UPCOMING_ENTRIES = 10;
 
 /**
  * The only writer of schedule entries, generated programming blocks,
- * schedule state, and collection progress, apart from catalog purge, which deletes only entries that have
- * ended, and two input changes this service runs in its own transaction:
- * the maintenance pass's ordering change, which records an order
- * fingerprint, and a progress reset. Every mutation runs in an immediate
- * transaction and reads its effective current time only after acquiring
- * write authority.
+ * schedule state, and collection progress, apart from catalog purge, which
+ * deletes only entries that have ended, and two input changes this service
+ * runs in its own transaction: the maintenance pass's ordering change, which
+ * records an order fingerprint, and a progress reset. Every mutation runs in
+ * an immediate transaction and reads its effective current time only after
+ * acquiring write authority.
  */
 export class ScheduleService {
   readonly #db: Kysely<DatabaseSchema>;
@@ -198,11 +198,12 @@ export class ScheduleService {
 
   /**
    * Materializes an enabled channel's schedule at least a full horizon past
-   * the effective current time, or through `through` when that is later. Extends in chunks, each its
-   * own transaction that re-reads state, so concurrent callers never
-   * duplicate or overlap entries and no transaction holds write authority
-   * long. Never backfills: coverage that already ended is repaired from the
-   * effective current time, leaving the uncovered interval empty.
+   * the effective current time, or through `through` when that is later.
+   * Extends in chunks, each its own transaction that re-reads state, so
+   * concurrent callers never duplicate or overlap entries and no transaction
+   * holds write authority long. Never backfills: coverage that already ended
+   * is repaired from the effective current time, leaving the uncovered
+   * interval empty.
    */
   async ensureCoverage(
     channelId: string,
