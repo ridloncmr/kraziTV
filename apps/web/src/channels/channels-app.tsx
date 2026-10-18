@@ -23,6 +23,8 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
     attempted: boolean;
   }>();
   const [creating, setCreating] = useState(false);
+  const { refresh } = channels;
+  const { remember } = cleanup;
   useEffect(() => {
     const error = mutation.error;
     if (
@@ -34,17 +36,17 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
         typeof channelId === "string" &&
         (operation === "disable" || operation === "delete")
       ) {
-        cleanup.remember({
+        remember({
           id: channelId,
           operation,
           committed: persistenceCommitted === true,
           message: error.message,
         });
         setDeleting(undefined);
-        channels.refresh();
+        refresh();
       }
     }
-  }, [mutation.error, channels.refresh, cleanup.remember]);
+  }, [mutation.error, refresh, remember]);
   // Cleanup responses are authoritative about committed persistence even if the follow-up read fails.
   const displayedChannels = channels.data
     ?.filter(
