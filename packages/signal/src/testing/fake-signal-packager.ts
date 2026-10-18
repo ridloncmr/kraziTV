@@ -39,11 +39,8 @@ export class FakeSignalPreparation implements SignalPreparation {
    * committed and a later discard changes nothing.
    */
   commit(): void {
-    if (this.state === "committed") {
-      throw new Error("Preparation was already committed");
-    }
-    if (this.state === "discarded") {
-      throw new Error("Preparation was already discarded");
+    if (this.state !== "pending") {
+      throw new Error(`Preparation was already ${this.state}`);
     }
     this.state = "committed";
     this.owner.commitPreparation(this);
