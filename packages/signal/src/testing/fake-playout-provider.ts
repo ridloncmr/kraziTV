@@ -14,11 +14,18 @@ export class FakePlayoutProvider implements PlayoutProvider {
     after: PlayoutCursor;
     count: number;
   }> = [];
-  private readonly currentResults: CurrentPlayoutResult[] = [];
+  private readonly currentResults: Array<
+    CurrentPlayoutResult | Promise<CurrentPlayoutResult>
+  > = [];
   private readonly followingResults: FollowingPlayoutResult[] = [];
 
-  /** Queues the answer for the next current lookup, in call order. */
-  enqueueCurrent(result: CurrentPlayoutResult): void {
+  /**
+   * Queues the answer for the next current lookup, in call order. A promise
+   * holds that lookup open, so a test can move the clock before it settles.
+   */
+  enqueueCurrent(
+    result: CurrentPlayoutResult | Promise<CurrentPlayoutResult>,
+  ): void {
     this.currentResults.push(result);
   }
 

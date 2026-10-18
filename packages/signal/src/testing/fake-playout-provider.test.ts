@@ -62,6 +62,31 @@ describe("FakePlayoutProvider", () => {
     ]);
   });
 
+  it("holds a current lookup open until a queued promise settles", async () => {
+    const provider = new FakePlayoutProvider();
+    let release = (): void => {};
+    provider.enqueueCurrent(
+      new Promise<CurrentPlayoutResult>((resolve) => {
+        release = () => resolve(currentResult);
+      }),
+    );
+    provider.enqueueCurrent(currentResult);
+    let settled = false;
+    const first = provider.getCurrent("comedy", 1_000).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    release();
+    await first;
+
+    expect(settled).toBe(true);
+    await expect(provider.getCurrent("comedy", 1_250)).resolves.toBe(
+      currentResult,
+    );
+  });
+
   it("fails clearly when a test did not arrange a result", async () => {
     const provider = new FakePlayoutProvider();
 

@@ -18,7 +18,7 @@ import { parseSource } from "./parse-source.mjs";
 const FILE_LINE_REVIEW_LIMIT = 500;
 const TEST_DOUBLE_NAME =
   /^(Fake|Recording|Controlled|Stub|Mock|Spy|InMemory)[A-Z]/;
-const ROOT_ENTRY_MODULE = /^(index|app|create-[\w-]+)\.js$/;
+const ROOT_ENTRY_MODULE = /^(index|main|app|create-[\w-]+)\.js$/;
 const TYPE_DECLARATION_FOLDERS = new Set(["schema", "types"]);
 
 /** Runs every composition rule over one inventory. */
@@ -184,13 +184,27 @@ export function checkFileSize(file) {
 export function checkTestDoublePlacement(file, source) {
   if (isTestingFile(file)) return [];
   return classesOf(source)
-    .filter((node) => TEST_DOUBLE_NAME.test(node.name?.text ?? ""))
+    .filter((node) => looksLikeTestDouble(file, node))
     .map((node) => ({
       rule: "test-double-placement",
       severity: isTestFile(file) ? "review" : "error",
       files: [file.path],
-      message: `${node.name.text} looks like a test double; move it to src/testing/`,
+      message: `${node.name?.text ?? "anonymous class"} looks like a test double; move it to src/testing/`,
     }));
+}
+
+/**
+ * A double-prefixed name anywhere, or any class a test file declares against
+ * an interface: a suite only implements a production port to stand in for it.
+ */
+function looksLikeTestDouble(file, node) {
+  if (TEST_DOUBLE_NAME.test(node.name?.text ?? "")) return true;
+  return (
+    isTestFile(file) &&
+    (node.heritageClauses ?? []).some(
+      (clause) => clause.token === ts.SyntaxKind.ImplementsKeyword,
+    )
+  );
 }
 
 /** Domain files never import a `src/` root entry point; shared types go in contracts.ts. */

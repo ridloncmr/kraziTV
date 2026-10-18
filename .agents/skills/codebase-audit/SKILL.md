@@ -58,6 +58,9 @@ Use `code-review` instead for a single diff or PR.
      checks left inside the class file.
    - Duplication below the jscpd threshold: the same small helper, schema,
      or projection written in several files.
+   - Duplication inside test suites, which jscpd does not scan: the same
+     arrange helper, fixture literal, or assertion sequence repeated across
+     `*.test.ts` files when `src/testing/` should hold it once.
    - Package surface: whether used exports expose unnecessary policy or
      configuration. The `unused-package-export` rule checks named exports;
      namespace imports, literal dynamic imports, and star re-exports

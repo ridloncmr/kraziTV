@@ -13,7 +13,11 @@ import { parseSource } from "./parse-source.mjs";
 
 const ALL_NAMES = "*";
 
-/** Flags production exports that no other file imports or re-exports. */
+/**
+ * Flags production exports that no other file imports or re-exports. Opt-in
+ * suites in `integration/` count as consumers, so a helper only a real-FFmpeg
+ * suite imports keeps its export.
+ */
 export function checkExports(inventory) {
   const paths = new Set(inventory.files.map((file) => file.path));
   const parsed = inventory.files.map((file) => ({
@@ -21,8 +25,8 @@ export function checkExports(inventory) {
     source: parseSource(file),
   }));
   const used = new Set();
-  for (const { file, source } of parsed) {
-    for (const use of usesOf(file, source, paths)) used.add(use);
+  for (const file of inventory.consumerFiles ?? inventory.files) {
+    for (const use of usesOf(file, parseSource(file), paths)) used.add(use);
   }
 
   const findings = [];

@@ -71,6 +71,27 @@ describe("unused-export", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("counts opt-in integration suites as consumers", () => {
+    const helper = file(
+      "testing/real-ffmpeg.ts",
+      "export const ffmpegPath = 1;\n",
+    );
+    const suite = {
+      ...file(
+        "real.test.ts",
+        'import { ffmpegPath } from "../src/testing/real-ffmpeg.js";\n',
+      ),
+      path: "packages/demo/integration/real.test.ts",
+    };
+    expect(
+      checkExports({
+        workspaces: [],
+        files: [helper],
+        consumerFiles: [helper, suite],
+      }),
+    ).toEqual([]);
+  });
 });
 
 describe("unused-package-export", () => {

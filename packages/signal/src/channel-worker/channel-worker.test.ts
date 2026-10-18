@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-  ChannelId,
   SelectedPlayoutItem,
   CurrentPlayoutResult,
-  FollowingPlayoutResult,
   PlayoutProvider,
-  PlayoutCursor,
 } from "../playout/contracts.js";
 import { SignalError } from "../errors.js";
 import { FakeClock } from "../testing/fake-clock.js";
+import { FakePlayoutProvider } from "../testing/fake-playout-provider.js";
 import { Deferred } from "../testing/deferred.js";
 import { FakeSignalPackager } from "../testing/fake-signal-packager.js";
 import { ChannelWorker } from "./channel-worker.js";
@@ -50,53 +48,15 @@ const currentItem = (
   ...overrides,
 });
 
-class DeferredFirstPlayoutProvider implements PlayoutProvider {
-  readonly calls: Array<{ channelId: string; atMs: number }> = [];
-  readonly firstResult = new Deferred<CurrentPlayoutResult>();
-
-  constructor(private readonly finalResult: CurrentPlayoutResult) {}
-
-  /** Lets a test advance wall time while preliminary worker setup is pending. */
-  async getCurrent(
-    channelId: string,
-    atMs: number,
-  ): Promise<CurrentPlayoutResult> {
-    this.calls.push({ channelId, atMs });
-    if (this.calls.length === 1) return this.firstResult.promise;
-    return this.finalResult;
-  }
-
-  /** Following selection belongs to SIG-008, not worker startup. */
-  async getFollowing(): Promise<never> {
-    throw new Error("Unexpected following lookup");
-  }
-}
-
-class SequencePlayoutProvider implements PlayoutProvider {
-  readonly calls: Array<{ channelId: string; atMs: number }> = [];
-
-  constructor(private readonly results: CurrentPlayoutResult[]) {}
-
-  /** Returns arranged atomic snapshots in lookup order. */
-  async getCurrent(
-    channelId: ChannelId,
-    atMs: number,
-  ): Promise<CurrentPlayoutResult> {
-    this.calls.push({ channelId, atMs });
-    const result = this.results.shift();
-    if (result === undefined) throw new Error("No current result was arranged");
-    return result;
-  }
-
-  /** Following selection belongs to SIG-008, not worker startup. */
-  async getFollowing(
-    _channelId: ChannelId,
-    _after: PlayoutCursor,
-    _count: number,
-  ): Promise<FollowingPlayoutResult> {
-    throw new Error("Unexpected following lookup");
-  }
-}
+// Answers current lookups in the arranged order; following lookups belong to
+// SIG-008, not worker startup, so none is queued and any such call fails.
+const sequence = (
+  results: Array<CurrentPlayoutResult | Promise<CurrentPlayoutResult>>,
+) => {
+  const provider = new FakePlayoutProvider();
+  for (const result of results) provider.enqueueCurrent(result);
+  return provider;
+};
 
 const workerOptions = (
   playoutProvider: PlayoutProvider,
@@ -126,20 +86,23 @@ describe("ChannelWorker startup", () => {
   it("starts from the final wall-clock snapshot without shifting the scheduled end", async () => {
     const clock = new FakeClock(1_000);
     const packager = new FakeSignalPackager();
-    const provider = new DeferredFirstPlayoutProvider(currentItem(1_250));
+    const firstResult = new Deferred<CurrentPlayoutResult>();
+    const provider = sequence([firstResult.promise, currentItem(1_250)]);
     const abort = new AbortController();
 
     const factory = new DefaultChannelWorkerFactory(
       workerOptions(provider, packager, clock),
     );
     const starting = factory.create("channel-1", abort.signal);
-    expect(provider.calls).toEqual([{ channelId: "channel-1", atMs: 1_000 }]);
+    expect(provider.currentCalls).toEqual([
+      { channelId: "channel-1", atMs: 1_000 },
+    ]);
 
     clock.advanceBy(250);
-    provider.firstResult.resolve(currentItem(1_000));
+    firstResult.resolve(currentItem(1_000));
     await settlePromises();
 
-    expect(provider.calls).toEqual([
+    expect(provider.currentCalls).toEqual([
       { channelId: "channel-1", atMs: 1_000 },
       { channelId: "channel-1", atMs: 1_250 },
     ]);
@@ -178,10 +141,7 @@ describe("ChannelWorker startup", () => {
   it("retries session cleanup after a shared stop attempt fails", async () => {
     const clock = new FakeClock(1_000);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(1_000),
-      currentItem(1_000),
-    ]);
+    const provider = sequence([currentItem(1_000), currentItem(1_000)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -217,10 +177,7 @@ describe("ChannelWorker startup", () => {
   it("waits for joinable bytes to be retained after session readiness", async () => {
     const clock = new FakeClock(1_000);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(1_000),
-      currentItem(1_000),
-    ]);
+    const provider = sequence([currentItem(1_000), currentItem(1_000)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -261,7 +218,7 @@ describe("ChannelWorker startup", () => {
         endsAt: 1_000,
       },
     });
-    const provider = new SequencePlayoutProvider([first, first, second]);
+    const provider = sequence([first, first, second]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -306,7 +263,7 @@ describe("ChannelWorker startup", () => {
         endsAt: 1_000,
       },
     });
-    const provider = new SequencePlayoutProvider([first, first, second]);
+    const provider = sequence([first, first, second]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -335,10 +292,7 @@ describe("ChannelWorker startup", () => {
   it("stops the session and rejects when the overall startup timeout wins", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -359,10 +313,7 @@ describe("ChannelWorker startup", () => {
     const clock = new FakeClock(0);
     const timers = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -387,10 +338,7 @@ describe("ChannelWorker startup", () => {
   it("stops a pending session when startup is cancelled", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
     const abort = new AbortController();
     const starting = ChannelWorker.start(
       "channel-1",
@@ -410,7 +358,7 @@ describe("ChannelWorker startup", () => {
   it("does not begin preliminary work when already cancelled", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([currentItem(0)]);
+    const provider = sequence([currentItem(0)]);
     const abort = new AbortController();
     abort.abort();
 
@@ -423,7 +371,7 @@ describe("ChannelWorker startup", () => {
       "subscription_aborted",
     );
 
-    expect(provider.calls).toHaveLength(0);
+    expect(provider.currentCalls).toHaveLength(0);
     expect(packager.startCalls).toHaveLength(0);
     expect(clock.pendingTimerCount).toBe(0);
   });
@@ -431,10 +379,7 @@ describe("ChannelWorker startup", () => {
   it("stops the session and preserves a typed readiness failure", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -455,10 +400,7 @@ describe("ChannelWorker startup", () => {
   it("retains a retry handle when cleanup fails during worker startup", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -494,10 +436,7 @@ describe("ChannelWorker startup", () => {
   it("stops the session when join-point initialization throws", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new SequencePlayoutProvider([
-      currentItem(0),
-      currentItem(0),
-    ]);
+    const provider = sequence([currentItem(0), currentItem(0)]);
 
     await expectSignalError(
       ChannelWorker.start("channel-1", new AbortController().signal, {
@@ -516,7 +455,7 @@ describe("ChannelWorker startup", () => {
   it("times out a preliminary lookup without creating a session", async () => {
     const clock = new FakeClock(0);
     const packager = new FakeSignalPackager();
-    const provider = new DeferredFirstPlayoutProvider(currentItem(0));
+    const provider = sequence([new Deferred<CurrentPlayoutResult>().promise]);
     const starting = ChannelWorker.start(
       "channel-1",
       new AbortController().signal,
@@ -539,7 +478,7 @@ describe("ChannelWorker startup", () => {
     async (reason, code) => {
       const clock = new FakeClock(0);
       const packager = new FakeSignalPackager();
-      const provider = new SequencePlayoutProvider([
+      const provider = sequence([
         currentItem(0),
         {
           status: "no_current",
@@ -559,7 +498,7 @@ describe("ChannelWorker startup", () => {
         code,
       );
       expect(packager.startCalls).toHaveLength(0);
-      expect(provider.calls).toHaveLength(2);
+      expect(provider.currentCalls).toHaveLength(2);
       expect(clock.pendingTimerCount).toBe(0);
     },
   );
