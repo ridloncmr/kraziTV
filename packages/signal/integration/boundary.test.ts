@@ -4,20 +4,18 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createChannelStreamManager,
-  createFfmpegSignalPackager,
-  type CurrentPlayoutResult,
-  type SelectedPlayoutItem,
-  SystemRuntime,
-} from "../src/index.js";
+import { SystemRuntime } from "../src/index.js";
 import { FakePlayoutProvider } from "../src/testing/fake-playout-provider.js";
 import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transition-coordinator.js";
-import { ffmpegPath, runFfmpeg, wait } from "./real-ffmpeg.js";
+import {
+  CHANNEL,
+  current,
+  program,
+  runFfmpeg,
+  startManager,
+  wait,
+} from "./real-ffmpeg.js";
 
-type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
-
-const CHANNEL = "69";
 const FIRST_MS = 6_000;
 const SECOND_MS = 10_000;
 /** How far ahead the next FFmpeg process starts; production uses the same. */
@@ -61,41 +59,6 @@ afterAll(async () => {
   }
 });
 
-/** A program as kraziBrain selects it, airing from its media's start. */
-const program = (
-  scheduleEntryId: string,
-  mediaPath: string,
-  startsAt: number,
-  durationMs: number,
-): SelectedProgram => ({
-  kind: "program",
-  channelId: CHANNEL,
-  scheduleEntryId,
-  scheduleRevision: 7,
-  mediaItemId: `media-${scheduleEntryId}`,
-  mediaPath,
-  hasAudio: true,
-  hasVideo: true,
-  title: scheduleEntryId,
-  startsAt,
-  endsAt: startsAt + durationMs,
-  durationMs,
-  startOffsetMs: 0,
-});
-
-/** What airs at `evaluatedAt`, joined at its offset. */
-const current = (
-  item: SelectedProgram,
-  evaluatedAt: number,
-): CurrentPlayoutResult => ({
-  status: "current",
-  channelId: CHANNEL,
-  scheduleRevision: item.scheduleRevision,
-  evaluatedAt,
-  mediaOffsetMs: evaluatedAt - item.startsAt,
-  item,
-});
-
 describe("real FFmpeg boundary", () => {
   it("crosses a boundary known a lead ahead without pausing delivery", async () => {
     const runtime = new SystemRuntime();
@@ -115,30 +78,10 @@ describe("real FFmpeg boundary", () => {
     });
     const coordinator = new InMemoryTransitionCoordinator(runtime);
     coordinator.setSchedule(CHANNEL, 7, [first, second]);
-    const manager = createChannelStreamManager({
-      authorization: {
-        /** Enables the one channel the suite tunes. */
-        async getChannelAuthorization(channelId: string) {
-          return { status: "enabled" as const, channelId };
-        },
-      },
-      playoutProvider: provider,
-      packager: createFfmpegSignalPackager({
-        ffmpegPath,
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
-        timers: runtime,
-        terminationGraceMs: 5_000,
-        itemReadinessTimeoutMs: 15_000,
-      }),
-      clock: runtime,
-      timers: runtime,
-      transitionCoordinator: coordinator,
+    const manager = startManager(runtime, {
+      provider,
+      coordinator,
       prepareLeadMs: PREPARE_LEAD_MS,
-      startupTimeoutMs: 15_000,
-      subscriberBufferLimitBytes: 64 * 1024 * 1024,
-      retentionLimitBytes: 4 * 1024 * 1024,
-      idleGraceMs: 1_000,
-      logger: { debug() {}, info() {}, warn() {}, error() {} },
     });
 
     const subscription = await manager.subscribe(CHANNEL);
