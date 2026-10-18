@@ -26,7 +26,10 @@ import {
   validateCatalogCandidate,
   type ProbeOutcome,
 } from "./catalog-candidate.js";
-import { countLookups, enrichCandidates } from "./enrich-candidates.js";
+import {
+  countLookups,
+  enrichCandidates,
+} from "../enrichment/enrich-candidates.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import type {
   RetryItem,
