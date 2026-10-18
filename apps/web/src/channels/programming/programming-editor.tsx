@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ScheduleWindow } from "../../http/contracts/channels.js";
@@ -44,12 +44,15 @@ export function ProgrammingEditor({
   // Remounts the add form after each addition, so it starts empty again.
   const [added, setAdded] = useState(0);
   const [showSchedule, setShowSchedule] = useState(false);
-  const schedulePath = useMemo(
-    () => scheduleWindowPath(channelId),
-    [channelId, visible],
-  );
+  // The 24-hour window starts at now each time the program comes back into
+  // view, so a restored window counts today's entries, not the day it was
+  // minimized on. Adjusted during render so the first visible paint asks.
+  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
+  if (anchor.visible !== visible) {
+    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
+  }
   const schedule = useResource<ScheduleWindow>(
-    showSchedule ? schedulePath : null,
+    showSchedule ? scheduleWindowPath(channelId, anchor.startsAt) : null,
     visible,
   );
   // Counts accepted writes, so the upcoming programming is read again.

@@ -189,7 +189,7 @@ export function SpecialEditor({
           requestKey,
         };
     void saving.run(
-      special ? `${path}/${special.id}` : path,
+      special ? `${path}/${encodeURIComponent(special.id)}` : path,
       special ? "PATCH" : "POST",
       { ...asked, source: saveSource, ...guards },
       saved,

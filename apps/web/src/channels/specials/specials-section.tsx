@@ -109,7 +109,7 @@ export function SpecialsSection({
                         disabled={cancel.pending}
                         onClick={() =>
                           void cancel.run(
-                            `${path}/${special.id}`,
+                            `${path}/${encodeURIComponent(special.id)}`,
                             "DELETE",
                             undefined,
                             changed,
@@ -129,7 +129,7 @@ export function SpecialsSection({
       {ending && (
         <EndEarlyDialog
           special={ending}
-          path={`${path}/${ending.id}`}
+          path={`${path}/${encodeURIComponent(ending.id)}`}
           ended={changed}
           onClose={() => setEnding(undefined)}
         />

@@ -22,8 +22,6 @@ import {
 } from "./stretch-fields.js";
 import { PLAYBACK_MODE_CHOICES } from "./playback-mode-choices.js";
 
-// Every playback mode the editor offers, with the one line that explains it.
-
 /**
  * Edits one programming source assignment, or adds one when none is given:
  * members in saved order, each a collection or a single item, with the

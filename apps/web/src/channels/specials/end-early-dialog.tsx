@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { displayTime } from "../../controls/display-time.js";
 import { fromLocalInput } from "../../controls/local-instant.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
@@ -104,7 +105,7 @@ export function EndEarlyDialog({
         </button>
       </div>
       <p className="secondary">
-        Scheduled to end {new Date(special.endsAt).toLocaleString()}.
+        Scheduled to end {displayTime(special.endsAt)}.
       </p>
     </WindowDialog>
   );

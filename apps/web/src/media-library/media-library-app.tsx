@@ -134,7 +134,11 @@ export function MediaLibraryApp({
                 {roots.data.map((root) => (
                   <tr key={root.id}>
                     <td className="path-cell">{root.path}</td>
-                    <td>{displayTime(root.lastScannedAt)}</td>
+                    <td>
+                      {root.lastScannedAt === null
+                        ? "Not yet scanned"
+                        : displayTime(root.lastScannedAt)}
+                    </td>
                     <td>{root.enabled ? "Enabled" : "Disabled"}</td>
                     <td>
                       <div className="row-actions">
