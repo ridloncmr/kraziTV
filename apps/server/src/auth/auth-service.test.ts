@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 
-import type { Kysely, RootOperationNode } from "kysely";
+import type { RootOperationNode } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
+import { readSessionExpiries } from "../testing/auth-rows.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { countQueries } from "../testing/query-counter.js";
 import { recordingLog } from "../testing/recording-log.js";
@@ -34,16 +34,6 @@ async function openAuth() {
     clock,
     auth: new AuthService(database.db, { now: clock.now }),
   };
-}
-
-/** Reads every session's expiry, oldest first. */
-async function readExpiry(db: Kysely<DatabaseSchema>): Promise<number[]> {
-  const rows = await db
-    .selectFrom("sessions")
-    .select("expires_at")
-    .orderBy("expires_at")
-    .execute();
-  return rows.map((row) => row.expires_at);
 }
 
 /** Recognizes the statement that asks SQLite for write authority. */
@@ -390,7 +380,9 @@ describe("AuthService", () => {
     await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
       kind: "authenticated",
     });
-    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 30 * DAY_MS,
+    ]);
   });
 
   it("renews a session used a day or more after its last extension", async () => {
@@ -406,7 +398,9 @@ describe("AuthService", () => {
       kind: "authenticated",
       renewal: { maxAgeSeconds: 30 * 24 * 60 * 60 },
     });
-    await expect(readExpiry(db)).resolves.toEqual([START + 31 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 31 * DAY_MS,
+    ]);
 
     // The next renewal waits a day from this extension, not from creation.
     clock.advance(DAY_MS - 1);
@@ -440,7 +434,7 @@ describe("AuthService", () => {
     ]);
 
     expect(results.filter((result) => "renewal" in result)).toHaveLength(1);
-    await expect(readExpiry(db)).resolves.toEqual([
+    await expect(readSessionExpiries(db)).resolves.toEqual([
       START + 25 * HOUR_MS + 30 * DAY_MS,
     ]);
   });
@@ -456,7 +450,7 @@ describe("AuthService", () => {
     ]);
 
     expect(authentication).not.toHaveProperty("renewal");
-    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([]);
     await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
       kind: "unauthenticated",
     });
@@ -470,7 +464,7 @@ describe("AuthService", () => {
     await expect(auth.authenticate(token, recordingLog())).resolves.toEqual({
       kind: "unauthenticated",
     });
-    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([]);
   });
 
   it("deletes every expired session and keeps live ones", async () => {
@@ -482,7 +476,9 @@ describe("AuthService", () => {
 
     await auth.deleteExpiredSessions(recordingLog());
 
-    await expect(readExpiry(db)).resolves.toEqual([START + 31 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 31 * DAY_MS,
+    ]);
   });
 
   it("logs instead of throwing when expired-session cleanup fails", async () => {
@@ -531,7 +527,7 @@ describe("AuthService", () => {
       kind: "reset",
     });
 
-    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([]);
     await expect(
       auth.authenticate(setupToken, recordingLog()),
     ).resolves.toEqual({ kind: "unauthenticated" });
@@ -590,7 +586,7 @@ describe("AuthService", () => {
       await reset.release();
     }
 
-    await expect(readExpiry(server.db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(server.db)).resolves.toEqual([]);
     await expect(
       new AuthService(server.db).logIn("brand new secret"),
     ).resolves.toMatchObject({ kind: "logged_in" });
@@ -629,7 +625,7 @@ describe("AuthService", () => {
       await race.release();
     }
 
-    await expect(readExpiry(server.db)).resolves.toHaveLength(2);
+    await expect(readSessionExpiries(server.db)).resolves.toHaveLength(2);
     const account = await server.db
       .selectFrom("accounts")
       .select("password_hash")
@@ -649,7 +645,7 @@ describe("AuthService", () => {
       }),
     ).resolves.toEqual({ kind: "changed" });
 
-    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([]);
     await expect(
       auth.authenticate(setupToken, recordingLog()),
     ).resolves.toEqual({ kind: "unauthenticated" });

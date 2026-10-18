@@ -10,6 +10,7 @@ import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, windowUrl } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import {
   assignmentsByRound,
   insertCollectionOfItems,
@@ -30,7 +31,7 @@ const DAY = 24 * 60 * MINUTE;
 const T0 = FIXTURE_TIME;
 const WEEKS = 3;
 // The channel seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 const GENERATE_URL = `/channels/${CHANNEL_ID}/schedule/generate`;
 

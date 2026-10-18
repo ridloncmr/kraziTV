@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../testing/api-requests.js";
 import { captureLogLines } from "../testing/captured-log-lines.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import {
+  FIXTURE_TIME,
+  minutesAfterFixtureTime,
+} from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import {
   insertMovie,
   readGuideAirings,
@@ -30,10 +34,10 @@ afterEach(cleanUpTestEnvironment);
 
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
-const URL = `/channels/${CHANNEL_ID}/reservations`;
+const CHANNEL_ID = channelFixture.id;
+const RESERVATIONS = `/channels/${CHANNEL_ID}/reservations`;
 
 // The episode scenario covered from T0, a 90-minute movie, and the clock
 // five minutes into the first episode, which airs 0-22.
@@ -93,7 +97,7 @@ describe("interrupting reservations", () => {
     const { server, db, movie } = context;
     const revision = (await readOnlyScheduleState(db)).schedule_revision;
 
-    const created = await saveReservation(server, "POST", URL, {
+    const created = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(10)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -131,11 +135,11 @@ describe("interrupting reservations", () => {
     const { server, db, movie } = await airingFirstEpisode();
     const revision = (await readOnlyScheduleState(db)).schedule_revision;
 
-    const unflagged = await saveReservation(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(10)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const past = await saveReservation(server, "POST", URL, {
+    const past = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(3)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -153,11 +157,11 @@ describe("interrupting reservations", () => {
   it("starts now on the server clock, and refuses now without the flag while something airs", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const unflagged = await saveReservation(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: "now",
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const created = await saveReservation(server, "POST", URL, {
+    const created = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: "now",
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -241,7 +245,7 @@ describe("interrupting reservations", () => {
     await reserveItems(server, at(60), [movie]);
     clock.set(at(50));
 
-    const unflagged = await saveReservation(server, "POST", URL, {
+    const unflagged = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(52)),
       source: { kind: "media_items", mediaItemIds: [clip] },
     });
@@ -319,8 +323,18 @@ describe("interrupting reservations", () => {
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
 
-    const flagged = await send(server, "POST", `${URL}/preview`, body(true));
-    const unflagged = await send(server, "POST", `${URL}/preview`, body(false));
+    const flagged = await send(
+      server,
+      "POST",
+      `${RESERVATIONS}/preview`,
+      body(true),
+    );
+    const unflagged = await send(
+      server,
+      "POST",
+      `${RESERVATIONS}/preview`,
+      body(false),
+    );
 
     expect(flagged.body).toMatchObject({
       startsAt: iso(at(10)),
@@ -341,14 +355,21 @@ describe("interrupting reservations", () => {
     });
     runtimeOf(context).noticeFailure = new Error("worker unreachable");
 
-    const created = await saveReservation(context.server, "POST", URL, {
-      startsAt: iso(at(10)),
-      interrupts: true,
-      source: { kind: "media_items", mediaItemIds: [context.movie] },
-    });
+    const created = await saveReservation(
+      context.server,
+      "POST",
+      RESERVATIONS,
+      {
+        startsAt: iso(at(10)),
+        interrupts: true,
+        source: { kind: "media_items", mediaItemIds: [context.movie] },
+      },
+    );
 
     expect(created.status).toBe(201);
-    await expect(send(context.server, "GET", URL)).resolves.toMatchObject({
+    await expect(
+      send(context.server, "GET", RESERVATIONS),
+    ).resolves.toMatchObject({
       body: [{ startsAt: iso(at(10)) }],
     });
     expect(lines).toContainEqual(
@@ -431,7 +452,7 @@ describe("interrupting reservations", () => {
   it("stores the flag only on a special that cuts what airs", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const later = await saveReservation(server, "POST", URL, {
+    const later = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: iso(at(300)),
       interrupts: true,
       source: { kind: "media_items", mediaItemIds: [movie] },
@@ -446,7 +467,7 @@ describe("interrupting reservations", () => {
   it("refuses an explicit end at or before a start of now", async () => {
     const { server, movie } = await airingFirstEpisode();
 
-    const refused = await saveReservation(server, "POST", URL, {
+    const refused = await saveReservation(server, "POST", RESERVATIONS, {
       startsAt: "now",
       endsAt: iso(at(4)),
       interrupts: true,
@@ -507,7 +528,7 @@ describe("interrupting reservations", () => {
     );
 
     expect(rebuilt.status).toBe(200);
-    await expect(send(server, "GET", URL)).resolves.toMatchObject({
+    await expect(send(server, "GET", RESERVATIONS)).resolves.toMatchObject({
       body: [{ startsAt: iso(at(10)), interrupts: false }],
     });
   });
@@ -526,7 +547,9 @@ describe("interrupting reservations", () => {
     });
 
     expect(removed.status).toBe(200);
-    await expect(send(server, "GET", URL)).resolves.toMatchObject({ body: [] });
+    await expect(send(server, "GET", RESERVATIONS)).resolves.toMatchObject({
+      body: [],
+    });
     const episode = (await readScheduleEntries(db, CHANNEL_ID)).find(
       (entry) => entry.starts_at === T0,
     );
@@ -646,7 +669,7 @@ describe("ending a running special early", () => {
       endsAt: iso(at(200)),
       source: { kind: "media_items", mediaItemIds: [movie] },
     });
-    const unknown = await send(server, "POST", `${URL}/nope/end`, {
+    const unknown = await send(server, "POST", `${RESERVATIONS}/nope/end`, {
       after: "airing",
     });
     const invalid = await send(server, "POST", `${special}/end`, {});

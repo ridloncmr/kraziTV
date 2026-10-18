@@ -5,8 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SqliteTransitionCoordinator } from "../channels/runtime/sqlite-transition-coordinator.js";
 import { iso, send, windowUrl } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { assignmentFixture } from "../testing/channel-fixtures.js";
+import {
+  collectionFixture,
+  minutesAfterFixtureTime,
+} from "../testing/catalog-fixtures.js";
+import {
+  assignmentFixture,
+  channelFixture,
+} from "../testing/channel-fixtures.js";
 import {
   insertCollectionOfItems,
   readOnlyScheduleState,
@@ -23,11 +29,10 @@ import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 afterEach(cleanUpTestEnvironment);
 
 const MINUTE = 60_000;
-const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const RESERVATIONS = `/channels/${CHANNEL_ID}/reservations`;
 const ASSIGNMENT = `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`;
 

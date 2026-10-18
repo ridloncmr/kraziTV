@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
@@ -33,7 +34,7 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
   durationMs: minutes * MINUTE,
 }));
 // The channel seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const NOW_URL = `/channels/${CHANNEL_ID}/now`;
 const PLAYOUT_URL = `/channels/${CHANNEL_ID}/playout`;
 

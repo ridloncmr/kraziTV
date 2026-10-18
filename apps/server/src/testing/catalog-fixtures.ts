@@ -10,6 +10,11 @@ import { parameterChunks } from "../database/writes/parameter-chunks.js";
 
 export const FIXTURE_TIME = 1_704_067_200_000;
 
+/** The instant `minutes` after FIXTURE_TIME, so a test can place events by the minute. */
+export function minutesAfterFixtureTime(minutes: number): number {
+  return FIXTURE_TIME + minutes * 60_000;
+}
+
 export const rootFixture: Insertable<MediaRootTable> = {
   id: "root-fixture-001",
   path: "/media/movies",

@@ -3,8 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WriteAuthorityBusyError } from "../database/writes/immediate-transaction.js";
 import { send } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { assignmentFixture } from "../testing/channel-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+} from "../testing/catalog-fixtures.js";
+import {
+  assignmentFixture,
+  channelFixture,
+} from "../testing/channel-fixtures.js";
 import { manualClock, type ManualClock } from "../testing/manual-clock.js";
 import {
   openRacingSchedule,
@@ -37,8 +43,8 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const OFFICE = assignmentFixture.id;
 const RULES_URL = `/channels/${CHANNEL_ID}/programming-rules`;
 

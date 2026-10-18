@@ -10,8 +10,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { SqliteTransitionCoordinator } from "../channels/runtime/sqlite-transition-coordinator.js";
 import { iso, send, windowUrl } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
-import { assignmentFixture } from "../testing/channel-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+  minutesAfterFixtureTime,
+} from "../testing/catalog-fixtures.js";
+import {
+  assignmentFixture,
+  channelFixture,
+} from "../testing/channel-fixtures.js";
 import { insertMovie, reserveItems } from "../testing/reservation-fixtures.js";
 import {
   readOnlyScheduleState,
@@ -31,9 +38,9 @@ afterEach(cleanUpTestEnvironment);
 
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const SCHEDULE = `/channels/${CHANNEL_ID}/schedule`;
 // 01:00 UTC on 2024-01-01 is 7:00 PM the evening before in Chicago.
 const TIME_ZONE = "America/Chicago";
@@ -254,7 +261,7 @@ describe("spec 0006 acceptance", () => {
       server,
       "PATCH",
       `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`,
-      collectionAssignment("collection-fixture-001", "random"),
+      collectionAssignment(collectionFixture.id, "random"),
     );
 
     await expect(
@@ -277,7 +284,7 @@ describe("spec 0006 acceptance", () => {
       server,
       "PATCH",
       `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`,
-      collectionAssignment("collection-fixture-001", "random"),
+      collectionAssignment(collectionFixture.id, "random"),
     );
 
     expect(refused.body.error).toMatchObject({
@@ -359,7 +366,7 @@ describe("spec 0004 acceptance: reservations and kraziPlan turns", () => {
       server,
       "PATCH",
       `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`,
-      collectionAssignment("collection-fixture-001", "random"),
+      collectionAssignment(collectionFixture.id, "random"),
     );
 
     expect((await windowShape(server, T0, at(160))).programs).toContain(

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { SignalPlayoutAdapter } from "../channels/runtime/signal-playout-adapter.js";
 import { send, updateChannel } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import { RecordingChannelRuntime } from "../testing/recording-channel-runtime.js";
 import { recordingLog } from "../testing/recording-log.js";
 import {
@@ -20,7 +21,7 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
 // The IDs seedScheduleScenario writes; item-001 airs first, from T0 for 22 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const [A, B] = ["item-001", "item-002"];
 const NOW = T0 + 5 * MINUTE;
 

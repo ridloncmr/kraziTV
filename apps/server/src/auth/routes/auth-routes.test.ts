@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { cookieOf, logIn, send } from "../../testing/api-requests.js";
+import { countAuthRows } from "../../testing/auth-rows.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
   cleanUpTestEnvironment,
@@ -42,15 +43,6 @@ function logOut(server: FastifyInstance, cookie?: string) {
     url: "/auth/logout",
     ...(cookie === undefined ? {} : { headers: { cookie } }),
   });
-}
-
-/** Counts rows so refusals can prove they wrote nothing. */
-async function countRows(
-  db: Awaited<ReturnType<typeof startTestServer>>["db"],
-) {
-  const accounts = await db.selectFrom("accounts").select("id").execute();
-  const sessions = await db.selectFrom("sessions").select("id").execute();
-  return { accounts: accounts.length, sessions: sessions.length };
 }
 
 describe("auth routes", () => {
@@ -116,7 +108,10 @@ describe("auth routes", () => {
     expect(second.statusCode).toBe(409);
     expect(second.json()).toMatchObject({ error: { code: "already_set_up" } });
     expect(second.headers["set-cookie"]).toBeUndefined();
-    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 1,
+      sessions: 1,
+    });
   });
 
   it("creates exactly one account from two concurrent setups", async () => {
@@ -127,7 +122,10 @@ describe("auth routes", () => {
     expect(responses.map((response) => response.statusCode).sort()).toEqual([
       201, 409,
     ]);
-    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 1,
+      sessions: 1,
+    });
   });
 
   it.each([
@@ -152,7 +150,10 @@ describe("auth routes", () => {
       status: 400,
       body: { error: { code: "invalid_request" } },
     });
-    await expect(countRows(db)).resolves.toEqual({ accounts: 0, sessions: 0 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 0,
+      sessions: 0,
+    });
   });
 
   it.each([
@@ -184,7 +185,10 @@ describe("login and logout", () => {
       error: { code: "setup_required" },
     });
     expect(response.headers["set-cookie"]).toBeUndefined();
-    await expect(countRows(db)).resolves.toEqual({ accounts: 0, sessions: 0 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 0,
+      sessions: 0,
+    });
   });
 
   it("refuses a wrong password and sets no cookie", async () => {
@@ -198,7 +202,10 @@ describe("login and logout", () => {
       error: { code: "invalid_password" },
     });
     expect(response.headers["set-cookie"]).toBeUndefined();
-    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 1,
+      sessions: 1,
+    });
   });
 
   it.each([
@@ -253,7 +260,10 @@ describe("login and logout", () => {
     await expect(readState(server, secondBrowser)).resolves.toMatchObject({
       body: { authenticated: true },
     });
-    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 1,
+      sessions: 1,
+    });
   });
 
   it("clears a Secure cookie with the same attributes over https", async () => {
@@ -278,7 +288,10 @@ describe("login and logout", () => {
     const response = await logOut(server, cookie);
 
     expect(response.statusCode).toBe(204);
-    await expect(countRows(db)).resolves.toEqual({ accounts: 1, sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({
+      accounts: 1,
+      sessions: 1,
+    });
   });
 });
 

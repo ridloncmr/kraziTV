@@ -20,12 +20,14 @@ import {
   scannedLibrary,
 } from "../testing/metadata-refresh-fixtures.js";
 import { recordingLog } from "../testing/recording-log.js";
-import { readScheduleEntries } from "../testing/schedule-fixtures.js";
+import {
+  insertCollectionAssignment,
+  readScheduleEntries,
+} from "../testing/schedule-fixtures.js";
 import { SCAN_FIREFLY } from "../testing/scan-metadata.js";
 import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 import { CollectionMaintenance } from "./maintenance/collection-maintenance.js";
 import { MediaCollectionRepository } from "./persistence/media-collection-repository.js";
-import { insertCollectionAssignment } from "../testing/schedule-fixtures.js";
 
 afterEach(cleanUpTestEnvironment);
 
