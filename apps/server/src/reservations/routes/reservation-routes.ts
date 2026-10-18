@@ -50,9 +50,9 @@ const reservationFields = {
   source: reservationSource,
 };
 
-// A save also names the schedule revision its preview read; a create adds
-// the browser's key for this save, repeated unchanged on a retry.
-const expectedScheduleRevision = z.number().int().nonnegative().nullable();
+// A save also names the programming revision its preview read; a create
+// adds the browser's key for this save, repeated unchanged on a retry.
+const expectedProgrammingRevision = z.number().int().nonnegative().nullable();
 
 const reservationObject = z.strictObject(reservationFields);
 
@@ -101,12 +101,12 @@ const previewBody = withRangeChecks(
 );
 const createBody = withRangeChecks(
   reservationObject.extend({
-    expectedScheduleRevision,
+    expectedProgrammingRevision,
     requestKey: z.string().min(1).max(200),
   }),
 );
 const updateBody = withRangeChecks(
-  reservationObject.extend({ expectedScheduleRevision }),
+  reservationObject.extend({ expectedProgrammingRevision }),
 );
 
 // Ending a running reservation early: at an instant, or after what airs.
@@ -156,12 +156,13 @@ export function registerReservationRoutes(
       "reservation_created",
       "created",
       (trx, now) => {
-        const { expectedScheduleRevision, requestKey, ...settings } = body.data;
+        const { expectedProgrammingRevision, requestKey, ...settings } =
+          body.data;
         return reservations.create(
           trx,
           id,
           settings,
-          { expectedScheduleRevision, requestKey },
+          { expectedProgrammingRevision, requestKey },
           now,
         );
       },
@@ -204,13 +205,13 @@ export function registerReservationRoutes(
           `Channel ${id} cannot generate a schedule`,
           {
             reason: preview.reason,
-            scheduleRevision: preview.scheduleRevision,
+            programmingRevision: preview.programmingRevision,
           },
         );
       case "refused": {
         const { status: _, ...conflict } = describeRefusal(preview.refusal);
         return {
-          scheduleRevision: preview.scheduleRevision,
+          programmingRevision: preview.programmingRevision,
           commitment: "exact",
           conflicts: [conflict],
         };
@@ -236,13 +237,13 @@ export function registerReservationRoutes(
         "reservation_changed",
         "updated",
         (trx, now) => {
-          const { expectedScheduleRevision, ...settings } = body.data;
+          const { expectedProgrammingRevision, ...settings } = body.data;
           return reservations.update(
             trx,
             id,
             reservationId,
             settings,
-            { expectedScheduleRevision },
+            { expectedProgrammingRevision },
             now,
           );
         },

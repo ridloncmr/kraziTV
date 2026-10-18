@@ -401,6 +401,7 @@ export class ScheduleService {
       log,
       async (trx, state, effectiveNow) => {
         const scheduleRevision = state?.scheduleRevision ?? null;
+        const programmingRevision = state?.programmingRevision ?? null;
         // A collection from the beginning previews as the list it saves as.
         let resolved: string[] | undefined;
         if (previewed.source.kind === "collection_from_beginning") {
@@ -416,6 +417,7 @@ export class ScheduleService {
                     }
                   : { kind: "reservation_media_unplayable", mediaItemIds: [] },
               scheduleRevision,
+              programmingRevision,
             };
           }
         }
@@ -435,7 +437,12 @@ export class ScheduleService {
           replacesReservationId,
         );
         if (range.kind !== "resolved") {
-          return { kind: "refused", refusal: range, scheduleRevision };
+          return {
+            kind: "refused",
+            refusal: range,
+            scheduleRevision,
+            programmingRevision,
+          };
         }
         const reservation = await resolveReservation(trx, {
           id: PREVIEW_RESERVATION_ID,
@@ -453,11 +460,12 @@ export class ScheduleService {
             replacesReservationId,
           );
         if (generated.kind === "unschedulable") {
-          return { ...generated, scheduleRevision };
+          return { ...generated, scheduleRevision, programmingRevision };
         }
         return {
           kind: "preview",
           scheduleRevision,
+          programmingRevision,
           startsAt: reservation.startsAt,
           endsAt: reservation.endsAt,
           endKind: range.endKind,
@@ -776,9 +784,9 @@ export class ScheduleService {
    * Deletes the channel's entries starting at or after `span.deleteFrom`,
    * restores progress from them, and generates one chunk from
    * `span.startsAt` if the channel is enabled and schedulable. State is
-   * written, and the revision advances once, only if an entry was deleted or
-   * inserted. Callers choose the positions; this never decides what may be
-   * replaced.
+   * written, and both revisions advance once, only if an entry was deleted
+   * or inserted. Callers choose the positions; this never decides what may
+   * be replaced.
    */
   async #rebuildChunk(
     trx: Kysely<DatabaseSchema>,
@@ -826,6 +834,7 @@ export class ScheduleService {
       lastGeneratedThrough: chunk?.lastGeneratedThrough ?? boundary,
       nextSequenceNumber: chunk?.nextSequenceNumber ?? state.nextSequenceNumber,
       scheduleRevision: state.scheduleRevision + (changed ? 1 : 0),
+      programmingRevision: state.programmingRevision + (changed ? 1 : 0),
       updatedAt: effectiveNow,
     };
     // With nothing deleted, coverage already ends at or before the boundary,
@@ -934,6 +943,9 @@ export class ScheduleService {
       lastGeneratedThrough: written.lastGeneratedThrough,
       nextSequenceNumber: written.nextSequenceNumber,
       scheduleRevision: (state?.scheduleRevision ?? 0) + 1,
+      // An extension appends what a preview already generated and showed, so
+      // only a channel's first chunk changes its planned programming.
+      programmingRevision: state?.programmingRevision ?? 1,
       programmingSeed,
       rebuildCount,
       updatedAt: effectiveNow,

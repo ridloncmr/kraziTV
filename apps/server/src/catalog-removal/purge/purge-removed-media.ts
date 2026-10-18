@@ -73,6 +73,10 @@ export async function purgeRemovedMedia(
 
   for (const { channel_id } of channels) {
     if (alreadyAdvanced.has(channel_id)) continue;
-    await advanceScheduleRevision(trx, channel_id, now);
+    // Only ended entries went, so the planned programming a preview shows
+    // is unchanged.
+    await advanceScheduleRevision(trx, channel_id, now, {
+      programmingChanged: false,
+    });
   }
 }

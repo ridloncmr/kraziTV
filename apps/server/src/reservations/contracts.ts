@@ -55,12 +55,12 @@ export interface ReservationSettings {
 
 /**
  * What a save must carry beyond the settings (programming spec 0007): the
- * schedule revision its preview read, so a save never publishes a schedule
- * the owner did not see, and, for a create, the browser's key for this save,
- * so a retry finds what it created.
+ * programming revision its preview read, so a save never publishes
+ * programming the owner did not see, and, for a create, the browser's key
+ * for this save, so a retry finds what it created.
  */
 export interface SaveGuards {
-  expectedScheduleRevision: number | null;
+  expectedProgrammingRevision: number | null;
   requestKey?: string;
 }
 
@@ -152,17 +152,22 @@ export type ReservationPreview =
   | {
       kind: "unschedulable";
       reason: ProgrammingUnschedulableReason;
-      /** A reservation still airs on such a channel, so a save needs this. */
       scheduleRevision: number | null;
+      /** A reservation still airs on such a channel, so a save needs this. */
+      programmingRevision: number | null;
     }
   | {
       kind: "refused";
       refusal: ReservationRefusal;
       scheduleRevision: number | null;
+      programmingRevision: number | null;
     }
   | {
       kind: "preview";
+      /** The schedule the preview's filler is derived under. */
       scheduleRevision: number | null;
+      /** The token a save made from this preview carries. */
+      programmingRevision: number | null;
       startsAt: number;
       endsAt: number;
       endKind: SavedReservation["endKind"];

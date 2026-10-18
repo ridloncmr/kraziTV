@@ -53,7 +53,8 @@ interface PreviewInterval {
  * revision and conflicts; one beyond the horizon displaces nothing yet.
  */
 export interface SpecialPreview {
-  scheduleRevision: number | null;
+  /** The token a save made from this preview sends back. */
+  programmingRevision: number | null;
   conflicts: SpecialConflict[];
   startsAt?: string;
   endsAt?: string;

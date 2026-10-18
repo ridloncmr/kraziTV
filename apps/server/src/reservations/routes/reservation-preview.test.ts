@@ -47,13 +47,13 @@ const movieAt = (movie: string, startsAt: number, endsAt?: number) => ({
 describe("POST /channels/:id/reservations/preview", () => {
   it("previews exactly what saving the reservation then produces", async () => {
     const { server, db, movie } = await scheduled();
-    const revision = (await readOnlyScheduleState(db)).schedule_revision;
+    const revision = (await readOnlyScheduleState(db)).programming_revision;
 
     const preview = await send(server, "POST", PREVIEW, movieAt(movie, at(60)));
 
     expect(preview.status).toBe(200);
     expect(preview.body).toEqual({
-      scheduleRevision: revision,
+      programmingRevision: revision,
       commitment: "exact",
       startsAt: iso(at(60)),
       endsAt: iso(at(150)),
@@ -305,7 +305,7 @@ describe("POST /channels/:id/reservations/preview", () => {
       );
       const saved = await send(server, "POST", RESERVATIONS, {
         ...fromTheBeginning("release"),
-        expectedScheduleRevision: null,
+        expectedProgrammingRevision: null,
         requestKey: "save-1",
       });
 

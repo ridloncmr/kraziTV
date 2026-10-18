@@ -61,7 +61,7 @@ export class ReservationRepository {
    * passes. A save whose key already created one returns it unchanged, so a
    * retry duplicates nothing; the key names the save, so a retry's body is
    * not compared, as for a fresh rebuild's key. Any other save made from a
-   * preview of another schedule revision is refused before it writes.
+   * preview of another programming revision is refused before it writes.
    */
   async create(
     trx: Executor,
@@ -274,21 +274,22 @@ async function findAiringFillerConflict(
 }
 
 /**
- * Returns a refusal when the channel's schedule revision is not the one the
- * save's preview read, so a save never publishes a schedule the owner did
- * not see. Read inside the write's immediate transaction. Coverage extended
- * by an ordinary read since the preview also makes it stale: it fails
- * closed, and the owner previews again. The refusal names no revision, so a
- * browser can only recover by previewing, never by resending.
+ * Returns a refusal when the channel's programming revision is not the one
+ * the save's preview read, so a save never publishes programming the owner
+ * did not see. Read inside the write's immediate transaction. Coverage a
+ * guide read extended since the preview does not count: an extension
+ * appends what the preview already generated and showed. The refusal names
+ * no revision, so a browser can only recover by previewing, never by
+ * resending.
  */
 async function findStalePreview(
   trx: Executor,
   channelId: string,
-  { expectedScheduleRevision }: SaveGuards,
+  { expectedProgrammingRevision }: SaveGuards,
 ): Promise<Extract<ReservationRefusal, { kind: "preview_stale" }> | undefined> {
-  const scheduleRevision =
-    (await loadScheduleState(trx, channelId))?.scheduleRevision ?? null;
-  return scheduleRevision === expectedScheduleRevision
+  const programmingRevision =
+    (await loadScheduleState(trx, channelId))?.programmingRevision ?? null;
+  return programmingRevision === expectedProgrammingRevision
     ? undefined
     : { kind: "preview_stale" };
 }

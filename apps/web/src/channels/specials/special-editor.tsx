@@ -30,7 +30,7 @@ type PreviewedSettings = {
  * year ahead, as a preview conflict), an optional end,
  * and what airs, as media items in order, a collection block, or a
  * collection from the beginning. A save sends exactly the settings its
- * preview was made from, with that preview's schedule revision, so the
+ * preview was made from, with that preview's programming revision, so the
  * guide changes only to what the owner saw; any edit discards the preview,
  * and a preview that answers after an edit is dropped. Each preview gets a
  * fresh request key, so resending a save finds what it created but a save
@@ -182,8 +182,11 @@ export function SpecialEditor({
         ? { kind: "media_items", mediaItemIds: result.mediaItemIds ?? [] }
         : asked.source;
     const guards = special
-      ? { expectedScheduleRevision: result.scheduleRevision }
-      : { expectedScheduleRevision: result.scheduleRevision, requestKey };
+      ? { expectedProgrammingRevision: result.programmingRevision }
+      : {
+          expectedProgrammingRevision: result.programmingRevision,
+          requestKey,
+        };
     void saving.run(
       special ? `${path}/${special.id}` : path,
       special ? "PATCH" : "POST",

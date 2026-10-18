@@ -137,6 +137,7 @@ describe("ScheduleService.ensureCoverage", () => {
       last_generated_through: last.ends_at,
       next_sequence_number: entries.length,
       schedule_revision: 1,
+      programming_revision: 1,
       programming_seed: deriveProgrammingSeed(channelId, T0),
       rebuild_count: 0,
       last_rebuild_key: null,

@@ -76,6 +76,13 @@ export interface ScheduleState {
   lastGeneratedThrough: number;
   nextSequenceNumber: number;
   scheduleRevision: number;
+  /**
+   * Advances with every commit that changes the planned programming a
+   * reservation preview shows: a regeneration, an interruption, or a
+   * reservation write. Unlike the schedule revision, coverage extension
+   * leaves it alone, so a save from a preview survives a guide read.
+   */
+  programmingRevision: number;
   /** Seeds kraziPlan's decisions; independent of the collection playback `seed`. */
   programmingSeed: number;
   /** Fresh rebuilds so far; each starts new programming decisions. */

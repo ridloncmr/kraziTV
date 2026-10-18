@@ -9,6 +9,11 @@ export interface ChannelScheduleStateTable {
   next_sequence_number: number;
   /** Increments once per commit that inserts or deletes an entry. */
   schedule_revision: number;
+  /**
+   * Increments once per commit that changes the planned programming a
+   * reservation preview shows; coverage extension leaves it alone.
+   */
+  programming_revision: number;
   /** Unsigned 32-bit seed kraziPlan's decisions hash; independent of `seed`. */
   programming_seed: number;
   /** Fresh rebuilds so far; each one starts new programming decisions. */

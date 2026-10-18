@@ -260,6 +260,7 @@ export async function insertScheduleState(
       ...scheduleStateFixture,
       last_generated_through: state.lastGeneratedThrough,
       schedule_revision: state.scheduleRevision,
+      programming_revision: state.scheduleRevision,
     })
     .execute();
 }

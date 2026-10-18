@@ -56,7 +56,9 @@ export function reservationChange<T extends { kind: string }>(
           }
         }
         if (!advanced.has(channelId)) {
-          await advanceScheduleRevision(trx, channelId, now);
+          await advanceScheduleRevision(trx, channelId, now, {
+            programmingChanged: true,
+          });
         }
       },
     };

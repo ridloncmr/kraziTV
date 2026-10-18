@@ -174,7 +174,7 @@ export function toApiReservationPreview(
     endsAt: toApiTimestamp(item.endsAt),
   });
   return {
-    scheduleRevision: preview.scheduleRevision,
+    programmingRevision: preview.programmingRevision,
     commitment: "exact",
     startsAt: toApiTimestamp(preview.startsAt),
     endsAt: toApiTimestamp(preview.endsAt),

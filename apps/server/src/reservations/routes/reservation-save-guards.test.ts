@@ -1,8 +1,9 @@
-// What a save must carry (programming spec 0007): the schedule revision its
-// preview read, a request key on a create, and a start at most a year ahead.
+// What a save must carry (programming spec 0007): the programming revision
+// its preview read, a request key on a create, and a start at most a year
+// ahead.
 import { afterEach, describe, expect, it } from "vitest";
 
-import { iso, send } from "../../testing/api-requests.js";
+import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { collectionAssignment } from "../../testing/assignment-bodies.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import { assignmentFixture } from "../../testing/channel-fixtures.js";
@@ -24,6 +25,7 @@ const T0 = FIXTURE_TIME;
 const at = (minutes: number) => T0 + minutes * MINUTE;
 const CHANNEL_ID = "channel-fixture-001";
 const URL = `/channels/${CHANNEL_ID}/reservations`;
+const SCHEDULE_URL = `/channels/${CHANNEL_ID}/schedule`;
 const ASSIGNMENT = `/channels/${CHANNEL_ID}/programming-assignments/${assignmentFixture.id}`;
 
 // The episode scenario with a 90-minute movie to reserve.
@@ -35,7 +37,7 @@ async function scenario() {
     source: { kind: "media_items", mediaItemIds: [movie] },
   });
   const revision = async () =>
-    (await readOnlyScheduleState(context.db)).schedule_revision;
+    (await readOnlyScheduleState(context.db)).programming_revision;
   return { ...context, movie, movieAt, revision };
 }
 
@@ -58,17 +60,47 @@ describe("reservation save guards", () => {
 
     const stale = await send(server, "POST", URL, {
       ...movieAt(at(60)),
-      expectedScheduleRevision: preview.body.scheduleRevision,
+      expectedProgrammingRevision: preview.body.programmingRevision,
       requestKey: "save-1",
     });
 
-    expect(afterEdit).not.toBe(preview.body.scheduleRevision);
+    expect(afterEdit).not.toBe(preview.body.programmingRevision);
     expect(stale.status).toBe(409);
     // The refusal names no revision, so only a fresh preview recovers.
     expect(stale.body.error.code).toBe("preview_stale");
-    expect(stale.body.error.scheduleRevision).toBeUndefined();
+    expect(stale.body.error.programmingRevision).toBeUndefined();
     expect(await revision()).toBe(afterEdit);
     await expect(send(server, "GET", URL)).resolves.toMatchObject({ body: [] });
+  });
+
+  it("saves from a preview after a guide read extended coverage meanwhile", async () => {
+    const { server, db, clock, movieAt, revision } = await scenario();
+    const preview = await send(
+      server,
+      "POST",
+      `${URL}/preview`,
+      movieAt(T0 + 5 * DAY),
+    );
+    const before = await readOnlyScheduleState(db);
+    // A day later, a guide read extends coverage a full horizon past the
+    // new time: the schedule revision moves, the planned programming the
+    // preview showed does not.
+    clock.set(T0 + DAY);
+    await send(server, "GET", windowUrl(SCHEDULE_URL, T0 + DAY, T0 + DAY + 1));
+    const extended = await readOnlyScheduleState(db);
+
+    const saved = await send(server, "POST", URL, {
+      ...movieAt(T0 + 5 * DAY),
+      expectedProgrammingRevision: preview.body.programmingRevision,
+      requestKey: "save-1",
+    });
+
+    expect(extended.schedule_revision).toBeGreaterThan(
+      before.schedule_revision,
+    );
+    expect(extended.programming_revision).toBe(before.programming_revision);
+    expect(saved.status).toBe(201);
+    expect(await revision()).toBe(before.programming_revision + 1);
   });
 
   it("refuses an edit made from a stale preview", async () => {
@@ -77,7 +109,7 @@ describe("reservation save guards", () => {
 
     const stale = await send(server, "PATCH", reservation, {
       ...movieAt(at(120)),
-      expectedScheduleRevision: 0,
+      expectedProgrammingRevision: 0,
     });
 
     expect(stale.body.error.code).toBe("preview_stale");
@@ -92,7 +124,7 @@ describe("reservation save guards", () => {
     // The retry carries the preview's revision, which the first save advanced.
     const retry = await saveReservation(server, "POST", URL, {
       ...body,
-      expectedScheduleRevision: afterFirst - 1,
+      expectedProgrammingRevision: afterFirst - 1,
     });
 
     expect(first.status).toBe(201);
@@ -132,14 +164,14 @@ describe("reservation save guards", () => {
   it.each([
     {
       name: "a create without a preview revision",
-      omit: "expectedScheduleRevision",
+      omit: "expectedProgrammingRevision",
     },
     { name: "a create without a request key", omit: "requestKey" },
   ])("refuses $name as invalid", async ({ omit }) => {
     const { server, movieAt } = await scenario();
     const body: Record<string, unknown> = {
       ...movieAt(at(60)),
-      expectedScheduleRevision: null,
+      expectedProgrammingRevision: null,
       requestKey: "save-1",
     };
     delete body[omit];

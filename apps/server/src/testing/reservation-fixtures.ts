@@ -45,7 +45,7 @@ export async function insertFilmSeries(
 
 /**
  * Saves a reservation on the fixture channel as the browser does: previews
- * the settings to read the schedule revision, then sends the save with it
+ * the settings to read the programming revision, then sends the save with it
  * and, for a create, a fresh request key. A body may override either guard,
  * as a stale or retried save would. Answers the save's response.
  */
@@ -55,7 +55,7 @@ export async function saveReservation(
   url: string,
   body: Record<string, unknown>,
 ) {
-  const { expectedScheduleRevision: _, requestKey: __, ...settings } = body;
+  const { expectedProgrammingRevision: _, requestKey: __, ...settings } = body;
   const preview = await send(
     server,
     "POST",
@@ -63,11 +63,11 @@ export async function saveReservation(
     settings,
   );
   return send(server, method, url, {
-    expectedScheduleRevision:
+    expectedProgrammingRevision:
       // An unschedulable channel's preview names it on its refusal.
-      ((preview.body?.scheduleRevision ??
-        preview.body?.error?.scheduleRevision) as number | null | undefined) ??
-      null,
+      ((preview.body?.programmingRevision ??
+        preview.body?.error?.programmingRevision) as
+        number | null | undefined) ?? null,
     ...(method === "POST" ? { requestKey: randomUUID() } : {}),
     ...body,
   });

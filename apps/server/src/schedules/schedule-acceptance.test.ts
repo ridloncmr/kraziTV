@@ -70,6 +70,7 @@ const STATE_COLUMNS = [
   "last_generated_through",
   "last_rebuild_key",
   "next_sequence_number",
+  "programming_revision",
   "programming_seed",
   "rebuild_count",
   "schedule_revision",

@@ -29,7 +29,7 @@ const END = new Date("2099-06-01T21:30").toISOString();
 
 // A preview that saving these settings would publish as shown.
 const planned = (overrides: Partial<SpecialPreview> = {}): SpecialPreview => ({
-  scheduleRevision: 7,
+  programmingRevision: 7,
   conflicts: [],
   startsAt: START,
   endsAt: END,
@@ -119,7 +119,7 @@ it("previews media items in order and saves exactly what was previewed", async (
     endsAt: null,
     interrupts: false,
     source: { kind: "media_items", mediaItemIds: ["z"] },
-    expectedScheduleRevision: 7,
+    expectedProgrammingRevision: 7,
     requestKey: expect.any(String),
   });
 });
@@ -220,7 +220,7 @@ it("shows a start more than a year ahead as a conflict and offers no save", asyn
   api.reply(
     PREVIEW,
     {
-      scheduleRevision: 7,
+      programmingRevision: 7,
       commitment: "exact",
       conflicts: [
         {
@@ -266,7 +266,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
   expect(screen.getByLabelText<HTMLInputElement>("Starts").value).toBe(
     START_LOCAL,
   );
-  api.reply(PREVIEW, planned({ scheduleRevision: 9 }), "POST");
+  api.reply(PREVIEW, planned({ programmingRevision: 9 }), "POST");
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
   await screen.findByRole("region", { name: "Special preview" });
   api.reply(`${LIST}/special-1`, saved, "PATCH");
@@ -277,7 +277,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
       endsAt: null,
       interrupts: false,
       source: { kind: "media_items", mediaItemIds: ["z"] },
-      expectedScheduleRevision: 9,
+      expectedProgrammingRevision: 9,
     }),
   );
   // The edit's preview leaves the special it replaces out.
@@ -333,7 +333,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
   await screen.findByText(/Preview again before saving/);
   const firstKey = lastBody(api, LIST, "POST")?.requestKey;
 
-  api.reply(PREVIEW, planned({ scheduleRevision: 8 }), "POST");
+  api.reply(PREVIEW, planned({ programmingRevision: 8 }), "POST");
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
   await screen.findByRole("region", { name: "Special preview" });
 
@@ -342,7 +342,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
   api.reply(LIST, saved, "POST", 201);
   fireEvent.click(screen.getByRole("button", { name: "Save special" }));
   await waitFor(() =>
-    expect(lastBody(api, LIST, "POST")?.expectedScheduleRevision).toBe(8),
+    expect(lastBody(api, LIST, "POST")?.expectedProgrammingRevision).toBe(8),
   );
   expect(lastBody(api, LIST, "POST")?.requestKey).not.toBe(firstKey);
 });
@@ -350,7 +350,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
 describe("what is airing now", () => {
   const AIRING_ENDS = new Date("2099-06-01T20:25").toISOString();
   const crossing = {
-    scheduleRevision: 7,
+    programmingRevision: 7,
     commitment: "exact",
     conflicts: [
       {
