@@ -86,12 +86,11 @@ import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
 import type {
   PreviewSettings,
   ReservationPreview,
-  ReservationSettings,
 } from "../reservations/contracts.js";
+import { resolvePreviewSettings } from "../reservations/persistence/preview-settings.js";
 import { resolveReservationRange } from "../reservations/persistence/reservation-refusals.js";
 import {
   clearUnstartedInterruptions,
-  listFromBeginning,
   loadReservations,
   resolveReservation,
 } from "../reservations/persistence/reservation-rows.js";
@@ -402,33 +401,16 @@ export class ScheduleService {
       async (trx, state, effectiveNow) => {
         const scheduleRevision = state?.scheduleRevision ?? null;
         const programmingRevision = state?.programmingRevision ?? null;
-        // A collection from the beginning previews as the list it saves as.
-        let resolved: string[] | undefined;
-        if (previewed.source.kind === "collection_from_beginning") {
-          resolved = await listFromBeginning(trx, previewed.source);
-          if (resolved === undefined || resolved.length === 0) {
-            return {
-              kind: "refused",
-              refusal:
-                resolved === undefined
-                  ? {
-                      kind: "media_collection_not_found",
-                      mediaCollectionId: previewed.source.mediaCollectionId,
-                    }
-                  : { kind: "reservation_media_unplayable", mediaItemIds: [] },
-              scheduleRevision,
-              programmingRevision,
-            };
-          }
+        const asked = await resolvePreviewSettings(trx, previewed);
+        if (asked.kind === "refused") {
+          return {
+            kind: "refused",
+            refusal: asked.refusal,
+            scheduleRevision,
+            programmingRevision,
+          };
         }
-        const { replacesReservationId, ...asSaved } = previewed;
-        const settings: ReservationSettings = {
-          ...asSaved,
-          source:
-            previewed.source.kind === "collection_from_beginning"
-              ? { kind: "media_items", mediaItemIds: resolved ?? [] }
-              : previewed.source,
-        };
+        const { settings, replacesReservationId, resolvedMediaItemIds } = asked;
         const range = await resolveReservationRange(
           trx,
           channelId,
@@ -475,7 +457,9 @@ export class ScheduleService {
             reservation.startsAt >=
             (state?.lastGeneratedThrough ?? effectiveNow),
           sourceKind: settings.source.kind,
-          ...(resolved === undefined ? {} : { mediaItemIds: resolved }),
+          ...(resolvedMediaItemIds === undefined
+            ? {}
+            : { mediaItemIds: resolvedMediaItemIds }),
           boundary,
           reservations,
           reservationBlockId: generated.blocks.find(
