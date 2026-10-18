@@ -111,6 +111,8 @@ export function checkNestingDepth(files) {
 /**
  * A flat folder with more than eight counted source files must be grouped;
  * one with more than four must be grouped if they span several capabilities.
+ * A grouped folder's root holds only files that coordinate the whole
+ * domain, so more than four counted files there need the same review.
  */
 export function checkGrouping(files) {
   const folders = new Map();
@@ -129,7 +131,17 @@ export function checkGrouping(files) {
 
   const findings = [];
   for (const [folder, { counted, hasSubfolders }] of folders) {
-    if (hasSubfolders) continue;
+    if (hasSubfolders) {
+      if (counted > FLAT_REVIEW_LIMIT) {
+        findings.push({
+          rule: "grouping",
+          severity: "review",
+          files: [folder],
+          message: `${counted} source files at the root of a grouped folder; only files that coordinate the whole domain belong there`,
+        });
+      }
+      continue;
+    }
     if (counted > FLAT_ERROR_LIMIT) {
       findings.push({
         rule: "grouping",

@@ -1,9 +1,9 @@
-import { displayTime } from "../controls/display-time.js";
+import { displayTime } from "../../controls/display-time.js";
 import type {
   CollectionPreview,
   PreviewMember,
   UpcomingSelection,
-} from "../http/contracts.js";
+} from "../../http/contracts.js";
 
 /**
  * Renders the server's preview of an assigned collection: the order the selected mode

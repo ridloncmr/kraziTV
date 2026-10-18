@@ -7,7 +7,7 @@ import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection, PlaybackMode } from "../../http/contracts.js";
 import { useMutation } from "../../http/use-resource.js";
 import { MediaItemPicker } from "../../media-search/media-item-picker.js";
-import { PLAYBACK_MODE_CHOICES } from "../playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type {
   Special,
   SpecialPreview as Preview,

@@ -1,5 +1,8 @@
-import type { AssignmentMember, MediaCollection } from "../http/contracts.js";
-import { MediaItemPicker } from "../media-search/media-item-picker.js";
+import type {
+  AssignmentMember,
+  MediaCollection,
+} from "../../http/contracts.js";
+import { MediaItemPicker } from "../../media-search/media-item-picker.js";
 
 /** One member row as the form edits it; an empty source is not chosen yet. */
 export interface MemberDraft {

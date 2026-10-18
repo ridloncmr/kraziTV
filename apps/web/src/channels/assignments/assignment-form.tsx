@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
 import type {
   AssignmentSettings,
   CollectionPreview,
@@ -7,8 +7,8 @@ import type {
   PlaybackMode,
   SourceAssignment,
   StretchSetting,
-} from "../http/contracts.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+} from "../../http/contracts.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { type MemberDraft, MemberRows, NEW_MEMBER } from "./member-rows.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";

@@ -1,11 +1,11 @@
 import { useState } from "react";
 
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { WindowDialog } from "../controls/window-dialog.js";
-import { resourcePath } from "../http/api-client.js";
-import type { ProgrammingRebuild } from "../http/contracts.js";
-import { useMutation } from "../http/use-resource.js";
-import { useCleanupRetries } from "./use-cleanup-retries.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
+import { resourcePath } from "../../http/api-client.js";
+import type { ProgrammingRebuild } from "../../http/contracts.js";
+import { useMutation } from "../../http/use-resource.js";
+import { useCleanupRetries } from "../use-cleanup-retries.js";
 
 // Shown in the dialog and kept on the cleanup retry My Channels lists.
 const STOP_FAILED_MESSAGE =

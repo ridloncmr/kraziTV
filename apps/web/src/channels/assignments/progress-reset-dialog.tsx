@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { WindowDialog } from "../controls/window-dialog.js";
-import type { UpcomingSelection } from "../http/contracts.js";
-import { useMutation } from "../http/use-resource.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
+import type { UpcomingSelection } from "../../http/contracts.js";
+import { useMutation } from "../../http/use-resource.js";
 import { UpcomingSelections } from "./programming-preview.js";
 
 /**

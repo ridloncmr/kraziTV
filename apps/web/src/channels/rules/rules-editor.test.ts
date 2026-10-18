@@ -9,13 +9,13 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { BrowserApi } from "../testing/browser-api.js";
+import { BrowserApi } from "../../testing/browser-api.js";
 import {
   adminFixtures,
   collectionWith,
   ruleFixture,
-} from "../testing/admin-fixtures.js";
-import { ProgrammingEditor } from "./programming-editor.js";
+} from "../../testing/admin-fixtures.js";
+import { ProgrammingEditor } from "../programming/programming-editor.js";
 
 afterEach(() => {
   cleanup();

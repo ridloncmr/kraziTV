@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { resourcePath } from "../http/api-client.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { resourcePath } from "../../http/api-client.js";
 import type {
   MediaCollection,
   ProgrammingRule,
   SourceAssignment,
-} from "../http/contracts.js";
-import { useMutation, useResource } from "../http/use-resource.js";
-import { RebuildDialog } from "./rebuild-dialog.js";
+} from "../../http/contracts.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
+import { RebuildDialog } from "../programming/rebuild-dialog.js";
 import {
   RuleForm,
   type RuleSourceChoice,

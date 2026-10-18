@@ -1,12 +1,12 @@
-import { displayTime } from "../controls/display-time.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { displayTime } from "../../controls/display-time.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
 import type {
   MediaCollection,
   PreviewTurn,
   ProgrammingPreview,
   ProgrammingRule,
-} from "../http/contracts.js";
-import { useResource } from "../http/use-resource.js";
+} from "../../http/contracts.js";
+import { useResource } from "../../http/use-resource.js";
 
 // Names why kraziPlan passed over an assignment's member.
 const SKIP_REASONS: Record<string, string> = {

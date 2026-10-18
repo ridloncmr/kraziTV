@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-import type { StretchSetting } from "../http/contracts.js";
+import type { StretchSetting } from "../../http/contracts.js";
 
 /** A stretch as the form edits it; a value not entered yet is NaN. */
 export interface StretchDraft {
