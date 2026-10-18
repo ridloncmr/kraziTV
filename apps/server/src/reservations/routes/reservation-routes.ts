@@ -137,7 +137,10 @@ export function registerReservationRoutes(
     if ((await channels.findById(id)) === undefined) {
       return sendChannelNotFound(reply, id);
     }
-    return (await reservations.listForChannel(id)).map(toApiReservation);
+    const now = schedules.now();
+    return (await reservations.listForChannel(id)).map((reservation) =>
+      toApiReservation(reservation, now),
+    );
   });
 
   server.post("/channels/:id/reservations", async (request, reply) => {
@@ -165,10 +168,12 @@ export function registerReservationRoutes(
     );
     switch (result.kind) {
       case "created":
-        return reply.status(201).send(toApiReservation(result.reservation));
+        return reply
+          .status(201)
+          .send(toApiReservation(result.reservation, schedules.now()));
       // A retried save answers with what the first one created.
       case "repeated":
-        return toApiReservation(result.reservation);
+        return toApiReservation(result.reservation, schedules.now());
       case "channel_not_found":
         return sendChannelNotFound(reply, id);
       default:
@@ -245,7 +250,7 @@ export function registerReservationRoutes(
       switch (result.kind) {
         case "updated":
         case "unchanged":
-          return toApiReservation(result.reservation);
+          return toApiReservation(result.reservation, schedules.now());
         case "not_found":
           return sendReservationNotFound(reply, id, reservationId);
         default:
@@ -276,7 +281,7 @@ export function registerReservationRoutes(
       switch (result.kind) {
         case "ended":
         case "unchanged":
-          return toApiReservation(result.reservation);
+          return toApiReservation(result.reservation, schedules.now());
         case "not_found":
           return sendReservationNotFound(reply, id, reservationId);
         default:

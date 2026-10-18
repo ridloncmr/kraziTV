@@ -209,7 +209,13 @@ export function toApiReservationPreview(
 }
 
 // Converts internal epoch milliseconds to the ISO 8601 strings the API promises.
-export function toApiReservation(reservation: SavedReservation) {
+/**
+ * Projects a saved reservation for the API, with its status at `now`, the
+ * server's clock: the browser never decides whether a special has started,
+ * because its clock may be skewed, and the server refuses edits and early
+ * ends by its own clock anyway.
+ */
+export function toApiReservation(reservation: SavedReservation, now: number) {
   return {
     id: reservation.id,
     channelId: reservation.channelId,
@@ -218,7 +224,17 @@ export function toApiReservation(reservation: SavedReservation) {
     endKind: reservation.endKind,
     interrupts: reservation.interrupts,
     source: reservation.source,
+    status: reservationStatus(reservation, now),
     createdAt: toApiTimestamp(reservation.createdAt),
     updatedAt: toApiTimestamp(reservation.updatedAt),
   };
+}
+
+/** Where a reservation stands at `now`: not started, airing, or over. */
+function reservationStatus(
+  reservation: SavedReservation,
+  now: number,
+): "upcoming" | "running" | "ended" {
+  if (reservation.startsAt > now) return "upcoming";
+  return reservation.endsAt > now ? "running" : "ended";
 }

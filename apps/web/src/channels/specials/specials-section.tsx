@@ -69,9 +69,10 @@ export function SpecialsSection({
       )}
       <ul aria-label="Channel specials">
         {listed.map((special) => {
-          const now = Date.now();
-          const started = Date.parse(special.startsAt) <= now;
-          const running = started && Date.parse(special.endsAt) > now;
+          // The server says where each special stands, so a skewed browser
+          // clock never offers an edit the server would refuse.
+          const started = special.status !== "upcoming";
+          const running = special.status === "running";
           return (
             <li key={special.id}>
               {editing === special.id ? (

@@ -59,6 +59,7 @@ const saved: Special = {
   endKind: "program_derived",
   interrupts: false,
   source: { kind: "media_items", mediaItemIds: ["z"] },
+  status: "upcoming",
 };
 
 // The section over a channel with `specials`, the fixture catalog, and its one collection.
@@ -252,6 +253,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
     id: "special-0",
     startsAt: "2020-01-01T00:00:00.000Z",
     endsAt: "2020-01-01T01:00:00.000Z",
+    status: "ended",
   };
   const api = renderSection([started, saved]);
   const [startedRow, laterRow] = await screen.findAllByRole("listitem");
@@ -428,6 +430,7 @@ describe("ending a running special early", () => {
     ...saved,
     startsAt: "2020-01-01T00:00:00.000Z",
     endsAt: END,
+    status: "running",
   };
   const END_URL = `${LIST}/special-1/end`;
 
@@ -477,5 +480,32 @@ describe("ending a running special early", () => {
     renderSection([saved]);
     await screen.findByRole("button", { name: "Edit" });
     expect(screen.queryByRole("button", { name: "End early…" })).toBeNull();
+  });
+
+  it("trusts the server's status over the browser's clock", async () => {
+    // By this browser's clock the first has not started and the second is
+    // long over; the server, whose clock decides, says otherwise.
+    renderSection([
+      { ...saved, id: "ahead", status: "running" },
+      {
+        ...saved,
+        id: "behind",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        endsAt: "2020-01-01T01:00:00.000Z",
+        status: "upcoming",
+      },
+    ]);
+    const [ahead, behind] = await screen.findAllByRole("listitem");
+    if (ahead === undefined || behind === undefined) {
+      throw new Error("Both specials should be listed");
+    }
+
+    expect(within(ahead).getByText(/On air/)).toBeTruthy();
+    expect(
+      within(ahead).getByRole("button", { name: "End early…" }),
+    ).toBeTruthy();
+    expect(within(ahead).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(within(behind).getByRole("button", { name: "Edit" })).toBeTruthy();
+    expect(within(behind).queryByText(/Ended/)).toBeNull();
   });
 });

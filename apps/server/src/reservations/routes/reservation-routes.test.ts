@@ -157,6 +157,25 @@ describe("reservation routes", () => {
     expect(unknown.status).toBe(404);
   });
 
+  it("reports each listed reservation's status by the server's clock", async () => {
+    const { server, clock, movie } = await scheduled();
+    await saveReservation(server, "POST", URL, itemsBody(at(60), [movie]));
+    await saveReservation(server, "POST", URL, itemsBody(at(300), [movie]));
+    clock.set(at(100));
+
+    const listed = await send(server, "GET", URL);
+
+    expect(
+      (listed.body as { status: string }[]).map(({ status }) => status),
+    ).toEqual(["running", "upcoming"]);
+    clock.set(at(500));
+    expect(
+      ((await send(server, "GET", URL)).body as { status: string }[]).map(
+        ({ status }) => status,
+      ),
+    ).toEqual(["ended", "ended"]);
+  });
+
   it.each([
     {
       name: "a start that is not in the future",

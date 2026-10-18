@@ -32,6 +32,11 @@ export interface Special {
   /** It cut what was airing at its start. */
   interrupts: boolean;
   source: SpecialSource;
+  /**
+   * Where it stands by the server's clock when listed; the browser's clock
+   * never decides, since the server refuses edits and early ends by its own.
+   */
+  status: "upcoming" | "running" | "ended";
 }
 /** Why the server would refuse a previewed special, with its details. */
 interface SpecialConflict {
