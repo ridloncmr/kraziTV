@@ -55,8 +55,9 @@ provider operations already exist, or supersede accepted architectural decisions
    probing, and the completed summary counts matches and items needing a choice
    (see [Scan Progress, Retry, And Refresh](#scan-progress-retry-and-refresh)).
 4. Media Library shows accepted metadata and unresolved or ambiguous matches.
-5. The user can choose a candidate, reject a match, correct a field, or clear a
-   correction to allow provider updates again.
+5. The user can choose a candidate, search TMDB in their own words when none
+   fits, reject a match, correct a field (title, series, season, episode, or
+   year), or clear a correction to allow provider updates again.
 6. The user can retry enrichment for existing catalog items without reprobe.
 7. For a folder of ambiguous disc-track files, the user can map every track to an
    episode in one **Map tracks to episodes** dialog instead of correcting each file.
@@ -220,25 +221,63 @@ title, year, season, episode or episode range, disc and disc-track numbers, and
 whether the file is an extra. It performs
 no I/O beyond the already-discovered path and runs without a provider.
 
-| Path                          | Path hints                                      | Hint strength |
-| ----------------------------- | ----------------------------------------------- | ------------- |
-| `Firefly/Season 1/s01e05.mp4` | series `Firefly` (grandparent), season 1, ep. 5 | Strong        |
-| `Firefly (2002)/s01e05.mp4`   | series `Firefly`, year 2002, season 1, ep. 5    | Strong        |
-| `Show/s01e05-e06.mkv`         | series `Show`, season 1, episodes 5–6           | Strong        |
-| `Alien (1979)/movie.mkv`      | title `Alien`, year 1979                        | Strong        |
-| `Some Show/t_01.mkv`          | series `Some Show`, disc track 1                | Weak          |
-| `TV/Downloads/s01e05.mp4`     | season 1, ep. 5; no series                      | Weak          |
+| Path                                                        | Path hints                                             | Hint strength |
+| ----------------------------------------------------------- | ------------------------------------------------------ | ------------- |
+| `Firefly/Season 1/s01e05.mp4`                               | series `Firefly` (grandparent), season 1, ep. 5        | Strong        |
+| `Firefly (2002)/s01e05.mp4`                                 | series `Firefly`, year 2002, season 1, ep. 5           | Strong        |
+| `Show/s01e05-e06.mkv`                                       | series `Show`, season 1, episodes 5–6                  | Strong        |
+| `Survivor/Survivor - Season 44/Survivor - S44E10.mkv`       | series `Survivor`, season 44, ep. 10                   | Strong        |
+| `Shameless (US) (2011)/Season 9/s09e08.mkv`                 | series `Shameless`, country `US`, year 2011, S9 E8     | Strong        |
+| `Columbo/Columbo - (S07EP03) - (1978) Title.mp4`            | series `Columbo`, season 7, ep. 3                      | Strong        |
+| `Wolverine/Wolverine - Episode 04 - Omega Red.mp4`          | series `Wolverine`, ep. 4, no season (absolute number) | Strong        |
+| `Bleach/Season 04 The Bount/Bleach 64.mkv`                  | series `Bleach`, season 4, ep. 64                      | Strong        |
+| `Alien (1979)/movie.mkv`                                    | title `Alien`, year 1979                               | Strong        |
+| `Saw - Uncut Edition (2005)/Saw - Uncut Edition (2005).mkv` | title `Saw`, year 2005                                 | Strong        |
+| `Some Show/t_01.mkv`                                        | series `Some Show`, disc track 1                       | Weak          |
+| `TV/Downloads/s01e05.mp4`                                   | season 1, ep. 5; no series                             | Weak          |
+
+**Series folder.** A show's own folder holds its season folders, however
+those are named, so the outermost folder below the media root that names
+something is the series folder for every episode beneath it: it names the
+series and gives its year and country tag. Folders between it and the file
+only contribute a season or disc number: `Survivor - Season 44`, `Book One -
+Water`, `Attack On Titan (Season 4 Part 2)`, and `Season 1 (1999-2000)` never
+become series. A filename that names the series itself, as `Survivor -
+S44E10`, or a longer name containing the folder's, as `Survivorman and Son`
+under `Survivorman/`, agrees with its folder, and the folder's name, year,
+and country win; a filename naming something else, as `Firefly.S01E05` under
+`Random Stuff/`, is a loose file in a mixed folder and keeps its own name and
+year. A movie still takes its title from its filename, or from the nearest
+naming folder when the filename is generic.
 
 - Skip structural and generic folder names when looking for a series or title,
   using the built-in list below. Never treat a skipped folder, or the media root
   itself, as a series or title.
 - Strip release tokens from folder and file names before extracting a title:
   bracketed text, resolutions (`480p`, `720p`, `1080p`, `2160p`), `4K`, `UHD`,
-  `HDR`, sources (`BluRay`, `BDRip`, `BRRip`, `WEB-DL`, `HDTV`, `DVDRip`), and
-  codecs (`x264`, `x265`, `HEVC`, `AC3`, `DTS`). `Firefly (2002) [1080p BluRay
-x265]` yields series `Firefly`, year 2002.
+  `HDR`, sources (`BluRay`, `BDRip`, `BRRip`, `WEB-DL`, `WEBRip`, `HDTV`,
+  `DVDRip`, `Remux`), codecs and audio formats (`x264`, `x265`, `HEVC`, `AC3`,
+  `EAC3`, `DTS`, `TrueHD`, `Atmos`, `AAC`, `10bit`), and release notes
+  (`PROPER`, `REPACK`, `AMZN`, `DSNP`). `Firefly (2002) [1080p BluRay x265]`
+  yields series `Firefly`, year 2002.
+- Strip edition labels (`Special Edition`, `Director's Cut`, `Extended
+Version`, `Unrated`, `Remastered`, `Theatrical`) and a copy number such as
+  `(1)`, so `Saw - Uncut Edition (2005)` is titled `Saw`. A modifier counts
+  only with its noun, so `Uncut Gems` and `Final Destination` keep their
+  titles.
+- Read a country tag such as `(US)` or `(UK)` as a country hint, never as part
+  of the name, so `Shameless (US)` searches for `Shameless` and prefers the
+  series TMDB lists from the United States.
+- Read an episode code in any of these forms: `S01E05`, `S01 E05`, `S07EP03`,
+  `7x03`, a range `S01E05-E06` or `S01E05E06`, a segment letter as in
+  `S03E04a` or `S01E01AB` (ignored), `SS016` for a special in season 0, and
+  `Episode 04` or `Ep. 04` with no season, which counts through the whole
+  series, or takes the season folder's season when there is one. Under a
+  season folder a bare trailing number, as `Bleach 64`, is the episode too.
 - Take a title from the filename only when it carries more than episode
   numbering or disc-track tokens; otherwise use the nearest non-skipped folder.
+- A scene-style filename of the folder's title and year, as `Annabelle.2014`
+  under `Annabelle (2014)/`, names the same thing as the folder.
 - Keep a disc-track number distinct from an episode number. Rip track order
   often differs from broadcast order, so a track number never becomes an episode.
 - A year in the folder or filename, such as `(2002)`, is a hint that helps
@@ -250,15 +289,15 @@ missed generic name yields an unmatched or ambiguous item the user resolves once
 per folder, and new names join the list in code. Names match the whole folder
 name, ignoring case, so `My Movies` is not skipped.
 
-| Group          | Folder names                                                                                                                                                                                                                                                        | Effect                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Season         | `Season`, `Series`, `Staffel`, `Saison`, `Temporada`, `Stagione`, `Seizoen`, `Säsong`, `Sæson`, `Sezon`, `Kausi`, `Сезон`, `シーズン`, or `시즌` with a number; `S1`, `S01`                                                                                         | Skipped; season number hint         |
-| Season zero    | `Specials`                                                                                                                                                                                                                                                          | Skipped; season 0 hint              |
-| Extras         | `Trailers`, `Behind the Scenes`, `Deleted Scenes`, `Featurettes`, `Interviews`, `Scenes`, `Shorts`, `Clips`, `Sample`, `Samples`, `Extra`, `Extras`, `Other`                                                                                                        | Skipped; marks the file as an extra |
-| Disc structure | `VIDEO_TS`, `AUDIO_TS`, `BDMV`, `STREAM`, `PLAYLIST`, `CERTIFICATE`                                                                                                                                                                                                 | Skipped                             |
-| Disc numbering | `Disc`, `Disk`, `DVD`, or `CD` with a number                                                                                                                                                                                                                        | Skipped; disc number hint           |
-| Quality split  | `4K`, `UHD`, `HD`, `SD`, `720p`, `1080p`, `2160p`, `Remux`                                                                                                                                                                                                          | Skipped                             |
-| Catch-all      | `TV`, `TV Shows`, `Shows`, `Series`, `Movies`, `Films`, `Video`, `Videos`, `Media`, `Library`, `Downloads`, `Anime`, `Cartoons`, `Kids`, `Documentaries`, `Recorded TV`, `Recordings`, `DVR`, `Unsorted`, `Incoming`, `Completed`, `New Folder`, `Plex`, `Jellyfin` | Skipped                             |
+| Group          | Folder names                                                                                                                                                                                                                                                                                                                                                                       | Effect                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Season         | `Season`, `Series`, `Staffel`, `Saison`, `Temporada`, `Stagione`, `Seizoen`, `Säsong`, `Sæson`, `Sezon`, `Kausi`, `Сезон`, `シーズン`, or `시즌` with a number; `S1`, `S01`; anywhere in a folder that names nothing else, as `Season 04 The Bount` or `(Season 4 Part 2)`, and after a series name, as `Firefly Season 1`; a year range such as `Season 1 (1999-2000)` is ignored | Skipped; season number hint         |
+| Season zero    | `Specials`                                                                                                                                                                                                                                                                                                                                                                         | Skipped; season 0 hint              |
+| Extras         | `Trailers`, `Behind the Scenes`, `Deleted Scenes`, `Featurettes`, `Interviews`, `Scenes`, `Shorts`, `Clips`, `Sample`, `Samples`, `Extra`, `Extras`, `Other`                                                                                                                                                                                                                       | Skipped; marks the file as an extra |
+| Disc structure | `VIDEO_TS`, `AUDIO_TS`, `BDMV`, `STREAM`, `PLAYLIST`, `CERTIFICATE`                                                                                                                                                                                                                                                                                                                | Skipped                             |
+| Disc numbering | `Disc`, `Disk`, `DVD`, or `CD` with a number                                                                                                                                                                                                                                                                                                                                       | Skipped; disc number hint           |
+| Quality split  | `4K`, `UHD`, `HD`, `SD`, `720p`, `1080p`, `2160p`, `Remux`, `Plex Versions`                                                                                                                                                                                                                                                                                                        | Skipped                             |
+| Catch-all      | `TV`, `TV Shows`, `Shows`, `Series`, `Movies`, `Films`, `Video`, `Videos`, `Media`, `Library`, `Downloads`, `Anime`, `Cartoons`, `Kids`, `Documentaries`, `Recorded TV`, `Recordings`, `DVR`, `Unsorted`, `Incoming`, `Completed`, `New Folder`, `Plex`, `Jellyfin`                                                                                                                | Skipped                             |
 
 A file under an extras folder, such as `Firefly/Featurettes/making-of.mkv`, is
 bonus material, not an episode or movie: it is never automatically matched and
@@ -283,32 +322,62 @@ for the user to resolve, even when the provider returns a single candidate.
 
 Accept a match automatically only when exactly one sensible answer exists; a
 silently wrong match costs more than one user choice. Compare titles after
-normalization: ignore case, punctuation, diacritics, and a leading "The", and
-treat `&` and `and` as equal.
+normalization: ignore case, punctuation, diacritics, and a leading "The",
+treat `&` and `and` as equal, and read a hyphen, dash, slash, or colon as a
+word break, so `Obi-Wan Kenobi` and `Obi Wan Kenobi` agree
+([ADR 0017](../../../../adrs/0017-series-folder-and-folder-evidence.md)).
 
-| Case                                       | Automatically matched when                                                                                                      | Otherwise                                                     |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Episode with strong hints (series, SxxEyy) | Exactly one series has a matching title, its year matches any year hint, and the hinted season and episode exist in that series | Ambiguous; `Doctor Who/s01e01.mkv` matches 1963 and 2005      |
-| Movie (title, optional year)               | Exactly one result has a matching title and its year matches any year hint                                                      | Ambiguous; `The Thing/movie.mkv` matches 1951, 1982, and 2011 |
-| Weak path hints                            | Never                                                                                                                           | Ambiguous                                                     |
-| No provider results                        | —                                                                                                                               | Unmatched                                                     |
+| Case                                                    | Automatically matched when                                                                                                                                                                                                                                                                                                                                                                    | Otherwise                                                                             |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Episode with strong hints (series, SxxEyy)              | Among the results with a matching title and a year agreeing with any year hint, exactly one lists every season the series folder holds, or, when several do, exactly one counts every episode the folder holds; or exactly one result agrees at all, whether or not it lists the episodes; a lone result of the hinted year with another title counts only when it lists the folder's seasons | Ambiguous; `Doctor Who/Season 1/s01e01.mkv` matches 1963 and 2005, which both list it |
+| Episode, year-hinted, nothing agreeing holds the folder | The search is run again without the year, and exactly one same-titled result lists the folder's seasons; `Battlestar Galactica (2003)` finds the 2004 series rather than the 2003 miniseries                                                                                                                                                                                                  | As above                                                                              |
+| Movie (title, optional year)                            | Exactly one result has a matching title and its year matches any year hint; or a year-hinted search found exactly one result of that year, as `Alien vs. Predator (2004)` finds `AVP: Alien vs. Predator`                                                                                                                                                                                     | Ambiguous; `The Thing/movie.mkv` matches 1951, 1982, and 2011                         |
+| Weak path hints                                         | Never                                                                                                                                                                                                                                                                                                                                                                                         | Ambiguous                                                                             |
+| No provider results                                     | —                                                                                                                                                                                                                                                                                                                                                                                             | Unmatched                                                                             |
 
-Popularity never breaks a tie. Runtime is not acceptance evidence, because TMDB
-episode runtimes are often missing and extended cuts differ; the candidate
-choice can show each candidate's runtime beside the probed duration to help
-the user decide.
+A country hint such as `(US)` keeps only the same-titled results TMDB lists
+from that country, when any is. Popularity never breaks a tie. Runtime is not
+acceptance evidence, because TMDB episode runtimes are often missing and
+extended cuts differ; the candidate choice can show each candidate's runtime
+beside the probed duration to help the user decide.
 
-**Shared series per folder.** The series folder is the folder an episode's series
-hint came from, such as `Firefly/` for `Firefly/Season 2/s02e01.mkv`, so it spans
-every season folder beneath it. Once one episode under a series folder has an
-accepted series, automatically or by user choice, the other episode files under
-that series folder use that series instead of searching again. Choosing a series for one ambiguous episode resolves
-its siblings, keeps one show from splitting across series, and saves lookups. A
-rejection or correction on one file applies only to that file.
+**Episodes the series does not list.** Once a series is settled, by rule or
+by the owner's choice, every episode file under its folder is matched to it.
+A file whose season and episode TMDB lists takes that episode's facts. A file
+TMDB does not list, as when TMDB counts a two-part episode once and TVDB
+twice, is still matched to the series with the file's own season and episode
+numbers and no episode title; Media Library shows it as `Matched; episode not
+listed on TMDB`, and episode order (spec 0003) uses its numbers like any
+other. A series folder never waits on a choice for numbering alone.
 
-Effective metadata uses user corrections ahead of provider facts. A rejected
-association stays rejected on repeat scans unless the user explicitly retries
-that association or clears the rejection. A transient failure preserves earlier
+**Absolute numbering.** A season folder whose files are all numbered past
+the season's TMDB episode count, with every number counting to that season
+through the series from season 1, is numbered through the whole series, as
+anime libraries number episodes: `Bleach/Season 3/s03e50.mkv` is season 3's
+ninth episode when seasons 1 and 2 hold 41. One file numbered just past a
+season's end is a numbering disagreement, not absolute numbering, and stays
+as the file names it. An episode with no season, as `Episode 17`, counts
+through the series the same way; past the last episode it keeps its number
+with no season.
+
+**Shared series per folder.** The series folder is the outermost naming
+folder above an episode (see [Path Hints](#path-hints)), such as `Firefly/`
+for `Firefly/Season 2/s02e01.mkv`, so it spans every season folder beneath
+it, whatever they are called. Once one episode under a series folder has an
+accepted series, automatically or by user choice, the other episode files
+under that series folder use that series instead of searching again. Choosing
+a series for one ambiguous episode resolves its siblings, keeps one show from
+splitting across series, and saves lookups. A rejection or correction on one
+file applies only to that file.
+
+Effective metadata uses user corrections ahead of provider facts. The
+correctable facts are title, series, season, episode, and release year; a
+corrected year is stored as `YYYY` and read by release order like any date of
+that precision. A correction on an item that needs a choice settles it: its
+candidates are dropped and it is unmatched with the correction as its answer,
+so it leaves Review matches and scans leave it alone until every correction
+is cleared. A rejected association stays rejected on repeat scans unless the
+user explicitly retries that association or clears the rejection. A transient failure preserves earlier
 accepted facts. Rescanning must not overwrite corrected titles with filenames.
 
 **Changed file at the same path.** Path hints come from the path, so re-matching
@@ -347,7 +416,14 @@ opens the candidate choice, or **Reject match**. A rejected item's details offer
 **Candidate choice.** A window dialog lists each candidate's poster, title,
 and year beside the item's probed duration. Opening it calls TMDB for
 nothing; **Show runtime** on a candidate asks TMDB for that one runtime. The
-owner picks one, or chooses **None of these**, which rejects the match.
+owner picks one, or chooses **None of these**, which rejects the match. When
+no candidate fits, a **Not here? Search TMDB** box, starting from the name
+the choice is about, with an optional year, searches TMDB's series or movies
+as the item's hints place it, at one call per search, and lists what it
+found with the same **Choose** and **Show runtime**; a chosen title needs
+no earlier offer, since the owner's choice is the decision. **Correct
+details…** opens the correction dialog for the item instead, for a title
+TMDB does not know.
 
 **Review matches.** The button shows only while at least one item needs a
 choice; `<n>` counts steps, not files. It opens a window dialog that shows one
@@ -356,12 +432,14 @@ step at a time:
 1. Each step is the candidate choice for one series folder, or for one movie
    file. Forty ambiguous `Doctor Who` episodes are one step, because choosing a
    series resolves every episode under that series folder.
-2. The step offers each candidate, **None of these**, and **Skip**, which leaves
-   the step's items unchanged for later.
-3. A choice or rejection commits immediately, then the next step shows. Closing
-   the dialog keeps every commit already made.
+2. The step offers each candidate, the TMDB search box, **Correct details…**,
+   **None of these**, and **Skip**, which leaves the step's items unchanged
+   for later. A correction applies to the step's own item, one file, while a
+   choice resolves the whole series folder.
+3. A choice, correction, or rejection commits immediately, then the next step
+   shows. Closing the dialog keeps every commit already made.
 4. After the last step the dialog shows `All done.` with counts of chosen,
-   rejected, and skipped steps, and a **Close** button.
+   corrected, rejected, and skipped steps, and a **Close** button.
 
 Steps are built when the dialog opens. A step whose items were resolved,
 removed, or changed meanwhile is dropped without a commit. Disc-track files are
@@ -531,19 +609,34 @@ None.
   expired.
 - Ambiguous titles produce a visible choice rather than a silently accepted match.
 - A title with several same-named results and no year hint, such as
-  `Doctor Who` or `The Thing`, is ambiguous, never resolved by popularity.
+  `Doctor Who` or `The Thing`, is ambiguous, never resolved by popularity;
+  a series folder whose seasons only one of them lists, such as
+  `The Office` with a season 9, is matched to that one.
+- A year-hinted series whose dated result does not hold the folder's seasons
+  is searched again without the year, so `Battlestar Galactica (2003)`
+  matches the 2004 series.
+- A series whose TMDB season lacks a file's episode number is still matched,
+  with the file's numbers and no episode title, and Media Library says so.
+- A season folder numbered past its TMDB count throughout is read as absolute
+  numbering; one file numbered just past the season's end is not.
 - Choosing a series for one episode resolves every other episode under the same
-  series folder, across its season folders, to the same series.
+  series folder, across its season folders, to the same series, and a title
+  the owner searched for can be chosen like an offered candidate.
+- A correction on an item that needs a choice settles it, and the release
+  year can be corrected like any other fact.
 - Media Library filters its list to items needing a choice.
-- **Review matches** shows one step per series folder or movie file, commits
-  each choice as it is made, keeps earlier commits when closed early, and ends
-  with chosen, rejected, and skipped counts.
+- **Review matches** shows one step per series folder or movie file, where
+  the series folder is the outermost naming folder, so `Survivor/` with 44
+  season folders is one step; commits each choice or correction as it is
+  made, keeps earlier commits when closed early, and ends with chosen,
+  corrected, rejected, and skipped counts.
 - A bare `Series` folder is skipped; `Series 1` is a season folder.
 - Map tracks to episodes is offered only when a TMDB key is set.
 - A file whose name lacks the title, such as `Firefly/Season 1/s01e05.mp4`, is
   queried and displayed using its folder hierarchy.
 - A generic or season folder name, or the media root, is never treated as a
-  series or title.
+  series or title; a country tag such as `(US)` is a hint, never part of the
+  name; edition labels and copy numbers never reach a title.
 - Release tokens are stripped: `Firefly (2002) [1080p BluRay x265]` is queried
   as series `Firefly`, year 2002.
 - A file under an extras folder is never automatically matched as an episode or
