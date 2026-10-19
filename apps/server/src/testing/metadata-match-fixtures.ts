@@ -63,6 +63,7 @@ export const FIREFLY_EPISODE: EpisodeLookup = {
     seasons: [{ number: 1, episodeCount: 14 }],
   },
   season: 1,
+  episode: { first: 5, last: 6 },
   episodes: [
     {
       number: 5,
@@ -88,6 +89,7 @@ export const NO_CONTENT_METADATA: ContentMetadata = {
   episodeNumber: null,
   lastEpisodeNumber: null,
   releaseDate: null,
+  episodeUnlisted: false,
   genres: [],
   franchiseName: null,
   description: null,
@@ -156,6 +158,7 @@ export const EPISODE_FACTS = {
   season_number: 1,
   episode_number: 5,
   last_episode_number: 6,
+  episode_unlisted: 0,
 } as const;
 
 export const EPISODE_REF = {
@@ -199,6 +202,7 @@ export function correctionRow(
     series_name: null,
     season_number: null,
     episode_number: null,
+    release_date: null,
     ...fields,
   };
 }
@@ -209,6 +213,7 @@ export const CORRECTION = correctionRow(itemFixture.id, {
   series_name: "Firefly",
   season_number: 0,
   episode_number: 1,
+  release_date: "2002",
 });
 
 // Opens a migrated database holding one root and one item to correct.

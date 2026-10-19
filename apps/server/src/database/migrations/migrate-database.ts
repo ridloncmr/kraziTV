@@ -35,6 +35,8 @@ import { reservationsMigration } from "./027-reservations.js";
 import { reservationInterruptsMigration } from "./028-reservation-interrupts.js";
 import { reservationRequestKeysMigration } from "./029-reservation-request-keys.js";
 import { programmingRevisionMigration } from "./030-programming-revision.js";
+import { correctedReleaseYearMigration } from "./031-corrected-release-year.js";
+import { unlistedEpisodeMigration } from "./032-unlisted-episode.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -68,6 +70,8 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "028_reservation_interrupts": reservationInterruptsMigration,
   "029_reservation_request_keys": reservationRequestKeysMigration,
   "030_programming_revision": programmingRevisionMigration,
+  "031_corrected_release_year": correctedReleaseYearMigration,
+  "032_unlisted_episode": unlistedEpisodeMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

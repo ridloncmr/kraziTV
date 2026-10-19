@@ -1,7 +1,7 @@
 import type { ExpressionBuilder } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import { CORRECTED_COLUMNS } from "./corrected-columns.js";
+import { correctsAnyFact } from "./corrected-columns.js";
 
 /**
  * True for an item a scan must leave alone: one whose decision is matched,
@@ -22,13 +22,7 @@ export function isSettledMatch(
         .selectFrom("metadata_corrections")
         .select("metadata_corrections.media_item_id")
         .whereRef("metadata_corrections.media_item_id", "=", "media_items.id")
-        .where((corrections) =>
-          corrections.or(
-            CORRECTED_COLUMNS.map((column) =>
-              corrections(`metadata_corrections.${column}`, "is not", null),
-            ),
-          ),
-        ),
+        .where(correctsAnyFact),
     ),
   ]);
 }

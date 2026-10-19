@@ -5,7 +5,7 @@ import {
   sendInvalidRequest,
   sendMediaItemNotFound,
 } from "../../http/api-error.js";
-import { idParams } from "../../http/request-schemas.js";
+import { idParams, nameField, yearField } from "../../http/request-schemas.js";
 import { toApiMediaItem } from "../../media-items/api-media-item.js";
 import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
 import { sendMetadataRefusal } from "../metadata-refusal-reply.js";
@@ -19,6 +19,12 @@ const choiceBody = z.strictObject({
 const runtimeParams = z.object({
   id: z.string(),
   tmdbId: z.coerce.number().int().positive(),
+});
+
+// The owner's own search words; the year arrives as text too.
+const searchQuery = z.strictObject({
+  title: nameField,
+  year: z.coerce.number().pipe(yearField).optional(),
 });
 
 /**
@@ -39,6 +45,18 @@ export function registerMatchChoiceRoutes(
     const result = await choices.candidates(id);
     return "candidates" in result
       ? result
+      : sendMetadataRefusal(request, reply, id, result);
+  });
+
+  server.get("/metadata/matches/:id/search", async (request, reply) => {
+    const { id } = idParams.parse(request.params);
+    const query = searchQuery.safeParse(request.query);
+    if (!query.success) {
+      return sendInvalidRequest(reply, query.error);
+    }
+    const result = await choices.search(id, query.data);
+    return result.kind === "found"
+      ? { candidates: result.candidates }
       : sendMetadataRefusal(request, reply, id, result);
   });
 

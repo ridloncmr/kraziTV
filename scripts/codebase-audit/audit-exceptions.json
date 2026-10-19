@@ -308,6 +308,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/server/src/content-metadata/corrections/"],
+      "reason": "Every file serves one capability, the owner's corrections: the route, the service, the row merge it stores through, the tags it replaces, and the settling of an item that needed a choice.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/server/src/content-metadata/persistence/"],
       "reason": "Every file serves one capability, metadata match persistence: the repository, row writes, the corrected columns, the matched duration, and the settled check.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"

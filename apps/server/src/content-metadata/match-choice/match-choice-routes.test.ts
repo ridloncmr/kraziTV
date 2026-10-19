@@ -7,10 +7,12 @@ import { send } from "../../testing/api-requests.js";
 import {
   CHOICE_DOCTOR_WHO_1963 as DOCTOR_WHO_1963,
   CHOICE_DOCTOR_WHO_2005 as DOCTOR_WHO_2005,
+  SCAN_FIREFLY,
 } from "../../testing/scan-metadata.js";
 import {
   ROOT,
   idOf,
+  metadataOf,
   scanThroughRoutes as scan,
   startEnrichmentServer,
 } from "../../testing/enrichment-scan.js";
@@ -107,6 +109,7 @@ describe("match choice routes", () => {
       ),
     ).resolves.toEqual({ status: 200, body: { runtimeMs: 45 * 60_000 } });
     expect(tmdb.paths().slice(callsAfterScan)).toEqual([
+      "/3/tv/57243",
       "/3/tv/57243/season/1",
     ]);
 
@@ -168,35 +171,97 @@ describe("match choice routes", () => {
     });
   });
 
-  it("leaves an episode the chosen series lacks ambiguous, and refuses that choice for it", async () => {
+  it("matches an episode the chosen series does not list to the series, with the file's own numbers", async () => {
+    // Neither series counts 50 episodes in season 1, so the folder stays
+    // the owner's to settle.
+    const { server } = await scanned([
+      "Doctor Who/Season 1/s01e01.mkv",
+      "Doctor Who/Season 1/s01e50.mkv",
+    ]);
+    const unlisted = await idOf(server, "Doctor Who/Season 1/s01e50.mkv");
+
+    await expect(
+      send(server, "POST", `/metadata/matches/${unlisted}/choice`, {
+        tmdbId: 57243,
+      }),
+    ).resolves.toEqual({ status: 200, body: { resolvedCount: 2 } });
+
+    await expect(states(server)).resolves.toEqual({
+      "Doctor Who/Season 1/s01e01.mkv": "matched",
+      "Doctor Who/Season 1/s01e50.mkv": "matched",
+    });
+    await expect(metadataOf(server, unlisted)).resolves.toMatchObject({
+      matchState: "matched",
+      seriesName: "Doctor Who",
+      seasonNumber: 1,
+      episodeNumber: 50,
+      title: null,
+      episodeUnlisted: true,
+    });
+    await expect(
+      metadataOf(server, await idOf(server, "Doctor Who/Season 1/s01e01.mkv")),
+    ).resolves.toMatchObject({ episodeUnlisted: false });
+  });
+
+  it("settles same-named series by which one counts the folder's episodes", async () => {
     const { server } = await scanned([
       "Doctor Who/Season 1/s01e01.mkv",
       "Doctor Who/Season 1/s01e30.mkv",
     ]);
-    const lacking = await idOf(server, "Doctor Who/Season 1/s01e30.mkv");
 
-    await expect(
-      send(server, "POST", `/metadata/matches/${lacking}/choice`, {
-        tmdbId: 57243,
-      }),
-    ).resolves.toMatchObject({
-      status: 409,
-      body: { error: { code: "episode_not_in_series" } },
-    });
-    await expect(states(server)).resolves.toEqual({
-      "Doctor Who/Season 1/s01e01.mkv": "ambiguous",
-      "Doctor Who/Season 1/s01e30.mkv": "ambiguous",
-    });
-
-    const first = await idOf(server, "Doctor Who/Season 1/s01e01.mkv");
-    await expect(
-      send(server, "POST", `/metadata/matches/${first}/choice`, {
-        tmdbId: 57243,
-      }),
-    ).resolves.toEqual({ status: 200, body: { resolvedCount: 1 } });
+    // Only the 1963 series counts 30 episodes in its first season.
     await expect(states(server)).resolves.toEqual({
       "Doctor Who/Season 1/s01e01.mkv": "matched",
-      "Doctor Who/Season 1/s01e30.mkv": "ambiguous",
+      "Doctor Who/Season 1/s01e30.mkv": "matched",
+    });
+    await expect(
+      metadataOf(server, await idOf(server, "Doctor Who/Season 1/s01e30.mkv")),
+    ).resolves.toMatchObject({
+      seriesName: "Doctor Who",
+      releaseDate: "1963-11-23",
+      episodeUnlisted: false,
+    });
+  });
+
+  it("searches TMDB by the owner's words and accepts a title the item never offered", async () => {
+    const { server, tmdb } = await scanned(["Doctor Who/Season 1/s01e01.mkv"]);
+    tmdb.series.push(SCAN_FIREFLY);
+    const who = await idOf(server, "Doctor Who/Season 1/s01e01.mkv");
+
+    await expect(
+      send(
+        server,
+        "GET",
+        `/metadata/matches/${who}/search?title=Firefly&year=2002`,
+      ),
+    ).resolves.toEqual({
+      status: 200,
+      body: {
+        candidates: [
+          {
+            tmdbId: 1437,
+            title: "Firefly",
+            releaseDate: "2002-09-20",
+            posterPath: "/poster-1437.jpg",
+          },
+        ],
+      },
+    });
+    expect(tmdb.requests.at(-1)?.searchParams.get("first_air_date_year")).toBe(
+      "2002",
+    );
+    await expect(
+      send(server, "GET", `/metadata/matches/${who}/search?title=`),
+    ).resolves.toMatchObject({ status: 400 });
+
+    await expect(
+      send(server, "POST", `/metadata/matches/${who}/choice`, {
+        tmdbId: 1437,
+      }),
+    ).resolves.toEqual({ status: 200, body: { resolvedCount: 1 } });
+    await expect(metadataOf(server, who)).resolves.toMatchObject({
+      matchState: "matched",
+      seriesName: "Firefly",
     });
   });
 
@@ -367,16 +432,10 @@ describe("match choice routes", () => {
 
   it.each([
     {
-      name: "a candidate the item never offered",
-      file: "The Thing/movie.mkv",
-      request: ["POST", "choice", { tmdbId: 348 }],
-      answer: [400, "candidate_not_offered"],
-    },
-    {
-      name: "the runtime of a candidate the item never offered",
-      file: "The Thing/movie.mkv",
-      request: ["GET", "candidates/348/runtime"],
-      answer: [400, "candidate_not_offered"],
+      name: "a search for a matched item",
+      file: "Alien (1979)/movie.mkv",
+      request: ["GET", "search?title=Alien"],
+      answer: [409, "match_not_ambiguous"],
     },
     {
       name: "a choice for a matched item",

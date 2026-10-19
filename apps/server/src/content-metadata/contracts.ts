@@ -63,6 +63,8 @@ export interface CorrectionChange {
   seriesName?: string | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  /** Corrects the release date to a year alone, as `YYYY`. */
+  releaseYear?: number | null;
   tags?: string[];
 }
 
@@ -71,10 +73,9 @@ export type MetadataRefusal =
   | { kind: "item_not_found" }
   /** The item's decision is not the ambiguous one read, so a choice would overwrite a newer one. */
   | { kind: "not_ambiguous" }
-  | { kind: "candidate_not_offered" }
   | { kind: "tmdb_key_missing" }
   | { kind: "lookup_failed"; reason: string }
-  /** The chosen series has no episode where the file's hints place it. */
+  /** A track was mapped to an episode number the series' season does not list. */
   | { kind: "episode_not_in_series" }
   | { kind: "not_rejectable" }
   | { kind: "not_rejected" }

@@ -109,6 +109,7 @@ describe("CatalogScanWriter metadata matches", () => {
           season_number: null,
           episode_number: null,
           last_episode_number: null,
+          episode_unlisted: 0,
         },
       ],
       refs: [
@@ -160,6 +161,7 @@ describe("CatalogScanWriter metadata matches", () => {
         season_number: 1,
         episode_number: 5,
         last_episode_number: 6,
+        episode_unlisted: 0,
       },
     ]);
     expect(written.refs).toEqual([

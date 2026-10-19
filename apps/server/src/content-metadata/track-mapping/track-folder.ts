@@ -63,6 +63,7 @@ export async function readTrackStates(
       "metadata_corrections.series_name",
       "metadata_corrections.season_number",
       "metadata_corrections.episode_number",
+      "metadata_corrections.release_date",
       "item_tags.tag_ids",
     ])
     .where("media_items.id", "in", jsonIdList(ids))

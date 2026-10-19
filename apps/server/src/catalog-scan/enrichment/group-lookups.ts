@@ -13,7 +13,7 @@ interface LookupPlan {
  * Plans a scan's lookups from its candidates' path hints, in discovery order.
  * An unsettled extra is recorded without a lookup. When `lookUp` is set,
  * each available unsettled movie joins the search for its title and year, and
- * each episode with a series, season, and episode joins the search for its
+ * each episode with a series and episode number joins the search for its
  * series folder, series name, and year, so one series search serves every
  * season folder beneath it. Anything else, such as a disc track, is skipped.
  */
@@ -47,7 +47,10 @@ export function groupLookups(
       };
       if (group.kind === "series") {
         const { season, episode } = shared;
-        group.files.push({ ...file, episode: { season, episode } });
+        group.files.push({
+          ...file,
+          episode: season === undefined ? { episode } : { season, episode },
+        });
       }
       groups.set(key, group);
     } else if (series === undefined && title !== undefined) {

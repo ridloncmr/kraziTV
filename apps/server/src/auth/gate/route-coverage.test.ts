@@ -30,6 +30,7 @@ const GATED_ROUTES = [
   "GET /metadata/match-reviews",
   "GET /metadata/matches/:id/candidates",
   "GET /metadata/matches/:id/candidates/:tmdbId/runtime",
+  "GET /metadata/matches/:id/search",
   "POST /metadata/matches/:id/choice",
   "POST /metadata/matches/:id/rejection",
   "DELETE /metadata/matches/:id/rejection",

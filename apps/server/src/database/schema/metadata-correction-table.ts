@@ -10,4 +10,6 @@ export interface MetadataCorrectionTable {
   season_number: number | null;
   /** A corrected episode is one episode, ending any multi-episode range. */
   episode_number: number | null;
+  /** A corrected release is a year alone, as `YYYY`. */
+  release_date: string | null;
 }

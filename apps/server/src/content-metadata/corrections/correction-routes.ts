@@ -5,7 +5,12 @@ import {
   sendInvalidRequest,
   sendMediaItemNotFound,
 } from "../../http/api-error.js";
-import { countField, idParams, nameField } from "../../http/request-schemas.js";
+import {
+  countField,
+  idParams,
+  nameField,
+  yearField,
+} from "../../http/request-schemas.js";
 import { toApiMediaItem } from "../../media-items/api-media-item.js";
 import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
 import type { CorrectionService } from "./correction-service.js";
@@ -18,6 +23,7 @@ const correctionBody = z
     seriesName: nameField.nullable().optional(),
     seasonNumber: countField.nullable().optional(),
     episodeNumber: countField.nullable().optional(),
+    releaseYear: yearField.nullable().optional(),
     tags: z
       .array(nameField)
       .transform((tags) => [...new Set(tags)])

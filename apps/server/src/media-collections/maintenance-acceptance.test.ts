@@ -12,6 +12,7 @@ import { SCAN_FIREFLY } from "../testing/scan-metadata.js";
 import { cleanUpTestEnvironment } from "../testing/test-environment.js";
 import {
   ACCEPTED,
+  EPISODE,
   apply,
   SOME_SHOW,
   TRACKS,
@@ -92,7 +93,10 @@ describe("automatic collection maintenance", () => {
       name: "Some Show",
       criterion: { kind: "series", tmdbId: SOME_SHOW.id },
     });
-    await waitForMembers(server, someShow, [], 0);
+    // The ordinary episode file is matched to the series by its folder,
+    // although TMDB lists only four episodes; the tracks wait for mapping.
+    const episode = await idOf(server, EPISODE);
+    await waitForMembers(server, someShow, [episode], 0);
 
     expect((await apply(server, ACCEPTED)).status).toBe(200);
 
@@ -100,6 +104,7 @@ describe("automatic collection maintenance", () => {
       await idOf(server, TRACKS.first),
       await idOf(server, TRACKS.second),
       await idOf(server, TRACKS.third),
+      episode,
     ]);
   });
 
