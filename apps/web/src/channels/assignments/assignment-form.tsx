@@ -6,7 +6,7 @@ import type {
   CollectionPreview,
   PlaybackMode,
   SourceAssignment,
-  StretchSetting,
+  StretchSuggestion,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { type MemberDraft, MemberRows, NEW_MEMBER } from "./member-rows.js";
@@ -73,7 +73,7 @@ export function AssignmentForm({
     : savedCollections[0];
   const hasCollection = members.some((member) => member.kind === "collection");
   // A new assignment asks for a suggested turn length once its members are chosen.
-  const suggestion = useResource<{ ordinaryStretch: StretchSetting | null }>(
+  const suggestion = useResource<StretchSuggestion>(
     assignment === undefined &&
       !stretchSet &&
       hasCollection &&

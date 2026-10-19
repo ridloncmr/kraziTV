@@ -590,7 +590,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
   api.reply("/channels/one/schedule", { scheduleRevision: 6, entries: [] });
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: { kind: "programs", count: 3 },
-    marathonStretch: null,
+    contentKind: "episodes",
   });
   api.handle(
     "/channels/one/programming-assignments",
@@ -744,6 +744,7 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   api.reply("/channels/one/schedule", { scheduleRevision: 9, entries: [] });
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: null,
+    contentKind: null,
   });
   api.reply("/channels/one/programming-assignments", {}, "POST", 201);
   vi.stubGlobal("fetch", api.fetch);
@@ -876,6 +877,7 @@ it("keeps an allowed marathon longer than a turn length suggested afterwards", a
   api.reply("/media-collections", adminFixtures.collections);
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: { kind: "programs", count: 3 },
+    contentKind: "episodes",
   });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));

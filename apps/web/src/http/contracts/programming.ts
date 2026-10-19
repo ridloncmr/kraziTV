@@ -104,6 +104,11 @@ export interface MarathonSettings {
   marathonChancePercent: number;
   marathonMinOrdinaryRounds: number;
 }
+/** `GET /programming-assignments/stretch-suggestion`: a new show's suggested per sitting and the content kind it rests on; both null for mixed or unclassified members. */
+export interface StretchSuggestion {
+  ordinaryStretch: StretchSetting | null;
+  contentKind: "movies" | "episodes" | null;
+}
 export interface SourceAssignment extends AssignmentSettings {
   id: string;
 }

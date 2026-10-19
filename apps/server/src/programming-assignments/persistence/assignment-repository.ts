@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import {
   isSchedulableMedia,
   type MarathonSettings,
-  type StretchSetting,
 } from "@krazitv/krazi-brain";
 import type { Kysely, Selectable } from "kysely";
 
@@ -31,6 +30,7 @@ import type {
   ReorderAssignmentsResult,
   SaveMarathonSettingsResult,
   SourceAssignment,
+  StretchSuggestion,
   UpdateAssignmentResult,
 } from "../contracts.js";
 
@@ -104,11 +104,12 @@ export class AssignmentRepository {
    * one program when every schedulable member is a movie, three when every
    * one is an episode, and null otherwise, including when nothing is
    * schedulable, so the editor asks. An editable setup default, never a
-   * scheduling rule.
+   * scheduling rule. The content kind comes from the same classification,
+   * so the web's preset labels never disagree with the suggestion.
    */
   async suggestStretch(
     members: readonly MemberSource[],
-  ): Promise<StretchSetting | null> {
+  ): Promise<StretchSuggestion> {
     const collectionIds = members.flatMap((member) =>
       member.kind === "collection" ? [member.mediaCollectionId] : [],
     );
@@ -156,10 +157,19 @@ export class AssignmentRepository {
         )
         .map((row) => row.content_type ?? "unknown"),
     );
-    if (types.size !== 1) return null;
-    if (types.has("movie")) return { kind: "programs", count: 1 };
-    if (types.has("episode")) return { kind: "programs", count: 3 };
-    return null;
+    if (types.size === 1 && types.has("movie")) {
+      return {
+        ordinaryStretch: { kind: "programs", count: 1 },
+        contentKind: "movies",
+      };
+    }
+    if (types.size === 1 && types.has("episode")) {
+      return {
+        ordinaryStretch: { kind: "programs", count: 3 },
+        contentKind: "episodes",
+      };
+    }
+    return { ordinaryStretch: null, contentKind: null };
   }
 
   /** Lists a channel's assignments in saved order; an unknown channel simply has none. */

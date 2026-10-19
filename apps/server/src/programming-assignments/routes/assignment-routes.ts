@@ -135,8 +135,9 @@ export function registerAssignmentRoutes(
   );
 
   // Suggests a new assignment's ordinary stretch from its members' content
-  // types; the editor applies it as an editable default and asks when the
-  // answer is null. Reads only.
+  // types, with the content kind it rests on; the editor applies it as an
+  // editable default, labels presets by the kind, and asks when the answer
+  // is null. Reads only.
   server.get(
     "/programming-assignments/stretch-suggestion",
     async (request, reply) => {
@@ -144,18 +145,16 @@ export function registerAssignmentRoutes(
       if (!query.success) {
         return sendInvalidRequest(reply, query.error);
       }
-      return {
-        ordinaryStretch: await assignments.suggestStretch([
-          ...query.data.mediaCollectionIds.map((mediaCollectionId) => ({
-            kind: "collection" as const,
-            mediaCollectionId,
-          })),
-          ...query.data.mediaItemIds.map((mediaItemId) => ({
-            kind: "media_item" as const,
-            mediaItemId,
-          })),
-        ]),
-      };
+      return assignments.suggestStretch([
+        ...query.data.mediaCollectionIds.map((mediaCollectionId) => ({
+          kind: "collection" as const,
+          mediaCollectionId,
+        })),
+        ...query.data.mediaItemIds.map((mediaItemId) => ({
+          kind: "media_item" as const,
+          mediaItemId,
+        })),
+      ]);
     },
   );
 

@@ -25,6 +25,15 @@ export interface AssignmentSettings {
   members: MemberSource[];
 }
 
+/**
+ * A new assignment's suggested ordinary stretch and the content kind it was
+ * chosen from; both null for mixed or unclassified members, so the editor asks.
+ */
+export interface StretchSuggestion {
+  ordinaryStretch: StretchSetting | null;
+  contentKind: "movies" | "episodes" | null;
+}
+
 /** A saved programming source assignment. */
 export interface SourceAssignment extends AssignmentSettings {
   id: string;

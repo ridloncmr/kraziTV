@@ -1222,18 +1222,27 @@ describe("stretch suggestion", () => {
   }
 
   it.each([
-    [[{ kind: "collection", mediaCollectionId: "movies" }], { count: 1 }],
-    [[{ kind: "media_item", mediaItemId: "movies-1" }], { count: 1 }],
-    [[{ kind: "collection", mediaCollectionId: "shows" }], { count: 3 }],
+    [
+      [{ kind: "collection", mediaCollectionId: "movies" }],
+      { count: 1 },
+      "movies",
+    ],
+    [[{ kind: "media_item", mediaItemId: "movies-1" }], { count: 1 }, "movies"],
+    [
+      [{ kind: "collection", mediaCollectionId: "shows" }],
+      { count: 3 },
+      "episodes",
+    ],
     [
       [
         { kind: "collection", mediaCollectionId: "movies" },
         { kind: "collection", mediaCollectionId: "shows" },
       ],
       null,
+      null,
     ],
-    [[{ kind: "collection", mediaCollectionId: "unclassified" }], null],
-  ])("suggests for %o", async (members, suggested) => {
+    [[{ kind: "collection", mediaCollectionId: "unclassified" }], null, null],
+  ])("suggests for %o", async (members, suggested, contentKind) => {
     const { server } = await suggestionServer();
 
     const response = await send(server, "GET", suggestionUrl(members));
@@ -1243,6 +1252,7 @@ describe("stretch suggestion", () => {
       body: {
         ordinaryStretch:
           suggested === null ? null : { kind: "programs", ...suggested },
+        contentKind,
       },
     });
   });
@@ -1271,7 +1281,10 @@ describe("stretch suggestion", () => {
         suggestionUrl([{ kind: "collection", mediaCollectionId: "shows" }]),
       ),
     ).resolves.toMatchObject({
-      body: { ordinaryStretch: { kind: "programs", count: 3 } },
+      body: {
+        ordinaryStretch: { kind: "programs", count: 3 },
+        contentKind: "episodes",
+      },
     });
   });
 });
