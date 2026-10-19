@@ -75,6 +75,18 @@ describe("test-double-placement", () => {
       "review:test-double-placement:packages/demo/src/a/prod.test.ts",
     ]);
   });
+
+  it("treats any class a test file implements against an interface as a double", () => {
+    expect(
+      rules([
+        file("a/prod.test.ts", "class Inspector implements Reader {}\n"),
+        file("a/prod.test.ts", "class Scenario {}\n"),
+        file("a/prod.ts", "export class Inspector implements Reader {}\n"),
+      ]),
+    ).toEqual([
+      "review:test-double-placement:packages/demo/src/a/prod.test.ts",
+    ]);
+  });
 });
 
 describe("root-entry-import", () => {
@@ -84,10 +96,12 @@ describe("root-entry-import", () => {
         file("a/b.ts", 'import { x } from "../index.js";\n'),
         file("a/c.ts", 'import { y } from "../create-thing.js";\n'),
         file("a/d.ts", 'import { SignalError } from "../errors.js";\n'),
+        file("a/e.ts", 'import { start } from "../main.js";\n'),
       ]),
     ).toEqual([
       "error:root-entry-import:packages/demo/src/a/b.ts",
       "error:root-entry-import:packages/demo/src/a/c.ts",
+      "error:root-entry-import:packages/demo/src/a/e.ts",
     ]);
   });
 });

@@ -1,6 +1,6 @@
-import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
 import { FIXTURE_TIME, itemFixture } from "../../testing/catalog-fixtures.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 

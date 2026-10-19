@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { vi } from "vitest";
-import type { AuthState } from "../http/contracts.js";
+import type { AuthState } from "../http/contracts/auth.js";
 import { App } from "../app.js";
 import { BrowserApi } from "./browser-api.js";
 

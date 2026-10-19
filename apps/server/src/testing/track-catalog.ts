@@ -1,7 +1,10 @@
 import { join, resolve } from "node:path";
+
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
+
 import { itemFixtureAt, rootFixture } from "./catalog-fixtures.js";
 import { openTestDatabase } from "./test-environment.js";
+
 // The normalized path and key of a native path, by this platform's rules.
 function keyed(path: string) {
   const normalized = normalizeMediaPath(path, currentPathPlatform());

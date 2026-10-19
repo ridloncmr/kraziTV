@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import type {
   MediaCollection,
   MediaCollectionSummary,
-} from "../../http/contracts.js";
+} from "../../http/contracts/collections.js";
 import {
   CardMaintenanceStatus,
   criterionBasis,
@@ -14,6 +14,18 @@ const TABS: readonly { mode: MaintenanceMode; label: string }[] = [
   { mode: "manual", label: "Manual" },
   { mode: "automatic", label: "Automatic" },
 ];
+
+const CREATE_LABEL: Record<MaintenanceMode, string> = {
+  manual: "New collection…",
+  automatic: "New automatic collection…",
+};
+
+const EMPTY_TEXT: Record<MaintenanceMode, string> = {
+  manual:
+    "No manual collections yet. Create one, then add media from the catalog.",
+  automatic:
+    "No automatic collections yet. Automatic collections keep their members up to date as your catalog changes.",
+};
 
 /**
  * The Collections landing: Manual and Automatic tabs, each a grid of created
@@ -126,18 +138,6 @@ export function CollectionGrid({
     </>
   );
 }
-
-const CREATE_LABEL: Record<MaintenanceMode, string> = {
-  manual: "New collection…",
-  automatic: "New automatic collection…",
-};
-
-const EMPTY_TEXT: Record<MaintenanceMode, string> = {
-  manual:
-    "No manual collections yet. Create one, then add media from the catalog.",
-  automatic:
-    "No automatic collections yet. Automatic collections keep their members up to date as your catalog changes.",
-};
 
 // Counts missing members as not airing, in words, so the warning never relies on color.
 function missingText(count: number): string {

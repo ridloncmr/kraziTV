@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { displayTime } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
@@ -6,7 +6,7 @@ import type {
   Channel,
   ChannelState,
   ScheduleWindow,
-} from "../http/contracts.js";
+} from "../http/contracts/channels.js";
 import { useResource } from "../http/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 
@@ -26,10 +26,15 @@ export function ChannelObservation({
     visible,
     10_000,
   );
-  const schedulePath = useMemo(
-    () => (selected && guide ? scheduleWindowPath(selected) : null),
-    [selected, guide, visible],
-  );
+  // The 24-hour window starts at now each time the program comes back into
+  // view, so a restored window shows today, not the day it was minimized on.
+  // Adjusted during render so the first visible paint already asks for it.
+  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
+  if (anchor.visible !== visible) {
+    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
+  }
+  const schedulePath =
+    selected && guide ? scheduleWindowPath(selected, anchor.startsAt) : null;
   const schedule = useResource<ScheduleWindow>(schedulePath, visible);
   return (
     <>

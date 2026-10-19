@@ -93,24 +93,27 @@ export function Taskbar({
       <nav className="taskbar-programs" aria-label="Open programs">
         {[...windows]
           .sort((a, b) => a.openedOrder - b.openedOrder)
-          .map((window) => (
-            <button
-              key={window.id}
-              className={activeId === window.id ? "task-active" : ""}
-              aria-pressed={activeId === window.id}
-              onClick={() => dispatch({ type: "focus", id: window.id })}
-              title={programs.find((program) => program.id === window.id)?.name}
-            >
-              <DesktopProgramIcon
-                program={window.id}
-                avatarId={avatarId}
-                size={18}
-              />
-              <span>
-                {programs.find((program) => program.id === window.id)?.name}
-              </span>
-            </button>
-          ))}
+          .map((window) => {
+            const name = programs.find(
+              (program) => program.id === window.id,
+            )?.name;
+            return (
+              <button
+                key={window.id}
+                className={activeId === window.id ? "task-active" : ""}
+                aria-pressed={activeId === window.id}
+                onClick={() => dispatch({ type: "focus", id: window.id })}
+                title={name}
+              >
+                <DesktopProgramIcon
+                  program={window.id}
+                  avatarId={avatarId}
+                  size={18}
+                />
+                <span>{name}</span>
+              </button>
+            );
+          })}
       </nav>
       <div className="system-tray">
         {tray}

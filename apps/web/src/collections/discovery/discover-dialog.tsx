@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
-import type { MediaCollection, Recommendation } from "../../http/contracts.js";
+import type {
+  MediaCollection,
+  Recommendation,
+} from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 

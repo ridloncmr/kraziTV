@@ -5,11 +5,11 @@ import { findUnknownMediaItemIds } from "../../media-items/media-item-repository
 import type { ScheduleInputChange } from "../../schedules/contracts.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
 import type { ReplaceMediaCollectionMembersResult } from "../contracts.js";
-import { insertMembers } from "./collection-rows.js";
 import {
   collectionExists,
+  insertMembers,
   selectMembers,
-} from "./media-collection-repository.js";
+} from "./collection-rows.js";
 
 /**
  * Replaces a collection's full membership in request order. Opens no

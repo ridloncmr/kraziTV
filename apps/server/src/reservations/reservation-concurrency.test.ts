@@ -21,7 +21,7 @@ afterEach(cleanUpTestEnvironment);
 const HOUR = 3_600_000;
 
 // Creates a two-hour movie reservation at `startsAt` through `db`, saved
-// from a preview of `guards.expectedScheduleRevision`.
+// from a preview of `guards.expectedProgrammingRevision`.
 function create(
   db: Kysely<DatabaseSchema>,
   channelId: string,
@@ -54,9 +54,9 @@ function create(
 }
 
 it("refuses the second of two saves made at once from one preview as stale", async () => {
-  const { writer, other, channelId, scheduleRevision } =
+  const { writer, other, channelId, programmingRevision } =
     await openRacingSchedule();
-  const guards = { expectedScheduleRevision: scheduleRevision };
+  const guards = { expectedProgrammingRevision: programmingRevision };
   await writer
     .insertInto("media_items")
     .values(titledItemFixture("movie", { duration_ms: 2 * HOUR }))
@@ -89,14 +89,14 @@ it("refuses the second of two saves made at once from one preview as stale", asy
 });
 
 it("creates one reservation and advances the revision once for two saves at once with one key", async () => {
-  const { writer, other, channelId, scheduleRevision } =
+  const { writer, other, channelId, scheduleRevision, programmingRevision } =
     await openRacingSchedule();
   await writer
     .insertInto("media_items")
     .values(titledItemFixture("movie", { duration_ms: 2 * HOUR }))
     .execute();
   const guards = {
-    expectedScheduleRevision: scheduleRevision,
+    expectedProgrammingRevision: programmingRevision,
     requestKey: "save-1",
   };
   const paused = createBarrier();

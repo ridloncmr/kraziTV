@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { iso, send } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import type { ManualClock } from "../testing/manual-clock.js";
 import {
   insertCollectionOfItems,
@@ -35,7 +36,7 @@ const EDIT_AT = Date.parse("2024-12-16T17:00:00Z");
 // Past the second December, so two of each season are generated.
 const END = Date.parse("2026-01-12T14:00:00Z");
 // The channel seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 const RULES_URL = `/channels/${CHANNEL_ID}/programming-rules`;
 const GENERATE_URL = `/channels/${CHANNEL_ID}/schedule/generate`;

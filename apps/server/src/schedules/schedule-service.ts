@@ -86,12 +86,11 @@ import { loadProgrammingRules } from "../programming-rules/rule-rows.js";
 import type {
   PreviewSettings,
   ReservationPreview,
-  ReservationSettings,
 } from "../reservations/contracts.js";
+import { resolvePreviewSettings } from "../reservations/persistence/preview-settings.js";
 import { resolveReservationRange } from "../reservations/persistence/reservation-refusals.js";
 import {
   clearUnstartedInterruptions,
-  listFromBeginning,
   loadReservations,
   resolveReservation,
 } from "../reservations/persistence/reservation-rows.js";
@@ -129,12 +128,12 @@ const PREVIEW_UPCOMING_ENTRIES = 10;
 
 /**
  * The only writer of schedule entries, generated programming blocks,
- * schedule state, and collection progress, apart from catalog purge, which deletes only entries that have
- * ended, and two input changes this service runs in its own transaction:
- * the maintenance pass's ordering change, which records an order
- * fingerprint, and a progress reset. Every mutation runs in an immediate
- * transaction and reads its effective current time only after acquiring
- * write authority.
+ * schedule state, and collection progress, apart from catalog purge, which
+ * deletes only entries that have ended, and two input changes this service
+ * runs in its own transaction: the maintenance pass's ordering change, which
+ * records an order fingerprint, and a progress reset. Every mutation runs in
+ * an immediate transaction and reads its effective current time only after
+ * acquiring write authority.
  */
 export class ScheduleService {
   readonly #db: Kysely<DatabaseSchema>;
@@ -199,11 +198,12 @@ export class ScheduleService {
 
   /**
    * Materializes an enabled channel's schedule at least a full horizon past
-   * the effective current time, or through `through` when that is later. Extends in chunks, each its
-   * own transaction that re-reads state, so concurrent callers never
-   * duplicate or overlap entries and no transaction holds write authority
-   * long. Never backfills: coverage that already ended is repaired from the
-   * effective current time, leaving the uncovered interval empty.
+   * the effective current time, or through `through` when that is later.
+   * Extends in chunks, each its own transaction that re-reads state, so
+   * concurrent callers never duplicate or overlap entries and no transaction
+   * holds write authority long. Never backfills: coverage that already ended
+   * is repaired from the effective current time, leaving the uncovered
+   * interval empty.
    */
   async ensureCoverage(
     channelId: string,
@@ -401,32 +401,17 @@ export class ScheduleService {
       log,
       async (trx, state, effectiveNow) => {
         const scheduleRevision = state?.scheduleRevision ?? null;
-        // A collection from the beginning previews as the list it saves as.
-        let resolved: string[] | undefined;
-        if (previewed.source.kind === "collection_from_beginning") {
-          resolved = await listFromBeginning(trx, previewed.source);
-          if (resolved === undefined || resolved.length === 0) {
-            return {
-              kind: "refused",
-              refusal:
-                resolved === undefined
-                  ? {
-                      kind: "media_collection_not_found",
-                      mediaCollectionId: previewed.source.mediaCollectionId,
-                    }
-                  : { kind: "reservation_media_unplayable", mediaItemIds: [] },
-              scheduleRevision,
-            };
-          }
+        const programmingRevision = state?.programmingRevision ?? null;
+        const asked = await resolvePreviewSettings(trx, previewed);
+        if (asked.kind === "refused") {
+          return {
+            kind: "refused",
+            refusal: asked.refusal,
+            scheduleRevision,
+            programmingRevision,
+          };
         }
-        const { replacesReservationId, ...asSaved } = previewed;
-        const settings: ReservationSettings = {
-          ...asSaved,
-          source:
-            previewed.source.kind === "collection_from_beginning"
-              ? { kind: "media_items", mediaItemIds: resolved ?? [] }
-              : previewed.source,
-        };
+        const { settings, replacesReservationId, resolvedMediaItemIds } = asked;
         const range = await resolveReservationRange(
           trx,
           channelId,
@@ -435,7 +420,12 @@ export class ScheduleService {
           replacesReservationId,
         );
         if (range.kind !== "resolved") {
-          return { kind: "refused", refusal: range, scheduleRevision };
+          return {
+            kind: "refused",
+            refusal: range,
+            scheduleRevision,
+            programmingRevision,
+          };
         }
         const reservation = await resolveReservation(trx, {
           id: PREVIEW_RESERVATION_ID,
@@ -453,11 +443,12 @@ export class ScheduleService {
             replacesReservationId,
           );
         if (generated.kind === "unschedulable") {
-          return { ...generated, scheduleRevision };
+          return { ...generated, scheduleRevision, programmingRevision };
         }
         return {
           kind: "preview",
           scheduleRevision,
+          programmingRevision,
           startsAt: reservation.startsAt,
           endsAt: reservation.endsAt,
           endKind: range.endKind,
@@ -467,7 +458,9 @@ export class ScheduleService {
             reservation.startsAt >=
             (state?.lastGeneratedThrough ?? effectiveNow),
           sourceKind: settings.source.kind,
-          ...(resolved === undefined ? {} : { mediaItemIds: resolved }),
+          ...(resolvedMediaItemIds === undefined
+            ? {}
+            : { mediaItemIds: resolvedMediaItemIds }),
           boundary,
           reservations,
           reservationBlockId: generated.blocks.find(
@@ -776,9 +769,9 @@ export class ScheduleService {
    * Deletes the channel's entries starting at or after `span.deleteFrom`,
    * restores progress from them, and generates one chunk from
    * `span.startsAt` if the channel is enabled and schedulable. State is
-   * written, and the revision advances once, only if an entry was deleted or
-   * inserted. Callers choose the positions; this never decides what may be
-   * replaced.
+   * written, and both revisions advance once, only if an entry was deleted
+   * or inserted. Callers choose the positions; this never decides what may
+   * be replaced.
    */
   async #rebuildChunk(
     trx: Kysely<DatabaseSchema>,
@@ -826,6 +819,7 @@ export class ScheduleService {
       lastGeneratedThrough: chunk?.lastGeneratedThrough ?? boundary,
       nextSequenceNumber: chunk?.nextSequenceNumber ?? state.nextSequenceNumber,
       scheduleRevision: state.scheduleRevision + (changed ? 1 : 0),
+      programmingRevision: state.programmingRevision + (changed ? 1 : 0),
       updatedAt: effectiveNow,
     };
     // With nothing deleted, coverage already ends at or before the boundary,
@@ -934,6 +928,9 @@ export class ScheduleService {
       lastGeneratedThrough: written.lastGeneratedThrough,
       nextSequenceNumber: written.nextSequenceNumber,
       scheduleRevision: (state?.scheduleRevision ?? 0) + 1,
+      // An extension appends what a preview already generated and showed, so
+      // only a channel's first chunk changes its planned programming.
+      programmingRevision: state?.programmingRevision ?? 1,
       programmingSeed,
       rebuildCount,
       updatedAt: effectiveNow,

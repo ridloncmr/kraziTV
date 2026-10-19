@@ -42,13 +42,22 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
   durationMs: minutes * 60_000,
 }));
 // The IDs seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const ITEM_ID = "item-001";
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 const ASSIGNMENT_URL = `${ASSIGNMENTS_URL}/assignment-001`;
 
 const collectionBody = collectionAssignment(COLLECTION_ID);
+
+// Reads the collection's saved membership, which no playback mode may rewrite.
+function savedPositions(db: Kysely<DatabaseSchema>) {
+  return db
+    .selectFrom("media_collection_items")
+    .select(["media_item_id", "position"])
+    .orderBy("position")
+    .execute();
+}
 
 // Boots the real composition over a channel with no assignment yet, with
 // fixed IDs and time. A null scenario reopens the data directory without seeding.
@@ -827,15 +836,6 @@ describe("progress reset", () => {
     });
   });
 });
-
-// Reads the collection's saved membership, which no playback mode may rewrite.
-function savedPositions(db: Kysely<DatabaseSchema>) {
-  return db
-    .selectFrom("media_collection_items")
-    .select(["media_item_id", "position"])
-    .orderBy("position")
-    .execute();
-}
 
 describe("changing and deleting an assignment", () => {
   const randomBody = collectionAssignment(COLLECTION_ID, "random");

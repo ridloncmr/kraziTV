@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, iso } from "../testing/api-requests.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import {
@@ -20,7 +21,6 @@ import {
   cleanUpTestEnvironment,
   createTemporaryDirectory,
 } from "../testing/test-environment.js";
-import { collectionAssignment } from "../testing/assignment-bodies.js";
 
 afterEach(cleanUpTestEnvironment);
 
@@ -70,6 +70,7 @@ const STATE_COLUMNS = [
   "last_generated_through",
   "last_rebuild_key",
   "next_sequence_number",
+  "programming_revision",
   "programming_seed",
   "rebuild_count",
   "schedule_revision",

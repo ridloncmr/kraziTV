@@ -1,6 +1,6 @@
-import { heldRequests } from "../testing/held-tmdb-requests.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { heldRequests } from "../testing/held-tmdb-requests.js";
 import { TmdbRequestQueue } from "./tmdb-request-queue.js";
 
 beforeEach(() => {

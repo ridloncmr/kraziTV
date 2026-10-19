@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { send } from "../../testing/api-requests.js";
 import { collectionAssignment } from "../../testing/assignment-bodies.js";
+import { collectionFixture } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { insertCollectionOfItems } from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
@@ -9,8 +11,8 @@ import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 afterEach(cleanUpTestEnvironment);
 
 // The IDs seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const SETTINGS_URL = `/channels/${CHANNEL_ID}/programming-settings`;
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 

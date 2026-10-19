@@ -50,9 +50,9 @@ const reservationFields = {
   source: reservationSource,
 };
 
-// A save also names the schedule revision its preview read; a create adds
-// the browser's key for this save, repeated unchanged on a retry.
-const expectedScheduleRevision = z.number().int().nonnegative().nullable();
+// A save also names the programming revision its preview read; a create
+// adds the browser's key for this save, repeated unchanged on a retry.
+const expectedProgrammingRevision = z.number().int().nonnegative().nullable();
 
 const reservationObject = z.strictObject(reservationFields);
 
@@ -101,12 +101,12 @@ const previewBody = withRangeChecks(
 );
 const createBody = withRangeChecks(
   reservationObject.extend({
-    expectedScheduleRevision,
+    expectedProgrammingRevision,
     requestKey: z.string().min(1).max(200),
   }),
 );
 const updateBody = withRangeChecks(
-  reservationObject.extend({ expectedScheduleRevision }),
+  reservationObject.extend({ expectedProgrammingRevision }),
 );
 
 // Ending a running reservation early: at an instant, or after what airs.
@@ -115,10 +115,7 @@ const earlyEndBody = z.union([
   z.strictObject({ after: z.literal("airing") }),
 ]);
 
-const reservationParams = z.object({
-  id: z.string(),
-  reservationId: z.string(),
-});
+const reservationParams = idParams.extend({ reservationId: z.string() });
 
 /**
  * Registers reservation HTTP routes; validation lives here and status
@@ -137,7 +134,10 @@ export function registerReservationRoutes(
     if ((await channels.findById(id)) === undefined) {
       return sendChannelNotFound(reply, id);
     }
-    return (await reservations.listForChannel(id)).map(toApiReservation);
+    const now = schedules.now();
+    return (await reservations.listForChannel(id)).map((reservation) =>
+      toApiReservation(reservation, now),
+    );
   });
 
   server.post("/channels/:id/reservations", async (request, reply) => {
@@ -153,22 +153,25 @@ export function registerReservationRoutes(
       "reservation_created",
       "created",
       (trx, now) => {
-        const { expectedScheduleRevision, requestKey, ...settings } = body.data;
+        const { expectedProgrammingRevision, requestKey, ...settings } =
+          body.data;
         return reservations.create(
           trx,
           id,
           settings,
-          { expectedScheduleRevision, requestKey },
+          { expectedProgrammingRevision, requestKey },
           now,
         );
       },
     );
     switch (result.kind) {
       case "created":
-        return reply.status(201).send(toApiReservation(result.reservation));
+        return reply
+          .status(201)
+          .send(toApiReservation(result.reservation, schedules.now()));
       // A retried save answers with what the first one created.
       case "repeated":
-        return toApiReservation(result.reservation);
+        return toApiReservation(result.reservation, schedules.now());
       case "channel_not_found":
         return sendChannelNotFound(reply, id);
       default:
@@ -199,13 +202,13 @@ export function registerReservationRoutes(
           `Channel ${id} cannot generate a schedule`,
           {
             reason: preview.reason,
-            scheduleRevision: preview.scheduleRevision,
+            programmingRevision: preview.programmingRevision,
           },
         );
       case "refused": {
         const { status: _, ...conflict } = describeRefusal(preview.refusal);
         return {
-          scheduleRevision: preview.scheduleRevision,
+          programmingRevision: preview.programmingRevision,
           commitment: "exact",
           conflicts: [conflict],
         };
@@ -231,13 +234,13 @@ export function registerReservationRoutes(
         "reservation_changed",
         "updated",
         (trx, now) => {
-          const { expectedScheduleRevision, ...settings } = body.data;
+          const { expectedProgrammingRevision, ...settings } = body.data;
           return reservations.update(
             trx,
             id,
             reservationId,
             settings,
-            { expectedScheduleRevision },
+            { expectedProgrammingRevision },
             now,
           );
         },
@@ -245,7 +248,7 @@ export function registerReservationRoutes(
       switch (result.kind) {
         case "updated":
         case "unchanged":
-          return toApiReservation(result.reservation);
+          return toApiReservation(result.reservation, schedules.now());
         case "not_found":
           return sendReservationNotFound(reply, id, reservationId);
         default:
@@ -276,7 +279,7 @@ export function registerReservationRoutes(
       switch (result.kind) {
         case "ended":
         case "unchanged":
-          return toApiReservation(result.reservation);
+          return toApiReservation(result.reservation, schedules.now());
         case "not_found":
           return sendReservationNotFound(reply, id, reservationId);
         default:

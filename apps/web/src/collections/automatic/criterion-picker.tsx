@@ -6,7 +6,7 @@ import type {
   CatalogTag,
   CollectionCriterion,
   CollectionMember,
-} from "../../http/contracts.js";
+} from "../../http/contracts/collections.js";
 import { useResource } from "../../http/use-resource.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 

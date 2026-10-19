@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { resourcePath } from "../http/api-client.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
+import { RequestFeedback } from "../controls/request-feedback.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
-import type { MediaItem, MediaRoot, ReviewStep } from "../http/contracts.js";
+import { resourcePath } from "../http/api-client.js";
+import type { MediaItem, MediaRoot } from "../http/contracts/media.js";
+import type { ReviewStep } from "../http/contracts/metadata.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
 import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
-import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
+import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
 import { ReviewMatchesDialog } from "./content-metadata/review-matches-dialog.js";
 import { TrackMappingDialog } from "./content-metadata/track-mapping-dialog.js";
 import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
@@ -133,7 +134,11 @@ export function MediaLibraryApp({
                 {roots.data.map((root) => (
                   <tr key={root.id}>
                     <td className="path-cell">{root.path}</td>
-                    <td>{displayTime(root.lastScannedAt)}</td>
+                    <td>
+                      {root.lastScannedAt === null
+                        ? "Not yet scanned"
+                        : displayTime(root.lastScannedAt)}
+                    </td>
                     <td>{root.enabled ? "Enabled" : "Disabled"}</td>
                     <td>
                       <div className="row-actions">

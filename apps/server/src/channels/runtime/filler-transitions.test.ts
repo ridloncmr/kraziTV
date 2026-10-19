@@ -8,7 +8,8 @@ import {
   readGuideProgrammes,
   xmltvTimestamp,
 } from "../../testing/xmltv-programmes.js";
-import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { minutesAfterFixtureTime } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { recordingLog } from "../../testing/recording-log.js";
 import {
   readOnlyScheduleState,
@@ -28,10 +29,9 @@ import { SqliteTransitionCoordinator } from "./sqlite-transition-coordinator.js"
 afterEach(cleanUpTestEnvironment);
 
 const MINUTE = 60_000;
-const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 // 01:00 UTC on 2024-01-01 is 7:00 PM the evening before in Chicago.
 const TIME_ZONE = "America/Chicago";
 const MESSAGE = "Programming resumes at 7:00 PM";

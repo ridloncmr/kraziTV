@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { send, signIn } from "../../testing/api-requests.js";
+import { countAuthRows } from "../../testing/auth-rows.js";
 import { plexSettingsFixture } from "../../testing/plex-fixtures.js";
 import {
   cleanUpTestEnvironment,
@@ -20,22 +21,6 @@ async function startSignedInServer() {
   return { ...started, cookie };
 }
 
-/** Counts rows so refusals can prove they wrote nothing. */
-async function countRows(
-  db: Awaited<ReturnType<typeof startTestServer>>["db"],
-) {
-  const [channels, accounts, sessions] = await Promise.all([
-    db.selectFrom("channels").select("id").execute(),
-    db.selectFrom("accounts").select("id").execute(),
-    db.selectFrom("sessions").select("id").execute(),
-  ]);
-  return {
-    channels: channels.length,
-    accounts: accounts.length,
-    sessions: sessions.length,
-  };
-}
-
 describe("cross-site request check", () => {
   it.each([
     ["a foreign site", EVIL_ORIGIN],
@@ -53,7 +38,7 @@ describe("cross-site request check", () => {
         status: 403,
         body: { error: { code: "forbidden_origin" } },
       });
-      await expect(countRows(db)).resolves.toMatchObject({ channels: 0 });
+      await expect(countAuthRows(db)).resolves.toMatchObject({ channels: 0 });
     },
   );
 
@@ -96,7 +81,7 @@ describe("cross-site request check", () => {
       status: 403,
       body: { error: { code: "forbidden_origin" } },
     });
-    await expect(countRows(db)).resolves.toEqual({
+    await expect(countAuthRows(db)).resolves.toEqual({
       channels: 0,
       accounts: 0,
       sessions: 0,
@@ -115,7 +100,7 @@ describe("cross-site request check", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.headers["set-cookie"]).toBeUndefined();
-    await expect(countRows(db)).resolves.toMatchObject({ sessions: 1 });
+    await expect(countAuthRows(db)).resolves.toMatchObject({ sessions: 1 });
   });
 
   it("refuses a logout from a foreign site and keeps the session", async () => {

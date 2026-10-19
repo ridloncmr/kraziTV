@@ -1,12 +1,11 @@
 import { useState } from "react";
-
 import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
-import type { MediaCollection } from "../../http/contracts.js";
-import type { Special } from "./contracts.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "../playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
+import type { Special } from "./contracts.js";
 import { EndEarlyDialog } from "./end-early-dialog.js";
 import { SpecialEditor } from "./special-editor.js";
 
@@ -69,9 +68,10 @@ export function SpecialsSection({
       )}
       <ul aria-label="Channel specials">
         {listed.map((special) => {
-          const now = Date.now();
-          const started = Date.parse(special.startsAt) <= now;
-          const running = started && Date.parse(special.endsAt) > now;
+          // The server says where each special stands, so a skewed browser
+          // clock never offers an edit the server would refuse.
+          const started = special.status !== "upcoming";
+          const running = special.status === "running";
           return (
             <li key={special.id}>
               {editing === special.id ? (
@@ -108,7 +108,7 @@ export function SpecialsSection({
                         disabled={cancel.pending}
                         onClick={() =>
                           void cancel.run(
-                            `${path}/${special.id}`,
+                            `${path}/${encodeURIComponent(special.id)}`,
                             "DELETE",
                             undefined,
                             changed,
@@ -128,7 +128,7 @@ export function SpecialsSection({
       {ending && (
         <EndEarlyDialog
           special={ending}
-          path={`${path}/${ending.id}`}
+          path={`${path}/${encodeURIComponent(ending.id)}`}
           ended={changed}
           onClose={() => setEnding(undefined)}
         />

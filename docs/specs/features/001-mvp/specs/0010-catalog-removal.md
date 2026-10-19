@@ -114,13 +114,13 @@ option. **Cancel** closes the dialog and changes nothing.
 A refusal in the preview shows its message in place of the sections above,
 and only **Close** is offered:
 
-| Refusal                                    | Message                                                                            |
-| ------------------------------------------ | ---------------------------------------------------------------------------------- |
-| A scan of the root is running              | `This media root is being scanned. Cancel the scan or wait for it to finish.`      |
-| A programming block plays one of its items | `Channel 69 plays an item from this media root directly. Change that block first.` |
-| An item no longer exists                   | `Some of the selected media is no longer in the catalog. Refresh and try again.`   |
+| Refusal                                         | Message                                                                                                     |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A scan of the root is running                   | `This media root is being scanned. Cancel the scan or wait for it to finish.`                               |
+| A programming assignment plays one of its items | `Channel 69 plays one of these items directly from a programming assignment. Change that assignment first.` |
+| An item no longer exists                        | `Some of the selected media is no longer in the catalog. Refresh and try again.`                            |
 
-The block message lists every channel number involved.
+The assignment message lists every channel number involved.
 
 ### After confirming
 

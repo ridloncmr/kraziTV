@@ -1,9 +1,9 @@
 import { formText } from "../controls/form-text.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type { Channel } from "../http/contracts.js";
+import type { Channel } from "../http/contracts/channels.js";
 import { useMutation } from "../http/use-resource.js";
-import { ProgrammingEditor } from "./programming-editor.js";
+import { ProgrammingEditor } from "./programming/programming-editor.js";
 import { SpecialsSection } from "./specials/specials-section.js";
 
 /** Identity editing never exposes source or scheduling policy on the channel itself. */

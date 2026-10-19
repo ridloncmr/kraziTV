@@ -14,7 +14,7 @@ import { displayClockTime } from "../../controls/display-time.js";
 import type {
   CatalogRemoval,
   CatalogRemovalImpact,
-} from "../../http/contracts.js";
+} from "../../http/contracts/media.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { mediaRoot } from "../../testing/scan-fixtures.js";
@@ -267,7 +267,7 @@ it.each([
   [
     "media_item_in_use",
     { channelIds: ["two", "one"], mediaItemIds: ["z"] },
-    "Channels 70, 69 play an item from this media root directly. Change those blocks first.",
+    "Channels 70, 69 play one of these items directly from a programming assignment. Change those assignments first.",
   ],
 ])(
   "shows a %s refusal in place of the preview with only Close",
@@ -314,7 +314,7 @@ it("names a single channel playing an item directly", async () => {
   fireEvent.click(await rootDelete());
 
   await screen.findByText(
-    "Channel 69 plays an item from this media root directly. Change that block first.",
+    "Channel 69 plays one of these items directly from a programming assignment. Change that assignment first.",
   );
 });
 

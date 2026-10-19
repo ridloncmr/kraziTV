@@ -1,18 +1,18 @@
-import { useMemo, useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { resourcePath } from "../http/api-client.js";
+import { useState } from "react";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { resourcePath } from "../../http/api-client.js";
+import type { ScheduleWindow } from "../../http/contracts/channels.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
-  MediaCollection,
   ProgrammingRule,
-  ScheduleWindow,
   SourceAssignment,
-} from "../http/contracts.js";
-import { useMutation, useResource } from "../http/use-resource.js";
-import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
-import { AssignmentForm } from "./assignment-form.js";
+} from "../../http/contracts/programming.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
+import { scheduleWindowPath } from "../../schedule-view/schedule-window-path.js";
+import { AssignmentForm } from "../assignments/assignment-form.js";
+import { RulesEditor } from "../rules/rules-editor.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
 import { RebuildDialog } from "./rebuild-dialog.js";
-import { RulesEditor } from "./rules-editor.js";
 import { UpcomingProgramming } from "./upcoming-programming.js";
 
 /**
@@ -44,12 +44,15 @@ export function ProgrammingEditor({
   // Remounts the add form after each addition, so it starts empty again.
   const [added, setAdded] = useState(0);
   const [showSchedule, setShowSchedule] = useState(false);
-  const schedulePath = useMemo(
-    () => scheduleWindowPath(channelId),
-    [channelId, visible],
-  );
+  // The 24-hour window starts at now each time the program comes back into
+  // view, so a restored window counts today's entries, not the day it was
+  // minimized on. Adjusted during render so the first visible paint asks.
+  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
+  if (anchor.visible !== visible) {
+    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
+  }
   const schedule = useResource<ScheduleWindow>(
-    showSchedule ? schedulePath : null,
+    showSchedule ? scheduleWindowPath(channelId, anchor.startsAt) : null,
     visible,
   );
   // Counts accepted writes, so the upcoming programming is read again.

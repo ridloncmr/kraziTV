@@ -8,7 +8,6 @@ import {
   correct,
   metadataOf,
 } from "../../testing/enrichment-scan.js";
-
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
 afterEach(cleanUpTestEnvironment);

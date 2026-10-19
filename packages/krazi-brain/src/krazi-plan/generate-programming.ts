@@ -30,10 +30,9 @@ import {
 } from "./rotation/rotation.js";
 import type { DecisionSeed } from "./programming-decisions.js";
 import {
-  airListedItems,
+  airReservation,
   findNextReservation,
   findReservationAt,
-  reservationBlock,
   reservationEndedTurn,
 } from "./reservations/reservation-programs.js";
 import { settingOrigins } from "./rules/rule-settings.js";
@@ -207,49 +206,25 @@ export function generateProgramming(
   while (entries.length < maxEntries) {
     const reservation = findReservationAt(reservations, startsAt);
     if (reservation !== undefined) {
-      // A reservation generation has entered airs to its end, so coverage
-      // always reaches the end of every reservation it starts.
-      // Its block holds no rotation decision, so even a fresh rebuild
-      // continues a reservation's block where its kept entries left off.
-      const resumed =
-        latestTurn?.block.reservationId === reservation.id &&
-        entries.length === 0
-          ? latestTurn
-          : undefined;
-      const block =
-        resumed?.block ??
-        reservationBlock(reservation, options.createBlockId(), startsAt, state);
-      const { source } = reservation;
-      let done: boolean;
-      if (source.kind === "media_items") {
-        const listed = airListedItems(source.items, reservation.endsAt, {
-          programmingBlockId: block.id,
-          startsAt,
-          aired: resumed?.airedMediaItemIds ?? [],
-          nextSequenceNumber: sequenceNumber,
-          maxEntries: maxEntries - entries.length,
-        });
-        entries.push(...listed.entries);
-        sequenceNumber += listed.entries.length;
-        done = listed.done;
-      } else {
-        const generated = airSource(
-          { ...source, programmingBlockId: block.id },
-          { through: reservation.endsAt, hardEnd: reservation.endsAt },
-        );
-        done =
-          generated.kind !== "generated" ||
-          generated.deferred ||
-          generated.generatedThrough >= reservation.endsAt;
-      }
-      const last = entries.at(-1);
-      // A block holds at least one entry, so a range none of whose programs
-      // fit leaves only filler.
-      if (resumed === undefined && last?.programmingBlockId === block.id) {
-        blocks.push(block);
-      }
+      const aired = airReservation(reservation, {
+        startsAt,
+        kept: entries.length === 0 ? latestTurn : undefined,
+        previousEntry: entries.at(-1),
+        state,
+        nextSequenceNumber: sequenceNumber,
+        maxEntries: maxEntries - entries.length,
+        createBlockId: options.createBlockId,
+        airCollection: (source) =>
+          airSource(source, {
+            through: reservation.endsAt,
+            hardEnd: reservation.endsAt,
+          }),
+      });
+      entries.push(...aired.entries);
+      sequenceNumber += aired.entries.length;
+      if (aired.started !== undefined) blocks.push(aired.started);
       open = undefined;
-      startsAt = done || last === undefined ? reservation.endsAt : last.endsAt;
+      startsAt = aired.continuesAt;
       continue;
     }
     if (startsAt >= through) break;

@@ -3,14 +3,18 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { captureLogLines } from "../../testing/captured-log-lines.js";
-import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+} from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 import {
   readOnlyScheduleState,
-  seedScheduleScenario,
   readScheduleEntries,
+  seedScheduleScenario,
 } from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import {
@@ -30,7 +34,7 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
   durationMs: minutes * MINUTE,
 }));
 // The channel seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const SCHEDULE_URL = `/channels/${CHANNEL_ID}/schedule`;
 const GENERATE_URL = `${SCHEDULE_URL}/generate`;
 
@@ -59,7 +63,7 @@ describe("GET /channels/:id/schedule", () => {
           durationMs: 22 * MINUTE,
           sequenceNumber: 0,
           programmingBlockId: "block-001",
-          mediaCollectionId: "collection-fixture-001",
+          mediaCollectionId: collectionFixture.id,
           playbackMode: "chronological",
           playbackIndex: 0,
           createdAt: iso(T0),

@@ -9,10 +9,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { Special, SpecialPreview } from "./contracts.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
+import type { Special, SpecialPreview } from "./contracts.js";
 import { SpecialsSection } from "./specials-section.js";
 
 afterEach(() => {
@@ -29,7 +28,7 @@ const END = new Date("2099-06-01T21:30").toISOString();
 
 // A preview that saving these settings would publish as shown.
 const planned = (overrides: Partial<SpecialPreview> = {}): SpecialPreview => ({
-  scheduleRevision: 7,
+  programmingRevision: 7,
   conflicts: [],
   startsAt: START,
   endsAt: END,
@@ -59,6 +58,7 @@ const saved: Special = {
   endKind: "program_derived",
   interrupts: false,
   source: { kind: "media_items", mediaItemIds: ["z"] },
+  status: "upcoming",
 };
 
 // The section over a channel with `specials`, the fixture catalog, and its one collection.
@@ -118,7 +118,7 @@ it("previews media items in order and saves exactly what was previewed", async (
     endsAt: null,
     interrupts: false,
     source: { kind: "media_items", mediaItemIds: ["z"] },
-    expectedScheduleRevision: 7,
+    expectedProgrammingRevision: 7,
     requestKey: expect.any(String),
   });
 });
@@ -219,7 +219,7 @@ it("shows a start more than a year ahead as a conflict and offers no save", asyn
   api.reply(
     PREVIEW,
     {
-      scheduleRevision: 7,
+      programmingRevision: 7,
       commitment: "exact",
       conflicts: [
         {
@@ -252,6 +252,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
     id: "special-0",
     startsAt: "2020-01-01T00:00:00.000Z",
     endsAt: "2020-01-01T01:00:00.000Z",
+    status: "ended",
   };
   const api = renderSection([started, saved]);
   const [startedRow, laterRow] = await screen.findAllByRole("listitem");
@@ -264,7 +265,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
   expect(screen.getByLabelText<HTMLInputElement>("Starts").value).toBe(
     START_LOCAL,
   );
-  api.reply(PREVIEW, planned({ scheduleRevision: 9 }), "POST");
+  api.reply(PREVIEW, planned({ programmingRevision: 9 }), "POST");
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
   await screen.findByRole("region", { name: "Special preview" });
   api.reply(`${LIST}/special-1`, saved, "PATCH");
@@ -275,7 +276,7 @@ it("edits and cancels a special before it starts, and only then", async () => {
       endsAt: null,
       interrupts: false,
       source: { kind: "media_items", mediaItemIds: ["z"] },
-      expectedScheduleRevision: 9,
+      expectedProgrammingRevision: 9,
     }),
   );
   // The edit's preview leaves the special it replaces out.
@@ -331,7 +332,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
   await screen.findByText(/Preview again before saving/);
   const firstKey = lastBody(api, LIST, "POST")?.requestKey;
 
-  api.reply(PREVIEW, planned({ scheduleRevision: 8 }), "POST");
+  api.reply(PREVIEW, planned({ programmingRevision: 8 }), "POST");
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
   await screen.findByRole("region", { name: "Special preview" });
 
@@ -340,7 +341,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
   api.reply(LIST, saved, "POST", 201);
   fireEvent.click(screen.getByRole("button", { name: "Save special" }));
   await waitFor(() =>
-    expect(lastBody(api, LIST, "POST")?.expectedScheduleRevision).toBe(8),
+    expect(lastBody(api, LIST, "POST")?.expectedProgrammingRevision).toBe(8),
   );
   expect(lastBody(api, LIST, "POST")?.requestKey).not.toBe(firstKey);
 });
@@ -348,7 +349,7 @@ it("clears a stale save's message once a fresh preview arrives, and saves it und
 describe("what is airing now", () => {
   const AIRING_ENDS = new Date("2099-06-01T20:25").toISOString();
   const crossing = {
-    scheduleRevision: 7,
+    programmingRevision: 7,
     commitment: "exact",
     conflicts: [
       {
@@ -428,6 +429,7 @@ describe("ending a running special early", () => {
     ...saved,
     startsAt: "2020-01-01T00:00:00.000Z",
     endsAt: END,
+    status: "running",
   };
   const END_URL = `${LIST}/special-1/end`;
 
@@ -477,5 +479,32 @@ describe("ending a running special early", () => {
     renderSection([saved]);
     await screen.findByRole("button", { name: "Edit" });
     expect(screen.queryByRole("button", { name: "End early…" })).toBeNull();
+  });
+
+  it("trusts the server's status over the browser's clock", async () => {
+    // By this browser's clock the first has not started and the second is
+    // long over; the server, whose clock decides, says otherwise.
+    renderSection([
+      { ...saved, id: "ahead", status: "running" },
+      {
+        ...saved,
+        id: "behind",
+        startsAt: "2020-01-01T00:00:00.000Z",
+        endsAt: "2020-01-01T01:00:00.000Z",
+        status: "upcoming",
+      },
+    ]);
+    const [ahead, behind] = await screen.findAllByRole("listitem");
+    if (ahead === undefined || behind === undefined) {
+      throw new Error("Both specials should be listed");
+    }
+
+    expect(within(ahead).getByText(/On air/)).toBeTruthy();
+    expect(
+      within(ahead).getByRole("button", { name: "End early…" }),
+    ).toBeTruthy();
+    expect(within(ahead).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(within(behind).getByRole("button", { name: "Edit" })).toBeTruthy();
+    expect(within(behind).queryByText(/Ended/)).toBeNull();
   });
 });

@@ -15,9 +15,9 @@ export const ProgramIcon = memo(function ProgramIcon({
   size?: number;
 }) {
   const id = useId();
-  const blue = iconGradient(id, "blue"),
-    gold = iconGradient(id, "gold"),
-    silver = iconGradient(id, "silver");
+  const blue = iconGradient(id, "blue");
+  const gold = iconGradient(id, "gold");
+  const silver = iconGradient(id, "silver");
   return (
     <svg
       width={size}

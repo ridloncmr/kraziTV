@@ -14,7 +14,10 @@ import {
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
-import type { ScheduleEntry } from "../../schedules/contracts.js";
+import type {
+  ScheduleEntry,
+  ScheduleState,
+} from "../../schedules/contracts.js";
 import {
   listEntriesInWindow,
   loadScheduleState,
@@ -161,6 +164,17 @@ export async function readAiringAt(
 ): Promise<AiringSpan | undefined> {
   const state = await loadScheduleState(trx, channelId);
   if (state === undefined) return undefined;
+  return findAiringSpan(trx, state, at, excludeReservationId);
+}
+
+/** Finds what holds the airtime at `at` under a channel's loaded state, with its cut. */
+async function findAiringSpan(
+  trx: Executor,
+  state: ScheduleState,
+  at: number,
+  excludeReservationId?: string,
+): Promise<AiringSpan | undefined> {
+  const { channelId } = state;
   const entries = await listPlayoutEntriesAround(
     trx,
     channelId,
@@ -216,13 +230,12 @@ export async function findAiringItem(
     excludeReservationId,
   );
   if (startsNow !== undefined) return undefined;
-  const airing = await readAiringAt(trx, channelId, at, options);
+  const state = await loadScheduleState(trx, channelId);
+  if (state === undefined) return undefined;
+  const airing = await findAiringSpan(trx, state, at, excludeReservationId);
   if (airing === undefined) return undefined;
-  if (airing.kind === "filler") {
-    const state = await loadScheduleState(trx, channelId);
-    if (state !== undefined && at >= state.lastGeneratedThrough) {
-      return undefined;
-    }
+  if (airing.kind === "filler" && at >= state.lastGeneratedThrough) {
+    return undefined;
   }
   const cutAt =
     airing.kind === "filler"

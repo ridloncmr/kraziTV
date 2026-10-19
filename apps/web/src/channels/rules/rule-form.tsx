@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
 import type {
   ProgrammingRule,
   RuleMarathon,
   RuleSettings,
   StretchSetting,
-} from "../http/contracts.js";
-import { useMutation } from "../http/use-resource.js";
+} from "../../http/contracts/programming.js";
+import { useMutation } from "../../http/use-resource.js";
 import {
   type StretchDraft,
   StretchFields,
@@ -14,7 +14,7 @@ import {
   toStretchDraft,
   toStretchSetting,
   UNCHOSEN_STRETCH,
-} from "./stretch-fields.js";
+} from "../assignments/stretch-fields.js";
 
 /** Local weekday names, 0 for Sunday, as rules number them. */
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -75,10 +75,10 @@ export function RuleForm({
 }) {
   const mutation = useMutation();
   const [draft, setDraft] = useState<RuleDraft>(() => toDraft(rule, choices));
-  // Applies one change to the draft.
+  // Every field edits through these two, so a change never drops the rest
+  // of the draft or of another selected source.
   const edit = (change: Partial<RuleDraft>) =>
     setDraft((current) => ({ ...current, ...change }));
-  // Applies one change to a selected source.
   const editSource = (assignmentId: string, change: Partial<SourceDraft>) =>
     setDraft((current) => {
       const sources = new Map(current.sources);

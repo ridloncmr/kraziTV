@@ -1,6 +1,7 @@
 // @ts-check
 import eslint from "@eslint/js";
 import { defineConfig } from "eslint/config";
+import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
@@ -37,7 +38,18 @@ export default defineConfig(
     },
   },
   {
-    files: ["**/*.test.ts", "**/src/testing/**"],
+    // Hook call order and effect dependencies are correctness rules in React.
+    // The plugin's React Compiler rules stay off until the compiler is adopted;
+    // they reject the setState-in-effect pattern the app uses for server state.
+    files: ["apps/web/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
+    },
+  },
+  {
+    files: ["**/*.test.ts", "**/src/testing/**", "**/integration/**"],
     rules: {
       // HTTP inject bodies are `any`; tests assert on their shape directly.
       "@typescript-eslint/no-unsafe-assignment": "off",

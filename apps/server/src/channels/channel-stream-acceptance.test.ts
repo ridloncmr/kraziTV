@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { iso, send } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import { RecordingSignalPackager } from "../testing/recording-signal-packager.js";
@@ -38,7 +39,7 @@ import { composeChannelStreamManager } from "./runtime/channel-stream-compositio
 const MINUTE = 60_000;
 // Eight minutes into the second of three chronological episodes.
 const MID_SECOND = FIXTURE_TIME + 30 * MINUTE;
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const CHANNEL_URL = `/channels/${CHANNEL_ID}`;
 const STREAM_URL = `${CHANNEL_URL}/stream`;
 const EPISODES: ScheduleScenarioOptions = {

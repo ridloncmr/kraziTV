@@ -291,18 +291,24 @@ export async function recordRebuildKey(
  * Advances a channel's schedule revision once for a commit that changed
  * planned transmission without regenerating it, such as a purge of ended
  * entries or a reservation write whose regeneration changed no entry (ADR
- * 0014). A channel without a schedule has no revision to advance.
+ * 0014). The programming revision advances with it only when the commit
+ * changed what a reservation preview shows: a reservation write does, a
+ * purge of ended entries does not. A channel without a schedule has no
+ * revision to advance.
  */
 export async function advanceScheduleRevision(
   trx: Executor,
   channelId: string,
   now: number,
+  { programmingChanged }: { programmingChanged: boolean },
 ): Promise<void> {
   const state = await loadScheduleState(trx, channelId);
   if (state === undefined) return;
   await updateScheduleState(trx, {
     ...state,
     scheduleRevision: state.scheduleRevision + 1,
+    programmingRevision:
+      state.programmingRevision + (programmingChanged ? 1 : 0),
     // Never earlier than the last mutation, so the clamp stays monotonic.
     updatedAt: Math.max(state.updatedAt, now),
   });
@@ -376,6 +382,7 @@ function toStateColumns(state: ScheduleState) {
     last_generated_through: state.lastGeneratedThrough,
     next_sequence_number: state.nextSequenceNumber,
     schedule_revision: state.scheduleRevision,
+    programming_revision: state.programmingRevision,
     programming_seed: state.programmingSeed,
     rebuild_count: state.rebuildCount,
     updated_at: state.updatedAt,
@@ -393,6 +400,7 @@ function toScheduleState(
     lastGeneratedThrough: row.last_generated_through,
     nextSequenceNumber: row.next_sequence_number,
     scheduleRevision: row.schedule_revision,
+    programmingRevision: row.programming_revision,
     programmingSeed: row.programming_seed,
     rebuildCount: row.rebuild_count,
     updatedAt: row.updated_at,

@@ -7,7 +7,11 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../testing/api-requests.js";
-import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
+import {
+  FIXTURE_TIME,
+  minutesAfterFixtureTime,
+} from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import {
   FILM_MS,
   insertFilmSeries,
@@ -31,9 +35,9 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const RESERVATIONS = `/channels/${CHANNEL_ID}/reservations`;
 
 // Previews the films from the beginning in release order and saves the list

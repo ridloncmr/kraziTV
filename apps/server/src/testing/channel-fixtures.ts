@@ -46,6 +46,7 @@ export const scheduleStateFixture: Insertable<ChannelScheduleStateTable> = {
   last_generated_through: FIXTURE_TIME + 3_600_000,
   next_sequence_number: 1,
   schedule_revision: 1,
+  programming_revision: 1,
   programming_seed: 654_321,
   rebuild_count: 0,
   last_rebuild_key: null,

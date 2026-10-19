@@ -4,7 +4,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { iso, send } from "../../testing/api-requests.js";
 import { collectionAssignment } from "../../testing/assignment-bodies.js";
-import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+} from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { insertCollectionOfItems } from "../../testing/schedule-fixtures.js";
 import { startScheduleScenarioServer } from "../../testing/schedule-server.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
@@ -14,8 +18,8 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 const PREVIEW_URL = `/channels/${CHANNEL_ID}/programming-preview`;
 

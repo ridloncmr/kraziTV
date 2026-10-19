@@ -21,7 +21,7 @@ export function displayClockTime(value: string): string {
   return clockFormat.format(new Date(value));
 }
 
-/** Formats API instants for observation, never deriving authoritative playback state. */
-export function displayTime(value: string | null): string {
-  return value ? instantFormat.format(new Date(value)) : "Not yet scanned";
+/** Formats an API instant for observation, never deriving authoritative playback state. */
+export function displayTime(value: string): string {
+  return instantFormat.format(new Date(value));
 }

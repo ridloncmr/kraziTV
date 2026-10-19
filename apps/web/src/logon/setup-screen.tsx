@@ -3,7 +3,7 @@ import { displayNameRefusal } from "../account-fields/display-name-refusal.js";
 import { newPasswordRefusal } from "../account-fields/new-password-refusal.js";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
-import type { AuthState } from "../http/contracts.js";
+import type { AuthState } from "../http/contracts/auth.js";
 import { useMutation } from "../http/use-resource.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 

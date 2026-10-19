@@ -26,7 +26,10 @@ import {
   validateCatalogCandidate,
   type ProbeOutcome,
 } from "./catalog-candidate.js";
-import { countLookups, enrichCandidates } from "./enrich-candidates.js";
+import {
+  countLookups,
+  enrichCandidates,
+} from "../enrichment/enrich-candidates.js";
 import type { CatalogScanWriter } from "../writer/catalog-scan-writer.js";
 import type {
   RetryItem,
@@ -216,7 +219,9 @@ export class CatalogScanner {
   #refuseScan(
     rootId: string,
     found: MediaRoot | undefined,
-  ): { kind: "admitted"; root: MediaRoot } | ScanStart {
+  ):
+    | { kind: "admitted"; root: MediaRoot }
+    | Exclude<ScanStart, { kind: "started" }> {
     if (this.#closing) return { kind: "shutting_down" };
     const admission = admitRoot(found);
     if (admission.kind !== "admitted") return admission;

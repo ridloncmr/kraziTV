@@ -19,9 +19,17 @@ import {
   decideRecommendation,
 } from "../recommendations/recommendation-decisions.js";
 import { readRecommendations } from "../recommendations/recommendations.js";
-import { deleteEndedReservations } from "../../reservations/persistence/reservation-rows.js";
+import {
+  deleteEndedReservations,
+  listBlockingReservations,
+} from "../../reservations/persistence/reservation-rows.js";
 import { findChannelsUsingCollection } from "./channels-using-collection.js";
-import { insertCollection, toMediaCollections } from "./collection-rows.js";
+import {
+  collectionExists,
+  insertCollection,
+  selectMembers,
+  toMediaCollections,
+} from "./collection-rows.js";
 import {
   readExcludedIds,
   readExcludedItems,
@@ -42,9 +50,6 @@ import type {
   Recommendation,
   RecommendationAcceptance,
 } from "../contracts.js";
-import { listBlockingReservations } from "../../reservations/persistence/reservation-rows.js";
-
-type Executor = Kysely<DatabaseSchema>;
 
 /**
  * Persists media collections and their explicit item order. Duplicate member
@@ -330,50 +335,4 @@ export class MediaCollectionRepository {
         (await collectionExists(trx, id)) ? selectMembers(trx, id) : undefined,
       );
   }
-}
-
-// Answers existence without loading the row.
-export async function collectionExists(
-  executor: Executor,
-  id: string,
-): Promise<boolean> {
-  const row = await executor
-    .selectFrom("media_collections")
-    .select("id")
-    .where("id", "=", id)
-    .executeTakeFirst();
-  return row !== undefined;
-}
-
-// Joins each membership to its item summary in one query, ordered by position.
-export async function selectMembers(
-  executor: Executor,
-  mediaCollectionId: string,
-): Promise<MediaCollectionMember[]> {
-  const rows = await executor
-    .selectFrom("media_collection_items")
-    .innerJoin(
-      "media_items",
-      "media_items.id",
-      "media_collection_items.media_item_id",
-    )
-    .select([
-      "media_collection_items.position",
-      "media_items.id",
-      "media_items.title",
-      "media_items.path",
-      "media_items.status",
-      "media_items.duration_ms",
-    ])
-    .where("media_collection_items.media_collection_id", "=", mediaCollectionId)
-    .orderBy("media_collection_items.position")
-    .execute();
-  return rows.map((row) => ({
-    position: row.position,
-    mediaItemId: row.id,
-    title: row.title,
-    path: row.path,
-    status: row.status,
-    durationMs: row.duration_ms,
-  }));
 }

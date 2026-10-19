@@ -1,3 +1,11 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
+import {
+  FIXTURE_TIME,
+  itemFixture,
+  rootFixture,
+} from "../../testing/catalog-fixtures.js";
 import {
   ALIEN,
   EPISODE_HINTS,
@@ -9,19 +17,11 @@ import {
   lookedUp,
   tagItem,
 } from "../../testing/metadata-match-fixtures.js";
-import { afterEach, describe, expect, it } from "vitest";
-
-import {
-  FIXTURE_TIME,
-  itemFixture,
-  rootFixture,
-} from "../../testing/catalog-fixtures.js";
+import { sequentialIds } from "../../testing/record-sources.js";
 import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
-import { sequentialIds } from "../../testing/record-sources.js";
-import type { MetadataMatchRecord } from "../../content-metadata/contracts.js";
 import { CatalogScanWriter } from "./catalog-scan-writer.js";
 
 const SCANNED_AT = FIXTURE_TIME + 60_000;

@@ -1,4 +1,4 @@
-import type { PlaybackMode } from "../../http/contracts.js";
+import type { PlaybackMode } from "../../http/contracts/programming.js";
 
 // The API shapes of specials that My Channels' specials files share.
 
@@ -32,6 +32,11 @@ export interface Special {
   /** It cut what was airing at its start. */
   interrupts: boolean;
   source: SpecialSource;
+  /**
+   * Where it stands by the server's clock when listed; the browser's clock
+   * never decides, since the server refuses edits and early ends by its own.
+   */
+  status: "upcoming" | "running" | "ended";
 }
 /** Why the server would refuse a previewed special, with its details. */
 interface SpecialConflict {
@@ -48,7 +53,8 @@ interface PreviewInterval {
  * revision and conflicts; one beyond the horizon displaces nothing yet.
  */
 export interface SpecialPreview {
-  scheduleRevision: number | null;
+  /** The token a save made from this preview sends back. */
+  programmingRevision: number | null;
   conflicts: SpecialConflict[];
   startsAt?: string;
   endsAt?: string;

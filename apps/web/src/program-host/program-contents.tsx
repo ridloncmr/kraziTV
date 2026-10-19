@@ -1,13 +1,13 @@
 import { memo } from "react";
-import type { ProgramId } from "../desktop/contracts.js";
+import { AccountSettingsApp } from "../account-settings/account-settings-app.js";
 import { ChannelsApp } from "../channels/channels-app.js";
 import { CollectionsApp } from "../collections/collections-app.js";
-import { MediaLibraryApp } from "../media-library/media-library-app.js";
-import { ProgramGuideApp } from "../program-guide/program-guide-app.js";
-import { PlexSetupApp } from "../plex-setup/plex-setup-app.js";
+import type { ProgramId } from "../desktop/contracts.js";
+import type { AccountProfile } from "../http/contracts/auth.js";
 import { LiveMonitorApp } from "../live-monitor/live-monitor-app.js";
-import { AccountSettingsApp } from "../account-settings/account-settings-app.js";
-import type { AccountProfile } from "../http/contracts.js";
+import { MediaLibraryApp } from "../media-library/media-library-app.js";
+import { PlexSetupApp } from "../plex-setup/plex-setup-app.js";
+import { ProgramGuideApp } from "../program-guide/program-guide-app.js";
 
 /**
  * Application composition maps navigation identity to programs without teaching windows domain behavior.

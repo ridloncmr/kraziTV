@@ -14,19 +14,19 @@
       "rule": "cross-package-copy",
       "files": [
         "apps/server/src/catalog-scan/contracts.ts",
-        "apps/web/src/http/contracts.ts"
+        "apps/web/src/http/contracts/scan.ts"
       ],
       "reason": "ScanStatus is the scan route's JSON wire shape. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives (ISO timestamps, a loose error code); the overlap is the field list itself.",
-      "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
+      "source": "apps/web/src/http/contracts/ (browser-side wire types, one file per API area)"
     },
     {
       "rule": "cross-package-copy",
       "files": [
         "apps/server/src/media-items/contracts.ts",
-        "apps/web/src/http/contracts.ts"
+        "apps/web/src/http/contracts/media.ts"
       ],
       "reason": "ContentMetadata is the media item listing's metadata wire shape. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives (an ISO refreshedAt where the server holds epoch milliseconds); the overlap is the field list itself.",
-      "source": "apps/web/src/http/contracts.ts (browser-side wire types for every API response)"
+      "source": "apps/web/src/http/contracts/ (browser-side wire types, one file per API area)"
     },
     {
       "rule": "cross-package-copy",
@@ -36,6 +36,15 @@
       ],
       "reason": "Each package's tests need the no-metadata ContentMetadata fixture, and src/testing/ is not part of any package's build, so each consumer keeps its own.",
       "source": "docs/adrs/0011-shared-process-package.md"
+    },
+    {
+      "rule": "cross-package-copy",
+      "files": [
+        "apps/server/src/testing/real-ffmpeg.ts",
+        "packages/signal/integration/real-ffmpeg.ts"
+      ],
+      "reason": "Both opt-in FFmpeg suites resolve the ffmpeg binary and run it the same way. src/testing/ and integration/ are outside every package's build, so neither can export the helper to the other.",
+      "source": "docs/adrs/0011-shared-process-package.md; AGENTS.md (source layout: integration suites live outside src/ and the build config stays limited to src/)"
     },
     {
       "rule": "grouping",
@@ -82,7 +91,7 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/controls/"],
-      "reason": "Every file is a shared presentation control or display formatter used across programs, one capability, so the folder stays flat.",
+      "reason": "Every file is a presentation control several desktop programs share: display formatters, selection helpers, the window dialog, and request feedback. Shared UI is the folder's one capability, so it stays flat; regroup into formatting/, selection/, and dialog/ when a control needs a second home.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
@@ -108,7 +117,7 @@
     {
       "rule": "file-size",
       "files": ["apps/server/src/schedules/schedule-service.ts"],
-      "reason": "Reviewed in the 2026-10-02 audit: the class reads as its schedule transitions; pure checks and persistence already live in schedule-coverage.ts and schedule-repository.ts.",
+      "reason": "Reviewed in the 2026-10-02 and 2026-10-17 audits: the class reads as its schedule transitions; pure checks and persistence live in schedule-coverage.ts, persistence/, and reservations/persistence/preview-settings.ts.",
       "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
     },
     {
@@ -127,14 +136,22 @@
     {
       "rule": "duplicate-code",
       "files": [
-        "apps/server/src/auth/auth-service.ts",
         "apps/server/src/catalog-scan/writer/catalog-scan-writer.ts",
+        "apps/server/src/programming-assignments/persistence/assignment-repository.ts",
+        "apps/server/src/programming-rules/rule-repository.ts",
+        "apps/server/src/reservations/persistence/reservation-repository.ts"
+      ],
+      "reason": "The repeat is the constructor that takes the database and an injectable ID source; a shared base class would add indirection for two fields.",
+      "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
         "apps/server/src/channels/repository/channel-repository.ts",
         "apps/server/src/media-collections/persistence/media-collection-repository.ts",
-        "apps/server/src/media-roots/media-root-repository.ts",
-        "apps/server/src/programming-assignments/persistence/assignment-repository.ts"
+        "apps/server/src/media-roots/media-root-repository.ts"
       ],
-      "reason": "The repeat is the injected record-sources constructor; a shared base class would add indirection for three fields.",
+      "reason": "The repeat is the constructor that takes the database and injectable ID and clock sources; a shared base class would add indirection for three fields.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     },
     {
@@ -150,9 +167,11 @@
       "rule": "duplicate-code",
       "files": [
         "apps/server/src/programming-assignments/routes/assignment-routes.ts",
-        "apps/server/src/programming-assignments/routes/marathon-settings-routes.ts"
+        "apps/server/src/programming-assignments/routes/marathon-settings-routes.ts",
+        "apps/server/src/programming-rules/rule-routes.ts",
+        "apps/server/src/reservations/routes/reservation-routes.ts"
       ],
-      "reason": "Each write route repeats only its param and body parsing before running a different input change; a helper would hide those lines behind indirection.",
+      "reason": "Each write route repeats only its param and body parsing before running a different input change, and each list route only its channel check; a helper would hide those lines behind indirection.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     },
     {
@@ -160,6 +179,18 @@
       "files": ["apps/server/src/reset-password.ts"],
       "reason": "A second process entry point beside index.ts: the reset-password command that an npm script runs directly, so it belongs at the src root like index.ts.",
       "source": "docs/implementation_plan/003-auth/0001-accounts-and-sessions.md (Reconnaissance: \"The reset command's entry point is apps/server/src/reset-password.ts at the src/ root, beside index.ts\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/signal/src/ffmpeg/mpeg-ts/"],
+      "reason": "Every file serves one capability, carrying MPEG-TS packets from FFmpeg processes to the session output: packet alignment, the join point, readiness, forwarding, and continuity counters.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/http/contracts/"],
+      "reason": "contracts/ is a kind folder holding the browser-side wire types, one file per API area; every file serves one capability, declaring what the API answers.",
+      "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged)"
     },
     {
       "rule": "grouping",
@@ -219,9 +250,108 @@
       "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     },
     {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/005-schedules.ts",
+        "apps/server/src/database/migrations/024-programming-rules.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/005-schedules.ts",
+        "apps/server/src/database/migrations/027-reservations.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts",
+        "apps/server/src/database/migrations/024-programming-rules.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
       "rule": "grouping",
       "files": ["apps/server/src/media-collections/persistence/"],
       "reason": "Every file serves one capability, collection persistence: the repository, row inserts and conversion, membership replacement, criterion labels, and the channels-using-collection read.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/010-content-metadata.ts",
+        "apps/server/src/database/migrations/011-episode-metadata.ts"
+      ],
+      "reason": "Migration 011 rebuilds the provider refs table 010 created, so it declares the same columns and checks; each migration keeps its own DDL so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/021-source-assignments.ts",
+        "apps/server/src/database/migrations/024-programming-rules.ts"
+      ],
+      "reason": "Both migrations declare the safe-integer-at-least check and the stretch column shape; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/content-metadata/match-choice/"],
+      "reason": "Every file serves one capability, the owner's match decisions: the routes, the service, the decision and evidence reads it changes, and the review steps it groups items into.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/server/src/content-metadata/persistence/"],
+      "reason": "Every file serves one capability, metadata match persistence: the repository, row writes, the corrected columns, the matched duration, and the settled check.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/account-settings/"],
+      "reason": "Every file serves one desktop program, Account Settings: its app, the task form and submit hook every task shares, and its four task views.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/channels/assignments/"],
+      "reason": "Every file serves one capability, the assignment form: its member rows, the preview of what an assigned collection airs next, the progress reset, and the stretch and playback-mode controls the rule and special forms reuse.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/media-library/content-metadata/"],
+      "reason": "Every file serves one capability, the Media Library's content-metadata dialogs, plus the match-state label and poster URL those dialogs show.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/krazi-brain/src/playout/"],
+      "reason": "Every file serves one capability, pure playout derivation from schedule entries and reservations: channel state, cuts, filler, following items, and the timeline.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/media/src/metadata-matching/"],
+      "reason": "Every file serves one capability, the TMDB matching rules: title, movie, episode, and runtime lookups and the title normalization they compare by.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/media/src/path-hints/"],
+      "reason": "Every file serves one capability, reading path hints from folder and file names: derivation, name parsing, folder classification, series and disc-track placement, and the fallback title.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["packages/media/src/tmdb/"],
+      "reason": "Every file serves one capability, calling TMDB: the client, its one request queue, and the body readers for titles, movies, and series.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     }
   ]

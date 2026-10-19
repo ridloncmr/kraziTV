@@ -6,7 +6,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { iso, send } from "../testing/api-requests.js";
 import { captureLogLines } from "../testing/captured-log-lines.js";
-import { FIXTURE_TIME, itemFixtureAt } from "../testing/catalog-fixtures.js";
+import {
+  collectionFixture,
+  FIXTURE_TIME,
+  itemFixtureAt,
+} from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import {
   insertCollectionAssignment,
@@ -27,8 +32,8 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
 // The IDs seedScheduleScenario writes; the episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const [A, B, C] = ["item-001", "item-002", "item-003"];
 
 // Reads the collection's members in position order.

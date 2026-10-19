@@ -1,11 +1,11 @@
+import type { Kysely } from "kysely";
+import { afterEach, describe, expect, it } from "vitest";
+
 import { seededMetadataDatabase as seeded } from "../../testing/metadata-match-fixtures.js";
 import {
   EPISODE_FACTS,
   EPISODE_REF as REF,
 } from "../../testing/metadata-match-fixtures.js";
-import type { Kysely } from "kysely";
-import { afterEach, describe, expect, it } from "vitest";
-
 import { itemFixture } from "../../testing/catalog-fixtures.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 import { episodeMetadataMigration } from "./011-episode-metadata.js";

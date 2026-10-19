@@ -58,13 +58,21 @@ Use `code-review` instead for a single diff or PR.
      checks left inside the class file.
    - Duplication below the jscpd threshold: the same small helper, schema,
      or projection written in several files.
+   - Duplication inside test suites, which jscpd does not scan: the same
+     arrange helper, fixture literal, or assertion sequence repeated across
+     `*.test.ts` files when `src/testing/` should hold it once.
    - Package surface: whether used exports expose unnecessary policy or
      configuration. The `unused-package-export` rule checks named exports;
      namespace imports, literal dynamic imports, and star re-exports
      conservatively count as using the whole surface, so inspect those consumers
      manually. Computed import paths and unnamed star exports need manual review.
-   - Why-comments that narrate the code instead of explaining why.
+   - Why-comments that narrate the code instead of explaining why, and
+     missing comments on arrow-function constants, which the comment rule
+     does not count.
    - Vocabulary: names that use a synonym `GLOSSARY.md` lists under **Avoid**.
+   - `scripts/`: the audit inventories only `apps/` and `packages/`, so the
+     audit scripts themselves are covered by lint, `npm run test:audit`, and
+     this reading.
 4. For every candidate finding, check accepted ADRs and the exceptions file.
    If an ADR sanctions it, drop it and say so once in the report.
 

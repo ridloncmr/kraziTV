@@ -1,8 +1,11 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
+import { ScheduleService } from "../../schedules/schedule-service.js";
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
 import { manualClock } from "../../testing/manual-clock.js";
 import {
@@ -16,8 +19,6 @@ import {
   openTestDatabase,
   startTestServer,
 } from "../../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
-import { ScheduleService } from "../../schedules/schedule-service.js";
 import { unwrittenCoverage } from "../../testing/unwritten-coverage.js";
 import { PlayoutService } from "../playout-service.js";
 
@@ -33,7 +34,7 @@ const EPISODES = [22, 23, 24].map((minutes) => ({
   durationMs: minutes * MINUTE,
 }));
 // The channel seedScheduleScenario writes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const NOW_URL = `/channels/${CHANNEL_ID}/now`;
 const PLAYOUT_URL = `/channels/${CHANNEL_ID}/playout`;
 

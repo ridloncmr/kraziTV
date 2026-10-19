@@ -1,12 +1,12 @@
 import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
-import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 
 import { MediaDiscoveryError, MediaProbeError } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 import { send, waitForScan } from "../../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";

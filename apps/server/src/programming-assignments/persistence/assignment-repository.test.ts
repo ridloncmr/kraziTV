@@ -15,7 +15,7 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
-import { AssignmentRepository } from "../persistence/assignment-repository.js";
+import { AssignmentRepository } from "./assignment-repository.js";
 import type { AssignmentSettings } from "../contracts.js";
 
 afterEach(cleanUpTestEnvironment);

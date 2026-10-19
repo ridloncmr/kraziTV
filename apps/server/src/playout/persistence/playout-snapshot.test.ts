@@ -1,6 +1,7 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
 import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
 import { countQueries } from "../../testing/query-counter.js";
 import {
@@ -12,7 +13,6 @@ import {
   cleanUpTestEnvironment,
   openTestDatabase,
 } from "../../testing/test-environment.js";
-import { SCHEDULE_REQUEST_LIMIT_MS } from "../../schedules/schedule-coverage.js";
 import type { CoverageRequirement } from "../contracts.js";
 import { findPlayoutEntryById } from "./playout-repository.js";
 import { readPlayoutSnapshot } from "./playout-snapshot.js";

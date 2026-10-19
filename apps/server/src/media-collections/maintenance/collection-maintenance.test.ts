@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 
+import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 import { CatalogRemovalService } from "../../catalog-removal/catalog-removal-service.js";
 import type { ImmediateTransactionHooks } from "../../database/writes/immediate-transaction.js";
 import { ScheduleService } from "../../schedules/schedule-service.js";

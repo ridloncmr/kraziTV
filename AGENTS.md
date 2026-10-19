@@ -203,9 +203,10 @@ working in. Do not report work as done until all of these hold.
    npm run audit:strict
    ```
 
-   Also run `npm run test:ffprobe` when you change ffprobe integration, and
+   Also run `npm run test:ffprobe` when you change ffprobe integration,
    `npm run test:ffmpeg` when you change FFmpeg packaging arguments or the
-   channel stream runtime.
+   channel stream runtime, and `npm run test:tmdb` (with `TMDB_API_KEY` set)
+   when you change the TMDB client.
 
 4. Resolve every audit `review` item in a file you touched, or say why it
    stands.

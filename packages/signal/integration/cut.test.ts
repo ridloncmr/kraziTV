@@ -4,20 +4,18 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createChannelStreamManager,
-  createFfmpegSignalPackager,
-  type CurrentPlayoutResult,
-  type SelectedPlayoutItem,
-  SystemRuntime,
-} from "../src/index.js";
+import { SystemRuntime } from "../src/index.js";
 import { FakePlayoutProvider } from "../src/testing/fake-playout-provider.js";
 import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transition-coordinator.js";
-import { ffmpegPath, runFfmpeg, wait } from "./real-ffmpeg.js";
+import {
+  CHANNEL,
+  current,
+  program,
+  runFfmpeg,
+  startManager,
+  wait,
+} from "./real-ffmpeg.js";
 
-type SelectedProgram = Extract<SelectedPlayoutItem, { kind: "program" }>;
-
-const CHANNEL = "69";
 /** The airing program's media and stored airtime. */
 const PROGRAM_MS = 8_000;
 /** The cut, measured from the program's start: well inside its media. */
@@ -61,43 +59,6 @@ afterAll(async () => {
   }
 });
 
-/** A program as kraziBrain selects it, airing from its media's start. */
-const program = (
-  scheduleEntryId: string,
-  mediaPath: string,
-  startsAt: number,
-  durationMs: number,
-  overrides: Partial<SelectedProgram> = {},
-): SelectedProgram => ({
-  kind: "program",
-  channelId: CHANNEL,
-  scheduleEntryId,
-  scheduleRevision: 7,
-  mediaItemId: `media-${scheduleEntryId}`,
-  mediaPath,
-  hasAudio: true,
-  hasVideo: true,
-  title: scheduleEntryId,
-  startsAt,
-  endsAt: startsAt + durationMs,
-  durationMs,
-  startOffsetMs: 0,
-  ...overrides,
-});
-
-/** What airs at `evaluatedAt`, joined at its offset. */
-const current = (
-  item: SelectedProgram,
-  evaluatedAt: number,
-): CurrentPlayoutResult => ({
-  status: "current",
-  channelId: CHANNEL,
-  scheduleRevision: item.scheduleRevision,
-  evaluatedAt,
-  mediaOffsetMs: evaluatedAt - item.startsAt,
-  item,
-});
-
 describe("real FFmpeg cut", () => {
   it("cuts a program mid-media into the special on one session without dropping the viewer", async () => {
     const runtime = new SystemRuntime();
@@ -114,30 +75,10 @@ describe("real FFmpeg cut", () => {
     provider.enqueueCurrent(current(airing, startsAt));
     const coordinator = new InMemoryTransitionCoordinator(runtime);
     coordinator.setSchedule(CHANNEL, 7, [airing]);
-    const manager = createChannelStreamManager({
-      authorization: {
-        /** Enables the one channel the suite tunes. */
-        async getChannelAuthorization(channelId: string) {
-          return { status: "enabled" as const, channelId };
-        },
-      },
-      playoutProvider: provider,
-      packager: createFfmpegSignalPackager({
-        ffmpegPath,
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
-        timers: runtime,
-        terminationGraceMs: 5_000,
-        itemReadinessTimeoutMs: 15_000,
-      }),
-      clock: runtime,
-      timers: runtime,
-      transitionCoordinator: coordinator,
+    const manager = startManager(runtime, {
+      provider,
+      coordinator,
       prepareLeadMs: 1_000,
-      startupTimeoutMs: 15_000,
-      subscriberBufferLimitBytes: 64 * 1024 * 1024,
-      retentionLimitBytes: 4 * 1024 * 1024,
-      idleGraceMs: 1_000,
-      logger: { debug() {}, info() {}, warn() {}, error() {} },
     });
 
     const subscription = await manager.subscribe(CHANNEL);
@@ -173,9 +114,9 @@ describe("real FFmpeg cut", () => {
     subscription.close();
     await manager.shutdown();
 
-    // The viewer kept receiving the special after the cut. Delivery pauses
-    // for the next FFmpeg process's startup, as at every boundary, because a
-    // preparation starts no process before commit.
+    // The viewer kept receiving the special after the cut. A cut learned
+    // inside the prepare lead still pays the next FFmpeg process's startup
+    // once (ADR 0016), so delivery resumes a little after the cut.
     expect(arrivals.some((at) => at > cutAt + 1_000)).toBe(true);
 
     const analysis = runFfmpeg(

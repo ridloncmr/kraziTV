@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createFfmpegSignalPackager, SystemRuntime } from "../src/index.js";
-import { ffmpegPath, runFfmpeg, wait } from "./real-ffmpeg.js";
+import { ffmpegPath, runFfmpeg, silentLogger, wait } from "./real-ffmpeg.js";
 
 const MEDIA_MS = 2_000;
 const BLACK_TAIL_MS = 3_000;
@@ -76,7 +76,7 @@ describe("real FFmpeg black tail", () => {
     async ({ hasAudio }) => {
       const packager = createFfmpegSignalPackager({
         ffmpegPath,
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
+        logger: silentLogger,
         timers: new SystemRuntime(),
         terminationGraceMs: 5_000,
         itemReadinessTimeoutMs: 15_000,
@@ -138,7 +138,7 @@ describe("real FFmpeg black video", () => {
   it("emits audio-only media over black video at wall-clock pace", async () => {
     const packager = createFfmpegSignalPackager({
       ffmpegPath,
-      logger: { debug() {}, info() {}, warn() {}, error() {} },
+      logger: silentLogger,
       timers: new SystemRuntime(),
       terminationGraceMs: 5_000,
       itemReadinessTimeoutMs: 15_000,

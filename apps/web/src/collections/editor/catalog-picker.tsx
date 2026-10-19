@@ -3,7 +3,7 @@ import { displayDuration } from "../../controls/display-duration.js";
 import { Pager } from "../../controls/pager.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { useRangeToggle } from "../../controls/use-range-toggle.js";
-import type { MediaItem, MediaItemPage } from "../../http/contracts.js";
+import type { MediaItem, MediaItemPage } from "../../http/contracts/media.js";
 import { useMutation } from "../../http/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
 

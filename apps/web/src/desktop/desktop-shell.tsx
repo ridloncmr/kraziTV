@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
-import type {
-  AccountProfile,
-  MediaRoot,
-  TmdbKeyStatus,
-} from "../http/contracts.js";
+import type { AccountProfile } from "../http/contracts/auth.js";
+import type { MediaRoot } from "../http/contracts/media.js";
+import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { useResource } from "../http/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
+import type { DesktopViewport, ProgramId } from "./contracts.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { windowReducer } from "./windows/window-state.js";
-import type { DesktopViewport, ProgramId } from "./contracts.js";
 
-/** Reads the desktop area above the 32px taskbar from the browser window. */
+/** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
+const TASKBAR_HEIGHT_PX = 32;
+
+/** Reads the desktop area above the taskbar from the browser window. */
 function usableViewport(): DesktopViewport {
   return {
     width: globalThis.innerWidth,
-    height: globalThis.innerHeight - 32,
+    height: globalThis.innerHeight - TASKBAR_HEIGHT_PX,
   };
 }
 

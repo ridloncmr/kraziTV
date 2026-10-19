@@ -1,9 +1,16 @@
 // Finds copied code with jscpd. A copy across packages breaks the AGENTS.md
 // rule "Never copy code between packages"; a copy inside one package is a
 // review item, because KISS can outrank DRY.
+//
+// Test suites (`*.test.ts` and the browser suites, `*.browser.ts`) are not
+// scanned: at this threshold they hold hundreds of short
+// arrange-and-assert repeats, all under 25 lines, which would bury the
+// findings that matter. Repeated setup across suites is the codebase-audit
+// skill's manual check. Test doubles in `src/testing/` and the helpers of
+// opt-in suites in `integration/` are scanned like production code.
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
@@ -11,13 +18,21 @@ import { dirname, join, relative } from "node:path";
 import { toPosix } from "./inventory.mjs";
 
 const MIN_TOKENS = 50;
-const IGNORED = ["**/*.test.ts", "**/*.test.tsx", "**/dist/**"];
+const SCANNED_FOLDERS = ["src", "integration"];
+const IGNORED = [
+  "**/*.test.ts",
+  "**/*.test.tsx",
+  "**/*.browser.ts",
+  "**/dist/**",
+];
 
-/** Runs jscpd over every workspace's `src/` and converts clones to findings. */
+/** Runs jscpd over every workspace's `src/` and `integration/` and converts clones to findings. */
 export function checkDuplicates(repoRoot, inventory) {
-  const paths = inventory.workspaces.map((workspace) =>
-    join(repoRoot, workspace.name, "src"),
-  );
+  const paths = inventory.workspaces
+    .flatMap((workspace) =>
+      SCANNED_FOLDERS.map((folder) => join(repoRoot, workspace.name, folder)),
+    )
+    .filter((path) => existsSync(path));
   const outputDir = mkdtempSync(join(tmpdir(), "krazitv-audit-"));
   try {
     const result = spawnSync(

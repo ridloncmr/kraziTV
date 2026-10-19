@@ -3,8 +3,8 @@ import { useMutation } from "../../http/use-resource.js";
 
 /**
  * Confirms ending the session. It belongs to the desktop shell, not to a
- * program window, so it is modal over the whole desktop rather than a
- * window dialog. Focus starts on Log Off and returns to whatever had it
+ * program window, so it covers and blocks the whole desktop rather than
+ * one window. Focus starts on Log Off and returns to whatever had it
  * before, the Start button, when it closes. While the logout runs it cannot
  * close, because the server may already be ending the session.
  */

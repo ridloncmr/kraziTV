@@ -1,4 +1,3 @@
-// Test-only interaction helper; production code must never import this module.
 import { fireEvent, waitFor } from "@testing-library/react";
 import { expect } from "vitest";
 

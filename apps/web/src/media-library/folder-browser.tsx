@@ -1,5 +1,5 @@
 import { RequestFeedback } from "../controls/request-feedback.js";
-import type { FolderListing } from "../http/contracts.js";
+import type { FolderListing } from "../http/contracts/media.js";
 import { useResource } from "../http/use-resource.js";
 
 /**

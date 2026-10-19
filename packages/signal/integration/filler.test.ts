@@ -5,7 +5,7 @@ import {
   defaultFillerFontFile,
   SystemRuntime,
 } from "../src/index.js";
-import { ffmpegPath, runFfmpeg, wait } from "./real-ffmpeg.js";
+import { ffmpegPath, runFfmpeg, silentLogger, wait } from "./real-ffmpeg.js";
 
 // The font production would use: FFMPEG_FONT_FILE, else the platform default.
 const fontFile =
@@ -18,7 +18,7 @@ describe("real FFmpeg filler", () => {
     runFfmpeg(["-version"], "FFmpeg is required for test:ffmpeg");
     const packager = createFfmpegSignalPackager({
       ffmpegPath,
-      logger: { debug() {}, info() {}, warn() {}, error() {} },
+      logger: silentLogger,
       timers: new SystemRuntime(),
       terminationGraceMs: 5_000,
       itemReadinessTimeoutMs: 15_000,

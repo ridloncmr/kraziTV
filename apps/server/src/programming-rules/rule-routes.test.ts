@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { send } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
+import { collectionFixture } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import { manualClock } from "../testing/manual-clock.js";
 import { sequentialIds } from "../testing/record-sources.js";
 import {
@@ -22,8 +24,8 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 // Monday 2024-12-02, midday UTC.
 const DECEMBER_2 = Date.parse("2024-12-02T12:00:00Z");
-const CHANNEL_ID = "channel-fixture-001";
-const COLLECTION_ID = "collection-fixture-001";
+const CHANNEL_ID = channelFixture.id;
+const COLLECTION_ID = collectionFixture.id;
 const ASSIGNMENTS_URL = `/channels/${CHANNEL_ID}/programming-assignments`;
 const RULES_URL = `/channels/${CHANNEL_ID}/programming-rules`;
 

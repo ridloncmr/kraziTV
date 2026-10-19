@@ -12,7 +12,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { ChannelsApp } from "./channels-app.js";
-import { ProgrammingEditor } from "./programming-editor.js";
+import { ProgrammingEditor } from "./programming/programming-editor.js";
 
 afterEach(() => {
   cleanup();

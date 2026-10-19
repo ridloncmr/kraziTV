@@ -2,16 +2,17 @@
 // startup, and re-adding a path interact with removed rows.
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import { currentPathPlatform, normalizeMediaPath } from "@krazitv/media";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { iso, send, waitForScan } from "../testing/api-requests.js";
 import { FIXTURE_TIME, rootFixture } from "../testing/catalog-fixtures.js";
+import { channelFixture } from "../testing/channel-fixtures.js";
 import { ControlledProber } from "../testing/controlled-prober.js";
 import { IdleMetadataRefresh } from "../testing/idle-metadata-refresh.js";
 import {
@@ -34,7 +35,7 @@ afterEach(cleanUpTestEnvironment);
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
 // The IDs seedScheduleScenario writes; item-001 airs first, for 22 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const ROOT_ID = rootFixture.id;
 const ROOT_TARGET = { target: { mediaRootId: ROOT_ID } };
 

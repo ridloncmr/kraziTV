@@ -5,7 +5,7 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type { MatchCandidates } from "../../http/contracts.js";
+import type { MatchCandidates } from "../../http/contracts/metadata.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { posterUrl } from "./poster-url.js";
 

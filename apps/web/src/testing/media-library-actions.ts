@@ -1,8 +1,15 @@
 import { createElement } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
-import type { MediaItem, ReviewStep } from "../http/contracts.js";
+import type { MediaItem } from "../http/contracts/media.js";
+import type { ReviewStep } from "../http/contracts/metadata.js";
 import { MediaLibraryApp } from "../media-library/media-library-app.js";
+import {
+  DISC_TRACK,
+  SOME_SHOW_SEARCH,
+  TRACK_FOLDER,
+  TRACK_PROPOSAL,
+} from "./admin-fixtures.js";
 import { BrowserApi } from "./browser-api.js";
 
 /**
@@ -48,13 +55,8 @@ export function typeCorrection(
   fireEvent.change(form.getByLabelText(label), { target: { value } });
 }
 
-import {
-  DISC_TRACK,
-  SOME_SHOW_SEARCH,
-  TRACK_FOLDER,
-  TRACK_PROPOSAL,
-} from "./admin-fixtures.js";
 const MAPPING = `/metadata/track-mappings/${encodeURIComponent(DISC_TRACK.id)}`;
+
 /** Shows the library with DISC_TRACK, its folder readable, and opens the mapping. */
 export async function openMapping() {
   const api = await showMediaLibrary([DISC_TRACK]);

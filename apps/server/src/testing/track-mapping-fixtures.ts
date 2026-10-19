@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
+
 import { send } from "./api-requests.js";
 import {
   idOf,
   scanThroughRoutes as scan,
   startEnrichmentServer,
 } from "./enrichment-scan.js";
+
 export const MINUTE = 60_000;
 
 // Two discs of season 1, with a play-all title and a short extra on disc 1.

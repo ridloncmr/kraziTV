@@ -1,10 +1,10 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 
 import { discoverMediaFiles, MediaProbeError } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 import {
   FIXTURE_TIME,
   itemFixture,

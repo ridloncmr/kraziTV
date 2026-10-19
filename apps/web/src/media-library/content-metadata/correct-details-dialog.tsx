@@ -6,7 +6,7 @@ import type {
   CorrectableField,
   ContentMetadata,
   MediaItem,
-} from "../../http/contracts.js";
+} from "../../http/contracts/media.js";
 import { useMutation } from "../../http/use-resource.js";
 
 // The correctable fields in form order, with their labels and input types.

@@ -78,7 +78,7 @@ const ruleBody = z
     }
   });
 
-const ruleParams = z.object({ id: z.string(), ruleId: z.string() });
+const ruleParams = idParams.extend({ ruleId: z.string() });
 
 const orderBody = z.strictObject({ ruleIds: z.array(z.string()) });
 

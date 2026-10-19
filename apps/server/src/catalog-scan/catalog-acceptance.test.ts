@@ -2,13 +2,13 @@
 // SQLite file, and a real media directory. Only ffprobe is replaced.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
 import { MediaProbeError, type MediaProbeResult } from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { send, waitForScan } from "../testing/api-requests.js";
 import { ControlledProber } from "../testing/controlled-prober.js";

@@ -2,6 +2,7 @@ import type { FastifyServerOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { send, signIn } from "../../testing/api-requests.js";
+import { readSessionExpiries } from "../../testing/auth-rows.js";
 import { captureLogLines } from "../../testing/captured-log-lines.js";
 import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
 import { manualClock } from "../../testing/manual-clock.js";
@@ -41,18 +42,6 @@ async function startClockedServer(
   return { ...started, clock };
 }
 
-/** Reads every session's expiry, oldest first. */
-async function readExpiry(
-  db: Awaited<ReturnType<typeof startTestServer>>["db"],
-): Promise<number[]> {
-  const rows = await db
-    .selectFrom("sessions")
-    .select("expires_at")
-    .orderBy("expires_at")
-    .execute();
-  return rows.map((row) => row.expires_at);
-}
-
 describe("sliding session expiry", () => {
   it("neither reissues the cookie nor writes 12 hours after login", async () => {
     const { server, db, clock } = await startClockedServer();
@@ -67,7 +56,9 @@ describe("sliding session expiry", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["set-cookie"]).toBeUndefined();
-    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 30 * DAY_MS,
+    ]);
   });
 
   it("reissues the same cookie and moves the expiry 25 hours after login", async () => {
@@ -85,7 +76,7 @@ describe("sliding session expiry", () => {
     expect(response.headers["set-cookie"]).toBe(
       `${cookie}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict`,
     );
-    await expect(readExpiry(db)).resolves.toEqual([
+    await expect(readSessionExpiries(db)).resolves.toEqual([
       START + 25 * HOUR_MS + 30 * DAY_MS,
     ]);
   });
@@ -135,7 +126,9 @@ describe("sliding session expiry", () => {
     expect(lines).toContainEqual(
       expect.objectContaining({ level: 40, msg: "Renewing a session failed" }),
     );
-    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 30 * DAY_MS,
+    ]);
 
     // The next request after the lock clears renews as usual.
     await expect(
@@ -183,7 +176,9 @@ describe("sliding session expiry", () => {
       lines.filter((line) => line.msg === "Deleting an expired session failed"),
     ).toHaveLength(2);
     // The row stays until a later read or startup cleanup can delete it.
-    await expect(readExpiry(db)).resolves.toEqual([START + 30 * DAY_MS]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([
+      START + 30 * DAY_MS,
+    ]);
   });
 
   it("answers a session idle for 30 days 401 and deletes its row", async () => {
@@ -197,7 +192,7 @@ describe("sliding session expiry", () => {
       status: 401,
       body: { error: { code: "unauthenticated" } },
     });
-    await expect(readExpiry(db)).resolves.toEqual([]);
+    await expect(readSessionExpiries(db)).resolves.toEqual([]);
   });
 
   it("deletes expired sessions when the server restarts", async () => {
@@ -219,7 +214,7 @@ describe("sliding session expiry", () => {
     });
     await restarted.server.ready();
 
-    await expect(readExpiry(restarted.db)).resolves.toEqual([
+    await expect(readSessionExpiries(restarted.db)).resolves.toEqual([
       START + 50 * DAY_MS,
     ]);
   });

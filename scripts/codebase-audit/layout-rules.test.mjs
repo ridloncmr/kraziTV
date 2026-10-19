@@ -99,10 +99,19 @@ describe("checkGrouping", () => {
     ]);
   });
 
-  it("treats a domain with capability folders as grouped", () => {
-    const files = flat(9, [file("domain/routes/r.ts")]);
+  it("lets a grouped domain keep up to four coordinating files at its root", () => {
+    const files = flat(4, [file("domain/routes/r.ts")]);
 
     expect(checkGrouping(files)).toEqual([]);
+  });
+
+  it("asks for review when a grouped domain's root holds more than four files", () => {
+    const files = flat(9, [file("domain/routes/r.ts")]);
+
+    expect(rules(checkGrouping(files))).toEqual([
+      "review:grouping:packages/demo/src/domain/",
+    ]);
+    expect(checkGrouping(files)[0].message).toMatch(/root of a grouped folder/);
   });
 });
 

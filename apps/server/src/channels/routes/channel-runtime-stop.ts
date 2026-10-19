@@ -4,7 +4,8 @@ import { sendApiError } from "../../http/api-error.js";
 import type { ChannelRuntime } from "../contracts.js";
 import { settleRuntimeStop } from "../runtime/settle-runtime-stop.js";
 
-type RuntimeStop = {
+/** A stop run for a disable or delete: which operation, and whether its configuration change already saved. */
+type OperationStop = {
   channelId: string;
   operation: "disable" | "delete";
   /** Whether the configuration change was saved before this stop ran. */
@@ -23,7 +24,7 @@ export async function stopRuntime(
   reply: FastifyReply,
   runtime: ChannelRuntime,
   timeoutMs: number,
-  stop: RuntimeStop,
+  stop: OperationStop,
 ): Promise<boolean> {
   const settled = await settleRuntimeStop(request.log, runtime, timeoutMs, {
     channelId: stop.channelId,
@@ -44,7 +45,7 @@ export async function stopRuntime(
 
 // Tells the client whether the change already saved, so a retry is understood
 // as finishing cleanup rather than repeating or reversing the change.
-function cleanupFailedMessage(stop: RuntimeStop): string {
+function cleanupFailedMessage(stop: OperationStop): string {
   if (!stop.persistenceCommitted) {
     return `Channel ${stop.channelId} stays disabled because its earlier runtime cleanup did not finish; retry to finish cleanup before enabling`;
   }

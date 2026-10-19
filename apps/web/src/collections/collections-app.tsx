@@ -3,7 +3,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import type {
   MediaCollection,
   MediaCollectionSummary,
-} from "../http/contracts.js";
+} from "../http/contracts/collections.js";
 import { useResource } from "../http/use-resource.js";
 import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
 import { DiscoverDialog } from "./discovery/discover-dialog.js";

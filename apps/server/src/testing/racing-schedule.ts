@@ -28,8 +28,9 @@ export interface RacingSchedule {
    */
   other: Kysely<DatabaseSchema>;
   channelId: string;
-  /** The revision the `original-*` coverage committed. */
+  /** The revisions the `original-*` coverage committed. */
   scheduleRevision: number;
+  programmingRevision: number;
 }
 
 /**
@@ -49,8 +50,15 @@ export async function openRacingSchedule(): Promise<RacingSchedule> {
     now: () => FIXTURE_TIME,
     createId: sequentialIds("original"),
   }).ensureCoverage(channelId, recordingLog());
-  const { schedule_revision } = await readOnlyScheduleState(writer);
-  return { writer, other, channelId, scheduleRevision: schedule_revision };
+  const { schedule_revision, programming_revision } =
+    await readOnlyScheduleState(writer);
+  return {
+    writer,
+    other,
+    channelId,
+    scheduleRevision: schedule_revision,
+    programmingRevision: programming_revision,
+  };
 }
 
 /**

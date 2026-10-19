@@ -24,17 +24,24 @@ type FfmpegSignalPackagerDependencies = {
   /** Executable to spawn; the server resolves `FFMPEG_PATH` before this point. */
   ffmpegPath: string;
   terminationGraceMs?: number;
+  /** How long a prepared item's FFmpeg process may stay silent before its preparation fails. */
   itemReadinessTimeoutMs?: number;
+  /** How much output a prepared process may hold before its commit (ADR 0016). */
+  preparedOutputLimitBytes?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
   /** The font filler messages are drawn in; unset uses fontconfig's default. */
   fillerFontFile?: string | undefined;
 };
 
 const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
+// A few seconds of 1080p MPEG-TS is a few megabytes; this bounds a
+// preparation held far longer than its lead without ever cutting one short.
+const DEFAULT_PREPARED_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024;
 
 /** Creates one retained FFmpeg session per active channel worker. */
 export class FfmpegSignalPackager implements SignalPackager {
   private readonly itemReadinessTimeoutMs: number;
+  private readonly preparedOutputLimitBytes: number;
 
   /**
    * Keeps process and inspection dependencies explicit for deterministic
@@ -50,6 +57,13 @@ export class FfmpegSignalPackager implements SignalPackager {
       this.itemReadinessTimeoutMs,
       "itemReadinessTimeoutMs",
     );
+    this.preparedOutputLimitBytes =
+      dependencies.preparedOutputLimitBytes ??
+      DEFAULT_PREPARED_OUTPUT_LIMIT_BYTES;
+    assertPositiveSafeInteger(
+      this.preparedOutputLimitBytes,
+      "preparedOutputLimitBytes",
+    );
   }
 
   /** Validates and starts one item synchronously so output can be drained at once. */
@@ -60,13 +74,10 @@ export class FfmpegSignalPackager implements SignalPackager {
       createReadinessInspector:
         this.dependencies.createReadinessInspector ??
         (() => new MpegTsReadinessInspector()),
-      // Building the argv is the item validation, so prepare and start agree.
-      validateItem: (item) => {
-        this.argumentsFor(item);
-      },
       startProcess: (item) => this.startProcess(item),
       timers: this.dependencies.timers,
       itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
+      preparedOutputLimitBytes: this.preparedOutputLimitBytes,
       logger: this.dependencies.logger,
     });
   }
@@ -78,7 +89,11 @@ export class FfmpegSignalPackager implements SignalPackager {
     });
   }
 
-  /** Starts one item's FFmpeg process, whose normal exit remains internal to its session. */
+  /**
+   * Starts one item's FFmpeg process, whose normal exit remains internal to
+   * its session. Building the argv validates the item first, so an invalid
+   * one is refused before anything is spawned.
+   */
   private startProcess(item: SignalPlayoutItem): FfmpegProcess {
     const process = FfmpegProcess.start({
       args: this.argumentsFor(item),

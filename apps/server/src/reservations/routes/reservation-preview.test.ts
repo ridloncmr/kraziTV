@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
-import { FIXTURE_TIME } from "../../testing/catalog-fixtures.js";
+import {
+  FIXTURE_TIME,
+  minutesAfterFixtureTime,
+} from "../../testing/catalog-fixtures.js";
+import { channelFixture } from "../../testing/channel-fixtures.js";
 import {
   FILM_MS,
   insertFilmSeries,
@@ -19,9 +23,9 @@ afterEach(cleanUpTestEnvironment);
 
 const MINUTE = 60_000;
 const T0 = FIXTURE_TIME;
-const at = (minutes: number) => T0 + minutes * MINUTE;
+const at = minutesAfterFixtureTime;
 // The IDs seedScheduleScenario writes; its episodes run 22, 23, and 24 minutes.
-const CHANNEL_ID = "channel-fixture-001";
+const CHANNEL_ID = channelFixture.id;
 const RESERVATIONS = `/channels/${CHANNEL_ID}/reservations`;
 const PREVIEW = `${RESERVATIONS}/preview`;
 
@@ -47,13 +51,13 @@ const movieAt = (movie: string, startsAt: number, endsAt?: number) => ({
 describe("POST /channels/:id/reservations/preview", () => {
   it("previews exactly what saving the reservation then produces", async () => {
     const { server, db, movie } = await scheduled();
-    const revision = (await readOnlyScheduleState(db)).schedule_revision;
+    const revision = (await readOnlyScheduleState(db)).programming_revision;
 
     const preview = await send(server, "POST", PREVIEW, movieAt(movie, at(60)));
 
     expect(preview.status).toBe(200);
     expect(preview.body).toEqual({
-      scheduleRevision: revision,
+      programmingRevision: revision,
       commitment: "exact",
       startsAt: iso(at(60)),
       endsAt: iso(at(150)),
@@ -305,7 +309,7 @@ describe("POST /channels/:id/reservations/preview", () => {
       );
       const saved = await send(server, "POST", RESERVATIONS, {
         ...fromTheBeginning("release"),
-        expectedScheduleRevision: null,
+        expectedProgrammingRevision: null,
         requestKey: "save-1",
       });
 

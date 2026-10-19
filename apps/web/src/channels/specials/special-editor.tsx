@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-
 import { fromLocalInput, toLocalInput } from "../../controls/local-instant.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type { MediaCollection, PlaybackMode } from "../../http/contracts.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
+import type { PlaybackMode } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/use-resource.js";
 import { MediaItemPicker } from "../../media-search/media-item-picker.js";
-import { PLAYBACK_MODE_CHOICES } from "../playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type {
   Special,
   SpecialPreview as Preview,
@@ -30,7 +30,7 @@ type PreviewedSettings = {
  * year ahead, as a preview conflict), an optional end,
  * and what airs, as media items in order, a collection block, or a
  * collection from the beginning. A save sends exactly the settings its
- * preview was made from, with that preview's schedule revision, so the
+ * preview was made from, with that preview's programming revision, so the
  * guide changes only to what the owner saw; any edit discards the preview,
  * and a preview that answers after an edit is dropped. Each preview gets a
  * fresh request key, so resending a save finds what it created but a save
@@ -182,10 +182,13 @@ export function SpecialEditor({
         ? { kind: "media_items", mediaItemIds: result.mediaItemIds ?? [] }
         : asked.source;
     const guards = special
-      ? { expectedScheduleRevision: result.scheduleRevision }
-      : { expectedScheduleRevision: result.scheduleRevision, requestKey };
+      ? { expectedProgrammingRevision: result.programmingRevision }
+      : {
+          expectedProgrammingRevision: result.programmingRevision,
+          requestKey,
+        };
     void saving.run(
-      special ? `${path}/${special.id}` : path,
+      special ? `${path}/${encodeURIComponent(special.id)}` : path,
       special ? "PATCH" : "POST",
       { ...asked, source: saveSource, ...guards },
       saved,

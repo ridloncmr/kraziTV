@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 
+import { RecordingCollectionMaintenance } from "../testing/recording-collection-maintenance.js";
 import {
   collectionFixture,
   FIXTURE_TIME,

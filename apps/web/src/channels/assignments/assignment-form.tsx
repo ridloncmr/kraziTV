@@ -1,14 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   AssignmentSettings,
   CollectionPreview,
-  MediaCollection,
   PlaybackMode,
   SourceAssignment,
   StretchSetting,
-} from "../http/contracts.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+} from "../../http/contracts/programming.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { type MemberDraft, MemberRows, NEW_MEMBER } from "./member-rows.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";
@@ -21,8 +21,6 @@ import {
   UNCHOSEN_STRETCH,
 } from "./stretch-fields.js";
 import { PLAYBACK_MODE_CHOICES } from "./playback-mode-choices.js";
-
-// Every playback mode the editor offers, with the one line that explains it.
 
 /**
  * Edits one programming source assignment, or adds one when none is given:

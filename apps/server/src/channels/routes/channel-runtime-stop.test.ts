@@ -1,6 +1,5 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { SignalError } from "@krazitv/signal";
 
 import { createChannel, updateChannel } from "../../testing/api-requests.js";

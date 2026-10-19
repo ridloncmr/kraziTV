@@ -1,8 +1,8 @@
-import { collectionAssignment } from "../testing/assignment-bodies.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { createChannel, send, signIn } from "../testing/api-requests.js";
+import { collectionAssignment } from "../testing/assignment-bodies.js";
 import {
   collectionFixture,
   collectionItemFixture,

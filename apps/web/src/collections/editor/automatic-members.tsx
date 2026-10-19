@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { displayDuration } from "../../controls/display-duration.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import type { CollectionMember, ExcludedItem } from "../../http/contracts.js";
+import type {
+  CollectionMember,
+  ExcludedItem,
+} from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { ReadOnlyMembers } from "./read-only-members.js";
 

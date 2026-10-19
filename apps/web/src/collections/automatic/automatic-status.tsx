@@ -1,5 +1,5 @@
 import { displayTime } from "../../controls/display-time.js";
-import type { MediaCollection } from "../../http/contracts.js";
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import { kindLabel } from "./criterion-picker.js";
 
 /**
@@ -50,7 +50,12 @@ export function MaintenanceReport({
 }: {
   collection: MediaCollection;
 }) {
-  const since = displayTime(collection.maintainedAt);
+  // Maintenance has run for every automatic collection; a converted one keeps
+  // no time, and its manual editor never shows this report.
+  const since =
+    collection.maintainedAt === null
+      ? "never"
+      : displayTime(collection.maintainedAt);
   if (collection.maintenanceError !== null) {
     return (
       <p role="alert" className="error-message">
