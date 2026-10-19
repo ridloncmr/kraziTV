@@ -10,6 +10,8 @@ export interface TmdbTitleSummary {
   releaseDate?: string;
   /** TMDB's image path; the browser loads the image from TMDB. */
   posterPath?: string;
+  /** A series' production countries, as ISO 3166-1 codes; TMDB lists none for a movie. */
+  originCountries?: string[];
 }
 
 /** A parsed JSON object whose fields can be read. */
@@ -41,7 +43,18 @@ export function readTitleSummary(
   if (releaseDate !== undefined) summary.releaseDate = releaseDate;
   const posterPath = text(value.poster_path);
   if (posterPath !== undefined) summary.posterPath = posterPath;
+  const originCountries = readCountries(value.origin_country);
+  if (originCountries !== undefined) summary.originCountries = originCountries;
   return summary;
+}
+
+// Reads a series' `origin_country`; absent, empty, or malformed means unknown.
+function readCountries(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const codes = value.filter(
+    (code): code is string => typeof code === "string",
+  );
+  return codes.length === value.length ? codes : undefined;
 }
 
 /** Reads a search body's `results` with `read`, or undefined when any is unreadable. */

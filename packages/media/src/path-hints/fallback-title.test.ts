@@ -16,6 +16,7 @@ describe("fallbackTitle", () => {
     ["Show/s01e05-e06.mkv", "Show – S01E05–E06"],
     ["Firefly/Specials/s00e01.mkv", "Firefly – S00E01"],
     ["Show/Season 12/s12e104.mkv", "Show – S12E104"],
+    ["Wolverine/Wolverine - Episode 04.mp4", "Wolverine – Episode 4"],
     ["Alien (1979)/movie.mkv", "Alien (1979)"],
     ["The Thing/movie.mkv", "The Thing"],
     ["Movies/Heat (1995) [1080p].mkv", "Heat (1995)"],

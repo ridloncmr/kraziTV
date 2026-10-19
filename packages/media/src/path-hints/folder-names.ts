@@ -37,6 +37,14 @@ const SEASON_FOLDER = new RegExp(`^${SEASON}$`, "iu");
 // A series name ending in its season, as in `Firefly Season 1` or `Firefly S01`.
 const TRAILING_SEASON = new RegExp(`^(.+?)[ ._-]+${SEASON}$`, "iu");
 
+// A season written anywhere in a folder that names nothing else, as in
+// `Season 04 The Bount` or `(Season 4 Part 2)`. Whole words only, so a
+// series folder such as `Firefly S01E05` is never read as a season.
+const SEASON_ANYWHERE = new RegExp(
+  `(?<![\\p{L}\\p{N}])${SEASON}(?![\\p{L}\\p{N}])`,
+  "iu",
+);
+
 const DISC_FOLDER = /^(?:disc|disk|dvd|cd)[ ._-]*(\d+)$/iu;
 
 const EXTRAS_FOLDERS = new Set([
@@ -72,6 +80,7 @@ const SKIPPED_FOLDERS = new Set([
   "1080p",
   "2160p",
   "remux",
+  "plex versions",
   // Catch-all
   "tv",
   "tv shows",
@@ -114,13 +123,16 @@ export function classifyFolder(folder: string): FolderRole {
   if (cleaned !== undefined) return cleaned;
 
   const trailing = TRAILING_SEASON.exec(parsed.name);
-  return trailing
-    ? {
-        kind: "named",
-        named: { ...parsed, name: trailing[1] },
-        season: Number(trailing[2]),
-      }
-    : { kind: "named", named: { ...parsed, name: parsed.name } };
+  if (trailing) {
+    return {
+      kind: "named",
+      named: { ...parsed, name: trailing[1] ?? parsed.name },
+      season: Number(trailing[2]),
+    };
+  }
+  const anywhere = SEASON_ANYWHERE.exec(parsed.name);
+  if (anywhere) return { kind: "season", season: Number(anywhere[1]) };
+  return { kind: "named", named: { ...parsed, name: parsed.name } };
 }
 
 // Matches a whole name against the folder list, or undefined when it names something.

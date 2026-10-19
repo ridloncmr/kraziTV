@@ -69,7 +69,7 @@ describe("derivePathHints", () => {
     ).toMatchObject({ series: "Firefly", year: 2002, strength: "strong" });
     expect(
       hintsFor("Movies/Alien.1979.Remastered.2160p.UHD.HDR.x265.mkv"),
-    ).toMatchObject({ title: "Alien 1979 Remastered" });
+    ).toMatchObject({ title: "Alien", year: 1979 });
     expect(hintsFor("Movies/Heat (1995) WEB-DL HEVC DTS.mkv")).toEqual({
       title: "Heat",
       year: 1995,
@@ -226,6 +226,11 @@ describe("derivePathHints", () => {
       title: "Alien",
       year: 1979,
     });
+    // A scene-style name of the folder's title and year is the same thing.
+    expect(hintsFor("Annabelle (2014)/Annabelle.2014.mp4")).toMatchObject({
+      title: "Annabelle",
+      year: 2014,
+    });
     expect(hintsFor("Sci-Fi Night/Aliens (1986).mkv")).toMatchObject({
       title: "Aliens",
       year: 1986,
@@ -329,5 +334,170 @@ describe("derivePathHints", () => {
     expect(hintsFor("Firefly/firefly.s01e05.mkv")).toMatchObject({
       series: "Firefly",
     });
+  });
+
+  // The show's own folder holds its season folders, so it names the series
+  // for every file beneath it, whatever the season folders are called.
+  it.each([
+    [
+      "Survivor/Survivor - Season 44/Survivor - S44E10.mkv",
+      { series: "Survivor", seriesFolder: "Survivor", season: 44 },
+    ],
+    [
+      "Avatar - The Last Airbender (2005)/Book One - Water/Avatar - The Last Airbender - S01E07.mkv",
+      {
+        series: "Avatar - The Last Airbender",
+        seriesFolder: "Avatar - The Last Airbender (2005)",
+        year: 2005,
+        season: 1,
+      },
+    ],
+    [
+      "Attack on Titan/Attack On Titan (Season 4 Part 2)/Attack on Titan - S04E17.mkv",
+      { series: "Attack on Titan", seriesFolder: "Attack on Titan", season: 4 },
+    ],
+    ["Bleach/Season 04  The Bount/s04e65.mkv", { series: "Bleach", season: 4 }],
+    [
+      "Courage the Cowardly Dog (1999)/Season 1 (1999-2000)/s01e01.mkv",
+      { series: "Courage the Cowardly Dog", year: 1999, season: 1 },
+    ],
+    [
+      "Firefly (2002)/New Girl (2011) Season 05 S05 (1080p WEB-DL x265) [UTR]/s05e14.mkv",
+      { series: "Firefly", year: 2002, season: 5 },
+    ],
+  ])("names the series from the outermost folder for %s", (path, expected) => {
+    expect(hintsFor(path)).toMatchObject(expected);
+  });
+
+  it("lets the series folder's name and year win over a filename that agrees with it", () => {
+    expect(
+      hintsFor(
+        "Mr Robot (2015)/Mr Robot (2015) Season 4/Mr Robot (2022) - S04E05.mkv",
+      ),
+    ).toMatchObject({ series: "Mr Robot", year: 2015, season: 4 });
+    expect(
+      hintsFor("Survivorman (2005)/Season 5/Survivorman and Son - S05E06.mkv"),
+    ).toMatchObject({ series: "Survivorman", year: 2005 });
+    expect(
+      hintsFor(
+        "Whose Line Is It Anyway (US) (1998)/Season 3/Whose Line Is It Anyway! (US) - S03E01.mkv",
+      ),
+    ).toMatchObject({
+      series: "Whose Line Is It Anyway",
+      country: "US",
+      year: 1998,
+    });
+  });
+
+  it("keeps a filename's own series when it names something else than its folder", () => {
+    expect(
+      hintsFor("The Brady Bunch (Complete TV series)/Brady Bunch S04E23.mp4"),
+    ).toMatchObject({
+      series: "Brady Bunch",
+      seriesFolder: "The Brady Bunch (Complete TV series)",
+    });
+    expect(hintsFor("Random Stuff/Firefly (2002).S01E05.mkv")).toMatchObject({
+      series: "Firefly",
+      year: 2002,
+    });
+  });
+
+  it("reads a country tag as a hint, never as part of the name", () => {
+    expect(hintsFor("Shameless (US) (2011)/Season 9/s09e08.mkv")).toMatchObject(
+      { series: "Shameless", country: "US", year: 2011 },
+    );
+    expect(hintsFor("The Office (UK)/s01e01.mkv")).toMatchObject({
+      series: "The Office",
+      country: "GB",
+    });
+  });
+
+  it.each([
+    [
+      "Columbo/Columbo - (S07EP03) - (1978) Make Me a Perfect Murder.mp4",
+      7,
+      3,
+      3,
+    ],
+    ["Show/Season 7/Show 7x03.mkv", 7, 3, 3],
+    ["Regular Show/Season 3/Regular Show S03E04a In The House.mkv", 3, 4, 4],
+    ["Rocket Power/Season 1/Rocket Power S01E01AB - New Squid.m4v", 1, 1, 1],
+    ["Atlantis/Season 1/ATLANTIS - S01 E11 - Hunger Pangs.mp4", 1, 11, 11],
+    ["Pokémon (1998)/s0/Pokemon - SS016 - Luvdisc.mkv", 0, 16, 16],
+    ["Courage/Season 1/Courage - S01E11-E12 - Two Tales.mp4", 1, 11, 12],
+  ])("reads the episode code in %s", (path, season, first, last) => {
+    expect(hintsFor(path)).toMatchObject({
+      season,
+      episode: { first, last },
+      strength: "strong",
+    });
+  });
+
+  it("reads an episode numbered without a season, taking the folder's season when it has one", () => {
+    expect(
+      hintsFor("Anime/Wolverine/Wolverine - Episode 04 - Omega Red (720p).mp4"),
+    ).toEqual({
+      series: "Wolverine",
+      seriesFolder: "Anime/Wolverine",
+      episode: { first: 4, last: 4 },
+      extra: false,
+      strength: "strong",
+    });
+    expect(hintsFor("Wolverine/Season 1/Wolverine - Ep. 04.mp4")).toMatchObject(
+      {
+        series: "Wolverine",
+        season: 1,
+        episode: { first: 4, last: 4 },
+      },
+    );
+  });
+
+  it("reads a bare trailing number as the episode only under a season folder", () => {
+    expect(hintsFor("Bleach/Season 04 The Bount/Bleach 64.mkv")).toMatchObject({
+      series: "Bleach",
+      season: 4,
+      episode: { first: 64, last: 64 },
+      strength: "strong",
+    });
+    expect(hintsFor("Movies/Apollo 13 (1995).mkv")).toMatchObject({
+      title: "Apollo 13",
+    });
+    expect(hintsFor("Ocean's Eleven/Oceans 11.mkv")).not.toHaveProperty(
+      "episode",
+    );
+  });
+
+  it("drops edition labels and copy numbers from a movie title", () => {
+    expect(
+      hintsFor("Saw - Uncut Edition (2005)/Saw - Uncut Edition (2005).mkv"),
+    ).toEqual({
+      title: "Saw",
+      year: 2005,
+      extra: false,
+      strength: "strong",
+    });
+    expect(
+      hintsFor("Jumanji (1995)/Jumanji (1995)  Special Edition.mkv"),
+    ).toMatchObject({ title: "Jumanji", year: 1995 });
+    expect(
+      hintsFor("College - Unrated (2008)/College - Unrated (2008).mkv"),
+    ).toMatchObject({ title: "College", year: 2008 });
+    expect(
+      hintsFor(
+        "Holiday in Handcuffs (2007)/Holiday in Handcuffs (2007)(1).mkv",
+      ),
+    ).toMatchObject({ title: "Holiday in Handcuffs", year: 2007 });
+    expect(hintsFor("Movies/Uncut Gems (2019).mkv")).toMatchObject({
+      title: "Uncut Gems",
+    });
+  });
+
+  it("skips a Plex Versions folder and reads a Specials folder with a year range", () => {
+    expect(
+      hintsFor("College (2008)/Plex Versions/Optimized/College (2008).mp4"),
+    ).toMatchObject({ title: "College", year: 2008 });
+    expect(
+      hintsFor("Courage (1999)/Specials (1995-2014)/Courage - S00E03.mp4"),
+    ).toMatchObject({ series: "Courage", season: 0 });
   });
 });

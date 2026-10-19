@@ -9,15 +9,16 @@ interface SeriesEpisode {
    */
   key: string;
   series: string;
-  season: number;
+  /** Absent for an episode numbered through the whole series. */
+  season?: number;
   episode: { first: number; last: number };
 }
 
 /**
  * Places an episode file in its shared series, or returns undefined for
  * anything else. Files with equal keys share one series search, and one
- * owner's choice of series; a file needs a series name, series folder,
- * season, and episode to join.
+ * owner's choice of series; a file needs a series name, series folder, and
+ * episode to join.
  */
 export function seriesEpisode(
   hints: PathHints,
@@ -27,7 +28,6 @@ export function seriesEpisode(
   if (
     series === undefined ||
     seriesFolder === undefined ||
-    season === undefined ||
     episode === undefined
   ) {
     return undefined;
@@ -37,7 +37,9 @@ export function seriesEpisode(
     series.toLowerCase(),
     year ?? "",
   ].join("\u0000");
-  return { key, series, season, episode };
+  return season === undefined
+    ? { key, series, episode }
+    : { key, series, season, episode };
 }
 
 /**
