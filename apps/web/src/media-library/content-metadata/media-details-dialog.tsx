@@ -73,7 +73,7 @@ export function MediaDetailsDialog({
       episodeLine(metadata),
       corrected.has("seasonNumber") || corrected.has("episodeNumber"),
     ],
-    ["Released", metadata.releaseDate],
+    ["Released", metadata.releaseDate, corrected.has("releaseYear")],
     ["Genres", metadata.genres.join(", ") || null],
     ["Franchise", metadata.franchiseName],
     ["Tags", metadata.tags.join(", ") || null],

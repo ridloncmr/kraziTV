@@ -57,20 +57,67 @@ describe("correction routes", () => {
     });
   });
 
-  it("keeps a correction when a choice replaces the item's match and facts", async () => {
-    const { server } = await scanned(["The Thing/movie.mkv"]);
+  it("settles an item that needed a choice by a correction, dropping its candidates", async () => {
+    const { server, tmdb } = await scanned(["The Thing/movie.mkv"]);
     const thing = await idOf(server, "The Thing/movie.mkv");
-    await correct(server, thing, { title: "The Thing (Carpenter)" });
-
-    await send(server, "POST", `/metadata/matches/${thing}/choice`, {
-      tmdbId: THE_THING_1982,
-    });
-
+    // Tags alone are no correction, so the choice is still waiting.
+    await correct(server, thing, { tags: ["horror"] });
     await expect(metadataOf(server, thing)).resolves.toMatchObject({
-      matchState: "matched",
-      title: "The Thing (Carpenter)",
-      releaseDate: "1982-06-25",
+      matchState: "ambiguous",
     });
+
+    await expect(
+      correct(server, thing, {
+        title: "The Thing (Carpenter)",
+        releaseYear: 1982,
+      }),
+    ).resolves.toMatchObject({
+      status: 200,
+      body: {
+        metadata: {
+          matchState: "unmatched",
+          title: "The Thing (Carpenter)",
+          releaseDate: "1982",
+          correctedFields: ["title", "releaseYear"],
+        },
+      },
+    });
+    await expect(
+      send(server, "POST", `/metadata/matches/${thing}/choice`, {
+        tmdbId: THE_THING_1982,
+      }),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "match_not_ambiguous" } },
+    });
+    // Corrected, the item is left alone by the next scan; clearing every
+    // correction lets it be looked up afresh.
+    const callsBefore = tmdb.paths().length;
+    await scan(server);
+    expect(tmdb.paths()).toHaveLength(callsBefore);
+    await correct(server, thing, { title: null, releaseYear: null });
+    await scan(server);
+    await expect(metadataOf(server, thing)).resolves.toMatchObject({
+      matchState: "ambiguous",
+      releaseDate: null,
+    });
+  });
+
+  it("corrects a release year over TMDB's date, and refuses one outside the film era", async () => {
+    const { server } = await scanned(["Alien (1979)/movie.mkv"]);
+    const alien = await idOf(server, "Alien (1979)/movie.mkv");
+
+    await expect(
+      correct(server, alien, { releaseYear: 1980 }),
+    ).resolves.toMatchObject({
+      status: 200,
+      body: {
+        metadata: { releaseDate: "1980", correctedFields: ["releaseYear"] },
+      },
+    });
+    await expect(
+      correct(server, alien, { releaseYear: 1492 }),
+    ).resolves.toMatchObject({ status: 400 });
   });
 
   it("corrects a two-part episode to a single episode, leaving uncorrected fields to TMDB", async () => {

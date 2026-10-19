@@ -50,6 +50,12 @@ function merged(
     series_name: kept(change.seriesName, stored?.series_name),
     season_number: kept(change.seasonNumber, stored?.season_number),
     episode_number: kept(change.episodeNumber, stored?.episode_number),
+    release_date: kept(
+      change.releaseYear === undefined || change.releaseYear === null
+        ? change.releaseYear
+        : String(change.releaseYear),
+      stored?.release_date,
+    ),
   };
 }
 

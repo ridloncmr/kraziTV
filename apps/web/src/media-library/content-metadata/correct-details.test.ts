@@ -32,8 +32,9 @@ it("sends only changed fields, clears an emptied one, and shows the corrected it
         title: "Safe",
         episodeNumber: 7,
         lastEpisodeNumber: 7,
+        releaseDate: "2003",
         tags: ["space western", "heist"],
-        correctedFields: ["title", "episodeNumber"],
+        correctedFields: ["title", "episodeNumber", "releaseYear"],
       },
     },
     "PATCH",
@@ -45,6 +46,7 @@ it("sends only changed fields, clears an emptied one, and shows the corrected it
   type(form, "Title", "Safe");
   type(form, "Episode", "7");
   type(form, "Series", "");
+  type(form, "Year", "2003");
   type(form, "Tags", " space western, heist ,, ");
   fireEvent.click(form.getByRole("button", { name: "Save" }));
 
@@ -56,12 +58,14 @@ it("sends only changed fields, clears an emptied one, and shows the corrected it
       title: "Safe",
       seriesName: null,
       episodeNumber: 7,
+      releaseYear: 2003,
       tags: ["space western", "heist"],
     },
   ]);
   expect(details.getByText("Season 1, episode 7")).toBeTruthy();
+  expect(details.getByText("2003")).toBeTruthy();
   expect(details.getByText("space western, heist")).toBeTruthy();
-  expect(details.getAllByText("(your correction)")).toHaveLength(2);
+  expect(details.getAllByText("(your correction)")).toHaveLength(3);
   await waitFor(() =>
     expect(api.requestsTo("/media-items").length).toBeGreaterThan(listReads),
   );

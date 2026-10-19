@@ -11,9 +11,9 @@ export { discTrack } from "./path-hints/disc-track.js";
 export {
   lookUpEpisodes,
   lookUpEpisodesInSeries,
-  type EpisodeHints,
   type EpisodeLookup,
 } from "./metadata-matching/look-up-episodes.js";
+export type { EpisodeHints } from "./metadata-matching/episode-placement.js";
 export {
   lookUpMovie,
   lookUpMovieById,
@@ -36,3 +36,4 @@ export type {
 } from "./probe/contracts.js";
 export { MediaProbeError } from "./probe/media-probe-error.js";
 export { TmdbClient, type TmdbKeyCheck } from "./tmdb/tmdb-client.js";
+export type { TmdbTitleSummary } from "./tmdb/tmdb-title.js";

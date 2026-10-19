@@ -1,6 +1,7 @@
 import {
   lookUpEpisodesInSeries,
   lookUpMovieById,
+  type EpisodeHints,
   type EpisodeLookup,
   type MovieLookup,
   type TmdbClient,
@@ -21,7 +22,7 @@ interface DueRefresh {
   /** The query that found the match, kept as the refreshed lookup's evidence. */
   query: MovieLookup["query"];
   /** An episode's place in its series; absent for a movie. */
-  place?: { season: number; episode: { first: number; last: number } };
+  place?: EpisodeHints;
 }
 
 /** A due item with what TMDB answered for it now. */
@@ -77,9 +78,14 @@ export async function readDueRefreshes(
   return rows.map(({ evidence, season, first, last, ...row }) => ({
     ...row,
     query: readMatchEvidence(evidence).query,
-    ...(season === null || first === null
+    ...(first === null
       ? {}
-      : { place: { season, episode: { first, last: last ?? first } } }),
+      : {
+          place: {
+            ...(season === null ? {} : { season }),
+            episode: { first, last: last ?? first },
+          },
+        }),
   }));
 }
 
@@ -123,6 +129,8 @@ export async function lookUpDue(
     // An episode without a stored place cannot be fetched again; it fails
     // like a lookup TMDB cannot answer, and expires on schedule.
     const placed = items.filter((item) => item.place !== undefined);
+    // Stored places are read as stored: a refresh of a few items at a time
+    // must never re-place one by the folder-wide absolute-numbering rule.
     const lookups = await lookUpEpisodesInSeries(
       tmdb,
       apiKey,
@@ -130,6 +138,7 @@ export async function lookUpDue(
       first.query,
       placed.flatMap((item) => item.place ?? []),
       signal,
+      { countThroughSeries: false },
     );
     answers.push(
       ...items.map((item) => {
@@ -151,9 +160,11 @@ const NO_PLACE: Failure = {
 };
 
 /**
- * Narrows a by-ID lookup to a match or a failure. A series that no longer
- * lists the item's episode answers `ambiguous`, which for an item already
- * matched means TMDB stopped knowing it.
+ * Narrows a by-ID lookup to a match or a failure, which is all a read by ID
+ * answers: a movie by ID is matched or failed, and a series read keeps an
+ * episode TMDB no longer lists as a match with its stored numbers and no
+ * episode title, since the series itself is still known. The narrowing
+ * keeps the lookup types honest should a read ever answer otherwise.
  */
 function settled(lookup: MovieLookup | EpisodeLookup): RefreshAnswer["lookup"] {
   if (lookup.kind === "matched" || lookup.kind === "failed") return lookup;

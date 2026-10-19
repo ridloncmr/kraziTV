@@ -51,6 +51,23 @@ describe("groupLookups", () => {
     });
   });
 
+  it("carries an episode numbered without a season as such", () => {
+    const { groups } = groupLookups(
+      [hinted("Anime/Wolverine/Wolverine - Episode 04.mp4")],
+      new Set(),
+      true,
+    );
+
+    expect(groups[0]).toMatchObject({
+      kind: "series",
+      hints: { title: "Wolverine" },
+      files: [{ episode: { episode: { first: 4, last: 4 } } }],
+    });
+    expect(
+      groups[0]?.kind === "series" && groups[0].files[0]?.episode,
+    ).not.toHaveProperty("season");
+  });
+
   it("searches separately for same-named series in different series folders or years", () => {
     const { groups } = summarize([
       hinted("Classic/Doctor Who/s01e01.mkv"),

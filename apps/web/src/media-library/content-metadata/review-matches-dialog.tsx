@@ -13,8 +13,8 @@ type Tally = Record<Exclude<ChoiceOutcome, "gone">, number>;
 
 /**
  * Walks the owner through every item needing a choice, one step at a time:
- * one step per series folder or movie file. Each choice commits as it is
- * made, so closing early keeps every earlier one. Steps are read once when
+ * one step per series folder or movie file. Each choice or correction
+ * commits as it is made, so closing early keeps every earlier one. Steps are read once when
  * the dialog opens; a step settled since then is dropped uncounted.
  */
 export function ReviewMatchesDialog({ onClose }: { onClose: () => void }) {
@@ -24,6 +24,7 @@ export function ReviewMatchesDialog({ onClose }: { onClose: () => void }) {
   const [index, setIndex] = useState(0);
   const [tally, setTally] = useState<Tally>({
     chosen: 0,
+    corrected: 0,
     rejected: 0,
     skipped: 0,
   });
@@ -58,6 +59,8 @@ export function ReviewMatchesDialog({ onClose }: { onClose: () => void }) {
           <dl className="facts">
             <dt>Chosen</dt>
             <dd>{tally.chosen}</dd>
+            <dt>Corrected</dt>
+            <dd>{tally.corrected}</dd>
             <dt>Rejected</dt>
             <dd>{tally.rejected}</dd>
             <dt>Skipped</dt>

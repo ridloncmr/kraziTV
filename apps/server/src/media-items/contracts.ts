@@ -48,6 +48,12 @@ export interface ContentMetadata {
   lastEpisodeNumber: number | null;
   /** First release as `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`, keeping its precision. */
   releaseDate: string | null;
+  /**
+   * True for an episode matched to a series whose TMDB season does not list
+   * it, as when TMDB and TVDB number a season differently; its season and
+   * episode numbers are the file's own.
+   */
+  episodeUnlisted: boolean;
   genres: string[];
   franchiseName: string | null;
   description: string | null;
@@ -74,7 +80,7 @@ export interface ContentIdentity {
 
 /** A content fact the owner can correct over what TMDB says. */
 export type CorrectableField =
-  "title" | "seriesName" | "seasonNumber" | "episodeNumber";
+  "title" | "seriesName" | "seasonNumber" | "episodeNumber" | "releaseYear";
 
 /**
  * One page of the catalog listing; an empty `search` matches every item.

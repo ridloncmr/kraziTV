@@ -6,6 +6,7 @@ import { runImmediateTransaction } from "../../database/writes/immediate-transac
 import { findUnknownMediaItemIds } from "../../media-items/media-item-repository.js";
 import type { CorrectionChange } from "../contracts.js";
 import { recordMatchedDuration } from "../persistence/matched-duration.js";
+import { settleByCorrection } from "./settle-by-correction.js";
 import { storeCorrection } from "./store-correction.js";
 
 /**
@@ -34,7 +35,8 @@ export class CorrectionService {
    * stored row under write authority, so two changes to different fields both
    * land, and a removed item is refused rather than given corrections. Saving
    * counts as the owner reviewing the file, so a matched item takes its
-   * current duration as its match-time duration.
+   * current duration as its match-time duration, and an item that needed a
+   * choice is settled by the correction instead.
    */
   async correct(
     mediaItemId: string,
@@ -45,6 +47,7 @@ export class CorrectionService {
       if (unknown.length > 0) return "item_not_found" as const;
       await storeCorrection(pinned, mediaItemId, change);
       await recordMatchedDuration(pinned, mediaItemId);
+      await settleByCorrection(pinned, mediaItemId);
       return "corrected" as const;
     });
     if (result === "corrected") void this.#collections.request();

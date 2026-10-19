@@ -15,13 +15,15 @@ const FIELDS: [CorrectableField, string, "text" | "number"][] = [
   ["seriesName", "Series", "text"],
   ["seasonNumber", "Season", "number"],
   ["episodeNumber", "Episode", "number"],
+  ["releaseYear", "Year", "number"],
 ];
 
 /**
- * Corrects an item's title, series, season, and episode, and edits its tags.
- * Fields start at what the item shows; only changed fields are sent, and a
- * field emptied clears its correction so TMDB's value shows again. Works
- * without TMDB, since corrections are then the only way to set facts.
+ * Corrects an item's title, series, season, episode, and year, and edits
+ * its tags. Fields start at what the item shows; only changed fields are
+ * sent, and a field emptied clears its correction so TMDB's value shows
+ * again. Works without TMDB, since corrections are then the only way to set
+ * facts.
  */
 export function CorrectDetailsDialog({
   item,
@@ -70,9 +72,15 @@ export function CorrectDetailsDialog({
                 <input
                   name={field}
                   type={type}
-                  min={type === "number" ? 0 : undefined}
+                  min={
+                    type === "number"
+                      ? field === "releaseYear"
+                        ? 1878
+                        : 0
+                      : undefined
+                  }
                   step={type === "number" ? 1 : undefined}
-                  defaultValue={metadata[field] ?? ""}
+                  defaultValue={shownValue(metadata, field)}
                 />
               </label>
             ))}
@@ -104,6 +112,13 @@ export function CorrectDetailsDialog({
   );
 }
 
+// What a field's box starts with: the fact as shown, or for the year the
+// year of the release date, whatever its precision.
+function shownValue(metadata: ContentMetadata, field: CorrectableField) {
+  if (field === "releaseYear") return metadata.releaseDate?.slice(0, 4) ?? "";
+  return String(metadata[field] ?? "");
+}
+
 /**
  * The change a submitted form asks for: each field whose text differs from
  * what the item shows, null when emptied, and the tags when their list
@@ -116,7 +131,7 @@ function correctionChange(
   const change: Record<string, unknown> = {};
   for (const [field, , type] of FIELDS) {
     const text = formText(values, field).trim();
-    if (text === String(metadata[field] ?? "")) continue;
+    if (text === shownValue(metadata, field)) continue;
     change[field] =
       text === "" ? null : type === "number" ? Number(text) : text;
   }

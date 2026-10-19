@@ -58,3 +58,6 @@ export const stretchField = z.discriminatedUnion("kind", [
 
 /** A season or episode number as content facts store it; season 0 holds specials. */
 export const countField = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+
+/** A four-digit release year, from the first films to the far future. */
+export const yearField = z.number().int().min(1878).max(9999);

@@ -93,6 +93,27 @@ it("names both episodes of a multi-episode file and its series poster", async ()
   ).toBe("https://image.tmdb.org/t/p/w342/firefly.jpg");
 });
 
+it("says when TMDB does not list a matched episode, whose numbers are the file's", async () => {
+  const unlisted = {
+    ...FIREFLY,
+    id: "unlisted",
+    title: "Firefly – S01E15",
+    metadata: {
+      ...FIREFLY.metadata,
+      title: null,
+      episodeNumber: 15,
+      lastEpisodeNumber: 15,
+      episodeUnlisted: true,
+    },
+  };
+  await showCatalog([unlisted]);
+
+  const dialog = within(openDetails(unlisted.title));
+
+  expect(dialog.getByText("Matched; episode not listed on TMDB")).toBeTruthy();
+  expect(dialog.getByText("Season 1, episode 15")).toBeTruthy();
+});
+
 it("shows a failed lookup's error without TMDB's notice, since no TMDB facts appear", async () => {
   await showCatalog([OUTAGE]);
 

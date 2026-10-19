@@ -181,6 +181,28 @@ describe("MetadataRefreshService", () => {
     });
   });
 
+  it("keeps an episode TMDB no longer lists as matched, with its stored numbers and no title", async () => {
+    const library = await trackedLibrary();
+    const { tmdb, clock, refresh, firefly } = library;
+    // Season 1 now counts four episodes, so the stored fifth is gone.
+    firefly.episodeCounts = { 0: 1, 1: 4, 2: 10 };
+    clock.advance(150 * DAY_MS);
+
+    await refresh.refreshDue();
+
+    expect(tmdb.paths()).toContain("/3/tv/1437/season/1");
+    await expect(stored(library, library.episode)).resolves.toMatchObject({
+      state: "matched",
+      title: null,
+      series_name: "Firefly",
+      season_number: 1,
+      episode_number: 5,
+      episode_unlisted: 1,
+      refresh_error: null,
+      fetched_at: clock.now(),
+    });
+  });
+
   it("without a key, calls TMDB for nothing and still expires facts at six months", async () => {
     const library = await trackedLibrary();
     const { db, clock, refresh, tmdb } = library;

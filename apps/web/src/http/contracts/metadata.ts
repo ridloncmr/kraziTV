@@ -18,8 +18,11 @@ export interface MatchCandidates {
   durationMs: number | null;
   candidates: MatchCandidate[];
 }
-/** `GET /metadata/series-search`: TMDB series whose names match the owner's text. */
-export interface SeriesSearch {
+/**
+ * `GET /metadata/series-search` and `GET /metadata/matches/:id/search`: the
+ * TMDB titles the owner's own words found.
+ */
+export interface CandidateSearch {
   candidates: MatchCandidate[];
 }
 /**

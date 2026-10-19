@@ -2,16 +2,22 @@ import type { PathHints } from "./contracts.js";
 
 /**
  * Builds the display title an unmatched media item shows from its path
- * hints, such as `Firefly – S01E05`. Keeps the filename title when the hints
- * cannot name the item better: an extra, an episode without a series, or a
- * season file without an episode number.
+ * hints, such as `Firefly – S01E05`, or `Firefly – Episode 17` for an episode
+ * numbered without a season. Keeps the filename title when the hints cannot
+ * name the item better: an extra, an episode without a series, or a season
+ * file without an episode number.
  */
 export function fallbackTitle(hints: PathHints, filenameTitle: string): string {
   if (hints.extra) return filenameTitle;
   const { series, season, episode, track, disc, title, year } = hints;
-  if (series !== undefined && season !== undefined && episode !== undefined) {
-    const range = episode.last > episode.first ? `–E${pad(episode.last)}` : "";
-    return `${series} – S${pad(season)}E${pad(episode.first)}${range}`;
+  if (series !== undefined && episode !== undefined) {
+    const range = episode.last > episode.first;
+    if (season === undefined) {
+      const last = range ? `–${episode.last}` : "";
+      return `${series} – Episode ${episode.first}${last}`;
+    }
+    const last = range ? `–E${pad(episode.last)}` : "";
+    return `${series} – S${pad(season)}E${pad(episode.first)}${last}`;
   }
   if (series !== undefined && track !== undefined) {
     const discLabel = disc !== undefined ? `Disc ${disc} ` : "";

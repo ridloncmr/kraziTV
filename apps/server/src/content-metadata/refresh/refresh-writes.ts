@@ -8,7 +8,7 @@ import {
   jsonIdList,
   parameterChunks,
 } from "../../database/writes/parameter-chunks.js";
-import { contentFactsOf } from "../persistence/match-rows.js";
+import { contentFactsOf, dropCandidates } from "../persistence/match-rows.js";
 import type { RefreshAnswer } from "./due-refreshes.js";
 
 /**
@@ -82,15 +82,7 @@ export async function expireStoredFacts(
     }
     for (const chunk of parameterChunks(candidateIds)) {
       await yieldToEventLoop();
-      await pinned
-        .deleteFrom("metadata_match_candidates")
-        .where("media_item_id", "in", chunk)
-        .execute();
-      await pinned
-        .updateTable("metadata_matches")
-        .set({ state: "unmatched" })
-        .where("media_item_id", "in", chunk)
-        .execute();
+      await dropCandidates(pinned, chunk);
     }
     return factIds.length + candidateIds.length;
   });

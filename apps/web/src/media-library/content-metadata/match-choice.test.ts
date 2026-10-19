@@ -200,8 +200,107 @@ it("walks every step, dropping one settled meanwhile, and counts what was done",
   ].map(
     (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
   );
-  expect(tally).toEqual(["Chosen 1", "Rejected 1", "Skipped 1"]);
+  expect(tally).toEqual(["Chosen 1", "Corrected 0", "Rejected 1", "Skipped 1"]);
   expect(api.requestsTo(matchPath("step-3", "choice"))).toEqual([]);
+});
+
+it("searches TMDB in the owner's words and chooses a result the item never offered", async () => {
+  const api = await showLibrary([THING]);
+  api.reply(matchPath(THING.id, "candidates"), THE_THINGS);
+  api.reply(matchPath(THING.id, "search"), {
+    candidates: [
+      {
+        tmdbId: 348,
+        title: "Alien",
+        releaseDate: "1979-05-25",
+        posterPath: "/alien.jpg",
+      },
+    ],
+  });
+  api.reply(matchPath(THING.id, "choice"), { resolvedCount: 1 }, "POST");
+
+  fireEvent.click(
+    within(openMediaDetails("The Thing")).getByRole("button", {
+      name: "Choose match…",
+    }),
+  );
+  const dialog = within(
+    await screen.findByRole("dialog", { name: "Choose a match" }),
+  );
+  const box = await dialog.findByLabelText<HTMLInputElement>(
+    "Not here? Search TMDB",
+  );
+  // The search starts from the name the choice is about.
+  expect(box.value).toBe("The Thing");
+  fireEvent.change(box, { target: { value: "Alien" } });
+  fireEvent.change(dialog.getByLabelText("Year"), {
+    target: { value: "1979" },
+  });
+  fireEvent.click(dialog.getByRole("button", { name: "Search" }));
+
+  fireEvent.click(
+    await dialog.findByRole("button", { name: "Choose Alien (1979)" }),
+  );
+
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Choose a match" })).toBeNull(),
+  );
+  const [search] = api.requestsTo(matchPath(THING.id, "search"));
+  expect([search?.query.get("title"), search?.query.get("year")]).toEqual([
+    "Alien",
+    "1979",
+  ]);
+  expect(api.requestsTo(matchPath(THING.id, "choice"))[0]?.body).toEqual({
+    tmdbId: 348,
+  });
+});
+
+it("corrects a step's details by hand from the walk-through, counting it as corrected", async () => {
+  const steps = [{ mediaItemId: THING.id, title: "The Thing", itemCount: 1 }];
+  const api = await showLibrary([THING], steps);
+  api.reply(matchPath(THING.id, "candidates"), THE_THINGS);
+  api.reply(`/media-items/${encodeURIComponent(THING.id)}`, THING);
+  api.reply(
+    `/metadata/corrections/${encodeURIComponent(THING.id)}`,
+    {
+      ...THING,
+      metadata: {
+        ...THING.metadata,
+        matchState: "unmatched",
+        title: "The Thing (Carpenter)",
+        releaseDate: "1982",
+        correctedFields: ["title", "releaseYear"],
+      },
+    },
+    "PATCH",
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Review matches (1)" }),
+  );
+  const dialog = within(
+    await screen.findByRole("dialog", { name: "Choose a match" }),
+  );
+  fireEvent.click(
+    await dialog.findByRole("button", { name: "Correct details…" }),
+  );
+  // The item is read only once asked for, so the form follows its read.
+  await screen.findByLabelText("Title");
+  const form = within(screen.getByRole("dialog", { name: "Correct details" }));
+  fireEvent.change(form.getByLabelText("Title"), {
+    target: { value: "The Thing (Carpenter)" },
+  });
+  fireEvent.change(form.getByLabelText("Year"), { target: { value: "1982" } });
+  fireEvent.click(form.getByRole("button", { name: "Save" }));
+
+  const done = within(
+    await screen.findByRole("dialog", { name: "Review matches" }),
+  );
+  expect(done.getByText("Corrected").nextElementSibling?.textContent).toBe("1");
+  expect(
+    api.requestsTo(`/metadata/corrections/${encodeURIComponent(THING.id)}`)[0]
+      ?.body,
+  ).toEqual({ title: "The Thing (Carpenter)", releaseYear: 1982 });
 });
 
 it("keeps choices made before the walk-through closes early", async () => {

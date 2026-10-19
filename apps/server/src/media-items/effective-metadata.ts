@@ -27,6 +27,7 @@ export const METADATA_COLUMNS = [
   "content_facts.episode_number",
   "content_facts.last_episode_number",
   "content_facts.release_date",
+  "content_facts.episode_unlisted",
   "content_facts.genres",
   "content_facts.franchise_name",
   "content_facts.description",
@@ -40,6 +41,7 @@ export const METADATA_COLUMNS = [
   "metadata_corrections.series_name as corrected_series_name",
   "metadata_corrections.season_number as corrected_season_number",
   "metadata_corrections.episode_number as corrected_episode_number",
+  "metadata_corrections.release_date as corrected_release_date",
   "item_tags.tag_names as tags",
   "item_tags.tag_ids",
 ] as const;
@@ -56,6 +58,7 @@ export interface MetadataColumns {
   episode_number: number | null;
   last_episode_number: number | null;
   release_date: string | null;
+  episode_unlisted: number | null;
   genres: string | null;
   franchise_name: string | null;
   description: string | null;
@@ -69,6 +72,7 @@ export interface MetadataColumns {
   corrected_series_name: string | null;
   corrected_season_number: number | null;
   corrected_episode_number: number | null;
+  corrected_release_date: string | null;
   tags: string | null;
   tag_ids: string | null;
 }
@@ -91,6 +95,7 @@ export function effectiveMetadata(
     ["seriesName", row.corrected_series_name],
     ["seasonNumber", row.corrected_season_number],
     ["episodeNumber", row.corrected_episode_number],
+    ["releaseYear", row.corrected_release_date],
   ];
   return {
     matchState:
@@ -111,7 +116,8 @@ export function effectiveMetadata(
     seasonNumber: row.corrected_season_number ?? row.season_number,
     episodeNumber: row.corrected_episode_number ?? row.episode_number,
     lastEpisodeNumber: row.corrected_episode_number ?? row.last_episode_number,
-    releaseDate: row.release_date,
+    releaseDate: row.corrected_release_date ?? row.release_date,
+    episodeUnlisted: fromNullableSqliteBoolean(row.episode_unlisted) === true,
     genres: row.genres === null ? [] : (JSON.parse(row.genres) as string[]),
     franchiseName: row.franchise_name,
     description: row.description,

@@ -30,13 +30,6 @@ export function sendMetadataRefusal(
         "match_not_ambiguous",
         "This item's match has changed. Reopen it to see where it stands.",
       );
-    case "candidate_not_offered":
-      return sendApiError(
-        reply,
-        400,
-        "candidate_not_offered",
-        "Choose one of the candidates this item offers.",
-      );
     case "tmdb_key_missing":
       return sendApiError(
         reply,

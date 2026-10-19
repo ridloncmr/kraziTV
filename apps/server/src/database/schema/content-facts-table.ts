@@ -1,3 +1,5 @@
+import type { Generated } from "kysely";
+
 /** One media item's accepted content facts; unknown facts are null. */
 export interface ContentFactsTable {
   media_item_id: string;
@@ -21,4 +23,10 @@ export interface ContentFactsTable {
   /** An episode's first episode number and, for a multi-episode file, its last. */
   episode_number: number | null;
   last_episode_number: number | null;
+  /**
+   * 1 for an episode its TMDB season does not list, whose numbers are the
+   * file's own; defaults to 0, since rows written before the flag existed
+   * were all listed.
+   */
+  episode_unlisted: Generated<number>;
 }

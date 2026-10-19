@@ -9,6 +9,8 @@ describe("normalizeTitle", () => {
     ["Amélie", "Amelie"],
     ["Law & Order", "Law and Order"],
     ["  Star   Wars: A New Hope ", "star wars a new hope"],
+    ["Obi-Wan Kenobi", "Obi Wan Kenobi"],
+    ["Avatar: The Last Airbender", "Avatar - The Last Airbender"],
   ])("treats %j and %j as the same title", (left, right) => {
     expect(normalizeTitle(left)).toBe(normalizeTitle(right));
   });

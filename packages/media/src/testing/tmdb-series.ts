@@ -7,6 +7,7 @@ export function seriesResult(
   name: string,
   firstAirDate: string,
   posterPath: string | null = `/poster-${id}.jpg`,
+  originCountry: string[] = [],
 ) {
   return {
     id,
@@ -14,6 +15,7 @@ export function seriesResult(
     original_name: name,
     first_air_date: firstAirDate,
     poster_path: posterPath,
+    origin_country: originCountry,
     popularity: 1_000 - id,
   };
 }
@@ -62,18 +64,24 @@ interface KnownSeries {
 }
 
 /**
- * A client whose TMDB answers a series search from `byName` by query, and
- * each known series' details and seasons from its episode counts. It records
- * every URL it was asked for.
+ * A client whose TMDB answers a series search from `byName` by query and
+ * any first-air year, and each known series' details and seasons from its
+ * episode counts. It records every URL it was asked for.
  */
 export function tmdbSeries(byName: Record<string, KnownSeries[]>) {
   const routes: Parameters<typeof routedFetch>[0] = {
-    "/3/search/tv": (url) =>
-      Response.json({
-        results: (byName[url.searchParams.get("query") ?? ""] ?? []).map(
-          (series) => series.result,
-        ),
-      }),
+    // Filters by first-air year as TMDB does, so a dated search that keeps
+    // the right series out can be modeled.
+    "/3/search/tv": (url) => {
+      const year = url.searchParams.get("first_air_date_year");
+      return Response.json({
+        results: (byName[url.searchParams.get("query") ?? ""] ?? [])
+          .map((series) => series.result)
+          .filter(
+            (result) => year === null || result.first_air_date.startsWith(year),
+          ),
+      });
+    },
   };
   for (const { result, episodeCounts } of Object.values(byName).flat()) {
     routes[`/3/tv/${result.id}`] = () =>
@@ -107,4 +115,9 @@ export const DOCTOR_WHO_2005 = {
 // One episode hint, with a range only when `last` is given.
 export function episode(season: number, first: number, last = first) {
   return { season, episode: { first, last } };
+}
+
+// One episode numbered through the whole series, without a season.
+export function absoluteEpisode(number: number) {
+  return { episode: { first: number, last: number } };
 }

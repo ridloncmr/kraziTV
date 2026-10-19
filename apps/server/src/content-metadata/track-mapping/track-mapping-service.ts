@@ -16,6 +16,7 @@ import type {
   ProposalRow,
 } from "../contracts.js";
 import { storeCorrection } from "../corrections/store-correction.js";
+import { matchCandidateOf } from "../match-choice/match-candidate.js";
 import { replaceMatchRows } from "../persistence/match-rows.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
 import {
@@ -96,14 +97,7 @@ export class TrackMappingService {
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
     const found = await this.#tmdb.searchSeries(apiKey, { title: query });
     if (found.kind === "failed") return lookupFailed(found);
-    return {
-      candidates: found.value.map((series) => ({
-        tmdbId: series.id,
-        title: series.title,
-        releaseDate: series.releaseDate ?? null,
-        posterPath: series.posterPath ?? null,
-      })),
-    };
+    return { candidates: found.value.map(matchCandidateOf) };
   }
 
   /**
@@ -202,7 +196,13 @@ export class TrackMappingService {
           );
     const failed = lookups.find((lookup) => lookup.kind === "failed");
     if (failed?.kind === "failed") return lookupFailed(failed);
-    if (lookups.some((lookup) => lookup.kind !== "matched")) {
+    // A track maps only to an episode the season lists, since the owner
+    // picked it from that list.
+    if (
+      lookups.some(
+        (lookup) => lookup.kind !== "matched" || lookup.episodes.length === 0,
+      )
+    ) {
       return { kind: "episode_not_in_series" };
     }
 
@@ -298,7 +298,7 @@ function correctionOf(record: MetadataMatchRecord) {
     title: null,
     seriesName: lookup.series.title,
     seasonNumber: lookup.season,
-    episodeNumber: lookup.episodes[0]?.number ?? null,
+    episodeNumber: lookup.episode.first,
   };
 }
 

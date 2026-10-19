@@ -7,7 +7,6 @@ import { toApiTimestamp } from "./api-timestamp.js";
 type ApiErrorCode =
   | "airing_filler_conflict"
   | "already_set_up"
-  | "candidate_not_offered"
   | "channel_disabled"
   | "channel_not_found"
   | "channel_number_duplicate"

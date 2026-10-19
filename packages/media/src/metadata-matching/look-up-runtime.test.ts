@@ -17,7 +17,7 @@ describe("lookUpRuntimeMs", () => {
     ).resolves.toBe(117 * 60_000);
   });
 
-  it("sums a multi-episode file's episodes from one season fetch", async () => {
+  it("sums a multi-episode file's episodes from the series and one season fetch", async () => {
     const { client, urls } = tmdbSeries({ Firefly: [FIREFLY] });
 
     await expect(
@@ -27,7 +27,10 @@ describe("lookUpRuntimeMs", () => {
         episode: episode(1, 5, 6),
       }),
     ).resolves.toBe(2 * 44 * 60_000);
-    expect(urls.map((url) => url.pathname)).toEqual(["/3/tv/1437/season/1"]);
+    expect(urls.map((url) => url.pathname)).toEqual([
+      "/3/tv/1437",
+      "/3/tv/1437/season/1",
+    ]);
   });
 
   it("is unknown when the series lacks an episode or TMDB fails", async () => {

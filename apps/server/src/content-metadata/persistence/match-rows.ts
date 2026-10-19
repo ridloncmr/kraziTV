@@ -62,6 +62,29 @@ export async function replaceMatchRows(
 }
 
 /**
+ * Drops these items' candidate lists and returns each from ambiguous to
+ * unmatched, keeping its evidence: how expiry retires an old list and how a
+ * correction settles an item that needed a choice. An item in any other
+ * state keeps its rows, since only an ambiguous one holds candidates.
+ */
+export async function dropCandidates(
+  trx: Kysely<DatabaseSchema>,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await trx
+    .deleteFrom("metadata_match_candidates")
+    .where("media_item_id", "in", jsonIdList(ids))
+    .execute();
+  await trx
+    .updateTable("metadata_matches")
+    .set({ state: "unmatched" })
+    .where("media_item_id", "in", jsonIdList(ids))
+    .where("state", "=", "ambiguous")
+    .execute();
+}
+
+/**
  * Deletes every metadata row of these items, children before their decision,
  * leaving each as never looked up.
  */
@@ -153,16 +176,20 @@ export function contentFactsOf(
   lookup: MatchedLookup,
 ): Insertable<ContentFactsTable> {
   if ("series" in lookup) {
-    const { series, season, episodes } = lookup;
+    const { series, season, episode, episodes } = lookup;
     const [first] = episodes;
-    const titles = episodes.flatMap((episode) => episode.title ?? []);
+    const titles = episodes.flatMap((listed) => listed.title ?? []);
     return {
       ...NO_MOVIE_FACTS,
       media_item_id: id,
       content_type: "episode",
       // A multi-episode file is titled by every episode it holds; one
-      // untitled part leaves it unknown rather than reading as one episode.
-      title: titles.length === episodes.length ? titles.join(" / ") : null,
+      // untitled part, or an episode TMDB does not list, leaves it unknown
+      // rather than reading as one episode.
+      title:
+        episodes.length > 0 && titles.length === episodes.length
+          ? titles.join(" / ")
+          : null,
       release_date: first?.airDate ?? null,
       genres: JSON.stringify(series.genres),
       description: first?.description ?? null,
@@ -170,8 +197,9 @@ export function contentFactsOf(
       series_tmdb_id: series.id,
       series_name: series.title,
       season_number: season,
-      episode_number: first?.number ?? null,
-      last_episode_number: episodes.at(-1)?.number ?? null,
+      episode_number: episode.first,
+      last_episode_number: episode.last,
+      episode_unlisted: episodes.length === 0 ? 1 : 0,
     };
   }
   const { movie } = lookup;
@@ -186,6 +214,7 @@ export function contentFactsOf(
     franchise_name: movie.franchise?.name ?? null,
     description: movie.description ?? null,
     poster_path: movie.posterPath ?? null,
+    episode_unlisted: 0,
   };
 }
 

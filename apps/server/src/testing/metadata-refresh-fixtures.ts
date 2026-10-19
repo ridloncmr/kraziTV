@@ -103,6 +103,7 @@ export async function stored({ db }: Library, id: string) {
       "content_facts.series_tmdb_id",
       "content_facts.season_number",
       "content_facts.episode_number",
+      "content_facts.episode_unlisted",
       "content_facts.release_date",
       "content_facts.genres",
       "content_facts.poster_path",

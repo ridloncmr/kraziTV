@@ -8,15 +8,22 @@ export interface PathHints {
   series?: string;
   /**
    * An episode's or disc track's series folder below the media root,
-   * `/`-joined: its nearest naming folder, or its own folder when no folder
-   * names anything (`""` at the root). Episodes sharing it and their series
-   * name share one series; tracks sharing it and a season are mapped together.
+   * `/`-joined: the outermost naming folder, which holds the show's season
+   * folders, or its own folder when no folder names anything (`""` at the
+   * root). Episodes sharing it and their series name share one series;
+   * tracks sharing it and a season are mapped together.
    */
   seriesFolder?: string;
   /** A non-episodic file's movie title. */
   title?: string;
   /** A year written in the name, such as `(2002)`; never a release date. */
   year?: number;
+  /** A series' country tag, as `(US)` is written, in TMDB's form: `US`, `GB`. */
+  country?: string;
+  /**
+   * An episode's season. Absent for an episode numbered without one, as
+   * `Episode 17`, which counts through the whole series.
+   */
   season?: number;
   /** The file's episode, or both ends of a multi-episode range. */
   episode?: { first: number; last: number };

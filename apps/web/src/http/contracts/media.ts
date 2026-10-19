@@ -46,6 +46,8 @@ export interface ContentMetadata {
   episodeNumber: number | null;
   lastEpisodeNumber: number | null;
   releaseDate: string | null;
+  /** True for an episode matched to a series whose TMDB season does not list it; its numbers are the file's own. */
+  episodeUnlisted: boolean;
   genres: string[];
   franchiseName: string | null;
   description: string | null;
@@ -64,7 +66,7 @@ export interface ContentMetadata {
 }
 /** A content fact the owner can correct over what TMDB says. */
 export type CorrectableField =
-  "title" | "seriesName" | "seasonNumber" | "episodeNumber";
+  "title" | "seriesName" | "seasonNumber" | "episodeNumber" | "releaseYear";
 export interface MediaItemPage {
   items: MediaItem[];
   total: number;

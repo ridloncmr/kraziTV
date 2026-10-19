@@ -76,4 +76,51 @@ describe("matchTitle", () => {
       matchTitle({ title: "Alien", year: 1979, strength: "strong" }, [undated]),
     ).toEqual({ kind: "ambiguous", candidates: [undated] });
   });
+
+  it("matches the lone result of a year-constrained search whatever its title", () => {
+    const avp = {
+      id: 395,
+      title: "AVP: Alien vs. Predator",
+      releaseDate: "2004-08-12",
+    };
+
+    expect(
+      matchTitle(
+        { title: "Alien vs. Predator", year: 2004, strength: "strong" },
+        [avp],
+      ),
+    ).toEqual({ kind: "matched", result: avp });
+    // Without a year the title alone is not enough.
+    expect(
+      matchTitle({ title: "Alien vs. Predator", strength: "strong" }, [avp]),
+    ).toEqual({ kind: "ambiguous", candidates: [avp] });
+  });
+
+  it("tells same-titled series apart by a country hint", () => {
+    const uk = {
+      id: 1,
+      title: "Shameless",
+      releaseDate: "2004-01-13",
+      originCountries: ["GB"],
+    };
+    const us = {
+      id: 2,
+      title: "Shameless",
+      releaseDate: "2011-01-09",
+      originCountries: ["US"],
+    };
+
+    expect(
+      matchTitle({ title: "Shameless", country: "US", strength: "strong" }, [
+        uk,
+        us,
+      ]),
+    ).toEqual({ kind: "matched", result: us });
+    expect(
+      matchTitle({ title: "Shameless", country: "FR", strength: "strong" }, [
+        uk,
+        us,
+      ]),
+    ).toEqual({ kind: "ambiguous", candidates: [uk, us] });
+  });
 });

@@ -3,7 +3,7 @@ import type { MediaCollectionSummary } from "../http/contracts/collections.js";
 import type { ContentMetadata, MediaItem } from "../http/contracts/media.js";
 import type {
   MatchCandidates,
-  SeriesSearch,
+  CandidateSearch,
   TrackFolder,
   TrackProposal,
 } from "../http/contracts/metadata.js";
@@ -20,6 +20,7 @@ export const noMetadata: ContentMetadata = {
   episodeNumber: null,
   lastEpisodeNumber: null,
   releaseDate: null,
+  episodeUnlisted: false,
   genres: [],
   franchiseName: null,
   description: null,
@@ -207,7 +208,7 @@ export const TRACK_FOLDER: TrackFolder = {
 };
 
 /** The one TMDB series matching "Some Show". */
-export const SOME_SHOW_SEARCH: SeriesSearch = {
+export const SOME_SHOW_SEARCH: CandidateSearch = {
   candidates: [
     {
       tmdbId: 4242,

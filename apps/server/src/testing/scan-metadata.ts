@@ -94,9 +94,10 @@ export const SCAN_DOCTOR_WHO = [
   },
 ];
 
-/** Ambiguous series candidates with runtimes; only the newer series has season two. */
+/** Ambiguous series candidates with runtimes; both list the seasons a test folder holds. */
 export const CHOICE_DOCTOR_WHO_1963 = {
   ...SCAN_DOCTOR_WHO[0],
+  episodeCounts: { 1: 42, 2: 40 },
   episodeRuntime: 25,
 };
 export const CHOICE_DOCTOR_WHO_2005 = {

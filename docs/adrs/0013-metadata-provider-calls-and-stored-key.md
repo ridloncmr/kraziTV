@@ -35,7 +35,9 @@ schedule, or a broadcast signal.
   timeout, network error, or `5xx` is a reported failure, never a thrown scan
   failure. No outbound call runs while holding write authority.
 - The client calls only TMDB's fixed HTTPS API base. It sends search terms
-  derived from path hints, never file paths or other catalog data.
+  derived from path hints or typed by the owner into a search box, never file
+  paths or other catalog data. (Amended on 2026-10-18 for owner-typed
+  searches; [ADR 0017](0017-series-folder-and-folder-evidence.md).)
 - The server stores the token as-is in a single-row server settings table in
   the existing SQLite database, outside `accounts`. Its routes are gated; no
   route, log line, error message, or stored diagnostic ever contains it. It

@@ -14,6 +14,7 @@ import type { CollectionMaintenance } from "../../media-collections/maintenance/
 import { runImmediateTransaction } from "../../database/writes/immediate-transaction.js";
 import { jsonIdList } from "../../database/writes/parameter-chunks.js";
 import type {
+  MatchCandidate,
   MatchCandidates,
   MetadataRefusal,
   ReviewStep,
@@ -24,6 +25,7 @@ import {
 } from "../persistence/match-rows.js";
 import { recordMatchedDuration } from "../persistence/matched-duration.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
+import { matchCandidateOf } from "./match-candidate.js";
 import {
   chosenRecord,
   readDecision,
@@ -34,11 +36,11 @@ import { readMatchEvidence } from "./match-evidence.js";
 import { groupReviewSteps } from "./review-steps.js";
 
 /**
- * Applies the owner's match decisions: choosing a candidate, rejecting a
- * match, clearing a rejection, and keeping a match whose file changed. TMDB
- * is asked before any write, never
- * inside one (ADR 0013), so every write re-reads the items it changes under
- * write authority and changes only those still in the state it read.
+ * Applies the owner's match decisions: choosing a candidate or a searched
+ * title, rejecting a match, clearing a rejection, and keeping a match whose
+ * file changed. TMDB is asked before any write, never inside one (ADR
+ * 0013), so every write re-reads the items it changes under write authority
+ * and changes only those still in the state it read.
  */
 export class MatchChoiceService {
   readonly #db: Kysely<DatabaseSchema>;
@@ -116,7 +118,32 @@ export class MatchChoiceService {
   }
 
   /**
-   * Asks TMDB for one offered candidate's runtime, for this file's movie or
+   * Searches TMDB by the owner's own words for an ambiguous item, series or
+   * movie as the item's hints place it, so a title the automatic search
+   * never offered can still be chosen. Each search costs one call.
+   */
+  async search(
+    mediaItemId: string,
+    query: { title: string; year?: number },
+  ): Promise<
+    { kind: "found"; candidates: MatchCandidate[] } | MetadataRefusal
+  > {
+    const apiKey = await this.#tmdbKeys.readKey();
+    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
+    const waiting = await this.#readWaiting(mediaItemId);
+    if ("kind" in waiting) return waiting;
+    const found =
+      seriesEpisode(waiting.hints) === undefined
+        ? await this.#tmdb.searchMovies(apiKey, query)
+        : await this.#tmdb.searchSeries(apiKey, query);
+    if (found.kind === "failed") {
+      return { kind: "lookup_failed", reason: found.reason };
+    }
+    return { kind: "found", candidates: found.value.map(matchCandidateOf) };
+  }
+
+  /**
+   * Asks TMDB for one candidate's runtime, for this file's movie or
    * episodes, so the owner pays one call per runtime they want to compare.
    * Null when TMDB does not know it or the lookup fails.
    */
@@ -126,9 +153,9 @@ export class MatchChoiceService {
   ): Promise<{ kind: "runtime"; runtimeMs: number | null } | MetadataRefusal> {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
-    const offered = await this.#readOffered(mediaItemId, tmdbId);
-    if ("kind" in offered) return offered;
-    const place = seriesEpisode(offered.hints);
+    const waiting = await this.#readWaiting(mediaItemId);
+    if ("kind" in waiting) return waiting;
+    const place = seriesEpisode(waiting.hints);
     const runtimeMs = await lookUpRuntimeMs(
       this.#tmdb,
       apiKey,
@@ -140,11 +167,13 @@ export class MatchChoiceService {
   }
 
   /**
-   * Accepts one of an ambiguous item's candidates. For an episode, the chosen
+   * Accepts a TMDB title for an ambiguous item: one of its candidates, or
+   * one the owner searched for. TMDB's details of it are the only check,
+   * since the owner's choice is the decision. For an episode, the chosen
    * series also resolves every other ambiguous episode sharing its series
-   * folder whose episode the series holds; the rest stay ambiguous. Commits
-   * only to items still cataloged and with the same ambiguous decision after
-   * the TMDB reads.
+   * folder, each placed in the series as a lookup places it. Commits only
+   * to items still cataloged and with the same ambiguous decision after the
+   * TMDB reads.
    */
   async choose(
     mediaItemId: string,
@@ -152,15 +181,17 @@ export class MatchChoiceService {
   ): Promise<{ kind: "chosen"; resolvedCount: number } | MetadataRefusal> {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
-    const chosen = await this.#readOffered(mediaItemId, tmdbId);
+    const chosen = await this.#readWaiting(mediaItemId);
     if ("kind" in chosen) return chosen;
 
     const lookups = await this.#lookUpChoice(apiKey, chosen, tmdbId);
     const own = lookups.find(({ item }) => item.id === mediaItemId)?.lookup;
-    if (own?.kind === "failed") {
-      return { kind: "lookup_failed", reason: own.reason };
+    if (own?.kind !== "matched") {
+      return {
+        kind: "lookup_failed",
+        reason: own?.kind === "failed" ? own.reason : "TMDB gave no answer",
+      };
     }
-    if (own?.kind !== "matched") return { kind: "episode_not_in_series" };
 
     const lookedUpAt = this.#now();
     const matched = lookups.filter(({ lookup }) => lookup.kind === "matched");
@@ -280,9 +311,9 @@ export class MatchChoiceService {
   }
 
   /**
-   * Reads the chosen candidate's facts for the chosen item and, for an
-   * episode, for every ambiguous episode sharing its series folder, each
-   * paired with its own lookup.
+   * Reads the chosen title's facts for the chosen item and, for an episode,
+   * for every ambiguous episode sharing its series folder, each paired with
+   * its own lookup.
    */
   async #lookUpChoice(
     apiKey: string,
@@ -319,25 +350,6 @@ export class MatchChoiceService {
       const lookup = lookups[index];
       return lookup === undefined ? [] : [{ item, lookup }];
     });
-  }
-
-  /**
-   * Reads an item that needs a choice and offers `tmdbId`, or why not, so
-   * TMDB is only ever asked about a candidate the item's lookup found.
-   */
-  async #readOffered(
-    mediaItemId: string,
-    tmdbId: number,
-  ): Promise<Waiting | MetadataRefusal> {
-    const waiting = await this.#readWaiting(mediaItemId);
-    if ("kind" in waiting) return waiting;
-    const offered = await this.#db
-      .selectFrom("metadata_match_candidates")
-      .select("tmdb_id")
-      .where("media_item_id", "=", mediaItemId)
-      .where("tmdb_id", "=", tmdbId)
-      .executeTakeFirst();
-    return offered === undefined ? { kind: "candidate_not_offered" } : waiting;
   }
 
   /** Reads an item that needs a choice, or why it does not. */
