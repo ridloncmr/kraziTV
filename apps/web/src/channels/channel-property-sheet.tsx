@@ -82,6 +82,7 @@ export function ChannelPropertySheet({
             rules={programming.rules}
             assignments={lineup}
             collections={programming.collections.data}
+            contentKind={programming.contentKind}
             changed={programming.changed}
           />
         )}

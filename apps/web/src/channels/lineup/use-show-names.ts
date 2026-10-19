@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import { apiRequest, resourcePath } from "../../http/api-client.js";
+import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { MediaItem } from "../../http/contracts/media.js";
 import type { SourceAssignment } from "../../http/contracts/programming.js";
+import { useResourceMap } from "../../http/use-resource.js";
 import { joinShowNames } from "./show-labels.js";
 
 /**
@@ -16,37 +16,22 @@ export function useShowNames(
   collections: readonly MediaCollection[] | undefined,
   visible: boolean,
 ): (assignment: SourceAssignment) => string {
-  const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map());
-  const itemIds = [
-    ...new Set(
-      assignments.flatMap((assignment) =>
-        assignment.members.flatMap((member) =>
-          member.kind === "media_item" ? [member.mediaItemId] : [],
-        ),
+  const itemPath = (id: string) => resourcePath("media-items", id);
+  const items = useResourceMap<MediaItem>(
+    assignments.flatMap((assignment) =>
+      assignment.members.flatMap((member) =>
+        member.kind === "media_item" ? [itemPath(member.mediaItemId)] : [],
       ),
     ),
-  ].sort();
-  const missing = itemIds.filter((id) => !titles.has(id)).join(",");
-  useEffect(() => {
-    if (!visible || missing === "") return;
-    const controller = new AbortController();
-    for (const id of missing.split(",")) {
-      apiRequest<MediaItem>(resourcePath("media-items", id), {
-        signal: controller.signal,
-      }).then(
-        (item) => setTitles((current) => new Map(current).set(id, item.title)),
-        () => undefined,
-      );
-    }
-    return () => controller.abort();
-  }, [missing, visible]);
+    visible,
+  );
   return (assignment) =>
     joinShowNames(
       assignment.members.map((member) =>
         member.kind === "collection"
           ? (collections?.find(({ id }) => id === member.mediaCollectionId)
               ?.name ?? "A collection")
-          : (titles.get(member.mediaItemId) ?? "A media item"),
+          : (items.get(itemPath(member.mediaItemId))?.title ?? "A media item"),
       ),
     );
 }

@@ -16,6 +16,7 @@ import {
 } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
+import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelsApp } from "../channels-app.js";
 
 afterEach(() => {
@@ -69,6 +70,8 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
 
 const countBox = (dialog: HTMLElement) =>
   within(dialog).getByLabelText<HTMLInputElement>("Programs per turn");
+const perSitting = (dialog: HTMLElement) =>
+  within(dialog).getByLabelText<HTMLSelectElement>("Per sitting");
 const patches = (api: BrowserApi) =>
   api.requestsTo(ASSIGNMENT).filter((request) => request.method === "PATCH");
 
@@ -187,7 +190,7 @@ it("keeps an unsaved order across minimize and restore", async () => {
 it("discards every change on Cancel, so reopening shows the saved settings", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
   const dialog = await openProperties();
-  fireEvent.change(countBox(dialog), { target: { value: "2" } });
+  chooseOption(perSitting(dialog), "1 program");
   openAdvanced(dialog);
   fireEvent.click(within(dialog).getByLabelText("Plays in normal rotation"));
 
@@ -195,7 +198,7 @@ it("discards every change on Cancel, so reopening shows the saved settings", asy
 
   expect(screen.queryByRole("dialog")).toBeNull();
   const reopened = await openProperties();
-  expect(countBox(reopened).value).toBe("3");
+  expect(chosenOption(perSitting(reopened))).toBe("3 programs");
   expect(
     within(reopened).getByLabelText<HTMLInputElement>(
       "Plays in normal rotation",
@@ -206,32 +209,33 @@ it("discards every change on Cancel, so reopening shows the saved settings", asy
 
 it("saves on Apply and stays open, then saves on OK and closes", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
-  let count = 3;
+  let stretch: SourceAssignment["ordinaryStretch"] = {
+    kind: "programs",
+    count: 3,
+  };
   savesAs(api, () =>
-    favoritesAssignment("chronological", {
-      ordinaryStretch: { kind: "programs", count },
-    }),
+    favoritesAssignment("chronological", { ordinaryStretch: stretch }),
   );
   const dialog = await openProperties();
 
-  fireEvent.change(countBox(dialog), { target: { value: "2" } });
-  count = 2;
+  chooseOption(perSitting(dialog), "1 program");
+  stretch = { kind: "programs", count: 1 };
   fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
   await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(screen.getByRole("dialog", { name: "Favorites" })).toBe(dialog);
-  await screen.findByRole("cell", { name: "2 programs" });
+  await screen.findByRole("cell", { name: "1 program" });
 
-  fireEvent.change(countBox(dialog), { target: { value: "4" } });
-  count = 4;
+  chooseOption(perSitting(dialog), "~1 hr");
+  stretch = { kind: "airtime", minutes: 60 };
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(patches(api).map((request) => request.body)).toEqual([
     expect.objectContaining({
-      ordinaryStretch: { kind: "programs", count: 2 },
+      ordinaryStretch: { kind: "programs", count: 1 },
     }),
     expect.objectContaining({
-      ordinaryStretch: { kind: "programs", count: 4 },
+      ordinaryStretch: { kind: "airtime", minutes: 60 },
     }),
   ]);
 });
@@ -300,14 +304,14 @@ it("derives the marathon length from per sitting once the show can marathon", as
 
   fireEvent.click(within(dialog).getByLabelText("Can marathon"));
   within(dialog).getByText("up to 6 programs");
-  fireEvent.change(countBox(dialog), { target: { value: "4" } });
-  within(dialog).getByText("up to 8 programs");
+  chooseOption(perSitting(dialog), "1 program");
+  within(dialog).getByText("up to 2 programs");
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(patches(api)).toHaveLength(1));
   expect(patches(api)[0]?.body).toMatchObject({
-    ordinaryStretch: { kind: "programs", count: 4 },
-    marathonStretch: { kind: "programs", count: 8 },
+    ordinaryStretch: { kind: "programs", count: 1 },
+    marathonStretch: { kind: "programs", count: 2 },
   });
 });
 
@@ -613,8 +617,10 @@ it("adds a new show with the suggested per sitting and lists it after the first"
   fireEvent.change(within(dialog).getByLabelText("Programming source"), {
     target: { value: "other" },
   });
-  // The server suggests three programs per sitting for this collection.
-  await waitFor(() => expect(countBox(dialog).value).toBe("3"));
+  // The server suggests three episodes per sitting for this collection.
+  await waitFor(() =>
+    expect(chosenOption(perSitting(dialog))).toBe("3 episodes"),
+  );
   fireEvent.change(within(dialog).getByLabelText("Order"), {
     target: { value: "random" },
   });
@@ -653,6 +659,8 @@ it("asks for per sitting when the server has no suggestion, then saves an airtim
       .requestsTo("/programming-assignments/stretch-suggestion")
       .map((request) => request.query.get("mediaCollectionIds")),
   ).toContain("favorites");
+  expect(chosenOption(perSitting(dialog))).toBe("Choose…");
+  chooseOption(perSitting(dialog), "Custom…");
   expect(countBox(dialog).value).toBe("");
   fireEvent.change(within(dialog).getByLabelText("Turn length"), {
     target: { value: "airtime_range" },
@@ -694,8 +702,8 @@ it("keeps a derived marathon longer than per sitting suggested afterwards", asyn
     target: { value: "favorites" },
   });
 
-  await within(dialog).findByText("up to 6 programs");
-  expect(countBox(dialog).value).toBe("3");
+  await within(dialog).findByText("up to 6 episodes");
+  expect(chosenOption(perSitting(dialog))).toBe("3 episodes");
 });
 
 it("saves the suggested marathon chance and cooldown once a show can marathon", async () => {
@@ -733,4 +741,90 @@ it("saves the suggested marathon chance and cooldown once a show can marathon", 
   expect(
     api.requests.find((request) => request.method === "PUT")?.body,
   ).toEqual({ marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 });
+});
+
+it("words per-sitting presets in movies for a movie show and in episodes for an episode show, in Properties and the lineup", async () => {
+  await openLineup(
+    [
+      favoritesAssignment("release", {
+        ordinaryStretch: { kind: "programs", count: 1 },
+      }),
+      favoritesAssignment("episode", {
+        id: "other",
+        members: [{ kind: "collection", mediaCollectionId: "other" }],
+      }),
+    ],
+    [collectionWith("other", "Other")],
+    (api) =>
+      api.handle("/programming-assignments/stretch-suggestion", (request) =>
+        api.response(
+          request.query.get("mediaCollectionIds") === "favorites"
+            ? {
+                ordinaryStretch: { kind: "programs", count: 1 },
+                contentKind: "movies",
+              }
+            : {
+                ordinaryStretch: { kind: "programs", count: 3 },
+                contentKind: "episodes",
+              },
+        ),
+      ),
+  );
+  const options = (dialog: HTMLElement) =>
+    within(perSitting(dialog))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+  await screen.findByRole("cell", { name: "1 movie" });
+  await screen.findByRole("cell", { name: "3 episodes" });
+  const movies = await openProperties("Favorites");
+  await waitFor(() => expect(chosenOption(perSitting(movies))).toBe("1 movie"));
+  expect(options(movies)).toEqual([
+    "Choose…",
+    "1 movie",
+    "2 movies",
+    "3 movies",
+    "Custom…",
+  ]);
+  fireEvent.click(within(movies).getByRole("button", { name: "Cancel" }));
+  const episodes = await openProperties("Other");
+  await waitFor(() =>
+    expect(chosenOption(perSitting(episodes))).toBe("3 episodes"),
+  );
+  expect(options(episodes)).toEqual([
+    "Choose…",
+    "1 episode",
+    "3 episodes",
+    "~30 min",
+    "~1 hr",
+    "~2 hrs",
+    "Custom…",
+  ]);
+  chooseOption(perSitting(episodes), "~1 hr");
+  within(episodes).getByText(/runs over/);
+});
+
+it("round-trips a custom per sitting as Custom, in words in the lineup", async () => {
+  const range = {
+    kind: "airtime_range" as const,
+    minMinutes: 45,
+    maxMinutes: 90,
+  };
+  const { api } = await openLineup([
+    favoritesAssignment("chronological", { ordinaryStretch: range }),
+  ]);
+
+  await screen.findByRole("cell", { name: "45 min to 1 hr 30 min" });
+  const dialog = await openProperties();
+  expect(chosenOption(perSitting(dialog))).toBe("Custom");
+  expect(
+    within(dialog).getByLabelText<HTMLInputElement>("At least minutes").value,
+  ).toBe("45");
+  expect(
+    within(dialog).getByLabelText<HTMLInputElement>("At most minutes").value,
+  ).toBe("90");
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  await waitFor(() => expect(patches(api)).toHaveLength(1));
+  expect(patches(api)[0]?.body).toMatchObject({ ordinaryStretch: range });
 });

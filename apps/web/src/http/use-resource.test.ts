@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
-import { useMutation, useResource } from "./use-resource.js";
+import { useMutation, useResource, useResourceMap } from "./use-resource.js";
 
 afterEach(() => {
   cleanup();
@@ -113,4 +113,36 @@ it("closing an owner cancels its write and prevents a late success callback", as
   api.release("/scan", { done: true }, "POST");
   await pending!;
   expect(completed).not.toHaveBeenCalled();
+});
+
+it("reads each of several paths once, keeping a pending read when another path joins", async () => {
+  const api = new BrowserApi();
+  api.hold("/slow");
+  api.reply("/fast", { name: "fast" });
+  api.reply("/later", { name: "later" });
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(
+    ({ paths, visible }) => useResourceMap<{ name: string }>(paths, visible),
+    { initialProps: { paths: ["/slow", "/fast"], visible: false } },
+  );
+  expect(api.requests).toEqual([]);
+
+  view.rerender({ paths: ["/slow", "/fast"], visible: true });
+  await waitFor(() =>
+    expect(view.result.current.get("/fast")?.name).toBe("fast"),
+  );
+  view.rerender({ paths: ["/slow", "/fast", "/later"], visible: true });
+  await waitFor(() =>
+    expect(view.result.current.get("/later")?.name).toBe("later"),
+  );
+  await act(async () => {
+    api.release("/slow", { name: "slow" });
+  });
+
+  expect(view.result.current.get("/slow")?.name).toBe("slow");
+  expect(api.requests.map((request) => request.path).sort()).toEqual([
+    "/fast",
+    "/later",
+    "/slow",
+  ]);
 });

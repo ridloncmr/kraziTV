@@ -14,6 +14,7 @@ import {
   ruleFixture,
 } from "../../testing/admin-fixtures.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
+import { chooseOption } from "../../testing/choose-option.js";
 
 afterEach(() => {
   cleanup();
@@ -53,6 +54,16 @@ function editorApi(rules: unknown[] = []) {
     programmingTimezone: "America/New_York",
   });
   api.reply(RULES, rules);
+  // Christmas Movies holds movies; Favorites holds episodes.
+  api.handle("/programming-assignments/stretch-suggestion", (request) =>
+    api.response({
+      ordinaryStretch: null,
+      contentKind:
+        request.query.get("mediaCollectionIds") === "christmas"
+          ? "movies"
+          : "episodes",
+    }),
+  );
   api.reply("/channels/one/programming-preview", {
     configurationRevision: 1,
     turns: [],
@@ -147,9 +158,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   });
   fireEvent.click(within(form).getByLabelText("Christmas Movies"));
   fireEvent.click(within(form).getByLabelText("Own turn length"));
-  fireEvent.change(within(form).getByLabelText("Programs per turn"), {
-    target: { value: "2" },
-  });
+  chooseOption(within(form).getByLabelText("Per sitting"), "2 movies");
   fireEvent.change(within(form).getByLabelText("Marathons under this rule"), {
     target: { value: "replace" },
   });
@@ -196,6 +205,7 @@ it("shows the server's message for an invalid size pair", async () => {
   });
   fireEvent.click(within(form).getByLabelText("Christmas Movies"));
   fireEvent.click(within(form).getByLabelText("Own turn length"));
+  chooseOption(within(form).getByLabelText("Per sitting"), "Custom…");
   fireEvent.change(within(form).getByLabelText("Programs per turn"), {
     target: { value: "4" },
   });

@@ -15,6 +15,8 @@ import {
   toStretchSetting,
   UNCHOSEN_STRETCH,
 } from "../assignments/stretch-fields.js";
+import { PerSittingField } from "../assignments/per-sitting-field.js";
+import type { ContentKind } from "../contracts.js";
 
 /** Local weekday names, 0 for Sunday, as rules number them. */
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -25,6 +27,8 @@ export interface RuleSourceChoice {
   label: string;
   /** The assignment's own sizes, which a selected source starts from. */
   ordinaryStretch: StretchSetting;
+  /** Words the source's per-sitting presets for what it plays. */
+  contentKind: ContentKind;
 }
 
 /** One selected source as the form edits it. */
@@ -302,8 +306,9 @@ export function RuleForm({
                       Own turn length
                     </label>
                     {source.ownLength && (
-                      <StretchFields
+                      <PerSittingField
                         draft={source.ordinary}
+                        contentKind={choice.contentKind}
                         onChange={(ordinary) =>
                           editSource(choice.assignmentId, { ordinary })
                         }

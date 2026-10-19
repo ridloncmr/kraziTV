@@ -7,6 +7,7 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
+import type { ContentKind } from "../contracts.js";
 import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import {
   RuleForm,
@@ -28,6 +29,7 @@ export function RulesEditor({
   rules,
   assignments,
   collections,
+  contentKind,
   changed,
 }: {
   channelId: string;
@@ -35,6 +37,8 @@ export function RulesEditor({
   rules: ReturnType<typeof useResource<ProgrammingRule[]>>;
   assignments: readonly SourceAssignment[];
   collections: MediaCollection[] | undefined;
+  /** Words each source's per-sitting presets for what it plays. */
+  contentKind: (assignment: SourceAssignment) => ContentKind;
   changed: () => void;
 }) {
   const path = `${resourcePath("channels", channelId)}/programming-rules`;
@@ -58,6 +62,7 @@ export function RulesEditor({
   const choices: RuleSourceChoice[] = assignments.map((assignment, index) => ({
     assignmentId: assignment.id,
     label: assignmentLabel(assignment, index, collections),
+    contentKind: contentKind(assignment),
     ordinaryStretch: assignment.ordinaryStretch,
   }));
   // Trades a rule's place in saved order with its equal-priority neighbor.

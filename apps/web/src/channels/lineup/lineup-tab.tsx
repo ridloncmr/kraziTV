@@ -8,7 +8,10 @@ import { useMutation } from "../../http/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
 import { MarathonSettingsForm } from "./marathon-settings-form.js";
-import { marathonLabel, perSittingLabel } from "./show-labels.js";
+import {
+  marathonLabel,
+  perSittingLabel,
+} from "../assignments/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
 import { useShowNames } from "./use-show-names.js";
 
@@ -90,8 +93,18 @@ export function LineupTab({
                     </button>
                   </td>
                   <td>{orderLabel(assignment)}</td>
-                  <td>{perSittingLabel(assignment.ordinaryStretch)}</td>
-                  <td>{marathonLabel(assignment.marathonStretch)}</td>
+                  <td>
+                    {perSittingLabel(
+                      assignment.ordinaryStretch,
+                      programming.contentKind(assignment),
+                    )}
+                  </td>
+                  <td>
+                    {marathonLabel(
+                      assignment.marathonStretch,
+                      programming.contentKind(assignment),
+                    )}
+                  </td>
                   <td>
                     {assignment.participation === "rule_only" && (
                       <span className="row-badge">Rules only</span>

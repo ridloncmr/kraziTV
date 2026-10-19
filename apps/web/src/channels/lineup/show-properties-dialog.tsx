@@ -26,7 +26,8 @@ import {
   toSettings,
   toShowDraft,
 } from "./show-draft.js";
-import { marathonLabel } from "./show-labels.js";
+import { PerSittingField } from "../assignments/per-sitting-field.js";
+import { marathonLabel } from "../assignments/stretch-words.js";
 
 /**
  * Edits one show, a programming source assignment, in a window dialog.
@@ -71,13 +72,14 @@ export function ShowPropertiesDialog({
   const { members } = draft;
   const hasCollection = members.some((member) => member.kind === "collection");
   const chosen = members.every((member) => member.sourceId);
+  // A new show takes the suggested per sitting; every show reads its
+  // content kind from the same answer, to word its presets.
   const suggestion = useResource<StretchSuggestion>(
-    assignment === undefined && !stretchSet && hasCollection && chosen
-      ? suggestionPath(members)
-      : null,
+    hasCollection && chosen ? suggestionPath(toSettings(draft).members) : null,
     visible,
   );
   const suggested = suggestion.data?.ordinaryStretch;
+  const contentKind = suggestion.data?.contentKind ?? null;
   useEffect(() => {
     if (suggested === undefined || stretchSet) return;
     setDraft((current) => ({
@@ -140,22 +142,20 @@ export function ShowPropertiesDialog({
                   )?.hint
                 }
               </small>
-              <fieldset>
-                <legend>Per sitting</legend>
-                <StretchFields
-                  draft={draft.stretch}
-                  onChange={(stretch) => {
-                    setStretchSet(true);
-                    edit({ stretch });
-                  }}
-                />
-                {suggested === null && !stretchSet && (
-                  <p className="secondary">
-                    These members mix movies and episodes, or are not classified
-                    yet. Choose how much airs per sitting.
-                  </p>
-                )}
-              </fieldset>
+              <PerSittingField
+                draft={draft.stretch}
+                contentKind={contentKind}
+                onChange={(stretch) => {
+                  setStretchSet(true);
+                  edit({ stretch });
+                }}
+              />
+              {suggested === null && !stretchSet && (
+                <p className="secondary">
+                  These members mix movies and episodes, or are not classified
+                  yet. Choose how much airs per sitting.
+                </p>
+              )}
               <label>
                 <input
                   type="checkbox"
@@ -168,7 +168,7 @@ export function ShowPropertiesDialog({
               </label>
               {marathon !== null && (
                 <small className="secondary">
-                  {marathonLabel(toStretchSetting(marathon))}
+                  {marathonLabel(toStretchSetting(marathon), contentKind)}
                 </small>
               )}
             </>

@@ -69,6 +69,45 @@ export function useResource<T>(
   };
 }
 
+/**
+ * Reads each of `paths` once while active and keeps every answer keyed by
+ * path, so a list can read one resource per row without a hook per row. A
+ * read is never abandoned when another path joins, so rows settle in one
+ * request each; a failed read stays absent, for the caller's fallback, and
+ * is tried again when the paths next change.
+ */
+export function useResourceMap<T>(
+  paths: readonly string[],
+  active = true,
+): ReadonlyMap<string, T> {
+  const [values, setValues] = useState<ReadonlyMap<string, T>>(new Map());
+  const requested = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const key = [...new Set(paths)].sort().join("\n");
+  useEffect(() => {
+    if (!active || key === "") return;
+    for (const path of key.split("\n")) {
+      if (requested.current.has(path)) continue;
+      requested.current.add(path);
+      apiRequest<T>(path).then(
+        (value) => {
+          if (mounted.current) {
+            setValues((current) => new Map(current).set(path, value));
+          }
+        },
+        () => requested.current.delete(path),
+      );
+    }
+  }, [key, active]);
+  return values;
+}
+
 /** A program owns its write until completion or close; concurrent submissions are blocked. */
 export function useMutation() {
   const owner = useRef<AbortController | null>(null);

@@ -1,4 +1,5 @@
 import type {
+  AssignmentMember,
   AssignmentSettings,
   PlaybackMode,
   SourceAssignment,
@@ -95,11 +96,18 @@ export function toSettings(draft: ShowDraft): AssignmentSettings {
 }
 
 /** Asks the server to suggest per sitting, and the content kind, for these members. */
-export function suggestionPath(members: readonly MemberDraft[]): string {
-  const ids = (kind: MemberDraft["kind"]) =>
+export function suggestionPath(members: readonly AssignmentMember[]): string {
+  const ids = (kind: AssignmentMember["kind"]) =>
     members
-      .filter((member) => member.kind === kind)
-      .map((member) => member.sourceId)
+      .flatMap((member) =>
+        member.kind !== kind
+          ? []
+          : [
+              member.kind === "collection"
+                ? member.mediaCollectionId
+                : member.mediaItemId,
+            ],
+      )
       .join(",");
   const query = new URLSearchParams({
     mediaCollectionIds: ids("collection"),
