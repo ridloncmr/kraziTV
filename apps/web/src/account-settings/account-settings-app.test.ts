@@ -245,7 +245,8 @@ it("shows a wrong current password and clears only that box, keeping the desktop
     "The password you typed is incorrect.",
   );
   const current = passwordBox(window, "Current password");
-  expect(current.value).toBe("");
+  // The view clears and focuses the box in an effect after the alert renders.
+  await waitFor(() => expect(current.value).toBe(""));
   expect(document.activeElement).toBe(current);
   expect(passwordBox(window, "New password").value).toBe("correct horse");
   expect(passwordBox(window, "Confirm new password").value).toBe(
