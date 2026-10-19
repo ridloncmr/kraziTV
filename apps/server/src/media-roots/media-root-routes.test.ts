@@ -154,6 +154,22 @@ describe("GET /media-roots", () => {
     ]);
   });
 
+  it("reports zero match counts for a root without cataloged items", async () => {
+    const server = await startServer();
+    await createRoot(server, { path: missingPath("TV") });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/media-roots",
+    });
+
+    expect(response.json()).toMatchObject([
+      {
+        matchCounts: { items: 0, matched: 0, needsChoice: 0, failedLookups: 0 },
+      },
+    ]);
+  });
+
   it("returns an empty list before any root is configured", async () => {
     const server = await startServer();
 

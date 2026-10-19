@@ -16,6 +16,7 @@ import { toApiTimestamp, toApiTimestampOrNull } from "../http/api-timestamp.js";
 import { idParams } from "../http/request-schemas.js";
 import type { ApiScanStatus } from "../catalog-scan/contracts.js";
 import type { RemovedPathReclaim } from "../catalog-removal/contracts.js";
+import type { RootMatchCounts } from "../media-items/contracts.js";
 import type { MediaRoot } from "./contracts.js";
 import type { MediaRootRepository } from "./media-root-repository.js";
 
@@ -28,6 +29,14 @@ const updateBody = z.strictObject({
   enabled: z.boolean(),
 });
 
+// What a root without cataloged items reports.
+const NO_ITEMS: RootMatchCounts = {
+  items: 0,
+  matched: 0,
+  needsChoice: 0,
+  failedLookups: 0,
+};
+
 const foldersQuery = z.strictObject({
   path: z.string().optional(),
 });
@@ -36,6 +45,8 @@ const foldersQuery = z.strictObject({
  * Registers media-root HTTP routes; validation and status mapping live only
  * here. `scanStatus` answers each listed root's current or latest scan job,
  * so this domain carries scan status without knowing how scans run.
+ * `matchCounts` answers every root's match counts in one read, so the list
+ * shows them without this domain reading items.
  * `reclaimRemovedPath` frees a path a removed root still holds, so this
  * domain can re-add one without knowing how removal and purge work.
  */
@@ -43,15 +54,20 @@ export function registerMediaRootRoutes(
   server: FastifyInstance,
   mediaRoots: MediaRootRepository,
   scanStatus: (rootId: string) => ApiScanStatus | null,
+  matchCounts: () => Promise<ReadonlyMap<string, RootMatchCounts>>,
   reclaimRemovedPath: (pathKey: string) => Promise<RemovedPathReclaim>,
 ): void {
   const platform = currentPathPlatform();
 
   server.get("/media-roots", async () => {
-    const roots = await mediaRoots.list();
+    const [roots, counts] = await Promise.all([
+      mediaRoots.list(),
+      matchCounts(),
+    ]);
     return roots.map((root) => ({
       ...toApiMediaRoot(root),
       scan: scanStatus(root.id),
+      matchCounts: counts.get(root.id) ?? NO_ITEMS,
     }));
   });
 

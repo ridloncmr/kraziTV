@@ -227,6 +227,9 @@ describe("buildServer", () => {
       status: (rootId: string) =>
         rootId === status.rootId ? status : undefined,
     } as Partial<CatalogScanner> as CatalogScanner;
+    dependencies.mediaItems = {
+      countMatchesByRoot: async () => new Map(),
+    } as Partial<MediaItemRepository> as MediaItemRepository;
     const server = buildServer(dependencies, {
       logger: false,
       plex: plexSettingsFixture,

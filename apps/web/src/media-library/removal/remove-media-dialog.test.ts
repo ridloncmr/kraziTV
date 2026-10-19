@@ -67,10 +67,13 @@ function removal(overrides: Partial<CatalogRemoval> = {}): CatalogRemoval {
   };
 }
 
-/** The Delete… button of the one root's row. */
+/** Opens the one root's … menu and returns its Delete… command. */
 async function rootDelete() {
   const roots = await screen.findByRole("group", { name: "Media roots" });
-  return within(roots).findByRole("button", { name: "Delete…" });
+  fireEvent.click(
+    await within(roots).findByRole("button", { name: /^Actions for / }),
+  );
+  return screen.getByRole("menuitem", { name: "Delete…" });
 }
 
 /** The Delete… button that removes the selected catalog rows. */

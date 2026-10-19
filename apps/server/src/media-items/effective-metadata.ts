@@ -9,7 +9,7 @@ import type {
 // How far a matched file's probed duration may drift from its match-time
 // duration before it reads as a different file; probes of one file vary
 // slightly, and a re-encode of the same episode needs no review.
-const FILE_CHANGE_TOLERANCE_MS = 2_000;
+export const FILE_CHANGE_TOLERANCE_MS = 2_000;
 
 /**
  * The metadata columns item reads select beside each item, aliased where a

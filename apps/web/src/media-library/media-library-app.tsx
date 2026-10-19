@@ -4,13 +4,22 @@ import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { RowMenu } from "../controls/row-menu.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
 import { resourcePath } from "../http/api-client.js";
-import type { MediaItem, MediaRoot } from "../http/contracts/media.js";
+import type {
+  MediaFilter,
+  MediaItem,
+  MediaRoot,
+} from "../http/contracts/media.js";
 import type { ReviewStep } from "../http/contracts/metadata.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import {
+  CatalogFilterDialog,
+  keysInUse,
+} from "./catalog-filter/catalog-filter-dialog.js";
 import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
@@ -39,8 +48,10 @@ export function MediaLibraryApp({
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   const [search, setSearch] = useState("");
-  const [needsChoice, setNeedsChoice] = useState(false);
-  const media = useMediaItemPage(search, PAGE_SIZE, visible, { needsChoice });
+  const [filter, setFilter] = useState<MediaFilter>({});
+  const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
+  const filtersInUse = keysInUse(filter);
+  const [filtering, setFiltering] = useState(false);
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
     "/metadata/match-reviews",
@@ -127,6 +138,7 @@ export function MediaLibraryApp({
                   <th>Server path</th>
                   <th>Last scan</th>
                   <th>Status</th>
+                  <th>Matches</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -140,48 +152,52 @@ export function MediaLibraryApp({
                         : displayTime(root.lastScannedAt)}
                     </td>
                     <td>{root.enabled ? "Enabled" : "Disabled"}</td>
+                    <td className="root-matches">
+                      <RootMatches counts={root.matchCounts} />
+                    </td>
                     <td>
-                      <div className="row-actions">
-                        <button
-                          onClick={() => {
-                            setLastRequest("root");
-                            void mutation.run(
-                              resourcePath("media-roots", root.id),
-                              "PATCH",
-                              { enabled: !root.enabled },
-                              refresh,
-                            );
-                          }}
-                        >
-                          {root.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button
-                          disabled={!root.enabled}
-                          onClick={() => {
-                            setLastRequest("scan");
-                            void scan.start(root);
-                          }}
-                        >
-                          Scan
-                        </button>
-                        <button
-                          disabled={!root.enabled}
-                          onClick={() => {
-                            setLastRequest("scan");
-                            void scan.retry({
-                              scope: "failed",
-                              mediaRootId: root.id,
-                            });
-                          }}
-                        >
-                          Retry failed lookups
-                        </button>
-                        <button
-                          onClick={() => setRemoving({ kind: "root", root })}
-                        >
-                          Delete…
-                        </button>
-                      </div>
+                      <RowMenu
+                        label={`Actions for ${root.path}`}
+                        items={[
+                          {
+                            label: root.enabled ? "Disable" : "Enable",
+                            onSelect: () => {
+                              setLastRequest("root");
+                              void mutation.run(
+                                resourcePath("media-roots", root.id),
+                                "PATCH",
+                                { enabled: !root.enabled },
+                                refresh,
+                              );
+                            },
+                          },
+                          {
+                            label: "Scan",
+                            disabled: !root.enabled,
+                            onSelect: () => {
+                              setLastRequest("scan");
+                              void scan.start(root);
+                            },
+                          },
+                          {
+                            label: "Retry failed lookups",
+                            disabled:
+                              !root.enabled ||
+                              root.matchCounts.failedLookups === 0,
+                            onSelect: () => {
+                              setLastRequest("scan");
+                              void scan.retry({
+                                scope: "failed",
+                                mediaRootId: root.id,
+                              });
+                            },
+                          },
+                          {
+                            label: "Delete…",
+                            onSelect: () => setRemoving({ kind: "root", root }),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -203,22 +219,22 @@ export function MediaLibraryApp({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <div className="row-actions" role="group" aria-label="Matches">
-          <label>
-            <input
-              type="checkbox"
-              checked={needsChoice}
-              onChange={(event) => setNeedsChoice(event.target.checked)}
-            />
-            Needs your choice only
-          </label>
-          {reviewCount > 0 && (
-            <button onClick={() => setReviewing(true)}>
+        <div className="list-toolbar">
+          <div
+            className="row-actions filter-actions"
+            role="group"
+            aria-label="Matches"
+          >
+            <button onClick={() => setFiltering(true)}>
+              {filtersInUse > 0 ? `Filter (${filtersInUse})…` : "Filter…"}
+            </button>
+            <button
+              disabled={reviewCount === 0}
+              onClick={() => setReviewing(true)}
+            >
               Review matches ({reviewCount})
             </button>
-          )}
-        </div>
-        <div className="list-toolbar">
+          </div>
           {media.data && (
             <Pager
               offset={media.offset}
@@ -249,8 +265,8 @@ export function MediaLibraryApp({
         <p className="empty-state">
           {search.trim()
             ? "No cataloged media matches this search."
-            : needsChoice
-              ? "Nothing needs your choice."
+            : filtersInUse > 0
+              ? "No cataloged media matches these filters."
               : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
       )}
@@ -291,8 +307,8 @@ export function MediaLibraryApp({
                   <td>{item.status}</td>
                   <td>{displayDuration(item.durationMs)}</td>
                   <td>
-                    <div className="row-actions">
-                      {matchStateLabel(item.metadata)}
+                    <div className="match-cell">
+                      <span>{matchStateLabel(item.metadata)}</span>
                       <button
                         aria-label={`Details for ${item.title}`}
                         onClick={() => setDetailed(item)}
@@ -314,6 +330,17 @@ export function MediaLibraryApp({
             refresh();
           }}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {filtering && (
+        <CatalogFilterDialog
+          applied={filter}
+          roots={roots.data ?? []}
+          onApply={(applied) => {
+            setFiltering(false);
+            setFilter(applied);
+          }}
+          onClose={() => setFiltering(false)}
         />
       )}
       {removing && (
@@ -403,5 +430,28 @@ export function MediaLibraryApp({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * A root's match counts in a few words: how much of it is matched, then
+ * what still needs the owner, shown only when there is some.
+ */
+function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
+  return (
+    <>
+      {counts.matched} of {counts.items} matched
+      {counts.needsChoice > 0 && (
+        <small className="secondary">
+          {counts.needsChoice} need your choice
+        </small>
+      )}
+      {counts.failedLookups > 0 && (
+        <small className="secondary">
+          {counts.failedLookups} failed{" "}
+          {counts.failedLookups === 1 ? "lookup" : "lookups"}
+        </small>
+      )}
+    </>
   );
 }

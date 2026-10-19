@@ -10,7 +10,36 @@ export interface MediaRoot {
    * Only `GET /media-roots` carries it; POST and PATCH responses do not.
    */
   scan: ScanStatus | null;
+  /** The root's match counts; only `GET /media-roots` carries them. */
+  matchCounts: RootMatchCounts;
 }
+/**
+ * One root's cataloged items, extras included, and how many are matched,
+ * need the owner's choice, or failed a lookup a retry would repeat.
+ */
+interface RootMatchCounts {
+  items: number;
+  matched: number;
+  needsChoice: number;
+  failedLookups: number;
+}
+/** A `GET /media-items` filter parameter, repeated once per value it keeps. */
+export type MediaFilterKey =
+  | "matchState"
+  | "contentType"
+  | "detail"
+  | "collection"
+  | "status"
+  | "mediaRootId"
+  | "seriesTmdbId"
+  | "franchiseTmdbId"
+  | "genre"
+  | "tagId";
+/**
+ * What the list keeps: an item matching any value of each listed key, and
+ * every key at once. An absent or empty key keeps every item.
+ */
+export type MediaFilter = Partial<Record<MediaFilterKey, readonly string[]>>;
 /** One level of server folders offered when picking a media root. */
 export interface FolderListing {
   /** The listed folder, or null for the server's top level (drives or `/`). */

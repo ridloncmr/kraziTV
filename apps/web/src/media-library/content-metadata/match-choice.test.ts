@@ -31,16 +31,22 @@ function matchPath(id: string, action: string) {
 it("filters the list to items needing a choice, from the first page", async () => {
   const api = await showLibrary([THING]);
 
+  fireEvent.click(screen.getByRole("button", { name: "Filter…" }));
   fireEvent.click(
-    screen.getByRole("checkbox", { name: "Needs your choice only" }),
+    within(screen.getByRole("dialog", { name: "Filter media" })).getByRole(
+      "checkbox",
+      { name: "Needs your choice" },
+    ),
   );
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
   await waitFor(() =>
     expect(
-      api.requestsTo("/media-items").at(-1)?.query.get("needsChoice"),
-    ).toBe("true"),
+      api.requestsTo("/media-items").at(-1)?.query.getAll("matchState"),
+    ).toEqual(["ambiguous"]),
   );
   expect(api.requestsTo("/media-items").at(-1)?.query.get("offset")).toBe("0");
+  expect(screen.getByRole("button", { name: "Filter (1)…" })).toBeTruthy();
 });
 
 it("lists each candidate's poster and year beside the file's duration, and chooses one", async () => {

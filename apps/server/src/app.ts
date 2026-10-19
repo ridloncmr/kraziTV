@@ -186,6 +186,7 @@ function registerRoutes(
       const status = dependencies.scanner.status(rootId);
       return status === undefined ? null : toApiScanStatus(status);
     },
+    () => dependencies.mediaItems.countMatchesByRoot(),
     (pathKey) => dependencies.catalogRemovals.reclaimRemovedPath(pathKey),
   );
   registerCatalogScanRoutes(

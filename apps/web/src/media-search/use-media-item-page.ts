@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MediaItemPage } from "../http/contracts/media.js";
+import type { MediaFilter, MediaItemPage } from "../http/contracts/media.js";
 import { useResource } from "../http/use-resource.js";
 
 const SEARCH_DELAY_MS = 250;
 
 /**
- * What a page leaves out: IDs a picker hides, or every item whose match does
- * not need the owner's choice. The server applies either, never both.
+ * What a page leaves out: IDs a picker hides, or every item a list filter
+ * does not keep. The server applies either, never both.
  */
-type PageFilter = { excludeIds: readonly string[] } | { needsChoice: boolean };
+type PageFilter = { excludeIds: readonly string[] } | { filter: MediaFilter };
+
+// A filter as query parameters, each key repeated once per value, in a
+// fixed order so an equal filter always yields the same text.
+function filterParams(filter: MediaFilter): string {
+  const params = new URLSearchParams();
+  for (const key of Object.keys(filter).sort() as (keyof MediaFilter)[]) {
+    for (const value of filter[key] ?? []) params.append(key, value);
+  }
+  return params.toString();
+}
 
 /**
  * Reads one server-side page of the catalog so no program loads every item.
@@ -25,16 +35,15 @@ export function useMediaItemPage(
 ) {
   const excludeIds =
     filter && "excludeIds" in filter ? filter.excludeIds : undefined;
-  const needsChoice =
-    filter !== undefined && "needsChoice" in filter && filter.needsChoice;
+  const kept = filter && "filter" in filter ? filterParams(filter.filter) : "";
   const [query, setQuery] = useState({
     q: search.trim(),
     offset: 0,
-    needsChoice,
+    kept,
   });
   // Set during render, so the request after a filter change is already for page one.
-  if (query.needsChoice !== needsChoice) {
-    setQuery({ ...query, offset: 0, needsChoice });
+  if (query.kept !== kept) {
+    setQuery({ ...query, offset: 0, kept });
   }
   useEffect(() => {
     const q = search.trim();
@@ -47,12 +56,10 @@ export function useMediaItemPage(
     );
     return () => clearTimeout(timer);
   }, [search]);
-  const params = new URLSearchParams({
-    q: query.q,
-    limit: String(limit),
-    offset: String(query.offset),
-  });
-  if (query.needsChoice) params.set("needsChoice", "true");
+  const params = new URLSearchParams(query.kept);
+  params.set("q", query.q);
+  params.set("limit", String(limit));
+  params.set("offset", String(query.offset));
   // Stable between renders so the resource re-serializes the excluded IDs only when they or the query change.
   const body = useMemo(
     () =>
