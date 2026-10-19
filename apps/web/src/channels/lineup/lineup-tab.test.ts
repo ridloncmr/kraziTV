@@ -706,43 +706,6 @@ it("keeps a derived marathon longer than per sitting suggested afterwards", asyn
   expect(chosenOption(perSitting(dialog))).toBe("3 episodes");
 });
 
-it("saves the suggested marathon chance and cooldown once a show can marathon", async () => {
-  const { api } = await openLineup(
-    [
-      favoritesAssignment("chronological", {
-        marathonStretch: { kind: "programs", count: 6 },
-      }),
-    ],
-    [],
-    (api) => {
-      api.reply("/channels/one/programming-settings", {
-        marathonChancePercent: 0,
-        marathonMinOrdinaryRounds: 2,
-      });
-      api.reply(
-        "/channels/one/programming-settings",
-        { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
-        "PUT",
-      );
-    },
-  );
-  const marathons = await screen.findByRole("group", { name: "Marathons" });
-
-  fireEvent.click(
-    await within(marathons).findByRole("button", {
-      name: "Use the suggested 10% and two rounds",
-    }),
-  );
-  fireEvent.click(
-    within(marathons).getByRole("button", { name: "Save marathon settings" }),
-  );
-
-  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
-  expect(
-    api.requests.find((request) => request.method === "PUT")?.body,
-  ).toEqual({ marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 });
-});
-
 it("words per-sitting presets in movies for a movie show and in episodes for an episode show, in Properties and the lineup", async () => {
   await openLineup(
     [
@@ -827,4 +790,167 @@ it("round-trips a custom per sitting as Custom, in words in the lineup", async (
 
   await waitFor(() => expect(patches(api)).toHaveLength(1));
   expect(patches(api)[0]?.body).toMatchObject({ ordinaryStretch: range });
+});
+
+const SETTINGS = "/channels/one/programming-settings";
+const marathonShow = favoritesAssignment("chronological", {
+  marathonStretch: { kind: "programs", count: 6 },
+});
+
+// Answers the channel's marathon settings, saving each PUT as the server does.
+function serveSettings(
+  api: BrowserApi,
+  initial: { marathonChancePercent: number; marathonMinOrdinaryRounds: number },
+) {
+  api.reply(SETTINGS, initial);
+  api.handle(
+    SETTINGS,
+    (request) => {
+      api.reply(SETTINGS, request.body);
+      return api.response(request.body);
+    },
+    "PUT",
+  );
+}
+const settingsWrites = (api: BrowserApi) =>
+  api
+    .requestsTo(SETTINGS)
+    .filter((request) => request.method === "PUT")
+    .map((request) => request.body);
+const marathonsSelect = () =>
+  within(
+    screen.getByRole("region", { name: "Marathons" }),
+  ).getByLabelText<HTMLSelectElement>("Marathons");
+
+it("saves each marathon preset as soon as it is chosen", async () => {
+  const { api } = await openLineup([marathonShow], [], (api) =>
+    serveSettings(api, {
+      marathonChancePercent: 0,
+      marathonMinOrdinaryRounds: 3,
+    }),
+  );
+  await waitFor(() => expect(marathonsSelect().disabled).toBe(false));
+  expect(chosenOption(marathonsSelect())).toBe("Off");
+
+  chooseOption(marathonsSelect(), "Occasional");
+  await waitFor(() =>
+    expect(chosenOption(marathonsSelect())).toBe("Occasional"),
+  );
+  chooseOption(marathonsSelect(), "Frequent");
+  await waitFor(() => expect(chosenOption(marathonsSelect())).toBe("Frequent"));
+  chooseOption(marathonsSelect(), "Off");
+  await waitFor(() => expect(chosenOption(marathonsSelect())).toBe("Off"));
+
+  // Off keeps the saved cooldown; only the chance drops to zero.
+  expect(settingsWrites(api)).toEqual([
+    { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
+    { marathonChancePercent: 25, marathonMinOrdinaryRounds: 1 },
+    { marathonChancePercent: 0, marathonMinOrdinaryRounds: 1 },
+  ]);
+});
+
+it("shows unmatched settings as Custom and edits them in the Custom dialog", async () => {
+  const { api } = await openLineup([marathonShow], [], (api) =>
+    serveSettings(api, {
+      marathonChancePercent: 40,
+      marathonMinOrdinaryRounds: 3,
+    }),
+  );
+  await waitFor(() => expect(chosenOption(marathonsSelect())).toBe("Custom"));
+  const custom = () => screen.getByRole("dialog", { name: "Custom marathons" });
+  const chance = () =>
+    within(custom()).getByLabelText<HTMLInputElement>("Chance per round (%)");
+
+  chooseOption(marathonsSelect(), "Custom");
+  expect(chance().value).toBe("40");
+  fireEvent.change(chance(), { target: { value: "50" } });
+  fireEvent.click(within(custom()).getByRole("button", { name: "Cancel" }));
+  expect(settingsWrites(api)).toEqual([]);
+
+  chooseOption(marathonsSelect(), "Custom");
+  expect(chance().value).toBe("40");
+  fireEvent.change(chance(), { target: { value: "50" } });
+  fireEvent.click(within(custom()).getByRole("button", { name: "OK" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Custom marathons" }),
+    ).toBeNull(),
+  );
+  expect(settingsWrites(api)).toEqual([
+    { marathonChancePercent: 50, marathonMinOrdinaryRounds: 3 },
+  ]);
+  expect(chosenOption(marathonsSelect())).toBe("Custom");
+});
+
+it("disables the marathon control until some show can marathon", async () => {
+  await openLineup([favoritesAssignment("chronological")], [], (api) =>
+    serveSettings(api, {
+      marathonChancePercent: 10,
+      marathonMinOrdinaryRounds: 2,
+    }),
+  );
+
+  await screen.findByText("No show can marathon yet.");
+  expect(marathonsSelect().disabled).toBe(true);
+});
+
+it("marks a marathon-capable show (off) while channel marathons are off", async () => {
+  await openLineup([marathonShow], [], (api) =>
+    serveSettings(api, {
+      marathonChancePercent: 0,
+      marathonMinOrdinaryRounds: 2,
+    }),
+  );
+
+  await screen.findByRole("cell", { name: "up to 6 programs (off)" });
+  chooseOption(marathonsSelect(), "Occasional");
+  await screen.findByRole("cell", { name: "up to 6 programs" });
+});
+
+it("offers to turn channel marathons on when a show can marathon while they are off, and never changes them on OK", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [],
+    (api) =>
+      serveSettings(api, {
+        marathonChancePercent: 0,
+        marathonMinOrdinaryRounds: 2,
+      }),
+  );
+  savesAs(api, () => marathonShow);
+  const dialog = await openProperties();
+  await waitFor(() => expect(api.requestsTo(SETTINGS)).toHaveLength(1));
+  expect(within(dialog).queryByText(/Marathons are off/)).toBeNull();
+
+  fireEvent.click(within(dialog).getByLabelText("Can marathon"));
+  within(dialog).getByText("Marathons are off for this channel.");
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  await waitFor(() => expect(patches(api)).toHaveLength(1));
+  expect(patches(api)[0]?.body).toMatchObject({
+    marathonStretch: { kind: "programs", count: 6 },
+  });
+  expect(settingsWrites(api)).toEqual([]);
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const reopened = await openProperties();
+  // The saved show can marathon, so the notice shows as it opens.
+  within(reopened).getByText("Marathons are off for this channel.");
+  fireEvent.click(
+    within(reopened).getByRole("button", {
+      name: "Turn on occasional marathons",
+    }),
+  );
+
+  await within(reopened).findByText(
+    "Occasional marathons are now on for this channel.",
+  );
+  await waitFor(() =>
+    expect(within(reopened).queryByText(/Marathons are off/)).toBeNull(),
+  );
+  expect(settingsWrites(api)).toEqual([
+    { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
+  ]);
+  expect(patches(api)).toHaveLength(1);
 });

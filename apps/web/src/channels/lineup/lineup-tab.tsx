@@ -3,11 +3,14 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { rowClickProps } from "../../controls/row-click.js";
 import { RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
-import type { SourceAssignment } from "../../http/contracts/programming.js";
-import { useMutation } from "../../http/use-resource.js";
+import type {
+  MarathonSettings,
+  SourceAssignment,
+} from "../../http/contracts/programming.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
-import { MarathonSettingsForm } from "./marathon-settings-form.js";
+import { MarathonsControl } from "./marathons-control.js";
 import {
   marathonLabel,
   perSittingLabel,
@@ -32,6 +35,9 @@ export function LineupTab({
   const { assignments, collections, assignmentsPath, changed } = programming;
   const listed = assignments.data ?? [];
   const showName = useShowNames(listed, collections.data, visible);
+  const settingsPath = `${programming.channelPath}/programming-settings`;
+  const marathons = useResource<MarathonSettings>(settingsPath, visible);
+  const marathonsOff = marathons.data?.marathonChancePercent === 0;
   const removal = useMutation();
   const [selectedId, setSelectedId] = useState<string>();
   // The show open in Properties, or `new` while adding one.
@@ -104,6 +110,9 @@ export function LineupTab({
                       assignment.marathonStretch,
                       programming.contentKind(assignment),
                     )}
+                    {marathonsOff && assignment.marathonStretch !== null
+                      ? " (off)"
+                      : ""}
                   </td>
                   <td>
                     {assignment.participation === "rule_only" && (
@@ -153,10 +162,10 @@ export function LineupTab({
         </div>
       )}
       {listed.length > 0 && (
-        <MarathonSettingsForm
-          path={`${programming.channelPath}/programming-settings`}
-          visible={visible}
-          marathonsAllowed={listed.some(
+        <MarathonsControl
+          path={settingsPath}
+          marathons={marathons}
+          canMarathon={listed.some(
             (assignment) => assignment.marathonStretch !== null,
           )}
           changed={changed}
@@ -169,6 +178,8 @@ export function LineupTab({
           assignment={edited}
           title={edited ? showName(edited) : "New show"}
           collections={collections.data}
+          settingsPath={settingsPath}
+          marathons={marathons}
           visible={visible}
           changed={changed}
           onClose={() => setEditing(undefined)}

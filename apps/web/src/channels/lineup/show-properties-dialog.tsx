@@ -3,6 +3,7 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
+  MarathonSettings,
   PlaybackMode,
   SourceAssignment,
   StretchSuggestion,
@@ -28,6 +29,7 @@ import {
 } from "./show-draft.js";
 import { PerSittingField } from "../assignments/per-sitting-field.js";
 import { marathonLabel } from "../assignments/stretch-words.js";
+import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
 
 /**
  * Edits one show, a programming source assignment, in a window dialog.
@@ -36,12 +38,17 @@ import { marathonLabel } from "../assignments/stretch-words.js";
  * can marathon; **Advanced** holds members, rotation, the marathon length
  * override, and the collection preview. Without `assignment` it adds a new
  * show, taking the server's suggested per sitting until the owner sets one.
+ * Saving a show never changes the channel's marathon settings: while they
+ * are off, checking **Can marathon** offers to turn them on as its own
+ * write.
  */
 export function ShowPropertiesDialog({
   assignmentsPath,
   assignment,
   title,
   collections,
+  settingsPath,
+  marathons,
   visible,
   changed,
   onClose,
@@ -50,12 +57,18 @@ export function ShowPropertiesDialog({
   assignment?: SourceAssignment | undefined;
   title: string;
   collections: MediaCollection[] | undefined;
+  /** Where the channel's marathon settings save. */
+  settingsPath: string;
+  marathons: ReturnType<typeof useResource<MarathonSettings>>;
   visible: boolean;
   /** Runs after every write the server accepted. */
   changed: () => void;
   onClose: () => void;
 }) {
   const mutation = useMutation();
+  const turnOn = useMutation();
+  // Whether the owner turned channel marathons on from here, which it says.
+  const [turnedOn, setTurnedOn] = useState(false);
   const hintId = useId();
   const [draft, setDraft] = useState<ShowDraft>(() =>
     assignment ? toShowDraft(assignment) : NEW_SHOW,
@@ -170,6 +183,36 @@ export function ShowPropertiesDialog({
                 <small className="secondary">
                   {marathonLabel(toStretchSetting(marathon), contentKind)}
                 </small>
+              )}
+              {draft.canMarathon &&
+                marathons.data?.marathonChancePercent === 0 && (
+                  <div className="inline-notice">
+                    <p>Marathons are off for this channel.</p>
+                    <button
+                      type="button"
+                      disabled={turnOn.pending}
+                      onClick={() =>
+                        void turnOn.run(
+                          settingsPath,
+                          "PUT",
+                          OCCASIONAL_MARATHONS,
+                          () => {
+                            setTurnedOn(true);
+                            marathons.refresh();
+                            changed();
+                          },
+                        )
+                      }
+                    >
+                      Turn on occasional marathons
+                    </button>
+                  </div>
+                )}
+              <RequestFeedback loading={turnOn.pending} error={turnOn.error} />
+              {turnedOn && (
+                <p role="status">
+                  Occasional marathons are now on for this channel.
+                </p>
               )}
             </>
           ) : (

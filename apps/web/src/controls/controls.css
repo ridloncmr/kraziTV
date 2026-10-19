@@ -198,7 +198,9 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.cleanup-notice {
+/* A warning the owner should act on, such as an unfinished cleanup or marathons left off. */
+.cleanup-notice,
+.inline-notice {
   background: var(--xp-warning);
   border: 1px solid var(--xp-menu-border);
   padding: 10px;
