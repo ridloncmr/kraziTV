@@ -51,6 +51,18 @@ export type CreateAssignmentResult =
   | UnknownMemberResult
   | MemberAssignedResult;
 
+/** A member an earlier assignment in the same batch create plays. */
+export interface MemberRepeatedResult {
+  kind: "member_repeated";
+  member: MemberSource;
+  /** The request index of the earlier assignment that plays it. */
+  assignmentIndex: number;
+}
+
+/** Why a batch create wrote nothing: one assignment's refusal. */
+export type BatchCreateRefusal =
+  Exclude<CreateAssignmentResult, { kind: "created" }> | MemberRepeatedResult;
+
 export type UpdateAssignmentResult =
   | { kind: "updated"; assignment: SourceAssignment }
   | { kind: "unchanged"; assignment: SourceAssignment }

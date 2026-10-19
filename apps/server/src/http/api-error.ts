@@ -192,17 +192,20 @@ export function sendMediaItemNotFound(
 /**
  * Lists every unknown media item ID a request referenced, so the client can
  * point at exactly what to fix. A 400, not a 404: the addressed resource
- * exists, the body names items that do not.
+ * exists, the body names items that do not. `details` locates them in a
+ * body that holds several, such as a batch's index.
  */
 export function sendUnknownMediaItems(
   reply: FastifyReply,
   ids: readonly string[],
+  details: Readonly<Record<string, unknown>> = {},
 ): FastifyReply {
   return sendApiError(
     reply,
     400,
     "media_item_not_found",
     `Unknown media items: ${ids.join(", ")}`,
+    details,
   );
 }
 
