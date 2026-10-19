@@ -1,30 +1,3 @@
-/* XP property-sheet tabs: the chosen tab joins the panel below it. */
-.tab-strip {
-  display: flex;
-  gap: 2px;
-  margin-bottom: -1px;
-}
-.program-page .tab-strip button {
-  border-radius: 3px 3px 0 0;
-  border-bottom-color: var(--xp-border);
-  background: linear-gradient(var(--xp-control-top), var(--xp-menu-surface));
-  box-shadow: none;
-}
-.program-page .tab-strip button[aria-selected="true"] {
-  position: relative;
-  border-top: 2px solid var(--xp-accent-orange);
-  border-bottom-color: var(--xp-window-surface);
-  background: var(--xp-window-surface);
-  font-weight: bold;
-}
-.tab-panel {
-  border: 1px solid var(--xp-border);
-  background: var(--xp-window-surface);
-  padding: 10px;
-}
-.tab-panel > .row-actions {
-  margin-bottom: 10px;
-}
 .collection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

@@ -12,7 +12,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { ChannelsApp } from "./channels-app.js";
-import { ProgrammingEditor } from "./programming/programming-editor.js";
+import { openChannelTab } from "../testing/channel-tabs.js";
 
 afterEach(() => {
   cleanup();
@@ -120,6 +120,8 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
   ).toEqual([{ enabled: true }, { enabled: false }]);
 });
 
+const ASSIGNMENTS = "/channels/one/programming-assignments";
+
 // A saved assignment of the favorites collection, as the server lists it.
 function favoritesAssignment(playbackMode: string, count = 3) {
   return {
@@ -132,7 +134,7 @@ function favoritesAssignment(playbackMode: string, count = 3) {
   };
 }
 
-it("single-item programming sends no collection playback mode and reloads the backend schedule", async () => {
+it("single-item programming sends no collection playback mode and refreshes the lineup", async () => {
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", []);
   api.reply("/media-collections", adminFixtures.collections);
@@ -148,9 +150,8 @@ it("single-item programming sends no collection playback mode and reloads the ba
     },
     "POST",
   );
-  api.reply("/channels/one/schedule", { scheduleRevision: 9, entries: [] });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   await screen.findByText(/No programming assigned/);
   fireEvent.change(screen.getByLabelText("Source type"), {
     target: { value: "media_item" },
@@ -162,7 +163,7 @@ it("single-item programming sends no collection playback mode and reloads the ba
   expect(screen.queryByLabelText("Playback mode")).toBeNull();
   expect(screen.queryByLabelText("Programs per turn")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
-  await screen.findByText(/revision 9/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
@@ -181,9 +182,7 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
   ]);
   api.reply("/media-collections", adminFixtures.collections);
   vi.stubGlobal("fetch", api.fetch);
-  const view = render(
-    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-  );
+  const view = await openChannelTab(api, "Lineup");
   await waitFor(() =>
     expect(
       screen.getByLabelText<HTMLSelectElement>("Programming source").value,
@@ -192,12 +191,8 @@ it("preserves an unsaved programming mode across minimize and restore", async ()
   fireEvent.change(screen.getByLabelText("Playback mode"), {
     target: { value: "random" },
   });
-  view.rerender(
-    createElement(ProgrammingEditor, { channelId: "one", visible: false }),
-  );
-  view.rerender(
-    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-  );
+  view.rerender(createElement(ChannelsApp, { visible: false }));
+  view.rerender(createElement(ChannelsApp, { visible: true }));
   await waitFor(() =>
     expect(
       api.requests.filter((request) =>
@@ -221,7 +216,6 @@ it.each([
       favoritesAssignment("chronological"),
     ]);
     api.reply("/media-collections", adminFixtures.collections);
-    api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
     api.handle(
       "/channels/one/programming-assignments/assignment",
       () => {
@@ -233,9 +227,7 @@ it.each([
       "PATCH",
     );
     vi.stubGlobal("fetch", api.fetch);
-    const view = render(
-      createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-    );
+    const view = await openChannelTab(api, "Lineup");
     await waitFor(() =>
       expect(
         screen.getByLabelText<HTMLSelectElement>("Programming source").value,
@@ -255,11 +247,9 @@ it.each([
       .getAttribute("aria-describedby");
     expect(document.getElementById(hintId!)?.textContent).toMatch(hint);
     fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
-    await screen.findByText(/revision 2/);
+    await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
     view.unmount();
-    render(
-      createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-    );
+    await openChannelTab(api, "Lineup");
 
     expect(
       api.requests.find((request) => request.method === "PATCH")?.body,
@@ -328,7 +318,7 @@ it("refreshes the order preview when the playback mode changes", async () => {
     },
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const playOrder = async () =>
     within(await screen.findByRole("list", { name: "Play order" }))
       .getAllByRole("listitem")
@@ -381,7 +371,6 @@ it("confirms a progress reset in a dialog; cancel sends nothing", async () => {
     favoritesAssignment("episode"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 3, entries: [] });
   const upcoming = (title: string) => ({
     playbackMode: "episode",
     ordered: [],
@@ -411,7 +400,7 @@ it("confirms a progress reset in a dialog; cancel sends nothing", async () => {
     "POST",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const restart = await screen.findByRole("button", {
     name: "Restart from the beginning…",
   });
@@ -465,14 +454,13 @@ it("shows a collection's programs per turn and saves an edited count", async () 
     favoritesAssignment("chronological", 4),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 5, entries: [] });
   api.reply(
     "/channels/one/programming-assignments/assignment",
     favoritesAssignment("chronological", 2),
     "PATCH",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const count = () =>
     screen.getByLabelText<HTMLInputElement>("Programs per turn");
   await waitFor(() => expect(count().value).toBe("4"));
@@ -480,7 +468,7 @@ it("shows a collection's programs per turn and saves an edited count", async () 
   fireEvent.change(count(), { target: { value: "2" } });
   fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
 
-  await screen.findByText(/revision 5/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
@@ -578,6 +566,100 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   expect(selected("Second channel")).toBe(true);
 });
 
+// The tab names the selected channel's property sheet shows.
+const tabNames = () => screen.getAllByRole("tab").map((tab) => tab.textContent);
+
+it("opens a channel with an empty lineup on Lineup, without Rules or Preview", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", adminFixtures.channels);
+  api.reply(ASSIGNMENTS, []);
+  api.reply("/media-collections", adminFixtures.collections);
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+
+  await screen.findByText(/No programming assigned/);
+  expect(
+    screen.getByRole("tab", { name: "Lineup" }).getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(tabNames()).toEqual(["General", "Lineup", "Specials"]);
+});
+
+it("shows every tab once the lineup has a show, keeps the chosen tab across channels, and has no schedule debug line", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", adminFixtures.channels);
+  api.reply(ASSIGNMENTS, [favoritesAssignment("chronological")]);
+  api.reply("/channels/two/programming-assignments", [
+    favoritesAssignment("random"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/programming-preview", {
+    configurationRevision: 1,
+    turns: [],
+    skips: [],
+  });
+  api.reply("/channels/two/programming-preview", {
+    configurationRevision: 1,
+    turns: [],
+    skips: [],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+
+  // A channel with a show opens on the first tab.
+  await screen.findByRole("tab", { name: "Rules" });
+  expect(tabNames()).toEqual([
+    "General",
+    "Lineup",
+    "Rules",
+    "Specials",
+    "Preview",
+  ]);
+  expect(screen.getByLabelText("Name")).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Preview" }));
+  await screen.findByRole("button", { name: "Rebuild the schedule…" });
+  expect(screen.queryByLabelText("Name")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Second channel" }));
+  await screen.findByRole("heading", { name: "70 · Second channel" });
+  await waitFor(() =>
+    expect(
+      screen
+        .getByRole("tab", { name: "Preview" })
+        .getAttribute("aria-selected"),
+    ).toBe("true"),
+  );
+  expect(document.body.textContent).not.toMatch(/Backend schedule/);
+  expect(api.requestsTo("/channels/two/schedule")).toEqual([]);
+});
+
+it("saves the channel's number and name from General with Apply", async () => {
+  const api = new BrowserApi();
+  api.reply(ASSIGNMENTS, [favoritesAssignment("chronological")]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply(
+    "/channels/one",
+    { ...adminFixtures.channels[0], name: "Lakeside TV" },
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  await openChannelTab(api, "General");
+
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Lakeside TV" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+  await waitFor(() =>
+    expect(api.requestsTo("/channels/one")[0]?.body).toEqual({
+      number: "69",
+      name: "Lakeside TV",
+    }),
+  );
+});
+
 it("adds a second assignment after the first, in its own empty form", async () => {
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", [
@@ -587,7 +669,6 @@ it("adds a second assignment after the first, in its own empty form", async () =
     ...adminFixtures.collections,
     collectionWith("other", "Other"),
   ]);
-  api.reply("/channels/one/schedule", { scheduleRevision: 6, entries: [] });
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: { kind: "programs", count: 3 },
     contentKind: "episodes",
@@ -608,7 +689,7 @@ it("adds a second assignment after the first, in its own empty form", async () =
     "POST",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
 
   fireEvent.click(
     await screen.findByRole("button", { name: "Add an assignment" }),
@@ -660,10 +741,9 @@ it("moves an assignment later in saved order", async () => {
     second,
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 7, entries: [] });
   api.reply("/channels/one/programming-assignments/order", [], "PUT");
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const list = await screen.findByRole("list", {
     name: "Programming assignments",
   });
@@ -676,7 +756,7 @@ it("moves an assignment later in saved order", async () => {
   ).toBe(true);
   fireEvent.click(within(first).getByRole("button", { name: "Move down" }));
 
-  await screen.findByText(/revision 7/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requestsTo("/channels/one/programming-assignments/order")[0]?.body,
   ).toEqual({ assignmentIds: ["second", "assignment"] });
@@ -691,14 +771,13 @@ it("adds, reorders, and saves an assignment's members", async () => {
     ...adminFixtures.collections,
     collectionWith("other", "Other"),
   ]);
-  api.reply("/channels/one/schedule", { scheduleRevision: 8, entries: [] });
   api.reply(
     "/channels/one/programming-assignments/assignment",
     favoritesAssignment("chronological"),
     "PATCH",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const form = await screen.findByRole("group", { name: "Assignment 1" });
   await waitFor(() =>
     expect(
@@ -722,7 +801,7 @@ it("adds, reorders, and saves an assignment's members", async () => {
     within(form).getByRole("button", { name: "Save programming" }),
   );
 
-  await screen.findByText(/revision 8/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toEqual({
@@ -741,14 +820,13 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", []);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 9, entries: [] });
   api.reply("/programming-assignments/stretch-suggestion", {
     ordinaryStretch: null,
     contentKind: null,
   });
   api.reply("/channels/one/programming-assignments", {}, "POST", 201);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const form = await screen.findByRole("group", { name: "New assignment" });
 
   fireEvent.change(within(form).getByLabelText("Programming source"), {
@@ -781,7 +859,7 @@ it("asks for a turn length when the server has no suggestion, then saves an airt
   });
   fireEvent.click(save);
 
-  await screen.findByText(/revision 9/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({
@@ -803,14 +881,13 @@ it("allows marathons on an assignment with a suggested longer length", async () 
     marathonChancePercent: 0,
     marathonMinOrdinaryRounds: 2,
   });
-  api.reply("/channels/one/schedule", { scheduleRevision: 10, entries: [] });
   api.reply(
     "/channels/one/programming-assignments/assignment",
     favoritesAssignment("chronological"),
     "PATCH",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const form = await screen.findByRole("group", { name: "Assignment 1" });
   await waitFor(() =>
     expect(
@@ -827,7 +904,7 @@ it("allows marathons on an assignment with a suggested longer length", async () 
   fireEvent.click(
     within(form).getByRole("button", { name: "Save programming" }),
   );
-  await screen.findByText(/revision 10/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
   ).toMatchObject({ marathonStretch: { kind: "programs", count: 6 } });
@@ -846,14 +923,13 @@ it("offers the suggested marathon chance and cooldown once an assignment allows 
     marathonChancePercent: 0,
     marathonMinOrdinaryRounds: 2,
   });
-  api.reply("/channels/one/schedule", { scheduleRevision: 11, entries: [] });
   api.reply(
     "/channels/one/programming-settings",
     { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
     "PUT",
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const marathons = await screen.findByRole("group", { name: "Marathons" });
 
   fireEvent.click(
@@ -865,7 +941,7 @@ it("offers the suggested marathon chance and cooldown once an assignment allows 
     within(marathons).getByRole("button", { name: "Save marathon settings" }),
   );
 
-  await screen.findByText(/revision 11/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(
     api.requests.find((request) => request.method === "PUT")?.body,
   ).toEqual({ marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 });
@@ -880,7 +956,7 @@ it("keeps an allowed marathon longer than a turn length suggested afterwards", a
     contentKind: "episodes",
   });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
   const form = await screen.findByRole("group", { name: "New assignment" });
 
   fireEvent.click(within(form).getByLabelText("Allow marathons"));
@@ -959,7 +1035,7 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
     ],
   });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Preview");
 
   const turns = await screen.findByRole("list", { name: "Upcoming turns" });
   const lines = within(turns)
@@ -984,9 +1060,8 @@ it("lets the airing program finish by default when rebuilding", async () => {
   ]);
   api.reply("/media-collections", adminFixtures.collections);
   api.reply("/channels/one/schedule/generate", {}, "POST");
-  api.reply("/channels/one/schedule", { scheduleRevision: 12, entries: [] });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Preview");
 
   fireEvent.click(
     await screen.findByRole("button", { name: "Rebuild the schedule…" }),
@@ -1013,16 +1088,13 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
     favoritesAssignment("chronological"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 13, entries: [] });
   api.reply(
     "/channels/one/programming/rebuild",
     { rebuilt: true, stopFailed: true },
     "POST",
   );
   vi.stubGlobal("fetch", api.fetch);
-  const editor = render(
-    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-  );
+  const editor = await openChannelTab(api, "Preview");
   fireEvent.click(
     await screen.findByRole("button", { name: "Rebuild the schedule…" }),
   );
@@ -1070,7 +1142,6 @@ it("saves an assignment kept out of normal rotation and shows it when reopened",
     favoritesAssignment("chronological"),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply("/channels/one/schedule", { scheduleRevision: 2, entries: [] });
   const ruleOnly = {
     ...favoritesAssignment("chronological"),
     participation: "rule_only",
@@ -1084,9 +1155,7 @@ it("saves an assignment kept out of normal rotation and shows it when reopened",
     "PATCH",
   );
   vi.stubGlobal("fetch", api.fetch);
-  const view = render(
-    createElement(ProgrammingEditor, { channelId: "one", visible: true }),
-  );
+  const view = await openChannelTab(api, "Lineup");
   const rotation = await screen.findByLabelText<HTMLInputElement>(
     "Plays in normal rotation",
   );
@@ -1095,9 +1164,9 @@ it("saves an assignment kept out of normal rotation and shows it when reopened",
   fireEvent.click(rotation);
   screen.getByText("Airs only while a programming rule selects it.");
   fireEvent.click(screen.getByRole("button", { name: "Save programming" }));
-  await screen.findByText(/revision 2/);
+  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   view.unmount();
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Lineup");
 
   expect(
     api.requests.find((request) => request.method === "PATCH")?.body,
@@ -1174,7 +1243,7 @@ it("explains which rule chose each turn, the rules it passed over, and where its
     skips: [],
   });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Preview");
 
   const turns = await screen.findByRole("list", { name: "Upcoming turns" });
   await waitFor(() =>

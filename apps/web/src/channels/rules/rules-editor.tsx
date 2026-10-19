@@ -7,7 +7,7 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
-import { RebuildDialog } from "../programming/rebuild-dialog.js";
+import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import {
   RuleForm,
   type RuleSourceChoice,

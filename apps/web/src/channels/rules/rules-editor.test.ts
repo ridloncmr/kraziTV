@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
 import {
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
@@ -15,7 +13,7 @@ import {
   collectionWith,
   ruleFixture,
 } from "../../testing/admin-fixtures.js";
-import { ProgrammingEditor } from "../programming/programming-editor.js";
+import { openChannelTab } from "../../testing/channel-tabs.js";
 
 afterEach(() => {
   cleanup();
@@ -64,9 +62,9 @@ function editorApi(rules: unknown[] = []) {
   return api;
 }
 
-// Opens the new-rule form.
-async function openNewRule() {
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+// Opens the Rules tab's new-rule form.
+async function openNewRule(api: BrowserApi) {
+  await openChannelTab(api, "Rules");
   fireEvent.click(await screen.findByRole("button", { name: "Add a rule" }));
   return screen.getByRole("group", { name: "New rule" });
 }
@@ -75,7 +73,7 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   const api = editorApi();
   api.reply(RULES, ruleFixture("december", "December", []), "POST");
 
-  const form = await openNewRule();
+  const form = await openNewRule(api);
   expect((await screen.findByText(/America\/New_York/)).textContent).toMatch(
     /Rules follow the server's programming timezone, America\/New_York/,
   );
@@ -132,7 +130,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   const api = editorApi();
   api.reply(RULES, ruleFixture("fridays", "Friday movies", []), "POST");
 
-  const form = await openNewRule();
+  const form = await openNewRule(api);
   fireEvent.change(within(form).getByLabelText("Rule name"), {
     target: { value: "Friday movies" },
   });
@@ -192,7 +190,7 @@ it("shows the server's message for an invalid size pair", async () => {
     400,
   );
 
-  const form = await openNewRule();
+  const form = await openNewRule(api);
   fireEvent.change(within(form).getByLabelText("Rule name"), {
     target: { value: "Too long" },
   });
@@ -219,7 +217,7 @@ it("lists rules by priority and reorders only among equal priorities", async () 
     ruleFixture("winter", "Winter", ["christmas-turns"], { priority: 1 }),
   ]);
   api.reply(`${RULES}/order`, [], "PUT");
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Rules");
 
   const list = await screen.findByRole("list", { name: "Rules by priority" });
   await waitFor(() =>
@@ -245,7 +243,7 @@ it("deletes a rule and offers the rebuild choice", async () => {
     ruleFixture("december", "December", ["christmas-turns"]),
   ]);
   api.reply(`${RULES}/december`, undefined, "DELETE", 204);
-  render(createElement(ProgrammingEditor, { channelId: "one", visible: true }));
+  await openChannelTab(api, "Rules");
 
   const list = await screen.findByRole("list", { name: "Rules by priority" });
   fireEvent.click(
