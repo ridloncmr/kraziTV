@@ -369,7 +369,7 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/channels/lineup/"],
-      "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Properties dialog that edits one show, the show names, labels, and draft those two share, and the channel's Marathons control with its Custom dialog.",
+      "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Add shows dialog, the Properties dialog that edits one show, the member names, show labels, and draft those share, and the channel's Marathons control with its Custom dialog.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: \"a lineup/ capability for the list, add dialog, and properties dialog\")"
     }
   ]

@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
+  AssignmentMember,
   MarathonSettings,
   PlaybackMode,
   SourceAssignment,
@@ -10,18 +11,16 @@ import type {
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { CollectionPreviewSection } from "../assignments/collection-preview-section.js";
-import { type MemberDraft, MemberRows } from "../assignments/member-rows.js";
+import { MemberRows } from "../assignments/member-rows.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import {
   StretchFields,
   suggestMarathon,
-  toStretchDraft,
   toStretchSetting,
-  UNCHOSEN_STRETCH,
 } from "../assignments/stretch-fields.js";
+import { memberKey } from "../../media-search/collection-or-item-search.js";
 import {
   draftMarathon,
-  NEW_SHOW,
   type ShowDraft,
   suggestionPath,
   toSettings,
@@ -36,9 +35,7 @@ import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
  * Nothing writes until **OK** or **Apply**, and **Cancel** discards every
  * change. The main section holds order, per sitting, and whether the show
  * can marathon; **Advanced** holds members, rotation, the marathon length
- * override, and the collection preview. Without `assignment` it adds a new
- * show, taking the server's suggested per sitting until the owner sets one.
- * Saving a show never changes the channel's marathon settings: while they
+ * override, and the collection preview. Saving a show never changes the channel's marathon settings: while they
  * are off, checking **Can marathon** offers to turn them on as its own
  * write.
  */
@@ -47,6 +44,8 @@ export function ShowPropertiesDialog({
   assignment,
   title,
   collections,
+  memberName,
+  unavailable,
   settingsPath,
   marathons,
   visible,
@@ -54,9 +53,13 @@ export function ShowPropertiesDialog({
   onClose,
 }: {
   assignmentsPath: string;
-  assignment?: SourceAssignment | undefined;
+  assignment: SourceAssignment;
   title: string;
   collections: MediaCollection[] | undefined;
+  /** Names a saved member; members picked here are named by the picker. */
+  memberName: (member: AssignmentMember) => string;
+  /** Members other shows play, by member key, which this show cannot add. */
+  unavailable: ReadonlyMap<string, string>;
   /** Where the channel's marathon settings save. */
   settingsPath: string;
   marathons: ReturnType<typeof useResource<MarathonSettings>>;
@@ -70,43 +73,34 @@ export function ShowPropertiesDialog({
   // Whether the owner turned channel marathons on from here, which it says.
   const [turnedOn, setTurnedOn] = useState(false);
   const hintId = useId();
-  const [draft, setDraft] = useState<ShowDraft>(() =>
-    assignment ? toShowDraft(assignment) : NEW_SHOW,
+  const [draft, setDraft] = useState<ShowDraft>(() => toShowDraft(assignment));
+  // Names of members picked here, which the lineup has not read.
+  const [pickedNames, setPickedNames] = useState<ReadonlyMap<string, string>>(
+    new Map(),
   );
-  // Whether per sitting was saved or set, so a suggestion never overrides it.
-  const [stretchSet, setStretchSet] = useState(assignment !== undefined);
   // Counts accepted saves, so the collection preview reads again.
   const [saves, setSaves] = useState(0);
   // Whether the pressed button was OK, which closes after the save.
   const closeAfterSave = useRef(true);
-  const assignmentPath = assignment
-    ? `${assignmentsPath}/${encodeURIComponent(assignment.id)}`
-    : undefined;
+  const assignmentPath = `${assignmentsPath}/${encodeURIComponent(assignment.id)}`;
   const { members } = draft;
   const hasCollection = members.some((member) => member.kind === "collection");
-  const chosen = members.every((member) => member.sourceId);
-  // A new show takes the suggested per sitting; every show reads its
-  // content kind from the same answer, to word its presets.
+  // The suggestion's content kind words the presets for the members shown.
   const suggestion = useResource<StretchSuggestion>(
-    hasCollection && chosen ? suggestionPath(toSettings(draft).members) : null,
+    hasCollection ? suggestionPath(members) : null,
     visible,
   );
-  const suggested = suggestion.data?.ordinaryStretch;
   const contentKind = suggestion.data?.contentKind ?? null;
-  useEffect(() => {
-    if (suggested === undefined || stretchSet) return;
-    setDraft((current) => ({
-      ...current,
-      stretch:
-        suggested === null ? UNCHOSEN_STRETCH : toStretchDraft(suggested),
-    }));
-  }, [suggested, stretchSet]);
+  const name = (member: AssignmentMember) =>
+    pickedNames.get(memberKey(member)) ?? memberName(member);
   const marathon = draftMarathon(draft);
   // Applies one edit to the draft.
   const edit = (change: Partial<ShowDraft>) =>
     setDraft((current) => ({ ...current, ...change }));
   // Member rows edit through a function of the current rows.
-  const editMembers = (change: (rows: MemberDraft[]) => MemberDraft[]) =>
+  const editMembers = (
+    change: (rows: AssignmentMember[]) => AssignmentMember[],
+  ) =>
     setDraft((current) => ({
       ...current,
       members: change([...current.members]),
@@ -116,17 +110,12 @@ export function ShowPropertiesDialog({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          const close = closeAfterSave.current || assignmentPath === undefined;
-          void mutation.run(
-            assignmentPath ?? assignmentsPath,
-            assignmentPath ? "PATCH" : "POST",
-            toSettings(draft),
-            () => {
-              setSaves((count) => count + 1);
-              changed();
-              if (close) onClose();
-            },
-          );
+          const close = closeAfterSave.current;
+          void mutation.run(assignmentPath, "PATCH", toSettings(draft), () => {
+            setSaves((count) => count + 1);
+            changed();
+            if (close) onClose();
+          });
         }}
       >
         <fieldset disabled={mutation.pending}>
@@ -158,17 +147,8 @@ export function ShowPropertiesDialog({
               <PerSittingField
                 draft={draft.stretch}
                 contentKind={contentKind}
-                onChange={(stretch) => {
-                  setStretchSet(true);
-                  edit({ stretch });
-                }}
+                onChange={(stretch) => edit({ stretch })}
               />
-              {suggested === null && !stretchSet && (
-                <p className="secondary">
-                  These members mix movies and episodes, or are not classified
-                  yet. Choose how much airs per sitting.
-                </p>
-              )}
               <label>
                 <input
                   type="checkbox"
@@ -218,7 +198,7 @@ export function ShowPropertiesDialog({
           ) : (
             <p className="secondary">Single items air once per sitting.</p>
           )}
-          <details open={assignment === undefined}>
+          <details>
             <summary>Advanced</summary>
             <fieldset>
               <legend>Members</legend>
@@ -228,9 +208,16 @@ export function ShowPropertiesDialog({
               </p>
               <MemberRows
                 members={members}
+                name={name}
                 collections={collections}
+                unavailable={unavailable}
                 visible={visible}
                 edit={editMembers}
+                onPicked={(member, picked) =>
+                  setPickedNames((current) =>
+                    new Map(current).set(memberKey(member), picked),
+                  )
+                }
               />
             </fieldset>
             <label>
@@ -271,20 +258,18 @@ export function ShowPropertiesDialog({
                 )}
               </>
             )}
-            {assignment && assignmentPath && (
-              <CollectionPreviewSection
-                assignmentPath={assignmentPath}
-                assignment={assignment}
-                draftMode={draft.mode}
-                draftCollectionIds={members.flatMap((member) =>
-                  member.kind === "collection" ? [member.sourceId] : [],
-                )}
-                collections={collections}
-                visible={visible}
-                changed={changed}
-                refreshKey={saves}
-              />
-            )}
+            <CollectionPreviewSection
+              assignmentPath={assignmentPath}
+              assignment={assignment}
+              draftMode={draft.mode}
+              draftCollectionIds={members.flatMap((member) =>
+                member.kind === "collection" ? [member.mediaCollectionId] : [],
+              )}
+              collections={collections}
+              visible={visible}
+              changed={changed}
+              refreshKey={saves}
+            />
           </details>
         </fieldset>
         <RequestFeedback
@@ -295,7 +280,7 @@ export function ShowPropertiesDialog({
         <div className="dialog-actions">
           <button
             type="submit"
-            disabled={!chosen || mutation.pending}
+            disabled={mutation.pending}
             onClick={() => {
               closeAfterSave.current = true;
             }}
@@ -305,17 +290,15 @@ export function ShowPropertiesDialog({
           <button type="button" disabled={mutation.pending} onClick={onClose}>
             Cancel
           </button>
-          {assignmentPath && (
-            <button
-              type="submit"
-              disabled={!chosen || mutation.pending}
-              onClick={() => {
-                closeAfterSave.current = false;
-              }}
-            >
-              Apply
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={mutation.pending}
+            onClick={() => {
+              closeAfterSave.current = false;
+            }}
+          >
+            Apply
+          </button>
         </div>
       </form>
     </WindowDialog>

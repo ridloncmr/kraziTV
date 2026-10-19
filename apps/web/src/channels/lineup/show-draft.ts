@@ -4,18 +4,17 @@ import type {
   PlaybackMode,
   SourceAssignment,
 } from "../../http/contracts/programming.js";
-import { type MemberDraft, NEW_MEMBER } from "../assignments/member-rows.js";
 import {
   type StretchDraft,
   suggestMarathon,
   toStretchDraft,
   toStretchSetting,
-  UNCHOSEN_STRETCH,
 } from "../assignments/stretch-fields.js";
 
 /** One show's settings as its Properties dialog edits them, before OK or Apply. */
 export interface ShowDraft {
-  members: MemberDraft[];
+  /** Members in saved member order. */
+  members: AssignmentMember[];
   /** Off for a rule-only show, which airs only while a rule selects it. */
   rotates: boolean;
   mode: PlaybackMode;
@@ -25,16 +24,6 @@ export interface ShowDraft {
   /** An owner-chosen marathon length, or null to derive one from per sitting. */
   marathonOverride: StretchDraft | null;
 }
-
-/** A show nobody has set up yet: one unchosen member, in normal rotation. */
-export const NEW_SHOW: ShowDraft = {
-  members: [NEW_MEMBER],
-  rotates: true,
-  mode: "chronological",
-  stretch: UNCHOSEN_STRETCH,
-  canMarathon: false,
-  marathonOverride: null,
-};
 
 /**
  * Opens a saved show for editing. A saved marathon length that matches the
@@ -46,13 +35,7 @@ export function toShowDraft(assignment: SourceAssignment): ShowDraft {
   const marathon = assignment.marathonStretch;
   const derived = JSON.stringify(toStretchSetting(suggestMarathon(stretch)));
   return {
-    members: assignment.members.map((member) => ({
-      kind: member.kind,
-      sourceId:
-        member.kind === "collection"
-          ? member.mediaCollectionId
-          : member.mediaItemId,
-    })),
+    members: [...assignment.members],
     rotates: assignment.participation === "default",
     mode: assignment.playbackMode ?? "chronological",
     stretch,
@@ -87,11 +70,7 @@ export function toSettings(draft: ShowDraft): AssignmentSettings {
       : { kind: "programs", count: 1 },
     marathonStretch:
       hasCollection && marathon !== null ? toStretchSetting(marathon) : null,
-    members: draft.members.map((member) =>
-      member.kind === "collection"
-        ? { kind: "collection", mediaCollectionId: member.sourceId }
-        : { kind: "media_item", mediaItemId: member.sourceId },
-    ),
+    members: draft.members,
   };
 }
 

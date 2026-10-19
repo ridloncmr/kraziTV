@@ -68,8 +68,6 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
   );
 }
 
-const countBox = (dialog: HTMLElement) =>
-  within(dialog).getByLabelText<HTMLInputElement>("Programs per turn");
 const perSitting = (dialog: HTMLElement) =>
   within(dialog).getByLabelText<HTMLSelectElement>("Per sitting");
 const patches = (api: BrowserApi) =>
@@ -350,37 +348,6 @@ it("keeps a saved marathon length override under Advanced, and returns to the de
   ]);
 });
 
-it("adds, reorders, and saves a show's members under Advanced", async () => {
-  const { api } = await openLineup(
-    [favoritesAssignment("chronological")],
-    [collectionWith("other", "Other")],
-  );
-  const dialog = await openProperties();
-  openAdvanced(dialog);
-  within(dialog).getByText(/Add separate shows for separate turns/);
-
-  fireEvent.click(within(dialog).getByRole("button", { name: "Add member" }));
-  const rows = () =>
-    within(within(dialog).getByRole("list", { name: "Members" })).getAllByRole(
-      "listitem",
-    );
-  fireEvent.change(within(rows()[1]).getByLabelText("Programming source"), {
-    target: { value: "other" },
-  });
-  fireEvent.click(
-    within(rows()[1]).getByRole("button", { name: "Move member up" }),
-  );
-  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
-
-  await waitFor(() => expect(patches(api)).toHaveLength(1));
-  expect(patches(api)[0]?.body).toMatchObject({
-    members: [
-      { kind: "collection", mediaCollectionId: "other" },
-      { kind: "collection", mediaCollectionId: "favorites" },
-    ],
-  });
-});
-
 it("saves a show kept out of normal rotation and lists it as Rules only", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
   savesAs(api, () =>
@@ -555,155 +522,6 @@ it("confirms restarting from the beginning in its own dialog; cancel sends nothi
     { mediaCollectionId: "favorites" },
   ]);
   expect(patches(api)).toEqual([]);
-});
-
-it("adds a single item as a new show with no order or per sitting", async () => {
-  const { api } = await openLineup([]);
-  api.reply("/media-items", { items: adminFixtures.media, total: 2 });
-  api.reply(ASSIGNMENTS, {}, "POST", 201);
-  fireEvent.click(await screen.findByRole("button", { name: "New show…" }));
-  const dialog = screen.getByRole("dialog", { name: "New show" });
-
-  fireEvent.change(within(dialog).getByLabelText("Source type"), {
-    target: { value: "media_item" },
-  });
-  await within(dialog).findByRole("option", { name: "Alpha (available)" });
-  fireEvent.change(within(dialog).getByLabelText("Programming source"), {
-    target: { value: "z" },
-  });
-  expect(within(dialog).queryByLabelText("Order")).toBeNull();
-  expect(within(dialog).queryByLabelText("Programs per turn")).toBeNull();
-  expect(within(dialog).queryByRole("button", { name: "Apply" })).toBeNull();
-  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
-
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(
-    api.requests.find((request) => request.method === "POST")?.body,
-  ).toEqual({
-    participation: "default",
-    playbackMode: null,
-    ordinaryStretch: { kind: "programs", count: 1 },
-    marathonStretch: null,
-    members: [{ kind: "media_item", mediaItemId: "z" }],
-  });
-});
-
-it("adds a new show with the suggested per sitting and lists it after the first", async () => {
-  const { api } = await openLineup(
-    [favoritesAssignment("chronological")],
-    [collectionWith("other", "Other")],
-  );
-  api.reply("/programming-assignments/stretch-suggestion", {
-    ordinaryStretch: { kind: "programs", count: 3 },
-    contentKind: "episodes",
-  });
-  api.handle(
-    ASSIGNMENTS,
-    () => {
-      api.reply(ASSIGNMENTS, [
-        favoritesAssignment("chronological"),
-        favoritesAssignment("random", {
-          id: "second",
-          members: [{ kind: "collection", mediaCollectionId: "other" }],
-        }),
-      ]);
-      return api.response({}, 201);
-    },
-    "POST",
-  );
-  fireEvent.click(await screen.findByRole("button", { name: "New show…" }));
-  const dialog = screen.getByRole("dialog", { name: "New show" });
-
-  fireEvent.change(within(dialog).getByLabelText("Programming source"), {
-    target: { value: "other" },
-  });
-  // The server suggests three episodes per sitting for this collection.
-  await waitFor(() =>
-    expect(chosenOption(perSitting(dialog))).toBe("3 episodes"),
-  );
-  fireEvent.change(within(dialog).getByLabelText("Order"), {
-    target: { value: "random" },
-  });
-  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
-
-  await screen.findByRole("button", { name: "Other" });
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(
-    api.requests.find((request) => request.method === "POST")?.body,
-  ).toEqual({
-    participation: "default",
-    playbackMode: "random",
-    ordinaryStretch: { kind: "programs", count: 3 },
-    marathonStretch: null,
-    members: [{ kind: "collection", mediaCollectionId: "other" }],
-  });
-});
-
-it("asks for per sitting when the server has no suggestion, then saves an airtime range", async () => {
-  const { api } = await openLineup([]);
-  api.reply("/programming-assignments/stretch-suggestion", {
-    ordinaryStretch: null,
-    contentKind: null,
-  });
-  api.reply(ASSIGNMENTS, {}, "POST", 201);
-  fireEvent.click(await screen.findByRole("button", { name: "New show…" }));
-  const dialog = screen.getByRole("dialog", { name: "New show" });
-
-  fireEvent.change(within(dialog).getByLabelText("Programming source"), {
-    target: { value: "favorites" },
-  });
-
-  await within(dialog).findByText(/Choose how much airs per sitting/);
-  expect(
-    api
-      .requestsTo("/programming-assignments/stretch-suggestion")
-      .map((request) => request.query.get("mediaCollectionIds")),
-  ).toContain("favorites");
-  expect(chosenOption(perSitting(dialog))).toBe("Choose…");
-  chooseOption(perSitting(dialog), "Custom…");
-  expect(countBox(dialog).value).toBe("");
-  fireEvent.change(within(dialog).getByLabelText("Turn length"), {
-    target: { value: "airtime_range" },
-  });
-  expect(within(dialog).getByText(/runs over/).textContent).toMatch(
-    /picks one target/,
-  );
-  fireEvent.change(within(dialog).getByLabelText("At least minutes"), {
-    target: { value: "60" },
-  });
-  fireEvent.change(within(dialog).getByLabelText("At most minutes"), {
-    target: { value: "120" },
-  });
-  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
-
-  await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
-  expect(
-    api.requests.find((request) => request.method === "POST")?.body,
-  ).toEqual({
-    participation: "default",
-    playbackMode: "chronological",
-    ordinaryStretch: { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
-    marathonStretch: null,
-    members: [{ kind: "collection", mediaCollectionId: "favorites" }],
-  });
-});
-
-it("keeps a derived marathon longer than per sitting suggested afterwards", async () => {
-  const { api } = await openLineup([]);
-  api.reply("/programming-assignments/stretch-suggestion", {
-    ordinaryStretch: { kind: "programs", count: 3 },
-    contentKind: "episodes",
-  });
-  fireEvent.click(await screen.findByRole("button", { name: "New show…" }));
-  const dialog = screen.getByRole("dialog", { name: "New show" });
-
-  fireEvent.click(within(dialog).getByLabelText("Can marathon"));
-  fireEvent.change(within(dialog).getByLabelText("Programming source"), {
-    target: { value: "favorites" },
-  });
-
-  await within(dialog).findByText("up to 6 episodes");
-  expect(chosenOption(perSitting(dialog))).toBe("3 episodes");
 });
 
 it("words per-sitting presets in movies for a movie show and in episodes for an episode show, in Properties and the lineup", async () => {
@@ -953,4 +771,224 @@ it("offers to turn channel marathons on when a show can marathon while they are 
     { marathonChancePercent: 10, marathonMinOrdinaryRounds: 2 },
   ]);
   expect(patches(api)).toHaveLength(1);
+});
+
+// The checkbox the combined search shows for a result named `name`.
+const result = (scope: HTMLElement, name: string) =>
+  within(
+    within(scope).getByRole("list", { name: "Search results" }),
+  ).getByRole<HTMLInputElement>("checkbox", { name: new RegExp(`^${name} `) });
+
+// Answers suggestions by collection: Favorites holds episodes, Movies holds
+// movies, and Mixed has no suggestion.
+function serveSuggestions(api: BrowserApi) {
+  api.handle("/programming-assignments/stretch-suggestion", (request) => {
+    const id = request.query.get("mediaCollectionIds");
+    return api.response(
+      id === "movies"
+        ? {
+            ordinaryStretch: { kind: "programs", count: 1 },
+            contentKind: "movies",
+          }
+        : id === "mixed"
+          ? { ordinaryStretch: null, contentKind: null }
+          : {
+              ordinaryStretch: { kind: "programs", count: 3 },
+              contentKind: "episodes",
+            },
+    );
+  });
+  api.reply("/media-items", { items: adminFixtures.media, total: 2 });
+}
+const BATCH = `${ASSIGNMENTS}/batch`;
+
+it("adds three picks as three shows in one request, each with its suggested per sitting", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    serveSuggestions,
+  );
+  api.handle(
+    BATCH,
+    (request) => {
+      const { assignments } = request.body as { assignments: object[] };
+      api.reply(
+        ASSIGNMENTS,
+        assignments.map((settings, index) => ({
+          ...settings,
+          id: `show-${index}`,
+        })),
+      );
+      return api.response([], 201);
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add",
+  });
+  expect(add.disabled).toBe(true);
+
+  fireEvent.click(result(dialog, "Favorites"));
+  fireEvent.click(result(dialog, "Movies"));
+  fireEvent.click(
+    await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
+  );
+  const toAdd = within(dialog).getByRole("list", { name: "Shows to add" });
+  await within(toAdd).findByText("3 episodes per sitting");
+  await within(toAdd).findByText("1 movie per sitting");
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await screen.findByRole("button", { name: "Movies" });
+  expect(api.requestsTo(BATCH).map((request) => request.body)).toEqual([
+    {
+      assignments: [
+        {
+          participation: "default",
+          playbackMode: "chronological",
+          ordinaryStretch: { kind: "programs", count: 3 },
+          marathonStretch: null,
+          members: [{ kind: "collection", mediaCollectionId: "favorites" }],
+        },
+        {
+          participation: "default",
+          playbackMode: "chronological",
+          ordinaryStretch: { kind: "programs", count: 1 },
+          marathonStretch: null,
+          members: [{ kind: "collection", mediaCollectionId: "movies" }],
+        },
+        {
+          participation: "default",
+          playbackMode: null,
+          ordinaryStretch: { kind: "programs", count: 1 },
+          marathonStretch: null,
+          members: [{ kind: "media_item", mediaItemId: "z" }],
+        },
+      ],
+    },
+  ]);
+  expect(
+    api.requestsTo(ASSIGNMENTS).filter((request) => request.method === "POST"),
+  ).toEqual([]);
+});
+
+it("asks for per sitting before Add for a pick with no suggestion", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("mixed", "Mixed")],
+    serveSuggestions,
+  );
+  api.reply(BATCH, [], "POST", 201);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add",
+  });
+
+  fireEvent.click(result(dialog, "Mixed"));
+  const choice =
+    await within(dialog).findByLabelText<HTMLSelectElement>("Per sitting");
+  expect(chosenOption(choice)).toBe("Choose…");
+  expect(add.disabled).toBe(true);
+  chooseOption(choice, "~1 hr");
+  expect(add.disabled).toBe(false);
+  fireEvent.click(add);
+
+  await waitFor(() => expect(api.requestsTo(BATCH)).toHaveLength(1));
+  expect(api.requestsTo(BATCH)[0]?.body).toMatchObject({
+    assignments: [{ ordinaryStretch: { kind: "airtime", minutes: 60 } }],
+  });
+});
+
+it("keeps every pick and names the refused show when the server refuses the batch", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [collectionWith("movies", "Movies")],
+    serveSuggestions,
+  );
+  api.reply(
+    BATCH,
+    {
+      error: {
+        code: "media_item_not_found",
+        message: "Unknown media items: z",
+        index: 1,
+      },
+    },
+    "POST",
+    400,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  // The lineup already plays Favorites, so it cannot be picked again.
+  expect(result(dialog, "Favorites").disabled).toBe(true);
+  expect(result(dialog, "Favorites").closest("label")?.textContent).toMatch(
+    /already in this lineup/,
+  );
+
+  fireEvent.click(result(dialog, "Movies"));
+  fireEvent.click(
+    await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
+  );
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  const listReads = api.requestsTo(ASSIGNMENTS).length;
+  fireEvent.click(add);
+
+  expect((await within(dialog).findByRole("alert")).textContent).toMatch(
+    /Alpha could not be added: Unknown media items: z/,
+  );
+  expect(screen.getByRole("dialog", { name: "Add shows" })).toBe(dialog);
+  expect(result(dialog, "Movies").checked).toBe(true);
+  expect(
+    within(dialog).getByRole<HTMLInputElement>("checkbox", { name: /^Alpha / })
+      .checked,
+  ).toBe(true);
+  expect(api.requestsTo(ASSIGNMENTS)).toHaveLength(listReads);
+});
+
+it("adds an item and a collection as members under Advanced through the combined search, and reorders them", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [collectionWith("other", "Other")],
+    (api) =>
+      api.reply("/media-items", { items: adminFixtures.media, total: 2 }),
+  );
+  const dialog = await openProperties();
+  openAdvanced(dialog);
+  within(dialog).getByText(/Add separate shows for separate turns/);
+  // The only member stays, so it cannot be unchecked.
+  expect(result(dialog, "Favorites").disabled).toBe(true);
+
+  fireEvent.click(result(dialog, "Other"));
+  fireEvent.click(
+    await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
+  );
+  const rows = () =>
+    within(within(dialog).getByRole("list", { name: "Members" })).getAllByRole(
+      "listitem",
+    );
+  expect(rows().map((row) => row.firstChild?.textContent)).toEqual([
+    "Favorites",
+    "Other",
+    "Alpha",
+  ]);
+  fireEvent.click(
+    within(rows()[1]).getByRole("button", { name: "Move member up" }),
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  await waitFor(() => expect(patches(api)).toHaveLength(1));
+  expect(patches(api)[0]?.body).toMatchObject({
+    members: [
+      { kind: "collection", mediaCollectionId: "other" },
+      { kind: "collection", mediaCollectionId: "favorites" },
+      { kind: "media_item", mediaItemId: "z" },
+    ],
+  });
 });

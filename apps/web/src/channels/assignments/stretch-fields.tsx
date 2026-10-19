@@ -40,6 +40,13 @@ export function toStretchSetting(draft: StretchDraft): StretchSetting {
   }
 }
 
+/** Whether every field the draft's kind needs holds a number, so it can be saved. */
+export function isStretchComplete(draft: StretchDraft): boolean {
+  return Object.values(toStretchSetting(draft)).every(
+    (value) => typeof value !== "number" || !Number.isNaN(value),
+  );
+}
+
 // Each turn length the editor offers.
 const KIND_CHOICES: readonly { kind: StretchDraft["kind"]; label: string }[] = [
   { kind: "programs", label: "A number of programs" },

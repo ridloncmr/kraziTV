@@ -8,19 +8,23 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
+import { memberKey } from "../../media-search/collection-or-item-search.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
+import { AddShowsDialog } from "./add-shows-dialog.js";
 import { MarathonsControl } from "./marathons-control.js";
 import {
   marathonLabel,
   perSittingLabel,
 } from "../assignments/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
-import { useShowNames } from "./use-show-names.js";
+import { joinShowNames } from "./show-labels.js";
+import { useMemberNames } from "./use-member-names.js";
 
 /**
  * The Lineup tab: the channel's shows, its programming source assignments,
- * as a read-only list in saved order. A selected show opens in
+ * as a read-only list in saved order. **Add shows…** adds several at once;
+ * a selected show opens in
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
  * calls `changed`; the server regenerates.
@@ -34,17 +38,33 @@ export function LineupTab({
 }) {
   const { assignments, collections, assignmentsPath, changed } = programming;
   const listed = assignments.data ?? [];
-  const showName = useShowNames(listed, collections.data, visible);
+  const memberName = useMemberNames(
+    listed.flatMap((assignment) => assignment.members),
+    collections.data,
+    visible,
+  );
+  // Names a show by its members, as the lineup and its dialogs show it.
+  const showName = (assignment: SourceAssignment) =>
+    joinShowNames(assignment.members.map(memberName));
   const settingsPath = `${programming.channelPath}/programming-settings`;
   const marathons = useResource<MarathonSettings>(settingsPath, visible);
   const marathonsOff = marathons.data?.marathonChancePercent === 0;
   const removal = useMutation();
   const [selectedId, setSelectedId] = useState<string>();
-  // The show open in Properties, or `new` while adding one.
+  // The show open in Properties.
   const [editing, setEditing] = useState<string>();
+  const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<SourceAssignment>();
   const selected = listed.find((assignment) => assignment.id === selectedId);
   const edited = listed.find((assignment) => assignment.id === editing);
+  // Members the lineup plays outside `except`, which no other show may add.
+  const playedElsewhere = (except: string | undefined, reason: string) =>
+    new Map(
+      listed
+        .filter((assignment) => assignment.id !== except)
+        .flatMap((assignment) => assignment.members)
+        .map((member) => [memberKey(member), reason]),
+    );
   return (
     <section aria-label="Lineup">
       <RequestFeedback
@@ -53,7 +73,7 @@ export function LineupTab({
       />
       {assignments.data?.length === 0 && (
         <p className="empty-state">
-          No shows yet. Add a show to begin broadcasting.
+          No shows yet. Add shows to begin broadcasting.
         </p>
       )}
       {listed.length > 0 && (
@@ -142,8 +162,8 @@ export function LineupTab({
       )}
       {assignments.data && (
         <div className="row-actions">
-          <button type="button" onClick={() => setEditing("new")}>
-            New show…
+          <button type="button" onClick={() => setAdding(true)}>
+            Add shows…
           </button>
           <button
             type="button"
@@ -171,13 +191,25 @@ export function LineupTab({
           changed={changed}
         />
       )}
-      {(editing === "new" || edited) && (
+      {adding && (
+        <AddShowsDialog
+          assignmentsPath={assignmentsPath}
+          collections={collections.data}
+          unavailable={playedElsewhere(undefined, "already in this lineup")}
+          visible={visible}
+          changed={changed}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {edited && (
         <ShowPropertiesDialog
-          key={editing}
+          key={edited.id}
           assignmentsPath={assignmentsPath}
           assignment={edited}
-          title={edited ? showName(edited) : "New show"}
+          title={showName(edited)}
           collections={collections.data}
+          memberName={memberName}
+          unavailable={playedElsewhere(edited.id, "in another show")}
           settingsPath={settingsPath}
           marathons={marathons}
           visible={visible}

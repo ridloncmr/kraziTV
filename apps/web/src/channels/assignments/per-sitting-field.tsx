@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { StretchSetting } from "../../http/contracts/programming.js";
 import {
+  isStretchComplete,
   OverrunHint,
   type StretchDraft,
   StretchFields,
@@ -55,7 +56,7 @@ export function PerSittingField({
   );
   // Custom stays open once chosen, even when its values reach a preset.
   const [customChosen, setCustomChosen] = useState(false);
-  const custom = customChosen || (preset < 0 && isComplete(draft));
+  const custom = customChosen || (preset < 0 && isStretchComplete(draft));
   return (
     <>
       <label>
@@ -97,12 +98,4 @@ export function PerSittingField({
       )}
     </>
   );
-}
-
-// Whether every field the draft's kind needs holds a number.
-function isComplete(draft: StretchDraft): boolean {
-  const fields = Object.values(toStretchSetting(draft)).filter(
-    (value) => typeof value === "number",
-  );
-  return fields.every((value) => !Number.isNaN(value));
 }
