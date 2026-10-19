@@ -437,7 +437,8 @@ function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
       )}
       {counts.failedLookups > 0 && (
         <small className="secondary">
-          {counts.failedLookups} failed lookups
+          {counts.failedLookups} failed{" "}
+          {counts.failedLookups === 1 ? "lookup" : "lookups"}
         </small>
       )}
     </>

@@ -106,9 +106,16 @@ it("discards a draft closed with Escape and clears every applied filter", async 
   );
 
   panel = openFilter("Filter (1)");
+  // Focus moves into the panel, which renders apart from its button.
+  expect(document.activeElement).toBe(
+    panel.getByRole("checkbox", { name: "Matched" }),
+  );
   fireEvent.click(panel.getByRole("checkbox", { name: "Matched" }));
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog", { name: "Filter media" })).toBeNull();
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Filter (1)" }),
+  );
 
   panel = openFilter("Filter (1)");
   expect(

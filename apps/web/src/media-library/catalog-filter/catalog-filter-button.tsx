@@ -130,6 +130,20 @@ export function CatalogFilterButton({
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const open = drop !== undefined;
+  // The panel renders at the end of the page, so focus moves into it on
+  // opening; otherwise Tab from the button would skip past it.
+  useEffect(() => {
+    if (open) {
+      panel.current
+        ?.querySelector<HTMLElement>("input, button")
+        ?.focus({ preventScroll: true });
+    }
+  }, [open]);
+  /** Closes from inside the panel or by Escape, returning focus to the button. */
+  function dismiss() {
+    setDrop(undefined);
+    button.current?.focus();
+  }
   // Listens only while open, so a closed panel costs nothing.
   useEffect(() => {
     if (!open) return;
@@ -142,7 +156,7 @@ export function CatalogFilterButton({
     }
     // Escape dismisses the panel as it dismisses an XP menu, dropping the draft.
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") dismiss();
     }
     // A section list scrolling inside the panel leaves it in place.
     function closeOnScroll(event: Event) {
@@ -187,7 +201,7 @@ export function CatalogFilterButton({
               applied={applied}
               roots={roots}
               onApply={(filter) => {
-                setDrop(undefined);
+                dismiss();
                 onApply(filter);
               }}
             />
