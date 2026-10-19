@@ -467,19 +467,25 @@ then **Apply** narrows the list; **Clear** removes every filter, and
 combine so an item must satisfy each. Filters combine with the text search,
 and the list and its total page as before.
 
-| Section      | Values                                                                               |
-| ------------ | ------------------------------------------------------------------------------------ |
-| Match        | Matched, Needs your choice, Unmatched, Lookup failed, Rejected, Not looked up, Extra |
-| Type         | Movie, TV episode                                                                    |
-| Availability | Available, Missing, Probe failed                                                     |
-| Media root   | Each media root                                                                      |
-| TV series    | Each cataloged series, as the automatic collection criterion lists them              |
-| Franchise    | Each cataloged franchise, likewise                                                   |
-| Genre        | Each accepted genre, likewise                                                        |
-| Tag          | Each tag in use, likewise                                                            |
+| Section      | Values                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Match        | Matched, Needs your choice, Unmatched, Lookup failed, Rejected, Not looked up, File changed, Episode not listed on TMDB |
+| Type         | Movie, TV episode, Extra, Unidentified                                                                                  |
+| Availability | Available, Missing, Probe failed                                                                                        |
+| Details      | Corrected by you, TMDB data expired, TMDB refresh failed                                                                |
+| Collections  | In no collection                                                                                                        |
+| Media root   | Each media root                                                                                                         |
+| TV series    | Each cataloged series, as the automatic collection criterion lists them                                                 |
+| Franchise    | Each cataloged franchise, likewise                                                                                      |
+| Genre        | Each accepted genre, likewise                                                                                           |
+| Tag          | Each tag in use, likewise                                                                                               |
 
 **Unmatched** is an item TMDB answered without a match; **Lookup failed** is
-one whose last lookup failed. A series, franchise, genre, or tag filter
+one whose last lookup failed. **File changed** and **Episode not listed on
+TMDB** are matched items the list labels so. An extra is never looked up, so
+it is a type with no match state; **Unidentified** is any other item with no
+movie or episode facts. **Corrected by you** counts a correction of a content
+fact, never tags alone. A series, franchise, genre, or tag filter
 matches the items the same collection criterion matches, so an episode whose
 series the owner corrected to another name is in no TMDB series. An item
 whose TMDB data expired keeps its series and franchise, but matches no genre
@@ -660,8 +666,9 @@ None.
   the owner searched for can be chosen like an offered candidate.
 - A correction on an item that needs a choice settles it, and the release
   year can be corrected like any other fact.
-- Media Library filters its list by match state, type, availability, media
-  root, TV series, franchise, genre, and tag, any of them together, and a
+- Media Library filters its list by match state, type, availability,
+  metadata details, collection membership, media root, TV series, franchise,
+  genre, and tag, any of them together, and a
   series, franchise, genre, or tag filter matches what the same collection
   criterion matches.
 - Each media root shows its matched, needing-choice, and failed-lookup counts,

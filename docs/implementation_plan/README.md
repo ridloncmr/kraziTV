@@ -47,7 +47,7 @@ at the top of each plan are generated from ticket Status blocks by
 
 ### 002-programming
 
-- [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 16 of 17 tickets complete
+- [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 17 of 18 tickets complete
 - [Programming Spec 0002 Implementation Plan: Recommended And Automatic Collections](002-programming/0002-automatic-collections.md) - 11 of 12 tickets complete
 - [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 6 of 6 tickets complete
 - [Programming Spec 0004 Implementation Plan: Continuous Multi-Source Programming With kraziPlan](002-programming/0004-kraziplan.md) - 9 of 9 tickets complete

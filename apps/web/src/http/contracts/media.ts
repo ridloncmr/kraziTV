@@ -27,6 +27,8 @@ interface RootMatchCounts {
 export type MediaFilterKey =
   | "matchState"
   | "contentType"
+  | "detail"
+  | "collection"
   | "status"
   | "mediaRootId"
   | "seriesTmdbId"

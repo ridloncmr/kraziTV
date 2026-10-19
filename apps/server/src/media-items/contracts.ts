@@ -97,9 +97,29 @@ export interface MediaItemQuery {
 /**
  * A match state a list can filter on: an item's effective state, where
  * `unmatched` means TMDB answered without a match and `lookup_failed` means
- * the last lookup failed, though both items report `unmatched`.
+ * the last lookup failed, though both items report `unmatched`. A matched
+ * item whose file changed or whose episode TMDB does not list is also
+ * `file_changed` or `episode_unlisted`. An extra is a type, never a match
+ * state here, since it is never looked up.
  */
-export type MatchStateFilter = MatchState | "lookup_failed";
+export type MatchStateFilter =
+  | Exclude<MatchState, "extra">
+  | "lookup_failed"
+  | "file_changed"
+  | "episode_unlisted";
+
+/**
+ * What an item is: a movie or episode by its accepted facts, an extra, or
+ * unidentified when it is neither an extra nor known as either.
+ */
+export type ContentTypeFilter = "movie" | "episode" | "extra" | "unidentified";
+
+/**
+ * A fact about an item's metadata worth finding across the catalog: the
+ * owner corrected it, its TMDB data expired, or its last refresh failed.
+ */
+export type MetadataDetailFilter =
+  "corrected" | "tmdb_expired" | "refresh_failed";
 
 /**
  * What a list keeps: an item matching any value of each non-empty field,
@@ -107,7 +127,10 @@ export type MatchStateFilter = MatchState | "lookup_failed";
  */
 export interface CatalogFilter {
   matchStates?: readonly MatchStateFilter[];
-  contentTypes?: readonly ("movie" | "episode")[];
+  contentTypes?: readonly ContentTypeFilter[];
+  details?: readonly MetadataDetailFilter[];
+  /** `none` keeps items that belong to no media collection. */
+  collections?: readonly "none"[];
   statuses?: readonly MediaItemStatus[];
   mediaRootIds?: readonly string[];
   seriesTmdbIds?: readonly number[];

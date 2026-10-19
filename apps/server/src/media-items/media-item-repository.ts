@@ -16,14 +16,18 @@ import {
 } from "../database/writes/parameter-chunks.js";
 import type {
   CatalogFilter,
+  ContentTypeFilter,
   MatchStateFilter,
+  MetadataDetailFilter,
   MediaItem,
   MediaItemPage,
   MediaItemQuery,
   RootMatchCounts,
 } from "./contracts.js";
+import { correctsAnyFact } from "../content-metadata/persistence/corrected-columns.js";
 import {
   effectiveMetadata,
+  FILE_CHANGE_TOLERANCE_MS,
   METADATA_COLUMNS,
   type MetadataColumns,
 } from "./effective-metadata.js";
@@ -228,26 +232,40 @@ export function isRetryable(
   return eb.and([
     eb("media_items.status", "=", "available"),
     eb("media_items.duration_ms", "is not", null),
-    eb.or([
-      eb("metadata_matches.extra", "is", null),
-      eb("metadata_matches.extra", "=", 0),
-    ]),
+    isNotExtra(eb),
+  ]);
+}
+
+// True for an item that is not an extra, including one with no decision row.
+function isNotExtra(eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">) {
+  return eb.or([
+    eb("metadata_matches.extra", "is", null),
+    eb("metadata_matches.extra", "=", 0),
   ]);
 }
 
 // Whether an item's effective match state is `state`, decided as
-// effectiveMetadata decides it: no decision row means never looked up, an
-// extra wins over its stored state, and a lookup error tells a failed lookup
-// from one TMDB answered without a match.
+// effectiveMetadata and the Media Library label decide it: no decision row
+// means never looked up, an extra has no match state, a lookup error tells a
+// failed lookup from one TMDB answered without a match, and a matched file
+// whose duration moved past the tolerance has changed.
 function hasMatchState(
-  eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">,
+  eb: ExpressionBuilder<
+    DatabaseSchema,
+    "media_items" | "metadata_matches" | "content_facts"
+  >,
   state: MatchStateFilter,
 ): Expression<SqlBool> {
   switch (state) {
     case "not_looked_up":
       return eb("metadata_matches.state", "is", null);
-    case "extra":
-      return eb("metadata_matches.extra", "=", 1);
+    case "file_changed":
+      return eb.and([
+        eb("metadata_matches.state", "=", "matched"),
+        sql<SqlBool>`abs(${eb.ref("media_items.duration_ms")} - ${eb.ref("metadata_matches.matched_duration_ms")}) > ${FILE_CHANGE_TOLERANCE_MS}`,
+      ]);
+    case "episode_unlisted":
+      return eb("content_facts.episode_unlisted", "=", 1);
     case "lookup_failed":
       return isFailedLookup(eb);
     case "unmatched":
@@ -264,6 +282,48 @@ function hasMatchState(
   }
 }
 
+// Whether an item is of type `type`. An extra carries no accepted facts, but
+// it is checked first so a type never depends on that.
+function hasContentType(
+  eb: ExpressionBuilder<DatabaseSchema, "metadata_matches" | "content_facts">,
+  type: ContentTypeFilter,
+): Expression<SqlBool> {
+  if (type === "extra") return eb("metadata_matches.extra", "=", 1);
+  const known =
+    type === "unidentified"
+      ? eb.or([
+          eb("content_facts.content_type", "is", null),
+          eb("content_facts.content_type", "=", "unknown"),
+        ])
+      : eb("content_facts.content_type", "=", type);
+  return eb.and([isNotExtra(eb), known]);
+}
+
+// Whether an item's metadata carries `detail`. A correction counts only when
+// it corrects a fact, as it does for settling scans; tags alone do not.
+function hasDetail(
+  eb: ExpressionBuilder<
+    DatabaseSchema,
+    "media_items" | "metadata_provider_refs"
+  >,
+  detail: MetadataDetailFilter,
+): Expression<SqlBool> {
+  switch (detail) {
+    case "corrected":
+      return eb.exists(
+        eb
+          .selectFrom("metadata_corrections")
+          .select("metadata_corrections.media_item_id")
+          .whereRef("metadata_corrections.media_item_id", "=", "media_items.id")
+          .where(correctsAnyFact),
+      );
+    case "tmdb_expired":
+      return eb("metadata_provider_refs.expired_at", "is not", null);
+    case "refresh_failed":
+      return eb("metadata_provider_refs.refresh_error", "is not", null);
+  }
+}
+
 // One condition per non-empty filter field, each matching any of its values.
 // Series identity follows effectiveContentIdentity: an episode whose series
 // the owner corrected to another name belongs to no TMDB series, so these
@@ -275,6 +335,7 @@ function filterConditions(
     | "metadata_matches"
     | "content_facts"
     | "metadata_corrections"
+    | "metadata_provider_refs"
   >,
   filter: CatalogFilter,
 ): Expression<SqlBool>[] {
@@ -282,6 +343,8 @@ function filterConditions(
   const {
     matchStates = [],
     contentTypes = [],
+    details = [],
+    collections = [],
     statuses = [],
     mediaRootIds = [],
     seriesTmdbIds = [],
@@ -295,7 +358,28 @@ function filterConditions(
     );
   }
   if (contentTypes.length > 0) {
-    conditions.push(eb("content_facts.content_type", "in", contentTypes));
+    conditions.push(
+      eb.or(contentTypes.map((type) => hasContentType(eb, type))),
+    );
+  }
+  if (details.length > 0) {
+    conditions.push(eb.or(details.map((detail) => hasDetail(eb, detail))));
+  }
+  if (collections.includes("none")) {
+    conditions.push(
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom("media_collection_items")
+            .select("media_collection_items.media_item_id")
+            .whereRef(
+              "media_collection_items.media_item_id",
+              "=",
+              "media_items.id",
+            ),
+        ),
+      ),
+    );
   }
   if (statuses.length > 0) {
     conditions.push(eb("media_items.status", "in", statuses));

@@ -28,7 +28,8 @@ const FIXED_SECTIONS: {
       { value: "lookup_failed", label: "Lookup failed" },
       { value: "rejected", label: "Rejected" },
       { value: "not_looked_up", label: "Not looked up" },
-      { value: "extra", label: "Extra" },
+      { value: "file_changed", label: "File changed" },
+      { value: "episode_unlisted", label: "Episode not listed on TMDB" },
     ],
   },
   {
@@ -37,6 +38,8 @@ const FIXED_SECTIONS: {
     options: [
       { value: "movie", label: "Movie" },
       { value: "episode", label: "TV episode" },
+      { value: "extra", label: "Extra" },
+      { value: "unidentified", label: "Unidentified" },
     ],
   },
   {
@@ -47,6 +50,20 @@ const FIXED_SECTIONS: {
       { value: "missing", label: "Missing" },
       { value: "probe_failed", label: "Probe failed" },
     ],
+  },
+  {
+    key: "detail",
+    legend: "Details",
+    options: [
+      { value: "corrected", label: "Corrected by you" },
+      { value: "tmdb_expired", label: "TMDB data expired" },
+      { value: "refresh_failed", label: "TMDB refresh failed" },
+    ],
+  },
+  {
+    key: "collection",
+    legend: "Collections",
+    options: [{ value: "none", label: "In no collection" }],
   },
 ];
 

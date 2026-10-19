@@ -60,10 +60,14 @@ it("applies several values of several sections together, read from the catalog l
   fireEvent.click(dialog.getByRole("checkbox", { name: /Drama/ }));
   fireEvent.click(dialog.getByRole("checkbox", { name: /Christmas/ }));
   fireEvent.click(dialog.getByRole("checkbox", { name: "Missing" }));
+  fireEvent.click(dialog.getByRole("checkbox", { name: "Corrected by you" }));
+  fireEvent.click(dialog.getByRole("checkbox", { name: "In no collection" }));
   fireEvent.click(dialog.getByRole("button", { name: "Apply" }));
 
   await vi.waitFor(() =>
     expect(lastFilter(api)).toEqual({
+      collection: ["none"],
+      detail: ["corrected"],
       genre: ["Horror", "Drama"],
       seriesTmdbId: ["100"],
       status: ["missing"],
@@ -71,7 +75,7 @@ it("applies several values of several sections together, read from the catalog l
     }),
   );
   expect(screen.queryByRole("dialog", { name: "Filter media" })).toBeNull();
-  expect(screen.getByRole("button", { name: "Filter (4)…" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Filter (6)…" })).toBeTruthy();
 });
 
 it("narrows a long section by typing without unchecking what it hides", async () => {
@@ -102,7 +106,7 @@ it("discards a draft closed with Escape and clears every applied filter", async 
   fireEvent.click(dialog.getByRole("checkbox", { name: "Extra" }));
   fireEvent.click(dialog.getByRole("button", { name: "Apply" }));
   await vi.waitFor(() =>
-    expect(lastFilter(api)).toEqual({ matchState: ["extra"] }),
+    expect(lastFilter(api)).toEqual({ contentType: ["extra"] }),
   );
 
   dialog = openFilter("Filter (1)…");

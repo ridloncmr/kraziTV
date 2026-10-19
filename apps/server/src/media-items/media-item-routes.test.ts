@@ -8,6 +8,8 @@ import type { MediaItemTable } from "../database/schema/media-item-table.js";
 import { iso } from "../testing/api-requests.js";
 import {
   animeRootFixture,
+  collectionFixture,
+  collectionItemFixture,
   FIXTURE_TIME,
   itemFixture,
   itemFixtureAt,
@@ -396,7 +398,6 @@ describe("content metadata", () => {
     ["lookup_failed", [PATHS.failed]],
     ["rejected", [PATHS.rejected]],
     ["not_looked_up", [PATHS.notLookedUp]],
-    ["extra", [PATHS.extra]],
   ])("filters to the %s match state", async (state, paths) => {
     const server = await startWithMetadata();
 
@@ -456,6 +457,138 @@ describe("content metadata", () => {
     await expect(filteredPaths(server, "seriesTmdbId=1437")).resolves.toEqual(
       [],
     );
+  });
+
+  it.each([
+    ["movie", [PATHS.movie]],
+    ["episode", [PATHS.episode]],
+    ["extra", [PATHS.extra]],
+    [
+      "unidentified",
+      [
+        PATHS.ambiguous,
+        PATHS.unmatched,
+        PATHS.failed,
+        PATHS.rejected,
+        PATHS.notLookedUp,
+      ],
+    ],
+  ])("filters to the %s type", async (type, paths) => {
+    const server = await startWithMetadata();
+
+    await expect(filteredPaths(server, `contentType=${type}`)).resolves.toEqual(
+      [...paths].sort(),
+    );
+  });
+
+  it("keeps no extra under any match state", async () => {
+    const server = await startWithMetadata();
+    const states = [
+      "matched",
+      "ambiguous",
+      "unmatched",
+      "lookup_failed",
+      "rejected",
+      "not_looked_up",
+    ];
+
+    await expect(
+      filteredPaths(
+        server,
+        states.map((state) => `matchState=${state}`).join("&"),
+      ),
+    ).resolves.not.toContain(PATHS.extra);
+  });
+
+  it("finds changed files and unlisted episodes as their labels name them", async () => {
+    const server = await startWithMetadata(async (db) => {
+      const movie = await idAt(db, PATHS.movie);
+      const episode = await idAt(db, PATHS.episode);
+      const { matched_duration_ms } = await db
+        .selectFrom("metadata_matches")
+        .select("matched_duration_ms")
+        .where("media_item_id", "=", movie)
+        .executeTakeFirstOrThrow();
+      // Past the tolerance for the movie, within it for the episode.
+      await db
+        .updateTable("media_items")
+        .set({ duration_ms: (matched_duration_ms ?? 0) + 5_000 })
+        .where("id", "=", movie)
+        .execute();
+      await db
+        .updateTable("media_items")
+        .set((eb) => ({ duration_ms: eb("duration_ms", "+", 1_000) }))
+        .where("id", "=", episode)
+        .execute();
+      await db
+        .updateTable("content_facts")
+        .set({ episode_unlisted: 1 })
+        .where("media_item_id", "=", episode)
+        .execute();
+    });
+
+    await expect(
+      filteredPaths(server, "matchState=file_changed"),
+    ).resolves.toEqual([PATHS.movie]);
+    await expect(
+      filteredPaths(server, "matchState=episode_unlisted"),
+    ).resolves.toEqual([PATHS.episode]);
+  });
+
+  it("finds corrected items and expired or failed TMDB refreshes", async () => {
+    const server = await startWithMetadata(async (db) => {
+      const movie = await idAt(db, PATHS.movie);
+      const episode = await idAt(db, PATHS.episode);
+      await db
+        .insertInto("metadata_corrections")
+        .values([
+          correctionRow(await idAt(db, PATHS.unmatched), { title: "Mine" }),
+          // A row correcting nothing is not a correction.
+          correctionRow(await idAt(db, PATHS.rejected), {}),
+        ])
+        .execute();
+      await db
+        .updateTable("metadata_provider_refs")
+        .set({ expired_at: LATER })
+        .where("media_item_id", "=", movie)
+        .execute();
+      await db
+        .updateTable("metadata_provider_refs")
+        .set({ refresh_error: "TMDB answered HTTP 503" })
+        .where("media_item_id", "=", episode)
+        .execute();
+    });
+
+    await expect(filteredPaths(server, "detail=corrected")).resolves.toEqual([
+      PATHS.unmatched,
+    ]);
+    await expect(filteredPaths(server, "detail=tmdb_expired")).resolves.toEqual(
+      [PATHS.movie],
+    );
+    await expect(
+      filteredPaths(server, "detail=refresh_failed"),
+    ).resolves.toEqual([PATHS.episode]);
+  });
+
+  it("finds items in no collection", async () => {
+    const server = await startWithMetadata(async (db) => {
+      await db
+        .insertInto("media_collections")
+        .values(collectionFixture)
+        .execute();
+      await db
+        .insertInto("media_collection_items")
+        .values({
+          ...collectionItemFixture,
+          media_item_id: await idAt(db, PATHS.movie),
+        })
+        .execute();
+    });
+
+    const paths = await filteredPaths(server, "collection=none");
+
+    expect(paths).toHaveLength(Object.keys(PATHS).length - 1);
+    expect(paths).not.toContain(PATHS.movie);
   });
 
   it("counts each root's matches, failed lookups as a retry would find them", async () => {

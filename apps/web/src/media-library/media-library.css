@@ -24,11 +24,21 @@
 .list-toolbar > .filter-actions {
   margin-left: 0;
 }
-/* The filter dialog lays its sections side by side, so it is wider than a form dialog. */
+/*
+ * The filter dialog lays its sections side by side, so it is wider than a
+ * form dialog, and only its sections scroll, so Apply stays in reach.
+ */
 .window-dialog:has(.filter-sections) {
   width: min(640px, 100%);
 }
+.window-dialog-body:has(.filter-sections) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .filter-sections {
+  min-height: 0;
+  overflow: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   align-items: start;
