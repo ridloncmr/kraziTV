@@ -404,11 +404,11 @@ after filtering, or all at once in a walk-through.
 
 | Way                | How it starts                                                                     | Suits                                |
 | ------------------ | --------------------------------------------------------------------------------- | ------------------------------------ |
-| Filter             | **Filter** → Match: **Needs your choice** on the Media Library list               | Fixing one item and moving on        |
+| Filter             | **Filter…** → Match: **Needs your choice** on the Media Library list              | Fixing one item and moving on        |
 | **Review matches** | A `Review matches (<n>)` button, or the scan summary's **Review matches…** button | Working through every waiting choice |
 
 **Filter.** Media Library's list can be narrowed to items whose match state is
-ambiguous through its **Filter** panel; see
+ambiguous through its **Filter** dialog; see
 [Finding Media In Media Library](#finding-media-in-media-library). The
 owner opens an item's **Media details** and chooses **Choose match**, which
 opens the candidate choice, or **Reject match**. A rejected item's details offer
@@ -459,10 +459,11 @@ cataloged items, extras included. `<n> failed lookups` counts exactly the
 items **Retry failed lookups** would look up, so the button is disabled when
 it is 0, as it is while the root is disabled.
 
-**Filter.** A **Filter** button above the cataloged media list opens a panel
-of filter sections. The owner checks values, then **Apply** narrows the list;
-**Clear** removes every filter. The button reads `Filter (<n>)`, counting the
-sections in use. Values within one section match any of them; sections
+**Filter.** A **Filter…** button above the cataloged media list opens the
+**Filter media** window dialog of filter sections. The owner checks values,
+then **Apply** narrows the list; **Clear** removes every filter, and
+**Cancel** or Escape keeps the applied filter. The button reads
+`Filter (<n>)…`, counting the sections in use. Values within one section match any of them; sections
 combine so an item must satisfy each. Filters combine with the text search,
 and the list and its total page as before.
 

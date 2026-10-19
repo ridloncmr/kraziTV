@@ -24,28 +24,15 @@
 .list-toolbar > .filter-actions {
   margin-left: 0;
 }
-/*
- * The filter panel floats over the desktop under its button, as an XP menu
- * does, above windows but below the taskbar's balloons and Log Off.
- */
-.filter-panel.program-page {
-  position: fixed;
-  z-index: 150;
-  display: flex;
-  flex-direction: column;
-  width: min(620px, calc(100vw - 16px));
-  padding: 8px;
-  background: var(--xp-window-surface);
-  border: 1px solid var(--xp-menu-border);
-  box-shadow: 2px 2px 6px color-mix(in srgb, var(--xp-shadow) 35%, transparent);
+/* The filter dialog lays its sections side by side, so it is wider than a form dialog. */
+.window-dialog:has(.filter-sections) {
+  width: min(640px, 100%);
 }
 .filter-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   align-items: start;
   gap: 8px;
-  min-height: 0;
-  overflow: auto;
 }
 .program-page .filter-section {
   margin: 0;
@@ -63,8 +50,4 @@
 }
 .filter-options small {
   color: var(--xp-muted);
-}
-.filter-panel-actions {
-  justify-content: flex-end;
-  margin-top: 8px;
 }

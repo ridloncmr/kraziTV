@@ -877,8 +877,8 @@ and the web `match-choice.test.ts`, `correct-details.test.ts`, and
 Complete on 2026-10-19. `GET /media-items` takes repeatable match-state,
 type, availability, root, series, franchise, genre, and tag filters applied
 in SQL, and `GET /media-roots` reports each root's match counts through the
-retry's own failed-lookup predicate. Media Library's **Filter** panel floats
-over the desktop and replaces the needs-your-choice checkbox.
+retry's own failed-lookup predicate. Media Library's **Filter media** window
+dialog replaces the needs-your-choice checkbox.
 
 **Goal**: The owner can narrow the cataloged media list by any combination of
 match state, type, availability, media root, series, franchise, genre, and
@@ -888,7 +888,7 @@ tag, and sees each root's match counts without opening it.
 /media-items` replaces `needsChoice` with repeatable filter parameters
 applied in SQL; `GET /media-roots` adds each root's match counts, with the
 failed-lookup count sharing the retry's rule. Media Library gains the
-**Filter** panel, a **Matches** column, a **Retry failed lookups** button
+**Filter** dialog, a **Matches** column, a **Retry failed lookups** button
 disabled at zero, **Review matches** beside **Filter**, and aligned row
 buttons.
 

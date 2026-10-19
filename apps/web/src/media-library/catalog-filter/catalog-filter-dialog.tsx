@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import {
   optionValue,
   type CatalogOption,
@@ -9,10 +8,11 @@ import type {
   MediaFilterKey,
   MediaRoot,
 } from "../../http/contracts/media.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
 import { useResource } from "../../http/use-resource.js";
 import { FilterSection, type FilterOption } from "./filter-section.js";
 
-/** Sections whose values never change, in the order the panel shows them. */
+/** Sections whose values never change, in the order the dialog shows them. */
 const FIXED_SECTIONS: {
   key: MediaFilterKey;
   legend: string;
@@ -87,143 +87,27 @@ const CATALOG_SECTIONS: {
   },
 ];
 
-/** Counts the filter keys in use, which the button shows. */
-function keysInUse(filter: MediaFilter): number {
+/** Counts the filter keys in use, which the Filter button shows. */
+export function keysInUse(filter: MediaFilter): number {
   return Object.values(filter).filter((values) => values.length > 0).length;
 }
 
-// The panel's widest extent, so it moves left rather than leave the screen.
-const PANEL_WIDTH = 620;
-
 /**
- * Where the panel drops from its button, in viewport pixels. The panel
- * floats over the desktop like an XP menu, so a small window never clips it;
- * its height stops above the taskbar.
+ * The cataloged media list's **Filter** dialog. Checking values changes only
+ * a draft, which starts from the applied filter each time the dialog opens:
+ * **Apply** hands the draft over, **Clear** hands over no filter, and
+ * closing any other way discards the draft.
  */
-function dropFrom(button: HTMLElement): CSSProperties {
-  const rect = button.getBoundingClientRect();
-  const top = rect.bottom + 4;
-  return {
-    top,
-    left: Math.max(8, Math.min(rect.left, innerWidth - PANEL_WIDTH - 8)),
-    maxHeight: `calc(100vh - ${top}px - var(--xp-taskbar-height) - 8px)`,
-  };
-}
-
-/**
- * The cataloged media list's **Filter** button and its panel. Checking
- * values changes only a draft; **Apply** hands the draft over and **Clear**
- * hands over no filter. Closing the panel any other way, by Escape, a click
- * outside it, or scrolling or resizing what it drops from, discards the
- * draft, since the panel would no longer sit under its button.
- */
-export function CatalogFilterButton({
+export function CatalogFilterDialog({
   applied,
   roots,
   onApply,
+  onClose,
 }: {
   applied: MediaFilter;
   roots: readonly MediaRoot[];
   onApply: (filter: MediaFilter) => void;
-}) {
-  const [drop, setDrop] = useState<CSSProperties>();
-  const button = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const open = drop !== undefined;
-  // The panel renders at the end of the page, so focus moves into it on
-  // opening; otherwise Tab from the button would skip past it.
-  useEffect(() => {
-    if (open) {
-      panel.current
-        ?.querySelector<HTMLElement>("input, button")
-        ?.focus({ preventScroll: true });
-    }
-  }, [open]);
-  /** Closes from inside the panel or by Escape, returning focus to the button. */
-  function dismiss() {
-    setDrop(undefined);
-    button.current?.focus();
-  }
-  // Listens only while open, so a closed panel costs nothing.
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setDrop(undefined);
-    // The button toggles itself, so a press on it is not a press outside.
-    function closeOutside(event: PointerEvent) {
-      const target = event.target as Node;
-      if (!panel.current?.contains(target) && !button.current?.contains(target))
-        close();
-    }
-    // Escape dismisses the panel as it dismisses an XP menu, dropping the draft.
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") dismiss();
-    }
-    // A section list scrolling inside the panel leaves it in place.
-    function closeOnScroll(event: Event) {
-      if (!panel.current?.contains(event.target as Node)) close();
-    }
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    document.addEventListener("scroll", closeOnScroll, true);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-      document.removeEventListener("scroll", closeOnScroll, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [open]);
-  const used = keysInUse(applied);
-  return (
-    <>
-      <button
-        ref={button}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() =>
-          setDrop(
-            open || !button.current ? undefined : dropFrom(button.current),
-          )
-        }
-      >
-        {used > 0 ? `Filter (${used})` : "Filter"}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panel}
-            className="program-page filter-panel"
-            role="dialog"
-            aria-label="Filter media"
-            style={drop}
-          >
-            <FilterPanel
-              applied={applied}
-              roots={roots}
-              onApply={(filter) => {
-                dismiss();
-                onApply(filter);
-              }}
-            />
-          </div>,
-          document.body,
-        )}
-    </>
-  );
-}
-
-/**
- * The open panel's content. It mounts on opening, so its draft starts from
- * the applied filter and its catalog lists are read fresh each time.
- */
-function FilterPanel({
-  applied,
-  roots,
-  onApply,
-}: {
-  applied: MediaFilter;
-  roots: readonly MediaRoot[];
-  onApply: (filter: MediaFilter) => void;
+  onClose: () => void;
 }) {
   const [draft, setDraft] = useState<MediaFilter>(applied);
   /** Checks or unchecks one value of one key, dropping a key left empty. */
@@ -245,7 +129,7 @@ function FilterPanel({
     };
   }
   return (
-    <>
+    <WindowDialog title="Filter media" onClose={onClose}>
       <div className="filter-sections">
         {FIXED_SECTIONS.map(({ key, legend, options }) => (
           <FilterSection
@@ -272,11 +156,12 @@ function FilterPanel({
           />
         ))}
       </div>
-      <div className="row-actions filter-panel-actions">
+      <div className="dialog-actions">
         <button onClick={() => onApply({})}>Clear</button>
+        <button onClick={onClose}>Cancel</button>
         <button onClick={() => onApply(draft)}>Apply</button>
       </div>
-    </>
+    </WindowDialog>
   );
 }
 

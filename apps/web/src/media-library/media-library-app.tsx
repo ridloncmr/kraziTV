@@ -15,7 +15,10 @@ import type { ReviewStep } from "../http/contracts/metadata.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
-import { CatalogFilterButton } from "./catalog-filter/catalog-filter-button.js";
+import {
+  CatalogFilterDialog,
+  keysInUse,
+} from "./catalog-filter/catalog-filter-dialog.js";
 import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
@@ -46,7 +49,8 @@ export function MediaLibraryApp({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
-  const filtered = Object.keys(filter).length > 0;
+  const filtersInUse = keysInUse(filter);
+  const [filtering, setFiltering] = useState(false);
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
     "/metadata/match-reviews",
@@ -223,11 +227,9 @@ export function MediaLibraryApp({
             role="group"
             aria-label="Matches"
           >
-            <CatalogFilterButton
-              applied={filter}
-              roots={roots.data ?? []}
-              onApply={setFilter}
-            />
+            <button onClick={() => setFiltering(true)}>
+              {filtersInUse > 0 ? `Filter (${filtersInUse})…` : "Filter…"}
+            </button>
             <button
               disabled={reviewCount === 0}
               onClick={() => setReviewing(true)}
@@ -265,7 +267,7 @@ export function MediaLibraryApp({
         <p className="empty-state">
           {search.trim()
             ? "No cataloged media matches this search."
-            : filtered
+            : filtersInUse > 0
               ? "No cataloged media matches these filters."
               : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
@@ -330,6 +332,17 @@ export function MediaLibraryApp({
             refresh();
           }}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {filtering && (
+        <CatalogFilterDialog
+          applied={filter}
+          roots={roots.data ?? []}
+          onApply={(applied) => {
+            setFiltering(false);
+            setFilter(applied);
+          }}
+          onClose={() => setFiltering(false)}
         />
       )}
       {removing && (
