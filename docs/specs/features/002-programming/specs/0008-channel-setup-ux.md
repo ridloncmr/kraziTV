@@ -1,6 +1,6 @@
 # Channel Programming Setup In My Channels
 
-Status: Accepted
+Status: Implemented
 
 ## Problem
 

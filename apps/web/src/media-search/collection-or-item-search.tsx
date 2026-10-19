@@ -70,7 +70,7 @@ export function CollectionOrItemSearch({
           const reason = unavailable.get(key);
           return (
             <li key={key}>
-              <label>
+              <label className="choice">
                 <input
                   type="checkbox"
                   checked={checked.has(key)}

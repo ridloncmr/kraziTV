@@ -146,3 +146,23 @@ it("reads each of several paths once, keeping a pending read when another path j
     "/slow",
   ]);
 });
+
+it("reports a failed read among several paths, so a caller can stop waiting for it", async () => {
+  const api = new BrowserApi();
+  api.reply("/fine", { name: "fine" });
+  api.reply(
+    "/broken",
+    { error: { code: "offline", message: "Down" } },
+    "GET",
+    503,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(() =>
+    useResourceMap<{ name: string }>(["/fine", "/broken"]),
+  );
+
+  await waitFor(() => expect(view.result.current.failed("/broken")).toBe(true));
+  expect(view.result.current.get("/broken")).toBeUndefined();
+  expect(view.result.current.failed("/fine")).toBe(false);
+  expect(view.result.current.get("/fine")?.name).toBe("fine");
+});

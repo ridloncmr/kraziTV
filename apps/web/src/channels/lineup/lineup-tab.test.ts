@@ -255,6 +255,9 @@ it("opens Properties by double-click, by Enter, and from the row menu", async ()
   fireEvent.click(
     within(row).getByRole("button", { name: "Actions for Favorites" }),
   );
+  expect(
+    screen.getAllByRole("menuitem").map((item) => item.textContent),
+  ).toEqual(["Properties", "Remove…"]);
   fireEvent.click(screen.getByRole("menuitem", { name: "Properties" }));
   opens();
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -667,7 +670,7 @@ it("saves each marathon preset as soon as it is chosen", async () => {
   ]);
 });
 
-it("shows unmatched settings as Custom and edits them in the Custom dialog", async () => {
+it("shows unmatched settings as Custom and edits them in the Custom dialog through Edit…", async () => {
   const { api } = await openLineup([marathonShow], [], (api) =>
     serveSettings(api, {
       marathonChancePercent: 40,
@@ -679,13 +682,18 @@ it("shows unmatched settings as Custom and edits them in the Custom dialog", asy
   const chance = () =>
     within(custom()).getByLabelText<HTMLInputElement>("Chance per round (%)");
 
-  chooseOption(marathonsSelect(), "Custom");
+  // Choosing the Custom already shown opens nothing in a browser; Edit… does.
+  fireEvent.click(
+    screen.getByRole("button", { name: "Edit custom marathons" }),
+  );
   expect(chance().value).toBe("40");
   fireEvent.change(chance(), { target: { value: "50" } });
   fireEvent.click(within(custom()).getByRole("button", { name: "Cancel" }));
   expect(settingsWrites(api)).toEqual([]);
 
-  chooseOption(marathonsSelect(), "Custom");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Edit custom marathons" }),
+  );
   expect(chance().value).toBe("40");
   fireEvent.change(chance(), { target: { value: "50" } });
   fireEvent.click(within(custom()).getByRole("button", { name: "OK" }));
@@ -838,6 +846,9 @@ it("adds three picks as three shows in one request, each with its suggested per 
   const toAdd = within(dialog).getByRole("list", { name: "Shows to add" });
   await within(toAdd).findByText("3 episodes per sitting");
   await within(toAdd).findByText("1 movie per sitting");
+  within(toAdd).getByText("Single item · once per sitting");
+  // Every pick has a suggestion, so none asks for per sitting.
+  expect(within(dialog).queryByLabelText("Per sitting")).toBeNull();
   await waitFor(() => expect(add.disabled).toBe(false));
   fireEvent.click(add);
 
@@ -991,4 +1002,139 @@ it("adds an item and a collection as members under Advanced through the combined
       { kind: "media_item", mediaItemId: "z" },
     ],
   });
+});
+
+it("words presets in programs for a show of mixed or unclassified content", async () => {
+  await openLineup(
+    [
+      favoritesAssignment("chronological", {
+        members: [{ kind: "collection", mediaCollectionId: "mixed" }],
+      }),
+    ],
+    [collectionWith("mixed", "Mixed")],
+    serveSuggestions,
+  );
+
+  await screen.findByRole("cell", { name: "3 programs" });
+  const dialog = await openProperties("Mixed");
+  await waitFor(() =>
+    expect(
+      within(perSitting(dialog))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual([
+      "Choose…",
+      "1 program",
+      "3 programs",
+      "~30 min",
+      "~1 hr",
+      "~2 hrs",
+      "Custom…",
+    ]),
+  );
+  expect(chosenOption(perSitting(dialog))).toBe("3 programs");
+});
+
+it("shows a single-item show without order, per sitting, or marathons", async () => {
+  await openLineup(
+    [
+      {
+        id: "alpha",
+        participation: "default",
+        playbackMode: null,
+        ordinaryStretch: { kind: "programs", count: 1 },
+        marathonStretch: null,
+        members: [{ kind: "media_item", mediaItemId: "z" }],
+      },
+    ],
+    [],
+    (api) => api.reply("/media-items/z", adminFixtures.media[0]),
+  );
+
+  const dialog = await openProperties("Alpha");
+
+  within(dialog).getByText("Single items air once per sitting.");
+  expect(within(dialog).queryByLabelText("Order")).toBeNull();
+  expect(within(dialog).queryByLabelText("Per sitting")).toBeNull();
+  expect(within(dialog).queryByLabelText("Can marathon")).toBeNull();
+});
+
+it("opens the Custom dialog from Custom… while a preset is saved", async () => {
+  const { api } = await openLineup([marathonShow], [], (api) =>
+    serveSettings(api, {
+      marathonChancePercent: 10,
+      marathonMinOrdinaryRounds: 2,
+    }),
+  );
+  await waitFor(() =>
+    expect(chosenOption(marathonsSelect())).toBe("Occasional"),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Edit custom marathons" }),
+  ).toBeNull();
+
+  chooseOption(marathonsSelect(), "Custom…");
+
+  screen.getByRole("dialog", { name: "Custom marathons" });
+  expect(settingsWrites(api)).toEqual([]);
+});
+
+it("names the show the server's validation refused, from the picks as they were sent", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    serveSuggestions,
+  );
+  api.reply(
+    BATCH,
+    {
+      error: {
+        code: "invalid_request",
+        message: "✖ Invalid input\n  → at assignments[1].ordinaryStretch",
+      },
+    },
+    "POST",
+    400,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Favorites"));
+  fireEvent.click(result(dialog, "Movies"));
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+  await within(dialog).findByText(/Movies could not be added/);
+
+  // Changing the picks afterward never renames the refused show.
+  fireEvent.click(result(dialog, "Favorites"));
+
+  expect(within(dialog).getByRole("alert").textContent).toMatch(
+    /Movies could not be added/,
+  );
+});
+
+it("asks for per sitting when a pick's content cannot be checked", async () => {
+  const { api } = await openLineup([], [], (api) =>
+    api.reply(
+      "/programming-assignments/stretch-suggestion",
+      { error: { code: "offline", message: "Down" } },
+      "GET",
+      503,
+    ),
+  );
+  api.reply("/media-items", { items: [], total: 0 });
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+
+  fireEvent.click(result(dialog, "Favorites"));
+
+  const choice =
+    await within(dialog).findByLabelText<HTMLSelectElement>("Per sitting");
+  chooseOption(choice, "3 programs");
+  expect(
+    within(dialog).getByRole<HTMLButtonElement>("button", { name: "Add" })
+      .disabled,
+  ).toBe(false);
 });

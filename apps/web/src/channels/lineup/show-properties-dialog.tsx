@@ -35,9 +35,9 @@ import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
  * Nothing writes until **OK** or **Apply**, and **Cancel** discards every
  * change. The main section holds order, per sitting, and whether the show
  * can marathon; **Advanced** holds members, rotation, the marathon length
- * override, and the collection preview. Saving a show never changes the channel's marathon settings: while they
- * are off, checking **Can marathon** offers to turn them on as its own
- * write.
+ * override, and the collection preview. Saving a show never changes the
+ * channel's marathon settings: while they are off, checking **Can
+ * marathon** offers to turn them on as its own write.
  */
 export function ShowPropertiesDialog({
   assignmentsPath,
@@ -106,7 +106,11 @@ export function ShowPropertiesDialog({
       members: change([...current.members]),
     }));
   return (
-    <WindowDialog title={title} busy={mutation.pending} onClose={onClose}>
+    <WindowDialog
+      title={title}
+      busy={mutation.pending || turnOn.pending}
+      onClose={onClose}
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -149,7 +153,7 @@ export function ShowPropertiesDialog({
                 contentKind={contentKind}
                 onChange={(stretch) => edit({ stretch })}
               />
-              <label>
+              <label className="choice">
                 <input
                   type="checkbox"
                   checked={draft.canMarathon}
@@ -220,7 +224,7 @@ export function ShowPropertiesDialog({
                 }
               />
             </fieldset>
-            <label>
+            <label className="choice">
               <input
                 type="checkbox"
                 checked={draft.rotates}
@@ -235,7 +239,7 @@ export function ShowPropertiesDialog({
             )}
             {hasCollection && draft.canMarathon && (
               <>
-                <label>
+                <label className="choice">
                   <input
                     type="checkbox"
                     checked={draft.marathonOverride !== null}

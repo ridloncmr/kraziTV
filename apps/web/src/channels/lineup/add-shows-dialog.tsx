@@ -52,6 +52,9 @@ export function AddShowsDialog({
 }) {
   const mutation = useMutation();
   const [picks, setPicks] = useState<FoundMember[]>([]);
+  // The picks as last sent, so a refusal names the show it refused even
+  // after the owner changes the picks.
+  const [sent, setSent] = useState<readonly FoundMember[]>([]);
   // Per sitting the owner chose for picks the server had no suggestion for.
   const [chosen, setChosen] = useState<ReadonlyMap<string, StretchDraft>>(
     new Map(),
@@ -61,13 +64,19 @@ export function AddShowsDialog({
     picks.filter((pick) => pick.member.kind === "collection").map(pathOf),
     visible,
   );
+  // A collection's suggestion; a failed read counts as none, so the owner
+  // chooses instead of waiting. Undefined while it is still being read.
+  const suggestionFor = (pick: FoundMember): StretchSuggestion | undefined =>
+    suggestions.failed(pathOf(pick))
+      ? { ordinaryStretch: null, contentKind: null }
+      : suggestions.get(pathOf(pick));
   // A pick's per sitting: one program for an item, else the suggestion, or
   // the owner's choice when there is none; undefined until it can be sent.
   const perSitting = (pick: FoundMember) => {
     if (pick.member.kind === "media_item") {
       return { kind: "programs", count: 1 } as const;
     }
-    const suggested = suggestions.get(pathOf(pick))?.ordinaryStretch;
+    const suggested = suggestionFor(pick)?.ordinaryStretch;
     if (suggested !== null) return suggested;
     const draft = chosen.get(memberKey(pick.member));
     return draft && isStretchComplete(draft)
@@ -75,12 +84,11 @@ export function AddShowsDialog({
       : undefined;
   };
   const ready = picks.length > 0 && picks.every((pick) => perSitting(pick));
-  // Names the refused show when the server says which one it was.
+  const refused = refusedPick(mutation.error, sent);
   const failure =
-    mutation.error instanceof ApiError &&
-    typeof mutation.error.details.index === "number"
+    refused && mutation.error
       ? new Error(
-          `${picks[mutation.error.details.index]?.name ?? "A show"} could not be added: ${mutation.error.message}`,
+          `${refused.name} could not be added: ${mutation.error.message}`,
         )
       : mutation.error;
   return (
@@ -102,6 +110,7 @@ export function AddShowsDialog({
               },
             ];
           });
+          setSent(picks);
           void mutation.run<SourceAssignment[]>(
             `${assignmentsPath}/batch`,
             "POST",
@@ -136,7 +145,7 @@ export function AddShowsDialog({
                 const key = memberKey(pick.member);
                 const suggestion =
                   pick.member.kind === "collection"
-                    ? suggestions.get(pathOf(pick))
+                    ? suggestionFor(pick)
                     : undefined;
                 const setting = perSitting(pick);
                 return (
@@ -186,4 +195,21 @@ export function AddShowsDialog({
       </form>
     </WindowDialog>
   );
+}
+
+/**
+ * Finds the pick a refused batch names: by the refusal's `index`, or, for a
+ * request the server's validation refused, by the `assignments[N]` path its
+ * message cites.
+ */
+function refusedPick(
+  error: Error | undefined,
+  sent: readonly FoundMember[],
+): FoundMember | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  const index =
+    typeof error.details.index === "number"
+      ? error.details.index
+      : Number(/assignments\[(\d+)\]/.exec(error.message)?.[1]);
+  return Number.isInteger(index) ? sent[index] : undefined;
 }

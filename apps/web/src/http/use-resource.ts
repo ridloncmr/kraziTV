@@ -73,14 +73,15 @@ export function useResource<T>(
  * Reads each of `paths` once while active and keeps every answer keyed by
  * path, so a list can read one resource per row without a hook per row. A
  * read is never abandoned when another path joins, so rows settle in one
- * request each; a failed read stays absent, for the caller's fallback, and
- * is tried again when the paths next change.
+ * request each. A failed read reports `failed`, so the caller can stop
+ * waiting for it, and is tried again when the paths next change.
  */
 export function useResourceMap<T>(
   paths: readonly string[],
   active = true,
-): ReadonlyMap<string, T> {
+): { get: (path: string) => T | undefined; failed: (path: string) => boolean } {
   const [values, setValues] = useState<ReadonlyMap<string, T>>(new Map());
+  const [failures, setFailures] = useState<ReadonlySet<string>>(new Set());
   const requested = useRef(new Set<string>());
   const mounted = useRef(true);
   useEffect(() => {
@@ -97,15 +98,34 @@ export function useResourceMap<T>(
       requested.current.add(path);
       apiRequest<T>(path).then(
         (value) => {
+          if (!mounted.current) return;
+          setValues((current) => new Map(current).set(path, value));
+          setFailures((current) => withoutPath(current, path));
+        },
+        () => {
+          requested.current.delete(path);
           if (mounted.current) {
-            setValues((current) => new Map(current).set(path, value));
+            setFailures((current) => new Set(current).add(path));
           }
         },
-        () => requested.current.delete(path),
       );
     }
   }, [key, active]);
-  return values;
+  return {
+    get: (path) => values.get(path),
+    failed: (path) => failures.has(path),
+  };
+}
+
+// A copy of the paths without `path`, or the same set when it is absent.
+function withoutPath(
+  paths: ReadonlySet<string>,
+  path: string,
+): ReadonlySet<string> {
+  if (!paths.has(path)) return paths;
+  const next = new Set(paths);
+  next.delete(path);
+  return next;
 }
 
 /** A program owns its write until completion or close; concurrent submissions are blocked. */

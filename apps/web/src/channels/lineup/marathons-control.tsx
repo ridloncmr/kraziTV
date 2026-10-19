@@ -21,7 +21,9 @@ const PRESETS: Record<"occasional" | "frequent", MarathonSettings> = {
 /**
  * The Lineup's one channel-wide marathon control: Off, Occasional,
  * Frequent, or Custom… with a dialog for the chance and cooldown. A preset
- * saves at once; saved values that match none show as Custom. It is
+ * saves at once; saved values that match none show as Custom, with
+ * **Edit…** beside them, since choosing the option already shown opens
+ * nothing. It is
  * disabled until some show can marathon, since the chance would choose
  * nothing. `changed` runs after every save the server accepted.
  */
@@ -40,6 +42,7 @@ export function MarathonsControl({
   const mutation = useMutation();
   const [customizing, setCustomizing] = useState(false);
   const saved = marathons.data;
+  const isCustom = saved !== undefined && choiceOf(saved) === "custom";
   // Saves the settings, then reads them back for the lineup and Properties.
   const save = (settings: MarathonSettings, done?: () => void) =>
     void mutation.run(path, "PUT", settings, () => {
@@ -65,11 +68,19 @@ export function MarathonsControl({
           <option value="off">Off</option>
           <option value="occasional">Occasional</option>
           <option value="frequent">Frequent</option>
-          <option value="custom">
-            {saved && choiceOf(saved) === "custom" ? "Custom" : "Custom…"}
-          </option>
+          <option value="custom">{isCustom ? "Custom" : "Custom…"}</option>
         </select>
       </label>
+      {isCustom && (
+        <button
+          type="button"
+          aria-label="Edit custom marathons"
+          disabled={!canMarathon || mutation.pending}
+          onClick={() => setCustomizing(true)}
+        >
+          Edit…
+        </button>
+      )}
       {canMarathon ? (
         <p className="secondary">
           Each round may give one show that can marathon a longer turn. It

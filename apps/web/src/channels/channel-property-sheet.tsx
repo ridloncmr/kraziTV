@@ -46,7 +46,9 @@ export function ChannelPropertySheet({
 }) {
   const programming = useChannelProgramming(channel.id, visible);
   const lineup = programming.assignments.data;
-  const hasShow = lineup !== undefined && lineup.length > 0;
+  // Until the lineup is read, every tab stays, so a remembered Rules or
+  // Preview tab is not swapped for Lineup while the channel loads.
+  const hasShow = lineup === undefined || lineup.length > 0;
   const tabs = TABS.filter((item) => hasShow || !NEEDS_A_SHOW.has(item.key));
   // A tab the lineup hides, such as Rules after its last show is removed,
   // shows Lineup until a show returns.
