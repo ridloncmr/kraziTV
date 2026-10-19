@@ -404,11 +404,12 @@ after filtering, or all at once in a walk-through.
 
 | Way                | How it starts                                                                     | Suits                                |
 | ------------------ | --------------------------------------------------------------------------------- | ------------------------------------ |
-| Filter             | A **Needs your choice** filter on the Media Library list                          | Fixing one item and moving on        |
+| Filter             | **Filter** → Match: **Needs your choice** on the Media Library list               | Fixing one item and moving on        |
 | **Review matches** | A `Review matches (<n>)` button, or the scan summary's **Review matches…** button | Working through every waiting choice |
 
 **Filter.** Media Library's list can be narrowed to items whose match state is
-ambiguous. It combines with the text search and pages like the full list. The
+ambiguous through its **Filter** panel; see
+[Finding Media In Media Library](#finding-media-in-media-library). The
 owner opens an item's **Media details** and chooses **Choose match**, which
 opens the candidate choice, or **Reject match**. A rejected item's details offer
 **Clear rejection**.
@@ -425,8 +426,8 @@ no earlier offer, since the owner's choice is the decision. **Correct
 details…** opens the correction dialog for the item instead, for a title
 TMDB does not know.
 
-**Review matches.** The button shows only while at least one item needs a
-choice; `<n>` counts steps, not files. It opens a window dialog that shows one
+**Review matches.** The button sits beside **Filter** above the list and is
+disabled while no item needs a choice; `<n>` counts steps, not files. It opens a window dialog that shows one
 step at a time:
 
 1. Each step is the candidate choice for one series folder, or for one movie
@@ -448,6 +449,40 @@ them.
 
 When a completed scan reports items needing a choice, its summary offers a
 **Review matches…** button beside **OK** that opens the walk-through.
+
+### Finding Media In Media Library
+
+**Root match counts.** Each media root row shows a **Matches** column:
+`<matched> of <items> matched`, followed by `<n> need your choice` and
+`<n> failed lookups` when either is non-zero. `<items>` counts the root's
+cataloged items, extras included. `<n> failed lookups` counts exactly the
+items **Retry failed lookups** would look up, so the button is disabled when
+it is 0, as it is while the root is disabled.
+
+**Filter.** A **Filter** button above the cataloged media list opens a panel
+of filter sections. The owner checks values, then **Apply** narrows the list;
+**Clear** removes every filter. The button reads `Filter (<n>)`, counting the
+sections in use. Values within one section match any of them; sections
+combine so an item must satisfy each. Filters combine with the text search,
+and the list and its total page as before.
+
+| Section      | Values                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| Match        | Matched, Needs your choice, Unmatched, Lookup failed, Rejected, Not looked up, Extra                    |
+| Type         | Movie, TV episode                                                                                      |
+| Availability | Available, Missing, Probe failed                                                                       |
+| Media root   | Each media root                                                                                        |
+| TV series    | Each cataloged series, as the automatic collection criterion lists them                                |
+| Franchise    | Each cataloged franchise, likewise                                                                     |
+| Genre        | Each accepted genre, likewise                                                                          |
+| Tag          | Each tag in use, likewise                                                                              |
+
+**Unmatched** is an item TMDB answered without a match; **Lookup failed** is
+one whose last lookup failed. A series, franchise, genre, or tag filter
+matches the items the same collection criterion matches, so an episode whose
+series the owner corrected to another name is in no TMDB series. An item
+whose TMDB data expired matches no series, franchise, or genre filter until
+its data is refreshed.
 
 ### Disc-Track Mapping
 
@@ -624,7 +659,12 @@ None.
   the owner searched for can be chosen like an offered candidate.
 - A correction on an item that needs a choice settles it, and the release
   year can be corrected like any other fact.
-- Media Library filters its list to items needing a choice.
+- Media Library filters its list by match state, type, availability, media
+  root, TV series, franchise, genre, and tag, any of them together, and a
+  series, franchise, genre, or tag filter matches what the same collection
+  criterion matches.
+- Each media root shows its matched, needing-choice, and failed-lookup counts,
+  and **Retry failed lookups** is disabled when the root has none.
 - **Review matches** shows one step per series folder or movie file, where
   the series folder is the outermost naming folder, so `Survivor/` with 44
   season folders is one step; commits each choice or correction as it is

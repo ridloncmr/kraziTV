@@ -868,3 +868,28 @@ and the web `match-choice.test.ts`, `correct-details.test.ts`, and
 `media-details.test.ts`.
 
 **Docs impact**: Spec 0001; ADR 0013 amendment.
+
+### META-017: Filter Media Library and count each root's matches
+
+**Goal**: The owner can narrow the cataloged media list by any combination of
+match state, type, availability, media root, series, franchise, genre, and
+tag, and sees each root's match counts without opening it.
+
+**Scope**: The spec's Finding Media In Media Library section. `GET
+/media-items` replaces `needsChoice` with repeatable filter parameters
+applied in SQL; `GET /media-roots` adds each root's match counts, with the
+failed-lookup count sharing the retry's rule. Media Library gains the
+**Filter** panel, a **Matches** column, a **Retry failed lookups** button
+disabled at zero, **Review matches** beside **Filter**, and aligned row
+buttons.
+
+**Out of scope**: Grouping the list by series; saving filters between
+sessions.
+
+**Blocking dependencies**: META-005, META-006, META-008.
+
+**Verification**: `media-item-repository.test.ts`, `media-item-routes.test.ts`,
+`media-root-routes.test.ts`, `metadata-match-repository.test.ts`, and the web
+`media-library-app.test.ts` and `match-choice.test.ts`.
+
+**Docs impact**: Spec 0001.
