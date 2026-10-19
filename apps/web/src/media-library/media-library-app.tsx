@@ -4,6 +4,7 @@ import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { RowMenu } from "../controls/row-menu.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
@@ -155,51 +156,48 @@ export function MediaLibraryApp({
                       <RootMatches counts={root.matchCounts} />
                     </td>
                     <td>
-                      <div className="row-actions root-actions">
-                        <button
-                          className="toggle-button"
-                          onClick={() => {
-                            setLastRequest("root");
-                            void mutation.run(
-                              resourcePath("media-roots", root.id),
-                              "PATCH",
-                              { enabled: !root.enabled },
-                              refresh,
-                            );
-                          }}
-                        >
-                          {root.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button
-                          disabled={!root.enabled}
-                          onClick={() => {
-                            setLastRequest("scan");
-                            void scan.start(root);
-                          }}
-                        >
-                          Scan
-                        </button>
-                        <button
-                          disabled={
-                            !root.enabled ||
-                            root.matchCounts.failedLookups === 0
-                          }
-                          onClick={() => {
-                            setLastRequest("scan");
-                            void scan.retry({
-                              scope: "failed",
-                              mediaRootId: root.id,
-                            });
-                          }}
-                        >
-                          Retry failed lookups
-                        </button>
-                        <button
-                          onClick={() => setRemoving({ kind: "root", root })}
-                        >
-                          Delete…
-                        </button>
-                      </div>
+                      <RowMenu
+                        label={`Actions for ${root.path}`}
+                        items={[
+                          {
+                            label: root.enabled ? "Disable" : "Enable",
+                            onSelect: () => {
+                              setLastRequest("root");
+                              void mutation.run(
+                                resourcePath("media-roots", root.id),
+                                "PATCH",
+                                { enabled: !root.enabled },
+                                refresh,
+                              );
+                            },
+                          },
+                          {
+                            label: "Scan",
+                            disabled: !root.enabled,
+                            onSelect: () => {
+                              setLastRequest("scan");
+                              void scan.start(root);
+                            },
+                          },
+                          {
+                            label: "Retry failed lookups",
+                            disabled:
+                              !root.enabled ||
+                              root.matchCounts.failedLookups === 0,
+                            onSelect: () => {
+                              setLastRequest("scan");
+                              void scan.retry({
+                                scope: "failed",
+                                mediaRootId: root.id,
+                              });
+                            },
+                          },
+                          {
+                            label: "Delete…",
+                            onSelect: () => setRemoving({ kind: "root", root }),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

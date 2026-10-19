@@ -12,7 +12,7 @@ import { WindowDialog } from "../../controls/window-dialog.js";
 import { useResource } from "../../http/use-resource.js";
 import { FilterSection, type FilterOption } from "./filter-section.js";
 
-/** Sections whose values never change, in the order the dialog shows them. */
+/** Sections whose values never change. */
 const FIXED_SECTIONS: {
   key: MediaFilterKey;
   legend: string;
@@ -104,6 +104,22 @@ const CATALOG_SECTIONS: {
   },
 ];
 
+/**
+ * The dialog's panels in reading order, three to a row: the fixed sections,
+ * then what the catalog holds, then media roots and tags across a wide last
+ * row. A panel is one section or a stack of two short ones.
+ */
+const PANELS: { keys: MediaFilterKey[]; wide?: boolean }[] = [
+  { keys: ["matchState"] },
+  { keys: ["contentType", "status"] },
+  { keys: ["detail", "collection"] },
+  { keys: ["seriesTmdbId"] },
+  { keys: ["franchiseTmdbId"] },
+  { keys: ["genre"] },
+  { keys: ["mediaRootId"], wide: true },
+  { keys: ["tagId"], wide: true },
+];
+
 /** Counts the filter keys in use, which the Filter button shows. */
 export function keysInUse(filter: MediaFilter): number {
   return Object.values(filter).filter((values) => values.length > 0).length;
@@ -145,32 +161,52 @@ export function CatalogFilterDialog({
       onToggle: (value: string, on: boolean) => toggle(key, value, on),
     };
   }
+  /** The section that filters on `key`, whichever list its values come from. */
+  function filterSection(key: MediaFilterKey) {
+    const fixed = FIXED_SECTIONS.find((entry) => entry.key === key);
+    if (fixed) {
+      return (
+        <FilterSection
+          key={key}
+          legend={fixed.legend}
+          options={fixed.options}
+          empty=""
+          {...section(key)}
+        />
+      );
+    }
+    const listed = CATALOG_SECTIONS.find((entry) => entry.key === key);
+    if (listed) {
+      return (
+        <CatalogFilterSection
+          key={key}
+          legend={listed.legend}
+          path={listed.path}
+          empty={listed.empty}
+          {...section(key)}
+        />
+      );
+    }
+    return (
+      <FilterSection
+        key={key}
+        legend="Media root"
+        options={roots.map((root) => ({ value: root.id, label: root.path }))}
+        empty="No media roots yet."
+        {...section(key)}
+      />
+    );
+  }
   return (
     <WindowDialog title="Filter media" onClose={onClose}>
       <div className="filter-sections">
-        {FIXED_SECTIONS.map(({ key, legend, options }) => (
-          <FilterSection
-            key={key}
-            legend={legend}
-            options={options}
-            empty=""
-            {...section(key)}
-          />
-        ))}
-        <FilterSection
-          legend="Media root"
-          options={roots.map((root) => ({ value: root.id, label: root.path }))}
-          empty="No media roots yet."
-          {...section("mediaRootId")}
-        />
-        {CATALOG_SECTIONS.map(({ key, legend, path, empty }) => (
-          <CatalogFilterSection
-            key={key}
-            legend={legend}
-            path={path}
-            empty={empty}
-            {...section(key)}
-          />
+        {PANELS.map(({ keys, wide }) => (
+          <div
+            key={keys.join()}
+            className={wide ? "filter-panel filter-wide" : "filter-panel"}
+          >
+            {keys.map(filterSection)}
+          </div>
         ))}
       </div>
       <div className="dialog-actions">

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -8,6 +9,7 @@ import {
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type { DesktopWindow, ProgramId, WindowAction } from "../contracts.js";
+import { usePopupDismissal } from "../../controls/use-popup-dismissal.js";
 import { programs } from "../programs.js";
 import { StartMenu } from "./start-menu.js";
 
@@ -40,27 +42,8 @@ export function Taskbar({
     const timer = setInterval(() => setClock(new Date()), 30_000);
     return () => clearInterval(timer);
   }, []);
-  useEffect(() => {
-    if (!startOpen) return;
-    /** Outside interaction dismisses navigation without stealing the newly clicked target's focus. */
-    const outside = (event: PointerEvent) => {
-      if (!startArea.current?.contains(event.target as Node))
-        setStartOpen(false);
-    };
-    /** Escape returns keyboard users to the Start trigger. */
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setStartOpen(false);
-        trigger.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [startOpen]);
+  const closeStart = useCallback(() => setStartOpen(false), []);
+  usePopupDismissal(startOpen, startArea, trigger, closeStart);
   return (
     <footer className="taskbar">
       <div ref={startArea} className="start-area">

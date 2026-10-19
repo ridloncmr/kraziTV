@@ -114,7 +114,7 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   api.reply("/media-roots", [mediaRoot()]);
   fireEvent.click(screen.getByRole("button", { name: "Add root" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  await screen.findByRole("button", { name: "Scan" });
+  await screen.findByRole("button", { name: "Actions for /media" });
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ path: "/media" });
@@ -210,10 +210,16 @@ async function advance(ms = 0) {
   });
 }
 
+/** Opens the only root's … menu and chooses one of its commands. */
+function chooseRootAction(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: "Actions for /media" }));
+  fireEvent.click(screen.getByRole("menuitem", { name }));
+}
+
 /** Starts a scan of the only root and returns its progress dialog. */
 async function startScan() {
   await advance();
-  fireEvent.click(screen.getByRole("button", { name: "Scan" }));
+  chooseRootAction("Scan");
   await advance();
   return screen.getByRole("dialog", { name: "Scanning media root" });
 }
@@ -672,7 +678,7 @@ it("reports other start rejections in the page feedback and opens no dialog", as
     409,
   );
   await advance();
-  fireEvent.click(screen.getByRole("button", { name: "Scan" }));
+  chooseRootAction("Scan");
   await advance();
 
   expect(screen.getByRole("alert").textContent).toBe(
@@ -872,8 +878,11 @@ it("shows each root's match counts and disables Retry failed lookups when none f
   expect(within(row).getByText(/9 of 12 matched/)).toBeTruthy();
   expect(within(row).getByText("2 need your choice")).toBeTruthy();
   expect(within(row).queryByText(/\d+ failed lookups/)).toBeNull();
+  fireEvent.click(
+    within(row).getByRole("button", { name: "Actions for /media" }),
+  );
   expect(
-    within(row).getByRole<HTMLButtonElement>("button", {
+    screen.getByRole<HTMLButtonElement>("menuitem", {
       name: "Retry failed lookups",
     }).disabled,
   ).toBe(true);
@@ -894,7 +903,7 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
   api.reply("/metadata/lookup-retries", retry, "POST", 202);
   await advance();
 
-  fireEvent.click(screen.getByRole("button", { name: "Retry failed lookups" }));
+  chooseRootAction("Retry failed lookups");
   await advance();
   const dialog = screen.getByRole("dialog", { name: "Retrying TMDB lookups" });
 

@@ -1,14 +1,6 @@
-/* Enable and Disable share one width, so the buttons after them line up from row to row. */
-.program-page .toggle-button {
-  min-width: 5em;
-}
-/* Root counts and actions keep one line each; the path column wraps instead. */
-.root-matches,
-.root-actions {
+/* Root counts keep one line each; the path column wraps instead. */
+.root-matches {
   white-space: nowrap;
-}
-.program-page .root-actions {
-  flex-wrap: nowrap;
 }
 /* The match label wraps beside a Details button pinned to the cell's end, so every row's button lines up. */
 .match-cell {
@@ -25,8 +17,10 @@
   margin-left: 0;
 }
 /*
- * The filter dialog lays its sections side by side, so it is wider than a
- * form dialog, and only its sections scroll, so Apply stays in reach.
+ * The filter dialog lays its panels three across, the last row two across,
+ * and only the panels scroll, so Apply stays in reach. Every panel has one
+ * fixed height so the rows line up; a list longer than its panel scrolls
+ * inside it.
  */
 .window-dialog:has(.filter-sections) {
   width: min(640px, 100%);
@@ -35,16 +29,45 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  container-type: inline-size;
 }
 .filter-sections {
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  align-items: start;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 216px;
   gap: 8px;
 }
+/*
+ * A panel holds one section, or two short ones stacked that split it
+ * evenly, so sections at the same place in neighbouring stacks, such as
+ * Type and Details, share one height.
+ */
+.filter-panel {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.filter-panel.filter-wide {
+  grid-column: span 3;
+}
+/* A narrow window gives each panel the full width. */
+@container (max-width: 480px) {
+  .filter-panel,
+  .filter-panel.filter-wide {
+    grid-column: 1 / -1;
+  }
+}
+.filter-panel > .filter-section {
+  flex: 1 1 0;
+}
 .program-page .filter-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   margin: 0;
   padding: 4px 8px 6px;
 }
@@ -52,7 +75,8 @@
   margin-bottom: 4px;
 }
 .filter-options {
-  max-height: 160px;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
 }
 .program-page .filter-options label.choice {
