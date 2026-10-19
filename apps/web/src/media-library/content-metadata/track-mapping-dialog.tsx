@@ -6,7 +6,7 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type {
-  SeriesSearch,
+  CandidateSearch,
   TrackFolder,
   TrackProposal,
 } from "../../http/contracts/metadata.js";
@@ -40,7 +40,7 @@ export function TrackMappingDialog({
   const mapping = resourcePath("metadata/track-mappings", mediaItemId);
   const folder = useResource<TrackFolder>(mapping);
   const [searched, setSearched] = useState<string>();
-  const search = useResource<SeriesSearch>(
+  const search = useResource<CandidateSearch>(
     searched === undefined
       ? null
       : `/metadata/series-search?${new URLSearchParams({ query: searched }).toString()}`,
