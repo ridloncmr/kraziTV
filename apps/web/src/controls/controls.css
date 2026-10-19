@@ -161,6 +161,13 @@
 .clickable-row {
   cursor: pointer;
 }
+/* A row's status word, such as a show's Rules only, reads as text in a bordered box. */
+.row-badge {
+  border: 1px solid var(--xp-border);
+  border-radius: 2px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
 .selected-row {
   background: color-mix(
     in srgb,

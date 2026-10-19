@@ -54,7 +54,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Programming Spec 0005 Implementation Plan: Recurring Programming Rules](002-programming/0005-recurring-programming-rules.md) - 9 of 9 tickets complete
 - [Programming Spec 0006 Implementation Plan: Clock-Anchored Programming](002-programming/0006-clock-anchored-blocks.md) - 10 of 10 tickets complete
 - [Programming Spec 0007 Implementation Plan: Manual Programming](002-programming/0007-manual-programming.md) - 10 of 10 tickets complete
-- [Programming Spec 0008 Implementation Plan: Channel Programming Setup](002-programming/0008-channel-setup-ux.md) - 3 of 8 tickets complete
+- [Programming Spec 0008 Implementation Plan: Channel Programming Setup](002-programming/0008-channel-setup-ux.md) - 4 of 8 tickets complete
 
 ### 003-auth
 

@@ -1,14 +1,22 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
+import { rowClickProps } from "../../controls/row-click.js";
+import { RowMenu } from "../../controls/row-menu.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
+import type { SourceAssignment } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/use-resource.js";
-import { AssignmentForm } from "../assignments/assignment-form.js";
-import { MarathonSettingsForm } from "./marathon-settings-form.js";
+import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
+import { MarathonSettingsForm } from "./marathon-settings-form.js";
+import { marathonLabel, perSittingLabel } from "./show-labels.js";
+import { ShowPropertiesDialog } from "./show-properties-dialog.js";
+import { useShowNames } from "./use-show-names.js";
 
 /**
- * The Lineup tab: the channel's programming source assignments in saved
- * order, which new rounds are formed from, with editing, adding, removing,
- * reordering, and the channel's marathon settings. Every accepted write
+ * The Lineup tab: the channel's shows, its programming source assignments,
+ * as a read-only list in saved order. A selected show opens in
+ * **Properties** or is removed after a confirmation; shows keep the order
+ * they were added, so there are no reorder controls. Every accepted write
  * calls `changed`; the server regenerates.
  */
 export function LineupTab({
@@ -19,92 +27,117 @@ export function LineupTab({
   visible: boolean;
 }) {
   const { assignments, collections, assignmentsPath, changed } = programming;
-  const reorder = useMutation();
-  const [adding, setAdding] = useState(false);
-  // Remounts the add form after each addition, so it starts empty again.
-  const [added, setAdded] = useState(0);
   const listed = assignments.data ?? [];
-  // Moves one assignment a place earlier or later in saved order.
-  const move = (index: number, offset: -1 | 1) => {
-    const ids = listed.map((assignment) => assignment.id);
-    const [moved] = ids.splice(index, 1);
-    if (moved === undefined) return;
-    ids.splice(index + offset, 0, moved);
-    void reorder.run(
-      `${assignmentsPath}/order`,
-      "PUT",
-      { assignmentIds: ids },
-      changed,
-    );
-  };
+  const showName = useShowNames(listed, collections.data, visible);
+  const removal = useMutation();
+  const [selectedId, setSelectedId] = useState<string>();
+  // The show open in Properties, or `new` while adding one.
+  const [editing, setEditing] = useState<string>();
+  const [removing, setRemoving] = useState<SourceAssignment>();
+  const selected = listed.find((assignment) => assignment.id === selectedId);
+  const edited = listed.find((assignment) => assignment.id === editing);
   return (
     <section aria-label="Lineup">
       <RequestFeedback
-        loading={assignments.loading || collections.loading || reorder.pending}
-        error={reorder.error ?? assignments.error ?? collections.error}
+        loading={assignments.loading || collections.loading}
+        error={assignments.error ?? collections.error}
       />
       {assignments.data?.length === 0 && (
         <p className="empty-state">
-          No programming assigned. Choose one source to begin broadcasting.
+          No shows yet. Add a show to begin broadcasting.
         </p>
       )}
-      {listed.length > 1 && (
-        <p className="secondary">
-          Each round gives every assignment one turn, in a freshly shuffled
-          order, and no assignment airs twice in a row while another can.
-        </p>
+      {listed.length > 0 && (
+        <div className="table-scroll">
+          <table aria-label="Shows">
+            <thead>
+              <tr>
+                <th>Show</th>
+                <th>Order</th>
+                <th>Per sitting</th>
+                <th>Marathons</th>
+                <th aria-label="Rotation" />
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {listed.map((assignment) => (
+                <tr
+                  key={assignment.id}
+                  className={`clickable-row${assignment.id === selectedId ? " selected-row" : ""}`}
+                  {...rowClickProps(() => setSelectedId(assignment.id))}
+                  onDoubleClick={(event) => {
+                    if (inRowMenu(event.target)) return;
+                    setSelectedId(assignment.id);
+                    setEditing(assignment.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || inRowMenu(event.target)) {
+                      return;
+                    }
+                    event.preventDefault();
+                    setSelectedId(assignment.id);
+                    setEditing(assignment.id);
+                  }}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => setSelectedId(assignment.id)}
+                    >
+                      {showName(assignment)}
+                    </button>
+                  </td>
+                  <td>{orderLabel(assignment)}</td>
+                  <td>{perSittingLabel(assignment.ordinaryStretch)}</td>
+                  <td>{marathonLabel(assignment.marathonStretch)}</td>
+                  <td>
+                    {assignment.participation === "rule_only" && (
+                      <span className="row-badge">Rules only</span>
+                    )}
+                  </td>
+                  <td>
+                    <RowMenu
+                      label={`Actions for ${showName(assignment)}`}
+                      items={[
+                        {
+                          label: "Properties",
+                          onSelect: () => setEditing(assignment.id),
+                        },
+                        {
+                          label: "Remove…",
+                          onSelect: () => setRemoving(assignment),
+                        },
+                      ]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <ol aria-label="Programming assignments">
-        {listed.map((assignment, index) => (
-          <li key={assignment.id}>
-            <AssignmentForm
-              assignmentsPath={assignmentsPath}
-              assignment={assignment}
-              legend={`Assignment ${index + 1}`}
-              collections={collections.data}
-              visible={visible}
-              changed={changed}
-            />
-            {listed.length > 1 && (
-              <div className="row-actions">
-                <button
-                  type="button"
-                  disabled={index === 0 || reorder.pending}
-                  onClick={() => move(index, -1)}
-                >
-                  Move up
-                </button>
-                <button
-                  type="button"
-                  disabled={index === listed.length - 1 || reorder.pending}
-                  onClick={() => move(index, 1)}
-                >
-                  Move down
-                </button>
-              </div>
-            )}
-          </li>
-        ))}
-      </ol>
-      {assignments.data && (listed.length === 0 || adding) ? (
-        <AssignmentForm
-          key={`new-${added}`}
-          assignmentsPath={assignmentsPath}
-          legend="New assignment"
-          collections={collections.data}
-          visible={visible}
-          changed={() => {
-            setAdding(false);
-            setAdded((count) => count + 1);
-            changed();
-          }}
-        />
-      ) : (
-        assignments.data && (
-          <button type="button" onClick={() => setAdding(true)}>
-            Add an assignment
+      {assignments.data && (
+        <div className="row-actions">
+          <button type="button" onClick={() => setEditing("new")}>
+            New show…
           </button>
-        )
+          <button
+            type="button"
+            disabled={selected === undefined}
+            onClick={() => setEditing(selected?.id)}
+          >
+            Properties
+          </button>
+          <button
+            type="button"
+            disabled={selected === undefined}
+            onClick={() => setRemoving(selected)}
+          >
+            Remove…
+          </button>
+        </div>
       )}
       {listed.length > 0 && (
         <MarathonSettingsForm
@@ -116,6 +149,71 @@ export function LineupTab({
           changed={changed}
         />
       )}
+      {(editing === "new" || edited) && (
+        <ShowPropertiesDialog
+          key={editing}
+          assignmentsPath={assignmentsPath}
+          assignment={edited}
+          title={edited ? showName(edited) : "New show"}
+          collections={collections.data}
+          visible={visible}
+          changed={changed}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
+      {removing && (
+        <WindowDialog
+          title="Remove show"
+          busy={removal.pending}
+          onClose={() => setRemoving(undefined)}
+        >
+          <p>
+            Remove <strong>{showName(removing)}</strong> from this lineup?
+            Whatever is airing now finishes; the show gets no new turns.
+          </p>
+          <RequestFeedback loading={removal.pending} error={removal.error} />
+          <div className="dialog-actions">
+            <button
+              type="button"
+              disabled={removal.pending}
+              onClick={() => {
+                void removal.run(
+                  `${assignmentsPath}/${encodeURIComponent(removing.id)}`,
+                  "DELETE",
+                  undefined,
+                  () => {
+                    setRemoving(undefined);
+                    changed();
+                  },
+                );
+              }}
+            >
+              Remove
+            </button>
+            <button
+              type="button"
+              disabled={removal.pending}
+              onClick={() => setRemoving(undefined)}
+            >
+              Cancel
+            </button>
+          </div>
+        </WindowDialog>
+      )}
     </section>
+  );
+}
+
+// The row menu's own clicks and keys keep their meaning inside the row.
+function inRowMenu(target: EventTarget): boolean {
+  return target instanceof Element && target.closest(".row-menu") !== null;
+}
+
+// Names how a show orders its collections; single items alone have no order.
+function orderLabel(assignment: SourceAssignment): string {
+  const mode = assignment.playbackMode;
+  if (mode === null) return "—";
+  return (
+    PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)?.label ?? mode
   );
 }

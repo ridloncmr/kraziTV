@@ -104,7 +104,12 @@ export function WindowDialog({
     >
       <div className="window-dialog-title">
         <span id={titleId}>{title}</span>
-        <button aria-label={`Close ${title}`} disabled={busy} onClick={onClose}>
+        <button
+          type="button"
+          aria-label={`Close ${title}`}
+          disabled={busy}
+          onClick={onClose}
+        >
           ×
         </button>
       </div>

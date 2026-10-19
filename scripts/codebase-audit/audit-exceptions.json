@@ -327,8 +327,8 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/channels/assignments/"],
-      "reason": "Every file serves one capability, the assignment form: its member rows, the preview of what an assigned collection airs next, the progress reset, and the stretch and playback-mode controls the rule and special forms reuse.",
-      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+      "reason": "Every file is a control that edits one programming source assignment's settings: its member rows, per-sitting stretch fields, playback-mode choices, and the collection preview with its progress reset. The lineup's Properties dialog, the rule form, and the special editor reuse them, so they share one capability.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: regroup channels/ for the lineup capability)"
     },
     {
       "rule": "grouping",
@@ -365,6 +365,12 @@
       "files": ["apps/server/src/programming-assignments/routes/"],
       "reason": "routes/ is a kind folder holding the domain's HTTP routes: the assignment, marathon settings, programming preview, and rebuild route groups, plus the refusal mappers the assignment routes answer with. Every file serves one capability, so it stays flat.",
       "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged; group only \"more than four source files spanning more than one capability\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/channels/lineup/"],
+      "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Properties dialog that edits one show, the show names, labels, and draft those two share, and the tab's marathon settings.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: \"a lineup/ capability for the list, add dialog, and properties dialog\")"
     }
   ]
 }

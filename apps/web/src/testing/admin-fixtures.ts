@@ -7,7 +7,11 @@ import type {
   TrackFolder,
   TrackProposal,
 } from "../http/contracts/metadata.js";
-import type { ProgrammingRule } from "../http/contracts/programming.js";
+import type {
+  PlaybackMode,
+  ProgrammingRule,
+  SourceAssignment,
+} from "../http/contracts/programming.js";
 
 /** A media item's metadata before any lookup: every fact unknown. */
 export const noMetadata: ContentMetadata = {
@@ -254,6 +258,26 @@ export function ruleFixture(
       ordinaryStretch: null,
       marathon: { mode: "inherit" },
     })),
+    ...overrides,
+  };
+}
+
+/**
+ * A saved show of the Favorites collection, `count` programs per sitting
+ * with marathons off, as the server lists it, so `overrides` read as what
+ * a test changes.
+ */
+export function favoritesAssignment(
+  playbackMode: PlaybackMode,
+  overrides: Partial<SourceAssignment> = {},
+): SourceAssignment {
+  return {
+    id: "assignment",
+    participation: "default",
+    playbackMode,
+    ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: null,
+    members: [{ kind: "collection", mediaCollectionId: "favorites" }],
     ...overrides,
   };
 }
