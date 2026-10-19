@@ -6,11 +6,16 @@ import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { useRangeToggle } from "../controls/use-range-toggle.js";
 import { resourcePath } from "../http/api-client.js";
-import type { MediaItem, MediaRoot } from "../http/contracts/media.js";
+import type {
+  MediaFilter,
+  MediaItem,
+  MediaRoot,
+} from "../http/contracts/media.js";
 import type { ReviewStep } from "../http/contracts/metadata.js";
 import { useMutation, useResource } from "../http/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { CatalogFilterButton } from "./catalog-filter/catalog-filter-button.js";
 import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
@@ -39,8 +44,9 @@ export function MediaLibraryApp({
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   const [search, setSearch] = useState("");
-  const [needsChoice, setNeedsChoice] = useState(false);
-  const media = useMediaItemPage(search, PAGE_SIZE, visible, { needsChoice });
+  const [filter, setFilter] = useState<MediaFilter>({});
+  const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
+  const filtered = Object.keys(filter).length > 0;
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
     "/metadata/match-reviews",
@@ -127,6 +133,7 @@ export function MediaLibraryApp({
                   <th>Server path</th>
                   <th>Last scan</th>
                   <th>Status</th>
+                  <th>Matches</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -140,9 +147,13 @@ export function MediaLibraryApp({
                         : displayTime(root.lastScannedAt)}
                     </td>
                     <td>{root.enabled ? "Enabled" : "Disabled"}</td>
+                    <td className="root-matches">
+                      <RootMatches counts={root.matchCounts} />
+                    </td>
                     <td>
-                      <div className="row-actions">
+                      <div className="row-actions root-actions">
                         <button
+                          className="toggle-button"
                           onClick={() => {
                             setLastRequest("root");
                             void mutation.run(
@@ -165,7 +176,10 @@ export function MediaLibraryApp({
                           Scan
                         </button>
                         <button
-                          disabled={!root.enabled}
+                          disabled={
+                            !root.enabled ||
+                            root.matchCounts.failedLookups === 0
+                          }
                           onClick={() => {
                             setLastRequest("scan");
                             void scan.retry({
@@ -203,22 +217,24 @@ export function MediaLibraryApp({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <div className="row-actions" role="group" aria-label="Matches">
-          <label>
-            <input
-              type="checkbox"
-              checked={needsChoice}
-              onChange={(event) => setNeedsChoice(event.target.checked)}
+        <div className="list-toolbar">
+          <div
+            className="row-actions filter-actions"
+            role="group"
+            aria-label="Matches"
+          >
+            <CatalogFilterButton
+              applied={filter}
+              roots={roots.data ?? []}
+              onApply={setFilter}
             />
-            Needs your choice only
-          </label>
-          {reviewCount > 0 && (
-            <button onClick={() => setReviewing(true)}>
+            <button
+              disabled={reviewCount === 0}
+              onClick={() => setReviewing(true)}
+            >
               Review matches ({reviewCount})
             </button>
-          )}
-        </div>
-        <div className="list-toolbar">
+          </div>
           {media.data && (
             <Pager
               offset={media.offset}
@@ -249,8 +265,8 @@ export function MediaLibraryApp({
         <p className="empty-state">
           {search.trim()
             ? "No cataloged media matches this search."
-            : needsChoice
-              ? "Nothing needs your choice."
+            : filtered
+              ? "No cataloged media matches these filters."
               : "The catalog is empty. Scan an enabled media root to discover media."}
         </p>
       )}
@@ -291,8 +307,8 @@ export function MediaLibraryApp({
                   <td>{item.status}</td>
                   <td>{displayDuration(item.durationMs)}</td>
                   <td>
-                    <div className="row-actions">
-                      {matchStateLabel(item.metadata)}
+                    <div className="match-cell">
+                      <span>{matchStateLabel(item.metadata)}</span>
                       <button
                         aria-label={`Details for ${item.title}`}
                         onClick={() => setDetailed(item)}
@@ -403,5 +419,27 @@ export function MediaLibraryApp({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * A root's match counts in a few words: how much of it is matched, then
+ * what still needs the owner, shown only when there is some.
+ */
+function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
+  return (
+    <>
+      {counts.matched} of {counts.items} matched
+      {counts.needsChoice > 0 && (
+        <small className="secondary">
+          {counts.needsChoice} need your choice
+        </small>
+      )}
+      {counts.failedLookups > 0 && (
+        <small className="secondary">
+          {counts.failedLookups} failed lookups
+        </small>
+      )}
+    </>
   );
 }

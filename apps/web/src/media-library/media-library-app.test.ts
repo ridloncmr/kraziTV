@@ -111,7 +111,7 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
     lastScannedAt: null,
   };
   api.reply("/media-roots", root, "POST");
-  api.reply("/media-roots", [root]);
+  api.reply("/media-roots", [mediaRoot()]);
   fireEvent.click(screen.getByRole("button", { name: "Add root" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await screen.findByRole("button", { name: "Scan" });
@@ -860,8 +860,31 @@ it("follows a later scan of the same root without the earlier job's status", asy
   expect(within(dialog).getByText("3 found")).toBeTruthy();
 });
 
+it("shows each root's match counts and disables Retry failed lookups when none failed", async () => {
+  renderScanLibrary([
+    mediaRoot({
+      matchCounts: { items: 12, matched: 9, needsChoice: 2, failedLookups: 0 },
+    }),
+  ]);
+  await advance();
+
+  const row = screen.getByText("/media").closest("tr") as HTMLElement;
+  expect(within(row).getByText(/9 of 12 matched/)).toBeTruthy();
+  expect(within(row).getByText("2 need your choice")).toBeTruthy();
+  expect(within(row).queryByText(/\d+ failed lookups/)).toBeNull();
+  expect(
+    within(row).getByRole<HTMLButtonElement>("button", {
+      name: "Retry failed lookups",
+    }).disabled,
+  ).toBe(true);
+});
+
 it("retries a root's failed lookups in the progress dialog, opening at enriching and summarizing lookups only", async () => {
-  const { api, scan } = renderScanLibrary([mediaRoot()]);
+  const { api, scan } = renderScanLibrary([
+    mediaRoot({
+      matchCounts: { items: 4, matched: 0, needsChoice: 0, failedLookups: 4 },
+    }),
+  ]);
   const retry = scanStatus({
     kind: "retry",
     phase: "enriching",

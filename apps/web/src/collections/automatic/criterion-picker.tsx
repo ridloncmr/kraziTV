@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
+import {
+  optionValue,
+  type CatalogOption,
+} from "../../catalog-options/catalog-option.js";
 import type {
-  CatalogGenre,
-  CatalogGroup,
-  CatalogTag,
   CollectionCriterion,
   CollectionMember,
 } from "../../http/contracts/collections.js";
@@ -11,9 +12,6 @@ import { useResource } from "../../http/use-resource.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];
-
-/** One row a criterion picker lists: a TMDB series or franchise, a tag, or a genre. */
-type CatalogOption = CatalogGroup | CatalogTag | CatalogGenre;
 
 /**
  * What each criterion kind lists, how it is labelled, how its members are
@@ -82,13 +80,6 @@ const KINDS: Record<
     unit: ["item", "items"],
   },
 };
-
-// The value a listed row selects by: its TMDB ID, tag ID, or genre name, as text.
-function optionValue(row: CatalogOption): string {
-  if ("tagId" in row) return row.tagId;
-  if ("tmdbId" in row) return String(row.tmdbId);
-  return row.name;
-}
 
 /** Names a criterion kind in the words the picker and every card use. */
 export function kindLabel(kind: Kind): string {

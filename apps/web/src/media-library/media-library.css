@@ -1,0 +1,70 @@
+/* Enable and Disable share one width, so the buttons after them line up from row to row. */
+.program-page .toggle-button {
+  min-width: 5em;
+}
+/* Root counts and actions keep one line each; the path column wraps instead. */
+.root-matches,
+.root-actions {
+  white-space: nowrap;
+}
+.program-page .root-actions {
+  flex-wrap: nowrap;
+}
+/* The match label wraps beside a Details button pinned to the cell's end, so every row's button lines up. */
+.match-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.match-cell button {
+  flex: none;
+  margin-left: auto;
+}
+/* The filter group starts the toolbar; the selection actions keep the far end. */
+.list-toolbar > .filter-actions {
+  margin-left: 0;
+}
+/*
+ * The filter panel floats over the desktop under its button, as an XP menu
+ * does, above windows but below the taskbar's balloons and Log Off.
+ */
+.filter-panel.program-page {
+  position: fixed;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100vw - 16px));
+  padding: 8px;
+  background: var(--xp-window-surface);
+  border: 1px solid var(--xp-menu-border);
+  box-shadow: 2px 2px 6px color-mix(in srgb, var(--xp-shadow) 35%, transparent);
+}
+.filter-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  align-items: start;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+.program-page .filter-section {
+  margin: 0;
+  padding: 4px 8px 6px;
+}
+.filter-section input[type="search"] {
+  margin-bottom: 4px;
+}
+.filter-options {
+  max-height: 160px;
+  overflow: auto;
+}
+.program-page .filter-options label.choice {
+  margin: 2px 0;
+}
+.filter-options small {
+  color: var(--xp-muted);
+}
+.filter-panel-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
