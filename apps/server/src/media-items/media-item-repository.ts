@@ -1,4 +1,11 @@
-import { sql, type Kysely, type Selectable } from "kysely";
+import {
+  sql,
+  type Expression,
+  type ExpressionBuilder,
+  type Kysely,
+  type Selectable,
+  type SqlBool,
+} from "kysely";
 
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
@@ -7,7 +14,14 @@ import {
   jsonIdList,
   parameterChunks,
 } from "../database/writes/parameter-chunks.js";
-import type { MediaItem, MediaItemPage, MediaItemQuery } from "./contracts.js";
+import type {
+  CatalogFilter,
+  MatchStateFilter,
+  MediaItem,
+  MediaItemPage,
+  MediaItemQuery,
+  RootMatchCounts,
+} from "./contracts.js";
 import {
   effectiveMetadata,
   METADATA_COLUMNS,
@@ -48,9 +62,7 @@ export class MediaItemRepository {
           jsonIdList(query.excludeIds ?? []),
         ),
       )
-      .$if(query.needsChoice === true, (builder) =>
-        builder.where("metadata_matches.state", "=", "ambiguous"),
-      );
+      .where((eb) => eb.and(filterConditions(eb, query.filter ?? {})));
     const rows = await matching
       .selectAll("media_items")
       .select(METADATA_COLUMNS)
@@ -64,6 +76,44 @@ export class MediaItemRepository {
       .select((eb) => eb.fn.countAll<number>().as("total"))
       .executeTakeFirstOrThrow();
     return { items: rows.map(toMediaItem), total };
+  }
+
+  /**
+   * Counts each root's cataloged items by match state, for the root list.
+   * A root without items is absent. The failed-lookup count uses the
+   * retry's own rules, so it is zero exactly when a retry would look up
+   * nothing.
+   */
+  async countMatchesByRoot(): Promise<Map<string, RootMatchCounts>> {
+    const rows = await this.#db
+      .selectFrom("media_items")
+      .leftJoin(
+        "metadata_matches",
+        "metadata_matches.media_item_id",
+        "media_items.id",
+      )
+      .where("media_items.removed_at", "is", null)
+      .select((eb) => [
+        "media_items.media_root_id",
+        eb.fn.countAll<number>().as("items"),
+        eb.fn
+          .countAll<number>()
+          .filterWhere((f) => hasMatchState(f, "matched"))
+          .as("matched"),
+        eb.fn
+          .countAll<number>()
+          .filterWhere((f) => hasMatchState(f, "ambiguous"))
+          .as("needsChoice"),
+        eb.fn
+          .countAll<number>()
+          .filterWhere((f) => f.and([isRetryable(f), isFailedLookup(f)]))
+          .as("failedLookups"),
+      ])
+      .groupBy("media_items.media_root_id")
+      .execute();
+    return new Map(
+      rows.map(({ media_root_id, ...counts }) => [media_root_id, counts]),
+    );
   }
 
   /** Loads one item; returns undefined when the ID is unknown or removed. */
@@ -150,6 +200,147 @@ export async function findUnknownMediaItemIds(
     for (const { id } of rows) known.add(id);
   }
   return requested.filter((id) => !known.has(id));
+}
+
+/**
+ * True for an item whose last lookup failed: unmatched with a lookup error,
+ * never an extra. Reads `metadata_matches` joined to the item, so a
+ * failed-lookup retry and each root's count share one rule.
+ */
+export function isFailedLookup(
+  eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">,
+) {
+  return eb.and([
+    eb("metadata_matches.state", "=", "unmatched"),
+    eb("metadata_matches.extra", "=", 0),
+    eb("metadata_matches.lookup_error", "is not", null),
+  ]);
+}
+
+/**
+ * True for an item a lookup retry may look up: available with a probed
+ * duration, and never an extra. Reads `metadata_matches` left-joined, so an
+ * item never looked up qualifies.
+ */
+export function isRetryable(
+  eb: ExpressionBuilder<DatabaseSchema, "media_items" | "metadata_matches">,
+) {
+  return eb.and([
+    eb("media_items.status", "=", "available"),
+    eb("media_items.duration_ms", "is not", null),
+    eb.or([
+      eb("metadata_matches.extra", "is", null),
+      eb("metadata_matches.extra", "=", 0),
+    ]),
+  ]);
+}
+
+// Whether an item's effective match state is `state`, decided as
+// effectiveMetadata decides it: no decision row means never looked up, an
+// extra wins over its stored state, and a lookup error tells a failed lookup
+// from one TMDB answered without a match.
+function hasMatchState(
+  eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">,
+  state: MatchStateFilter,
+): Expression<SqlBool> {
+  switch (state) {
+    case "not_looked_up":
+      return eb("metadata_matches.state", "is", null);
+    case "extra":
+      return eb("metadata_matches.extra", "=", 1);
+    case "lookup_failed":
+      return isFailedLookup(eb);
+    case "unmatched":
+      return eb.and([
+        eb("metadata_matches.state", "=", "unmatched"),
+        eb("metadata_matches.extra", "=", 0),
+        eb("metadata_matches.lookup_error", "is", null),
+      ]);
+    default:
+      return eb.and([
+        eb("metadata_matches.state", "=", state),
+        eb("metadata_matches.extra", "=", 0),
+      ]);
+  }
+}
+
+// One condition per non-empty filter field, each matching any of its values.
+// Series identity follows effectiveContentIdentity: an episode whose series
+// the owner corrected to another name belongs to no TMDB series, so these
+// filters keep what the same collection criterion matches.
+function filterConditions(
+  eb: ExpressionBuilder<
+    DatabaseSchema,
+    | "media_items"
+    | "metadata_matches"
+    | "content_facts"
+    | "metadata_corrections"
+  >,
+  filter: CatalogFilter,
+): Expression<SqlBool>[] {
+  const conditions: Expression<SqlBool>[] = [];
+  const {
+    matchStates = [],
+    contentTypes = [],
+    statuses = [],
+    mediaRootIds = [],
+    seriesTmdbIds = [],
+    franchiseTmdbIds = [],
+    genres = [],
+    tagIds = [],
+  } = filter;
+  if (matchStates.length > 0) {
+    conditions.push(
+      eb.or(matchStates.map((state) => hasMatchState(eb, state))),
+    );
+  }
+  if (contentTypes.length > 0) {
+    conditions.push(eb("content_facts.content_type", "in", contentTypes));
+  }
+  if (statuses.length > 0) {
+    conditions.push(eb("media_items.status", "in", statuses));
+  }
+  if (mediaRootIds.length > 0) {
+    conditions.push(eb("media_items.media_root_id", "in", mediaRootIds));
+  }
+  if (seriesTmdbIds.length > 0) {
+    conditions.push(
+      eb.and([
+        eb("content_facts.series_tmdb_id", "in", seriesTmdbIds),
+        eb.or([
+          eb("metadata_corrections.series_name", "is", null),
+          eb("content_facts.series_name", "is", null),
+          eb(
+            "metadata_corrections.series_name",
+            "=",
+            eb.ref("content_facts.series_name"),
+          ),
+        ]),
+      ]),
+    );
+  }
+  if (franchiseTmdbIds.length > 0) {
+    conditions.push(
+      eb("content_facts.franchise_tmdb_id", "in", franchiseTmdbIds),
+    );
+  }
+  if (genres.length > 0) {
+    conditions.push(
+      sql<SqlBool>`exists (select 1 from json_each(content_facts.genres) where json_each.value in (${sql.join(genres)}))`,
+    );
+  }
+  if (tagIds.length > 0) {
+    conditions.push(
+      eb.exists(
+        eb
+          .selectFrom("media_item_tags")
+          .select("media_item_tags.media_item_id")
+          .whereRef("media_item_tags.media_item_id", "=", "media_items.id")
+          .where("media_item_tags.tag_id", "in", tagIds),
+      ),
+    );
+  }
+  return conditions;
 }
 
 // Matches a title or path containing the search text. Both sides fold through

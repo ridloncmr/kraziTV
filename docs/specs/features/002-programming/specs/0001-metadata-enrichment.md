@@ -466,23 +466,23 @@ sections in use. Values within one section match any of them; sections
 combine so an item must satisfy each. Filters combine with the text search,
 and the list and its total page as before.
 
-| Section      | Values                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------ |
-| Match        | Matched, Needs your choice, Unmatched, Lookup failed, Rejected, Not looked up, Extra                    |
-| Type         | Movie, TV episode                                                                                      |
-| Availability | Available, Missing, Probe failed                                                                       |
-| Media root   | Each media root                                                                                        |
-| TV series    | Each cataloged series, as the automatic collection criterion lists them                                |
-| Franchise    | Each cataloged franchise, likewise                                                                     |
-| Genre        | Each accepted genre, likewise                                                                          |
-| Tag          | Each tag in use, likewise                                                                              |
+| Section      | Values                                                                               |
+| ------------ | ------------------------------------------------------------------------------------ |
+| Match        | Matched, Needs your choice, Unmatched, Lookup failed, Rejected, Not looked up, Extra |
+| Type         | Movie, TV episode                                                                    |
+| Availability | Available, Missing, Probe failed                                                     |
+| Media root   | Each media root                                                                      |
+| TV series    | Each cataloged series, as the automatic collection criterion lists them              |
+| Franchise    | Each cataloged franchise, likewise                                                   |
+| Genre        | Each accepted genre, likewise                                                        |
+| Tag          | Each tag in use, likewise                                                            |
 
 **Unmatched** is an item TMDB answered without a match; **Lookup failed** is
 one whose last lookup failed. A series, franchise, genre, or tag filter
 matches the items the same collection criterion matches, so an episode whose
 series the owner corrected to another name is in no TMDB series. An item
-whose TMDB data expired matches no series, franchise, or genre filter until
-its data is refreshed.
+whose TMDB data expired keeps its series and franchise, but matches no genre
+filter until its data is refreshed.
 
 ### Disc-Track Mapping
 

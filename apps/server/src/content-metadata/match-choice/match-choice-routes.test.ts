@@ -30,7 +30,7 @@ async function states(server: Server, needsChoice = false) {
   const { body } = await send(
     server,
     "GET",
-    `/media-items?limit=200${needsChoice ? "&needsChoice=true" : ""}`,
+    `/media-items?limit=200${needsChoice ? "&matchState=ambiguous" : ""}`,
   );
   const { items } = body as {
     items: { id: string; path: string; metadata: { matchState: string } }[];

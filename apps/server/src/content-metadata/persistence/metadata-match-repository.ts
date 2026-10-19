@@ -4,6 +4,10 @@ import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RetryItem, RetryScope } from "../contracts.js";
+import {
+  isFailedLookup,
+  isRetryable,
+} from "../../media-items/media-item-repository.js";
 import { isSettledMatch } from "./settled-match.js";
 
 /** Reads metadata match decisions for catalog scans and lookup retries. */
@@ -75,19 +79,8 @@ export class MetadataMatchRepository {
       ])
       .where("media_items.media_root_id", "=", anchor.media_root_id)
       .where("media_items.removed_at", "is", null)
-      .where("media_items.status", "=", "available")
-      .where("media_items.duration_ms", "is not", null)
-      .where((eb) =>
-        eb.or([
-          eb("metadata_matches.extra", "is", null),
-          eb("metadata_matches.extra", "=", 0),
-        ]),
-      )
-      .$if(scope.scope === "failed", (query) =>
-        query
-          .where("metadata_matches.state", "=", "unmatched")
-          .where("metadata_matches.lookup_error", "is not", null),
-      )
+      .where(isRetryable)
+      .$if(scope.scope === "failed", (query) => query.where(isFailedLookup))
       .$narrowType<{ duration_ms: number }>()
       .orderBy("media_items.path_key")
       .execute();

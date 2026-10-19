@@ -12,13 +12,41 @@ import type { MediaItemRepository } from "./media-item-repository.js";
 // Bounds one response so a large catalog never ships in a single read.
 const MAX_PAGE_SIZE = 200;
 
+// A key given once arrives as a string and a repeated key as an array, so
+// each filter field takes either and always yields a list.
+function repeated<T extends z.ZodType>(value: T) {
+  return z
+    .union([value, z.array(value)])
+    .transform((given) => (Array.isArray(given) ? given : [given]))
+    .optional();
+}
+
+const tmdbId = z.coerce.number().int().positive();
+
 // Query strings arrive as text, so numbers are coerced before range checks.
+// Each filter key repeats once per value it keeps.
 const listQuery = z.strictObject({
   q: z.string().trim().default(""),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-  // Present only to filter, so any value but `true` is a caller error.
-  needsChoice: z.literal("true").optional(),
+  matchState: repeated(
+    z.enum([
+      "not_looked_up",
+      "unmatched",
+      "lookup_failed",
+      "ambiguous",
+      "matched",
+      "rejected",
+      "extra",
+    ]),
+  ),
+  contentType: repeated(z.enum(["movie", "episode"])),
+  status: repeated(z.enum(["available", "missing", "probe_failed"])),
+  mediaRootId: repeated(z.string()),
+  seriesTmdbId: repeated(tmdbId),
+  franchiseTmdbId: repeated(tmdbId),
+  genre: repeated(z.string()),
+  tagId: repeated(z.string()),
 });
 
 // Bulk selection takes every match at once; the cap keeps one response bounded
@@ -51,12 +79,21 @@ export function registerMediaItemRoutes(
     if (!query.success) {
       return sendInvalidRequest(reply, query.error);
     }
-    const { q, limit, offset, needsChoice } = query.data;
+    const { q, limit, offset } = query.data;
     const page = await mediaItems.list({
       search: q,
       limit,
       offset,
-      needsChoice: needsChoice !== undefined,
+      filter: {
+        matchStates: query.data.matchState,
+        contentTypes: query.data.contentType,
+        statuses: query.data.status,
+        mediaRootIds: query.data.mediaRootId,
+        seriesTmdbIds: query.data.seriesTmdbId,
+        franchiseTmdbIds: query.data.franchiseTmdbId,
+        genres: query.data.genre,
+        tagIds: query.data.tagId,
+      },
     });
     return { items: page.items.map(toApiMediaItem), total: page.total };
   });

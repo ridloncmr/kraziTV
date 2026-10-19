@@ -91,8 +91,41 @@ export interface MediaItemQuery {
   limit: number;
   offset: number;
   excludeIds?: readonly string[];
-  /** Keeps only items whose match needs the owner's choice. */
-  needsChoice?: boolean;
+  filter?: CatalogFilter;
+}
+
+/**
+ * A match state a list can filter on: an item's effective state, where
+ * `unmatched` means TMDB answered without a match and `lookup_failed` means
+ * the last lookup failed, though both items report `unmatched`.
+ */
+export type MatchStateFilter = MatchState | "lookup_failed";
+
+/**
+ * What a list keeps: an item matching any value of each non-empty field,
+ * and every field at once. An absent or empty field keeps every item.
+ */
+export interface CatalogFilter {
+  matchStates?: readonly MatchStateFilter[];
+  contentTypes?: readonly ("movie" | "episode")[];
+  statuses?: readonly MediaItemStatus[];
+  mediaRootIds?: readonly string[];
+  seriesTmdbIds?: readonly number[];
+  franchiseTmdbIds?: readonly number[];
+  genres?: readonly string[];
+  tagIds?: readonly string[];
+}
+
+/**
+ * One root's match counts over its cataloged items, extras included in
+ * `items`. `failedLookups` counts exactly what a failed-lookup retry of the
+ * root would look up.
+ */
+export interface RootMatchCounts {
+  items: number;
+  matched: number;
+  needsChoice: number;
+  failedLookups: number;
 }
 
 /** The requested page plus the count of every item the search matches. */
