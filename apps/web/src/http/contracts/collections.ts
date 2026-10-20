@@ -64,7 +64,7 @@ export interface Recommendation {
   members: CollectionMember[];
   /** Distinct numbered seasons a series has cataloged, specials left out; null for a franchise. */
   seasonCount: number | null;
-  /** The collection already made with this criterion, if any. */
+  /** The manual collection an acceptance saved, if any; one an automatic collection maintains is never listed. */
   collectionId: string | null;
   decision: "accepted" | "dismissed" | null;
 }

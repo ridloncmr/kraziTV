@@ -41,7 +41,6 @@ export function CollectionsApp({
   /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
   function opened(created: MediaCollection) {
     setCreating(undefined);
-    setDiscovering(false);
     setTab(created.maintenanceMode);
     setSelected(created.id);
     collections.refresh();
@@ -108,7 +107,7 @@ export function CollectionsApp({
       )}
       {discovering && (
         <DiscoverDialog
-          created={opened}
+          onCreated={collections.refresh}
           onClose={() => setDiscovering(false)}
         />
       )}

@@ -146,7 +146,7 @@ describe("collection recommendations", () => {
     );
   });
 
-  it("creates one collection when two acceptances race, and then shows it as already created", async () => {
+  it("creates one collection when two acceptances race, and then stops listing it", async () => {
     const { server } = await startServer();
 
     const [first, second] = await Promise.all([
@@ -164,8 +164,8 @@ describe("collection recommendations", () => {
     ]);
     expect(await listed(server)).toEqual([
       { name: "Indiana Jones Collection", created: false },
-      { name: "The Office", created: true },
     ]);
+    expect(await listed(server, true)).toEqual([]);
   });
 
   it("keeps a dismissal through catalog changes until it is restored", async () => {
@@ -270,6 +270,9 @@ describe("collection recommendations", () => {
 
     const refused = await accept(server, OFFICE, "automatic");
 
+    expect(await listed(server)).toEqual([
+      { name: "Indiana Jones Collection", created: false },
+    ]);
     expect(refused.status).toBe(409);
     expect(refused.body.error.code).toBe("recommendation_decided");
     expect((await send(server, "GET", "/media-collections")).body).toHaveLength(

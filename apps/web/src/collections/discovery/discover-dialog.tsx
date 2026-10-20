@@ -15,32 +15,43 @@ const RECOMMENDATIONS = "/media-collections/recommendations";
  * each with why it was suggested, its member count (and a series' season
  * count), and its members. Nothing
  * becomes a collection until the owner accepts it, as automatic (the primary
- * action) or as a manual snapshot. A dismissal holds until restored under
- * Show dismissed; the server computes and decides everything.
+ * action) or as a manual snapshot. Accepting keeps the dialog open so several
+ * can be created in one visit; the server stops listing one an automatic
+ * collection now maintains. A dismissal holds until restored under Show
+ * dismissed; the server computes and decides everything.
  */
 export function DiscoverDialog({
-  created,
+  onCreated,
   onClose,
 }: {
-  created: (collection: MediaCollection) => void;
+  /** Tells the Collections program a collection was created behind the dialog. */
+  onCreated: () => void;
   onClose: () => void;
 }) {
   const [showDismissed, setShowDismissed] = useState(false);
+  const [notice, setNotice] = useState("");
   const recommendations = useResource<Recommendation[]>(
     showDismissed ? `${RECOMMENDATIONS}?dismissed=true` : RECOMMENDATIONS,
   );
   const mutation = useMutation();
 
-  /** Accepts a recommendation as an automatic or manual collection, then opens it. */
+  /** Accepts a recommendation as an automatic or manual collection, then rereads the list so the next can be chosen. */
   function accept(
     recommendation: Recommendation,
     mode: "automatic" | "manual",
   ) {
+    setNotice("");
     void mutation.run<MediaCollection>(
       `${RECOMMENDATIONS}/acceptance`,
       "POST",
       { criterion: recommendation.criterion, mode },
-      created,
+      (collection) => {
+        setNotice(
+          `Created ${collection.name} as ${mode === "automatic" ? "an automatic" : "a manual"} collection.`,
+        );
+        recommendations.refresh();
+        onCreated();
+      },
     );
   }
 
@@ -49,6 +60,7 @@ export function DiscoverDialog({
     recommendation: Recommendation,
     action: "dismissal" | "restoration",
   ) {
+    setNotice("");
     void mutation.run(
       `${RECOMMENDATIONS}/${action}`,
       "POST",
@@ -83,6 +95,7 @@ export function DiscoverDialog({
       <RequestFeedback
         loading={recommendations.loading || mutation.pending}
         error={mutation.error ?? recommendations.error}
+        message={notice}
       />
       {recommendations.data?.length === 0 && (
         <p className="empty-state">
@@ -118,7 +131,7 @@ export function DiscoverDialog({
                   Restore
                 </button>
               ) : recommendation.collectionId !== null ? (
-                <span>Already created</span>
+                <span>Saved as a manual collection</span>
               ) : (
                 <>
                   <button
