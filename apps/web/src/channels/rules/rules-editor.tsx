@@ -178,12 +178,16 @@ export function RulesEditor({
   );
 }
 
-/** Names an assignment by its members' collections, as the owner knows them. */
+/**
+ * Names an assignment by the owner's name for it, else by its members'
+ * collections, as the owner knows them.
+ */
 function assignmentLabel(
   assignment: SourceAssignment,
   index: number,
   collections: MediaCollection[] | undefined,
 ): string {
+  if (assignment.name !== null) return assignment.name;
   const names = assignment.members.flatMap((member) =>
     member.kind === "collection"
       ? [

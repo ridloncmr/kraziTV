@@ -18,12 +18,13 @@ import {
   perSittingLabel,
 } from "../assignments/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
-import { joinShowNames } from "./show-labels.js";
+import { showLabel } from "./show-labels.js";
 import { useMemberNames } from "./use-member-names.js";
 
 /**
  * The Lineup tab: the channel's shows, its programming source assignments,
- * as a read-only list in saved order. **Add shows…** adds several at once;
+ * as a read-only list in saved order, badging a wheel (a show of several
+ * members that share its turns). **Add shows…** adds several at once;
  * a selected show opens in
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
@@ -43,9 +44,9 @@ export function LineupTab({
     collections.data,
     visible,
   );
-  // Names a show by its members, as the lineup and its dialogs show it.
+  // Names a show as the lineup and its dialogs show it.
   const showName = (assignment: SourceAssignment) =>
-    joinShowNames(assignment.members.map(memberName));
+    showLabel(assignment.name, assignment.members.map(memberName));
   const settingsPath = `${programming.channelPath}/programming-settings`;
   const marathons = useResource<MarathonSettings>(settingsPath, visible);
   const marathonsOff = marathons.data?.marathonChancePercent === 0;
@@ -58,13 +59,13 @@ export function LineupTab({
   const selected = listed.find((assignment) => assignment.id === selectedId);
   const edited = listed.find((assignment) => assignment.id === editing);
   // Members the lineup plays outside `except`, which no other show may add.
-  const playedElsewhere = (except: string | undefined, reason: string) =>
-    new Map(
-      listed
-        .filter((assignment) => assignment.id !== except)
-        .flatMap((assignment) => assignment.members)
-        .map((member) => [memberKey(member), reason]),
-    );
+  // Member keys of every show but `except`, since a member plays in one
+  // show at a time.
+  const playedElsewhere = (except: string | undefined) =>
+    listed
+      .filter((assignment) => assignment.id !== except)
+      .flatMap((assignment) => assignment.members)
+      .map(memberKey);
   return (
     <section aria-label="Lineup">
       <RequestFeedback
@@ -135,6 +136,9 @@ export function LineupTab({
                       : ""}
                   </td>
                   <td>
+                    {assignment.members.length > 1 && (
+                      <span className="row-badge">Wheel</span>
+                    )}
                     {assignment.participation === "rule_only" && (
                       <span className="row-badge">Rules only</span>
                     )}
@@ -195,7 +199,7 @@ export function LineupTab({
         <AddShowsDialog
           assignmentsPath={assignmentsPath}
           collections={collections.data}
-          unavailable={playedElsewhere(undefined, "already in this lineup")}
+          inLineup={new Set(playedElsewhere(undefined))}
           visible={visible}
           changed={changed}
           onClose={() => setAdding(false)}
@@ -209,7 +213,11 @@ export function LineupTab({
           title={showName(edited)}
           collections={collections.data}
           memberName={memberName}
-          unavailable={playedElsewhere(edited.id, "in another show")}
+          unavailable={
+            new Map(
+              playedElsewhere(edited.id).map((key) => [key, "in another show"]),
+            )
+          }
           settingsPath={settingsPath}
           marathons={marathons}
           visible={visible}

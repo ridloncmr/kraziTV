@@ -93,6 +93,10 @@
 .row-actions button {
   padding: 3px 7px;
 }
+/* Buttons that act on a grid's rows sit just below it, not against it. */
+.table-scroll + .row-actions {
+  margin-top: 6px;
+}
 .request-feedback p {
   padding: 6px 8px;
   margin: 6px 0;
@@ -167,6 +171,10 @@
   border-radius: 2px;
   padding: 0 4px;
   white-space: nowrap;
+}
+/* A row with several badges, such as a rule-only wheel, keeps them apart. */
+.row-badge + .row-badge {
+  margin-left: 4px;
 }
 .selected-row {
   background: color-mix(
@@ -796,15 +804,24 @@
   flex-direction: column;
   gap: 4px;
 }
-/* Picked shows that still need per sitting, one plain row each. */
-.per-sitting-choices {
+/*
+ * One show's settings in Add shows: play order and per sitting side by
+ * side, with anything the per-sitting field reveals, such as Custom's
+ * fields and hints, on full-width rows beneath them.
+ */
+.program-page fieldset.show-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: end;
   margin: 8px 0;
-  padding: 0;
-  list-style: none;
 }
-.per-sitting-choices > li {
-  align-items: center;
-  margin: 4px 0;
+.show-settings > :nth-child(n + 4),
+.show-settings > p {
+  grid-column: 1 / -1;
+}
+.show-settings > p {
+  margin: 0;
 }
 /* A show's members as a sunken list, one per row. */
 .member-list {

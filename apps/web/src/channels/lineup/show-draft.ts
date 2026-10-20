@@ -13,6 +13,8 @@ import {
 
 /** One show's settings as its Properties dialog edits them, before OK or Apply. */
 export interface ShowDraft {
+  /** The owner's name for the show; blank names it by its members. */
+  name: string;
   /** Members in saved member order. */
   members: AssignmentMember[];
   /** Off for a rule-only show, which airs only while a rule selects it. */
@@ -35,6 +37,7 @@ export function toShowDraft(assignment: SourceAssignment): ShowDraft {
   const marathon = assignment.marathonStretch;
   const derived = JSON.stringify(toStretchSetting(suggestMarathon(stretch)));
   return {
+    name: assignment.name ?? "",
     members: [...assignment.members],
     rotates: assignment.participation === "default",
     mode: assignment.playbackMode ?? "chronological",
@@ -63,6 +66,7 @@ export function toSettings(draft: ShowDraft): AssignmentSettings {
   );
   const marathon = draftMarathon(draft);
   return {
+    name: draft.name.trim() || null,
     participation: draft.rotates ? "default" : "rule_only",
     playbackMode: hasCollection ? draft.mode : null,
     ordinaryStretch: hasCollection

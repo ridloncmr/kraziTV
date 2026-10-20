@@ -7,14 +7,13 @@ import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   AssignmentMember,
   MarathonSettings,
-  PlaybackMode,
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/use-resource.js";
 import { CollectionPreviewSection } from "../assignments/collection-preview-section.js";
 import { MemberRows } from "../assignments/member-rows.js";
-import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
+import { PlayOrderField } from "../assignments/play-order-field.js";
 import {
   isStretchComplete,
   StretchFields,
@@ -32,14 +31,15 @@ import {
 import { PerSittingField } from "../assignments/per-sitting-field.js";
 import { marathonLabel } from "../assignments/stretch-words.js";
 import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
+import { joinShowNames } from "./show-labels.js";
 
 // The dialog's property-sheet tabs, in the order they show.
 type ShowTab = "general" | "contents" | "upNext";
 
 /**
  * Edits one show, a programming source assignment, in a window dialog laid
- * out as an XP property sheet. **General** holds play order, how much plays
- * at a time, marathons, and rule-only airing; **Contents** holds members;
+ * out as an XP property sheet. **General** holds the show's name, play
+ * order, how much plays at a time, marathons, and rule-only airing; **Contents** holds members;
  * **Up Next** previews a saved collection and offers a restart. Nothing
  * writes until **OK** or **Apply**, and **Cancel** discards every change.
  * Saving a show never changes the channel's marathon settings: while they
@@ -79,7 +79,7 @@ export function ShowPropertiesDialog({
   const turnOn = useMutation();
   // Whether the owner turned channel marathons on from here, which it says.
   const [turnedOn, setTurnedOn] = useState(false);
-  const hintId = useId();
+  const nameHintId = useId();
   const tabsId = useId();
   const [tab, setTab] = useState<ShowTab>("general");
   const [draft, setDraft] = useState<ShowDraft>(() => toShowDraft(assignment));
@@ -167,31 +167,26 @@ export function ShowPropertiesDialog({
           <fieldset disabled={mutation.pending} className="form-stack">
             {shown === "general" && (
               <>
+                <label>
+                  Name
+                  <input
+                    value={draft.name}
+                    maxLength={80}
+                    placeholder={joinShowNames(members.map(name))}
+                    aria-describedby={nameHintId}
+                    onChange={(event) => edit({ name: event.target.value })}
+                  />
+                </label>
+                <small id={nameHintId} className="secondary">
+                  Leave blank to name the show after what it plays.
+                </small>
                 {hasCollection ? (
                   <>
-                    <label>
-                      Play order
-                      <select
-                        value={draft.mode}
-                        aria-describedby={hintId}
-                        onChange={(event) =>
-                          edit({ mode: event.target.value as PlaybackMode })
-                        }
-                      >
-                        {PLAYBACK_MODE_CHOICES.map((choice) => (
-                          <option key={choice.mode} value={choice.mode}>
-                            {choice.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <small id={hintId} className="secondary">
-                      {
-                        PLAYBACK_MODE_CHOICES.find(
-                          (choice) => choice.mode === draft.mode,
-                        )?.hint
-                      }
-                    </small>
+                    <PlayOrderField
+                      mode={draft.mode}
+                      hint
+                      onChange={(mode) => edit({ mode })}
+                    />
                     <PerSittingField
                       draft={draft.stretch}
                       contentKind={contentKind}
@@ -281,10 +276,10 @@ export function ShowPropertiesDialog({
             {shown === "contents" && (
               <>
                 <p className="secondary">
-                  A show can hold several collections and items. They share one
-                  spot in the rotation: each time the show comes up, the next
-                  one in this list plays. To give one its own spot, add it to
-                  the lineup as a separate show.
+                  A show with several collections and items is a wheel. They
+                  share one spot in the rotation: each time the wheel comes up,
+                  the next one in this list plays. To give one its own spot, add
+                  it to the lineup as a separate show.
                 </p>
                 <MemberRows
                   members={members}

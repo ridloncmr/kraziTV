@@ -27,12 +27,15 @@ export interface FoundMember {
  * holds them. Collections are matched by name from the list the caller
  * already holds. Items come one server page at a time, narrowed by the same
  * **Filter** dialog the Media Library uses, so the results never hold the
- * whole catalog. `unavailable` results show why they cannot be checked.
+ * whole catalog. `unavailable` results show why they cannot be checked;
+ * `hidden` results are left out entirely, for a caller where they would be
+ * clutter, so a page of items may show fewer than its limit.
  */
 export function CollectionOrItemSearch({
   collections,
   checked,
   unavailable = new Map(),
+  hidden = new Set(),
   visible,
   onToggle,
 }: {
@@ -41,6 +44,8 @@ export function CollectionOrItemSearch({
   checked: ReadonlySet<string>;
   /** Results that cannot be checked, by member key, with the reason. */
   unavailable?: ReadonlyMap<string, string>;
+  /** Results left out of the list, by member key. */
+  hidden?: ReadonlySet<string>;
   visible: boolean;
   onToggle: (found: FoundMember, checked: boolean) => void;
 }) {
@@ -62,7 +67,7 @@ export function CollectionOrItemSearch({
   );
   const filtersInUse = keysInUse(filter);
   const words = search.trim().toLowerCase();
-  const found: FoundMember[] =
+  const matched: FoundMember[] =
     kind === "collections"
       ? (collections ?? [])
           .filter((collection) => collection.name.toLowerCase().includes(words))
@@ -82,20 +87,27 @@ export function CollectionOrItemSearch({
           name: item.title,
           detail: item.path,
         }));
+  const found = matched.filter(
+    (result) => !hidden.has(memberKey(result.member)),
+  );
   const empty =
-    kind === "collections"
-      ? collections && found.length === 0
-        ? words
-          ? "No collection matches that search."
-          : "There are no collections yet."
-        : undefined
-      : items.data?.total === 0
-        ? items.search
-          ? "No media matches that search."
-          : filtersInUse > 0
-            ? "No media matches these filters."
-            : "The catalog has no media yet."
-        : undefined;
+    matched.length > 0 && found.length === 0
+      ? kind === "collections"
+        ? "Every matching collection is already added."
+        : "Everything on this page is already added."
+      : kind === "collections"
+        ? collections && found.length === 0
+          ? words
+            ? "No collection matches that search."
+            : "There are no collections yet."
+          : undefined
+        : items.data?.total === 0
+          ? items.search
+            ? "No media matches that search."
+            : filtersInUse > 0
+              ? "No media matches these filters."
+              : "The catalog has no media yet."
+          : undefined;
   return (
     <div>
       <fieldset className="inline-form">

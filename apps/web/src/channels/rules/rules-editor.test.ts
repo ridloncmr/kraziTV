@@ -31,6 +31,7 @@ function assignment(
 ) {
   return {
     id,
+    name: null,
     participation,
     playbackMode: "chronological",
     ordinaryStretch: { kind: "programs", count: 1 },

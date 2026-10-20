@@ -43,10 +43,9 @@ This works against the feature goal: configure once and mostly leave it alone.
 
 - Any change to kraziPlan policy, stretch resolution, marathon selection,
   rotation, rules evaluation, or reservations.
-- Server changes beyond the bulk assignment create and the stretch
-  suggestion's content kind described under Technical Behavior.
-- Owner-given names for shows. A show with several members displays its
-  member names; an owner who wants one name makes a collection instead.
+- Server changes beyond the bulk assignment create, the stretch
+  suggestion's content kind, and the show name described under Technical
+  Behavior.
 - Exposing saved assignment order. It only feeds the deterministic shuffle
   ([spec 0004](0004-kraziplan.md)), so shows keep the order they were added.
 - Redesigning the rule form or special editor internals beyond moving them
@@ -113,14 +112,16 @@ The Office + Parks    Episode    3 programs      —
 Christmas Movies      Random     1 movie         —            Rules only
 ```
 
-- **Show** is the collection or item name. An assignment with several members
-  shows them joined with `+`, truncated with a count past two, such as
-  `The Office + Parks + 1 more`.
+- **Show** is the owner's name for the show when it has one, such as
+  `Adult Animation`. Otherwise it is the collection or item name, and an
+  assignment with several members shows them joined with `+`, truncated with
+  a count past two, such as `The Office + Parks + 1 more`.
 - **Order** is the playback mode label, or `—` for single items only.
 - **Per sitting** shows a preset name or the custom value in words.
 - **Marathons** shows the marathon length, or `—`. When the channel's
   marathons are off, a marathon-capable row reads `up to 3 hrs (off)`.
-- A rule-only assignment shows a **Rules only** badge.
+- A rule-only assignment shows a **Rules only** badge, and an assignment with
+  several members, a wheel, shows a **Wheel** badge.
 - Selecting a row enables **Properties** and **Remove**; double-click or
   Enter opens **Properties**. The row menu offers the same actions.
 - **Remove** confirms in a window dialog and names the show.
@@ -130,16 +131,29 @@ Christmas Movies      Random     1 movie         —            Rules only
 
 **Add shows…** opens a window dialog with one search field that finds media
 collections and single media items together, each labeled by kind. The owner
-checks any number of results.
+checks any number of results. Collections and items the lineup already plays are left
+out of the results, since a member plays in one show at a time.
 
-- Each checked result becomes its own assignment, playing in normal rotation
-  with the default playback mode and the server's suggested per-sitting
-  setting.
-- A result with no suggestion (mixed or unclassified media) shows an inline
-  per-sitting choice in the dialog before **Add** is enabled, as spec 0004
-  requires.
-- Marathons stay off for added shows, as spec 0004 requires.
-- **Add** creates every checked show in one request, all or nothing, and
+- **Add as** chooses what the checked results become:
+
+  | Choice             | Result                                                                                                                                                                                                                     |
+  | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | **Separate shows** | The default. Each checked result becomes its own assignment with its own turns.                                                                                                                                            |
+  | **A wheel**        | Every checked result becomes a member of one assignment, in the order checked, sharing its turns, as a broadcast wheel series does. An optional **Wheel name** names it; blank names it by its members as the lineup does. |
+
+- The dialog has two pages. The first holds **Add as** and the search;
+  **Next** counts the picks. The second boxes every show it will add, one
+  box each titled with the show's name, with **Play order** (collection order
+  unless changed) and **Plays at a time** (the server's suggested
+  per-sitting setting for its members unless changed). A show of single
+  items alone shows neither; it plays one item each time it comes up.
+  **Back** returns to the same search with every pick and choice kept.
+- A show with no suggestion (mixed or unclassified media) asks for its
+  per-sitting choice before **Add** is enabled, as spec 0004 requires.
+- Every added show plays in normal rotation with marathons off, as spec 0004
+  requires; **Allow marathons** and **Plays in normal rotation** are set in
+  **Properties**.
+- **Add** creates every show in one request, all or nothing, and
   closes the dialog; the lineup and preview refresh. On failure nothing is
   added, the dialog stays open with its choices, and the error names the show
   the server rejected.
@@ -151,6 +165,9 @@ checks any number of results.
 
 Main section:
 
+- **Name**: the owner's name for the show, with its member names as the
+  placeholder. Blank clears it, so the show is named by its members again.
+  Changing only the name changes no programming, so nothing regenerates.
 - **Order**: playback mode select with its hint. Hidden for single items only.
 - **Per sitting**: presets for the show's content kind, then **Custom…**
   revealing the three stretch kinds as today. The airtime overrun hint shows
@@ -240,8 +257,10 @@ stretch fields in the rule form use the same per-sitting presets with
 
 ## Data Model Impact
 
-No migrations or columns. Contract additions only: the bulk create route and
-the suggestion's `contentKind` field.
+One nullable column, `programming_source_assignments.name`, holding a trimmed
+name of 1 to 80 characters or null. Contract additions: the bulk create route,
+the suggestion's `contentKind` field, and the assignment's `name`, which a
+request may omit and the server saves blank as null.
 
 ## kraziTV Check
 
@@ -271,7 +290,8 @@ the suggestion's `contentKind` field.
 | Frequent marathon preset     | 25% chance, one ordinary round between.                                 |
 | Atomic bulk add              | Yes: one all-or-nothing server request with one regeneration.           |
 | Movie per-sitting presets    | Yes: labels follow content kind from the stretch suggestion.            |
-| Names for multi-member shows | No. Joined member names; make a collection for one name. Revisit later. |
+| Names for multi-member shows | Yes: an optional name; blank falls back to joined member names.         |
+| One show from several picks  | Yes: **Add as A wheel** in Add shows; **Separate shows** stays default. |
 | Exposing saved order         | No. Shows keep creation order.                                          |
 
 ## Open Questions
@@ -286,10 +306,16 @@ None.
   per sitting, marathon, and rules-only columns, and no assignment is shown as
   an editable form.
 - **Add shows…** adds several collections and items in one dialog, each as its
-  own assignment with the suggested per-sitting setting, and asks for per
-  sitting only where there is no suggestion.
+  own assignment with the play order and per-sitting setting its row shows,
+  defaulting to collection order and the suggested per sitting, and requires
+  a per-sitting choice only where there is no suggestion.
+- **Add as A wheel** adds every checked result as members of one assignment,
+  with an optional name, and the lineup badges it **Wheel**.
 - The bulk create writes every assignment or none, regenerates once, and
   names the rejected assignment's index on failure.
+- A show's optional name replaces its member names in the lineup, its
+  Properties title, and the rule form; renaming alone neither regenerates nor
+  advances the configuration revision.
 - Per-sitting presets read in movies for a movie show, in episodes for an
   episode show, and in programs otherwise, in both Properties and the lineup.
 - **Properties** edits one assignment in a window dialog that writes only on

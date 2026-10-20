@@ -273,6 +273,7 @@ export function favoritesAssignment(
 ): SourceAssignment {
   return {
     id: "assignment",
+    name: null,
     participation: "default",
     playbackMode,
     ordinaryStretch: { kind: "programs", count: 3 },
