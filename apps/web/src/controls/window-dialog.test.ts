@@ -76,3 +76,48 @@ it("focuses the panel, not a button, when the dialog has no field", () => {
     screen.getByRole("dialog", { name: "Delete thing" }),
   );
 });
+
+// A dialog with an opener for a second dialog inside it.
+function NestingDialog() {
+  const [open, setOpen] = useState(false);
+  return createElement(WindowDialog, {
+    title: "Outer",
+    onClose: () => undefined,
+    children: [
+      createElement(
+        "button",
+        { key: "open", onClick: () => setOpen(true) },
+        "More",
+      ),
+      open &&
+        createElement(WindowDialog, {
+          key: "inner",
+          title: "Inner",
+          onClose: () => setOpen(false),
+          children: createElement("input", { "aria-label": "Inner field" }),
+        }),
+    ],
+  });
+}
+
+it("stacks a dialog opened from another in the same layer, holding the outer one inert", () => {
+  const view = render(
+    createElement(WindowDialogFrame, null, createElement(NestingDialog)),
+  );
+  const layer = view.container.querySelector(".window-dialog-layer")!;
+  const outer = screen.getByRole("dialog", { name: "Outer" });
+  const more = screen.getByRole("button", { name: "More" });
+  more.focus();
+  fireEvent.click(more);
+
+  const inner = screen.getByRole("dialog", { name: "Inner" });
+  expect(inner.parentElement).toBe(layer);
+  expect(outer.hasAttribute("inert")).toBe(true);
+
+  // Escape closes only the inner dialog and returns focus to its opener.
+  fireEvent.keyDown(inner, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Inner" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "Outer" })).toBe(outer);
+  expect(outer.hasAttribute("inert")).toBe(false);
+  expect(document.activeElement).toBe(more);
+});

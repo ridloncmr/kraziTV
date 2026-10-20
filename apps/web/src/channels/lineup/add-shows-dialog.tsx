@@ -21,15 +21,15 @@ import {
   toStretchSetting,
   UNCHOSEN_STRETCH,
 } from "../assignments/stretch-fields.js";
-import { perSittingLabel } from "../assignments/stretch-words.js";
 import { suggestionPath } from "./show-draft.js";
 
 /**
- * Adds several shows to a channel from one search over collections and
- * single items. Each checked result becomes its own show in normal
+ * Adds several shows to a channel from one picker that toggles between
+ * collections and filterable single items. Each checked result becomes its own show in normal
  * rotation, in collection order with the server's suggested per sitting
- * and marathons off (programming spec 0004); a collection with no
- * suggestion asks for per sitting before **Add** is enabled. **Add** sends
+ * and marathons off (programming spec 0004); only a collection with no
+ * suggestion is listed, asking for per sitting before **Add** is enabled,
+ * and **Add** counts the picks so ones in the other view stay in sight. **Add** sends
  * one all-or-nothing request, so a refusal adds nothing and keeps every
  * choice here, naming the show the server refused.
  */
@@ -84,6 +84,14 @@ export function AddShowsDialog({
       : undefined;
   };
   const ready = picks.length > 0 && picks.every((pick) => perSitting(pick));
+  // Collections the server had no suggestion for, which ask for per sitting.
+  const unsuggested = picks.flatMap((pick) => {
+    if (pick.member.kind !== "collection") return [];
+    const suggestion = suggestionFor(pick);
+    return suggestion && suggestion.ordinaryStretch === null
+      ? [{ pick, contentKind: suggestion.contentKind }]
+      : [];
+  });
   const refused = refusedPick(mutation.error, sent);
   const failure =
     refused && mutation.error
@@ -139,54 +147,33 @@ export function AddShowsDialog({
               )
             }
           />
-          {picks.length > 0 && (
-            <ol aria-label="Shows to add">
-              {picks.map((pick) => {
+          {unsuggested.length > 0 && (
+            <ul
+              aria-label="Choose plays at a time"
+              className="per-sitting-choices"
+            >
+              {unsuggested.map(({ pick, contentKind }) => {
                 const key = memberKey(pick.member);
-                const suggestion =
-                  pick.member.kind === "collection"
-                    ? suggestionFor(pick)
-                    : undefined;
-                const setting = perSitting(pick);
                 return (
-                  <li key={key}>
-                    <strong>{pick.name}</strong>{" "}
-                    {pick.member.kind === "media_item" ? (
-                      <small className="secondary">
-                        Single item · plays once at a time
-                      </small>
-                    ) : suggestion === undefined ? (
-                      <small className="secondary">Checking its content…</small>
-                    ) : suggestion.ordinaryStretch === null ? (
-                      <span className="inline-form">
-                        <PerSittingField
-                          draft={chosen.get(key) ?? UNCHOSEN_STRETCH}
-                          contentKind={suggestion.contentKind}
-                          onChange={(draft) =>
-                            setChosen((current) =>
-                              new Map(current).set(key, draft),
-                            )
-                          }
-                        />
-                      </span>
-                    ) : (
-                      setting && (
-                        <small className="secondary">
-                          {perSittingLabel(setting, suggestion.contentKind)} at
-                          a time
-                        </small>
-                      )
-                    )}
+                  <li key={key} className="inline-form">
+                    <strong>{pick.name}</strong>
+                    <PerSittingField
+                      draft={chosen.get(key) ?? UNCHOSEN_STRETCH}
+                      contentKind={contentKind}
+                      onChange={(draft) =>
+                        setChosen((current) => new Map(current).set(key, draft))
+                      }
+                    />
                   </li>
                 );
               })}
-            </ol>
+            </ul>
           )}
         </fieldset>
         <RequestFeedback loading={mutation.pending} error={failure} />
         <div className="dialog-actions">
           <button type="submit" disabled={!ready || mutation.pending}>
-            Add
+            {picks.length > 0 ? `Add (${picks.length})` : "Add"}
           </button>
           <button type="button" disabled={mutation.pending} onClick={onClose}>
             Cancel

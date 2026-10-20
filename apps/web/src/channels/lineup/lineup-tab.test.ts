@@ -813,6 +813,10 @@ const result = (scope: HTMLElement, name: string) =>
     within(scope).getByRole("list", { name: "Search results" }),
   ).getByRole<HTMLInputElement>("checkbox", { name: new RegExp(`^${name} `) });
 
+// Toggles the combined search to `kind`: collections or single items.
+const searchFor = (scope: HTMLElement, kind: "Collections" | "Single items") =>
+  fireEvent.click(within(scope).getByRole("radio", { name: kind }));
+
 // Answers suggestions by collection: Favorites holds episodes, Movies holds
 // movies, and Mixed has no suggestion.
 function serveSuggestions(api: BrowserApi) {
@@ -866,13 +870,11 @@ it("adds three picks as three shows in one request, each with its suggested per 
 
   fireEvent.click(result(dialog, "Favorites"));
   fireEvent.click(result(dialog, "Movies"));
+  searchFor(dialog, "Single items");
   fireEvent.click(
     await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
   );
-  const toAdd = within(dialog).getByRole("list", { name: "Shows to add" });
-  await within(toAdd).findByText("3 episodes at a time");
-  await within(toAdd).findByText("1 movie at a time");
-  within(toAdd).getByText("Single item · plays once at a time");
+  within(dialog).getByRole("button", { name: "Add (3)" });
   // Every pick has a suggestion, so none asks for per sitting.
   expect(within(dialog).queryByLabelText("Plays at a time")).toBeNull();
   await waitFor(() => expect(add.disabled).toBe(false));
@@ -926,8 +928,12 @@ it("asks for per sitting before Add for a pick with no suggestion", async () => 
   });
 
   fireEvent.click(result(dialog, "Mixed"));
+  const choose = await within(dialog).findByRole("list", {
+    name: "Choose plays at a time",
+  });
+  within(choose).getByText("Mixed");
   const choice =
-    await within(dialog).findByLabelText<HTMLSelectElement>("Plays at a time");
+    within(choose).getByLabelText<HTMLSelectElement>("Plays at a time");
   expect(chosenOption(choice)).toBe("Choose…");
   expect(add.disabled).toBe(true);
   chooseOption(choice, "~1 hr");
@@ -967,11 +973,12 @@ it("keeps every pick and names the refused show when the server refuses the batc
   );
 
   fireEvent.click(result(dialog, "Movies"));
+  searchFor(dialog, "Single items");
   fireEvent.click(
     await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
   );
   const add = within(dialog).getByRole<HTMLButtonElement>("button", {
-    name: "Add",
+    name: "Add (2)",
   });
   await waitFor(() => expect(add.disabled).toBe(false));
   const listReads = api.requestsTo(ASSIGNMENTS).length;
@@ -981,12 +988,103 @@ it("keeps every pick and names the refused show when the server refuses the batc
     /Alpha could not be added: Unknown media items: z/,
   );
   expect(screen.getByRole("dialog", { name: "Add shows" })).toBe(dialog);
+  expect(result(dialog, "Alpha").checked).toBe(true);
+  searchFor(dialog, "Collections");
   expect(result(dialog, "Movies").checked).toBe(true);
-  expect(
-    within(dialog).getByRole<HTMLInputElement>("checkbox", { name: /^Alpha / })
-      .checked,
-  ).toBe(true);
   expect(api.requestsTo(ASSIGNMENTS)).toHaveLength(listReads);
+});
+
+it("toggles Add shows between collections and filtered single items, keeping picks across the toggle", async () => {
+  const { api } = await openLineup([], [], serveSuggestions);
+  api.reply("/media-roots", []);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+
+  // Collections come first, and no catalog page is read until items are asked for.
+  fireEvent.click(result(dialog, "Favorites"));
+  expect(within(dialog).queryByRole("checkbox", { name: /^Alpha / })).toBe(
+    null,
+  );
+  expect(api.requestsTo("/media-items")).toEqual([]);
+
+  searchFor(dialog, "Single items");
+  await within(dialog).findByRole("checkbox", {
+    name: "Alpha /media/alpha.mp4",
+  });
+  expect(within(dialog).queryByRole("checkbox", { name: /^Favorites / })).toBe(
+    null,
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Filter…" }));
+  const filter = screen.getByRole("dialog", { name: "Filter media" });
+  fireEvent.click(within(filter).getByRole("checkbox", { name: "Missing" }));
+  fireEvent.click(within(filter).getByRole("button", { name: "Apply" }));
+
+  expect(screen.queryByRole("dialog", { name: "Filter media" })).toBeNull();
+  await waitFor(() =>
+    expect(
+      api.requestsTo("/media-items").at(-1)?.query.getAll("status"),
+    ).toEqual(["missing"]),
+  );
+  within(dialog).getByRole("button", { name: "Filter (1)…" });
+  within(dialog).getByRole("button", { name: "Add (1)" });
+  searchFor(dialog, "Collections");
+  expect(result(dialog, "Favorites").checked).toBe(true);
+});
+
+it("selects every pickable result from the results header, and clears them again", async () => {
+  await openLineup(
+    [favoritesAssignment("chronological")],
+    [collectionWith("movies", "Movies"), collectionWith("mixed", "Mixed")],
+    serveSuggestions,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const all = (name: string) =>
+    within(dialog).getByRole<HTMLInputElement>("checkbox", { name });
+
+  fireEvent.click(result(dialog, "Movies"));
+  // One of two pickable results is checked, so the header reads mixed.
+  expect(all("Select all").indeterminate).toBe(true);
+  fireEvent.click(all("Select all"));
+  // Favorites is already in the lineup, so select all leaves it alone.
+  expect(result(dialog, "Favorites").checked).toBe(false);
+  expect(result(dialog, "Movies").checked).toBe(true);
+  expect(result(dialog, "Mixed").checked).toBe(true);
+  expect(all("Select all").checked).toBe(true);
+  expect(all("Select all").indeterminate).toBe(false);
+  fireEvent.click(all("Select all"));
+  expect(result(dialog, "Movies").checked).toBe(false);
+  expect(result(dialog, "Mixed").checked).toBe(false);
+
+  searchFor(dialog, "Single items");
+  await within(dialog).findByRole("checkbox", { name: /^Alpha / });
+  fireEvent.click(all("Select all on this page"));
+  expect(result(dialog, "Alpha").checked).toBe(true);
+  expect(result(dialog, "Zulu").checked).toBe(true);
+  within(dialog).getByRole("button", { name: "Add (2)" });
+});
+
+it("keeps a show's last member when select all unchecks every result on Contents", async () => {
+  await openLineup(
+    [
+      favoritesAssignment("chronological", {
+        members: [
+          { kind: "collection", mediaCollectionId: "favorites" },
+          { kind: "collection", mediaCollectionId: "other" },
+        ],
+      }),
+    ],
+    [collectionWith("other", "Other")],
+  );
+  const dialog = await openProperties("Favorites + Other");
+  openTab(dialog, "Contents");
+  fireEvent.click(within(dialog).getByRole("checkbox", { name: "Select all" }));
+
+  expect(
+    within(within(dialog).getByRole("list", { name: "In this show" }))
+      .getAllByRole("listitem")
+      .map((row) => row.firstChild?.textContent),
+  ).toEqual(["Other"]);
 });
 
 it("adds an item and a collection as members on Contents through the combined search, and reorders them", async () => {
@@ -1003,6 +1101,7 @@ it("adds an item and a collection as members on Contents through the combined se
   expect(result(dialog, "Favorites").disabled).toBe(true);
 
   fireEvent.click(result(dialog, "Other"));
+  searchFor(dialog, "Single items");
   fireEvent.click(
     await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
   );
@@ -1129,7 +1228,7 @@ it("names the show the server's validation refused, from the picks as they were 
   fireEvent.click(result(dialog, "Favorites"));
   fireEvent.click(result(dialog, "Movies"));
   const add = within(dialog).getByRole<HTMLButtonElement>("button", {
-    name: "Add",
+    name: "Add (2)",
   });
   await waitFor(() => expect(add.disabled).toBe(false));
   fireEvent.click(add);
@@ -1162,7 +1261,7 @@ it("asks for per sitting when a pick's content cannot be checked", async () => {
     await within(dialog).findByLabelText<HTMLSelectElement>("Plays at a time");
   chooseOption(choice, "3 programs");
   expect(
-    within(dialog).getByRole<HTMLButtonElement>("button", { name: "Add" })
+    within(dialog).getByRole<HTMLButtonElement>("button", { name: "Add (1)" })
       .disabled,
   ).toBe(false);
 });

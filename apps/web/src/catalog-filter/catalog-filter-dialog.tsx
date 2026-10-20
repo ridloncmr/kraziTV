@@ -2,14 +2,14 @@ import { useState } from "react";
 import {
   optionValue,
   type CatalogOption,
-} from "../../catalog-options/catalog-option.js";
+} from "../catalog-options/catalog-option.js";
 import type {
   MediaFilter,
   MediaFilterKey,
   MediaRoot,
-} from "../../http/contracts/media.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
-import { useResource } from "../../http/use-resource.js";
+} from "../http/contracts/media.js";
+import { WindowDialog } from "../controls/window-dialog.js";
+import { useResource } from "../http/use-resource.js";
 import { FilterSection, type FilterOption } from "./filter-section.js";
 
 /** Sections whose values never change. */
@@ -126,7 +126,7 @@ export function keysInUse(filter: MediaFilter): number {
 }
 
 /**
- * The cataloged media list's **Filter** dialog. Checking values changes only
+ * The **Filter** dialog for any list of cataloged media items. Checking values changes only
  * a draft, which starts from the applied filter each time the dialog opens:
  * **Apply** hands the draft over, **Clear** hands over no filter, and
  * closing any other way discards the draft.
@@ -138,7 +138,8 @@ export function CatalogFilterDialog({
   onClose,
 }: {
   applied: MediaFilter;
-  roots: readonly MediaRoot[];
+  /** Undefined while the caller is still reading them. */
+  roots: readonly MediaRoot[] | undefined;
   onApply: (filter: MediaFilter) => void;
   onClose: () => void;
 }) {
@@ -191,8 +192,11 @@ export function CatalogFilterDialog({
       <FilterSection
         key={key}
         legend="Media root"
-        options={roots.map((root) => ({ value: root.id, label: root.path }))}
-        empty="No media roots yet."
+        options={(roots ?? []).map((root) => ({
+          value: root.id,
+          label: root.path,
+        }))}
+        empty={roots ? "No media roots yet." : "Loading…"}
         {...section(key)}
       />
     );
@@ -210,9 +214,15 @@ export function CatalogFilterDialog({
         ))}
       </div>
       <div className="dialog-actions">
-        <button onClick={() => onApply({})}>Clear</button>
-        <button onClick={onClose}>Cancel</button>
-        <button onClick={() => onApply(draft)}>Apply</button>
+        <button type="button" onClick={() => onApply({})}>
+          Clear
+        </button>
+        <button type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" onClick={() => onApply(draft)}>
+          Apply
+        </button>
       </div>
     </WindowDialog>
   );

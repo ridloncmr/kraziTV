@@ -19,7 +19,7 @@ import { AddMediaRootDialog } from "./add-media-root-dialog.js";
 import {
   CatalogFilterDialog,
   keysInUse,
-} from "./catalog-filter/catalog-filter-dialog.js";
+} from "../catalog-filter/catalog-filter-dialog.js";
 import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
 import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
@@ -335,7 +335,7 @@ export function MediaLibraryApp({
       {filtering && (
         <CatalogFilterDialog
           applied={filter}
-          roots={roots.data ?? []}
+          roots={roots.data}
           onApply={(applied) => {
             setFiltering(false);
             setFilter(applied);

@@ -83,11 +83,14 @@ export function MemberRows({
         visible={visible}
         onToggle={({ member, name: picked }, checked) => {
           if (checked) onPicked(member, picked);
-          edit((rows) =>
-            checked
-              ? [...rows, member]
-              : rows.filter((row) => memberKey(row) !== memberKey(member)),
-          );
+          edit((rows) => {
+            if (checked) return [...rows, member];
+            const kept = rows.filter(
+              (row) => memberKey(row) !== memberKey(member),
+            );
+            // Select all can uncheck every result at once; the last one stays.
+            return kept.length > 0 ? kept : rows;
+          });
         }}
       />
     </>

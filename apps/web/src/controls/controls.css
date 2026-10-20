@@ -344,14 +344,24 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
   padding: 12px;
   background: color-mix(in srgb, var(--xp-shadow) 25%, transparent);
 }
 .window-dialog-layer:empty {
   display: none;
+}
+/*
+ * A dialog opened from another stacks over it in the same place. Each
+ * dialog is its own stacking context, so nothing inside an earlier one,
+ * such as a translucent disabled button or a sticky bar, paints over it.
+ */
+.window-dialog-layer > .window-dialog {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 0;
 }
 .window-dialog {
   display: flex;
@@ -443,6 +453,21 @@
   margin: 0;
   padding: 2px 0;
   list-style: none;
+}
+/* A checkbox list's header row, read like a table header above its rows. */
+.checkbox-list-header {
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--xp-border);
+  background: linear-gradient(var(--xp-control-top), var(--xp-menu-surface));
+}
+.program-page .checkbox-list-header label.choice {
+  margin: 0;
+}
+/* The header's rows sit right under it, indented to match its checkbox. */
+.checkbox-list-header + .checkbox-list {
+  margin-top: 0;
+  padding-left: 8px;
 }
 /* Search results to check, scrolling inside a dialog rather than growing it. */
 .checkbox-list {
@@ -770,6 +795,16 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+/* Picked shows that still need per sitting, one plain row each. */
+.per-sitting-choices {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.per-sitting-choices > li {
+  align-items: center;
+  margin: 4px 0;
 }
 /* A show's members as a sunken list, one per row. */
 .member-list {
