@@ -121,7 +121,17 @@ function toRecommendation(
       status: item.status,
       durationMs: item.durationMs,
     })),
+    seasonCount: criterion.kind === "series" ? countSeasons(members) : null,
     collectionId,
     decision,
   };
+}
+
+// Counts the numbered seasons episodes cover; season 0 holds specials, not a season.
+function countSeasons(episodes: readonly MatchableItem[]): number {
+  return new Set(
+    episodes
+      .map((episode) => episode.metadata.seasonNumber)
+      .filter((season) => season !== null && season > 0),
+  ).size;
 }

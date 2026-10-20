@@ -54,6 +54,8 @@ export interface Recommendation {
   name: string;
   reason: string;
   members: MediaCollectionMember[];
+  /** Distinct numbered seasons among a series' members, specials left out; null for a franchise. */
+  seasonCount: number | null;
   collectionId: string | null;
   decision: "accepted" | "dismissed" | null;
 }

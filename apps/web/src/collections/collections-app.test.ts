@@ -544,6 +544,7 @@ const officeRecommendation = {
       durationMs: 1_500_000,
     },
   ],
+  seasonCount: 1,
   collectionId: null,
   decision: null,
 };
@@ -569,7 +570,10 @@ it("discovers recommendations with reason and count, never listing them as colle
   expect(
     within(card).getByText("2 cataloged episodes of the TV series The Office"),
   ).toBeTruthy();
-  expect(within(card).getByText("2 items")).toBeTruthy();
+  expect(within(card).getByText("2 items, 1 season")).toBeTruthy();
+  expect(
+    within(dialog).getByText(/An automatic collection keeps itself up to date/),
+  ).toBeTruthy();
   expect(
     within(screen.getByRole("tabpanel", { name: "Automatic" })).queryByRole(
       "button",

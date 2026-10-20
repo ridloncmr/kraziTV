@@ -12,7 +12,8 @@ const RECOMMENDATIONS = "/media-collections/recommendations";
 
 /**
  * Suggests series and franchise collections inside the Collections program,
- * each with why it was suggested, its member count, and its members. Nothing
+ * each with why it was suggested, its member count (and a series' season
+ * count), and its members. Nothing
  * becomes a collection until the owner accepts it, as automatic (the primary
  * action) or as a manual snapshot. A dismissal holds until restored under
  * Show dismissed; the server computes and decides everything.
@@ -66,6 +67,11 @@ export function DiscoverDialog({
         Suggested from your catalog: TV series and movie franchises with several
         cataloged items. Nothing is created until you choose.
       </p>
+      <p>
+        An automatic collection keeps itself up to date: episodes and movies you
+        catalog later join it in order. A manual collection is a snapshot that
+        changes only when you edit it.
+      </p>
       <label className="choice">
         <input
           type="checkbox"
@@ -95,6 +101,8 @@ export function DiscoverDialog({
             <span className="secondary">
               {recommendation.memberCount}{" "}
               {recommendation.memberCount === 1 ? "item" : "items"}
+              {recommendation.seasonCount !== null &&
+                `, ${recommendation.seasonCount} ${recommendation.seasonCount === 1 ? "season" : "seasons"}`}
             </span>
             <details>
               <summary>Show members</summary>
