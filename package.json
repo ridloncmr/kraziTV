@@ -29,7 +29,8 @@
     "test:audit": "vitest run scripts",
     "reset-password": "npm run reset-password --workspace @krazitv/server",
     "plan:status": "node scripts/plan-status/sync-plan-status.mjs",
-    "plan:status:check": "node scripts/plan-status/sync-plan-status.mjs --check"
+    "plan:status:check": "node scripts/plan-status/sync-plan-status.mjs --check",
+    "live:screenshot": "node scripts/live-app/screenshot.mjs"
   },
   "engines": {
     "node": ">=22.13.0",
