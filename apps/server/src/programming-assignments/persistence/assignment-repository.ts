@@ -221,6 +221,7 @@ export class AssignmentRepository {
         id: this.#createId(),
         channel_id: channelId,
         assignment_order: (last?.order ?? -1) + 1,
+        name: settings.name,
         ...toSettingsColumns(settings),
         created_at: now,
         updated_at: now,
@@ -236,7 +237,8 @@ export class AssignmentRepository {
    * channel is not found. A stretch change that would make a rule's
    * inherited ordinary and marathon pair invalid is refused naming the rule,
    * which must replace or disable its marathon first. Identical settings
-   * write nothing and report `unchanged`, so callers can skip regeneration.
+   * write nothing and report `unchanged`, and a change to the name alone
+   * reports `renamed`, so callers can skip regeneration for both.
    */
   async update(
     trx: Executor,
@@ -254,7 +256,16 @@ export class AssignmentRepository {
     if (existing === undefined) return { kind: "not_found" };
     const current = await readAssignment(trx, existing);
     if (isSameSettings(current, settings)) {
-      return { kind: "unchanged", assignment: current };
+      if (current.name === settings.name) {
+        return { kind: "unchanged", assignment: current };
+      }
+      const row = await trx
+        .updateTable("programming_source_assignments")
+        .set({ name: settings.name, updated_at: now })
+        .where("id", "=", assignmentId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return { kind: "renamed", assignment: await readAssignment(trx, row) };
     }
     const refused =
       (await findUnknownMember(trx, settings.members)) ??
@@ -283,7 +294,7 @@ export class AssignmentRepository {
     }
     const row = await trx
       .updateTable("programming_source_assignments")
-      .set({ ...columns, updated_at: now })
+      .set({ ...columns, name: settings.name, updated_at: now })
       .where("id", "=", assignmentId)
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -380,6 +391,7 @@ async function readAssignment(
   return {
     id: row.id,
     channelId: row.channel_id,
+    name: row.name,
     participation: row.participation,
     playbackMode: row.playback_mode,
     ...toApiStretches(row),
@@ -389,7 +401,8 @@ async function readAssignment(
   };
 }
 
-// Flattens the settings into the assignment's own columns.
+// Flattens the settings programming reads into the assignment's own
+// columns; the name is left out, since renaming changes no programming.
 function toSettingsColumns(settings: AssignmentSettings) {
   const ordinary = toStretchColumns(settings.ordinaryStretch);
   const marathon =
@@ -414,7 +427,8 @@ function toApiStretches(row: Selectable<ProgrammingSourceAssignmentTable>) {
   return { ordinaryStretch: ordinary, marathonStretch: marathon };
 }
 
-// Compares settings by value, so field order never matters.
+// Compares the settings programming reads by value, so field order never
+// matters and the name never counts.
 function isSameSettings(
   current: AssignmentSettings,
   next: AssignmentSettings,

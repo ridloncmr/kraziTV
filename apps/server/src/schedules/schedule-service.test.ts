@@ -827,6 +827,7 @@ describe("ScheduleService.applyInputChange", () => {
         trx,
         channelId,
         {
+          name: null,
           participation: "default",
           playbackMode: "chronological",
           ordinaryStretch: { kind: "programs", count: 3 },
@@ -1058,6 +1059,7 @@ describe("ScheduleService regeneration", () => {
     playbackMode: "chronological" | "random",
   ): AssignmentSettings {
     return {
+      name: null,
       participation: "default",
       playbackMode,
       ordinaryStretch: { kind: "programs", count: 3 },
@@ -1069,6 +1071,7 @@ describe("ScheduleService regeneration", () => {
   // One single item on repeat.
   function playItem(member: Extract<MemberSource, { kind: "media_item" }>) {
     return {
+      name: null,
       participation: "default",
       playbackMode: null,
       ordinaryStretch: { kind: "programs", count: 1 },

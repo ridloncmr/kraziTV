@@ -202,7 +202,7 @@ describe("programming assignment routes", () => {
       "a fractional program count",
       { ...collectionBody, ordinaryStretch: { kind: "programs", count: 1.5 } },
     ],
-    ["an unknown field", { ...collectionBody, name: "Prime time" }],
+    ["an unknown field", { ...collectionBody, color: "red" }],
   ])("rejects %s", async (_, payload) => {
     const { server } = await startServer();
 
@@ -1362,6 +1362,101 @@ describe("rule-only assignments", () => {
     expect(response).toMatchObject({
       status: 400,
       body: { error: { code: "invalid_request" } },
+    });
+  });
+});
+
+describe("show names", () => {
+  // Reads the revisions a programming change advances, and the entries.
+  async function readProgramming(db: Kysely<DatabaseSchema>) {
+    const state = await db
+      .selectFrom("channel_schedule_states")
+      .select("schedule_revision")
+      .executeTakeFirstOrThrow();
+    const settings = await db
+      .selectFrom("channel_programming_settings")
+      .select("configuration_revision")
+      .executeTakeFirstOrThrow();
+    return {
+      entries: await readScheduleEntries(db, CHANNEL_ID),
+      schedule: state.schedule_revision,
+      configuration: settings.configuration_revision,
+    };
+  }
+
+  it("saves an omitted or blank name as null and a name trimmed", async () => {
+    const { server, db } = await startServer();
+    await insertCollectionOfItems(db, "parks", [22 * 60_000]);
+    const { name: _, ...unnamed } = collectionBody;
+
+    const responses = [
+      await send(server, "POST", ASSIGNMENTS_URL, unnamed),
+      await send(server, "POST", `${ASSIGNMENTS_URL}/batch`, {
+        assignments: [
+          { ...itemAssignment(ITEM_ID), name: "   " },
+          { ...collectionAssignment("parks"), name: "  Adult Animation " },
+        ],
+      }),
+    ];
+
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    const listed = await send(server, "GET", ASSIGNMENTS_URL);
+    expect(
+      (listed.body as { name: string | null }[]).map(({ name }) => name),
+    ).toEqual([null, null, "Adult Animation"]);
+  });
+
+  it("renames a show without regenerating or advancing the configuration revision", async () => {
+    const { server, db, clock } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+    clock.set(T0 + 30 * 60_000);
+    const before = await readProgramming(db);
+
+    const renamed = await send(server, "PATCH", ASSIGNMENT_URL, {
+      ...collectionBody,
+      name: "Adult Animation",
+    });
+
+    expect(renamed).toMatchObject({
+      status: 200,
+      body: {
+        name: "Adult Animation",
+        updatedAt: new Date(T0 + 30 * 60_000).toISOString(),
+      },
+    });
+    await expect(readProgramming(db)).resolves.toEqual(before);
+    const cleared = await send(server, "PATCH", ASSIGNMENT_URL, collectionBody);
+    expect(cleared).toMatchObject({ status: 200, body: { name: null } });
+    await expect(readProgramming(db)).resolves.toEqual(before);
+  });
+
+  it("keeps a new name saved with a settings change", async () => {
+    const { server } = await startServer();
+    await send(server, "POST", ASSIGNMENTS_URL, collectionBody);
+
+    const response = await send(server, "PATCH", ASSIGNMENT_URL, {
+      ...collectionAssignment(COLLECTION_ID, "random"),
+      name: "Adult Animation",
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: { name: "Adult Animation", playbackMode: "random" },
+    });
+  });
+
+  it("rejects a name longer than 80 characters", async () => {
+    const { server } = await startServer();
+
+    const response = await send(server, "POST", ASSIGNMENTS_URL, {
+      ...collectionBody,
+      name: "x".repeat(81),
+    });
+
+    expect(response).toMatchObject({ status: 400 });
+    await expect(send(server, "GET", ASSIGNMENTS_URL)).resolves.toEqual({
+      status: 200,
+      body: [],
     });
   });
 });

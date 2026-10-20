@@ -14,6 +14,8 @@ export type MemberSource =
 
 /** What the owner saves for one assignment; the API accepts and returns it. */
 export interface AssignmentSettings {
+  /** The owner's name for the show, or null to name it by its members. */
+  name: string | null;
   /** In normal rotation, or only while a programming rule selects it. */
   participation: AssignmentParticipation;
   /** Required when a member is a collection; null for single items only. */
@@ -74,6 +76,8 @@ export type BatchCreateRefusal =
 
 export type UpdateAssignmentResult =
   | { kind: "updated"; assignment: SourceAssignment }
+  /** Only the name changed, which programming never reads. */
+  | { kind: "renamed"; assignment: SourceAssignment }
   | { kind: "unchanged"; assignment: SourceAssignment }
   | { kind: "not_found" }
   | UnknownMemberResult

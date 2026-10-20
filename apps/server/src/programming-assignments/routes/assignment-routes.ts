@@ -49,6 +49,14 @@ const member = z.discriminatedUnion("kind", [
 // alone take none. Each member appears once.
 const settingsBody = z
   .strictObject({
+    // Omitted or blank means the show is named by its members.
+    name: z
+      .string()
+      .trim()
+      .max(80)
+      .nullable()
+      .default(null)
+      .transform((name) => name || null),
     // Omitted means the assignment rotates normally.
     participation: z.enum(ASSIGNMENT_PARTICIPATIONS).default("default"),
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
@@ -218,7 +226,8 @@ export function registerAssignmentRoutes(
         return sendInvalidRequest(reply, body.error);
       }
 
-      // Unchanged settings affect no channel, so nothing regenerates.
+      // Unchanged settings, or a new name alone, affect no channel, so
+      // nothing regenerates.
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_changed",
@@ -228,6 +237,7 @@ export function registerAssignmentRoutes(
       );
       switch (result.kind) {
         case "updated":
+        case "renamed":
         case "unchanged":
           return toApiAssignment(result.assignment);
         case "not_found":
@@ -401,6 +411,7 @@ function toApiAssignment(assignment: SourceAssignment) {
   return {
     id: assignment.id,
     channelId: assignment.channelId,
+    name: assignment.name,
     participation: assignment.participation,
     playbackMode: assignment.playbackMode,
     ordinaryStretch: assignment.ordinaryStretch,

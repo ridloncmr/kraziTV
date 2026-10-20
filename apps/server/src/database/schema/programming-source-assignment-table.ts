@@ -16,6 +16,8 @@ export type StretchKind = "programs" | "airtime" | "airtime_range";
 export interface ProgrammingSourceAssignmentTable {
   id: string;
   channel_id: string;
+  /** The owner's name for the show, or null to name it by its members. */
+  name: string | null;
   /** Required by the API when a member is a collection. */
   playback_mode: PlaybackMode | null;
   participation: AssignmentParticipation;

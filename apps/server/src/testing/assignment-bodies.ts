@@ -7,6 +7,7 @@ export function collectionAssignment(
   playbackMode: PlaybackMode = "chronological",
 ) {
   return {
+    name: null as string | null,
     participation: "default" as const,
     playbackMode,
     ordinaryStretch: { kind: "programs", count: 3 },
@@ -18,6 +19,7 @@ export function collectionAssignment(
 /** The body that assigns one media item, which airs once each turn. */
 export function itemAssignment(mediaItemId: string) {
   return {
+    name: null as string | null,
     participation: "default" as const,
     playbackMode: null,
     ordinaryStretch: { kind: "programs", count: 1 },
