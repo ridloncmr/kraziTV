@@ -66,7 +66,7 @@ export function CollectionPreviewSection({
   const collectionName = (id: string) =>
     collections?.find((collection) => collection.id === id)?.name ?? id;
   return (
-    <section aria-label="Collection preview">
+    <section aria-label="Collection preview" className="form-stack">
       {savedCollections.length > 1 && previewedId !== undefined && (
         <label>
           Preview collection

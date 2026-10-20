@@ -82,8 +82,8 @@ export function LineupTab({
             <thead>
               <tr>
                 <th>Show</th>
-                <th>Order</th>
-                <th>Per sitting</th>
+                <th>Play order</th>
+                <th>At a time</th>
                 <th>Marathons</th>
                 <th aria-label="Rotation" />
                 <th aria-label="Actions" />

@@ -12,21 +12,21 @@ export const PLAYBACK_MODE_CHOICES: readonly {
   {
     mode: "chronological",
     label: "Collection order",
-    hint: "Plays the collection in its saved order.",
+    hint: "Plays top to bottom, in the order the collection is saved.",
   },
   {
     mode: "episode",
     label: "Episode order",
-    hint: "Plays by series, season, and episode; items without episode details play last, in saved order.",
+    hint: "Plays season by season, episode by episode. Anything without season and episode numbers plays last.",
   },
   {
     mode: "release",
     label: "Release order",
-    hint: "Plays by release or air date, earliest first; items without a date play last, in saved order.",
+    hint: "Plays oldest first, by release or air date. Anything without a date plays last.",
   },
   {
     mode: "random",
     label: "Random",
-    hint: "Picks reproducibly at random from the collection; items can repeat.",
+    hint: "Picks at random each time, so things can repeat.",
   },
 ];

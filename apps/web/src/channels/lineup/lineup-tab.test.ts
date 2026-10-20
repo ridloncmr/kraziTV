@@ -50,10 +50,12 @@ async function openProperties(name = "Favorites") {
   return screen.getByRole("dialog", { name });
 }
 
-// Opens a dialog's collapsed Advanced section.
-function openAdvanced(dialog: HTMLElement) {
-  const details = within(dialog).getByText("Advanced").closest("details");
-  if (details) details.open = true;
+// Shows one tab of a show's Properties dialog.
+function openTab(
+  dialog: HTMLElement,
+  name: "General" | "Contents" | "Up Next",
+) {
+  fireEvent.click(within(dialog).getByRole("tab", { name }));
 }
 
 // Answers a PATCH of the favorites show with `saved`, and lists it afterwards.
@@ -69,7 +71,7 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
 }
 
 const perSitting = (dialog: HTMLElement) =>
-  within(dialog).getByLabelText<HTMLSelectElement>("Per sitting");
+  within(dialog).getByLabelText<HTMLSelectElement>("Plays at a time");
 const patches = (api: BrowserApi) =>
   api.requestsTo(ASSIGNMENT).filter((request) => request.method === "PATCH");
 
@@ -127,15 +129,16 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
 });
 
 it.each([
-  ["episode", /Plays by series, season, and episode/],
-  ["release", /Plays by release or air date/],
+  ["episode", /Plays season by season, episode by episode/],
+  ["release", /Plays oldest first, by release or air date/],
 ] as const)(
   "saves %s order from Properties, explains it, and shows it when reopened",
   async (playbackMode, hint) => {
     const { api } = await openLineup([favoritesAssignment("chronological")]);
     savesAs(api, () => favoritesAssignment(playbackMode));
     const dialog = await openProperties();
-    const order = within(dialog).getByLabelText<HTMLSelectElement>("Order");
+    const order =
+      within(dialog).getByLabelText<HTMLSelectElement>("Play order");
     expect(
       within(order)
         .getAllByRole("option")
@@ -160,7 +163,7 @@ it.each([
     await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
     const reopened = await openProperties();
     expect(
-      within(reopened).getByLabelText<HTMLSelectElement>("Order").value,
+      within(reopened).getByLabelText<HTMLSelectElement>("Play order").value,
     ).toBe(playbackMode);
   },
 );
@@ -170,7 +173,7 @@ it("keeps an unsaved order across minimize and restore", async () => {
     favoritesAssignment("chronological"),
   ]);
   const dialog = await openProperties();
-  fireEvent.change(within(dialog).getByLabelText("Order"), {
+  fireEvent.change(within(dialog).getByLabelText("Play order"), {
     target: { value: "random" },
   });
 
@@ -181,7 +184,7 @@ it("keeps an unsaved order across minimize and restore", async () => {
   expect(
     within(
       screen.getByRole("dialog", { name: "Favorites" }),
-    ).getByLabelText<HTMLSelectElement>("Order").value,
+    ).getByLabelText<HTMLSelectElement>("Play order").value,
   ).toBe("random");
 });
 
@@ -189,8 +192,9 @@ it("discards every change on Cancel, so reopening shows the saved settings", asy
   const { api } = await openLineup([favoritesAssignment("chronological")]);
   const dialog = await openProperties();
   chooseOption(perSitting(dialog), "1 program");
-  openAdvanced(dialog);
-  fireEvent.click(within(dialog).getByLabelText("Plays in normal rotation"));
+  fireEvent.click(
+    within(dialog).getByLabelText("Only air when a rule picks it"),
+  );
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
@@ -199,9 +203,9 @@ it("discards every change on Cancel, so reopening shows the saved settings", asy
   expect(chosenOption(perSitting(reopened))).toBe("3 programs");
   expect(
     within(reopened).getByLabelText<HTMLInputElement>(
-      "Plays in normal rotation",
+      "Only air when a rule picks it",
     ).checked,
-  ).toBe(true);
+  ).toBe(false);
   expect(patches(api)).toEqual([]);
 });
 
@@ -303,10 +307,10 @@ it("derives the marathon length from per sitting once the show can marathon", as
   const { api } = await openLineup([favoritesAssignment("chronological")]);
   const dialog = await openProperties();
 
-  fireEvent.click(within(dialog).getByLabelText("Can marathon"));
-  within(dialog).getByText("up to 6 programs");
+  fireEvent.click(within(dialog).getByLabelText("Allow marathons"));
+  within(dialog).getByText(/up to 6 programs/);
   chooseOption(perSitting(dialog), "1 program");
-  within(dialog).getByText("up to 2 programs");
+  within(dialog).getByText(/up to 2 programs/);
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(patches(api)).toHaveLength(1));
@@ -316,15 +320,14 @@ it("derives the marathon length from per sitting once the show can marathon", as
   });
 });
 
-it("keeps a saved marathon length override under Advanced, and returns to the derived length when it is cleared", async () => {
+it("keeps a saved marathon length override on General, and returns to the derived length when it is cleared", async () => {
   const { api } = await openLineup([
     favoritesAssignment("chronological", {
       marathonStretch: { kind: "airtime", minutes: 240 },
     }),
   ]);
   const dialog = await openProperties();
-  within(dialog).getByText("up to 4 hrs");
-  openAdvanced(dialog);
+  within(dialog).getByText(/up to 4 hrs/);
   const override = within(dialog).getByLabelText<HTMLInputElement>(
     "Choose the marathon length",
   );
@@ -337,7 +340,7 @@ it("keeps a saved marathon length override under Advanced, and returns to the de
   await waitFor(() => expect(patches(api)).toHaveLength(1));
 
   fireEvent.click(override);
-  within(dialog).getByText("up to 6 programs");
+  within(dialog).getByText(/up to 6 programs/);
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(patches(api)).toHaveLength(2));
@@ -357,10 +360,10 @@ it("saves a show kept out of normal rotation and lists it as Rules only", async 
     favoritesAssignment("chronological", { participation: "rule_only" }),
   );
   const dialog = await openProperties();
-  openAdvanced(dialog);
 
-  fireEvent.click(within(dialog).getByLabelText("Plays in normal rotation"));
-  within(dialog).getByText("Airs only while a programming rule selects it.");
+  fireEvent.click(
+    within(dialog).getByLabelText("Only air when a rule picks it"),
+  );
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await screen.findByText("Rules only");
@@ -368,9 +371,9 @@ it("saves a show kept out of normal rotation and lists it as Rules only", async 
   const reopened = await openProperties();
   expect(
     within(reopened).getByLabelText<HTMLInputElement>(
-      "Plays in normal rotation",
+      "Only air when a rule picks it",
     ).checked,
-  ).toBe(false);
+  ).toBe(true);
 });
 
 it("refreshes the collection preview when the order changes", async () => {
@@ -416,7 +419,7 @@ it("refreshes the collection preview when the order changes", async () => {
     });
   });
   const dialog = await openProperties();
-  openAdvanced(dialog);
+  openTab(dialog, "Up Next");
   const playOrder = async () =>
     within(await within(dialog).findByRole("list", { name: "Play order" }))
       .getAllByRole("listitem")
@@ -433,9 +436,11 @@ it("refreshes the collection preview when the order changes", async () => {
       .textContent,
   ).toContain("Diversity Day");
 
-  fireEvent.change(within(dialog).getByLabelText("Order"), {
+  openTab(dialog, "General");
+  fireEvent.change(within(dialog).getByLabelText("Play order"), {
     target: { value: "episode" },
   });
+  openTab(dialog, "Up Next");
   await waitFor(async () =>
     expect(await playOrder()).toEqual([
       expect.stringContaining("The Office: Pilot"),
@@ -444,9 +449,11 @@ it("refreshes the collection preview when the order changes", async () => {
   );
   within(dialog).getByText("Save this mode to see its upcoming selections.");
 
-  fireEvent.change(within(dialog).getByLabelText("Order"), {
+  openTab(dialog, "General");
+  fireEvent.change(within(dialog).getByLabelText("Play order"), {
     target: { value: "random" },
   });
+  openTab(dialog, "Up Next");
   await within(dialog).findByText(/Random has no fixed order/);
   expect(
     api
@@ -488,7 +495,7 @@ it("confirms restarting from the beginning in its own dialog; cancel sends nothi
     "POST",
   );
   const properties = await openProperties();
-  openAdvanced(properties);
+  openTab(properties, "Up Next");
   const restart = await within(properties).findByRole("button", {
     name: "Restart from the beginning…",
   });
@@ -613,6 +620,25 @@ it("round-trips a custom per sitting as Custom, in words in the lineup", async (
   expect(patches(api)[0]?.body).toMatchObject({ ordinaryStretch: range });
 });
 
+it("returns to General instead of saving when a General field is left empty on another tab", async () => {
+  const { api } = await openLineup([favoritesAssignment("chronological")]);
+  const dialog = await openProperties();
+  chooseOption(perSitting(dialog), "Custom…");
+  fireEvent.change(within(dialog).getByLabelText("Programs per turn"), {
+    target: { value: "" },
+  });
+  openTab(dialog, "Contents");
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  expect(
+    within(dialog).getByRole("tab", { name: "General" }).ariaSelected,
+  ).toBe("true");
+  // An emptied count matches no preset, so the required select asks again.
+  expect(perSitting(dialog).validity.valid).toBe(false);
+  expect(patches(api)).toEqual([]);
+});
+
 const SETTINGS = "/channels/one/programming-settings";
 const marathonShow = favoritesAssignment("chronological", {
   marathonStretch: { kind: "programs", count: 6 },
@@ -717,7 +743,7 @@ it("disables the marathon control until some show can marathon", async () => {
     }),
   );
 
-  await screen.findByText("No show can marathon yet.");
+  await screen.findByText("No show allows marathons yet.");
   expect(marathonsSelect().disabled).toBe(true);
 });
 
@@ -749,7 +775,7 @@ it("offers to turn channel marathons on when a show can marathon while they are 
   await waitFor(() => expect(api.requestsTo(SETTINGS)).toHaveLength(1));
   expect(within(dialog).queryByText(/Marathons are off/)).toBeNull();
 
-  fireEvent.click(within(dialog).getByLabelText("Can marathon"));
+  fireEvent.click(within(dialog).getByLabelText("Allow marathons"));
   within(dialog).getByText("Marathons are off for this channel.");
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
@@ -844,11 +870,11 @@ it("adds three picks as three shows in one request, each with its suggested per 
     await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
   );
   const toAdd = within(dialog).getByRole("list", { name: "Shows to add" });
-  await within(toAdd).findByText("3 episodes per sitting");
-  await within(toAdd).findByText("1 movie per sitting");
-  within(toAdd).getByText("Single item · once per sitting");
+  await within(toAdd).findByText("3 episodes at a time");
+  await within(toAdd).findByText("1 movie at a time");
+  within(toAdd).getByText("Single item · plays once at a time");
   // Every pick has a suggestion, so none asks for per sitting.
-  expect(within(dialog).queryByLabelText("Per sitting")).toBeNull();
+  expect(within(dialog).queryByLabelText("Plays at a time")).toBeNull();
   await waitFor(() => expect(add.disabled).toBe(false));
   fireEvent.click(add);
 
@@ -901,7 +927,7 @@ it("asks for per sitting before Add for a pick with no suggestion", async () => 
 
   fireEvent.click(result(dialog, "Mixed"));
   const choice =
-    await within(dialog).findByLabelText<HTMLSelectElement>("Per sitting");
+    await within(dialog).findByLabelText<HTMLSelectElement>("Plays at a time");
   expect(chosenOption(choice)).toBe("Choose…");
   expect(add.disabled).toBe(true);
   chooseOption(choice, "~1 hr");
@@ -963,7 +989,7 @@ it("keeps every pick and names the refused show when the server refuses the batc
   expect(api.requestsTo(ASSIGNMENTS)).toHaveLength(listReads);
 });
 
-it("adds an item and a collection as members under Advanced through the combined search, and reorders them", async () => {
+it("adds an item and a collection as members on Contents through the combined search, and reorders them", async () => {
   const { api } = await openLineup(
     [favoritesAssignment("chronological")],
     [collectionWith("other", "Other")],
@@ -971,8 +997,8 @@ it("adds an item and a collection as members under Advanced through the combined
       api.reply("/media-items", { items: adminFixtures.media, total: 2 }),
   );
   const dialog = await openProperties();
-  openAdvanced(dialog);
-  within(dialog).getByText(/Add separate shows for separate turns/);
+  openTab(dialog, "Contents");
+  within(dialog).getByText(/add it to the lineup as a separate show/);
   // The only member stays, so it cannot be unchecked.
   expect(result(dialog, "Favorites").disabled).toBe(true);
 
@@ -981,9 +1007,9 @@ it("adds an item and a collection as members under Advanced through the combined
     await within(dialog).findByRole("checkbox", { name: /^Alpha / }),
   );
   const rows = () =>
-    within(within(dialog).getByRole("list", { name: "Members" })).getAllByRole(
-      "listitem",
-    );
+    within(
+      within(dialog).getByRole("list", { name: "In this show" }),
+    ).getAllByRole("listitem");
   expect(rows().map((row) => row.firstChild?.textContent)).toEqual([
     "Favorites",
     "Other",
@@ -1053,10 +1079,12 @@ it("shows a single-item show without order, per sitting, or marathons", async ()
 
   const dialog = await openProperties("Alpha");
 
-  within(dialog).getByText("Single items air once per sitting.");
-  expect(within(dialog).queryByLabelText("Order")).toBeNull();
-  expect(within(dialog).queryByLabelText("Per sitting")).toBeNull();
-  expect(within(dialog).queryByLabelText("Can marathon")).toBeNull();
+  within(dialog).getByText(
+    "A single item plays once each time this show comes up.",
+  );
+  expect(within(dialog).queryByLabelText("Play order")).toBeNull();
+  expect(within(dialog).queryByLabelText("Plays at a time")).toBeNull();
+  expect(within(dialog).queryByLabelText("Allow marathons")).toBeNull();
 });
 
 it("opens the Custom dialog from Custom… while a preset is saved", async () => {
@@ -1131,7 +1159,7 @@ it("asks for per sitting when a pick's content cannot be checked", async () => {
   fireEvent.click(result(dialog, "Favorites"));
 
   const choice =
-    await within(dialog).findByLabelText<HTMLSelectElement>("Per sitting");
+    await within(dialog).findByLabelText<HTMLSelectElement>("Plays at a time");
   chooseOption(choice, "3 programs");
   expect(
     within(dialog).getByRole<HTMLButtonElement>("button", { name: "Add" })

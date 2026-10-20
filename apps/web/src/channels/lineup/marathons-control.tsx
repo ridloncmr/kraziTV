@@ -24,7 +24,7 @@ const PRESETS: Record<"occasional" | "frequent", MarathonSettings> = {
  * saves at once; saved values that match none show as Custom, with
  * **Edit…** beside them, since choosing the option already shown opens
  * nothing. It is
- * disabled until some show can marathon, since the chance would choose
+ * disabled until some show allows marathons, since the chance would choose
  * nothing. `changed` runs after every save the server accepted.
  */
 export function MarathonsControl({
@@ -83,12 +83,12 @@ export function MarathonsControl({
       )}
       {canMarathon ? (
         <p className="secondary">
-          Each round may give one show that can marathon a longer turn. It
+          Each round may give one show that allows marathons a longer run. It
           resumes where that show left off; chance never guarantees one every
           day.
         </p>
       ) : (
-        <p className="secondary">No show can marathon yet.</p>
+        <p className="secondary">No show allows marathons yet.</p>
       )}
       <RequestFeedback
         loading={marathons.loading || mutation.pending}

@@ -737,3 +737,48 @@
 .tab-panel > .row-actions {
   margin-bottom: 10px;
 }
+/*
+ * A form's fields stacked with room between them. A hint sits just under
+ * the field it explains, and the stack's own fieldset only groups controls
+ * for disabling, so it draws no box.
+ */
+.program-page fieldset.form-stack {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-stack > small.secondary {
+  margin-top: -10px;
+}
+/* Buttons keep their own width instead of stretching across the stack. */
+.form-stack > button {
+  align-self: flex-start;
+}
+.program-page .form-stack > label.choice,
+.form-stack > .inline-notice,
+.form-stack > p,
+.form-stack > ol {
+  margin: 0;
+}
+/* A caption with the one control or list it names, kept close together. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* A show's members as a sunken list, one per row. */
+.member-list {
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--xp-window-surface);
+}
+.member-list > li {
+  margin: 2px 0;
+}

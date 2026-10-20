@@ -158,7 +158,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   });
   fireEvent.click(within(form).getByLabelText("Christmas Movies"));
   fireEvent.click(within(form).getByLabelText("Own turn length"));
-  chooseOption(within(form).getByLabelText("Per sitting"), "2 movies");
+  chooseOption(within(form).getByLabelText("Plays at a time"), "2 movies");
   fireEvent.change(within(form).getByLabelText("Marathons under this rule"), {
     target: { value: "replace" },
   });
@@ -205,7 +205,7 @@ it("shows the server's message for an invalid size pair", async () => {
   });
   fireEvent.click(within(form).getByLabelText("Christmas Movies"));
   fireEvent.click(within(form).getByLabelText("Own turn length"));
-  chooseOption(within(form).getByLabelText("Per sitting"), "Custom…");
+  chooseOption(within(form).getByLabelText("Plays at a time"), "Custom…");
   fireEvent.change(within(form).getByLabelText("Programs per turn"), {
     target: { value: "4" },
   });

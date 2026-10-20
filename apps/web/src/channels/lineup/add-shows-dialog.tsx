@@ -153,7 +153,7 @@ export function AddShowsDialog({
                     <strong>{pick.name}</strong>{" "}
                     {pick.member.kind === "media_item" ? (
                       <small className="secondary">
-                        Single item · once per sitting
+                        Single item · plays once at a time
                       </small>
                     ) : suggestion === undefined ? (
                       <small className="secondary">Checking its content…</small>
@@ -172,8 +172,8 @@ export function AddShowsDialog({
                     ) : (
                       setting && (
                         <small className="secondary">
-                          {perSittingLabel(setting, suggestion.contentKind)} per
-                          sitting
+                          {perSittingLabel(setting, suggestion.contentKind)} at
+                          a time
                         </small>
                       )
                     )}

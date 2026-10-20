@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { AssignmentMember } from "../../http/contracts/programming.js";
 import {
@@ -30,6 +31,7 @@ export function MemberRows({
   edit: (change: (rows: AssignmentMember[]) => AssignmentMember[]) => void;
   onPicked: (member: AssignmentMember, name: string) => void;
 }) {
+  const captionId = useId();
   const keys = new Set(members.map(memberKey));
   // The only member stays: a show always plays something.
   const locked =
@@ -38,39 +40,42 @@ export function MemberRows({
       : new Map<string, string>();
   return (
     <>
-      <ol aria-label="Members">
-        {members.map((member, index) => (
-          <li key={memberKey(member)} className="inline-form">
-            <span>{name(member)}</span>
-            {members.length > 1 && (
-              <span className="row-actions">
-                <button
-                  type="button"
-                  disabled={index === 0}
-                  onClick={() => edit((rows) => moveRow(rows, index, -1))}
-                >
-                  Move member up
-                </button>
-                <button
-                  type="button"
-                  disabled={index === members.length - 1}
-                  onClick={() => edit((rows) => moveRow(rows, index, 1))}
-                >
-                  Move member down
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    edit((rows) => rows.filter((_, at) => at !== index))
-                  }
-                >
-                  Remove member
-                </button>
-              </span>
-            )}
-          </li>
-        ))}
-      </ol>
+      <div className="field-group">
+        <span id={captionId}>In this show</span>
+        <ol aria-labelledby={captionId} className="member-list">
+          {members.map((member, index) => (
+            <li key={memberKey(member)} className="inline-form">
+              <span>{name(member)}</span>
+              {members.length > 1 && (
+                <span className="row-actions">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => edit((rows) => moveRow(rows, index, -1))}
+                  >
+                    Move member up
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === members.length - 1}
+                    onClick={() => edit((rows) => moveRow(rows, index, 1))}
+                  >
+                    Move member down
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      edit((rows) => rows.filter((_, at) => at !== index))
+                    }
+                  >
+                    Remove member
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
       <CollectionOrItemSearch
         collections={collections}
         checked={keys}
