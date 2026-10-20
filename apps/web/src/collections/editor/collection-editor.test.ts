@@ -109,7 +109,7 @@ it("adds every match of the settled search and refuses a capped match list", asy
   expect(
     api.requests.find((request) => request.path === "/media-items/matches")
       ?.body,
-  ).toEqual({ q: "show", excludeIds: ["z"] });
+  ).toEqual({ q: "show", excludeIds: ["z"], filter: {} });
 
   api.reply(
     "/media-items/matches",
@@ -121,6 +121,40 @@ it("adds every match of the settled search and refuses a capped match list", asy
     /5001 items match/,
   );
   expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]);
+});
+
+it("narrows the catalog with Media Library's filter, for its pages and Add all", async () => {
+  const { api } = renderEditor(["z"]);
+  api.reply("/media-roots", []);
+  await screen.findByLabelText("Select Episode 2");
+
+  click("Filter…");
+  const filter = screen.getByRole("dialog", { name: "Filter media" });
+  fireEvent.click(within(filter).getByRole("checkbox", { name: "Missing" }));
+  fireEvent.click(within(filter).getByRole("button", { name: "Apply" }));
+
+  expect(screen.queryByRole("dialog", { name: "Filter media" })).toBeNull();
+  screen.getByRole("button", { name: "Filter (1)…" });
+  await waitFor(() =>
+    expect(
+      api.requests
+        .filter((request) => request.path === "/media-items/search")
+        .at(-1)?.body,
+    ).toMatchObject({
+      excludeIds: ["z"],
+      offset: 0,
+      filter: { status: ["missing"] },
+    }),
+  );
+  api.reply("/media-items/matches", { items: episodes, total: 2 }, "POST");
+  await waitFor(() => click("Add all (3)"));
+
+  await waitFor(() =>
+    expect(
+      api.requests.find((request) => request.path === "/media-items/matches")
+        ?.body,
+    ).toEqual({ q: "", excludeIds: ["z"], filter: { status: ["missing"] } }),
+  );
 });
 
 it("keeps member edits made while an add-all request is pending", async () => {

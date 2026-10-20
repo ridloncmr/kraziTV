@@ -465,7 +465,9 @@ then **Apply** narrows the list; **Clear** removes every filter, and
 **Cancel** or Escape keeps the applied filter. The button reads
 `Filter (<n>)…`, counting the sections in use. Values within one section match any of them; sections
 combine so an item must satisfy each. Filters combine with the text search,
-and the list and its total page as before.
+and the list and its total page as before. The Collections program's **Add
+from catalog** list offers the same **Filter…**, and its **Add all** adds
+every item the search and filter keep.
 
 | Section      | Values                                                                                                                  |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- |

@@ -1,18 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  CatalogFilterDialog,
+  keysInUse,
+} from "../../catalog-filter/catalog-filter-dialog.js";
 import { displayDuration } from "../../controls/display-duration.js";
 import { Pager } from "../../controls/pager.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { useRangeToggle } from "../../controls/use-range-toggle.js";
-import type { MediaItem, MediaItemPage } from "../../http/contracts/media.js";
-import { useMutation } from "../../http/use-resource.js";
+import type {
+  MediaFilter,
+  MediaItem,
+  MediaItemPage,
+  MediaRoot,
+} from "../../http/contracts/media.js";
+import { useMutation, useResource } from "../../http/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
 
 const PAGE_SIZE = 50;
 
 /**
  * Picks catalog media in bulk: checked items across pages, or every match of
- * the current search at once. The server leaves draft members out of results
- * and counts, so an addition never duplicates a member.
+ * the current search and filter at once. The **Filter** dialog is the one
+ * Media Library's cataloged media uses, so both narrow the catalog the same
+ * way. The server leaves draft members out of results and counts, so an
+ * addition never duplicates a member.
  */
 export function CatalogPicker({
   memberIds,
@@ -24,10 +35,19 @@ export function CatalogPicker({
   onAdd: (media: MediaItem[]) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<MediaFilter>({});
+  const [filtering, setFiltering] = useState(false);
+  const filtersInUse = keysInUse(filter);
+  // Only the filter dialog lists media roots, so they are read while it is open.
+  const roots = useResource<MediaRoot[]>(
+    filtering ? "/media-roots" : null,
+    visible,
+  );
   // Sorted so reordering members never changes the request and refetches.
   const excludeIds = useMemo(() => [...memberIds].sort(), [memberIds]);
   const results = useMediaItemPage(search, PAGE_SIZE, visible, {
     excludeIds,
+    filter,
   });
   const [picked, setPicked] = useState<ReadonlyMap<string, MediaItem>>(
     new Map(),
@@ -80,12 +100,12 @@ export function CatalogPicker({
     void matches.run<MediaItemPage>(
       "/media-items/matches",
       "POST",
-      { q: results.search, excludeIds },
+      { q: results.search, excludeIds, filter },
       (page) => {
         if (page.total > page.items.length)
           setOverflow(
             new Error(
-              `${page.total} items match; narrow the search to add them all at once.`,
+              `${page.total} items match; narrow the search or filters to add them all at once.`,
             ),
           );
         else add(page.items);
@@ -105,6 +125,11 @@ export function CatalogPicker({
           onChange={(event) => setSearch(event.target.value)}
         />
       </label>
+      <div className="list-toolbar">
+        <button type="button" onClick={() => setFiltering(true)}>
+          {filtersInUse > 0 ? `Filter (${filtersInUse})…` : "Filter…"}
+        </button>
+      </div>
       <div className="row-actions">
         <button
           disabled={picked.size === 0}
@@ -141,9 +166,11 @@ export function CatalogPicker({
         <p className="empty-state">
           {results.search
             ? "No cataloged media outside this collection matches this search."
-            : memberIds.size > 0
-              ? "Every cataloged item is already in this collection."
-              : "The catalog is empty. Scan a media root in Media Library."}
+            : filtersInUse > 0
+              ? "No cataloged media outside this collection matches these filters."
+              : memberIds.size > 0
+                ? "Every cataloged item is already in this collection."
+                : "The catalog is empty. Scan a media root in Media Library."}
         </p>
       )}
       {items.length > 0 && (
@@ -190,6 +217,17 @@ export function CatalogPicker({
             </tbody>
           </table>
         </div>
+      )}
+      {filtering && (
+        <CatalogFilterDialog
+          applied={filter}
+          roots={roots.data}
+          onApply={(applied) => {
+            setFiltering(false);
+            setFilter(applied);
+          }}
+          onClose={() => setFiltering(false)}
+        />
       )}
     </fieldset>
   );
