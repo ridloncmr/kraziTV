@@ -30,8 +30,17 @@ export function DiscoverDialog({
 }) {
   const [showDismissed, setShowDismissed] = useState(false);
   const [notice, setNotice] = useState("");
+  // How each recommendation accepted in this visit was saved, so it leaves or
+  // relabels at once instead of waiting for the list to reload.
+  const [accepted, setAccepted] = useState<
+    Record<string, "automatic" | "manual">
+  >({});
   const recommendations = useResource<Recommendation[]>(
     showDismissed ? `${RECOMMENDATIONS}?dismissed=true` : RECOMMENDATIONS,
+  );
+  const listed = recommendations.data?.filter(
+    (recommendation) =>
+      accepted[recommendationKey(recommendation)] !== "automatic",
   );
   const mutation = useMutation();
 
@@ -46,6 +55,10 @@ export function DiscoverDialog({
       "POST",
       { criterion: recommendation.criterion, mode },
       (collection) => {
+        setAccepted((current) => ({
+          ...current,
+          [recommendationKey(recommendation)]: mode,
+        }));
         setNotice(
           `Created ${collection.name} as ${mode === "automatic" ? "an automatic" : "a manual"} collection.`,
         );
@@ -97,7 +110,7 @@ export function DiscoverDialog({
         error={mutation.error ?? recommendations.error}
         message={notice}
       />
-      {recommendations.data?.length === 0 && (
+      {listed?.length === 0 && (
         <p className="empty-state">
           {showDismissed
             ? "Nothing is dismissed."
@@ -105,10 +118,8 @@ export function DiscoverDialog({
         </p>
       )}
       <ul className="recommendation-list">
-        {recommendations.data?.map((recommendation) => (
-          <li
-            key={`${recommendation.criterion.kind}:${recommendation.criterion.tmdbId}`}
-          >
+        {listed?.map((recommendation) => (
+          <li key={recommendationKey(recommendation)}>
             <strong>{recommendation.name}</strong>
             <span className="secondary">{recommendation.reason}</span>
             <span className="secondary">
@@ -130,7 +141,8 @@ export function DiscoverDialog({
                 >
                   Restore
                 </button>
-              ) : recommendation.collectionId !== null ? (
+              ) : recommendation.collectionId !== null ||
+                accepted[recommendationKey(recommendation)] === "manual" ? (
                 <span>Saved as a manual collection</span>
               ) : (
                 <>
@@ -168,4 +180,9 @@ export function DiscoverDialog({
       </div>
     </WindowDialog>
   );
+}
+
+/** Identifies a recommendation by its criterion, which the server keeps unique. */
+function recommendationKey({ criterion }: Recommendation): string {
+  return `${criterion.kind}:${criterion.tmdbId}`;
 }

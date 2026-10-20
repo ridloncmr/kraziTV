@@ -581,7 +581,6 @@ it("discovers recommendations with reason and count, never listing them as colle
   ).toBeNull();
 
   api.reply("/media-collections", [...collections, officeCollection]);
-  api.reply(recommendations, []);
   fireEvent.click(
     within(card).getByRole("button", {
       name: "Create automatic collection from The Office",
@@ -589,7 +588,8 @@ it("discovers recommendations with reason and count, never listing them as colle
   );
 
   // The dialog stays open so another can be created; the created one leaves
-  // the list and appears behind it on the Automatic tab.
+  // the list at once, even before a reread drops it, and appears behind it
+  // on the Automatic tab.
   await within(dialog).findByText(
     "Created The Office as an automatic collection.",
   );
