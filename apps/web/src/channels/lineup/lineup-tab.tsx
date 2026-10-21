@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { rowClickProps } from "../../controls/row-click.js";
-import { RowMenu } from "../../controls/row-menu.js";
+import { inRowMenu, RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type {
   MarathonSettings,
@@ -266,11 +266,6 @@ export function LineupTab({
       )}
     </section>
   );
-}
-
-// The row menu's own clicks and keys keep their meaning inside the row.
-function inRowMenu(target: EventTarget): boolean {
-  return target instanceof Element && target.closest(".row-menu") !== null;
 }
 
 // Names how a show orders its collections; single items alone have no order.

@@ -47,32 +47,32 @@ export function EndEarlyDialog({
     >
       <fieldset>
         <legend>What is airing now</legend>
-        <label>
+        <label className="choice">
           <input
             type="radio"
             name="end-choice"
             checked={choice === "finish"}
             onChange={() => setChoice("finish")}
           />
-          Let it finish
+          <span>Let it finish</span>
         </label>
-        <label>
+        <label className="choice">
           <input
             type="radio"
             name="end-choice"
             checked={choice === "now"}
             onChange={() => setChoice("now")}
           />
-          Stop it now
+          <span>Stop it now</span>
         </label>
-        <label>
+        <label className="choice">
           <input
             type="radio"
             name="end-choice"
             checked={choice === "at"}
             onChange={() => setChoice("at")}
           />
-          Stop it at
+          <span>Stop it at</span>
         </label>
         {choice === "at" && (
           <label>

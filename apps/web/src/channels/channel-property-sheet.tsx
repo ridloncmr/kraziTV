@@ -81,11 +81,7 @@ export function ChannelPropertySheet({
           <RulesEditor
             channelId={channel.id}
             visible={visible}
-            rules={programming.rules}
-            assignments={lineup}
-            collections={programming.collections.data}
-            contentKind={programming.contentKind}
-            changed={programming.changed}
+            programming={programming}
           />
         )}
         {shown === "specials" && (

@@ -74,11 +74,22 @@ function editorApi(rules: unknown[] = []) {
   return api;
 }
 
-// Opens the Rules tab's new-rule form.
+// Opens the Rules tab's New rule dialog.
 async function openNewRule(api: BrowserApi) {
   await openChannelTab(api, "Rules");
-  fireEvent.click(await screen.findByRole("button", { name: "Add a rule" }));
-  return screen.getByRole("group", { name: "New rule" });
+  fireEvent.click(await screen.findByRole("button", { name: "New rule…" }));
+  return screen.getByRole("dialog", { name: "New rule" });
+}
+
+// Switches the rule dialog to one of its tabs.
+function showTab(form: HTMLElement, tab: "General" | "When" | "Shows") {
+  fireEvent.click(within(form).getByRole("tab", { name: tab }));
+}
+
+// Opens one rule's row menu and chooses a command from it.
+function chooseRowCommand(rule: string, command: string) {
+  fireEvent.click(screen.getByRole("button", { name: `Actions for ${rule}` }));
+  fireEvent.click(screen.getByRole("menuitem", { name: command }));
 }
 
 it("shows the timezone rules follow, and saves a December join rule, letting the airing program finish", async () => {
@@ -86,26 +97,28 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   api.reply(RULES, ruleFixture("december", "December", []), "POST");
 
   const form = await openNewRule(api);
-  expect((await screen.findByText(/America\/New_York/)).textContent).toMatch(
-    /Rules follow the server's programming timezone, America\/New_York/,
-  );
-  fireEvent.change(within(form).getByLabelText("Rule name"), {
+  fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "December" },
   });
   fireEvent.change(within(form).getByLabelText("Priority"), {
     target: { value: "1" },
   });
+  showTab(form, "When");
+  expect(
+    (await within(form).findByText(/America\/New_York/)).textContent,
+  ).toMatch(/follow the server's programming timezone, America\/New_York/);
   fireEvent.change(within(form).getByLabelText("Dates"), {
     target: { value: "annual" },
   });
-  fireEvent.change(within(form).getByLabelText("From (MM-DD)"), {
+  fireEvent.change(within(form).getByLabelText("From"), {
     target: { value: "12-01" },
   });
-  fireEvent.change(within(form).getByLabelText("Through (MM-DD)"), {
+  fireEvent.change(within(form).getByLabelText("Through"), {
     target: { value: "12-31" },
   });
-  fireEvent.click(within(form).getByLabelText("Christmas Movies"));
-  fireEvent.click(within(form).getByRole("button", { name: "Save rule" }));
+  showTab(form, "Shows");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
   const dialog = await screen.findByRole("dialog", {
     name: "Rebuild the schedule",
@@ -143,30 +156,36 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   api.reply(RULES, ruleFixture("fridays", "Friday movies", []), "POST");
 
   const form = await openNewRule(api);
-  fireEvent.change(within(form).getByLabelText("Rule name"), {
+  fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "Friday movies" },
   });
-  fireEvent.change(within(form).getByLabelText("Behavior"), {
-    target: { value: "feature" },
-  });
+  fireEvent.click(within(form).getByLabelText("Play only its shows"));
+  showTab(form, "When");
   fireEvent.click(within(form).getByLabelText("Fri"));
-  fireEvent.click(within(form).getByLabelText("Only during a time window"));
-  fireEvent.change(within(form).getByLabelText("Window starts"), {
+  fireEvent.click(within(form).getByLabelText("Only during certain hours"));
+  fireEvent.change(within(form).getByLabelText("Starts"), {
     target: { value: "18:00" },
   });
-  fireEvent.change(within(form).getByLabelText("Window ends"), {
+  fireEvent.change(within(form).getByLabelText("Ends"), {
     target: { value: "23:00" },
   });
-  fireEvent.click(within(form).getByLabelText("Christmas Movies"));
-  fireEvent.click(within(form).getByLabelText("Own turn length"));
-  chooseOption(within(form).getByLabelText("Plays at a time"), "2 movies");
-  fireEvent.change(within(form).getByLabelText("Marathons under this rule"), {
+  showTab(form, "Shows");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  const christmas = within(form).getByRole("group", {
+    name: "Christmas Movies under this rule",
+  });
+  fireEvent.click(
+    within(christmas).getByLabelText("Change how much plays at a time"),
+  );
+  chooseOption(within(christmas).getByLabelText("Plays at a time"), "2 movies");
+  fireEvent.change(within(christmas).getByLabelText("Marathons"), {
     target: { value: "replace" },
   });
-  fireEvent.change(within(form).getByLabelText("Marathon programs per turn"), {
-    target: { value: "3" },
-  });
-  fireEvent.click(within(form).getByRole("button", { name: "Save rule" }));
+  fireEvent.change(
+    within(christmas).getByLabelText("Marathon programs per turn"),
+    { target: { value: "3" } },
+  );
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
   await screen.findByRole("dialog", { name: "Rebuild the schedule" });
   expect(
@@ -201,21 +220,26 @@ it("shows the server's message for an invalid size pair", async () => {
   );
 
   const form = await openNewRule(api);
-  fireEvent.change(within(form).getByLabelText("Rule name"), {
+  fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "Too long" },
   });
-  fireEvent.click(within(form).getByLabelText("Christmas Movies"));
-  fireEvent.click(within(form).getByLabelText("Own turn length"));
+  showTab(form, "Shows");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  fireEvent.click(
+    within(form).getByLabelText("Change how much plays at a time"),
+  );
   chooseOption(within(form).getByLabelText("Plays at a time"), "Custom…");
   fireEvent.change(within(form).getByLabelText("Programs per turn"), {
     target: { value: "4" },
   });
-  fireEvent.click(within(form).getByRole("button", { name: "Save rule" }));
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
   expect(
     await within(form).findByText(/marathon must be longer than the ordinary/),
   ).toBeTruthy();
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    screen.queryByRole("dialog", { name: "Rebuild the schedule" }),
+  ).toBeNull();
 });
 
 it("lists rules by priority and reorders only among equal priorities", async () => {
@@ -230,18 +254,30 @@ it("lists rules by priority and reorders only among equal priorities", async () 
   api.reply(`${RULES}/order`, [], "PUT");
   await openChannelTab(api, "Rules");
 
-  const list = await screen.findByRole("list", { name: "Rules by priority" });
+  const table = await screen.findByRole("table", { name: "Rules by priority" });
   await waitFor(() =>
     expect(
-      within(list)
-        .getAllByRole("heading")
-        .map((heading) => heading.textContent),
+      within(table)
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0]?.textContent),
     ).toEqual(["Friday movies", "December", "Winter"]),
   );
-  const items = within(list).getAllByRole("listitem");
   // Friday movies has no equal-priority neighbor to trade places with.
-  expect(within(items[0]).queryByRole("button", { name: /Move/ })).toBeNull();
-  fireEvent.click(within(items[1]).getByRole("button", { name: "Move down" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Actions for Friday movies" }),
+  );
+  for (const command of ["Move up", "Move down"]) {
+    expect(
+      screen.getByRole<HTMLButtonElement>("menuitem", { name: command })
+        .disabled,
+    ).toBe(true);
+  }
+  // Closes Friday movies' menu before opening December's.
+  fireEvent.click(
+    screen.getByRole("button", { name: "Actions for Friday movies" }),
+  );
+  chooseRowCommand("December", "Move down");
 
   await screen.findByRole("dialog", { name: "Rebuild the schedule" });
   expect(api.requestsTo(`${RULES}/order`)[0]?.body).toEqual({
@@ -256,13 +292,68 @@ it("deletes a rule and offers the rebuild choice", async () => {
   api.reply(`${RULES}/december`, undefined, "DELETE", 204);
   await openChannelTab(api, "Rules");
 
-  const list = await screen.findByRole("list", { name: "Rules by priority" });
-  fireEvent.click(
-    await within(list).findByRole("button", { name: "Delete rule" }),
-  );
+  await screen.findByRole("button", { name: "Actions for December" });
+  chooseRowCommand("December", "Delete…");
+  const confirm = screen.getByRole("dialog", { name: "Delete rule" });
+  // Nothing is deleted until the owner confirms.
+  expect(api.requestsTo(`${RULES}/december`)).toEqual([]);
+  fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }));
 
   await screen.findByRole("dialog", { name: "Rebuild the schedule" });
   expect(
     api.requestsTo(`${RULES}/december`).map((request) => request.method),
   ).toEqual(["DELETE"]);
+});
+
+it("shows the tab holding a missing field when OK is pressed, and saves nothing", async () => {
+  const api = editorApi();
+  const form = await openNewRule(api);
+  fireEvent.change(within(form).getByLabelText("Name"), {
+    target: { value: "December" },
+  });
+
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
+
+  expect(
+    within(form)
+      .getByRole("tab", { name: "Shows" })
+      .getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(within(form).getByText("Choose at least one show.")).toBeTruthy();
+  expect(
+    api.requestsTo(RULES).filter((request) => request.method === "POST"),
+  ).toEqual([]);
+});
+
+it("says in words when each rule applies, which shows it plays, and how", async () => {
+  const api = editorApi([
+    ruleFixture(
+      "fridays",
+      "Friday movies",
+      ["christmas-turns", "favorites-turns"],
+      {
+        behavior: "feature",
+        weekdays: [5],
+      },
+    ),
+  ]);
+  await openChannelTab(api, "Rules");
+
+  const table = await screen.findByRole("table", { name: "Rules by priority" });
+  const [, row] = within(table).getAllByRole("row");
+  if (row === undefined) throw new Error("The rule should be listed");
+  await waitFor(() =>
+    expect(
+      within(row)
+        .getAllByRole("cell")
+        .slice(0, 5)
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      "Friday movies",
+      "Fridays",
+      "Christmas Movies, Favorites",
+      "Instead of the lineup",
+      "0",
+    ]),
+  );
 });

@@ -133,3 +133,8 @@ export function RowMenu({
     </div>
   );
 }
+
+/** Whether an event came from a row menu, whose clicks and keys keep their own meaning inside a row. */
+export function inRowMenu(target: EventTarget): boolean {
+  return target instanceof Element && target.closest(".row-menu") !== null;
+}

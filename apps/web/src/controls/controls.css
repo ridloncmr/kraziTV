@@ -804,6 +804,68 @@
   flex-direction: column;
   gap: 4px;
 }
+.program-page .field-group > label.choice {
+  margin: 0;
+}
+/*
+ * Two fields that read as a range, such as From and Through, side by side,
+ * with any hint on a full-width row beneath them.
+ */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+.field-pair > small {
+  grid-column: 1 / -1;
+}
+/* Weekday checkboxes in one wrapping row, each box beside its day. */
+.day-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.program-page .day-choices label.choice {
+  margin: 0;
+}
+/* A rule's shows as a sunken checklist, each checked show's settings indented under it. */
+.rule-shows {
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--xp-window-surface);
+}
+.rule-shows > li + li {
+  border-top: 1px solid var(--xp-border);
+}
+.rule-shows .row-badge {
+  margin-left: 6px;
+}
+/* A special's programs as numbered rows: each search and choice, with Remove beside them. */
+.special-programs {
+  margin: 0;
+  padding-left: 22px;
+}
+.special-programs > li {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.special-program-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rule-show-settings {
+  margin: 0 0 8px 22px;
+  padding-left: 8px;
+  border-left: 2px solid var(--xp-border);
+  gap: 8px;
+}
 /*
  * One show's settings in Add shows: play order and per sitting side by
  * side, with anything the per-sitting field reveals, such as Custom's
