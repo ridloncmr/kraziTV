@@ -27,10 +27,11 @@ const KINDS: Record<
  * Computes recommendations from the catalog on request; nothing stores or
  * maintains them until accepted. Each series or franchise with enough
  * cataloged items is suggested with its reason and members, matched by the
- * same rule a collection's creation applies. By default it lists those
- * undecided and those already created, as an automatic collection with
- * the criterion or as the collection an acceptance made; with `dismissed`,
- * those dismissed or accepted and then deleted, which can be restored.
+ * same rule a collection's creation applies. One an automatic collection
+ * already maintains is never listed, so discovery shows only what is left to
+ * decide. By default it lists those undecided and those an acceptance saved
+ * as a manual collection; with `dismissed`, those dismissed or accepted and
+ * then deleted, which can be restored.
  */
 export async function readRecommendations(
   executor: Kysely<DatabaseSchema>,
@@ -45,29 +46,33 @@ export async function readRecommendations(
         .execute()
     ).map((row) => [row.criterion_key, row]),
   );
-  const collections = new Map(
+  // Only automatic collections hold a criterion; conversion to manual clears it.
+  const automatic = new Set(
     (
       await executor
         .selectFrom("media_collections")
-        .select(["id", "criterion"])
+        .select("criterion")
         .where("criterion", "is not", null)
         .execute()
-    ).map((row) => [row.criterion, row.id]),
+    ).map((row) => row.criterion),
   );
   const recommendations = (Object.keys(KINDS) as TmdbKind[]).flatMap((kind) =>
     listCatalogGroups(kind, items)
       .filter((group) => group.itemCount >= RECOMMENDATION_THRESHOLD)
-      .map((group) => {
+      .flatMap((group) => {
         const criterion = { kind, tmdbId: group.tmdbId };
         const key = criterionKey(criterion);
+        if (automatic.has(key)) return [];
         const decided = decisions.get(key);
-        return toRecommendation(
-          criterion,
-          group.name,
-          items,
-          collections.get(key) ?? decided?.media_collection_id ?? null,
-          decided?.decision ?? null,
-        );
+        return [
+          toRecommendation(
+            criterion,
+            group.name,
+            items,
+            decided?.media_collection_id ?? null,
+            decided?.decision ?? null,
+          ),
+        ];
       }),
   );
   return recommendations
@@ -121,7 +126,17 @@ function toRecommendation(
       status: item.status,
       durationMs: item.durationMs,
     })),
+    seasonCount: criterion.kind === "series" ? countSeasons(members) : null,
     collectionId,
     decision,
   };
+}
+
+// Counts the numbered seasons episodes cover; season 0 holds specials, not a season.
+function countSeasons(episodes: readonly MatchableItem[]): number {
+  return new Set(
+    episodes
+      .map((episode) => episode.metadata.seasonNumber)
+      .filter((season) => season !== null && season > 0),
+  ).size;
 }

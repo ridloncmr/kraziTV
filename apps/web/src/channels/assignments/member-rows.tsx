@@ -1,136 +1,108 @@
+import { useId } from "react";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { AssignmentMember } from "../../http/contracts/programming.js";
-import { MediaItemPicker } from "../../media-search/media-item-picker.js";
-
-/** One member row as the form edits it; an empty source is not chosen yet. */
-export interface MemberDraft {
-  kind: AssignmentMember["kind"];
-  sourceId: string;
-}
-
-export const NEW_MEMBER: MemberDraft = { kind: "collection", sourceId: "" };
+import {
+  CollectionOrItemSearch,
+  memberKey,
+} from "../../media-search/collection-or-item-search.js";
 
 /**
- * Edits an assignment's members in saved order: each row a collection or a
- * single item, movable, removable while another remains, plus a row to add
- * one. Every change goes through `edit`, so the form marks itself edited.
+ * Edits a show's members in saved order: each one named, movable, and
+ * removable while another remains, with the combined collection-and-item
+ * search to add one. Checking a result adds it last and unchecking removes
+ * it, except the only member. Every change goes through `edit`, and
+ * `onPicked` hears each added member's name, which the caller may not know.
  */
 export function MemberRows({
   members,
+  name,
   collections,
+  unavailable,
   visible,
   edit,
+  onPicked,
 }: {
-  members: readonly MemberDraft[];
+  members: readonly AssignmentMember[];
+  name: (member: AssignmentMember) => string;
   collections: MediaCollection[] | undefined;
+  /** Members other shows play, by member key, which this one cannot add. */
+  unavailable: ReadonlyMap<string, string>;
   visible: boolean;
-  edit: (change: (rows: MemberDraft[]) => MemberDraft[]) => void;
+  edit: (change: (rows: AssignmentMember[]) => AssignmentMember[]) => void;
+  onPicked: (member: AssignmentMember, name: string) => void;
 }) {
+  const captionId = useId();
+  const keys = new Set(members.map(memberKey));
+  // The only member stays: a show always plays something.
+  const locked =
+    members.length === 1 && members[0]
+      ? new Map([[memberKey(members[0]), "the show's only member"]])
+      : new Map<string, string>();
   return (
     <>
-      <ol aria-label="Members">
-        {members.map((member, index) => (
-          <li key={index} className="inline-form">
-            <label>
-              Source type
-              <select
-                value={member.kind}
-                onChange={(event) => {
-                  const kind = event.target.value as MemberDraft["kind"];
-                  edit((rows) =>
-                    rows.map((row, at) =>
-                      at === index ? { kind, sourceId: "" } : row,
-                    ),
-                  );
-                }}
-              >
-                <option value="collection">Media collection</option>
-                <option value="media_item">Single media item</option>
-              </select>
-            </label>
-            {member.kind === "collection" ? (
-              <label>
-                Programming source
-                <select
-                  required
-                  value={member.sourceId}
-                  onChange={(event) => {
-                    const sourceId = event.target.value;
-                    edit((rows) =>
-                      rows.map((row, at) =>
-                        at === index ? { ...row, sourceId } : row,
-                      ),
-                    );
-                  }}
-                >
-                  <option value="">Choose a source</option>
-                  {collections?.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <MediaItemPicker
-                label="Programming source"
-                value={member.sourceId}
-                visible={visible}
-                onChange={(item) => {
-                  const sourceId = item?.id ?? "";
-                  edit((rows) =>
-                    rows.map((row, at) =>
-                      at === index ? { ...row, sourceId } : row,
-                    ),
-                  );
-                }}
-              />
-            )}
-            {members.length > 1 && (
-              <span className="row-actions">
-                <button
-                  type="button"
-                  disabled={index === 0}
-                  onClick={() => edit((rows) => moveRow(rows, index, -1))}
-                >
-                  Move member up
-                </button>
-                <button
-                  type="button"
-                  disabled={index === members.length - 1}
-                  onClick={() => edit((rows) => moveRow(rows, index, 1))}
-                >
-                  Move member down
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    edit((rows) => rows.filter((_, at) => at !== index))
-                  }
-                >
-                  Remove member
-                </button>
-              </span>
-            )}
-          </li>
-        ))}
-      </ol>
-      <button
-        type="button"
-        onClick={() => edit((rows) => [...rows, NEW_MEMBER])}
-      >
-        Add member
-      </button>
+      <div className="field-group">
+        <span id={captionId}>In this show</span>
+        <ol aria-labelledby={captionId} className="member-list">
+          {members.map((member, index) => (
+            <li key={memberKey(member)} className="inline-form">
+              <span>{name(member)}</span>
+              {members.length > 1 && (
+                <span className="row-actions">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => edit((rows) => moveRow(rows, index, -1))}
+                  >
+                    Move member up
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === members.length - 1}
+                    onClick={() => edit((rows) => moveRow(rows, index, 1))}
+                  >
+                    Move member down
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      edit((rows) => rows.filter((_, at) => at !== index))
+                    }
+                  >
+                    Remove member
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+      <CollectionOrItemSearch
+        collections={collections}
+        checked={keys}
+        unavailable={new Map([...unavailable, ...locked])}
+        visible={visible}
+        onToggle={({ member, name: picked }, checked) => {
+          if (checked) onPicked(member, picked);
+          edit((rows) => {
+            if (checked) return [...rows, member];
+            const kept = rows.filter(
+              (row) => memberKey(row) !== memberKey(member),
+            );
+            // Select all can uncheck every result at once; the last one stays.
+            return kept.length > 0 ? kept : rows;
+          });
+        }}
+      />
     </>
   );
 }
 
-/** Moves one member row a place earlier or later. */
+/** Moves one member a place earlier or later. */
 function moveRow(
-  rows: MemberDraft[],
+  rows: AssignmentMember[],
   index: number,
   offset: -1 | 1,
-): MemberDraft[] {
+): AssignmentMember[] {
   const [moved] = rows.splice(index, 1);
   if (moved !== undefined) rows.splice(index + offset, 0, moved);
   return rows;

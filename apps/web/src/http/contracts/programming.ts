@@ -12,6 +12,8 @@ export type StretchSetting =
   | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 /** What the owner saves for one programming source assignment. */
 export interface AssignmentSettings {
+  /** The owner's name for the show, or null to name it by its members. */
+  name: string | null;
   /** Rotates normally, or airs only while a programming rule selects it. */
   participation: "default" | "rule_only";
   /** Required with a collection; null for single items only. */
@@ -103,6 +105,11 @@ export interface ProgrammingPreview {
 export interface MarathonSettings {
   marathonChancePercent: number;
   marathonMinOrdinaryRounds: number;
+}
+/** `GET /programming-assignments/stretch-suggestion`: a new show's suggested per sitting and the content kind it rests on; both null for mixed or unclassified members. */
+export interface StretchSuggestion {
+  ordinaryStretch: StretchSetting | null;
+  contentKind: "movies" | "episodes" | null;
 }
 export interface SourceAssignment extends AssignmentSettings {
   id: string;

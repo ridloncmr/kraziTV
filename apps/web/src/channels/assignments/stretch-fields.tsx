@@ -40,6 +40,13 @@ export function toStretchSetting(draft: StretchDraft): StretchSetting {
   }
 }
 
+/** Whether every field the draft's kind needs holds a number, so it can be saved. */
+export function isStretchComplete(draft: StretchDraft): boolean {
+  return Object.values(toStretchSetting(draft)).every(
+    (value) => typeof value !== "number" || !Number.isNaN(value),
+  );
+}
+
 // Each turn length the editor offers.
 const KIND_CHOICES: readonly { kind: StretchDraft["kind"]; label: string }[] = [
   { kind: "programs", label: "A number of programs" },
@@ -128,15 +135,22 @@ export function StretchFields({
         </>
       )}
       {draft.kind !== "programs" && !marathon && (
-        <small id={hintId} className="secondary">
-          {draft.kind === "airtime_range"
-            ? "Each turn picks one target in this range. "
-            : ""}
-          A turn airs whole programs until it reaches its target, so it runs
-          over: 22-minute episodes against 60 minutes air 66, and a long movie
-          airs whole.
-        </small>
+        <OverrunHint id={hintId} range={draft.kind === "airtime_range"} />
       )}
     </>
+  );
+}
+
+/**
+ * Explains that an airtime target airs whole programs, so a sitting runs
+ * over rather than cut a program short; a range also picks one target.
+ */
+export function OverrunHint({ id, range }: { id: string; range: boolean }) {
+  return (
+    <small id={id} className="secondary">
+      {range ? "Each turn picks one target in this range. " : ""}A turn airs
+      whole programs until it reaches its target, so it runs over: 22-minute
+      episodes against 60 minutes air 66, and a long movie airs whole.
+    </small>
   );
 }

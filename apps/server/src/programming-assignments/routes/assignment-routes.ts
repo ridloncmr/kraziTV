@@ -5,7 +5,7 @@ import {
   type OrderedMember,
   PLAYBACK_MODES,
 } from "@krazitv/krazi-brain";
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import type { ChannelRepository } from "../../channels/repository/channel-repository.js";
@@ -13,7 +13,6 @@ import {
   sendApiError,
   sendChannelNotFound,
   sendInvalidRequest,
-  sendUnknownMediaItems,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, stretchField } from "../../http/request-schemas.js";
@@ -24,13 +23,17 @@ import {
   configurationChange,
 } from "../../schedules/channel-input-change.js";
 import type { AssignmentRepository } from "../persistence/assignment-repository.js";
-import type {
-  CreateAssignmentResult,
-  MemberAssignedResult,
-  SourceAssignment,
-  UnknownMemberResult,
-} from "../contracts.js";
+import type { SourceAssignment } from "../contracts.js";
+import { BatchCreateRefusedError } from "../writes/batch-create-refused-error.js";
+import { createAssignments } from "../writes/create-assignments.js";
 import { resetCollectionProgress } from "../writes/progress-reset.js";
+import {
+  sendAssignmentNotFound,
+  sendBatchRefusal,
+  sendCreateFailure,
+  sendMemberRefused,
+  sendNotAssigned,
+} from "./assignment-refusals.js";
 
 // Strict members reject a doubled source and unknown fields.
 const member = z.discriminatedUnion("kind", [
@@ -46,6 +49,14 @@ const member = z.discriminatedUnion("kind", [
 // alone take none. Each member appears once.
 const settingsBody = z
   .strictObject({
+    // Omitted or blank means the show is named by its members.
+    name: z
+      .string()
+      .trim()
+      .max(80)
+      .nullable()
+      .default(null)
+      .transform((name) => name || null),
     // Omitted means the assignment rotates normally.
     participation: z.enum(ASSIGNMENT_PARTICIPATIONS).default("default"),
     playbackMode: z.enum(PLAYBACK_MODES).nullable(),
@@ -81,6 +92,11 @@ const settingsBody = z
       path: ["playbackMode"],
     },
   );
+
+// Zod paths name a failing assignment's index, as `assignments[1]`.
+const batchBody = z.strictObject({
+  assignments: z.array(settingsBody).min(1),
+});
 
 const assignmentParams = idParams.extend({ assignmentId: z.string() });
 
@@ -127,8 +143,9 @@ export function registerAssignmentRoutes(
   );
 
   // Suggests a new assignment's ordinary stretch from its members' content
-  // types; the editor applies it as an editable default and asks when the
-  // answer is null. Reads only.
+  // types, with the content kind it rests on; the editor applies it as an
+  // editable default, labels presets by the kind, and asks when the answer
+  // is null. Reads only.
   server.get(
     "/programming-assignments/stretch-suggestion",
     async (request, reply) => {
@@ -136,18 +153,16 @@ export function registerAssignmentRoutes(
       if (!query.success) {
         return sendInvalidRequest(reply, query.error);
       }
-      return {
-        ordinaryStretch: await assignments.suggestStretch([
-          ...query.data.mediaCollectionIds.map((mediaCollectionId) => ({
-            kind: "collection" as const,
-            mediaCollectionId,
-          })),
-          ...query.data.mediaItemIds.map((mediaItemId) => ({
-            kind: "media_item" as const,
-            mediaItemId,
-          })),
-        ]),
-      };
+      return assignments.suggestStretch([
+        ...query.data.mediaCollectionIds.map((mediaCollectionId) => ({
+          kind: "collection" as const,
+          mediaCollectionId,
+        })),
+        ...query.data.mediaItemIds.map((mediaItemId) => ({
+          kind: "media_item" as const,
+          mediaItemId,
+        })),
+      ]);
     },
   );
 
@@ -174,6 +189,34 @@ export function registerAssignmentRoutes(
     },
   );
 
+  // Adds several shows at once (programming spec 0008): every assignment
+  // or none, with one regeneration and one revision step. A refusal names
+  // the refused assignment's request index.
+  server.post(
+    "/channels/:id/programming-assignments/batch",
+    async (request, reply) => {
+      const { id } = idParams.parse(request.params);
+      const body = batchBody.safeParse(request.body);
+      if (!body.success) {
+        return sendInvalidRequest(reply, body.error);
+      }
+
+      try {
+        const result = await schedules.applyInputChange(
+          request.log,
+          "assignment_created",
+          configurationChange(id, "created", (trx, now) =>
+            createAssignments(assignments, trx, id, body.data.assignments, now),
+          ),
+        );
+        return reply.status(201).send(result.assignments.map(toApiAssignment));
+      } catch (error) {
+        if (!(error instanceof BatchCreateRefusedError)) throw error;
+        return sendBatchRefusal(reply, id, error);
+      }
+    },
+  );
+
   server.patch(
     "/channels/:id/programming-assignments/:assignmentId",
     async (request, reply) => {
@@ -183,7 +226,8 @@ export function registerAssignmentRoutes(
         return sendInvalidRequest(reply, body.error);
       }
 
-      // Unchanged settings affect no channel, so nothing regenerates.
+      // Unchanged settings, or a new name alone, affect no channel, so
+      // nothing regenerates.
       const result = await schedules.applyInputChange(
         request.log,
         "assignment_changed",
@@ -193,6 +237,7 @@ export function registerAssignmentRoutes(
       );
       switch (result.kind) {
         case "updated":
+        case "renamed":
         case "unchanged":
           return toApiAssignment(result.assignment);
         case "not_found":
@@ -329,71 +374,6 @@ export function registerAssignmentRoutes(
   );
 }
 
-// An assignment owned by another channel is reported the same as a missing one.
-function sendAssignmentNotFound(
-  reply: FastifyReply,
-  channelId: string,
-  assignmentId: string,
-) {
-  return sendApiError(
-    reply,
-    404,
-    "programming_assignment_not_found",
-    `Channel ${channelId} has no programming assignment ${assignmentId}`,
-  );
-}
-
-// A preview or reset names a collection; the assignment must hold it.
-function sendNotAssigned(
-  reply: FastifyReply,
-  assignmentId: string,
-  mediaCollectionId: string,
-) {
-  return sendApiError(
-    reply,
-    404,
-    "media_collection_not_assigned",
-    `Programming assignment ${assignmentId} on this channel does not play media collection ${mediaCollectionId}`,
-  );
-}
-
-// A body's unknown reference is a 400, not a 404: the resource itself
-// exists. A member another assignment plays is a conflict with it.
-function sendMemberRefused(
-  reply: FastifyReply,
-  result: UnknownMemberResult | MemberAssignedResult,
-) {
-  if (result.kind === "member_assigned") {
-    return sendApiError(
-      reply,
-      409,
-      "programming_member_assigned",
-      `Programming assignment ${result.assignmentId} on this channel already plays that member`,
-      { member: result.member, assignmentId: result.assignmentId },
-    );
-  }
-  if (result.kind === "unknown_collection") {
-    return sendApiError(
-      reply,
-      400,
-      "media_collection_not_found",
-      `Media collection ${result.mediaCollectionId} does not exist`,
-    );
-  }
-  return sendUnknownMediaItems(reply, [result.mediaItemId]);
-}
-
-// Maps each rejected create to its status.
-function sendCreateFailure(
-  reply: FastifyReply,
-  channelId: string,
-  result: Exclude<CreateAssignmentResult, { kind: "created" }>,
-) {
-  return result.kind === "channel_not_found"
-    ? sendChannelNotFound(reply, channelId)
-    : sendMemberRefused(reply, result);
-}
-
 // Shows a member with the facts its place rests on and the preview's flags.
 function toApiOrderedMember({
   media,
@@ -431,6 +411,7 @@ function toApiAssignment(assignment: SourceAssignment) {
   return {
     id: assignment.id,
     channelId: assignment.channelId,
+    name: assignment.name,
     participation: assignment.participation,
     playbackMode: assignment.playbackMode,
     ordinaryStretch: assignment.ordinaryStretch,

@@ -1,4 +1,4 @@
-/** Moves through a server-paged list; the server's total, not the loaded rows, sets the bounds. */
+/** Moves through a server-paged list; the server's total, not the loaded rows, sets the bounds. Its buttons never submit a form it sits in. */
 export function Pager({
   offset,
   limit,
@@ -17,6 +17,7 @@ export function Pager({
   return (
     <nav className="pager" aria-label="Pages">
       <button
+        type="button"
         disabled={offset === 0}
         onClick={() => onChange(Math.max(0, offset - limit))}
       >
@@ -26,6 +27,7 @@ export function Pager({
         {first}–{last} of {total}
       </span>
       <button
+        type="button"
         disabled={offset + limit >= total}
         onClick={() => onChange(offset + limit)}
       >

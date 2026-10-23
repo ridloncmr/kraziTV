@@ -91,6 +91,7 @@ function toApiRecommendation(recommendation: Recommendation) {
     reason: recommendation.reason,
     memberCount: recommendation.members.length,
     members: recommendation.members,
+    seasonCount: recommendation.seasonCount,
     collectionId: recommendation.collectionId,
     decision: recommendation.decision,
   };

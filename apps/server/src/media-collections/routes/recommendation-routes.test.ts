@@ -29,7 +29,7 @@ async function startServer() {
     seed: async (db) => {
       await seedEpisodes(db, [
         ["e1", 1, 1],
-        ["e2", 1, 2],
+        ["e2", 2, 1],
       ]);
       await db
         .insertInto("media_items")
@@ -107,6 +107,7 @@ describe("collection recommendations", () => {
           expect.objectContaining({ mediaItemId: "raiders" }),
           expect.objectContaining({ mediaItemId: "crusade" }),
         ],
+        seasonCount: null,
         collectionId: null,
         decision: null,
       },
@@ -119,6 +120,7 @@ describe("collection recommendations", () => {
           expect.objectContaining({ mediaItemId: "e1" }),
           expect.objectContaining({ mediaItemId: "e2" }),
         ],
+        seasonCount: 2,
         collectionId: null,
         decision: null,
       },
@@ -126,7 +128,25 @@ describe("collection recommendations", () => {
     expect((await send(server, "GET", "/media-collections")).body).toEqual([]);
   });
 
-  it("creates one collection when two acceptances race, and then shows it as already created", async () => {
+  it("counts a series' numbered seasons, never its specials as one", async () => {
+    const { server, db } = await startServer();
+    await seedEpisodes(
+      db,
+      [
+        ["s1", 0, 1],
+        ["e3", 2, 2],
+      ],
+      { withRoot: false },
+    );
+
+    const { body } = await send(server, "GET", RECOMMENDATIONS);
+
+    expect(body).toContainEqual(
+      expect.objectContaining({ criterion: OFFICE, seasonCount: 2 }),
+    );
+  });
+
+  it("creates one collection when two acceptances race, and then stops listing it", async () => {
     const { server } = await startServer();
 
     const [first, second] = await Promise.all([
@@ -144,8 +164,8 @@ describe("collection recommendations", () => {
     ]);
     expect(await listed(server)).toEqual([
       { name: "Indiana Jones Collection", created: false },
-      { name: "The Office", created: true },
     ]);
+    expect(await listed(server, true)).toEqual([]);
   });
 
   it("keeps a dismissal through catalog changes until it is restored", async () => {
@@ -250,6 +270,9 @@ describe("collection recommendations", () => {
 
     const refused = await accept(server, OFFICE, "automatic");
 
+    expect(await listed(server)).toEqual([
+      { name: "Indiana Jones Collection", created: false },
+    ]);
     expect(refused.status).toBe(409);
     expect(refused.body.error.code).toBe("recommendation_decided");
     expect((await send(server, "GET", "/media-collections")).body).toHaveLength(

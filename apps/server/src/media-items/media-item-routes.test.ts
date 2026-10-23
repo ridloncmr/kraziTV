@@ -189,6 +189,44 @@ describe("POST /media-items/search", () => {
     });
   });
 
+  it("applies a catalog filter alongside the excluded IDs, to the page and its count", async () => {
+    const server = await startServer([
+      itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
+      {
+        ...itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
+        status: "missing",
+      },
+      {
+        ...itemFixtureAt("item-c", "/media/movies/show-c.mkv"),
+        status: "missing",
+      },
+    ]);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-items/search",
+      payload: { excludeIds: ["item-b"], filter: { status: ["missing"] } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: "item-c" }],
+      total: 1,
+    });
+  });
+
+  it("rejects a filter key the catalog filter does not know", async () => {
+    const server = await startServer();
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-items/search",
+      payload: { filter: { colour: ["red"] } },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it("rejects a page size above the cap", async () => {
     const server = await startServer();
 
@@ -214,6 +252,28 @@ describe("POST /media-items/matches", () => {
       method: "POST",
       url: "/media-items/matches",
       payload: { q: "show", excludeIds: ["item-b"] },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: "item-a" }],
+      total: 1,
+    });
+  });
+
+  it("returns only the matches the catalog filter keeps", async () => {
+    const server = await startServer([
+      itemFixtureAt("item-a", "/media/movies/show-a.mkv"),
+      {
+        ...itemFixtureAt("item-b", "/media/movies/show-b.mkv"),
+        status: "missing",
+      },
+    ]);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/media-items/matches",
+      payload: { q: "show", filter: { status: ["available"] } },
     });
 
     expect(response.statusCode).toBe(200);

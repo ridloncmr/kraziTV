@@ -109,8 +109,10 @@ The user accepts a recommendation as either:
 
 Automatic creation is the primary action in the Automatic tab; a manual snapshot
 is an explicit alternative. Dismissed recommendations do not repeatedly reappear
-unchanged. Equivalent accepted recommendations show as already created. Deleting
-an accepted collection does not silently recreate it.
+unchanged. Accepting one keeps discovery open so several can be accepted in
+one visit. A recommendation an automatic collection already maintains leaves
+the list; one saved as a manual snapshot stays listed as saved. Deleting an
+accepted collection does not silently recreate it.
 
 An automatic editor shows its criterion, members, and maintenance status.
 Renaming does not change the criterion. Preview criterion changes before applying

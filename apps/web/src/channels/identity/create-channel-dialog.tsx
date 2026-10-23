@@ -1,12 +1,12 @@
-import { formText } from "../controls/form-text.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { WindowDialog } from "../controls/window-dialog.js";
-import type { Channel } from "../http/contracts/channels.js";
-import { useMutation } from "../http/use-resource.js";
+import { formText } from "../../controls/form-text.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
+import type { Channel } from "../../http/contracts/channels.js";
+import { useMutation } from "../../http/use-resource.js";
 
 /**
- * Creates a channel from its identity alone; programming is assigned
- * afterward in the channel editor. The dialog owns its request, so a
+ * Creates a channel from its identity alone; its shows are added afterward
+ * on the property sheet's Lineup tab. The dialog owns its request, so a
  * rejection stays beside the fields instead of behind the dialog.
  */
 export function CreateChannelDialog({

@@ -74,10 +74,34 @@ function renderSection(specials: Special[] = []) {
 
 // Opens a new special and sets its start.
 async function startNewSpecial() {
-  fireEvent.click(await screen.findByRole("button", { name: "Add a special" }));
+  fireEvent.click(await screen.findByRole("button", { name: "New special…" }));
   fireEvent.change(screen.getByLabelText("Starts"), {
     target: { value: START_LOCAL },
   });
+}
+
+// The listed specials' rows, after the header row.
+async function specialRows() {
+  const table = await screen.findByRole("table", { name: "Channel specials" });
+  return within(table).getAllByRole("row").slice(1);
+}
+
+// Opens a row's menu and reports which of its commands are offered.
+function offeredCommands(row: HTMLElement): string[] {
+  fireEvent.click(within(row).getByRole("button", { name: /^Actions for/ }));
+  const offered = within(row)
+    .getAllByRole<HTMLButtonElement>("menuitem")
+    .filter((item) => !item.disabled)
+    .map((item) => item.textContent ?? "");
+  // Closes the menu again, so another row's can open.
+  fireEvent.click(within(row).getByRole("button", { name: /^Actions for/ }));
+  return offered;
+}
+
+// Runs one command from a row's menu.
+function chooseRowCommand(row: HTMLElement, command: string) {
+  fireEvent.click(within(row).getByRole("button", { name: /^Actions for/ }));
+  fireEvent.click(within(row).getByRole("menuitem", { name: command }));
 }
 
 // The body of the last request sent to `path` with `method`.
@@ -126,9 +150,7 @@ it("previews media items in order and saves exactly what was previewed", async (
 it("saves a collection block with its explicit end", async () => {
   const api = renderSection();
   await startNewSpecial();
-  fireEvent.change(screen.getByLabelText("What airs"), {
-    target: { value: "collection" },
-  });
+  fireEvent.click(screen.getByLabelText("A collection, until a set end"));
   fireEvent.change(screen.getByLabelText("Ends"), {
     target: { value: "2099-06-01T21:30" },
   });
@@ -158,14 +180,12 @@ it("saves a collection block with its explicit end", async () => {
 it("previews a collection from the beginning without random and saves the list it resolves to", async () => {
   const api = renderSection();
   await startNewSpecial();
-  fireEvent.change(screen.getByLabelText("What airs"), {
-    target: { value: "collection_from_beginning" },
-  });
+  fireEvent.click(screen.getByLabelText("A collection, from the start"));
   await screen.findByRole("option", { name: "Favorites" });
   fireEvent.change(screen.getByLabelText("Collection"), {
     target: { value: "favorites" },
   });
-  fireEvent.change(screen.getByLabelText("Playback mode"), {
+  fireEvent.change(screen.getByLabelText("Play order"), {
     target: { value: "release" },
   });
   expect(screen.queryByRole("option", { name: "Random" })).toBeNull();
@@ -238,7 +258,7 @@ it("shows a start more than a year ahead as a conflict and offers no save", asyn
   });
   expect(within(conflicts).getByText(/at most a year ahead/)).toBeTruthy();
   expect(
-    screen.queryByRole("group", { name: "What is airing now" }),
+    screen.queryByRole("radiogroup", { name: "What is airing now" }),
   ).toBeNull();
   expect(
     screen.getByRole<HTMLButtonElement>("button", { name: "Save special" })
@@ -255,13 +275,14 @@ it("edits and cancels a special before it starts, and only then", async () => {
     status: "ended",
   };
   const api = renderSection([started, saved]);
-  const [startedRow, laterRow] = await screen.findAllByRole("listitem");
+  const [startedRow, laterRow] = await specialRows();
   if (startedRow === undefined || laterRow === undefined) {
     throw new Error("Both specials should be listed");
   }
-  expect(within(startedRow).queryByRole("button", { name: "Edit" })).toBeNull();
+  expect(within(startedRow).getByText("Ended")).toBeTruthy();
+  expect(offeredCommands(startedRow)).toEqual([]);
 
-  fireEvent.click(within(laterRow).getByRole("button", { name: "Edit" }));
+  chooseRowCommand(laterRow, "Edit…");
   expect(screen.getByLabelText<HTMLInputElement>("Starts").value).toBe(
     START_LOCAL,
   );
@@ -285,8 +306,15 @@ it("edits and cancels a special before it starts, and only then", async () => {
   });
 
   api.reply(`${LIST}/special-1`, undefined, "DELETE", 204);
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Save special" })).toBeNull(),
+  );
+  const [, upcomingRow] = await specialRows();
+  if (upcomingRow === undefined) throw new Error("The special should stay");
+  chooseRowCommand(upcomingRow, "Cancel special…");
+  const confirm = screen.getByRole("dialog", { name: "Cancel special" });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Cancel special" }),
+    within(confirm).getByRole("button", { name: "Cancel special" }),
   );
   await waitFor(() =>
     expect(
@@ -365,7 +393,7 @@ describe("what is airing now", () => {
     await startNewSpecial();
     api.reply(PREVIEW, crossing, "POST");
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    return screen.findByRole("group", { name: "What is airing now" });
+    return screen.findByRole("radiogroup", { name: "What is airing now" });
   }
 
   it("lets what airs finish, starting the special when it ends", async () => {
@@ -438,7 +466,9 @@ describe("ending a running special early", () => {
     { choice: "Stop it now", body: { endsAt: "now" } },
   ])("sends $choice", async ({ choice, body }) => {
     const api = renderSection([running]);
-    fireEvent.click(await screen.findByRole("button", { name: "End early…" }));
+    const [row] = await specialRows();
+    if (row === undefined) throw new Error("The special should be listed");
+    chooseRowCommand(row, "End early…");
     const dialog = screen.getByRole("dialog", {
       name: "End this special early",
     });
@@ -454,7 +484,9 @@ describe("ending a running special early", () => {
 
   it("stops it at a chosen time", async () => {
     const api = renderSection([running]);
-    fireEvent.click(await screen.findByRole("button", { name: "End early…" }));
+    const [row] = await specialRows();
+    if (row === undefined) throw new Error("The special should be listed");
+    chooseRowCommand(row, "End early…");
     const dialog = screen.getByRole("dialog", {
       name: "End this special early",
     });
@@ -477,8 +509,9 @@ describe("ending a running special early", () => {
 
   it("offers no End early for a special that has not started", async () => {
     renderSection([saved]);
-    await screen.findByRole("button", { name: "Edit" });
-    expect(screen.queryByRole("button", { name: "End early…" })).toBeNull();
+    const [row] = await specialRows();
+    if (row === undefined) throw new Error("The special should be listed");
+    expect(offeredCommands(row)).toEqual(["Edit…", "Cancel special…"]);
   });
 
   it("trusts the server's status over the browser's clock", async () => {
@@ -494,17 +527,40 @@ describe("ending a running special early", () => {
         status: "upcoming",
       },
     ]);
-    const [ahead, behind] = await screen.findAllByRole("listitem");
+    const [ahead, behind] = await specialRows();
     if (ahead === undefined || behind === undefined) {
       throw new Error("Both specials should be listed");
     }
 
-    expect(within(ahead).getByText(/On air/)).toBeTruthy();
-    expect(
-      within(ahead).getByRole("button", { name: "End early…" }),
-    ).toBeTruthy();
-    expect(within(ahead).queryByRole("button", { name: "Edit" })).toBeNull();
-    expect(within(behind).getByRole("button", { name: "Edit" })).toBeTruthy();
-    expect(within(behind).queryByText(/Ended/)).toBeNull();
+    expect(within(ahead).getByText("On air")).toBeTruthy();
+    expect(offeredCommands(ahead)).toEqual(["End early…"]);
+    expect(within(behind).getByText("Upcoming")).toBeTruthy();
+    expect(offeredCommands(behind)).toEqual(["Edit…", "Cancel special…"]);
   });
+});
+
+it("lists what each special airs by name: its programs, or its collection and play order", async () => {
+  const api = renderSection([
+    { ...saved, source: { kind: "media_items", mediaItemIds: ["z", "a"] } },
+    {
+      ...saved,
+      id: "special-2",
+      source: {
+        kind: "collection",
+        mediaCollectionId: "favorites",
+        playbackMode: "random",
+      },
+    },
+  ]);
+  api.reply("/media-items/z", adminFixtures.media[0]);
+  api.reply("/media-items/a", adminFixtures.media[1]);
+
+  const [items, collection] = await specialRows();
+  if (items === undefined || collection === undefined) {
+    throw new Error("Both specials should be listed");
+  }
+  expect(await within(items).findByText("Alpha, Zulu")).toBeTruthy();
+  expect(
+    await within(collection).findByText("Favorites · Random"),
+  ).toBeTruthy();
 });

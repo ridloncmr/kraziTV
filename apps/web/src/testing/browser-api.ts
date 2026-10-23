@@ -22,6 +22,22 @@ export class BrowserApi {
     return this.requests.filter((request) => request.path === path);
   }
 
+  /**
+   * Whether `path` was read again after the latest write, so a test can
+   * wait for an accepted write's refresh as the owner sees the view update.
+   */
+  readAfterLastWrite(path: string): boolean {
+    const lastWrite = this.requests.findLastIndex(
+      (request) => request.method !== "GET",
+    );
+    return (
+      lastWrite >= 0 &&
+      this.requests
+        .slice(lastWrite + 1)
+        .some((request) => request.method === "GET" && request.path === path)
+    );
+  }
+
   /** Canned replies still pass through production HTTP-status and JSON-envelope handling. */
   reply(path: string, value: unknown, method = "GET", status = 200): void {
     this.handle(path, () => this.response(value, status), method);

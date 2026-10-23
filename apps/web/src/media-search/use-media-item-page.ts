@@ -5,10 +5,11 @@ import { useResource } from "../http/use-resource.js";
 const SEARCH_DELAY_MS = 250;
 
 /**
- * What a page leaves out: IDs a picker hides, or every item a list filter
- * does not keep. The server applies either, never both.
+ * What a page leaves out: IDs a picker hides, every item a list filter does
+ * not keep, or both. Excluded IDs travel in a POST body, since a large
+ * collection's member IDs would overflow a query string.
  */
-type PageFilter = { excludeIds: readonly string[] } | { filter: MediaFilter };
+type PageFilter = { excludeIds?: readonly string[]; filter?: MediaFilter };
 
 // A filter as query parameters, each key repeated once per value, in a
 // fixed order so an equal filter always yields the same text.
@@ -18,6 +19,15 @@ function filterParams(filter: MediaFilter): string {
     for (const value of filter[key] ?? []) params.append(key, value);
   }
   return params.toString();
+}
+
+/** Turns `filterParams` text back into a filter, for a request body. */
+function filterFromParams(text: string): MediaFilter {
+  const filter: Partial<Record<string, string[]>> = {};
+  for (const [key, value] of new URLSearchParams(text)) {
+    (filter[key] ??= []).push(value);
+  }
+  return filter;
 }
 
 /**
@@ -33,9 +43,8 @@ export function useMediaItemPage(
   active: boolean,
   filter?: PageFilter,
 ) {
-  const excludeIds =
-    filter && "excludeIds" in filter ? filter.excludeIds : undefined;
-  const kept = filter && "filter" in filter ? filterParams(filter.filter) : "";
+  const excludeIds = filter?.excludeIds;
+  const kept = filterParams(filter?.filter ?? {});
   const [query, setQuery] = useState({
     q: search.trim(),
     offset: 0,
@@ -68,8 +77,9 @@ export function useMediaItemPage(
         limit,
         offset: query.offset,
         excludeIds,
+        filter: filterFromParams(query.kept),
       },
-    [excludeIds, query.q, query.offset, limit],
+    [excludeIds, query.q, query.offset, query.kept, limit],
   );
   const page = useResource<MediaItemPage>(
     excludeIds ? "/media-items/search" : `/media-items?${params}`,

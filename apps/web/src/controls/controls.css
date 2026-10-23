@@ -93,6 +93,10 @@
 .row-actions button {
   padding: 3px 7px;
 }
+/* Buttons that act on a grid's rows sit just below it, not against it. */
+.table-scroll + .row-actions {
+  margin-top: 6px;
+}
 .request-feedback p {
   padding: 6px 8px;
   margin: 6px 0;
@@ -161,6 +165,17 @@
 .clickable-row {
   cursor: pointer;
 }
+/* A row's status word, such as a show's Rules only, reads as text in a bordered box. */
+.row-badge {
+  border: 1px solid var(--xp-border);
+  border-radius: 2px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+/* A row with several badges, such as a rule-only wheel, keeps them apart. */
+.row-badge + .row-badge {
+  margin-left: 4px;
+}
 .selected-row {
   background: color-mix(
     in srgb,
@@ -191,7 +206,9 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.cleanup-notice {
+/* A warning the owner should act on, such as an unfinished cleanup or marathons left off. */
+.cleanup-notice,
+.inline-notice {
   background: var(--xp-warning);
   border: 1px solid var(--xp-menu-border);
   padding: 10px;
@@ -335,14 +352,24 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
   padding: 12px;
   background: color-mix(in srgb, var(--xp-shadow) 25%, transparent);
 }
 .window-dialog-layer:empty {
   display: none;
+}
+/*
+ * A dialog opened from another stacks over it in the same place. Each
+ * dialog is its own stacking context, so nothing inside an earlier one,
+ * such as a translucent disabled button or a sticky bar, paints over it.
+ */
+.window-dialog-layer > .window-dialog {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 0;
 }
 .window-dialog {
   display: flex;
@@ -432,6 +459,29 @@
   max-height: 200px;
   overflow: auto;
   margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+/* A checkbox list's header row, read like a table header above its rows. */
+.checkbox-list-header {
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--xp-border);
+  background: linear-gradient(var(--xp-control-top), var(--xp-menu-surface));
+}
+.program-page .checkbox-list-header label.choice {
+  margin: 0;
+}
+/* The header's rows sit right under it, indented to match its checkbox. */
+.checkbox-list-header + .checkbox-list {
+  margin-top: 0;
+  padding-left: 8px;
+}
+/* Search results to check, scrolling inside a dialog rather than growing it. */
+.checkbox-list {
+  max-height: 200px;
+  overflow: auto;
+  margin: 4px 0;
   padding: 2px 0;
   list-style: none;
 }
@@ -692,4 +742,157 @@
 .program-page .row-menu-list button:disabled {
   color: var(--xp-muted);
   opacity: 0.6;
+}
+/* XP property-sheet tabs: the chosen tab joins the panel below it. */
+.tab-strip {
+  display: flex;
+  gap: 2px;
+  margin-bottom: -1px;
+}
+.program-page .tab-strip button {
+  border-radius: 3px 3px 0 0;
+  border-bottom-color: var(--xp-border);
+  background: linear-gradient(var(--xp-control-top), var(--xp-menu-surface));
+  box-shadow: none;
+}
+.program-page .tab-strip button[aria-selected="true"] {
+  position: relative;
+  border-top: 2px solid var(--xp-accent-orange);
+  border-bottom-color: var(--xp-window-surface);
+  background: var(--xp-window-surface);
+  font-weight: bold;
+}
+.tab-panel {
+  border: 1px solid var(--xp-border);
+  background: var(--xp-window-surface);
+  padding: 10px;
+}
+.tab-panel > .row-actions {
+  margin-bottom: 10px;
+}
+/*
+ * A form's fields stacked with room between them. A hint sits just under
+ * the field it explains, and the stack's own fieldset only groups controls
+ * for disabling, so it draws no box.
+ */
+.program-page fieldset.form-stack {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-stack > small.secondary {
+  margin-top: -10px;
+}
+/* Buttons keep their own width instead of stretching across the stack. */
+.form-stack > button {
+  align-self: flex-start;
+}
+.program-page .form-stack > label.choice,
+.form-stack > .inline-notice,
+.form-stack > p,
+.form-stack > ol {
+  margin: 0;
+}
+/* A caption with the one control or list it names, kept close together. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.program-page .field-group > label.choice {
+  margin: 0;
+}
+/*
+ * Two fields that read as a range, such as From and Through, side by side,
+ * with any hint on a full-width row beneath them.
+ */
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+.field-pair > small {
+  grid-column: 1 / -1;
+}
+/* Weekday checkboxes in one wrapping row, each box beside its day. */
+.day-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.program-page .day-choices label.choice {
+  margin: 0;
+}
+/* A rule's shows as a sunken checklist, each checked show's settings indented under it. */
+.rule-shows {
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--xp-window-surface);
+}
+.rule-shows > li + li {
+  border-top: 1px solid var(--xp-border);
+}
+.rule-shows .row-badge {
+  margin-left: 6px;
+}
+/* A special's programs as numbered rows: each search and choice, with Remove beside them. */
+.special-programs {
+  margin: 0;
+  padding-left: 22px;
+}
+.special-programs > li {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.special-program-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rule-show-settings {
+  margin: 0 0 8px 22px;
+  padding-left: 8px;
+  border-left: 2px solid var(--xp-border);
+  gap: 8px;
+}
+/*
+ * One show's settings in Add shows: play order and per sitting side by
+ * side, with anything the per-sitting field reveals, such as Custom's
+ * fields and hints, on full-width rows beneath them.
+ */
+.program-page fieldset.show-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: end;
+  margin: 8px 0;
+}
+.show-settings > :nth-child(n + 4),
+.show-settings > p {
+  grid-column: 1 / -1;
+}
+.show-settings > p {
+  margin: 0;
+}
+/* A show's members as a sunken list, one per row. */
+.member-list {
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--xp-window-surface);
+}
+.member-list > li {
+  margin: 2px 0;
 }

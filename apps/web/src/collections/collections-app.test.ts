@@ -544,6 +544,7 @@ const officeRecommendation = {
       durationMs: 1_500_000,
     },
   ],
+  seasonCount: 1,
   collectionId: null,
   decision: null,
 };
@@ -555,7 +556,6 @@ it("discovers recommendations with reason and count, never listing them as colle
   api.reply(`${recommendations}/dismissal`, null, "POST", 204);
   const { memberCount: _, missingCount: __, ...created } = officeCollection;
   api.reply(`${recommendations}/acceptance`, created, "POST", 201);
-  serveCollection(api, "office", ["e2", "e10"]);
   fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
 
   fireEvent.click(
@@ -569,7 +569,10 @@ it("discovers recommendations with reason and count, never listing them as colle
   expect(
     within(card).getByText("2 cataloged episodes of the TV series The Office"),
   ).toBeTruthy();
-  expect(within(card).getByText("2 items")).toBeTruthy();
+  expect(within(card).getByText("2 items, 1 season")).toBeTruthy();
+  expect(
+    within(dialog).getByText(/An automatic collection keeps itself up to date/),
+  ).toBeTruthy();
   expect(
     within(screen.getByRole("tabpanel", { name: "Automatic" })).queryByRole(
       "button",
@@ -584,11 +587,26 @@ it("discovers recommendations with reason and count, never listing them as colle
     }),
   );
 
-  await screen.findByRole("heading", { name: "The Office" });
+  // The dialog stays open so another can be created; the created one leaves
+  // the list at once, even before a reread drops it, and appears behind it
+  // on the Automatic tab.
+  await within(dialog).findByText(
+    "Created The Office as an automatic collection.",
+  );
+  await within(dialog).findByText(/No suggestions right now/);
+  expect(screen.getByRole("dialog", { name: "Discover collections" })).toBe(
+    dialog,
+  );
   expect(api.requestsTo(`${recommendations}/acceptance`)[0]?.body).toEqual({
     criterion: { kind: "series", tmdbId: 2316 },
     mode: "automatic",
   });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(
+    await within(
+      screen.getByRole("tabpanel", { name: "Automatic" }),
+    ).findByRole("button", { name: /^Open The Office/ }),
+  ).toBeTruthy();
 });
 
 it("saves a recommendation as a manual collection, or dismisses it", async () => {

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { ALIEN } from "../../testing/admin-fixtures.js";
-import type { BrowserApi } from "../../testing/browser-api.js";
-import { showMediaLibrary } from "../../testing/media-library-actions.js";
+import { ALIEN } from "../testing/admin-fixtures.js";
+import type { BrowserApi } from "../testing/browser-api.js";
+import { showMediaLibrary } from "../testing/media-library-actions.js";
 
 afterEach(() => {
   cleanup();

@@ -7,8 +7,11 @@ import { ApiError } from "../http/api-error.js";
 import type { Channel } from "../http/contracts/channels.js";
 import type { ProgrammingRebuild } from "../http/contracts/programming.js";
 import { useMutation, useResource } from "../http/use-resource.js";
-import { ChannelEditor } from "./channel-editor.js";
-import { CreateChannelDialog } from "./create-channel-dialog.js";
+import {
+  type ChannelTab,
+  ChannelPropertySheet,
+} from "./channel-property-sheet.js";
+import { CreateChannelDialog } from "./identity/create-channel-dialog.js";
 import { useCleanupRetries } from "./use-cleanup-retries.js";
 
 /** Channel lifecycle feedback distinguishes persisted identity changes from unfinished runtime cleanup. */
@@ -23,6 +26,8 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
     attempted: boolean;
   }>();
   const [creating, setCreating] = useState(false);
+  // The property sheet's tab stays while the window is open, across channels.
+  const [tab, setTab] = useState<ChannelTab>("general");
   const { refresh } = channels;
   const { remember } = cleanup;
   useEffect(() => {
@@ -271,10 +276,12 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
         </WindowDialog>
       )}
       {selectedChannel && (
-        <ChannelEditor
+        <ChannelPropertySheet
           key={selectedChannel.id}
           channel={selectedChannel}
           visible={visible}
+          tab={tab}
+          onTabChange={setTab}
           changed={channels.refresh}
         />
       )}

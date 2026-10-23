@@ -14,6 +14,8 @@ export type MemberSource =
 
 /** What the owner saves for one assignment; the API accepts and returns it. */
 export interface AssignmentSettings {
+  /** The owner's name for the show, or null to name it by its members. */
+  name: string | null;
   /** In normal rotation, or only while a programming rule selects it. */
   participation: AssignmentParticipation;
   /** Required when a member is a collection; null for single items only. */
@@ -23,6 +25,15 @@ export interface AssignmentSettings {
   marathonStretch: StretchSetting | null;
   /** Members in saved member order. */
   members: MemberSource[];
+}
+
+/**
+ * A new assignment's suggested ordinary stretch and the content kind it was
+ * chosen from; both null for mixed or unclassified members, so the editor asks.
+ */
+export interface StretchSuggestion {
+  ordinaryStretch: StretchSetting | null;
+  contentKind: "movies" | "episodes" | null;
 }
 
 /** A saved programming source assignment. */
@@ -51,8 +62,22 @@ export type CreateAssignmentResult =
   | UnknownMemberResult
   | MemberAssignedResult;
 
+/** A member an earlier assignment in the same batch create plays. */
+export interface MemberRepeatedResult {
+  kind: "member_repeated";
+  member: MemberSource;
+  /** The request index of the earlier assignment that plays it. */
+  assignmentIndex: number;
+}
+
+/** Why a batch create wrote nothing: one assignment's refusal. */
+export type BatchCreateRefusal =
+  Exclude<CreateAssignmentResult, { kind: "created" }> | MemberRepeatedResult;
+
 export type UpdateAssignmentResult =
   | { kind: "updated"; assignment: SourceAssignment }
+  /** Only the name changed, which programming never reads. */
+  | { kind: "renamed"; assignment: SourceAssignment }
   | { kind: "unchanged"; assignment: SourceAssignment }
   | { kind: "not_found" }
   | UnknownMemberResult

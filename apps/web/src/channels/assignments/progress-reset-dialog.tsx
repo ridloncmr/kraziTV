@@ -57,7 +57,9 @@ export function ProgressResetDialog({
           />
           {refreshed !== null && <UpcomingSelections selections={refreshed} />}
           <div className="dialog-actions">
-            <button onClick={onClose}>Close</button>
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
           </div>
         </>
       ) : (
@@ -70,6 +72,7 @@ export function ProgressResetDialog({
           <RequestFeedback loading={mutation.pending} error={mutation.error} />
           <div className="dialog-actions">
             <button
+              type="button"
               disabled={mutation.pending}
               onClick={() =>
                 void mutation.run(path, "POST", { mediaCollectionId }, () => {
@@ -80,7 +83,7 @@ export function ProgressResetDialog({
             >
               Restart progress
             </button>
-            <button disabled={mutation.pending} onClick={onClose}>
+            <button type="button" disabled={mutation.pending} onClick={onClose}>
               Cancel
             </button>
           </div>
