@@ -19,14 +19,14 @@ import { WEEKDAYS } from "./rule-words.js";
 const TABS: readonly { key: RuleTab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "when", label: "When" },
-  { key: "shows", label: "Shows" },
+  { key: "shows", label: "What plays" },
 ];
 
 /**
  * Adds or edits one programming rule in a window dialog laid out as an XP
  * property sheet: **General** names it and says what it does to the
  * lineup, **When** holds its calendar conditions in the server's
- * programming timezone, and **Shows** picks the shows it plays with any
+ * programming timezone, and **What plays** picks the lineup entries it plays with any
  * sizes that apply only while it wins. Nothing writes until **OK**, which
  * first shows the tab of any missing field; the server validates the rest
  * and its message shows here. `saved` runs after a write it accepted.
@@ -151,15 +151,15 @@ function GeneralFields({
         <span id={behaviorId}>While it applies</span>
         <CheckboxOption
           radio={`${behaviorId}-behavior`}
-          label="Play its shows alongside the lineup"
-          description="Its shows take turns with the lineup's regular rotation."
+          label="Mix into the lineup"
+          description="What it plays takes turns with everything else in the lineup."
           checked={draft.behavior === "join"}
           onChange={() => edit({ behavior: "join" })}
         />
         <CheckboxOption
           radio={`${behaviorId}-behavior`}
-          label="Play only its shows"
-          description="The lineup pauses until the rule stops applying, then picks up where it left off."
+          label="Take over the channel"
+          description="Only what it plays airs. The rest of the lineup pauses until the rule stops applying, then picks up where it left off."
           checked={draft.behavior === "feature"}
           onChange={() => edit({ behavior: "feature" })}
         />
@@ -176,7 +176,8 @@ function GeneralFields({
         />
       </label>
       <small id={priorityHintId} className="secondary">
-        When rules overlap, the higher priority wins.
+        When rules overlap, only the higher-priority one applies; what they play
+        is never combined. On a tie, the rule higher in the list wins.
       </small>
     </>
   );

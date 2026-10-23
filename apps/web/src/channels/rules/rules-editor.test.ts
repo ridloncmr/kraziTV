@@ -82,7 +82,7 @@ async function openNewRule(api: BrowserApi) {
 }
 
 // Switches the rule dialog to one of its tabs.
-function showTab(form: HTMLElement, tab: "General" | "When" | "Shows") {
+function showTab(form: HTMLElement, tab: "General" | "When" | "What plays") {
   fireEvent.click(within(form).getByRole("tab", { name: tab }));
 }
 
@@ -116,7 +116,7 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   fireEvent.change(within(form).getByLabelText("Through"), {
     target: { value: "12-31" },
   });
-  showTab(form, "Shows");
+  showTab(form, "What plays");
   fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
   fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
@@ -159,7 +159,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "Friday movies" },
   });
-  fireEvent.click(within(form).getByLabelText("Play only its shows"));
+  fireEvent.click(within(form).getByLabelText("Take over the channel"));
   showTab(form, "When");
   fireEvent.click(within(form).getByLabelText("Fri"));
   fireEvent.click(within(form).getByLabelText("Only during certain hours"));
@@ -169,7 +169,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   fireEvent.change(within(form).getByLabelText("Ends"), {
     target: { value: "23:00" },
   });
-  showTab(form, "Shows");
+  showTab(form, "What plays");
   fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
   const christmas = within(form).getByRole("group", {
     name: "Christmas Movies under this rule",
@@ -223,7 +223,7 @@ it("shows the server's message for an invalid size pair", async () => {
   fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "Too long" },
   });
-  showTab(form, "Shows");
+  showTab(form, "What plays");
   fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
   fireEvent.click(
     within(form).getByLabelText("Change how much plays at a time"),
@@ -316,10 +316,10 @@ it("shows the tab holding a missing field when OK is pressed, and saves nothing"
 
   expect(
     within(form)
-      .getByRole("tab", { name: "Shows" })
+      .getByRole("tab", { name: "What plays" })
       .getAttribute("aria-selected"),
   ).toBe("true");
-  expect(within(form).getByText("Choose at least one show.")).toBeTruthy();
+  expect(within(form).getByText("Check at least one.")).toBeTruthy();
   expect(
     api.requestsTo(RULES).filter((request) => request.method === "POST"),
   ).toEqual([]);
@@ -352,7 +352,7 @@ it("says in words when each rule applies, which shows it plays, and how", async 
       "Friday movies",
       "Fridays",
       "Christmas Movies, Favorites",
-      "Instead of the lineup",
+      "Takes over the channel",
       "0",
     ]),
   );

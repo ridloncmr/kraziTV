@@ -80,7 +80,7 @@ export function RulesEditor({
     const names = rule.sources.map(
       (source) =>
         choices.find((choice) => choice.assignmentId === source.assignmentId)
-          ?.label ?? "A removed show",
+          ?.label ?? "Removed from the lineup",
     );
     return listNames(names);
   };
@@ -101,8 +101,8 @@ export function RulesEditor({
   return (
     <section aria-label="Programming rules">
       <p className="secondary">
-        Rules change what plays on certain dates, days, or hours. When rules
-        overlap, the higher priority wins.
+        Rules change what the channel plays on certain dates, days, or hours.
+        When rules overlap, only the higher-priority one applies.
       </p>
       <RequestFeedback
         loading={rules.loading || mutation.pending}
@@ -120,7 +120,7 @@ export function RulesEditor({
               <tr>
                 <th>Rule</th>
                 <th>When</th>
-                <th>Shows</th>
+                <th>Plays</th>
                 <th>Plays</th>
                 <th>Priority</th>
                 <th aria-label="Actions" />
@@ -231,7 +231,7 @@ export function RulesEditor({
           onClose={() => setDeleting(undefined)}
         >
           <p>
-            Delete <strong>{deleting.name}</strong>? Its shows stay in the
+            Delete <strong>{deleting.name}</strong>? Nothing is removed from the
             lineup.
           </p>
           <RequestFeedback loading={mutation.pending} error={mutation.error} />

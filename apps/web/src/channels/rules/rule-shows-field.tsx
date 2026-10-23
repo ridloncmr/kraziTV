@@ -13,7 +13,7 @@ import {
 } from "./rule-draft.js";
 
 /**
- * The Rules dialog's Shows tab: every show in the lineup as a checkbox,
+ * The Rules dialog's What plays tab: every show in the lineup as a checkbox,
  * and under each checked one, how much plays at a time and its marathons
  * while the rule applies. Each show's sizes start as the lineup's, and
  * each checked show's settings form a group named for it, so its fields
@@ -38,10 +38,11 @@ export function RuleShowsField({
   return (
     <>
       <p className="secondary">
-        Choose the shows that play while this rule applies. A show marked Rules
-        only airs only when a rule picks it.
+        Check what airs while this rule applies, series and movies alike.
+        Anything marked Rules only stays out of the regular rotation and airs
+        only when a rule picks it.
       </p>
-      {sources.size === 0 && <p>Choose at least one show.</p>}
+      {sources.size === 0 && <p>Check at least one.</p>}
       <ul className="rule-shows">
         {choices.map((choice) => {
           const source = sources.get(choice.assignmentId);
@@ -101,7 +102,7 @@ export function RuleShowsField({
                         })
                       }
                     >
-                      <option value="inherit">As the show allows</option>
+                      <option value="inherit">As set in the lineup</option>
                       <option value="disabled">
                         None while this rule applies
                       </option>

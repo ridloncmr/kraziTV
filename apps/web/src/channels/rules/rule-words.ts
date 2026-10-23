@@ -51,7 +51,9 @@ export function describeWhen(rule: ProgrammingRule): string {
 
 /** Says what a rule does to the lineup while it applies. */
 export function behaviorWords(behavior: ProgrammingRule["behavior"]): string {
-  return behavior === "join" ? "Alongside the lineup" : "Instead of the lineup";
+  return behavior === "join"
+    ? "Mixes into the lineup"
+    : "Takes over the channel";
 }
 
 // Words a rule's date condition, or nothing when it applies on any date.
