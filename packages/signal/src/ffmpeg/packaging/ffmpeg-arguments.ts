@@ -22,6 +22,15 @@ type FillerItem = Extract<SignalPlayoutItem, { kind: "filler" }>;
 interface FfmpegArgumentOptions {
   /** The font filler messages are drawn in; unset uses fontconfig's default. */
   fontFile?: string | undefined;
+  /**
+   * Drops x264's frame lookahead for a program. Set for a session's first
+   * process, which a tune request waits on: under `-re` pacing, lookahead
+   * held first output for about 1.8 s of the server's 2 s startup timeout,
+   * so Plex tunes failed whenever a start ran slightly slow. A prepared
+   * process keeps lookahead, because its lead hides the startup and a faster
+   * start would only hold more output ahead of the clock (ADR 0016).
+   */
+  zeroLatency?: boolean;
 }
 
 /** Validates one selected item and expresses the MVP packaging policy as argv. */
@@ -31,11 +40,14 @@ export function buildFfmpegArguments(
 ): readonly string[] {
   return item.kind === "filler"
     ? fillerArguments(item, options)
-    : programArguments(item);
+    : programArguments(item, options);
 }
 
 /** Packages a program from its media, generating any stream it lacks. */
-function programArguments(item: ProgramItem): readonly string[] {
+function programArguments(
+  item: ProgramItem,
+  { zeroLatency = false }: FfmpegArgumentOptions,
+): readonly string[] {
   const invalidField = findInvalidField(item);
   if (invalidField !== undefined) {
     throw invalidPlayoutItem(invalidField);
@@ -79,7 +91,7 @@ function programArguments(item: ProgramItem): readonly string[] {
     "-map",
     audioStream,
     ...encodedOutput({
-      zeroLatency: hasBlackTail,
+      zeroLatency: zeroLatency || hasBlackTail,
       videoFilter: hasBlackTail
         ? `${VIDEO_FILTER},${BLACK_TAIL_VIDEO_FILTER}`
         : VIDEO_FILTER,

@@ -184,6 +184,32 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(false);
   });
 
+  it("tunes only the session's first process for low latency", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+
+    await session.prepare(initialItem({ scheduleEntryId: "entry-2" }));
+
+    // A tune request waits on the first process; a prepared one has its lead.
+    expect(spawner.spawnCalls[0]?.args).toContain("zerolatency");
+    expect(spawner.spawnCalls[1]?.args).not.toContain("zerolatency");
+    const stopped = session.stop();
+    first.exit({ code: null, signal: "SIGTERM" });
+    second.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
   it("starts the next FFmpeg process on prepare, holds its output, and releases it on commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();

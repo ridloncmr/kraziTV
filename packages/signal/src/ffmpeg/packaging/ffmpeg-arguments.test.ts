@@ -128,6 +128,19 @@ describe("buildFfmpegArguments", () => {
     expect(mappedStreams(args)).toEqual(["2:v:0", "1:a:0"]);
   });
 
+  it("drops encoder lookahead from a program only when asked", () => {
+    const zeroLatency = buildFfmpegArguments(item(), { zeroLatency: true });
+    const libx264 = zeroLatency.indexOf("libx264");
+
+    expect(zeroLatency.slice(libx264 + 1, libx264 + 3)).toEqual([
+      "-tune",
+      "zerolatency",
+    ]);
+    expect(buildFfmpegArguments(item(), { zeroLatency: false })).toEqual(
+      buildFfmpegArguments(item()),
+    );
+  });
+
   it("reads only the media span and extends the output with a black tail", () => {
     const args = buildFfmpegArguments(
       item({ playDurationMs: 4_000, blackTailMs: 6_500 }),

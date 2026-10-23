@@ -43,6 +43,27 @@ with the wall-clock schedule, including encoder startup latency?
 - Use an initial burst or catch-up rate only if the compatibility spike verifies
   its emitted timing and Plex playback behavior.
 
+## Encoder Lookahead (2026-10-23)
+
+Under `-re`, x264's default frame lookahead dominates startup: the encoder
+emits nothing until it has read about 1.6 s of media at wall-clock speed.
+Measured on a 720p H.264 episode packaged to the 1080p program profile with
+FFmpeg 6.1.1:
+
+| x264 setting                       | First video output |
+| ---------------------------------- | ------------------ |
+| Default                            | 1.79 s             |
+| `rc-lookahead=10:sync-lookahead=0` | 1.01 s             |
+| `-tune zerolatency`                | 0.21 s             |
+
+Through the stream route, a cold tune answered in 1.84 s against the 2,000 ms
+startup timeout, so Plex tunes failed with a 503 whenever a start ran slightly
+slow (Plex: "Could not tune channel. Please check your tuner or antenna.").
+`zerolatency` raised bitrate about 44% on the same clip. The packager now uses
+it for a session's first process only. A prepared process keeps lookahead,
+because its prepare lead already hides startup, and a faster start would hold
+more output ahead of the clock ([ADR 0016](../adrs/0016-prepared-ffmpeg-process.md)).
+
 ## Open Questions
 
 - Whether late state resolution plus normal startup meets the 2,000 ms MVP

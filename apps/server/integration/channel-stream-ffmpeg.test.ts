@@ -229,7 +229,11 @@ describe("real FFmpeg channel stream", () => {
 
       const early = await tune(baseUrl);
       const late = await tune(baseUrl);
-      await sleepUntil(second.starts_at + 3_000);
+      // Checked before the second file's last second. Its process starts a
+      // prepare lead (3 s) early, so it reaches its six-second file's end at
+      // `starts_at + 3_000` and flushes encoder lookahead at once, beyond the
+      // held span ADR 0016 accepts ahead of the clock.
+      await sleepUntil(second.starts_at + 2_000);
 
       expect(early.response.statusCode).toBe(200);
       expect(late.response.statusCode).toBe(200);

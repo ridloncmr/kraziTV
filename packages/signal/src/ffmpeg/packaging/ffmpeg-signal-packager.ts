@@ -66,15 +66,19 @@ export class FfmpegSignalPackager implements SignalPackager {
     );
   }
 
-  /** Validates and starts one item synchronously so output can be drained at once. */
+  /**
+   * Validates and starts one item synchronously so output can be drained at
+   * once. Only this first process is tuned for low latency, because a tune
+   * request waits on it; the session starts prepared items normally.
+   */
   start(initialItem: SignalPlayoutItem): SignalSession {
-    const process = this.startProcess(initialItem);
+    const process = this.startProcess(initialItem, true);
 
     return new FfmpegSignalSession(process, initialItem, {
       createReadinessInspector:
         this.dependencies.createReadinessInspector ??
         (() => new MpegTsReadinessInspector()),
-      startProcess: (item) => this.startProcess(item),
+      startProcess: (item) => this.startProcess(item, false),
       timers: this.dependencies.timers,
       itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
       preparedOutputLimitBytes: this.preparedOutputLimitBytes,
@@ -83,9 +87,13 @@ export class FfmpegSignalPackager implements SignalPackager {
   }
 
   /** Builds one item's argv with this packager's rendering options. */
-  private argumentsFor(item: SignalPlayoutItem): readonly string[] {
+  private argumentsFor(
+    item: SignalPlayoutItem,
+    zeroLatency: boolean,
+  ): readonly string[] {
     return buildFfmpegArguments(item, {
       fontFile: this.dependencies.fillerFontFile,
+      zeroLatency,
     });
   }
 
@@ -94,9 +102,12 @@ export class FfmpegSignalPackager implements SignalPackager {
    * its session. Building the argv validates the item first, so an invalid
    * one is refused before anything is spawned.
    */
-  private startProcess(item: SignalPlayoutItem): FfmpegProcess {
+  private startProcess(
+    item: SignalPlayoutItem,
+    zeroLatency: boolean,
+  ): FfmpegProcess {
     const process = FfmpegProcess.start({
-      args: this.argumentsFor(item),
+      args: this.argumentsFor(item, zeroLatency),
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,
