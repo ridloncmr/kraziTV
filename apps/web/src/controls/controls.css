@@ -780,6 +780,14 @@
   padding: 0;
   border: 0;
 }
+/*
+ * A boxed group of related fields inside a form stack, such as a show's
+ * marathon settings, so each group reads apart from its neighbours.
+ */
+.program-page fieldset.form-stack.form-section {
+  padding: 10px;
+  border: 1px solid var(--xp-border);
+}
 .form-stack {
   display: flex;
   flex-direction: column;

@@ -167,32 +167,47 @@ export function ShowPropertiesDialog({
           <fieldset disabled={mutation.pending} className="form-stack">
             {shown === "general" && (
               <>
-                <label>
-                  Name
-                  <input
-                    value={draft.name}
-                    maxLength={80}
-                    placeholder={joinShowNames(members.map(name))}
-                    aria-describedby={nameHintId}
-                    onChange={(event) => edit({ name: event.target.value })}
-                  />
-                </label>
-                <small id={nameHintId} className="secondary">
-                  Leave blank to name the show after what it plays.
-                </small>
-                {hasCollection ? (
-                  <>
-                    <PlayOrderField
-                      mode={draft.mode}
-                      hint
-                      onChange={(mode) => edit({ mode })}
+                <fieldset className="form-stack form-section">
+                  <legend>Show</legend>
+                  <label>
+                    Name
+                    <input
+                      value={draft.name}
+                      maxLength={80}
+                      placeholder={joinShowNames(members.map(name))}
+                      aria-describedby={nameHintId}
+                      onChange={(event) => edit({ name: event.target.value })}
                     />
-                    <PerSittingField
-                      draft={draft.stretch}
-                      contentKind={contentKind}
-                      hint="How much plays each time this show comes up, before the channel moves on to another show."
-                      onChange={(stretch) => edit({ stretch })}
-                    />
+                  </label>
+                  <small id={nameHintId} className="secondary">
+                    Leave blank to name the show after what it plays.
+                  </small>
+                </fieldset>
+                <fieldset className="form-stack form-section">
+                  <legend>Playback</legend>
+                  {hasCollection ? (
+                    <>
+                      <PlayOrderField
+                        mode={draft.mode}
+                        hint
+                        onChange={(mode) => edit({ mode })}
+                      />
+                      <PerSittingField
+                        draft={draft.stretch}
+                        contentKind={contentKind}
+                        hint="How much plays each time this show comes up, before the channel moves on to another show."
+                        onChange={(stretch) => edit({ stretch })}
+                      />
+                    </>
+                  ) : (
+                    <p className="secondary">
+                      A single item plays once each time this show comes up.
+                    </p>
+                  )}
+                </fieldset>
+                {hasCollection && (
+                  <fieldset className="form-stack form-section">
+                    <legend>Marathons</legend>
                     <CheckboxOption
                       label="Allow marathons"
                       description={
@@ -259,18 +274,17 @@ export function ShowPropertiesDialog({
                         Occasional marathons are now on for this channel.
                       </p>
                     )}
-                  </>
-                ) : (
-                  <p className="secondary">
-                    A single item plays once each time this show comes up.
-                  </p>
+                  </fieldset>
                 )}
-                <CheckboxOption
-                  label="Only air when a rule picks it"
-                  description="Leaves this show out of the regular rotation. It airs only while one of the channel's rules selects it."
-                  checked={!draft.rotates}
-                  onChange={(ruleOnly) => edit({ rotates: !ruleOnly })}
-                />
+                <fieldset className="form-stack form-section">
+                  <legend>Rotation</legend>
+                  <CheckboxOption
+                    label="Only air when a rule picks it"
+                    description="Leaves this show out of the regular rotation. It airs only while one of the channel's rules selects it."
+                    checked={!draft.rotates}
+                    onChange={(ruleOnly) => edit({ rotates: !ruleOnly })}
+                  />
+                </fieldset>
               </>
             )}
             {shown === "contents" && (
