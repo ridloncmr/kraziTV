@@ -109,6 +109,7 @@ const scenario = ({ idleGraceMs = IDLE_GRACE_MS } = {}) => {
     transitionCoordinator: coordinator,
     prepareLeadMs: 2_000,
     startupTimeoutMs: 5_000,
+    recoveryTimeoutMs: 5_000,
     subscriberBufferLimitBytes: SUBSCRIBER_BUFFER_LIMIT_BYTES,
     retentionLimitBytes: 1_024,
     findJoinPoint: (retained) =>

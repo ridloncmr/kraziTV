@@ -64,11 +64,44 @@ it for a session's first process only. A prepared process keeps lookahead,
 because its prepare lead already hides startup, and a faster start would hold
 more output ahead of the clock ([ADR 0016](../adrs/0016-prepared-ffmpeg-process.md)).
 
+## Join Backlog (2026-10-23)
+
+Plex froze every tune on its first frame for about ten seconds
+([issue #30](https://github.com/ridloncmr/kraziTV/issues/30)): its player
+fills a buffer of roughly ten seconds, and the stream route never held more
+than about 0.2 s of media ahead of wall-clock time. Measured on FFmpeg 6.1.1:
+
+- `-readrate_initial_burst` works together with `-re`: the burst span is
+  read at once, then pacing resumes, and the live edge lands where it would
+  have without the burst.
+- The burst is delivered only as fast as FFmpeg encodes, and x264 is the
+  limit: decoding 10 s of the 1080p HEVC test episode took 0.84 s. With
+  `-tune zerolatency`, whose sliced threading replaces frame threading, the
+  preset barely mattered (4.0 s at `medium`, 2.9 s at `superfast`). Without
+  it, `veryfast` took 2.2 s. Under the real burst arguments, the eleventh
+  keyframe arrived after 4.5 s with `zerolatency` and 2.6 s with
+  `veryfast`; the first arrived after about 0.5 s with either.
+- FFmpeg's MPEG-TS muxer writes a PAT and PMT immediately before every
+  video keyframe and sets the random-access indicator on it. It also sets
+  that indicator on every audio frame, so a keyframe search must check the
+  video PID.
+- After the change, a late joiner received 9.7 s of media within 0.5 s of
+  the tune, and a Plex Android tune started playing about 4.5 s after the
+  tune with no `buffering` state.
+
+Delivering the burst while it builds was not enough: Plex played the first
+frames, stalled for 5.5 s, then played on. Through Plex's tune API, the
+server waited out a stream route that answered after 6, 10, and 15 s, each
+tune succeeding. Holding a cold tune until the burst existed answered after
+4.8 s with 10.3 s of media under `zerolatency`, and after 2.7 to 2.9 s under
+`veryfast`.
+
+kraziTV now gives every viewer about ten seconds of backlog, and holds a
+cold tune until it exists ([ADR 0018](../adrs/0018-join-backlog.md)).
+
 ## Open Questions
 
 - Whether late state resolution plus normal startup meets the 2,000 ms MVP
   initial-tune-drift ceiling on supported development hardware.
-- Whether a verified initial burst or catch-up rate is needed, and what exact
-  arguments avoid receiver buffering or playback instability.
 - Which FFmpeg/ffprobe capture analysis gives the most reliable first-decodable
   media-position measurement for the spike assets.

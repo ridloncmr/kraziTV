@@ -42,12 +42,16 @@ export class FakeProcess implements SpawnedProcess {
     return true;
   }
 
-  /** Closes the child with a chosen code or signal after ending its pipes. */
+  /**
+   * Closes the child with a chosen code or signal after ending its pipes.
+   * Like Node's `close` event, the exit settles only after a reader has seen
+   * the pipes end, so output flushed on `end` never trails the exit.
+   */
   exit(result: ProcessExit): void {
     if (this.exitState.isSettled) return;
     this.stdout.end();
     this.stderr.end();
-    this.exitState.resolve(result);
+    setImmediate(() => this.exitState.resolve(result));
   }
 
   /** Simulates an OS-level failure observed after spawn, with broken pipes. */

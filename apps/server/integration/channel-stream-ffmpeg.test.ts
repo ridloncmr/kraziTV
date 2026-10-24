@@ -128,6 +128,7 @@ async function startRealChannel({
     createFfmpegSignalPackager({
       logger: toSignalLogger(silent),
       timers: runtime,
+      clock: runtime,
       ffmpegPath,
       // The font production resolves, so filler renders on every host.
       fillerFontFile: parseFfmpegFontFile(process.env, process.platform),
@@ -262,9 +263,13 @@ describe("real FFmpeg channel stream", () => {
       expect(early.response.closed).toBe(false);
       expect(late.response.closed).toBe(false);
       // The broadcast is paced to the wall clock and decodes for each viewer.
+      // The first process burst the media before the tune offset, up to the
+      // join backlog (ADR 0018), so the first viewer received that on top.
       const watchedMs = Date.now() - early.tunedAt;
       const decodedMs = decodedVideoMs(early.capture());
-      expect(Math.abs(decodedMs - watchedMs)).toBeLessThan(DRIFT_CEILING_MS);
+      expect(Math.abs(decodedMs - offsetMs - watchedMs)).toBeLessThan(
+        DRIFT_CEILING_MS,
+      );
       expect(decodedVideoMs(late.capture())).toBeGreaterThan(0);
     },
     TEST_TIMEOUT_MS,

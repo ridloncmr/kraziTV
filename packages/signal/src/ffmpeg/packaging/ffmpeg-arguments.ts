@@ -4,6 +4,8 @@ import {
 } from "@krazitv/process";
 
 import { SignalError } from "../../errors.js";
+import { JOIN_BACKLOG_MS } from "../join-backlog.js";
+import { VIDEO_PID } from "../mpeg-ts/mpeg-ts-packet-run.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 
 const VIDEO_FILTER =
@@ -15,6 +17,13 @@ const BLACK_TAIL_VIDEO_FILTER = "tpad=stop_mode=add:stop=-1:color=black";
 const SILENT_AUDIO_SOURCE = "anullsrc=channel_layout=stereo:sample_rate=48000";
 const BLACK_VIDEO_SOURCE = "color=c=black:s=1920x1080:r=30";
 
+// Drops frame lookahead, so output starts as soon as input is read at
+// wall-clock speed.
+const ZERO_LATENCY_TUNING = ["-tune", "zerolatency"] as const;
+// Encodes a burst fastest: input arrives at once, so lookahead costs nothing,
+// and zerolatency's sliced threading would halve the speed.
+const BURST_TUNING = ["-preset", "veryfast"] as const;
+
 type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
 type FillerItem = Extract<SignalPlayoutItem, { kind: "filler" }>;
 
@@ -23,14 +32,19 @@ interface FfmpegArgumentOptions {
   /** The font filler messages are drawn in; unset uses fontconfig's default. */
   fontFile?: string | undefined;
   /**
-   * Drops x264's frame lookahead for a program. Set for a session's first
-   * process, which a tune request waits on: under `-re` pacing, lookahead
-   * held first output for about 1.8 s of the server's 2 s startup timeout,
-   * so Plex tunes failed whenever a start ran slightly slow. A prepared
-   * process keeps lookahead, because its lead hides the startup and a faster
-   * start would only hold more output ahead of the clock (ADR 0016).
+   * Marks a session's first process, which a tune request waits on and its
+   * first viewer joins. A program without a black tail starts up to the join
+   * backlog earlier in its media and bursts that span, so the first viewer
+   * gets the backlog later joiners replay (ADR 0018) while the live edge
+   * stays on schedule. The tune waits until the burst is encoded, so a
+   * bursting process uses x264's `veryfast` preset, which encoded it in
+   * 2.6 s rather than 4.5 s on the reference machine. A first process with
+   * nothing to burst drops x264's frame lookahead instead: under `-re`
+   * pacing, lookahead held first output for about 1.8 s. A prepared process
+   * keeps the defaults and no burst, because its lead hides the startup and
+   * the retained signal already holds the backlog (ADR 0016).
    */
-  zeroLatency?: boolean;
+  startsSession?: boolean;
 }
 
 /** Validates one selected item and expresses the MVP packaging policy as argv. */
@@ -43,10 +57,22 @@ export function buildFfmpegArguments(
     : programArguments(item, options);
 }
 
+/**
+ * How much media before its offset a session's first process bursts, so its
+ * first viewer joins with the backlog later viewers replay (ADR 0018): up to
+ * the join backlog, never before the media's start. Filler and black tails
+ * are paced by real-time filters from their first frame, which would undo a
+ * burst, so they start with none.
+ */
+export function sessionBacklogMs(item: SignalPlayoutItem): number {
+  if (item.kind === "filler" || item.blackTailMs > 0) return 0;
+  return Math.min(JOIN_BACKLOG_MS, item.mediaOffsetMs);
+}
+
 /** Packages a program from its media, generating any stream it lacks. */
 function programArguments(
   item: ProgramItem,
-  { zeroLatency = false }: FfmpegArgumentOptions,
+  { startsSession = false }: FfmpegArgumentOptions,
 ): readonly string[] {
   const invalidField = findInvalidField(item);
   if (invalidField !== undefined) {
@@ -68,6 +94,7 @@ function programArguments(
     ? "0:v:0"
     : `${inputIndex(BLACK_VIDEO_SOURCE)}:v:0`;
   const hasBlackTail = item.blackTailMs > 0;
+  const backlogMs = startsSession ? sessionBacklogMs(item) : 0;
 
   return [
     "-hide_banner",
@@ -75,8 +102,11 @@ function programArguments(
     "-loglevel",
     "warning",
     "-re",
+    ...(backlogMs > 0
+      ? ["-readrate_initial_burst", millisecondsToDecimalSeconds(backlogMs)]
+      : []),
     "-ss",
-    millisecondsToDecimalSeconds(item.mediaOffsetMs),
+    millisecondsToDecimalSeconds(item.mediaOffsetMs - backlogMs),
     // A black tail stops the media read at its span so the output can run on.
     ...(hasBlackTail
       ? ["-t", millisecondsToDecimalSeconds(item.playDurationMs)]
@@ -85,13 +115,20 @@ function programArguments(
     item.mediaPath,
     ...generatedSources.flatMap((source) => ["-f", "lavfi", "-i", source]),
     "-t",
-    millisecondsToDecimalSeconds(item.playDurationMs + item.blackTailMs),
+    millisecondsToDecimalSeconds(
+      backlogMs + item.playDurationMs + item.blackTailMs,
+    ),
     "-map",
     videoStream,
     "-map",
     audioStream,
     ...encodedOutput({
-      zeroLatency: zeroLatency || hasBlackTail,
+      encoderTuning:
+        backlogMs > 0
+          ? BURST_TUNING
+          : startsSession || hasBlackTail
+            ? ZERO_LATENCY_TUNING
+            : [],
       videoFilter: hasBlackTail
         ? `${VIDEO_FILTER},${BLACK_TAIL_VIDEO_FILTER}`
         : VIDEO_FILTER,
@@ -155,7 +192,7 @@ function fillerArguments(
     "-map",
     "1:a:0",
     ...encodedOutput({
-      zeroLatency: true,
+      encoderTuning: ZERO_LATENCY_TUNING,
       videoFilter: `drawtext=${drawtext}`,
       audioFilter: "arealtime",
     }),
@@ -168,18 +205,19 @@ function fillerArguments(
  * and PIDs across every FFmpeg process of a session.
  */
 function encodedOutput({
-  zeroLatency,
+  encoderTuning,
   videoFilter,
   audioFilter,
 }: {
-  zeroLatency: boolean;
+  /** x264 speed settings, which never change the stream layout. */
+  encoderTuning: readonly string[];
   videoFilter: string;
   audioFilter: string | undefined;
 }): string[] {
   return [
     "-c:v",
     "libx264",
-    ...(zeroLatency ? ["-tune", "zerolatency"] : []),
+    ...encoderTuning,
     "-pix_fmt",
     "yuv420p",
     "-r",
@@ -200,7 +238,7 @@ function encodedOutput({
     "-ac",
     "2",
     "-streamid",
-    "0:256",
+    `0:${VIDEO_PID}`,
     "-streamid",
     "1:257",
     "-mpegts_start_pid",

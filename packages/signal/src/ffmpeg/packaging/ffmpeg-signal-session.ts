@@ -49,6 +49,9 @@ type PreparedItem = {
 
 /** What a session needs from its packager to start and judge each item's FFmpeg process. */
 type FfmpegSignalSessionOptions = {
+  /** Decides when the first process makes the session ready for its first viewer. */
+  initialReadinessInspector: OutputReadinessInspector;
+  /** Decides when each prepared process is ready for its commit. */
   createReadinessInspector: () => OutputReadinessInspector;
   /** Validates an item by building its argv, then starts its FFmpeg process. */
   startProcess: (item: SignalPlayoutItem) => FfmpegProcess;
@@ -98,7 +101,13 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.rejectCompletion = completion.reject;
     void this.ready.catch(() => undefined);
     void this.completion.catch(() => undefined);
-    this.active = this.attach(process, initialItem, this.continuity, undefined);
+    this.active = this.attach(
+      process,
+      initialItem,
+      options.initialReadinessInspector,
+      this.continuity,
+      undefined,
+    );
   }
 
   /**
@@ -119,7 +128,13 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     );
     const prepared: PreparedItem = {
       handle: new FfmpegSignalPreparation(this, item),
-      binding: this.attach(process, item, held, held),
+      binding: this.attach(
+        process,
+        item,
+        this.options.createReadinessInspector(),
+        held,
+        held,
+      ),
     };
     this.preparation = prepared;
     return prepared.handle;
@@ -191,7 +206,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
 
   /**
    * Attaches packet forwarding to `sink` and observes one FFmpeg process as
-   * session-internal. The initial process settles the session's readiness. A
+   * session-internal, judging its readiness with `inspector`. The initial process settles the session's readiness. A
    * prepared one, holding its output in `held`, must produce usable output
    * within the readiness timeout of its start; a failure before its commit is
    * kept for that commit to report, and one after ends the session.
@@ -199,11 +214,11 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   private attach(
     process: FfmpegProcess,
     item: SignalPlayoutItem,
+    inspector: OutputReadinessInspector,
     sink: PacketSink,
     held: HeldOutput | undefined,
   ): ProcessBinding {
     const forwarder = new MpegTsPacketForwarder(process.output, sink);
-    const inspector = this.options.createReadinessInspector();
     const context = itemContext(item);
     let usableOutputSeen = false;
     let readinessTimer: ScheduledTask | undefined;

@@ -61,6 +61,7 @@ const createHarness = () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: clock,
+      clock: clock,
       logger: new RecordingLogger(),
       terminationGraceMs: 500,
       createReadinessInspector: () => new MarkerReadinessInspector(),
@@ -70,6 +71,7 @@ const createHarness = () => {
     transitionCoordinator: new InMemoryTransitionCoordinator(clock),
     prepareLeadMs: 2_000,
     startupTimeoutMs: 5_000,
+    recoveryTimeoutMs: 5_000,
     subscriberBufferLimitBytes: 1_024,
     retentionLimitBytes: 1_024,
     findJoinPoint: (retainedBytes) =>

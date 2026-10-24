@@ -39,6 +39,7 @@ const createHarness = () => {
     ffmpegPath: "ffmpeg",
     spawner,
     timers,
+    clock: timers,
     logger,
     createReadinessInspector: () => new MarkerReadinessInspector(),
   });
@@ -58,6 +59,7 @@ describe("FfmpegSignalPackager", () => {
             ffmpegPath: "ffmpeg",
             spawner: new FakeProcessSpawner(),
             timers: new FakeClock(),
+            clock: new FakeClock(),
             logger: new RecordingLogger(),
             itemReadinessTimeoutMs,
           }),
@@ -74,6 +76,7 @@ describe("FfmpegSignalPackager", () => {
           ffmpegPath: "",
           spawner,
           timers: new FakeClock(),
+          clock: new FakeClock(),
           logger: new RecordingLogger(),
         }),
     ).toThrow(/ffmpegPath must not be empty/);
@@ -98,6 +101,7 @@ describe("FfmpegSignalPackager", () => {
     const packager = new FfmpegSignalPackager({
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       ffmpegPath: "C:/tools/ffmpeg.exe",
       createReadinessInspector: () => new MarkerReadinessInspector(),
@@ -184,7 +188,7 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(false);
   });
 
-  it("tunes only the session's first process for low latency", async () => {
+  it("tunes only the session's first process for a fast start and the join backlog", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
@@ -194,6 +198,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -202,11 +207,47 @@ describe("FfmpegSignalPackager", () => {
     await session.prepare(initialItem({ scheduleEntryId: "entry-2" }));
 
     // A tune request waits on the first process; a prepared one has its lead.
-    expect(spawner.spawnCalls[0]?.args).toContain("zerolatency");
+    expect(spawner.spawnCalls[0]?.args).toContain("veryfast");
+    expect(spawner.spawnCalls[1]?.args).not.toContain("veryfast");
     expect(spawner.spawnCalls[1]?.args).not.toContain("zerolatency");
+    // Only the first process bursts the backlog its first viewer joins with.
+    expect(spawner.spawnCalls[0]?.args).toContain("-readrate_initial_burst");
+    expect(spawner.spawnCalls[1]?.args).not.toContain(
+      "-readrate_initial_burst",
+    );
     const stopped = session.stop();
     first.exit({ code: null, signal: "SIGTERM" });
     second.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("holds a first viewer's readiness until the burst backlog is written", async () => {
+    const child = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(child);
+    const clock = new FakeClock();
+    const packager = new FfmpegSignalPackager({
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: clock,
+      clock,
+      logger: new RecordingLogger(),
+    });
+    // Three seconds in: a three-second burst ends on its fourth keyframe.
+    const session = packager.start(initialItem({ mediaOffsetMs: 3_000 }));
+    session.output.resume();
+    const ready = trackSettlement(session.ready);
+    const keyframe = transportPacket({ pid: 256, keyframe: true });
+
+    child.writeStdout(Buffer.concat([keyframe, keyframe, keyframe]));
+    await flushMicrotasks(2);
+    expect(ready.settled).toBe(false);
+
+    child.writeStdout(keyframe);
+    await flushMicrotasks(2);
+    expect(ready.settled).toBe(true);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
     await stopped;
   });
 
@@ -220,6 +261,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MpegTsReadinessInspector(),
     });
@@ -268,6 +310,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger,
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -316,6 +359,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MpegTsReadinessInspector(),
     });
@@ -355,6 +399,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -420,6 +465,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -435,6 +481,7 @@ describe("FfmpegSignalPackager", () => {
     );
 
     second.exit({ code: 1, signal: null });
+    await second.exited;
     await flushMicrotasks(2);
 
     expect(() => preparation.commit()).toThrowError(
@@ -454,6 +501,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MpegTsReadinessInspector(),
     });
@@ -490,6 +538,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       preparedOutputLimitBytes: 188 * 4,
       createReadinessInspector: () => new MpegTsReadinessInspector(),
@@ -524,6 +573,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -560,6 +610,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
+      clock: timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
       createReadinessInspector: () => new MarkerReadinessInspector(),
@@ -598,6 +649,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -642,6 +694,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
+      clock: new FakeClock(),
       logger,
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -685,6 +738,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
+      clock: timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
       createReadinessInspector: () => new MarkerReadinessInspector(),
@@ -741,6 +795,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
+      clock: timers,
       logger: new RecordingLogger(),
       itemReadinessTimeoutMs: 25,
       createReadinessInspector: () => new MarkerReadinessInspector(),
@@ -779,6 +834,7 @@ describe("FfmpegSignalPackager", () => {
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
+      clock: timers,
       logger: new RecordingLogger(),
       terminationGraceMs: 10,
       itemReadinessTimeoutMs: 100,

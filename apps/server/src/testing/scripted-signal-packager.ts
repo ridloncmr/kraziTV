@@ -18,10 +18,22 @@ export function transportPacket(pid: number): Buffer {
   return packet;
 }
 
-/** A PAT followed by two more packets: the smallest output a viewer can join. */
+/**
+ * Builds a video packet starting a keyframe, with the random-access flag
+ * FFmpeg sets, because a viewer can only join at a PAT before one.
+ */
+function videoKeyframePacket(): Buffer {
+  const packet = transportPacket(256);
+  packet[1] = (packet[1] ?? 0) | 0x40;
+  packet[3] = 0x30;
+  packet.set([0x01, 0x40, 0x00, 0x00, 0x01], 4);
+  return packet;
+}
+
+/** A PAT, a video keyframe, and one more packet: the smallest joinable output. */
 export const JOINABLE_OUTPUT = Buffer.concat([
   transportPacket(0),
-  transportPacket(256),
+  videoKeyframePacket(),
   transportPacket(256),
 ]);
 

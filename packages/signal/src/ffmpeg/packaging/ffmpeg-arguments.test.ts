@@ -128,17 +128,72 @@ describe("buildFfmpegArguments", () => {
     expect(mappedStreams(args)).toEqual(["2:v:0", "1:a:0"]);
   });
 
-  it("drops encoder lookahead from a program only when asked", () => {
-    const zeroLatency = buildFfmpegArguments(item(), { zeroLatency: true });
-    const libx264 = zeroLatency.indexOf("libx264");
+  it("drops encoder lookahead from a session's first program when it has nothing to burst", () => {
+    const first = buildFfmpegArguments(item({ mediaOffsetMs: 0 }), {
+      startsSession: true,
+    });
+    const libx264 = first.indexOf("libx264");
 
-    expect(zeroLatency.slice(libx264 + 1, libx264 + 3)).toEqual([
+    expect(first.slice(libx264 + 1, libx264 + 3)).toEqual([
       "-tune",
       "zerolatency",
     ]);
-    expect(buildFfmpegArguments(item(), { zeroLatency: false })).toEqual(
+    expect(buildFfmpegArguments(item(), { startsSession: false })).toEqual(
       buildFfmpegArguments(item()),
     );
+  });
+
+  it("starts a session's first program the join backlog early and bursts it", () => {
+    const args = buildFfmpegArguments(item({ mediaOffsetMs: 62_345 }), {
+      startsSession: true,
+    });
+
+    expect(args.slice(4, 10)).toEqual([
+      "-re",
+      "-readrate_initial_burst",
+      "10.000",
+      "-ss",
+      "52.345",
+      "-i",
+    ]);
+    // The output runs the backlog longer, so it still ends at the boundary.
+    expect(args[args.indexOf("-map") - 1]).toBe("77.890");
+    // The tune waits on the burst, so it encodes fast, keeping lookahead.
+    const libx264 = args.indexOf("libx264");
+    expect(args.slice(libx264 + 1, libx264 + 3)).toEqual([
+      "-preset",
+      "veryfast",
+    ]);
+    expect(args).not.toContain("zerolatency");
+  });
+
+  it("bursts no further back than the start of the media", () => {
+    const args = buildFfmpegArguments(item({ mediaOffsetMs: 4_000 }), {
+      startsSession: true,
+    });
+
+    expect(args.slice(4, 9)).toEqual([
+      "-re",
+      "-readrate_initial_burst",
+      "4.000",
+      "-ss",
+      "0.000",
+    ]);
+    expect(args[args.indexOf("-map") - 1]).toBe("71.890");
+  });
+
+  it("starts a first program at its offset with no burst when there is nothing before it or it has a black tail", () => {
+    for (const first of [
+      item({ mediaOffsetMs: 0 }),
+      item({ playDurationMs: 4_000, blackTailMs: 6_500 }),
+    ]) {
+      const args = buildFfmpegArguments(first, { startsSession: true });
+
+      expect(args).not.toContain("-readrate_initial_burst");
+      expect(args[args.indexOf("-ss") + 1]).toBe(
+        (first.mediaOffsetMs / 1_000).toFixed(3),
+      );
+    }
   });
 
   it("reads only the media span and extends the output with a black tail", () => {
