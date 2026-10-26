@@ -38,13 +38,56 @@
   padding: 4px 10px;
   min-height: 26px;
   box-shadow: inset 1px 1px var(--xp-window-surface);
+  transition:
+    border-color var(--xp-duration-fast) ease,
+    box-shadow var(--xp-duration-fast) ease;
 }
-.program-page button:hover:not(:disabled) {
-  border-color: var(--xp-title-primary);
-  box-shadow: inset 0 0 0 1px var(--xp-selection);
+/* Hover highlights only where a pointer can hover; a tap leaves no sticky state. */
+@media (hover: hover) and (pointer: fine) {
+  .program-page button:hover:not(:disabled) {
+    border-color: var(--xp-title-primary);
+    box-shadow: inset 0 0 0 1px var(--xp-selection);
+  }
 }
-.program-page button:active:not(:disabled) {
+/*
+ * Pressed, a raised button sinks the moment the pointer goes down: its face
+ * darkens and shifts a pixel, as Luna's did. Flat controls drawn as links,
+ * tabs, menu commands, task links, or list rows have no face to sink.
+ */
+.program-page
+  button:active:not(
+    :disabled,
+    .text-button,
+    .tab-strip *,
+    .row-menu-list *,
+    .folder-list *,
+    .account-settings-tasks *
+  ) {
   background: var(--xp-control-bottom);
+  box-shadow: inset 1px 1px 3px
+    color-mix(in srgb, var(--xp-shadow) 25%, transparent);
+  translate: 1px 1px;
+}
+/*
+ * XP's focus marks: a field shows it in its border, and a button as a dotted
+ * rectangle inside its face, never a ring around either.
+ */
+.program-page
+  :is(
+    input:not([type="checkbox"], [type="radio"]),
+    select,
+    textarea
+  ):focus-visible {
+  outline: none;
+  border-color: var(--xp-focus);
+  box-shadow: inset 0 0 0 1px var(--xp-focus);
+}
+.program-page button:focus-visible {
+  outline: 1px dotted var(--xp-text);
+  outline-offset: -4px;
+}
+.program-page .text-button:focus-visible {
+  outline-offset: 1px;
 }
 .program-page button:disabled {
   opacity: 0.55;
@@ -282,9 +325,17 @@
   margin-top: 0;
   padding-top: 8px;
 }
-/* A list refreshing in place dims instead of announcing a status line, so its layout and scroll position hold still. */
+/*
+ * A list refreshing in place dims instead of announcing a status line, so its
+ * layout and scroll position hold still. The dim waits long enough that a
+ * quick reload never flickers, and lifts at once when the rows arrive.
+ */
+.table-scroll {
+  transition: opacity var(--xp-duration-fast) ease;
+}
 .table-scroll[aria-busy="true"] {
   opacity: 0.6;
+  transition-delay: 200ms;
 }
 /* Checkboxes and radios keep their native size inside full-width form controls. */
 .program-page input[type="checkbox"],
@@ -357,6 +408,12 @@
   place-items: center;
   padding: 12px;
   background: color-mix(in srgb, var(--xp-shadow) 25%, transparent);
+  transition: background-color var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .window-dialog-layer {
+    background-color: transparent;
+  }
 }
 .window-dialog-layer:empty {
   display: none;
@@ -381,6 +438,16 @@
   border-radius: 6px 6px 0 0;
   background: var(--xp-menu-surface);
   box-shadow: 1px 3px 8px color-mix(in srgb, var(--xp-shadow) 40%, transparent);
+  /* Settles into place from slightly smaller; a modal keeps a centered origin. */
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .window-dialog {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 .window-dialog:focus {
   outline: none;
@@ -550,14 +617,17 @@
   height: 100%;
   width: calc(var(--progress, 0) * 100%);
 }
-/* Indeterminate progress runs a group of three blocks across the track and back. */
+/* Indeterminate progress marquees a group of three blocks across the track one way, as the boot screen's does. */
 .segmented-progress:not([aria-valuenow]) .segmented-progress-fill {
   width: calc(2 * var(--xp-progress-pitch) + var(--xp-progress-block));
-  animation: segmented-progress-sweep 2s ease-in-out infinite alternate;
+  animation: segmented-progress-sweep 1.6s linear infinite;
 }
 @keyframes segmented-progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
   to {
-    transform: translateX(calc(100cqw - 100%));
+    transform: translateX(100cqw);
   }
 }
 /* Sized for the dialog, and shrinks with a narrow window. */
@@ -619,12 +689,23 @@
     transform: rotate(15deg);
   }
 }
-/* Reduced motion keeps the paper at rest and shows a still, partial indeterminate bar. */
+/*
+ * Reduced motion keeps the paper at rest, shows a still, partial
+ * indeterminate bar, and lets dialogs fade in without growing.
+ */
 @media (prefers-reduced-motion: reduce) {
   .scan-animation.animating .scan-paper-x,
   .scan-animation.animating .scan-paper-y,
   .scan-animation.animating .scan-paper-tilt {
     animation: none;
+  }
+  .window-dialog {
+    transition-property: opacity;
+  }
+  @starting-style {
+    .window-dialog {
+      transform: none;
+    }
   }
   .segmented-progress:not([aria-valuenow]) .segmented-progress-fill {
     width: 40%;
@@ -721,6 +802,13 @@
   background: var(--xp-window-surface);
   color: var(--xp-text);
   box-shadow: 2px 2px 3px color-mix(in srgb, var(--xp-shadow) 35%, transparent);
+  /* Fades in as XP menus did, with no movement, so it still feels instant. */
+  transition: opacity var(--xp-duration-fast) ease;
+}
+@starting-style {
+  .row-menu-list {
+    opacity: 0;
+  }
 }
 .program-page .row-menu-list button {
   min-height: 0;

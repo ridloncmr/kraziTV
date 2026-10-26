@@ -56,10 +56,23 @@ button:disabled {
   font-size: 12px;
   line-height: 16px;
 }
-.desktop-shortcut:hover,
 .desktop-shortcut:focus {
   background: color-mix(in srgb, var(--xp-selection) 40%, transparent);
   border-color: var(--xp-selection);
+}
+/* Hover highlights only where a pointer can hover; a tap leaves no sticky state. */
+@media (hover: hover) and (pointer: fine) {
+  .desktop-shortcut:hover {
+    background: color-mix(in srgb, var(--xp-selection) 40%, transparent);
+    border-color: var(--xp-selection);
+  }
+  .window-controls button:hover {
+    filter: brightness(1.2);
+  }
+  .start-menu-footer button:hover {
+    border-color: var(--xp-window-surface);
+    background: var(--xp-taskbar-highlight);
+  }
 }
 .desktop-shortcut:focus-visible {
   outline-color: var(--xp-window-surface);
@@ -107,6 +120,17 @@ button:disabled {
   box-shadow:
     1px 3px 8px color-mix(in srgb, var(--xp-shadow) 40%, transparent),
     inset 1px 1px var(--xp-title-bright);
+  /* Opens and restores with XP's short zoom. At rest it has no transform, so
+     fixed-position menus inside it still measure against the viewport. */
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .app-window {
+    opacity: 0;
+    transform: scale(0.98);
+  }
 }
 .app-window[hidden] {
   display: none;
@@ -190,6 +214,10 @@ button:disabled {
   );
   box-shadow: inset 1px 1px 2px var(--xp-selection);
   text-shadow: 1px 1px var(--xp-shadow);
+  transition: filter var(--xp-duration-fast) ease;
+}
+.window-controls button:active {
+  filter: brightness(0.85);
 }
 .window-controls .close-control {
   background: linear-gradient(135deg, var(--xp-accent-orange), var(--xp-error));
@@ -206,9 +234,6 @@ button:disabled {
   width: 8px;
   height: 3px;
   background: var(--xp-window-surface);
-}
-.window-controls button:hover {
-  filter: brightness(1.2);
 }
 .inactive {
   border-color: var(--xp-title-inactive);
@@ -288,7 +313,10 @@ button:disabled {
   font:
     italic 700 20px Arial,
     sans-serif;
+  transition: filter var(--xp-duration-fast) ease;
 }
+/* Pressed, and while its menu is open, Start stays dimmed as XP's did. */
+.start-button:active,
 .start-button[aria-expanded="true"] {
   filter: brightness(0.85);
 }
@@ -320,6 +348,8 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The active program's button is sunken, and any button sinks while pressed. */
+.taskbar-programs button:active,
 .taskbar-programs button.task-active {
   background: var(--xp-taskbar-dark);
   box-shadow: inset 1px 1px 3px var(--xp-shadow);
@@ -370,6 +400,17 @@ button:disabled {
     color-mix(in srgb, var(--xp-shadow) 40%, transparent);
   background: var(--xp-window-surface);
   color: var(--xp-text);
+  /* Slides up from Start as XP's did; closing is instant, like XP's. */
+  transform-origin: bottom left;
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .start-menu {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 .start-menu-header {
   display: flex;
@@ -452,7 +493,7 @@ button:disabled {
   color: inherit;
   font: inherit;
 }
-.start-menu-footer button:hover,
+.start-menu-footer button:active,
 .start-menu-footer button:focus-visible {
   border-color: var(--xp-window-surface);
   background: var(--xp-taskbar-highlight);
@@ -466,6 +507,18 @@ button:disabled {
   place-items: center;
   padding: 16px;
   background: color-mix(in srgb, var(--xp-shadow) 45%, transparent);
+  /* The desktop drains to gray behind the confirmation, as XP's did. It is a
+     rare moment, so it takes a longer beat than any menu or dialog. */
+  backdrop-filter: grayscale(1);
+  transition:
+    opacity 250ms var(--xp-ease-out),
+    backdrop-filter 250ms var(--xp-ease-out);
+}
+@starting-style {
+  .log-off-layer {
+    opacity: 0;
+    backdrop-filter: grayscale(0);
+  }
 }
 .log-off-dialog {
   width: min(320px, 100%);
@@ -475,6 +528,12 @@ button:disabled {
   background: var(--xp-logon-middle);
   color: var(--xp-window-surface);
   box-shadow: 3px 4px 12px var(--xp-shadow);
+  transition: transform 250ms var(--xp-ease-out);
+}
+@starting-style {
+  .log-off-dialog {
+    transform: scale(0.97);
+  }
 }
 .log-off-dialog h2 {
   margin: 0;
@@ -587,9 +646,24 @@ button:disabled {
     transform: translateX(155px);
   }
 }
+/* Reduced motion keeps the fades, which say what appeared, and drops every movement. */
 @media (prefers-reduced-motion: reduce) {
   .boot-progress span {
     animation: none;
+  }
+  .app-window,
+  .start-menu,
+  .tray-balloon,
+  .log-off-dialog {
+    transition-property: opacity;
+  }
+  @starting-style {
+    .app-window,
+    .start-menu,
+    .tray-balloon,
+    .log-off-dialog {
+      transform: none;
+    }
   }
 }
 @media (max-width: 620px) {
@@ -622,6 +696,14 @@ button:disabled {
 .boot-failure p {
   margin: 0 0 12px;
   letter-spacing: normal;
+}
+/* Pressed, a plain XP button sinks: its face darkens and shifts a pixel. */
+.boot-failure button:active,
+.log-off-footer button:active {
+  background: var(--xp-control-bottom);
+  box-shadow: inset 1px 1px 3px
+    color-mix(in srgb, var(--xp-shadow) 25%, transparent);
+  translate: 1px 1px;
 }
 /* Retry and the Log Off confirmation's Cancel share one plain XP button. */
 .boot-failure button,
@@ -676,6 +758,16 @@ button:disabled {
   white-space: normal;
   overflow-wrap: break-word;
   z-index: 1000;
+  /* Rises from the tray as XP balloons did. */
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .tray-balloon {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 /* The title stops short of the close button instead of running under it. */
 .tray-balloon strong {

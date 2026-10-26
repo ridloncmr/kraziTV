@@ -183,6 +183,12 @@
   opacity: 0.6;
   cursor: default;
 }
+/* Pressed, the green button sinks a pixel like every XP button. */
+.logon-go:active:not(:disabled),
+.logon-setup button:active:not(:disabled) {
+  filter: brightness(0.9);
+  translate: 1px 1px;
+}
 /* A balloon tip below the box, its tail pointing up at it. */
 .logon-balloon {
   position: absolute;
