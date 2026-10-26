@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { displayCount } from "../../controls/display-count.js";
 import {
   CatalogFilterDialog,
   keysInUse,
@@ -142,7 +143,7 @@ export function CatalogPicker({
           disabled={total === 0 || matches.pending}
           onClick={addAllMatches}
         >
-          Add all ({total})
+          Add all ({displayCount(total)})
         </button>
         <button
           disabled={picked.size === 0}

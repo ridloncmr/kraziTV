@@ -1,4 +1,5 @@
 import { useRef, type RefObject } from "react";
+import { displayCount } from "./display-count.js";
 
 /**
  * Moves through a server-paged list; the server's total, not the loaded rows, sets the bounds. Its buttons never submit a form it sits in.
@@ -37,7 +38,7 @@ export function Pager({
         Previous
       </button>
       <span>
-        {first}–{last} of {total}
+        {displayCount(first)}–{displayCount(last)} of {displayCount(total)}
       </span>
       <button
         type="button"

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { displayCount } from "../../controls/display-count.js";
 import { displayDuration } from "../../controls/display-duration.js";
 import { withIds } from "../../controls/id-selection.js";
 import { Pager } from "../../controls/pager.js";
@@ -71,7 +72,7 @@ export function MemberList({
 
   return (
     <fieldset className="collection-pane">
-      <legend>Members ({members.length})</legend>
+      <legend>Members ({displayCount(members.length)})</legend>
       <label className="search-field">
         Filter members
         <input

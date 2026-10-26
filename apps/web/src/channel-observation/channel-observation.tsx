@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { displayTime } from "../controls/display-time.js";
+import { displayDuration } from "../controls/display-duration.js";
+import { displayTime, displayTimeRange } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
@@ -92,11 +93,17 @@ export function ChannelObservation({
                     <strong>{itemLabel(now.data.currentItem)}</strong>
                   </dd>
                   <dt>Playback offset</dt>
-                  <dd>{now.data.currentItem.offsetMs ?? "Unavailable"} ms</dd>
+                  <dd>
+                    {now.data.currentItem.offsetMs === undefined
+                      ? "Unavailable"
+                      : displayDuration(now.data.currentItem.offsetMs)}
+                  </dd>
                   <dt>Airtime</dt>
                   <dd>
-                    {displayTime(now.data.currentItem.startsAt)} –{" "}
-                    {displayTime(now.data.currentItem.endsAt)}
+                    {displayTimeRange(
+                      now.data.currentItem.startsAt,
+                      now.data.currentItem.endsAt,
+                    )}
                   </dd>
                   <dt>Next program</dt>
                   <dd>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { displayCount } from "../../controls/display-count.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { SegmentedProgressBar } from "../../controls/segmented-progress-bar.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
@@ -10,8 +11,6 @@ import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/resources/use-resource.js";
 import { ScanAnimation } from "./scan-animation.js";
 import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
-
-const counts = new Intl.NumberFormat("en-US");
 
 /** The codes a poll answers with once the server no longer holds the job. */
 const LOST_CODES = new Set(["scan_not_found", "media_root_not_found"]);
@@ -145,30 +144,30 @@ export function ScanProgressDialog({
           {polled.kind === "scan" && (
             <>
               <dt>Discovered</dt>
-              <dd>{counts.format(polled.summary.discoveredCount)}</dd>
+              <dd>{displayCount(polled.summary.discoveredCount)}</dd>
               <dt>Probed</dt>
-              <dd>{counts.format(polled.summary.probedCount)}</dd>
+              <dd>{displayCount(polled.summary.probedCount)}</dd>
               <dt>Probe failures</dt>
-              <dd>{counts.format(polled.summary.probeFailedCount)}</dd>
+              <dd>{displayCount(polled.summary.probeFailedCount)}</dd>
               <dt>Missing</dt>
-              <dd>{counts.format(polled.summary.missingCount)}</dd>
+              <dd>{displayCount(polled.summary.missingCount)}</dd>
             </>
           )}
           {polled.lookupCount > 0 && (
             <>
               <dt>Matched</dt>
-              <dd>{counts.format(polled.summary.matchedCount)}</dd>
+              <dd>{displayCount(polled.summary.matchedCount)}</dd>
               <dt>Ambiguous</dt>
-              <dd>{counts.format(polled.summary.ambiguousCount)}</dd>
+              <dd>{displayCount(polled.summary.ambiguousCount)}</dd>
               <dt>Unmatched</dt>
-              <dd>{counts.format(polled.summary.unmatchedCount)}</dd>
+              <dd>{displayCount(polled.summary.unmatchedCount)}</dd>
               <dt>Lookup errors</dt>
-              <dd>{counts.format(polled.summary.lookupErrorCount)}</dd>
+              <dd>{displayCount(polled.summary.lookupErrorCount)}</dd>
             </>
           )}
         </dl>
       )}
-      {needChoice > 0 && <p>{counts.format(needChoice)} need your choice.</p>}
+      {needChoice > 0 && <p>{displayCount(needChoice)} need your choice.</p>}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
         {running ? (
@@ -242,8 +241,8 @@ function ScanProgress({ status }: { status: ScanStatus }) {
       />
       <p>
         {step
-          ? `${counts.format(step.done)} of ${counts.format(step.total)} ${step.unit}`
-          : `${counts.format(status.discoveredCount)} found`}
+          ? `${displayCount(step.done)} of ${displayCount(step.total)} ${step.unit}`
+          : `${displayCount(status.discoveredCount)} found`}
       </p>
     </>
   );

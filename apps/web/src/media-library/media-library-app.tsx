@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { displayCount } from "../controls/display-count.js";
 import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
@@ -211,7 +212,8 @@ export function MediaLibraryApp({
       </fieldset>
       <div className="sticky-list-header">
         <h2>
-          Cataloged media <small>({media.data?.total ?? 0})</small>
+          Cataloged media{" "}
+          <small>({displayCount(media.data?.total ?? 0)})</small>
         </h2>
         <label className="search-field">
           Find media
@@ -444,15 +446,15 @@ export function MediaLibraryApp({
 function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
   return (
     <>
-      {counts.matched} of {counts.items} matched
+      {displayCount(counts.matched)} of {displayCount(counts.items)} matched
       {counts.needsChoice > 0 && (
         <small className="secondary">
-          {counts.needsChoice} need your choice
+          {displayCount(counts.needsChoice)} need your choice
         </small>
       )}
       {counts.failedLookups > 0 && (
         <small className="secondary">
-          {counts.failedLookups} failed{" "}
+          {displayCount(counts.failedLookups)} failed{" "}
           {counts.failedLookups === 1 ? "lookup" : "lookups"}
         </small>
       )}
