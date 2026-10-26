@@ -1,29 +1,16 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import {
   displayClockTime,
-  displayDay,
   displayTimeRange,
-  isSameDay,
 } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type {
-  Channel,
-  ChannelState,
-  ScheduleWindow,
-} from "../http/contracts/channels.js";
+import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
-import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 
-/** Guide and monitor share API observations; offsets are never advanced by browser time. */
-export function ChannelObservation({
-  visible,
-  guide = false,
-}: {
-  visible: boolean;
-  guide?: boolean;
-}) {
+/** Live Monitor's view of one channel's current state; offsets are never advanced by browser time. */
+export function ChannelObservation({ visible }: { visible: boolean }) {
   const channels = useResource<Channel[]>("/channels", visible);
   const [selected, setSelected] = useState("");
   const path = selected ? resourcePath("channels", selected) : null;
@@ -32,16 +19,6 @@ export function ChannelObservation({
     visible,
     10_000,
   );
-  // The 24-hour window starts at now each time the program comes back into
-  // view, so a restored window shows today, not the day it was minimized on.
-  // Adjusted during render so the first visible paint already asks for it.
-  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
-  if (anchor.visible !== visible) {
-    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
-  }
-  const schedulePath =
-    selected && guide ? scheduleWindowPath(selected, anchor.startsAt) : null;
-  const schedule = useResource<ScheduleWindow>(schedulePath, visible);
   return (
     <>
       <div className="inline-form">
@@ -61,18 +38,17 @@ export function ChannelObservation({
           </select>
         </label>
         <button
-          disabled={now.loading || schedule.loading}
+          disabled={now.loading}
           onClick={() => {
             channels.refresh();
             now.refresh();
-            schedule.refresh();
           }}
         >
           Refresh
         </button>
       </div>
       <RequestFeedback
-        loading={channels.loading || now.loading || schedule.loading}
+        loading={channels.loading || now.loading}
         error={channels.error}
       />
       {channels.data?.length === 0 && (
@@ -126,54 +102,6 @@ export function ChannelObservation({
               </p>
             </fieldset>
           )}
-          {guide && (
-            <>
-              <h2>Coming up</h2>
-              <RequestFeedback error={schedule.error} />
-              {schedule.data && guideRows(schedule.data).length === 0 && (
-                <p className="empty-state">
-                  Nothing scheduled yet. Add shows to this channel in My
-                  Channels.
-                </p>
-              )}
-              {schedule.data && guideRows(schedule.data).length > 0 && (
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Start</th>
-                        <th>End</th>
-                        <th>Program</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {guideRows(schedule.data).map((row, index, rows) => (
-                        <Fragment key={row.key}>
-                          {/* A day heads its rows once, so each row carries only times. */}
-                          {(index === 0 ||
-                            !isSameDay(
-                              rows[index - 1].startsAt,
-                              row.startsAt,
-                            )) && (
-                            <tr className="day-row">
-                              <th colSpan={3} scope="rowgroup">
-                                {displayDay(row.startsAt)}
-                              </th>
-                            </tr>
-                          )}
-                          <tr>
-                            <td>{displayClockTime(row.startsAt)}</td>
-                            <td>{displayClockTime(row.endsAt)}</td>
-                            <td>{row.label}</td>
-                          </tr>
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
         </>
       )}
     </>
@@ -188,25 +116,4 @@ function itemLabel(item: NonNullable<ChannelState["currentItem"]>): string {
   return item.type === "filler"
     ? `Off air — programming resumes at ${item.resumeTime}`
     : item.title;
-}
-
-/**
- * Lists the guide's rows in time order: each scheduled program, and each
- * planned filler interval as Off air, which is coverage, not an entry.
- */
-function guideRows(window: ScheduleWindow) {
-  return [
-    ...window.entries.map((entry) => ({
-      key: entry.id,
-      startsAt: entry.startsAt,
-      endsAt: entry.endsAt,
-      label: entry.title,
-    })),
-    ...window.fillerIntervals.map((interval) => ({
-      key: `off-air-${interval.startsAt}`,
-      startsAt: interval.startsAt,
-      endsAt: interval.endsAt,
-      label: "Off air",
-    })),
-  ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }

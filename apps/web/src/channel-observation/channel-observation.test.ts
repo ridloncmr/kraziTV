@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -20,7 +14,7 @@ afterEach(() => {
 const at = (time: string) => `2026-10-05T${time}:00.000Z`;
 
 // Northwoods TV during planned filler before a movie reserved at 20:00.
-function guideApi() {
+function monitorApi() {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   api.reply("/channels/one/now", {
@@ -63,34 +57,18 @@ function guideApi() {
   return api;
 }
 
-// Opens the guide and chooses Northwoods TV.
-async function openGuide() {
-  render(createElement(ChannelObservation, { visible: true, guide: true }));
+// Opens the monitor and chooses Northwoods TV.
+async function openMonitor() {
+  render(createElement(ChannelObservation, { visible: true }));
   fireEvent.change(await screen.findByLabelText("Channel"), {
     target: { value: "one" },
   });
 }
 
-it("lists planned filler as an Off air row in time order among the programs", async () => {
-  guideApi();
-
-  await openGuide();
-
-  const table = await screen.findByRole("table");
-  const rows = within(table).getAllByRole("row").slice(1);
-  // The day heads its rows once; the program rows carry only times.
-  expect(within(table).getAllByRole("rowheader")).toHaveLength(1);
-  expect(
-    rows
-      .filter((row) => !row.classList.contains("day-row"))
-      .map((row) => within(row).getAllByRole("cell").at(2)?.textContent),
-  ).toEqual(["Episode Two", "Off air", "Reserved Movie"]);
-});
-
 it("reports Off air with the resume time the server worded while filler airs", async () => {
-  guideApi();
+  monitorApi();
 
-  await openGuide();
+  await openMonitor();
 
   expect(
     await screen.findByText("Off air — programming resumes at 8:00 PM"),

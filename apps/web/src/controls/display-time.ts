@@ -22,6 +22,12 @@ const dayFormat = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
 });
 
+const shortDayFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
 /** Formats an API instant as a time of day, for when something airing ends. */
 export function displayClockTime(value: string): string {
   return clockFormat.format(new Date(value));
@@ -35,6 +41,11 @@ export function displayTime(value: string): string {
 /** Names an instant's day, such as `Monday, October 26`, for a heading over that day's rows. */
 export function displayDay(value: string): string {
   return dayFormat.format(new Date(value));
+}
+
+/** Names an instant's day briefly, such as `Tue, Oct 27`, where a ruler has room for little. */
+export function displayShortDay(value: string): string {
+  return shortDayFormat.format(new Date(value));
 }
 
 /** Whether two API instants fall on one local calendar day. */

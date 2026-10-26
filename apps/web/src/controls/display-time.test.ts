@@ -3,6 +3,7 @@ import {
   displayClockTime,
   displayDay,
   displayListTime,
+  displayShortDay,
   displayTime,
   displayTimeRange,
   isSameDay,
@@ -50,6 +51,13 @@ it("names a day for a heading and tells one day from the next", () => {
     new Date(instant).toLocaleDateString(undefined, {
       weekday: "long",
       month: "long",
+      day: "numeric",
+    }),
+  );
+  expect(displayShortDay(instant)).toBe(
+    new Date(instant).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
       day: "numeric",
     }),
   );
