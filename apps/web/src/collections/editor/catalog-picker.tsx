@@ -107,7 +107,7 @@ export function CatalogPicker({
         if (page.total > page.items.length)
           setOverflow(
             new Error(
-              `${page.total} items match; narrow the search or filters to add them all at once.`,
+              `${displayCount(page.total)} items match; narrow the search or filters to add them all at once.`,
             ),
           );
         else add(page.items);

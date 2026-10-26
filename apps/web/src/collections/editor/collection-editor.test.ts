@@ -118,7 +118,7 @@ it("adds every match of the settled search and refuses a capped match list", asy
   );
   await waitFor(() => click("Add all (1)"));
   expect((await screen.findByRole("alert")).textContent).toMatch(
-    /5001 items match/,
+    /5,001 items match/,
   );
   expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]);
 });
