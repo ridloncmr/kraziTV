@@ -16,7 +16,7 @@ const INSTANT_WITHIN_MS = 500;
 let lastClosedAt = Number.NEGATIVE_INFINITY;
 
 /** Where the tip sits relative to its control; `taskbar` rises over a scrolling strip that would clip it. */
-export type TooltipPlacement = "below" | "above" | "above-end" | "taskbar";
+type TooltipPlacement = "below" | "above" | "above-end" | "taskbar";
 
 /**
  * An XP tool tip for a shell control: a small yellow note that appears after

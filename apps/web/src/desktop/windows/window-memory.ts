@@ -5,7 +5,7 @@ import type { DesktopWindow, ProgramId } from "../contracts.js";
 const STORAGE_KEY = "krazitv.windows";
 
 /** The placement a program's window reopens at: where it was, how big, and whether it was maximized. */
-export type WindowPlacement = Pick<
+type WindowPlacement = Pick<
   DesktopWindow,
   "x" | "y" | "width" | "height" | "maximized"
 >;
