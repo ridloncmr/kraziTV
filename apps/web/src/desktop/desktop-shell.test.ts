@@ -40,7 +40,10 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
   fireEvent.click(
     within(window).getByRole("button", { name: "Minimize Media Library" }),
   );
-  expect(screen.queryByRole("region", { name: "Media Library" })).toBeNull();
+  // The window stays for one beat while it shrinks toward the taskbar.
+  await waitFor(() =>
+    expect(screen.queryByRole("region", { name: "Media Library" })).toBeNull(),
+  );
   const taskbar = screen.getByRole("navigation", { name: "Open programs" });
   expect(within(taskbar).getAllByRole("button")).toHaveLength(1);
   fireEvent.click(

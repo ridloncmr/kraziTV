@@ -132,6 +132,12 @@ button:disabled {
     transform: scale(0.98);
   }
 }
+/* Minimizing, the window shrinks toward its taskbar button, then hides. */
+.app-window.minimizing {
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+}
 .app-window[hidden] {
   display: none;
 }
@@ -674,6 +680,9 @@ button:disabled {
   .tray-balloon,
   .log-off-dialog {
     transition-property: opacity;
+  }
+  .app-window.minimizing {
+    transform: none;
   }
   @starting-style {
     .app-window,

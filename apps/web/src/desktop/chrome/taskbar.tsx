@@ -87,6 +87,7 @@ export function Taskbar({
                 aria-pressed={activeId === window.id}
                 onClick={() => dispatch({ type: "focus", id: window.id })}
                 title={name}
+                data-taskbar-window={window.id}
               >
                 <DesktopProgramIcon
                   program={window.id}
