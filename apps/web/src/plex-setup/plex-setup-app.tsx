@@ -31,9 +31,6 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
       <div className="program-toolbar">
         <button onClick={setup.refresh}>Refresh</button>
       </div>
-      <p className="program-intro">
-        Bring your kraziTV channels into Plex Live TV.
-      </p>
       <RequestFeedback
         loading={setup.loading}
         error={setup.error}

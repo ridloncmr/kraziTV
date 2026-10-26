@@ -4,9 +4,6 @@ import { ChannelObservation } from "../channel-observation/channel-observation.j
 export function ProgramGuideApp({ visible }: { visible: boolean }) {
   return (
     <div className="program-page">
-      <p className="program-intro">
-        Upcoming programming and current channel state, as reported by kraziTV.
-      </p>
       <ChannelObservation visible={visible} guide />
     </div>
   );

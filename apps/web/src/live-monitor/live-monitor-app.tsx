@@ -13,10 +13,6 @@ export function LiveMonitorApp({
       <p className="info-strip" role="status">
         {connection}
       </p>
-      <p className="program-intro">
-        Inspect a channel's current and next media and server-reported playback
-        offset.
-      </p>
       <ChannelObservation visible={visible} />
     </div>
   );
