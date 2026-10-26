@@ -187,7 +187,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
           <table>
             <thead>
               <tr>
-                <th>Number</th>
+                <th className="narrow-column">Number</th>
                 <th>Channel</th>
                 <th aria-label="Actions" />
               </tr>
@@ -199,7 +199,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                   className={`clickable-row${channel.id === selected ? " selected-row" : ""}`}
                   {...rowClickProps(() => setSelected(channel.id))}
                 >
-                  <td>{channel.number}</td>
+                  <td className="narrow-column">{channel.number}</td>
                   <td>
                     <button
                       className="text-button"

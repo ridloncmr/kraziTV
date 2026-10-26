@@ -37,7 +37,12 @@ export function GeneralTab({
       >
         <label>
           Number
-          <input name="number" defaultValue={channel.number} required />
+          <input
+            name="number"
+            inputMode="decimal"
+            defaultValue={channel.number}
+            required
+          />
         </label>
         <label>
           Name

@@ -125,8 +125,38 @@
   gap: 8px;
   margin: 8px 0;
 }
+/*
+ * A form row never stretches across a maximized window: a text field grows
+ * to a sentence's width at most, and a field for a number, a time, or a
+ * date takes only the width its value needs, as XP forms did.
+ */
 .inline-form label {
   flex: 1 1 160px;
+  max-width: 320px;
+}
+.inline-form
+  label:has(
+    input[type="number"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[inputmode="decimal"]
+  ) {
+  flex: none;
+}
+.program-page input[type="number"],
+.program-page input[inputmode="decimal"] {
+  width: 7em;
+}
+.program-page input[type="time"] {
+  width: 8em;
+}
+.program-page input[type="datetime-local"] {
+  width: 15em;
+}
+/* A column whose values are all short, such as a channel number, takes only their width. */
+.program-page .narrow-column {
+  width: 1%;
+  white-space: nowrap;
 }
 .row-actions {
   display: flex;
@@ -311,8 +341,9 @@
 .list-toolbar > .row-actions {
   margin-left: auto;
 }
-/* Spaces the search from the grid even when no pager sits between them. */
+/* Spaces the search from the grid even when no pager sits between them, at a search box's width rather than the window's. */
 .search-field {
+  max-width: 420px;
   margin-bottom: 6px;
 }
 /*

@@ -39,7 +39,12 @@ export function CreateChannelDialog({
           <div className="inline-form">
             <label>
               Channel number
-              <input name="number" required placeholder="69 or 69.1" />
+              <input
+                name="number"
+                inputMode="decimal"
+                required
+                placeholder="69 or 69.1"
+              />
             </label>
             <label>
               Channel name
