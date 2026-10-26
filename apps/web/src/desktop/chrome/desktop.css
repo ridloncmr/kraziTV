@@ -73,6 +73,13 @@ button:disabled {
     border-color: var(--xp-window-surface);
     background: var(--xp-taskbar-highlight);
   }
+  .start-menu-programs button:hover {
+    background: var(--xp-title-primary);
+    color: var(--xp-window-surface);
+  }
+  .log-off-choice:hover:not(:disabled) {
+    border-color: var(--xp-window-surface);
+  }
 }
 .desktop-shortcut:focus-visible {
   outline-color: var(--xp-window-surface);
@@ -487,7 +494,6 @@ button:disabled {
   text-align: left;
   color: inherit;
 }
-.start-menu-programs button:hover,
 .start-menu-programs button:focus {
   background: var(--xp-title-primary);
   color: var(--xp-window-surface);
@@ -582,7 +588,6 @@ button:disabled {
   color: inherit;
   font: 12px var(--xp-font-ui);
 }
-.log-off-choice:hover:not(:disabled),
 .log-off-choice:focus-visible {
   border-color: var(--xp-window-surface);
 }

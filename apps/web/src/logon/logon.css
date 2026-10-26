@@ -115,10 +115,15 @@
   box-shadow: 0 0 0 2px transparent;
   transition: box-shadow 0.12s;
 }
-.logon-account-tile:hover .account-picture,
 .logon-account-tile:focus-visible .account-picture,
 .logon-account.open .account-picture {
   box-shadow: 0 0 0 2px var(--xp-logon-picture-ring);
+}
+/* The ring answers a pointer's hover only where one can hover; a tap opens the tile instead. */
+@media (hover: hover) and (pointer: fine) {
+  .logon-account-tile:hover .account-picture {
+    box-shadow: 0 0 0 2px var(--xp-logon-picture-ring);
+  }
 }
 .logon-account-tile:focus-visible {
   outline: 1px dotted var(--xp-window-surface);
