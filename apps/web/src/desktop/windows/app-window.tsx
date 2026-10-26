@@ -1,12 +1,14 @@
 import {
   useEffect,
   useRef,
+  useState,
   type Dispatch,
   type PointerEvent,
   type ReactNode,
 } from "react";
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { WindowDialogFrame } from "../../controls/window-dialog.js";
+import { WindowStatusSlot } from "../../controls/window-status.js";
 import type {
   DesktopViewport,
   DesktopWindow,
@@ -61,6 +63,8 @@ export function AppWindow({
 }) {
   const frame = useRef<HTMLElement>(null);
   const title = useRef<HTMLDivElement>(null);
+  // Where the program's pending requests show, once the status bar exists.
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   const gesture = useRef<{
     apply: (a: number, b: number) => void;
     x: number;
@@ -210,8 +214,13 @@ export function AppWindow({
           </button>
         </span>
       </div>
-      <WindowDialogFrame>{children}</WindowDialogFrame>
-      <div className="window-status">kraziTV · {program.description}</div>
+      <WindowStatusSlot.Provider value={statusSlot}>
+        <WindowDialogFrame>{children}</WindowDialogFrame>
+      </WindowStatusSlot.Provider>
+      <div className="window-status">
+        <span>kraziTV · {program.description}</span>
+        <span ref={setStatusSlot} className="window-status-working" />
+      </div>
       {!window.maximized && (
         <div
           className="resize-grip"

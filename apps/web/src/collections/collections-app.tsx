@@ -51,7 +51,6 @@ export function CollectionsApp({
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Collections</span>
         <div className="row-actions">
           <button onClick={refreshWindow}>Refresh</button>
         </div>

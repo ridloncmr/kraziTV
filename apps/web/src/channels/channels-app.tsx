@@ -85,7 +85,6 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>My Channels</span>
         <div className="row-actions">
           <button onClick={() => setCreating(true)}>New channel…</button>
           <button onClick={refreshWindow}>Refresh</button>

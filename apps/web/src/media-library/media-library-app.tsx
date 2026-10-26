@@ -99,7 +99,6 @@ export function MediaLibraryApp({
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Media Library</span>
         <div className="row-actions">
           <button onClick={() => setAdding(true)}>Add media root…</button>
           <button onClick={refreshWindow}>Refresh</button>

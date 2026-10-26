@@ -264,11 +264,29 @@ button:disabled {
   background: var(--xp-menu-surface);
 }
 .window-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   padding: 4px 7px;
   border-top: 1px solid var(--xp-border);
   color: var(--xp-muted);
   font-size: 11px;
   background: var(--xp-menu-surface);
+}
+/*
+ * A program's pending requests report here, as XP status bars did, so the
+ * content above never shifts. Several at once read as one, and the pointer
+ * says the window is working wherever it rests.
+ */
+.window-status-working p {
+  margin: 0;
+  white-space: nowrap;
+}
+.window-status-working p + p {
+  display: none;
+}
+.app-window:has(.window-status-working p) {
+  cursor: progress;
 }
 .taskbar {
   height: var(--xp-taskbar-height);

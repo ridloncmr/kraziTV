@@ -10,7 +10,6 @@ export function LiveMonitorApp({
 }) {
   return (
     <div className="program-page">
-      <div className="program-toolbar">Live Monitor</div>
       <p className="info-strip" role="status">
         {connection}
       </p>

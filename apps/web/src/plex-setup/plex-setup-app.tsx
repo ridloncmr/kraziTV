@@ -29,7 +29,6 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Plex Setup</span>
         <button onClick={setup.refresh}>Refresh</button>
       </div>
       <p className="program-intro">

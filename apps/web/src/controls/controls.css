@@ -2,10 +2,10 @@
   padding: 0 12px 12px;
   font-size: 12px;
 }
+/* A program's commands in a bar under the title, as XP toolbars sat; the title bar already names the program. */
 .program-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin: 0 -12px 12px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--xp-border);
