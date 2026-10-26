@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { displayDuration } from "../../controls/display-duration.js";
 import { withIds } from "../../controls/id-selection.js";
 import { Pager } from "../../controls/pager.js";
@@ -23,6 +23,7 @@ export function MemberList({
 }) {
   const [filter, setFilter] = useState("");
   const [offset, setOffset] = useState(0);
+  const list = useRef<HTMLDivElement>(null);
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState("");
   const needle = filter.trim().toLowerCase();
@@ -144,6 +145,7 @@ export function MemberList({
         offset={offset}
         limit={PAGE_SIZE}
         total={shown.length}
+        list={list}
         onChange={setOffset}
       />
       {members.length === 0 && (
@@ -155,7 +157,7 @@ export function MemberList({
         <p className="empty-state">No members match this filter.</p>
       )}
       {page.length > 0 && (
-        <div className="table-scroll">
+        <div ref={list} className="table-scroll">
           <table>
             <thead>
               <tr>

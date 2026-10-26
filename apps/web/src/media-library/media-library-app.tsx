@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
 import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
@@ -52,6 +52,7 @@ export function MediaLibraryApp({
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
   const filtersInUse = keysInUse(filter);
   const [filtering, setFiltering] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
     "/metadata/match-reviews",
@@ -240,6 +241,7 @@ export function MediaLibraryApp({
               offset={media.offset}
               limit={PAGE_SIZE}
               total={media.data.total}
+              list={list}
               onChange={media.setOffset}
             />
           )}
@@ -271,7 +273,7 @@ export function MediaLibraryApp({
         </p>
       )}
       {media.data && media.data.items.length > 0 && (
-        <div className="table-scroll" aria-busy={media.loading}>
+        <div ref={list} className="table-scroll" aria-busy={media.loading}>
           <table>
             <thead>
               <tr>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CatalogFilterDialog,
   keysInUse,
@@ -37,6 +37,7 @@ export function CatalogPicker({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const [filtering, setFiltering] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
   const filtersInUse = keysInUse(filter);
   // Only the filter dialog lists media roots, so they are read while it is open.
   const roots = useResource<MediaRoot[]>(
@@ -159,6 +160,7 @@ export function CatalogPicker({
           offset={results.offset}
           limit={PAGE_SIZE}
           total={total}
+          list={list}
           onChange={results.setOffset}
         />
       )}
@@ -174,7 +176,7 @@ export function CatalogPicker({
         </p>
       )}
       {items.length > 0 && (
-        <div className="table-scroll" aria-busy={results.loading}>
+        <div ref={list} className="table-scroll" aria-busy={results.loading}>
           <table>
             <thead>
               <tr>

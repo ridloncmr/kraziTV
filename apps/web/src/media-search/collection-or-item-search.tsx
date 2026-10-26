@@ -54,6 +54,7 @@ export function CollectionOrItemSearch({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const [filtering, setFiltering] = useState(false);
+  const list = useRef<HTMLUListElement>(null);
   const items = useMediaItemPage(
     search,
     ITEM_LIMIT,
@@ -152,6 +153,7 @@ export function CollectionOrItemSearch({
               offset={items.offset}
               limit={ITEM_LIMIT}
               total={items.data.total}
+              list={list}
               onChange={items.setOffset}
             />
           )}
@@ -168,6 +170,7 @@ export function CollectionOrItemSearch({
         />
       )}
       <ul
+        ref={list}
         aria-label="Search results"
         aria-busy={kind === "items" && items.loading}
         className="checkbox-list"
