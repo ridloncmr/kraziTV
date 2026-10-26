@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps } from "../controls/row-click.js";
+import { RowMenu } from "../controls/row-menu.js";
 import { WindowDialog } from "../controls/window-dialog.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
@@ -82,6 +83,33 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
   const selectedChannel = displayedChannels?.find(
     (channel) => channel.id === selected,
   );
+  /** One channel's lifecycle commands, shared by its row menu and the buttons under the grid. */
+  const actionsFor = (channel: Channel) => {
+    const blocked = mutation.pending || lifecycleRetryPending(channel.id);
+    return {
+      toggle: {
+        label: channel.enabled ? "Disable" : "Enable",
+        disabled: blocked,
+        onSelect: () => {
+          void mutation.run(
+            resourcePath("channels", channel.id),
+            "PATCH",
+            { enabled: !channel.enabled },
+            () => {
+              if (channel.enabled) cleanup.settle(channel.id, "disable");
+              channels.refresh();
+            },
+          );
+        },
+      },
+      remove: {
+        label: "Delete…",
+        disabled: blocked,
+        onSelect: () => setDeleting({ channel, attempted: false }),
+      },
+    };
+  };
+  const selectedActions = selectedChannel && actionsFor(selectedChannel);
   return (
     <div className="program-page">
       <div className="program-toolbar">
@@ -162,7 +190,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                 <th>Number</th>
                 <th>Channel</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -183,42 +211,31 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                   </td>
                   <td>{channel.enabled ? "Enabled" : "Disabled"}</td>
                   <td>
-                    <div className="row-actions">
-                      <button
-                        disabled={
-                          mutation.pending || lifecycleRetryPending(channel.id)
-                        }
-                        onClick={() => {
-                          void mutation.run(
-                            resourcePath("channels", channel.id),
-                            "PATCH",
-                            { enabled: !channel.enabled },
-                            () => {
-                              if (channel.enabled)
-                                cleanup.settle(channel.id, "disable");
-                              channels.refresh();
-                            },
-                          );
-                        }}
-                      >
-                        {channel.enabled ? "Disable" : "Enable"}
-                      </button>
-                      <button
-                        disabled={
-                          mutation.pending || lifecycleRetryPending(channel.id)
-                        }
-                        onClick={() =>
-                          setDeleting({ channel, attempted: false })
-                        }
-                      >
-                        Delete…
-                      </button>
-                    </div>
+                    <RowMenu
+                      label={`Actions for ${channel.name}`}
+                      items={Object.values(actionsFor(channel))}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {displayedChannels && displayedChannels.length > 0 && (
+        <div className="row-actions">
+          <button
+            disabled={!selectedActions || selectedActions.toggle.disabled}
+            onClick={selectedActions?.toggle.onSelect}
+          >
+            {selectedActions?.toggle.label ?? "Disable"}
+          </button>
+          <button
+            disabled={!selectedActions || selectedActions.remove.disabled}
+            onClick={selectedActions?.remove.onSelect}
+          >
+            Delete…
+          </button>
         </div>
       )}
       {creating && (

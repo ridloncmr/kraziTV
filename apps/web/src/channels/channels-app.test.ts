@@ -21,6 +21,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Selects the named channel's row, which the buttons under the grid act on.
+async function selectChannel(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name }));
+}
+
 it("keeps a saved delete absent and retries cleanup on the same ID", async () => {
   const api = new BrowserApi();
   api.reply("/channels", [adminFixtures.channels[0]]);
@@ -52,7 +57,8 @@ it("keeps a saved delete absent and retries cleanup on the same ID", async () =>
   );
   vi.stubGlobal("fetch", api.fetch);
   const view = render(createElement(ChannelsApp, { visible: true }));
-  fireEvent.click(await screen.findByRole("button", { name: "Delete…" }));
+  await selectChannel("Northwoods TV");
+  fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Delete channel permanently" }),
   );
@@ -100,7 +106,8 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
   );
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ChannelsApp, { visible: true }));
-  fireEvent.click(await screen.findByRole("button", { name: "Enable" }));
+  await selectChannel("Northwoods TV");
+  fireEvent.click(screen.getByRole("button", { name: "Enable" }));
   await screen.findByText("Channel remains disabled. Re-enable was not saved.");
   api.reply(
     "/channels/one",
@@ -182,7 +189,8 @@ it("opens a delete confirmation without an earlier action's error", async () => 
   );
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ChannelsApp, { visible: true }));
-  fireEvent.click(await screen.findByRole("button", { name: "Disable" }));
+  await selectChannel("Northwoods TV");
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
   await screen.findByText("Disable failed");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
@@ -205,9 +213,37 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   fireEvent.click(await screen.findByText("70"));
   expect(selected("Second channel")).toBe(true);
 
-  fireEvent.click(screen.getAllByRole("button", { name: "Disable" })[0]);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Actions for Northwoods TV" }),
+  );
   expect(selected("Northwoods TV")).toBe(false);
   expect(selected("Second channel")).toBe(true);
+});
+
+it("offers Disable and Delete from a row's menu, and for the selected row under the grid", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", adminFixtures.channels);
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelsApp, { visible: true }));
+  const under = (name: string) => screen.getByRole("button", { name });
+
+  await screen.findByRole("button", { name: "Northwoods TV" });
+  expect(under("Disable")).toHaveProperty("disabled", true);
+  expect(under("Delete…")).toHaveProperty("disabled", true);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Actions for Northwoods TV" }),
+  );
+  expect(
+    screen.getAllByRole("menuitem").map((item) => item.textContent),
+  ).toEqual(["Disable", "Delete…"]);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+
+  await selectChannel("Northwoods TV");
+  expect(under("Disable")).toHaveProperty("disabled", false);
+  fireEvent.click(under("Delete…"));
+  expect(
+    screen.getByRole("dialog", { name: "Delete channel" }).textContent,
+  ).toContain("Northwoods TV");
 });
 
 // The tab names the selected channel's property sheet shows.
