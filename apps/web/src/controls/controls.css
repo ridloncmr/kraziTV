@@ -204,6 +204,14 @@
   min-width: 120px;
   max-width: 320px;
 }
+/* A day's heading over its rows in a guide, so each row carries only times. */
+.program-page .day-row th {
+  padding: 4px 8px;
+  background: var(--xp-menu-surface);
+  border-bottom: 1px solid var(--xp-border);
+  font-weight: bold;
+  text-align: left;
+}
 /* Rows wired through rowClickProps show they act on a click anywhere. */
 .clickable-row {
   cursor: pointer;

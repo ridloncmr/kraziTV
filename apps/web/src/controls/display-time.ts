@@ -16,6 +16,12 @@ const clockFormat = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
+const dayFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
 /** Formats an API instant as a time of day, for when something airing ends. */
 export function displayClockTime(value: string): string {
   return clockFormat.format(new Date(value));
@@ -26,19 +32,40 @@ export function displayTime(value: string): string {
   return instantFormat.format(new Date(value));
 }
 
+/** Names an instant's day, such as `Monday, October 26`, for a heading over that day's rows. */
+export function displayDay(value: string): string {
+  return dayFormat.format(new Date(value));
+}
+
+/** Whether two API instants fall on one local calendar day. */
+export function isSameDay(a: string, b: string): boolean {
+  const first = new Date(a);
+  const second = new Date(b);
+  return (
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate()
+  );
+}
+
 /**
  * Formats an interval as the owner reads it: when it ends on the day it
  * starts, the date once and then both times of day; otherwise both instants
  * in full.
  */
 export function displayTimeRange(startsAt: string, endsAt: string): string {
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  const sameDay =
-    start.getFullYear() === end.getFullYear() &&
-    start.getMonth() === end.getMonth() &&
-    start.getDate() === end.getDate();
-  return sameDay
+  return isSameDay(startsAt, endsAt)
     ? `${displayTime(startsAt)} – ${displayClockTime(endsAt)}`
     : `${displayTime(startsAt)} – ${displayTime(endsAt)}`;
+}
+
+/**
+ * Formats the start of one item in a list of them: the full date and time
+ * when it begins a new day, after `previous`, and only the time of day
+ * otherwise, so a day's worth of rows names its date once.
+ */
+export function displayListTime(value: string, previous?: string): string {
+  return previous !== undefined && isSameDay(previous, value)
+    ? displayClockTime(value)
+    : displayTime(value);
 }

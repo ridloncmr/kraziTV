@@ -78,8 +78,12 @@ it("lists planned filler as an Off air row in time order among the programs", as
 
   const table = await screen.findByRole("table");
   const rows = within(table).getAllByRole("row").slice(1);
+  // The day heads its rows once; the program rows carry only times.
+  expect(within(table).getAllByRole("rowheader")).toHaveLength(1);
   expect(
-    rows.map((row) => within(row).getAllByRole("cell").at(2)?.textContent),
+    rows
+      .filter((row) => !row.classList.contains("day-row"))
+      .map((row) => within(row).getAllByRole("cell").at(2)?.textContent),
   ).toEqual(["Episode Two", "Off air", "Reserved Movie"]);
 });
 

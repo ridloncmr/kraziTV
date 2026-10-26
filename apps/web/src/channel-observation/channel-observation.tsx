@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { displayDuration } from "../controls/display-duration.js";
-import { displayTime, displayTimeRange } from "../controls/display-time.js";
+import {
+  displayClockTime,
+  displayDay,
+  displayTimeRange,
+  isSameDay,
+} from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
@@ -72,27 +77,25 @@ export function ChannelObservation({
       />
       {channels.data?.length === 0 && (
         <p className="empty-state">
-          No channels to inspect. Open My Channels to create one.
+          No channels yet. Open My Channels to create one.
         </p>
       )}
       {!selected && (channels.data?.length ?? 0) > 0 && (
-        <p className="empty-state">
-          Choose a channel to inspect its backend-computed programming.
-        </p>
+        <p className="empty-state">Choose a channel to see what&apos;s on.</p>
       )}
       {selected && (
         <>
           <RequestFeedback error={now.error} />
           {now.data && (
             <fieldset>
-              <legend>Current channel state</legend>
+              <legend>On now</legend>
               {now.data.currentItem ? (
                 <dl className="facts">
                   <dt>On air</dt>
                   <dd>
                     <strong>{itemLabel(now.data.currentItem)}</strong>
                   </dd>
-                  <dt>Playback offset</dt>
+                  <dt>Position</dt>
                   <dd>
                     {now.data.currentItem.offsetMs === undefined
                       ? "Unavailable"
@@ -109,29 +112,28 @@ export function ChannelObservation({
                   <dd>
                     {now.data.nextItem
                       ? itemLabel(now.data.nextItem)
-                      : "No next program available"}
+                      : "Nothing scheduled next"}
                   </dd>
                 </dl>
               ) : (
                 <p className="empty-state">
-                  No current playout item.{" "}
-                  {now.data.reason?.replaceAll("_", " ")}
+                  Nothing on air. {now.data.reason?.replaceAll("_", " ")}
                 </p>
               )}
               <p className="secondary">
-                Evaluated by server: {displayTime(now.data.evaluatedAt)}.
-                Refreshes every 10 seconds while visible.
+                As of {displayClockTime(now.data.evaluatedAt)}. Updates every 10
+                seconds.
               </p>
             </fieldset>
           )}
           {guide && (
             <>
-              <h2>Upcoming generated schedule</h2>
+              <h2>Coming up</h2>
               <RequestFeedback error={schedule.error} />
               {schedule.data && guideRows(schedule.data).length === 0 && (
                 <p className="empty-state">
-                  No generated schedule entries. Check the channel's programming
-                  source in My Channels.
+                  Nothing scheduled yet. Add shows to this channel in My
+                  Channels.
                 </p>
               )}
               {schedule.data && guideRows(schedule.data).length > 0 && (
@@ -145,12 +147,26 @@ export function ChannelObservation({
                       </tr>
                     </thead>
                     <tbody>
-                      {guideRows(schedule.data).map((row) => (
-                        <tr key={row.key}>
-                          <td>{displayTime(row.startsAt)}</td>
-                          <td>{displayTime(row.endsAt)}</td>
-                          <td>{row.label}</td>
-                        </tr>
+                      {guideRows(schedule.data).map((row, index, rows) => (
+                        <Fragment key={row.key}>
+                          {/* A day heads its rows once, so each row carries only times. */}
+                          {(index === 0 ||
+                            !isSameDay(
+                              rows[index - 1].startsAt,
+                              row.startsAt,
+                            )) && (
+                            <tr className="day-row">
+                              <th colSpan={3} scope="rowgroup">
+                                {displayDay(row.startsAt)}
+                              </th>
+                            </tr>
+                          )}
+                          <tr>
+                            <td>{displayClockTime(row.startsAt)}</td>
+                            <td>{displayClockTime(row.endsAt)}</td>
+                            <td>{row.label}</td>
+                          </tr>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
