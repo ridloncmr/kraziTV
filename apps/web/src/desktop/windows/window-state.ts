@@ -1,13 +1,16 @@
 import type { DesktopWindow, WindowAction } from "../contracts.js";
+import type { WindowMemory } from "./window-memory.js";
 
 /**
  * Array order is stacking order, keeping taskbar membership and focus in one state.
  * Positions and sizes are where the user placed each window; viewport clamping happens
- * at render so a temporarily small browser never overwrites them.
+ * at render so a temporarily small browser never overwrites them. A program
+ * opens where `remembered` last left it, else cascaded from the top left.
  */
 export function windowReducer(
   state: DesktopWindow[],
   action: WindowAction,
+  remembered: WindowMemory = {},
 ): DesktopWindow[] {
   if (action.type === "close")
     return state.filter((item) => item.id !== action.id);
@@ -28,6 +31,7 @@ export function windowReducer(
       height: 540,
       minimized: false,
       maximized: false,
+      ...remembered[action.id],
     };
     return [
       ...state.filter((entry) => entry.id !== action.id),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { MediaRoot } from "../http/contracts/media.js";
@@ -9,9 +9,15 @@ import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
-import type { DesktopViewport, ProgramId } from "./contracts.js";
+import type {
+  DesktopViewport,
+  DesktopWindow,
+  ProgramId,
+  WindowAction,
+} from "./contracts.js";
 import { programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
+import { readWindowMemory, rememberWindows } from "./windows/window-memory.js";
 import { windowReducer } from "./windows/window-state.js";
 
 /** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
@@ -44,7 +50,17 @@ export function DesktopShell({
   onAccountChanged: (account: AccountProfile) => void;
   onLoggedOff: () => void;
 }) {
-  const [windows, dispatch] = useReducer(windowReducer, []);
+  // Where this browser last left each window, read once at start; every
+  // change is written back, so a program reopens where it was left.
+  const memory = useRef(readWindowMemory());
+  const [windows, dispatch] = useReducer(
+    (state: DesktopWindow[], action: WindowAction) =>
+      windowReducer(state, action, memory.current),
+    [],
+  );
+  useEffect(() => {
+    memory.current = rememberWindows(memory.current, windows);
+  }, [windows]);
   // Stable, so memoized program contents never re-render for it.
   const openProgram = useCallback(
     (id: ProgramId) => dispatch({ type: "open", id }),

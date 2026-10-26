@@ -17,6 +17,8 @@ import { DesktopShell } from "./desktop-shell.js";
 
 afterEach(() => {
   cleanup();
+  // Windows reopen where a test left them unless the memory is cleared.
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
