@@ -257,12 +257,20 @@
 .row-badge + .row-badge {
   margin-left: 4px;
 }
-.selected-row {
-  background: color-mix(
-    in srgb,
-    var(--xp-selection) 30%,
-    var(--xp-window-surface)
-  );
+/* A selected row is title-bar blue with white text, as XP list views were; everything in it, links and warnings included, turns white. */
+.program-page .selected-row {
+  background: var(--xp-title-primary);
+  color: var(--xp-window-surface);
+}
+.program-page .selected-row td,
+.program-page .selected-row .text-button,
+.program-page .selected-row .secondary,
+.program-page .selected-row .error-message,
+.program-page .selected-row .warning-label {
+  color: var(--xp-window-surface);
+}
+.program-page .selected-row .row-badge {
+  border-color: currentColor;
 }
 .program-page .text-button {
   background: transparent;
@@ -367,10 +375,19 @@
 /*
  * A list refreshing in place dims instead of announcing a status line, so its
  * layout and scroll position hold still. The dim waits long enough that a
- * quick reload never flickers, and lifts at once when the rows arrive.
+ * quick reload never flickers, and lifts at once when the rows arrive. A list
+ * or grid that has just arrived fades in over the same beat rather than
+ * popping into an empty window.
  */
-.table-scroll {
+.table-scroll,
+.collection-grid {
   transition: opacity var(--xp-duration-fast) ease;
+}
+@starting-style {
+  .table-scroll,
+  .collection-grid {
+    opacity: 0;
+  }
 }
 .table-scroll[aria-busy="true"] {
   opacity: 0.6;
