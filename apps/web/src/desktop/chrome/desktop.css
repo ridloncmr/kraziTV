@@ -37,6 +37,10 @@ button:disabled {
   inset: 12px 0 44px 12px;
   pointer-events: none;
 }
+/* A shortcut's tip host is as inert as the desktop around it; only the shortcut itself takes the pointer. */
+.desktop-shortcuts .tooltip-host {
+  pointer-events: none;
+}
 .desktop-shortcut {
   width: 98px;
   min-height: 88px;
@@ -360,12 +364,17 @@ button:disabled {
   padding: 3px 8px;
   scrollbar-width: thin;
 }
+/* Each program's button sits in its tip's host, which takes the button's place in the row. */
+.taskbar-programs .tooltip-host {
+  flex: 0 1 165px;
+  min-width: 86px;
+}
 .taskbar-programs button {
   display: flex;
   align-items: center;
   gap: 5px;
-  flex: 0 1 165px;
-  min-width: 86px;
+  flex: 1;
+  min-width: 0;
   color: var(--xp-window-surface);
   background: linear-gradient(var(--xp-taskbar-highlight), var(--xp-taskbar));
   border: 1px solid var(--xp-taskbar-dark);

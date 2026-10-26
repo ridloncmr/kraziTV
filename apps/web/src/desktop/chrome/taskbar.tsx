@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type Dispatch,
@@ -9,6 +10,7 @@ import {
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
 import type { DesktopWindow, ProgramId, WindowAction } from "../contracts.js";
+import { Tooltip } from "../../controls/tooltip.js";
 import { usePopupDismissal } from "../../controls/use-popup-dismissal.js";
 import { programs } from "../programs.js";
 import { StartMenu } from "./start-menu.js";
@@ -36,6 +38,7 @@ export function Taskbar({
 }) {
   const [startOpen, setStartOpen] = useState(false);
   const [clock, setClock] = useState(new Date());
+  const dateTip = useId();
   const startArea = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -80,42 +83,58 @@ export function Taskbar({
             const name = programs.find(
               (program) => program.id === window.id,
             )?.name;
+            // The tip repeats the name, for when the button has cut it short.
             return (
-              <button
+              <Tooltip
                 key={window.id}
-                className={activeId === window.id ? "task-active" : ""}
-                aria-pressed={activeId === window.id}
-                onClick={() => dispatch({ type: "focus", id: window.id })}
-                title={name}
-                data-taskbar-window={window.id}
+                id={`taskbar-tip-${window.id}`}
+                text={name ?? ""}
+                placement="taskbar"
               >
-                <DesktopProgramIcon
-                  program={window.id}
-                  avatarId={avatarId}
-                  size={18}
-                />
-                <span>{name}</span>
-              </button>
+                <button
+                  className={activeId === window.id ? "task-active" : ""}
+                  aria-pressed={activeId === window.id}
+                  onClick={() => dispatch({ type: "focus", id: window.id })}
+                  data-taskbar-window={window.id}
+                >
+                  <DesktopProgramIcon
+                    program={window.id}
+                    avatarId={avatarId}
+                    size={18}
+                  />
+                  <span>{name}</span>
+                </button>
+              </Tooltip>
             );
           })}
       </nav>
       <div className="system-tray">
         {tray}
-        <button
-          className="connection-indicator"
-          title={connection}
-          aria-label={connection}
-          onClick={() => dispatch({ type: "open", id: "monitor" })}
-        >
-          <span
-            className={connection === "API connected" ? "online" : "offline"}
+        <Tooltip id="connection-tip" text={connection} placement="above-end">
+          <button
+            className="connection-indicator"
+            aria-label={connection}
+            onClick={() => dispatch({ type: "open", id: "monitor" })}
           >
-            ●
-          </span>
-        </button>
-        <time title={clock.toLocaleDateString()}>
-          {clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </time>
+            <span
+              className={connection === "API connected" ? "online" : "offline"}
+            >
+              ●
+            </span>
+          </button>
+        </Tooltip>
+        <Tooltip
+          id={dateTip}
+          text={clock.toLocaleDateString()}
+          placement="above-end"
+        >
+          <time aria-describedby={dateTip}>
+            {clock.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </time>
+        </Tooltip>
       </div>
     </footer>
   );

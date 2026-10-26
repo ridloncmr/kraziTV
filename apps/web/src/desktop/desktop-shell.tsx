@@ -3,6 +3,7 @@ import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
+import { Tooltip } from "../controls/tooltip.js";
 import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
@@ -116,19 +117,24 @@ export function DesktopShell({
       <main className="desktop-shell" inert={loggingOff}>
         <div className="desktop-shortcuts" aria-label="Desktop programs">
           {programs.map((program) => (
-            <button
+            <Tooltip
               key={program.id}
-              className="desktop-shortcut"
-              title={program.description}
-              onClick={() => dispatch({ type: "open", id: program.id })}
+              id={`shortcut-tip-${program.id}`}
+              text={program.description}
             >
-              <DesktopProgramIcon
-                program={program.id}
-                avatarId={account.avatarId}
-                size={54}
-              />
-              <span>{program.name}</span>
-            </button>
+              <button
+                className="desktop-shortcut"
+                aria-describedby={`shortcut-tip-${program.id}`}
+                onClick={() => dispatch({ type: "open", id: program.id })}
+              >
+                <DesktopProgramIcon
+                  program={program.id}
+                  avatarId={account.avatarId}
+                  size={54}
+                />
+                <span>{program.name}</span>
+              </button>
+            </Tooltip>
           ))}
         </div>
         <div className="desktop-brand" aria-hidden="true">

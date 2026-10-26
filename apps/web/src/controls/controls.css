@@ -1058,3 +1058,61 @@
 .member-list > li {
   margin: 2px 0;
 }
+/*
+ * An XP tool tip: a small yellow note beside a shell control. The host is
+ * the control's own box, and the note waits off to one side of it. It
+ * fades in over the fast beat, except a tip opened while reading along a
+ * row, which appears at once.
+ */
+.tooltip-host {
+  position: relative;
+  display: inline-flex;
+}
+.tooltip {
+  position: absolute;
+  z-index: 1000;
+  top: calc(100% + 4px);
+  left: 0;
+  padding: 2px 5px;
+  border: 1px solid #000;
+  background: var(--xp-balloon);
+  color: #000;
+  font: 11px var(--xp-font-ui);
+  text-shadow: none;
+  white-space: nowrap;
+  box-shadow: 1px 1px 3px rgb(0 0 0 / 30%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--xp-duration-fast) ease,
+    visibility 0s linear var(--xp-duration-fast);
+}
+.tooltip-above,
+.tooltip-above-end {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.tooltip-above-end {
+  left: auto;
+  right: 0;
+}
+/*
+ * The taskbar's program strip scrolls sideways, so it clips anything above
+ * it. A fixed tip escapes the clip, keeps its host's left edge as its
+ * static position, and sits just over the taskbar.
+ */
+.tooltip-taskbar {
+  position: fixed;
+  top: auto;
+  bottom: calc(var(--xp-taskbar-height) + 4px);
+  left: auto;
+}
+.tooltip[data-shown="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.tooltip[data-instant="true"] {
+  transition: none;
+}
