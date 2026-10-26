@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { displayCount } from "../controls/display-count.js";
 import { displayDuration } from "../controls/display-duration.js";
+import { fileName } from "../controls/file-name.js";
 import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
@@ -141,7 +142,6 @@ export function MediaLibraryApp({
                 <tr>
                   <th>Server path</th>
                   <th>Last scan</th>
-                  <th>Status</th>
                   <th>Matches</th>
                   <th>Actions</th>
                 </tr>
@@ -149,13 +149,17 @@ export function MediaLibraryApp({
               <tbody>
                 {roots.data.map((root) => (
                   <tr key={root.id}>
-                    <td className="path-cell">{root.path}</td>
+                    <td className="path-cell">
+                      {root.path}
+                      {!root.enabled && (
+                        <span className="row-badge">Disabled</span>
+                      )}
+                    </td>
                     <td>
                       {root.lastScannedAt === null
                         ? "Not yet scanned"
                         : displayTime(root.lastScannedAt)}
                     </td>
-                    <td>{root.enabled ? "Enabled" : "Disabled"}</td>
                     <td className="root-matches">
                       <RootMatches counts={root.matchCounts} />
                     </td>
@@ -305,7 +309,10 @@ export function MediaLibraryApp({
                   </td>
                   <td>
                     {item.title}
-                    <small className="secondary path-cell">{item.path}</small>
+                    {/* The file alone; Details shows the whole path. */}
+                    <small className="secondary path-cell">
+                      {fileName(item.path)}
+                    </small>
                     {item.probeError && (
                       <small className="error-message">{item.probeError}</small>
                     )}

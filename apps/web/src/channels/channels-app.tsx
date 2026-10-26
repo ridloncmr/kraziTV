@@ -189,7 +189,6 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
               <tr>
                 <th>Number</th>
                 <th>Channel</th>
-                <th>Status</th>
                 <th aria-label="Actions" />
               </tr>
             </thead>
@@ -208,8 +207,10 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                     >
                       {channel.name}
                     </button>
+                    {!channel.enabled && (
+                      <span className="row-badge">Disabled</span>
+                    )}
                   </td>
-                  <td>{channel.enabled ? "Enabled" : "Disabled"}</td>
                   <td>
                     <RowMenu
                       label={`Actions for ${channel.name}`}

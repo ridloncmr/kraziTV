@@ -23,12 +23,12 @@ export function perSittingLabel(
   }
 }
 
-/** Words the longest a show's marathon runs, such as `up to 3 hrs`; `—` when it cannot marathon. */
+/** Words the longest a show's marathon runs, such as `up to 3 hrs`; nothing when it cannot marathon, the usual case. */
 export function marathonLabel(
   stretch: StretchSetting | null,
   kind: ContentKind,
 ): string {
-  if (stretch === null) return "—";
+  if (stretch === null) return "";
   switch (stretch.kind) {
     case "programs":
       return `up to ${countWords(stretch.count, kind)}`;
