@@ -13,7 +13,7 @@ import type {
   MediaItemPage,
   MediaRoot,
 } from "../../http/contracts/media.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
 
 const PAGE_SIZE = 50;

@@ -7,7 +7,7 @@ import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import type {
   Special,
   SpecialPreview as Preview,

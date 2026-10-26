@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiRequest } from "./api-client.js";
-import { toError } from "./to-error.js";
+import { apiRequest } from "../api-client.js";
+import { useRefreshScope } from "./refresh-scope.js";
+import { toError } from "../to-error.js";
 
 /**
  * Replaced reads cannot publish into another selection; hidden programs do not
  * poll. A body turns the read into a POST, and results are keyed by path and
- * body together so a changed body never shows the previous answer.
+ * body together so a changed body never shows the previous answer. The read
+ * also reloads with its refresh scope; a quiet reload of data already shown
+ * reports no loading and never restarts a read in flight.
  */
 export function useResource<T>(
   path: string | null,
@@ -23,15 +26,22 @@ export function useResource<T>(
   const [result, setResult] = useState<{ key: string; data: T }>();
   const [failure, setFailure] = useState<{ key: string; error: Error }>();
   const [loading, setLoading] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const [revision, setRevision] = useState({ count: 0, quiet: false });
+  const refresh = useCallback(
+    () => setRevision((value) => ({ count: value.count + 1, quiet: false })),
+    [],
+  );
+  const shownKey = useRef<string>(undefined);
+  shownKey.current = result?.key;
+  const inFlight = useRef(false);
   useEffect(() => {
     if (!path || !key || !active) {
       setLoading(false);
       return;
     }
     const controller = new AbortController();
-    setLoading(true);
+    inFlight.current = true;
+    if (!revision.quiet || shownKey.current !== key) setLoading(true);
     void apiRequest<T>(path, {
       signal: controller.signal,
       ...(json === undefined
@@ -52,10 +62,25 @@ export function useResource<T>(
           });
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (controller.signal.aborted) return;
+        inFlight.current = false;
+        setLoading(false);
       });
-    return () => controller.abort();
+    return () => {
+      inFlight.current = false;
+      controller.abort();
+    };
   }, [path, key, json, active, revision]);
+  // Runs after the read above, so a scope reload landing in the same commit
+  // as a new path or a shown window finds that read in flight and skips.
+  const { signal } = useRefreshScope();
+  const seenSignal = useRef(signal.revision);
+  useEffect(() => {
+    if (seenSignal.current === signal.revision) return;
+    seenSignal.current = signal.revision;
+    if (signal.quiet && inFlight.current) return;
+    setRevision((value) => ({ count: value.count + 1, quiet: signal.quiet }));
+  }, [signal]);
   useEffect(() => {
     if (!active || !path || !intervalMs || loading) return;
     const timer = setInterval(refresh, intervalMs);
@@ -74,7 +99,8 @@ export function useResource<T>(
  * path, so a list can read one resource per row without a hook per row. A
  * read is never abandoned when another path joins, so rows settle in one
  * request each. A failed read reports `failed`, so the caller can stop
- * waiting for it, and is tried again when the paths next change.
+ * waiting for it, and is tried again when the paths next change. Every path
+ * is read again when the refresh scope reloads, keeping its answer meanwhile.
  */
 export function useResourceMap<T>(
   paths: readonly string[],
@@ -91,8 +117,14 @@ export function useResourceMap<T>(
     };
   }, []);
   const key = [...new Set(paths)].sort().join("\n");
+  const { revision } = useRefreshScope().signal;
+  const seenRevision = useRef(revision);
   useEffect(() => {
     if (!active || key === "") return;
+    if (seenRevision.current !== revision) {
+      seenRevision.current = revision;
+      requested.current.clear();
+    }
     for (const path of key.split("\n")) {
       if (requested.current.has(path)) continue;
       requested.current.add(path);
@@ -110,7 +142,7 @@ export function useResourceMap<T>(
         },
       );
     }
-  }, [key, active]);
+  }, [key, active, revision]);
   return {
     get: (path) => values.get(path),
     failed: (path) => failures.has(path),

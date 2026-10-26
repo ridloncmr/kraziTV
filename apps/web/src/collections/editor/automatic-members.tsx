@@ -5,7 +5,7 @@ import type {
   CollectionMember,
   ExcludedItem,
 } from "../../http/contracts/collections.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { ReadOnlyMembers } from "./read-only-members.js";
 
 /**

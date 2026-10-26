@@ -6,7 +6,7 @@ import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts/media.js";
 import type { TrackFolder } from "../../http/contracts/metadata.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { CorrectDetailsDialog } from "./correct-details-dialog.js";
 import { matchStateLabel } from "./match-state-label.js";
 import { posterUrl } from "./poster-url.js";

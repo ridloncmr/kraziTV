@@ -6,7 +6,7 @@ import type {
   SourceAssignment,
 } from "../http/contracts/programming.js";
 import type { StretchSuggestion } from "../http/contracts/programming.js";
-import { useResource, useResourceMap } from "../http/use-resource.js";
+import { useResource, useResourceMap } from "../http/resources/use-resource.js";
 import type { ContentKind } from "./contracts.js";
 import { suggestionPath } from "./lineup/show-draft.js";
 

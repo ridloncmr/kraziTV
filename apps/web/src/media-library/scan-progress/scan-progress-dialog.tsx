@@ -7,7 +7,7 @@ import { ApiError } from "../../http/api-error.js";
 import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 import { ScanAnimation } from "./scan-animation.js";
 import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
 

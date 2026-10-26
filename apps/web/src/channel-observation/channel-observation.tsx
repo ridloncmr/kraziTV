@@ -7,7 +7,7 @@ import type {
   ChannelState,
   ScheduleWindow,
 } from "../http/contracts/channels.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
 
 /** Guide and monitor share API observations; offsets are never advanced by browser time. */

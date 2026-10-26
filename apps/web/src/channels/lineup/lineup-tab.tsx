@@ -7,7 +7,7 @@ import type {
   MarathonSettings,
   SourceAssignment,
 } from "../../http/contracts/programming.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";

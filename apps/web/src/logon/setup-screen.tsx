@@ -4,7 +4,7 @@ import { newPasswordRefusal } from "../account-fields/new-password-refusal.js";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
 import type { AuthState } from "../http/contracts/auth.js";
-import { useMutation } from "../http/use-resource.js";
+import { useMutation } from "../http/resources/use-resource.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 
 /** True when another browser finished setup first. */

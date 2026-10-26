@@ -13,7 +13,8 @@ import type {
   MediaRoot,
 } from "../http/contracts/media.js";
 import type { ReviewStep } from "../http/contracts/metadata.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+import { useRefreshScope } from "../http/resources/refresh-scope.js";
+import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
 import {
@@ -60,6 +61,8 @@ export function MediaLibraryApp({
   );
   const reviewCount = review.data?.steps.length ?? 0;
   const mutation = useMutation();
+  // Refresh reloads open dialogs too, not just the lists.
+  const { refresh: refreshWindow } = useRefreshScope();
   const scan = useScanJob(roots.data);
   // Which request the feedback reports, so an earlier root write's success
   // never reads as the result of a scan start.
@@ -99,7 +102,7 @@ export function MediaLibraryApp({
         <span>Media Library</span>
         <div className="row-actions">
           <button onClick={() => setAdding(true)}>Add media root…</button>
-          <button onClick={refresh}>Refresh</button>
+          <button onClick={refreshWindow}>Refresh</button>
         </div>
       </div>
       <p className="program-intro">

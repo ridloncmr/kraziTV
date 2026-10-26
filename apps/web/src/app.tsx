@@ -3,7 +3,8 @@ import { BootScreen } from "./desktop/chrome/boot-screen.js";
 import { DesktopShell } from "./desktop/desktop-shell.js";
 import { onUnauthorized } from "./http/api-client.js";
 import type { AccountProfile, AuthState } from "./http/contracts/auth.js";
-import { useResource } from "./http/use-resource.js";
+import { PageRefreshScope } from "./http/resources/refresh-scope.js";
+import { useResource } from "./http/resources/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
 import { SetupScreen } from "./logon/setup-screen.js";
 
@@ -62,11 +63,13 @@ export function App() {
   // A logged-in browser always has an account; the guard only narrows the type.
   if (state.authenticated && state.account)
     return (
-      <DesktopShell
-        account={state.account}
-        onAccountChanged={accountChanged}
-        onLoggedOff={loggedOff}
-      />
+      <PageRefreshScope>
+        <DesktopShell
+          account={state.account}
+          onAccountChanged={accountChanged}
+          onLoggedOff={loggedOff}
+        />
+      </PageRefreshScope>
     );
   if (state.setupRequired || !state.account)
     return <SetupScreen onSetUp={setState} onAlreadySetUp={reread} />;

@@ -3,7 +3,8 @@ import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
-import { useResource } from "../http/use-resource.js";
+import { RefreshScope } from "../http/resources/refresh-scope.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
@@ -134,16 +135,19 @@ export function DesktopShell({
               viewport={viewport}
               dispatch={dispatch}
             >
-              <ProgramContents
-                id={window.id}
-                visible={!window.minimized && pageVisible}
-                connection={connection}
-                account={account}
-                onAccountChanged={onAccountChanged}
-                tmdbTaskRequest={tmdbTaskRequest}
-                onTmdbKeyChanged={tmdbKey.refresh}
-                openProgram={openProgram}
-              />
+              {/* Bringing a window to the front reloads what it shows. */}
+              <RefreshScope active={activeId === window.id}>
+                <ProgramContents
+                  id={window.id}
+                  visible={!window.minimized && pageVisible}
+                  connection={connection}
+                  account={account}
+                  onAccountChanged={onAccountChanged}
+                  tmdbTaskRequest={tmdbTaskRequest}
+                  onTmdbKeyChanged={tmdbKey.refresh}
+                  openProgram={openProgram}
+                />
+              </RefreshScope>
             </AppWindow>
           ))}
         <Taskbar

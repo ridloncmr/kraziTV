@@ -3,7 +3,7 @@ import { displayTime } from "../../controls/display-time.js";
 import { fromLocalInput } from "../../controls/local-instant.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import type { Special } from "./contracts.js";
 
 /**

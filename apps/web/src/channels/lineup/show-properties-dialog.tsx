@@ -10,7 +10,7 @@ import type {
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { CollectionPreviewSection } from "../assignments/collection-preview-section.js";
 import { MemberRows } from "../assignments/member-rows.js";
 import { PlayOrderField } from "../assignments/play-order-field.js";

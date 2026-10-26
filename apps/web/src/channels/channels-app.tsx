@@ -6,7 +6,8 @@ import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
 import type { Channel } from "../http/contracts/channels.js";
 import type { ProgrammingRebuild } from "../http/contracts/programming.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+import { useRefreshScope } from "../http/resources/refresh-scope.js";
+import { useMutation, useResource } from "../http/resources/use-resource.js";
 import {
   type ChannelTab,
   ChannelPropertySheet,
@@ -17,6 +18,8 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
 /** Channel lifecycle feedback distinguishes persisted identity changes from unfinished runtime cleanup. */
 export function ChannelsApp({ visible }: { visible: boolean }) {
   const channels = useResource<Channel[]>("/channels", visible);
+  // Refresh reloads the open channel's tabs too, not just the list.
+  const { refresh: refreshWindow } = useRefreshScope();
   const mutation = useMutation();
   const [selected, setSelected] = useState("");
   const cleanup = useCleanupRetries();
@@ -85,7 +88,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
         <span>My Channels</span>
         <div className="row-actions">
           <button onClick={() => setCreating(true)}>New channel…</button>
-          <button onClick={channels.refresh}>Refresh</button>
+          <button onClick={refreshWindow}>Refresh</button>
         </div>
       </div>
       <p className="program-intro">

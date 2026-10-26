@@ -9,7 +9,10 @@ import type {
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
-import { useMutation, useResourceMap } from "../../http/use-resource.js";
+import {
+  useMutation,
+  useResourceMap,
+} from "../../http/resources/use-resource.js";
 import {
   CollectionOrItemSearch,
   type FoundMember,

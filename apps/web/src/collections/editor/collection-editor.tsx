@@ -13,7 +13,7 @@ import type {
   CollectionStatus,
   MediaCollection,
 } from "../../http/contracts/collections.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import {
   criterionBasis,
   MaintenanceReport,

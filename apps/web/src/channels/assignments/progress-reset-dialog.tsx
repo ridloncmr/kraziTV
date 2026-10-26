@@ -2,7 +2,7 @@ import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { UpcomingSelection } from "../../http/contracts/programming.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import { UpcomingSelections } from "./programming-preview.js";
 
 /**

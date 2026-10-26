@@ -6,7 +6,7 @@ import type {
   ProgrammingPreview,
   ProgrammingRule,
 } from "../../http/contracts/programming.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 
 // Names why kraziPlan passed over an assignment's member.
 const SKIP_REASONS: Record<string, string> = {

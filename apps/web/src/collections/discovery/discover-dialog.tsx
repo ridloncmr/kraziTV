@@ -5,7 +5,7 @@ import type {
   MediaCollection,
   Recommendation,
 } from "../../http/contracts/collections.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 const RECOMMENDATIONS = "/media-collections/recommendations";

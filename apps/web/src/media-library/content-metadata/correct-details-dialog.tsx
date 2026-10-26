@@ -7,7 +7,7 @@ import type {
   ContentMetadata,
   MediaItem,
 } from "../../http/contracts/media.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 
 // The correctable fields in form order, with their labels and input types.
 const FIELDS: [CorrectableField, string, "text" | "number"][] = [

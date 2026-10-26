@@ -8,7 +8,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import type { MediaCollection } from "../http/contracts/collections.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
 import type { AssignmentMember } from "../http/contracts/programming.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 
 const ITEM_LIMIT = 25;

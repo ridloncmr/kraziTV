@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 
 /**
  * Confirms ending the session. It belongs to the desktop shell, not to a

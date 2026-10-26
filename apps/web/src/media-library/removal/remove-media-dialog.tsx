@@ -10,7 +10,7 @@ import type {
   CatalogRemoval,
   CatalogRemovalImpact,
 } from "../../http/contracts/media.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import {
   isRefusal,
   offAirLine,
