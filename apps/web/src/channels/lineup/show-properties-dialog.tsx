@@ -22,6 +22,7 @@ import {
 } from "../assignments/stretch-fields.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
 import {
+  changesProgramming,
   draftMarathon,
   type ShowDraft,
   suggestionPath,
@@ -73,7 +74,8 @@ export function ShowPropertiesDialog({
   visible: boolean;
   /** Runs after every write the server accepted. */
   changed: () => void;
-  onClose: () => void;
+  /** Closes the dialog, saying whether any save in it changed what airs. */
+  onClose: (programmingChanged: boolean) => void;
 }) {
   const mutation = useMutation();
   const turnOn = useMutation();
@@ -91,6 +93,15 @@ export function ShowPropertiesDialog({
   const [saves, setSaves] = useState(0);
   // Whether the pressed button was OK, which closes after the save.
   const closeAfterSave = useRef(true);
+  // Whether a save here changed what airs, which the lineup answers on close.
+  const programmingChanged = useRef(false);
+  // Closes the dialog, reporting what its saves changed.
+  const close = () => onClose(programmingChanged.current);
+  // Refreshes after a write that changed what airs, and remembers it.
+  const programmingSaved = () => {
+    programmingChanged.current = true;
+    changed();
+  };
   const assignmentPath = `${assignmentsPath}/${encodeURIComponent(assignment.id)}`;
   const { members } = draft;
   const hasCollection = members.some((member) => member.kind === "collection");
@@ -137,7 +148,7 @@ export function ShowPropertiesDialog({
     <WindowDialog
       title={title}
       busy={mutation.pending || turnOn.pending}
-      onClose={onClose}
+      onClose={close}
     >
       <form
         onSubmit={(event) => {
@@ -149,11 +160,13 @@ export function ShowPropertiesDialog({
             requestAnimationFrame(() => form.reportValidity());
             return;
           }
-          const close = closeAfterSave.current;
+          const closing = closeAfterSave.current;
+          const airs = changesProgramming(assignment, draft);
           void mutation.run(assignmentPath, "PATCH", toSettings(draft), () => {
             setSaves((count) => count + 1);
-            changed();
-            if (close) onClose();
+            if (airs) programmingSaved();
+            else changed();
+            if (closing) close();
           });
         }}
       >
@@ -241,7 +254,7 @@ export function ShowPropertiesDialog({
                                 () => {
                                   setTurnedOn(true);
                                   marathons.refresh();
-                                  changed();
+                                  programmingSaved();
                                 },
                               )
                             }
@@ -308,7 +321,7 @@ export function ShowPropertiesDialog({
                 )}
                 collections={collections}
                 visible={visible}
-                changed={changed}
+                changed={programmingSaved}
                 refreshKey={saves}
               />
             )}
@@ -329,7 +342,7 @@ export function ShowPropertiesDialog({
           >
             OK
           </button>
-          <button type="button" disabled={mutation.pending} onClick={onClose}>
+          <button type="button" disabled={mutation.pending} onClick={close}>
             Cancel
           </button>
           <button

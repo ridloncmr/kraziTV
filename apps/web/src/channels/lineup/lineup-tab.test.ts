@@ -70,6 +70,19 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
   );
 }
 
+const REBUILD = "Rebuild the schedule";
+
+// Answers the rebuild choice a lineup change offers with Let it finish,
+// which the change already applied, so nothing more is sent.
+async function letItFinish(api: BrowserApi) {
+  const dialog = await screen.findByRole("dialog", { name: REBUILD });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+  await within(dialog).findByText(/rebuilt after what is airing now/);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(api.requestsTo("/channels/one/schedule/generate")).toEqual([]);
+}
+
 const perSitting = (dialog: HTMLElement) =>
   within(dialog).getByLabelText<HTMLSelectElement>("Plays at a time");
 const patches = (api: BrowserApi) =>
@@ -228,12 +241,14 @@ it("saves on Apply and stays open, then saves on OK and closes", async () => {
   await waitFor(() => expect(api.readAfterLastWrite(ASSIGNMENTS)).toBe(true));
   expect(screen.getByRole("dialog", { name: "Favorites" })).toBe(dialog);
   await screen.findByRole("cell", { name: "1 program" });
+  // The rebuild choice waits until the show's dialog closes.
+  expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
 
   chooseOption(perSitting(dialog), "~1 hr");
   stretch = { kind: "airtime", minutes: 60 };
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await letItFinish(api);
   expect(patches(api).map((request) => request.body)).toEqual([
     expect.objectContaining({
       ordinaryStretch: { kind: "programs", count: 1 },
@@ -303,6 +318,18 @@ it("removes a show only after a confirmation that names it", async () => {
   expect(api.requestsTo(ASSIGNMENT).map((request) => request.method)).toEqual([
     "DELETE",
   ]);
+
+  // Removal offers the rebuild choice; stopping now rebuilds from now.
+  api.reply("/channels/one/programming/rebuild", { stopFailed: false }, "POST");
+  const rebuild = await screen.findByRole("dialog", { name: REBUILD });
+  fireEvent.click(
+    within(rebuild).getByRole("radio", {
+      name: "Stop it now and rebuild the schedule",
+    }),
+  );
+  fireEvent.click(within(rebuild).getByRole("button", { name: "Rebuild" }));
+  await within(rebuild).findByText(/rebuilt from now/);
+  expect(api.requestsTo("/channels/one/programming/rebuild")).toHaveLength(1);
 });
 
 it("derives the marathon length from per sitting once the show can marathon", async () => {
@@ -696,6 +723,7 @@ it("saves each marathon preset as soon as it is chosen", async () => {
     { marathonChancePercent: 25, marathonMinOrdinaryRounds: 1 },
     { marathonChancePercent: 0, marathonMinOrdinaryRounds: 1 },
   ]);
+  await letItFinish(api);
 });
 
 it("shows unmatched settings as Custom and edits them in the Custom dialog through Edit…", async () => {
@@ -787,7 +815,7 @@ it("offers to turn channel marathons on when a show can marathon while they are 
   });
   expect(settingsWrites(api)).toEqual([]);
 
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await letItFinish(api);
   const reopened = await openProperties();
   // The saved show can marathon, so the notice shows as it opens.
   within(reopened).getByText("Marathons are off for this channel.");
@@ -911,7 +939,7 @@ it("adds three picks as three shows in one request, each with its suggested per 
   await waitFor(() => expect(add.disabled).toBe(false));
   fireEvent.click(add);
 
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await letItFinish(api);
   await screen.findByRole("button", { name: "Movies" });
   expect(api.requestsTo(BATCH).map((request) => request.body)).toEqual([
     {
@@ -1467,4 +1495,6 @@ it("lists a named show by its name, and renames it or clears the name from Prope
     { name: "Cartoons" },
     { name: null },
   ]);
+  // A new name changes nothing that airs, so no rebuild is offered.
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

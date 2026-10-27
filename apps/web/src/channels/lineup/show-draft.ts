@@ -78,6 +78,20 @@ export function toSettings(draft: ShowDraft): AssignmentSettings {
   };
 }
 
+/**
+ * Whether saving a draft changes what the saved show airs. A new name
+ * alone does not, so the server regenerates nothing and the lineup offers
+ * no rebuild.
+ */
+export function changesProgramming(
+  saved: SourceAssignment,
+  draft: ShowDraft,
+): boolean {
+  const airing = (settings: AssignmentSettings) =>
+    JSON.stringify({ ...settings, name: null });
+  return airing(toSettings(draft)) !== airing(toSettings(toShowDraft(saved)));
+}
+
 /** Asks the server to suggest per sitting, and the content kind, for these members. */
 export function suggestionPath(members: readonly AssignmentMember[]): string {
   const ids = (kind: AssignmentMember["kind"]) =>

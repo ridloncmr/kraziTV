@@ -75,7 +75,11 @@ export function ChannelPropertySheet({
           <GeneralTab channel={channel} changed={changed} />
         )}
         {shown === "lineup" && (
-          <LineupTab programming={programming} visible={visible} />
+          <LineupTab
+            channelId={channel.id}
+            programming={programming}
+            visible={visible}
+          />
         )}
         {shown === "rules" && lineup && (
           <RulesEditor
