@@ -164,6 +164,34 @@ export interface ChannelChunk {
   regeneration?: Regeneration | undefined;
 }
 
+/**
+ * How a schedule entry reads as a program in a guide, worded from its
+ * media's effective content facts: an episode under its series title with
+ * its own title and numbers, a movie under its TMDB title, and either with
+ * its description, genres, and poster. Media with no facts reads by the
+ * entry's own title alone. Derived at read time and never persisted, so a
+ * correction shows on the next read.
+ */
+export interface GuideProgram {
+  title: string;
+  /** An episode's own title, under the series title. */
+  subTitle: string | null;
+  description: string | null;
+  /** First air or release as stored: `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`. */
+  releaseDate: string | null;
+  kind: "movie" | "episode" | null;
+  genres: string[];
+  /** TMDB's poster at guide width; the client loads the image from TMDB. */
+  posterUrl: string | null;
+  /** An episode's place in its series, by the numbers the owner sees. */
+  episode: {
+    season: number;
+    episode: number;
+    /** The last episode a multi-episode file holds, else its only one. */
+    lastEpisode: number | null;
+  } | null;
+}
+
 /** One persisted schedule entry, in epoch milliseconds. */
 export interface ScheduleEntry {
   id: string;

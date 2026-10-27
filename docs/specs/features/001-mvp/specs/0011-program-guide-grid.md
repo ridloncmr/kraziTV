@@ -32,7 +32,6 @@ where now fell in the day.
   defers.
 - A half-hour broadcast clock; blocks sit where the server's entries start and
   end.
-- Program details beyond title and times.
 
 ## User-Facing Behavior
 
@@ -42,9 +41,14 @@ where now fell in the day.
   guide's grid does.
 - A ruler across the top names each whole hour, and names the day where one
   begins. Half-hour lines run down the grid.
-- Each program is a block at its start and end, reading its title and start
-  time; a block too narrow to read keeps them in its tool tip. The block
-  airing now is title-bar blue. Planned filler is a dashed **Off air** block.
+- Each program is a block at its start and end, reading the title the server
+  worded from the media's content facts, an episode's own title or code or a
+  movie's year, and its start time; a block too narrow to read keeps them in
+  its tool tip. The block airing now is title-bar blue. Planned filler is a
+  dashed **Off air** block.
+- Clicking a program opens its card inside the guide window: the poster,
+  episode or release, when and where it airs, genres, and description. Off
+  air opens nothing.
 - A line marks the current time and moves once a minute while the window is
   in view. The guide moves to the current half hour whenever the window comes
   back into view or reloads, so a restored or refocused window shows today,
@@ -61,7 +65,9 @@ where now fell in the day.
 - The grid reads `GET /channels`, then each row reads that channel's schedule
   window for 24 hours from the anchor through the existing
   `scheduleWindowPath`, so rows arrive independently and a failed read shows
-  in its own row.
+  in its own row. Each window entry carries its `program`, worded by the
+  server from the media's effective content facts the way the Plex guide is,
+  so the browser never joins metadata itself.
 - Placement is presentation arithmetic in `guide-geometry.ts`: four pixels a
   minute, a block clipped to the window, and the whole hours inside it. It
   takes the server's instants and never derives playout state.

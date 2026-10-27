@@ -31,6 +31,15 @@
     {
       "rule": "cross-package-copy",
       "files": [
+        "apps/server/src/schedules/contracts.ts",
+        "apps/web/src/http/contracts/channels.ts"
+      ],
+      "reason": "GuideProgram is the schedule window's per-entry program wire shape. The browser cannot import server source and no shared API-contract package exists, so the web app declares the shape it receives; the overlap is the field list itself.",
+      "source": "apps/web/src/http/contracts/ (browser-side wire types, one file per API area)"
+    },
+    {
+      "rule": "cross-package-copy",
+      "files": [
         "apps/server/src/testing/metadata-match-fixtures.ts",
         "apps/web/src/testing/admin-fixtures.ts"
       ],

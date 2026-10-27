@@ -10,6 +10,7 @@ import {
 import { channelFixture } from "../../testing/channel-fixtures.js";
 import { holdWriteAuthority } from "../../testing/hold-write-authority.js";
 import { manualClock } from "../../testing/manual-clock.js";
+import { EPISODE_FACTS } from "../../testing/metadata-match-fixtures.js";
 import { sequentialIds } from "../../testing/record-sources.js";
 import {
   readOnlyScheduleState,
@@ -68,12 +69,55 @@ describe("GET /channels/:id/schedule", () => {
           playbackIndex: 0,
           createdAt: iso(T0),
           updatedAt: iso(T0),
+          // No content facts: the entry reads by its own title alone.
+          program: {
+            title: "Item 1",
+            subTitle: null,
+            description: null,
+            releaseDate: null,
+            kind: null,
+            genres: [],
+            posterUrl: null,
+            episode: null,
+          },
         },
         expect.objectContaining({
           startsAt: iso(T0 + 22 * MINUTE),
           endsAt: iso(T0 + 45 * MINUTE),
         }),
       ],
+    });
+  });
+
+  it("words each entry as a program from its media's content facts", async () => {
+    const { server, db } = await startScheduleScenarioServer();
+    await db
+      .insertInto("content_facts")
+      .values({
+        ...EPISODE_FACTS,
+        media_item_id: "item-002",
+        description: "Mal takes a job.",
+      })
+      .execute();
+
+    const { body } = await send(
+      server,
+      "GET",
+      windowUrl(SCHEDULE_URL, T0, T0 + 30 * MINUTE),
+    );
+
+    expect(body.entries[1]).toMatchObject({
+      title: "Item 2",
+      program: {
+        title: "Firefly",
+        subTitle: "The Train Job",
+        description: "Mal takes a job.",
+        releaseDate: "2002-09-20",
+        kind: "episode",
+        genres: ["Drama"],
+        posterUrl: "https://image.tmdb.org/t/p/w500/firefly.jpg",
+        episode: { season: 1, episode: 5, lastEpisode: 6 },
+      },
     });
   });
 

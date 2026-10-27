@@ -41,6 +41,7 @@ const ENTRY_FIELDS = [
   "mediaItemId",
   "playbackIndex",
   "playbackMode",
+  "program",
   "programmingBlockId",
   "sequenceNumber",
   "startsAt",

@@ -11,8 +11,9 @@ import type { FastifyInstance } from "fastify";
 import type { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
 import type { MediaItemRepository } from "../media-items/media-item-repository.js";
+import { guidePrograms } from "../schedules/guide/guide-program.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
-import { guideProgramme } from "./guide-programme.js";
+import { xmltvProgramme } from "./xmltv-programme.js";
 
 const LINEUP_PATH = "/lineup.json";
 const XML_CONTENT_TYPE = "application/xml; charset=utf-8";
@@ -82,17 +83,12 @@ export function registerPlexRoutes(
       // listing entries generated before it became unschedulable.
       await schedules.ensureCoverage(channel.id, request.log);
       const { entries } = await schedules.readWindow(channel.id, start, end);
-      // Content facts are read after the window, outside its snapshot: a
-      // title or description a beat newer than the entries is harmless.
-      const items = await mediaItems.listByIds(
-        entries.map((entry) => entry.mediaItemId),
-      );
       guide.push({
         id: channel.id,
         number: channel.number,
         name: channel.name,
-        programmes: entries.map((entry) =>
-          guideProgramme(entry, items.get(entry.mediaItemId)?.metadata),
+        programmes: (await guidePrograms(mediaItems, entries)).map(
+          ({ entry, program }) => xmltvProgramme(entry, program),
         ),
       });
     }

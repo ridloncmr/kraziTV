@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { displayClockTime, displayShortDay } from "../controls/display-time.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import type { Channel } from "../http/contracts/channels.js";
-import { useRefreshScope } from "../http/resources/refresh-scope.js";
-import { useResource } from "../http/resources/use-resource.js";
+import {
+  displayClockTime,
+  displayShortDay,
+} from "../../controls/display-time.js";
+import { RequestFeedback } from "../../controls/request-feedback.js";
+import type { Channel } from "../../http/contracts/channels.js";
+import { useRefreshScope } from "../../http/resources/refresh-scope.js";
+import { useResource } from "../../http/resources/use-resource.js";
 import {
   GUIDE_WIDTH_PX,
   HALF_HOUR_PX,
