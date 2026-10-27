@@ -27,7 +27,7 @@ const TABS: readonly { key: RuleTab; label: string }[] = [
  * property sheet: **General** names it and says what it does to the
  * lineup, **When** holds its calendar conditions in the server's
  * programming timezone, and **What plays** picks the lineup entries it plays with any
- * sizes that apply only while it wins. Nothing writes until **OK**, which
+ * sizes it applies while it is active. Nothing writes until **OK**, which
  * first shows the tab of any missing field; the server validates the rest
  * and its message shows here. `saved` runs after a write it accepted.
  */
@@ -121,6 +121,16 @@ export function RuleDialog({
   );
 }
 
+// The priority scale the server accepts (programming spec 0009), with its
+// ends named so the owner reads which way is higher.
+const PRIORITIES = [
+  { value: 1, label: "1 (lowest)" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4" },
+  { value: 5, label: "5 (highest)" },
+] as const;
+
 /** The General tab: the rule's name, what it does to the lineup, and its priority. */
 function GeneralFields({
   draft,
@@ -166,18 +176,23 @@ function GeneralFields({
       </div>
       <label>
         Priority
-        <input
-          type="number"
-          required
-          step={1}
+        <select
           aria-describedby={priorityHintId}
-          value={Number.isNaN(draft.priority) ? "" : draft.priority}
-          onChange={(event) => edit({ priority: event.target.valueAsNumber })}
-        />
+          value={draft.priority}
+          onChange={(event) => edit({ priority: Number(event.target.value) })}
+        >
+          {PRIORITIES.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </label>
       <small id={priorityHintId} className="secondary">
-        When rules overlap, only the higher-priority one applies; what they play
-        is never combined. On a tie, the rule higher in the list wins.
+        Rules that overlap at the same priority play together. A higher priority
+        takes over completely. For example, give Christmas Movies priority 4 and
+        Saturday Cartoons priority 3, and a Christmas Saturday plays only
+        Christmas movies. Give both priority 3, and they take turns.
       </small>
     </>
   );

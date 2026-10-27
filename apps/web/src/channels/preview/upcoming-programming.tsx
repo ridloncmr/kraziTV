@@ -97,7 +97,7 @@ export function UpcomingProgramming({
 
 /**
  * Explains why a turn's source could air and where its sizes came from:
- * the winning rule or normal rotation, each rule passed over first with
+ * the first active rule naming it or normal rotation, each rule passed over first with
  * why, and any setting the rule replaced or turned off.
  */
 function describeDecision(

@@ -23,7 +23,7 @@ export interface AssignmentSettings {
   marathonStretch: StretchSetting | null;
   members: AssignmentMember[];
 }
-/** What a rule does to a source's marathon while it wins. */
+/** What a rule does to a source's marathon while it is active. */
 export type RuleMarathon =
   | { mode: "inherit" }
   | { mode: "disabled" }
@@ -71,7 +71,7 @@ export interface PreviewTurn {
   continues: boolean;
   /** The rule that won when the turn was decided; null for default rotation. */
   winningRuleId: string | null;
-  /** Applicable rules passed over before the winner; null for a continued turn. */
+  /** Applicable rules dropped as unusable at or above the active priority; null for a continued turn. */
   skippedRules: { ruleId: string; reason: string }[] | null;
   /** When the turn was decided: its first program's start. */
   decidedAt: string;
