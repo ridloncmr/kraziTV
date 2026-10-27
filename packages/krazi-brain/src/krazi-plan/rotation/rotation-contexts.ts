@@ -76,7 +76,7 @@ export function leaveContext(
 /**
  * Brings a round under way in line with who is eligible now (programming
  * spec 0005): a pending assignment that lost eligibility leaves the round
- * but is remembered, and one the winning rule makes eligible, or that was
+ * but is remembered, and one an active rule makes eligible, or that was
  * remembered, enters the remaining turns at a seeded position without
  * reordering them. A served or skipped assignment never gets another turn,
  * and a default assignment added mid-round waits for the next. A round with

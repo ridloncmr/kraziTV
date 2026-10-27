@@ -85,7 +85,7 @@ export async function readRules(
 
 /**
  * Loads a channel's rules as kraziPlan ranks and evaluates them, in saved
- * rule order. kraziPlan alone decides which applies and wins.
+ * rule order. kraziPlan alone decides which rules are active.
  */
 export async function loadProgrammingRules(
   executor: Executor,

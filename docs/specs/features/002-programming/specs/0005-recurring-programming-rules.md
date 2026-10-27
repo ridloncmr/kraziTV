@@ -96,6 +96,12 @@ alter future decisions, rather than rewriting covered windows on reads.
 
 ### Precedence And Fallback
 
+> Superseded by
+> [programming spec 0009](0009-combined-programming-rules.md): rules at the
+> same priority are active together, and a higher priority takes over. The
+> single-winner parts of **Rotation Participation** and **Rule-Specific
+> Stretch Settings** are superseded the same way.
+
 Programming follows this precedence:
 
 1. Published manual overrides and clock-anchored reservations (specs 0006 and 0007).

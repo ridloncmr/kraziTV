@@ -8,6 +8,7 @@ import { scheduleMedia } from "../../testing/schedule-media.js";
 import type { RuleSource } from "../contracts.js";
 import {
   applyRuleSettings,
+  findNamingRule,
   findRuleSourceProblem,
   settingOrigins,
 } from "./rule-settings.js";
@@ -32,11 +33,36 @@ function source(partial: Partial<RuleSource>): RuleSource {
 }
 
 describe("applyRuleSettings", () => {
-  it("keeps the assignment's settings without a winner, or when the winner does not name it", () => {
-    expect(applyRuleSettings(MOVIES, undefined)).toBe(MOVIES);
-    expect(applyRuleSettings(MOVIES, programmingRule("other", ["parks"]))).toBe(
-      MOVIES,
-    );
+  it("keeps the assignment's settings when no active rule names it", () => {
+    expect(applyRuleSettings(MOVIES, [])).toBe(MOVIES);
+    expect(
+      applyRuleSettings(MOVIES, [programmingRule("other", ["parks"])]),
+    ).toBe(MOVIES);
+  });
+
+  it("takes settings from the first active rule naming the assignment, never merging", () => {
+    const first = programmingRule("first", [
+      "parks",
+      source({ ordinary: { kind: "programs", count: 2 } }),
+    ]);
+    const second = programmingRule("second", [
+      source({
+        ordinary: { kind: "programs", count: 9 },
+        marathon: { mode: "disabled" },
+      }),
+    ]);
+    const active = [programmingRule("other", ["parks"]), first, second];
+
+    expect(applyRuleSettings(MOVIES, active)).toMatchObject({
+      ordinary: { kind: "programs", count: 2 },
+      marathon: { kind: "programs", count: 3 },
+    });
+    expect(settingOrigins(active, "movies")).toEqual({
+      ordinary: "rule",
+      marathon: "assignment",
+    });
+    expect(findNamingRule(active, "movies")).toBe(first);
+    expect(findNamingRule(active, "missing")).toBeUndefined();
   });
 
   it("replaces the ordinary stretch and keeps an inherited marathon", () => {
@@ -44,12 +70,12 @@ describe("applyRuleSettings", () => {
       source({ ordinary: { kind: "programs", count: 2 } }),
     ]);
 
-    expect(applyRuleSettings(MOVIES, rule)).toMatchObject({
+    expect(applyRuleSettings(MOVIES, [rule])).toMatchObject({
       ordinary: { kind: "programs", count: 2 },
       marathon: { kind: "programs", count: 3 },
       playbackMode: MOVIES.playbackMode,
     });
-    expect(settingOrigins(rule, "movies")).toEqual({
+    expect(settingOrigins([rule], "movies")).toEqual({
       ordinary: "rule",
       marathon: "assignment",
     });
@@ -65,20 +91,20 @@ describe("applyRuleSettings", () => {
       }),
     ]);
 
-    expect(applyRuleSettings(MOVIES, disabled).marathon).toBeNull();
-    expect(settingOrigins(disabled, "movies").marathon).toBe("disabled");
-    expect(applyRuleSettings(MOVIES, replaced).marathon).toEqual({
+    expect(applyRuleSettings(MOVIES, [disabled]).marathon).toBeNull();
+    expect(settingOrigins([disabled], "movies").marathon).toBe("disabled");
+    expect(applyRuleSettings(MOVIES, [replaced]).marathon).toEqual({
       kind: "programs",
       count: 5,
     });
-    expect(settingOrigins(replaced, "movies")).toEqual({
+    expect(settingOrigins([replaced], "movies")).toEqual({
       ordinary: "assignment",
       marathon: "rule",
     });
   });
 
-  it("reports assignment origins without a winner or reference", () => {
-    expect(settingOrigins(undefined, "movies")).toEqual({
+  it("reports assignment origins when no active rule names the assignment", () => {
+    expect(settingOrigins([], "movies")).toEqual({
       ordinary: "assignment",
       marathon: "assignment",
     });

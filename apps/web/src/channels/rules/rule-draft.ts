@@ -66,6 +66,10 @@ export function newSource(choice: RuleSourceChoice): SourceDraft {
   };
 }
 
+// The middle of the 1 to 5 scale, so one rule can later be raised or
+// lowered without renumbering the others (programming spec 0009).
+const NEW_RULE_PRIORITY = 3;
+
 /**
  * Shows a saved rule in the dialog, or an empty one for a new rule. A show
  * that inherits its own sizes starts from them, as a newly selected one
@@ -79,7 +83,7 @@ export function toRuleDraft(
   return {
     name: rule?.name ?? "",
     behavior: rule?.behavior ?? "join",
-    priority: rule?.priority ?? 0,
+    priority: rule?.priority ?? NEW_RULE_PRIORITY,
     dateKind: dates.kind,
     start:
       dates.kind === "one_off"
@@ -131,9 +135,7 @@ export function toRuleDraft(
  * to check.
  */
 export function firstIncompleteTab(draft: RuleDraft): RuleTab | undefined {
-  if (draft.name.trim() === "" || Number.isNaN(draft.priority)) {
-    return "general";
-  }
+  if (draft.name.trim() === "") return "general";
   const datesIncomplete =
     draft.dateKind !== "any" &&
     (draft.start === "" ||

@@ -114,10 +114,11 @@ describe("rule edits and the started turn", () => {
     );
   });
 
-  it("ends the started turn when a reorder makes a rule with other sizes win", async () => {
+  it("ends the started turn when a reorder puts a rule with other sizes first", async () => {
     const { server, db, turnId, ruleId } = await ruledMidTurn();
     const second = await send(server, "POST", RULES_URL, resizeRule(2, "Two"));
-    // Saved order breaks the priority tie, so the first rule still wins.
+    // Both rules are active at one priority; the first in saved order
+    // supplies the shared show's sizes, so adding the second changes nothing.
     await expect(readBlocks(db)).resolves.toContainEqual(
       expect.objectContaining({ id: turnId, ended_by_edit: 0 }),
     );
@@ -170,7 +171,7 @@ describe("rule edits and the started turn", () => {
     );
   });
 
-  it("starts fresh rounds and cooldown under the current winner when stopping and rebuilding", async () => {
+  it("starts fresh rounds and cooldown under the active rule when stopping and rebuilding", async () => {
     const { server, db, ruleId } = await ruledMidTurn();
 
     const response = await send(

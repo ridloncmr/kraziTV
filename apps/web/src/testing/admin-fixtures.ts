@@ -249,7 +249,7 @@ export function ruleFixture(
     id,
     name,
     behavior: "join",
-    priority: 0,
+    priority: 3,
     dates: { kind: "any" },
     weekdays: null,
     window: null,

@@ -5,7 +5,7 @@ import type {
   StretchSetting,
 } from "@krazitv/krazi-brain";
 
-/** One assignment a rule selects, with the settings that apply only while it wins. */
+/** One assignment a rule selects, with the settings it applies while it is the first active rule naming it. */
 export interface RuleSourceSettings {
   assignmentId: string;
   /** Replaces the assignment's ordinary stretch; null inherits it. */

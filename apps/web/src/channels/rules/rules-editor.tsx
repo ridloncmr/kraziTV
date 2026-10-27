@@ -21,8 +21,9 @@ import { behaviorWords, describeWhen } from "./rule-words.js";
  * The Rules tab: the channel's programming rules as a list by priority,
  * highest first, saying in words when each applies and what it plays.
  * **New rule…** and **Properties** open the rule dialog, and **Delete…**
- * asks first. Saved order only breaks priority ties, so a rule moves up or
- * down only among rules of its priority. Each accepted edit has already
+ * asks first. Rules that overlap at one priority play together, and saved
+ * order decides whose settings a show they share uses, so a rule moves up
+ * or down only among rules of its priority. Each accepted edit has already
  * regenerated after the airing program; the rebuild choice that follows
  * can also stop it and rebuild from now.
  */
@@ -61,7 +62,7 @@ export function RulesEditor({
     setRebuilding(true);
   };
   const savedOrder = rules.data ?? [];
-  // Highest priority first; saved order breaks ties, as the server ranks them.
+  // Highest priority first, then saved order, as the server ranks them.
   const ranked = [...savedOrder].sort((a, b) => b.priority - a.priority);
   const selected = ranked.find((rule) => rule.id === selectedId);
   const edited = ranked.find((rule) => rule.id === editing);
@@ -102,7 +103,8 @@ export function RulesEditor({
     <section aria-label="Programming rules">
       <p className="secondary">
         Rules change what the channel plays on certain dates, days, or hours.
-        When rules overlap, only the higher-priority one applies.
+        Overlapping rules with the same priority play together; a higher
+        priority takes over.
       </p>
       <RequestFeedback
         loading={rules.loading || mutation.pending}

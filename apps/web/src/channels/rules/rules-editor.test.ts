@@ -14,7 +14,7 @@ import {
   ruleFixture,
 } from "../../testing/admin-fixtures.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
-import { chooseOption } from "../../testing/choose-option.js";
+import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 
 afterEach(() => {
   cleanup();
@@ -100,9 +100,7 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   fireEvent.change(within(form).getByLabelText("Name"), {
     target: { value: "December" },
   });
-  fireEvent.change(within(form).getByLabelText("Priority"), {
-    target: { value: "1" },
-  });
+  chooseOption(within(form).getByLabelText("Priority"), "1 (lowest)");
   showTab(form, "When");
   expect(
     (await within(form).findByText(/America\/New_York/)).textContent,
@@ -149,6 +147,32 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   await within(dialog).findByText(/rebuilt after what is airing now/);
   // The rule save already regenerated after the airing program.
   expect(api.requestsTo("/channels/one/schedule/generate")).toEqual([]);
+});
+
+it("offers priorities 1 to 5, starts a new rule at 3, and says how overlapping rules combine", async () => {
+  const api = editorApi();
+
+  const form = await openNewRule(api);
+  expect(
+    screen.getByText(
+      "Rules change what the channel plays on certain dates, days, or hours. Overlapping rules with the same priority play together; a higher priority takes over.",
+    ),
+  ).toBeDefined();
+  const priority = within(form).getByLabelText<HTMLSelectElement>("Priority");
+
+  expect(
+    within(priority)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
+  ).toEqual(["1 (lowest)", "2", "3", "4", "5 (highest)"]);
+  expect(chosenOption(priority)).toBe("3");
+  expect(priority.getAttribute("aria-describedby")).not.toBeNull();
+  expect(
+    document.getElementById(priority.getAttribute("aria-describedby") ?? "")
+      ?.textContent,
+  ).toBe(
+    "Rules that overlap at the same priority play together. A higher priority takes over completely. For example, give Christmas Movies priority 4 and Saturday Cartoons priority 3, and a Christmas Saturday plays only Christmas movies. Give both priority 3, and they take turns.",
+  );
 });
 
 it("saves a Friday evening feature with its own turn and marathon lengths", async () => {
@@ -353,7 +377,7 @@ it("says in words when each rule applies, which shows it plays, and how", async 
       "Fridays",
       "Christmas Movies, Favorites",
       "Takes over the channel",
-      "0",
+      "3",
     ]),
   );
 });

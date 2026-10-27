@@ -74,7 +74,7 @@ export function programmingRule(
   return {
     id,
     behavior: "join",
-    priority: 0,
+    priority: 3,
     ruleOrder: 0,
     conditions: {
       dates: { kind: "any" },

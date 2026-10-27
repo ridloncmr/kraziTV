@@ -93,8 +93,9 @@ export function registerProgrammingPreviewRoutes(
  * Explains one turn: its member, the size it resolved and where its
  * settings came from, what it airs, and, for an airtime target the preview
  * starts, by how much whole programs ran over it. A marathon names the
- * channel chance that drew it. The rule that won when the turn was decided
- * and the rules passed over before it say why its source was eligible.
+ * channel chance that drew it. The first active rule naming the turn's
+ * source when it was decided, and the rules dropped as unusable, say why
+ * its source was eligible.
  */
 function toApiTurn(
   block: GeneratedBlock,

@@ -26,7 +26,7 @@ export interface MarathonSettings {
 
 /**
  * How an assignment takes part in programming (programming spec 0005): in
- * normal rotation, or only while a winning programming rule selects it. The
+ * normal rotation, or only while an active programming rule selects it. The
  * one list of values; the server's validation and column derive from it.
  */
 export const ASSIGNMENT_PARTICIPATIONS = ["default", "rule_only"] as const;
@@ -52,7 +52,7 @@ export interface ProgrammingAssignment {
   id: string;
   /**
    * `default` takes turns in normal rotation; `rule_only` airs only while
-   * a winning programming rule selects it (programming spec 0005).
+   * an active programming rule selects it (programming spec 0005).
    */
   participation: AssignmentParticipation;
   /** Required when a member is a collection; absent for single items only. */
@@ -65,19 +65,20 @@ export interface ProgrammingAssignment {
 }
 
 /**
- * How a winning rule changes the active sources (programming spec 0005):
- * `join` adds its sources to normal rotation, and `feature` plays only its
- * own. The one list of values; the server's validation derives from it.
+ * How an active rule changes the sources that take turns (programming specs
+ * 0005 and 0009): `join` adds its sources to whatever is playing, and
+ * `feature` replaces the default lineup with the active rules' sources.
+ * The one list of values; the server's validation derives from it.
  */
 export const RULE_BEHAVIORS = ["join", "feature"] as const;
 
-/** What a rule does to a source's marathon while it wins: keep, turn off, or replace the assignment's. */
+/** What a rule does to a source's marathon while it supplies the source's settings: keep, turn off, or replace the assignment's. */
 export type RuleMarathon =
   | { mode: "inherit" }
   | { mode: "disabled" }
   | { mode: "replace"; stretch: StretchSetting };
 
-/** One assignment a rule selects, with the settings that apply only while it wins. */
+/** One assignment a rule selects, with the settings it supplies while it is the first active rule naming the source. */
 export interface RuleSource {
   assignmentId: string;
   /** Replaces the assignment's ordinary stretch; null inherits it. */
@@ -106,11 +107,11 @@ export interface ProgrammingRule {
 
 /** The sources a decision lets take turns, and the rotation context they take them in. */
 export interface RotationScope {
-  /** `default`, which join rules share, or `rule:<id>` for a feature rule. */
+  /** `default`, which join rules share, or `rule:` and the sorted active feature rule IDs joined by `+`. */
   contextKey: string;
   /** Assignments that may take turns, in saved assignment order. */
   eligible: readonly ProgrammingAssignment[];
-  /** Those eligible only because the winning rule selects them; only these may join a round under way. */
+  /** Those eligible only because an active rule selects them; only these may join a round under way. */
   ruleDriven: ReadonlySet<string>;
 }
 
@@ -142,7 +143,7 @@ export interface RoundState {
  * channel-wide.
  */
 export interface RotationCheckpoint {
-  /** The context the turn ran in: `default`, or `rule:<id>` for a feature rule. */
+  /** The context the turn ran in: `default`, or `rule:` and the sorted active feature rule IDs joined by `+`. */
   activeContext: string;
   /** Each context's round as it was last left. */
   contexts: Record<string, RoundState>;
@@ -195,7 +196,7 @@ export interface GeneratedBlock {
   /** Null for a single-item turn, which is one airing. */
   size: ResolvedSize | null;
   marathon: boolean;
-  /** The rule that won when the turn started, or null for default rotation. */
+  /** The first active rule naming the turn's assignment when it started, or null when none did. */
   winningRuleId: string | null;
   /** Where the settings the turn resolved its size from came from. */
   settingOrigins: SettingOrigins;

@@ -49,7 +49,7 @@ function joinRule(
   id: string,
   sources: string[],
   conditions: Partial<CalendarConditions>,
-  priority = 0,
+  priority = 3,
 ): ProgrammingRule {
   return programmingRule(id, sources, { conditions, priority });
 }
@@ -152,7 +152,7 @@ describe("generateProgramming: join rules", () => {
     );
   });
 
-  it("gives a source referenced by both the defaults and the winning rule one turn a round", () => {
+  it("gives a source referenced by both the defaults and an active rule one turn a round", () => {
     const both = joinRule("both", ["office", "christmas"], {});
 
     const { blocks } = generated(
@@ -171,53 +171,75 @@ describe("generateProgramming: join rules", () => {
     }
   });
 
-  it("joins only the winning rule's sources when December, Winter, and Friday rules overlap", () => {
-    const rules = [
-      joinRule("december", ["christmas"], DECEMBER.conditions, 3),
-      joinRule(
-        "winter",
-        ["winter"],
-        {
-          dates: {
-            kind: "annual",
-            startMonthDay: "11-15",
-            endMonthDay: "02-15",
-          },
-        },
-        2,
-      ),
-      joinRule("fridays", ["comedy"], { weekdays: [5] }, 1),
+  it("joins every overlapping rule at the same priority, but only the highest priority's", () => {
+    const winter = {
+      dates: {
+        kind: "annual",
+        startMonthDay: "11-15",
+        endMonthDay: "02-15",
+      },
+    } as const;
+    const overlapping = (priorities: [number, number, number]) => [
+      joinRule("december", ["christmas"], DECEMBER.conditions, priorities[0]),
+      joinRule("winter", ["winter"], winter, priorities[1]),
+      joinRule("fridays", ["comedy"], { weekdays: [5] }, priorities[2]),
     ];
     // 2026-12-04 is a Friday in December and in winter.
     const friday = {
       startsAt: utc("2026-12-04T00:00:00Z"),
       through: utc("2026-12-05T00:00:00Z"),
     };
+    const assignments = [...DEFAULTS, CHRISTMAS, WINTER, COMEDY];
 
-    const separate = generated(
-      generateProgramming(
-        options([...DEFAULTS, CHRISTMAS, WINTER, COMEDY], rules, friday),
-      ),
+    const together = generated(
+      generateProgramming(options(assignments, overlapping([3, 3, 3]), friday)),
     );
-    expect(new Set(separate.blocks.map((block) => block.assignmentId))).toEqual(
-      new Set(["office", "parks", "scrubs", "christmas"]),
-    );
-
-    const combined = generated(
-      generateProgramming(
-        options(
-          [...DEFAULTS, CHRISTMAS, WINTER, COMEDY],
-          [joinRule("holidays", ["christmas", "winter", "comedy"], {})],
-          friday,
-        ),
-      ),
-    );
-    expect(new Set(combined.blocks.map((block) => block.assignmentId))).toEqual(
+    expect(together.blocks.length).toBeGreaterThan(6);
+    expect(new Set(together.blocks.map((block) => block.assignmentId))).toEqual(
       new Set(["office", "parks", "scrubs", "christmas", "winter", "comedy"]),
+    );
+    // Mix-ins never leave the default context.
+    for (const block of together.blocks) {
+      expect(block.checkpoint.activeContext).toBe("default");
+    }
+
+    const ranked = generated(
+      generateProgramming(options(assignments, overlapping([3, 2, 1]), friday)),
+    );
+    expect(new Set(ranked.blocks.map((block) => block.assignmentId))).toEqual(
+      new Set(["office", "parks", "scrubs", "christmas"]),
     );
   });
 
-  it("falls through a winning rule with no usable source to the next rule, then to defaults", () => {
+  it("records the mix-in that names a turn's show, and no rule for a default show beside it", () => {
+    const rules = [
+      joinRule("december", ["christmas"], {}, 3),
+      joinRule("winter", ["winter"], {}, 3),
+    ];
+
+    const { blocks } = generated(
+      generateProgramming(
+        options([...DEFAULTS, CHRISTMAS, WINTER], rules, {
+          through: utc("2026-12-02T00:00:00Z"),
+        }),
+      ),
+    );
+
+    const named = new Map(
+      blocks.map((block) => [block.assignmentId, block.winningRuleId]),
+    );
+    expect(named).toEqual(
+      new Map([
+        ["office", null],
+        ["parks", null],
+        ["scrubs", null],
+        ["christmas", "december"],
+        ["winter", "winter"],
+      ]),
+    );
+  });
+
+  it("falls through a rule with no usable source to the next priority, then to defaults", () => {
     const empty = collectionAssignment("empty", "c-empty", [], {
       participation: "rule_only",
     });

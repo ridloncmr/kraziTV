@@ -76,7 +76,7 @@ const OFFICE = collectionAssignment(
 );
 
 describe("generateProgramming: rule-specific stretch settings", () => {
-  it("airs two films a turn, and three for a marathon, only while the Friday feature wins", () => {
+  it("airs two films a turn, and three for a marathon, only while the Friday feature is active", () => {
     const fridays = programmingRule(
       "fridays",
       [
@@ -138,7 +138,7 @@ describe("generateProgramming: rule-specific stretch settings", () => {
     ).toBe(true);
   });
 
-  it("keeps a default source's settings when a join wins without naming it, and ignores losing rules", () => {
+  it("keeps a default source's settings when an active join does not name it, and ignores lower-priority rules", () => {
     const join = programmingRule(
       "join",
       [
@@ -150,13 +150,17 @@ describe("generateProgramming: rule-specific stretch settings", () => {
       ],
       { priority: 2 },
     );
-    const losing = programmingRule("losing", [
-      {
-        assignmentId: "office",
-        ordinary: { kind: "programs", count: 5 },
-        marathon: { mode: "inherit" },
-      },
-    ]);
+    const losing = programmingRule(
+      "losing",
+      [
+        {
+          assignmentId: "office",
+          ordinary: { kind: "programs", count: 5 },
+          marathon: { mode: "inherit" },
+        },
+      ],
+      { priority: 1 },
+    );
 
     const { blocks } = generated(
       generateProgramming(options([OFFICE, MOVIES], [join, losing])),
@@ -206,7 +210,7 @@ describe("generateProgramming: rule-specific stretch settings", () => {
     }
   });
 
-  it("turns a reserved marathon the winning rule disables into an ordinary turn", () => {
+  it("turns a reserved marathon the active rule disables into an ordinary turn", () => {
     const quiet = programmingRule("quiet", [
       {
         assignmentId: "movies",

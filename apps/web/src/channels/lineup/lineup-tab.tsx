@@ -11,6 +11,7 @@ import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
+import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import { AddShowsDialog } from "./add-shows-dialog.js";
 import { MarathonsControl } from "./marathons-control.js";
 import {
@@ -28,12 +29,16 @@ import { useMemberNames } from "./use-member-names.js";
  * a selected show opens in
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
- * calls `changed`; the server regenerates.
+ * calls `changed`. A write that changes what airs has already regenerated
+ * after the airing program, so the lineup then offers the rebuild choice,
+ * as the Rules tab does, once the dialog that made it closes.
  */
 export function LineupTab({
+  channelId,
   programming,
   visible,
 }: {
+  channelId: string;
   programming: ChannelProgramming;
   visible: boolean;
 }) {
@@ -56,6 +61,12 @@ export function LineupTab({
   const [editing, setEditing] = useState<string>();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<SourceAssignment>();
+  const [rebuilding, setRebuilding] = useState(false);
+  // Refreshes after a write that changed what airs, and offers the rebuild choice.
+  const applied = () => {
+    changed();
+    setRebuilding(true);
+  };
   const selected = listed.find((assignment) => assignment.id === selectedId);
   const edited = listed.find((assignment) => assignment.id === editing);
   // Members the lineup plays outside `except`, which no other show may add.
@@ -192,7 +203,7 @@ export function LineupTab({
           canMarathon={listed.some(
             (assignment) => assignment.marathonStretch !== null,
           )}
-          changed={changed}
+          changed={applied}
         />
       )}
       {adding && (
@@ -201,7 +212,7 @@ export function LineupTab({
           collections={collections.data}
           inLineup={new Set(playedElsewhere(undefined))}
           visible={visible}
-          changed={changed}
+          changed={applied}
           onClose={() => setAdding(false)}
         />
       )}
@@ -222,7 +233,10 @@ export function LineupTab({
           marathons={marathons}
           visible={visible}
           changed={changed}
-          onClose={() => setEditing(undefined)}
+          onClose={(programmingChanged) => {
+            setEditing(undefined);
+            if (programmingChanged) setRebuilding(true);
+          }}
         />
       )}
       {removing && (
@@ -247,7 +261,7 @@ export function LineupTab({
                   undefined,
                   () => {
                     setRemoving(undefined);
-                    changed();
+                    applied();
                   },
                 );
               }}
@@ -263,6 +277,14 @@ export function LineupTab({
             </button>
           </div>
         </WindowDialog>
+      )}
+      {rebuilding && (
+        <RebuildDialog
+          channelId={channelId}
+          rebuilt={changed}
+          onClose={() => setRebuilding(false)}
+          finishApplied
+        />
       )}
     </section>
   );
