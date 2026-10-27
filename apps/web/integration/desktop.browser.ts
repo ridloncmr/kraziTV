@@ -83,7 +83,8 @@ async function scanNewRoot(page: Page, directory: string) {
   await addRoot.getByLabel("Absolute server path").fill(directory);
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
   await expect(addRoot).toBeHidden();
-  await media.getByRole("button", { name: "Scan", exact: true }).click();
+  await media.getByRole("button", { name: `Actions for ${directory}` }).click();
+  await page.getByRole("menuitem", { name: "Scan", exact: true }).click();
   const scanning = media.getByRole("dialog", { name: "Scanning media root" });
   await expect(scanning).toBeVisible();
   return { media, scanning };
@@ -373,11 +374,35 @@ for (const viewport of [
       .getByRole("button", { name: "Create channel", exact: true })
       .click();
     await expect(newChannel).toBeHidden();
-    await channels
-      .getByLabel("Programming source")
-      .selectOption({ label: "Northwoods collection" });
-    await channels.getByRole("button", { name: "Save programming" }).click();
-    await expect(channels.getByText(/Backend schedule:/)).toBeVisible();
+    await channels.getByRole("tab", { name: "Lineup" }).click();
+    await channels.getByRole("button", { name: "Add shows…" }).click();
+    const addShows = channels.getByRole("dialog", { name: "Add shows" });
+    await addShows
+      .getByRole("checkbox", { name: /^Northwoods collection/ })
+      .check();
+    await addShows.getByRole("button", { name: "Next (1)" }).click();
+    // One unmatched file suggests no per sitting, so the owner chooses.
+    await addShows
+      .getByLabel("Plays at a time")
+      .selectOption({ label: "1 program" });
+    await addShows.getByRole("button", { name: "Add (1)" }).click();
+    await expect(addShows).toBeHidden();
+    // The server already generated the schedule; Let it finish just confirms.
+    const rebuild = channels.getByRole("dialog", {
+      name: "Rebuild the schedule",
+    });
+    await rebuild.getByRole("button", { name: "Rebuild", exact: true }).click();
+    await rebuild.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(rebuild).toBeHidden();
+    await expect(
+      channels
+        .getByRole("table", { name: "Shows" })
+        .getByRole("button", { name: "Northwoods collection", exact: true }),
+    ).toBeVisible();
+    await channels.getByRole("tab", { name: "Preview" }).click();
+    await expect(
+      channels.getByRole("list", { name: "Upcoming turns" }),
+    ).toContainText("Northwoods collection");
     await channels
       .getByRole("button", { name: "Maximize My Channels" })
       .click();
@@ -393,12 +418,16 @@ for (const viewport of [
       name: "Program Guide",
       exact: true,
     });
-    await guide
-      .getByRole("combobox", { name: "Channel", exact: true })
-      .selectOption({ label: "69 · Northwoods TV" });
-    await expect(guide.getByText("On air", { exact: true })).toBeVisible();
+    const programs = guide.getByRole("list", {
+      name: "Programs on Northwoods TV",
+    });
     await expect(
-      guide.getByText("Playback offset", { exact: true }),
+      programs.getByRole("listitem").filter({ hasText: "Northwoods" }).first(),
+    ).toBeVisible();
+    // The channel went on air when its lineup was saved, so a block is airing.
+    await expect(programs.locator(".guide-block.airing")).toHaveCount(1);
+    await expect(
+      guide.getByRole("button", { name: "Now", exact: true }),
     ).toBeVisible();
     if (viewport.width > 620) {
       const title = guide.getByLabel(/Program Guide window/);
@@ -441,9 +470,7 @@ for (const viewport of [
     await monitor
       .getByRole("combobox", { name: "Channel", exact: true })
       .selectOption({ label: "69 · Northwoods TV" });
-    await expect(
-      monitor.getByText("Playback offset", { exact: true }),
-    ).toBeVisible();
+    await expect(monitor.getByText("Position", { exact: true })).toBeVisible();
     await monitor.getByRole("button", { name: "Close Live Monitor" }).click();
     await page.screenshot({
       path: `../../data/web-desktop-${viewport.width}.png`,

@@ -1,8 +1,9 @@
 /*
- * The guide grid: channel names down a sticky left column, the next 24
- * hours across a sticky ruler, and blocks placed by the geometry module.
- * The page fills its window, so the sheet scrolls inside the window rather
- * than growing it, and the names and ruler stay in view.
+ * The guide grid: channel names down a sticky left column, 24 hours across
+ * a sticky ruler with Now in its corner, and blocks placed by the geometry
+ * module, which also sets the sheet's widths as custom properties. The page
+ * fills its window, so the sheet scrolls inside the window rather than
+ * growing it, and the names and ruler stay in view.
  */
 .guide-page {
   height: 100%;
@@ -46,9 +47,18 @@
   left: 0;
   z-index: 1;
   flex: none;
+  display: flex;
+  align-items: center;
   width: var(--guide-channel-width);
+  padding: 0 6px;
   background: var(--xp-menu-surface);
   border-right: 1px solid var(--xp-border);
+}
+/* Now fits the ruler's height, where the hour labels are. */
+.program-page .guide-now-button {
+  min-height: 0;
+  padding: 1px 8px;
+  font-size: 11px;
 }
 .guide-hours {
   position: relative;
@@ -100,7 +110,7 @@
   background: repeating-linear-gradient(
     to right,
     var(--xp-menu-surface) 0 1px,
-    transparent 1px 120px
+    transparent 1px var(--guide-half-hour)
   );
 }
 .guide-track ol {

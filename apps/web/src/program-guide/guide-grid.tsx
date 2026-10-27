@@ -1,35 +1,71 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { displayClockTime, displayShortDay } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import type { Channel } from "../http/contracts/channels.js";
+import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
-import { GUIDE_WIDTH_PX, hourMarks, offsetPx } from "./guide-geometry.js";
+import {
+  GUIDE_WIDTH_PX,
+  HALF_HOUR_PX,
+  hourMarks,
+  guideStart,
+  offsetPx,
+} from "./guide-geometry.js";
 import { GuideRow } from "./guide-row.js";
 
 /** How often the now line moves while the guide is in view. */
 const NOW_TICK_MS = 60_000;
 
 /**
- * The guide grid: every channel down the side, the next 24 hours across,
- * and a line at now. It draws what the server reports and decides nothing;
- * the one instant it takes from the browser is where to draw the line.
+ * The guide grid: every channel down the side, 24 hours across from the top
+ * of the current half hour, and a line at now. It draws what the server reports
+ * and decides nothing; the one instant it takes from the browser is where
+ * to draw the line.
  */
 export function GuideGrid({ visible }: { visible: boolean }) {
   const channels = useResource<Channel[]>("/channels", visible);
-  // The window starts at now each time the program comes back into view,
-  // so a restored window shows today, not the day it was minimized on.
-  // Adjusted during render so the first visible paint already asks for it.
-  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
-  if (anchor.visible !== visible) {
-    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
+  const { signal } = useRefreshScope();
+  // The window moves to the current half hour whenever the program comes
+  // back into view or its window reloads, so a restored or refocused guide
+  // shows today rather than the hour it was left on. Adjusted during render
+  // so the first visible paint already asks for it. Within one half hour the
+  // start is unchanged, so a quiet reload keeps every row on screen.
+  const [anchor, setAnchor] = useState({
+    visible,
+    revision: signal.revision,
+    startsAt: guideStart(Date.now()),
+  });
+  if (anchor.visible !== visible || anchor.revision !== signal.revision) {
+    setAnchor({
+      visible,
+      revision: signal.revision,
+      startsAt: visible ? guideStart(Date.now()) : anchor.startsAt,
+    });
   }
   const [now, setNow] = useState(Date.now);
+  const scroll = useRef<HTMLDivElement>(null);
+  // Brings the window back to the current half hour and the reader back to its left edge.
+  const jumpToNow = () => {
+    setAnchor((current) => ({ ...current, startsAt: guideStart(Date.now()) }));
+    if (scroll.current) scroll.current.scrollLeft = 0;
+  };
   useEffect(() => {
     if (!visible) return;
     setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
+    const timer = setInterval(() => {
+      const instant = Date.now();
+      setNow(instant);
+      // A guide left at its left edge follows the clock into the next half
+      // hour; one scrolled ahead stays where the reader put it until Now.
+      if (
+        guideStart(instant) !== anchor.startsAt &&
+        (scroll.current?.scrollLeft ?? 0) === 0
+      ) {
+        setAnchor((current) => ({ ...current, startsAt: guideStart(instant) }));
+      }
+    }, NOW_TICK_MS);
     return () => clearInterval(timer);
-  }, [visible]);
+  }, [visible, anchor.startsAt]);
   const nowLeft = offsetPx(now, anchor.startsAt);
   return (
     <section className="guide" aria-label="Program guide">
@@ -40,19 +76,29 @@ export function GuideGrid({ visible }: { visible: boolean }) {
         </p>
       )}
       {channels.data && channels.data.length > 0 && (
-        <div className="guide-scroll">
+        <div className="guide-scroll" ref={scroll}>
           <div
             className="guide-sheet"
             style={
               {
                 "--guide-width": `${GUIDE_WIDTH_PX}px`,
+                "--guide-half-hour": `${HALF_HOUR_PX}px`,
                 "--guide-now": `${nowLeft}px`,
               } as CSSProperties
             }
           >
-            <div className="guide-ruler" aria-hidden="true">
-              <div className="guide-corner" />
-              <div className="guide-hours">
+            <div className="guide-ruler">
+              <div className="guide-corner">
+                <button
+                  type="button"
+                  className="guide-now-button"
+                  title="Back to the current half hour"
+                  onClick={jumpToNow}
+                >
+                  Now
+                </button>
+              </div>
+              <div className="guide-hours" aria-hidden="true">
                 {hourMarks(anchor.startsAt).map((mark) => (
                   <span key={mark.instant} style={{ left: mark.left }}>
                     {markLabel(mark.instant)}

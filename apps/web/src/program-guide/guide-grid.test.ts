@@ -1,24 +1,40 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
+import { guideStart } from "./guide-geometry.js";
 import { GuideGrid } from "./guide-grid.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 const at = (time: string) => `2026-10-05T${time}:00.000Z`;
+// The window starts at 19:30's local half hour, wherever the test runs.
+const windowStart = guideStart(Date.parse(at("19:30")));
+const startsAt = new Date(windowStart).toISOString();
+// Pixels from the window's start at four a minute, clipped at the left edge.
+const px = (time: string) =>
+  Math.max(0, ((Date.parse(at(time)) - windowStart) / 60_000) * 4);
+// The starts every schedule read asked for, in order.
+const readStarts = (api: BrowserApi) =>
+  api
+    .requestsTo("/channels/one/schedule")
+    .map((request) => request.query.get("start"));
 
 // The channel rows alone; each row holds its own list of programs.
 const channelRows = () => [
@@ -76,11 +92,11 @@ it("lays each channel's programs and Off air along the window at their times, ma
   expect(
     blocks.map((block) => block.querySelector("strong")?.textContent),
   ).toEqual(["Episode Two", "Off air", "Reserved Movie"]);
-  // Airing since 19:22: clipped to the left edge, 15 minutes to go at 4px each.
+  // Each block sits at its start, at four pixels a minute from the window.
   expect(blocks.map((block) => [block.style.left, block.style.width])).toEqual([
-    ["0px", "60px"],
-    ["60px", "60px"],
-    ["120px", "360px"],
+    [`${px("19:22")}px`, `${px("19:45") - px("19:22")}px`],
+    [`${px("19:45")}px`, "60px"],
+    [`${px("20:00")}px`, "360px"],
   ]);
   expect(blocks.map((block) => block.classList.contains("airing"))).toEqual([
     true,
@@ -88,9 +104,62 @@ it("lays each channel's programs and Off air along the window at their times, ma
     false,
   ]);
   expect(blocks[1].classList.contains("off-air")).toBe(true);
-  // Each row asks for 24 hours from the anchor.
-  expect(api.requestsTo("/channels/one/schedule")[0]?.query.get("start")).toBe(
-    at("19:30"),
+  // Each row asks for 24 hours from the top of the current half hour.
+  expect(readStarts(api)).toEqual([startsAt]);
+});
+
+it("moves the window to the current half hour when its scope reloads, and not within it", async () => {
+  const api = guideApi();
+  const grid = (active: boolean) =>
+    createElement(RefreshScope, {
+      active,
+      children: createElement(GuideGrid, { visible: true }),
+    });
+  const view = render(grid(true));
+  await screen.findByRole("list", { name: "Programs on Northwoods TV" });
+
+  // Refocused later in the same half hour: the same window, read again.
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse(at("19:40")));
+  view.rerender(grid(false));
+  view.rerender(grid(true));
+  await waitFor(() => expect(readStarts(api)).toEqual([startsAt, startsAt]));
+
+  // Refocused the next day: the window is that day's current half hour.
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-06T09:10:00.000Z"));
+  view.rerender(grid(false));
+  view.rerender(grid(true));
+  const later = new Date(
+    guideStart(Date.parse("2026-10-06T09:10:00.000Z")),
+  ).toISOString();
+  await waitFor(() => expect(readStarts(api).at(-1)).toBe(later));
+});
+
+it("brings the window back to the current half hour from Now and when the clock turns", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const api = guideApi();
+  render(createElement(GuideGrid, { visible: true }));
+  await screen.findByRole("list", { name: "Programs on Northwoods TV" });
+
+  // Scrolled nowhere, the guide follows the clock into the next half hour.
+  const nextHour = Date.parse(at("19:30")) + 1_800_000;
+  vi.spyOn(Date, "now").mockReturnValue(nextHour);
+  await act(async () => {
+    vi.advanceTimersByTime(60_000);
+  });
+  await waitFor(() =>
+    expect(readStarts(api).at(-1)).toBe(
+      new Date(guideStart(nextHour)).toISOString(),
+    ),
+  );
+
+  // Now asks for the current half hour again, however far the clock has moved.
+  const muchLater = nextHour + 5 * 3_600_000;
+  vi.spyOn(Date, "now").mockReturnValue(muchLater);
+  fireEvent.click(screen.getByRole("button", { name: "Now" }));
+  await waitFor(() =>
+    expect(readStarts(api).at(-1)).toBe(
+      new Date(guideStart(muchLater)).toISOString(),
+    ),
   );
 });
 
