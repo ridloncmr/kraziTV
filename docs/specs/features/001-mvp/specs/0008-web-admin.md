@@ -73,7 +73,10 @@ The Web Admin uses React, Vite, and TypeScript.
 The desktop represents the server. Shortcuts and an organized Start menu open
 singleton administrative programs in windows; the bottom taskbar represents open
 programs, including minimized ones. The system tray shows a clock and the result
-of actual API health requests, never inferred FFmpeg or Plex health.
+of actual API health requests, never inferred FFmpeg or Plex health. The
+browser remembers where each program's window was left, its size, and whether
+it was maximized, and reopens it there; this is shell state kept in the
+browser, never sent to the server.
 
 | Program       | Existing capability                                              |
 | ------------- | ---------------------------------------------------------------- |
@@ -256,7 +259,7 @@ Important boundaries:
 - Add authentication before treating the administration API as safe for untrusted networks.
 - Add background scan jobs and progress reporting if synchronous scans prove too slow.
 - Real Welcome/login, accounts and permissions, snap layouts/tiling, persistent
-  window or icon layouts, Event Viewer/logging APIs, Control Panel settings,
+  icon layouts, Event Viewer/logging APIs, Control Panel settings,
   context-menu ecosystems, fake filesystem/applets/games, sounds, screensavers,
   themes, and pixel-perfect XP emulation. No placeholder programs imply these
   capabilities exist.

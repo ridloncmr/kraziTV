@@ -4,7 +4,8 @@ import type {
   MediaCollection,
   MediaCollectionSummary,
 } from "../http/contracts/collections.js";
-import { useResource } from "../http/use-resource.js";
+import { useRefreshScope } from "../http/resources/refresh-scope.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
 import { DiscoverDialog } from "./discovery/discover-dialog.js";
 import { CollectionEditor } from "./editor/collection-editor.js";
@@ -29,6 +30,8 @@ export function CollectionsApp({
     "/media-collections",
     visible,
   );
+  // Refresh reloads the open collection's editor too, not just the grid.
+  const { refresh: refreshWindow } = useRefreshScope();
   const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -48,9 +51,8 @@ export function CollectionsApp({
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Collections</span>
         <div className="row-actions">
-          <button onClick={collections.refresh}>Refresh</button>
+          <button onClick={refreshWindow}>Refresh</button>
         </div>
       </div>
       <p className="program-intro">

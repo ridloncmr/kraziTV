@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { displayCount } from "../controls/display-count.js";
 import { displayDuration } from "../controls/display-duration.js";
+import { fileName } from "../controls/file-name.js";
 import { displayTime } from "../controls/display-time.js";
 import { withIds } from "../controls/id-selection.js";
 import { Pager } from "../controls/pager.js";
@@ -13,7 +15,8 @@ import type {
   MediaRoot,
 } from "../http/contracts/media.js";
 import type { ReviewStep } from "../http/contracts/metadata.js";
-import { useMutation, useResource } from "../http/use-resource.js";
+import { useRefreshScope } from "../http/resources/refresh-scope.js";
+import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
 import {
@@ -52,6 +55,7 @@ export function MediaLibraryApp({
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
   const filtersInUse = keysInUse(filter);
   const [filtering, setFiltering] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
     "/metadata/match-reviews",
@@ -59,6 +63,8 @@ export function MediaLibraryApp({
   );
   const reviewCount = review.data?.steps.length ?? 0;
   const mutation = useMutation();
+  // Refresh reloads open dialogs too, not just the lists.
+  const { refresh: refreshWindow } = useRefreshScope();
   const scan = useScanJob(roots.data);
   // Which request the feedback reports, so an earlier root write's success
   // never reads as the result of a scan start.
@@ -95,10 +101,9 @@ export function MediaLibraryApp({
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Media Library</span>
         <div className="row-actions">
           <button onClick={() => setAdding(true)}>Add media root…</button>
-          <button onClick={refresh}>Refresh</button>
+          <button onClick={refreshWindow}>Refresh</button>
         </div>
       </div>
       <p className="program-intro">
@@ -137,7 +142,6 @@ export function MediaLibraryApp({
                 <tr>
                   <th>Server path</th>
                   <th>Last scan</th>
-                  <th>Status</th>
                   <th>Matches</th>
                   <th>Actions</th>
                 </tr>
@@ -145,13 +149,17 @@ export function MediaLibraryApp({
               <tbody>
                 {roots.data.map((root) => (
                   <tr key={root.id}>
-                    <td className="path-cell">{root.path}</td>
+                    <td className="path-cell">
+                      {root.path}
+                      {!root.enabled && (
+                        <span className="row-badge">Disabled</span>
+                      )}
+                    </td>
                     <td>
                       {root.lastScannedAt === null
                         ? "Not yet scanned"
                         : displayTime(root.lastScannedAt)}
                     </td>
-                    <td>{root.enabled ? "Enabled" : "Disabled"}</td>
                     <td className="root-matches">
                       <RootMatches counts={root.matchCounts} />
                     </td>
@@ -208,7 +216,8 @@ export function MediaLibraryApp({
       </fieldset>
       <div className="sticky-list-header">
         <h2>
-          Cataloged media <small>({media.data?.total ?? 0})</small>
+          Cataloged media{" "}
+          <small>({displayCount(media.data?.total ?? 0)})</small>
         </h2>
         <label className="search-field">
           Find media
@@ -240,6 +249,7 @@ export function MediaLibraryApp({
               offset={media.offset}
               limit={PAGE_SIZE}
               total={media.data.total}
+              list={list}
               onChange={media.setOffset}
             />
           )}
@@ -271,7 +281,7 @@ export function MediaLibraryApp({
         </p>
       )}
       {media.data && media.data.items.length > 0 && (
-        <div className="table-scroll" aria-busy={media.loading}>
+        <div ref={list} className="table-scroll" aria-busy={media.loading}>
           <table>
             <thead>
               <tr>
@@ -299,7 +309,10 @@ export function MediaLibraryApp({
                   </td>
                   <td>
                     {item.title}
-                    <small className="secondary path-cell">{item.path}</small>
+                    {/* The file alone; Details shows the whole path. */}
+                    <small className="secondary path-cell">
+                      {fileName(item.path)}
+                    </small>
                     {item.probeError && (
                       <small className="error-message">{item.probeError}</small>
                     )}
@@ -440,15 +453,15 @@ export function MediaLibraryApp({
 function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
   return (
     <>
-      {counts.matched} of {counts.items} matched
+      {displayCount(counts.matched)} of {displayCount(counts.items)} matched
       {counts.needsChoice > 0 && (
         <small className="secondary">
-          {counts.needsChoice} need your choice
+          {displayCount(counts.needsChoice)} need your choice
         </small>
       )}
       {counts.failedLookups > 0 && (
         <small className="secondary">
-          {counts.failedLookups} failed{" "}
+          {displayCount(counts.failedLookups)} failed{" "}
           {counts.failedLookups === 1 ? "lookup" : "lookups"}
         </small>
       )}

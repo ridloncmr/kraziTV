@@ -10,7 +10,7 @@ import type {
   TrackFolder,
   TrackProposal,
 } from "../../http/contracts/metadata.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 
 /** The series and season the owner proposes a mapping from. */
 interface SeasonChoice {

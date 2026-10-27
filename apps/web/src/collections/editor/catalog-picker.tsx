@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { displayCount } from "../../controls/display-count.js";
 import {
   CatalogFilterDialog,
   keysInUse,
@@ -13,7 +14,7 @@ import type {
   MediaItemPage,
   MediaRoot,
 } from "../../http/contracts/media.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
 
 const PAGE_SIZE = 50;
@@ -37,6 +38,7 @@ export function CatalogPicker({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const [filtering, setFiltering] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
   const filtersInUse = keysInUse(filter);
   // Only the filter dialog lists media roots, so they are read while it is open.
   const roots = useResource<MediaRoot[]>(
@@ -105,7 +107,7 @@ export function CatalogPicker({
         if (page.total > page.items.length)
           setOverflow(
             new Error(
-              `${page.total} items match; narrow the search or filters to add them all at once.`,
+              `${displayCount(page.total)} items match; narrow the search or filters to add them all at once.`,
             ),
           );
         else add(page.items);
@@ -141,7 +143,7 @@ export function CatalogPicker({
           disabled={total === 0 || matches.pending}
           onClick={addAllMatches}
         >
-          Add all ({total})
+          Add all ({displayCount(total)})
         </button>
         <button
           disabled={picked.size === 0}
@@ -159,6 +161,7 @@ export function CatalogPicker({
           offset={results.offset}
           limit={PAGE_SIZE}
           total={total}
+          list={list}
           onChange={results.setOffset}
         />
       )}
@@ -174,7 +177,7 @@ export function CatalogPicker({
         </p>
       )}
       {items.length > 0 && (
-        <div className="table-scroll" aria-busy={results.loading}>
+        <div ref={list} className="table-scroll" aria-busy={results.loading}>
           <table>
             <thead>
               <tr>

@@ -1,0 +1,167 @@
+/*
+ * The guide grid: channel names down a sticky left column, the next 24
+ * hours across a sticky ruler, and blocks placed by the geometry module.
+ * The page fills its window, so the sheet scrolls inside the window rather
+ * than growing it, and the names and ruler stay in view.
+ */
+.guide-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  --guide-channel-width: 160px;
+  --guide-row-height: 44px;
+}
+.guide-page .empty-state,
+.guide-page .request-feedback {
+  margin: 12px;
+}
+.guide {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.guide-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--xp-window-surface);
+}
+.guide-sheet {
+  position: relative;
+  width: calc(var(--guide-channel-width) + var(--guide-width));
+}
+.guide-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  height: 24px;
+  background: linear-gradient(var(--xp-control-top), var(--xp-menu-surface));
+  border-bottom: 1px solid var(--xp-border);
+}
+.guide-corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  width: var(--guide-channel-width);
+  background: var(--xp-menu-surface);
+  border-right: 1px solid var(--xp-border);
+}
+.guide-hours {
+  position: relative;
+  width: var(--guide-width);
+}
+.guide-hours span {
+  position: absolute;
+  top: 0;
+  padding: 5px 0 0 4px;
+  border-left: 1px solid var(--xp-border);
+  height: 100%;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.guide-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.guide-row {
+  display: flex;
+  height: var(--guide-row-height);
+  border-bottom: 1px solid var(--xp-border);
+}
+.guide-channel {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+  width: var(--guide-channel-width);
+  padding: 6px 8px;
+  background: var(--xp-menu-surface);
+  border-right: 1px solid var(--xp-border);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.guide-channel strong {
+  margin-right: 4px;
+}
+.guide-channel .row-badge {
+  margin-left: 6px;
+}
+/* Half-hour lines run down the track; blocks sit over them at their times. */
+.guide-track {
+  position: relative;
+  flex: none;
+  width: var(--guide-width);
+  background: repeating-linear-gradient(
+    to right,
+    var(--xp-menu-surface) 0 1px,
+    transparent 1px 120px
+  );
+}
+.guide-track ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.guide-track .request-feedback,
+.guide-empty {
+  display: block;
+  padding: 12px 8px;
+  margin: 0;
+  color: var(--xp-muted);
+  font-size: 11px;
+}
+.guide-track .request-feedback:empty {
+  display: none;
+}
+.guide-block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--xp-border);
+  border-radius: 2px;
+  background: var(--xp-window-surface);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.guide-block strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.guide-block span {
+  color: var(--xp-muted);
+}
+.guide-block.off-air {
+  border-style: dashed;
+  background: var(--xp-menu-surface);
+  color: var(--xp-muted);
+}
+/* The block airing now is title-bar blue, as a selected row is. */
+.guide-block.airing {
+  background: var(--xp-title-primary);
+  border-color: var(--xp-title-dark);
+  color: var(--xp-window-surface);
+}
+.guide-block.airing span {
+  color: inherit;
+}
+/* The now line stands over every row, behind the sticky names, at the browser's time. */
+.guide-now {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  left: calc(var(--guide-channel-width) + var(--guide-now));
+  z-index: 1;
+  border-left: 2px solid var(--xp-accent-orange);
+  pointer-events: none;
+}

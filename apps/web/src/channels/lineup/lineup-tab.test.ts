@@ -133,8 +133,8 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
         ),
     ).toEqual([
       ["Favorites", "Episode order", "~1 hr", "up to 3 hrs", ""],
-      ["The Office + Parks + 1 more", "Random", "3 programs", "—", "Wheel"],
-      ["Alpha", "—", "1 program", "—", "Rules only"],
+      ["The Office + Parks + 1 more", "Random", "3 programs", "", "Wheel"],
+      ["Alpha", "—", "1 program", "", "Rules only"],
     ]),
   );
   expect(screen.queryByRole("button", { name: /Move/ })).toBeNull();

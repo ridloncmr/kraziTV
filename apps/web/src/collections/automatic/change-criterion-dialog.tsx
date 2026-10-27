@@ -2,7 +2,7 @@ import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import { CriterionPicker, type CriterionChoice } from "./criterion-picker.js";
 
 /**

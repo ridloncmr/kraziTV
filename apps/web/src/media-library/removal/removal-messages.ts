@@ -1,3 +1,4 @@
+import { displayCount } from "../../controls/display-count.js";
 import { ApiError } from "../../http/api-error.js";
 import type {
   CatalogRemoval,
@@ -9,9 +10,6 @@ import type {
 /** What a removal dialog removes; transient desktop shell state. */
 export type RemovalSubject =
   { kind: "root"; root: MediaRoot } | { kind: "items"; mediaItemIds: string[] };
-
-// Fixed locale, so counts read like the spec's messages everywhere.
-const COUNT = new Intl.NumberFormat("en-US");
 
 /** The API target for a subject. */
 export function toTarget(subject: RemovalSubject): CatalogRemovalTarget {
@@ -27,7 +25,7 @@ export function subjectSummary(
 ): string {
   return subject.kind === "root"
     ? `${subject.root.path} and its ${mediaItems(itemCount)} will be deleted from the catalog.`
-    : `${COUNT.format(itemCount)} selected ${itemCount === 1 ? "media item" : "media items"} will be deleted from the catalog.`;
+    : `${displayCount(itemCount)} selected ${itemCount === 1 ? "media item" : "media items"} will be deleted from the catalog.`;
 }
 
 // The refusals the server can answer a preview or removal with.
@@ -111,5 +109,5 @@ export function removalFeedback(
 
 // Counts media items with the spec's grouping and plural.
 function mediaItems(count: number): string {
-  return `${COUNT.format(count)} media ${count === 1 ? "item" : "items"}`;
+  return `${displayCount(count)} media ${count === 1 ? "item" : "items"}`;
 }

@@ -8,7 +8,7 @@ import type {
   CollectionCriterion,
   CollectionMember,
 } from "../../http/contracts/collections.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];

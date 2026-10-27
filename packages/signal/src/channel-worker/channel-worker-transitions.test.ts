@@ -110,6 +110,7 @@ const startWorker = async (
     transitionCoordinator: coordinator,
     prepareLeadMs: PREPARE_LEAD_MS,
     startupTimeoutMs: 5_000,
+    recoveryTimeoutMs: 5_000,
     subscriberBufferLimitBytes: 1_024,
     retentionLimitBytes: 1_024,
     findJoinPoint: (retained: Buffer) =>

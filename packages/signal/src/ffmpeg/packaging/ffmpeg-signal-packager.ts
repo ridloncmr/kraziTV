@@ -3,13 +3,14 @@ import {
   type ProcessSpawner,
 } from "@krazitv/process";
 
-import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
+import { buildFfmpegArguments, sessionBacklogMs } from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
 import { itemContext } from "./item-log-context.js";
 import type { OutputReadinessInspector } from "../contracts.js";
+import { MpegTsBacklogInspector } from "../mpeg-ts/mpeg-ts-backlog-inspector.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
-import type { TimerScheduler } from "../../runtime/clock.js";
+import type { Clock, TimerScheduler } from "../../runtime/clock.js";
 import type { SignalLogger } from "../../runtime/signal-logger.js";
 import type {
   SignalPackager,
@@ -20,6 +21,8 @@ import type {
 type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
   timers: TimerScheduler;
+  /** Times how long a first viewer's tune is held for the burst backlog. */
+  clock: Clock;
   logger: SignalLogger;
   /** Executable to spawn; the server resolves `FFMPEG_PATH` before this point. */
   ffmpegPath: string;
@@ -34,6 +37,9 @@ type FfmpegSignalPackagerDependencies = {
 };
 
 const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
+// How long a first viewer's tune may wait for the burst backlog. Plex waited
+// out 15 s tunes in testing; the server's startup timeout must exceed this.
+const INITIAL_HOLD_LIMIT_MS = 10_000;
 // A few seconds of 1080p MPEG-TS is a few megabytes; this bounds a
 // preparation held far longer than its lead without ever cutting one short.
 const DEFAULT_PREPARED_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024;
@@ -66,15 +72,24 @@ export class FfmpegSignalPackager implements SignalPackager {
     );
   }
 
-  /** Validates and starts one item synchronously so output can be drained at once. */
+  /**
+   * Validates and starts one item synchronously so output can be drained at
+   * once. Only this first process starts the session's way, with low latency
+   * and the join backlog, because a tune request and its viewer wait on it;
+   * the session starts prepared items normally.
+   */
   start(initialItem: SignalPlayoutItem): SignalSession {
-    const process = this.startProcess(initialItem);
+    const process = this.startProcess(initialItem, true);
+    const createReadinessInspector =
+      this.dependencies.createReadinessInspector ??
+      (() => new MpegTsReadinessInspector());
 
     return new FfmpegSignalSession(process, initialItem, {
-      createReadinessInspector:
-        this.dependencies.createReadinessInspector ??
-        (() => new MpegTsReadinessInspector()),
-      startProcess: (item) => this.startProcess(item),
+      initialReadinessInspector:
+        this.dependencies.createReadinessInspector?.() ??
+        this.initialReadinessInspector(initialItem),
+      createReadinessInspector,
+      startProcess: (item) => this.startProcess(item, false),
       timers: this.dependencies.timers,
       itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
       preparedOutputLimitBytes: this.preparedOutputLimitBytes,
@@ -82,10 +97,32 @@ export class FfmpegSignalPackager implements SignalPackager {
     });
   }
 
+  /**
+   * Holds the first process unready until its burst backlog is written, one
+   * keyframe per second of it plus the one it starts on, so the first
+   * viewer's tune answers with all of it (ADR 0018). Without a burst, the
+   * first complete packets are enough.
+   */
+  private initialReadinessInspector(
+    item: SignalPlayoutItem,
+  ): OutputReadinessInspector {
+    const backlogMs = sessionBacklogMs(item);
+    if (backlogMs === 0) return new MpegTsReadinessInspector();
+    return new MpegTsBacklogInspector(
+      Math.floor(backlogMs / 1_000) + 1,
+      this.dependencies.clock,
+      INITIAL_HOLD_LIMIT_MS,
+    );
+  }
+
   /** Builds one item's argv with this packager's rendering options. */
-  private argumentsFor(item: SignalPlayoutItem): readonly string[] {
+  private argumentsFor(
+    item: SignalPlayoutItem,
+    startsSession: boolean,
+  ): readonly string[] {
     return buildFfmpegArguments(item, {
       fontFile: this.dependencies.fillerFontFile,
+      startsSession,
     });
   }
 
@@ -94,9 +131,12 @@ export class FfmpegSignalPackager implements SignalPackager {
    * its session. Building the argv validates the item first, so an invalid
    * one is refused before anything is spawned.
    */
-  private startProcess(item: SignalPlayoutItem): FfmpegProcess {
+  private startProcess(
+    item: SignalPlayoutItem,
+    startsSession: boolean,
+  ): FfmpegProcess {
     const process = FfmpegProcess.start({
-      args: this.argumentsFor(item),
+      args: this.argumentsFor(item, startsSession),
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,

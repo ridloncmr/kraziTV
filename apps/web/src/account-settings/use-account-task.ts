@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useMutation } from "../http/use-resource.js";
+import { useMutation } from "../http/resources/use-resource.js";
 
 /**
  * What a task's fields ask the server to apply, or why nothing is sent. A

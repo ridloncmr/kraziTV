@@ -2,7 +2,7 @@ import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { ReviewStep } from "../../http/contracts/metadata.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 import {
   MatchChoiceDialog,
   type ChoiceOutcome,

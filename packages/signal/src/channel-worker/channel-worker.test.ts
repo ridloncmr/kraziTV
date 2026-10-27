@@ -74,6 +74,7 @@ const workerOptions = (
   },
   prepareLeadMs: 2_000,
   startupTimeoutMs: 5_000,
+  recoveryTimeoutMs: 5_000,
   subscriberBufferLimitBytes: 1_024,
   retentionLimitBytes: 1_024,
   findJoinPoint: (retainedBytes: Buffer) =>

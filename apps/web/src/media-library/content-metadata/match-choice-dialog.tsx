@@ -11,7 +11,7 @@ import type {
   CandidateSearch,
   MatchCandidates,
 } from "../../http/contracts/metadata.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { CorrectDetailsDialog } from "./correct-details-dialog.js";
 import { posterUrl } from "./poster-url.js";
 

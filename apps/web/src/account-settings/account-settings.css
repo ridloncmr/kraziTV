@@ -32,8 +32,10 @@
   color: var(--xp-focus);
   cursor: pointer;
 }
-.program-page .account-settings-tasks button:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .program-page .account-settings-tasks button:hover {
+    text-decoration: underline;
+  }
 }
 /*
  * The picture grid is native radios, so the browser handles arrow keys; the

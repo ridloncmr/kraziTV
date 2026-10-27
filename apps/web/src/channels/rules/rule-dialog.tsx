@@ -4,7 +4,7 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { TabbedPanel } from "../../controls/tabbed-panel.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { ProgrammingRule } from "../../http/contracts/programming.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import {
   firstIncompleteTab,
   type RuleDraft,

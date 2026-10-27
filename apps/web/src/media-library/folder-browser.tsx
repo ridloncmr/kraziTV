@@ -1,6 +1,6 @@
 import { RequestFeedback } from "../controls/request-feedback.js";
 import type { FolderListing } from "../http/contracts/media.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 
 /**
  * Browses the server's folders one level at a time. The caller owns which

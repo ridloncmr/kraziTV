@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { displayDuration } from "../../controls/display-duration.js";
 import { Pager } from "../../controls/pager.js";
 import type { CollectionMember } from "../../http/contracts/collections.js";
@@ -20,6 +20,7 @@ export function ReadOnlyMembers({
   exclude?: { run: (member: CollectionMember) => void; disabled: boolean };
 }) {
   const [offset, setOffset] = useState(0);
+  const list = useRef<HTMLDivElement>(null);
   const page = members.slice(offset, offset + PAGE_SIZE);
   if (members.length === 0) {
     return (
@@ -35,9 +36,10 @@ export function ReadOnlyMembers({
         offset={offset}
         limit={PAGE_SIZE}
         total={members.length}
+        list={list}
         onChange={setOffset}
       />
-      <div className="table-scroll">
+      <div ref={list} className="table-scroll">
         <table>
           <thead>
             <tr>

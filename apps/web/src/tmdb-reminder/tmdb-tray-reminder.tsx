@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Tooltip } from "../controls/tooltip.js";
 import {
   isReminderDue,
   snoozeReminder,
@@ -62,21 +63,22 @@ export function TmdbTrayReminder({
   const snooze = () => close(() => snoozeReminder(Date.now()));
   return (
     <div className="tmdb-tray">
-      <button
-        className="tmdb-tray-icon"
-        title={TITLE}
-        aria-label={TITLE}
-        aria-expanded={open}
-        onClick={() => {
-          setFocusOnOpen(true);
-          setOpen(true);
-        }}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 1 15 14H1Z" fill="#f5c400" stroke="#8a6d00" />
-          <path d="M8 5.5v4.5M8 11.5v1.5" stroke="#000" strokeWidth="1.6" />
-        </svg>
-      </button>
+      <Tooltip id="tmdb-tray-tip" text={TITLE} placement="above-end">
+        <button
+          className="tmdb-tray-icon"
+          aria-label={TITLE}
+          aria-expanded={open}
+          onClick={() => {
+            setFocusOnOpen(true);
+            setOpen(true);
+          }}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 1 15 14H1Z" fill="#f5c400" stroke="#8a6d00" />
+            <path d="M8 5.5v4.5M8 11.5v1.5" stroke="#000" strokeWidth="1.6" />
+          </svg>
+        </button>
+      </Tooltip>
       {open && (
         <div
           className="tray-balloon"

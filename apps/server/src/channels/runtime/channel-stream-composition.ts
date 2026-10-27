@@ -16,14 +16,23 @@ import { SignalPlayoutAdapter } from "./signal-playout-adapter.js";
 import { SqliteTransitionCoordinator } from "./sqlite-transition-coordinator.js";
 
 // The MVP defaults SIG-011 selected from the Linux/Plex compatibility run;
-// spec 0006 records the evidence.
-const STARTUP_TIMEOUT_MS = 2_000;
+// spec 0006 records the evidence. Transition recovery and write-authority
+// waits keep its 2 s.
+const RECOVERY_TIMEOUT_MS = 2_000;
+// A first viewer's tune waits for the burst backlog, for at most the
+// packager's 10 s hold (ADR 0018); Plex waited out 15 s tunes in testing.
+const STARTUP_TIMEOUT_MS = 12_000;
 // How far ahead of a boundary the next FFmpeg process starts (ADR 0016): the
 // spike measured about 1.7 s to usable output, so this leaves a margin while
 // holding only a little over a second of output.
 const PREPARE_LEAD_MS = 3_000;
 const IDLE_GRACE_MS = 5_000;
-const BUFFER_LIMIT_BYTES = 4 * 1024 * 1024;
+// Retention holds the ten-second join backlog (ADR 0018) up to about 12 Mbps;
+// at a higher bitrate a viewer simply joins with less. A joining viewer's
+// queue starts with that whole replay, so it gets room beyond it before a
+// stalled viewer is cut off.
+const RETENTION_LIMIT_BYTES = 16 * 1024 * 1024;
+const SUBSCRIBER_BUFFER_LIMIT_BYTES = 32 * 1024 * 1024;
 
 interface ChannelStreamCompositionOptions {
   db: Kysely<DatabaseSchema>;
@@ -37,7 +46,7 @@ interface ChannelStreamCompositionOptions {
   runtime: Clock & TimerScheduler;
   /**
    * Tests shorten this to reach the readiness timeout quickly, or lengthen it
-   * when startup latency is not what they check.
+   * when startup latency is not what they check. Only startup uses it.
    */
   startupTimeoutMs?: number;
 }
@@ -68,13 +77,14 @@ export function composeChannelStreamManager(
     transitionCoordinator: new SqliteTransitionCoordinator(
       options.db,
       () => options.runtime.now(),
-      { writeAuthorityWaitMs: startupTimeoutMs },
+      { writeAuthorityWaitMs: RECOVERY_TIMEOUT_MS },
     ),
     startupTimeoutMs,
+    recoveryTimeoutMs: RECOVERY_TIMEOUT_MS,
     prepareLeadMs: PREPARE_LEAD_MS,
     idleGraceMs: IDLE_GRACE_MS,
     logger: toSignalLogger(options.log),
-    subscriberBufferLimitBytes: BUFFER_LIMIT_BYTES,
-    retentionLimitBytes: BUFFER_LIMIT_BYTES,
+    subscriberBufferLimitBytes: SUBSCRIBER_BUFFER_LIMIT_BYTES,
+    retentionLimitBytes: RETENTION_LIMIT_BYTES,
   });
 }

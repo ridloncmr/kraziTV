@@ -2,7 +2,10 @@ import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { MarathonSettings } from "../../http/contracts/programming.js";
-import { useMutation, type useResource } from "../../http/use-resource.js";
+import {
+  useMutation,
+  type useResource,
+} from "../../http/resources/use-resource.js";
 
 /** The Occasional preset, which spec 0004 suggests when marathons first turn on. */
 export const OCCASIONAL_MARATHONS: MarathonSettings = {

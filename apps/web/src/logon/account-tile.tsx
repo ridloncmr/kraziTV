@@ -7,7 +7,7 @@ import {
 } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
 import type { AccountProfile, AuthState } from "../http/contracts/auth.js";
-import { useMutation } from "../http/use-resource.js";
+import { useMutation } from "../http/resources/use-resource.js";
 import {
   isWrongPassword,
   throttleSeconds,

@@ -1,4 +1,4 @@
-import { displayTime } from "../../controls/display-time.js";
+import { displayTime, displayTimeRange } from "../../controls/display-time.js";
 import type { SpecialPreview as Preview } from "./contracts.js";
 
 /**
@@ -12,7 +12,7 @@ import type { SpecialPreview as Preview } from "./contracts.js";
 export function SpecialPreview({ preview }: { preview: Preview }) {
   // Words one interval as the times the owner reads in the guide.
   const range = (interval: { startsAt: string; endsAt: string }) =>
-    `${displayTime(interval.startsAt)} – ${displayTime(interval.endsAt)}`;
+    displayTimeRange(interval.startsAt, interval.endsAt);
   if (preview.conflicts.length > 0) {
     return (
       <div role="alert" aria-label="Special conflicts">

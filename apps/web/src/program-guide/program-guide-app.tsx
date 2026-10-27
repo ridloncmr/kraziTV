@@ -1,14 +1,10 @@
-import { ChannelObservation } from "../channel-observation/channel-observation.js";
+import { GuideGrid } from "./guide-grid.js";
 
-/** Exposes published programming through the guide without adding browser scheduling policy. */
+/** The guide fills its window with the grid, which draws server programming without adding browser scheduling policy. */
 export function ProgramGuideApp({ visible }: { visible: boolean }) {
   return (
-    <div className="program-page">
-      <div className="program-toolbar">Program Guide</div>
-      <p className="program-intro">
-        Upcoming programming and current channel state, as reported by kraziTV.
-      </p>
-      <ChannelObservation visible={visible} guide />
+    <div className="program-page guide-page">
+      <GuideGrid visible={visible} />
     </div>
   );
 }

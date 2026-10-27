@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import type { PlexSetup } from "../http/contracts/plex.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 
 /** Uses backend-configured public URLs so Plex reaches the server even from a different host. */
 export function PlexSetupApp({ visible }: { visible: boolean }) {
@@ -29,12 +29,8 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
   return (
     <div className="program-page">
       <div className="program-toolbar">
-        <span>Plex Setup</span>
         <button onClick={setup.refresh}>Refresh</button>
       </div>
-      <p className="program-intro">
-        Bring your kraziTV channels into Plex Live TV.
-      </p>
       <RequestFeedback
         loading={setup.loading}
         error={setup.error}

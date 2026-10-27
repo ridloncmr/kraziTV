@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+import { createElement, type ReactNode } from "react";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { BrowserApi } from "../testing/browser-api.js";
+import { BrowserApi } from "../../testing/browser-api.js";
+import { RefreshScope, useRefreshScope } from "./refresh-scope.js";
 import { useMutation, useResource, useResourceMap } from "./use-resource.js";
 
 afterEach(() => {
@@ -166,3 +168,81 @@ it("reports a failed read among several paths, so a caller can stop waiting for 
   expect(view.result.current.failed("/fine")).toBe(false);
   expect(view.result.current.get("/fine")?.name).toBe("fine");
 });
+
+it("reloads every read in a refresh scope, quietly when the scope turns active", async () => {
+  let active = false;
+  const api = new BrowserApi();
+  api.reply("/one", { name: "one" });
+  api.reply("/two", { name: "two" });
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(
+    () => ({
+      one: useResource<{ name: string }>("/one"),
+      two: useResource<{ name: string }>("/two"),
+      scope: useRefreshScope(),
+    }),
+    {
+      wrapper: scopeWrapper(() => active),
+    },
+  );
+  await waitFor(() => expect(view.result.current.two.data?.name).toBe("two"));
+
+  act(() => view.result.current.scope.refresh());
+  expect(view.result.current.one.loading).toBe(true);
+  await waitFor(() => expect(api.requests).toHaveLength(4));
+  await waitFor(() => expect(view.result.current.one.loading).toBe(false));
+
+  active = true;
+  view.rerender();
+  expect(view.result.current.one.loading).toBe(false);
+  await waitFor(() => expect(api.requests).toHaveLength(6));
+});
+
+it("skips a quiet scope reload while its read is still in flight", async () => {
+  let active = false;
+  const api = new BrowserApi();
+  api.hold("/slow");
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(() => useResource<{ name: string }>("/slow"), {
+    wrapper: scopeWrapper(() => active),
+  });
+  await waitFor(() => expect(api.requests).toHaveLength(1));
+
+  active = true;
+  view.rerender();
+  await act(async () => {
+    api.release("/slow", { name: "slow" });
+  });
+
+  expect(api.requests).toHaveLength(1);
+  expect(api.requests[0].signal?.aborted).toBe(false);
+  expect(view.result.current.data?.name).toBe("slow");
+});
+
+it("reads every path again when its refresh scope reloads", async () => {
+  const api = new BrowserApi();
+  api.reply("/a", { name: "a" });
+  api.reply("/b", { name: "b" });
+  vi.stubGlobal("fetch", api.fetch);
+  const view = renderHook(
+    () => ({
+      map: useResourceMap<{ name: string }>(["/a", "/b"]),
+      scope: useRefreshScope(),
+    }),
+    { wrapper: scopeWrapper(() => true) },
+  );
+  await waitFor(() =>
+    expect(view.result.current.map.get("/b")?.name).toBe("b"),
+  );
+
+  act(() => view.result.current.scope.refresh());
+
+  await waitFor(() => expect(api.requests).toHaveLength(4));
+  expect(view.result.current.map.get("/a")?.name).toBe("a");
+});
+
+// Wraps a hook in a refresh scope whose `active` the test changes between renders.
+function scopeWrapper(active: () => boolean) {
+  return ({ children }: { children: ReactNode }) =>
+    createElement(RefreshScope, { active: active(), children });
+}

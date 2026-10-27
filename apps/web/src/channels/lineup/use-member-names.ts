@@ -2,7 +2,7 @@ import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { MediaItem } from "../../http/contracts/media.js";
 import type { AssignmentMember } from "../../http/contracts/programming.js";
-import { useResourceMap } from "../../http/use-resource.js";
+import { useResourceMap } from "../../http/resources/use-resource.js";
 
 /**
  * Names shows' members: collections from the collection list, single items

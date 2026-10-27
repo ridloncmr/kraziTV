@@ -92,6 +92,7 @@ const loggerAdapter = {
 const packager = createFfmpegSignalPackager({
   logger: loggerAdapter,
   timers: timerAdapter,
+  clock: clockAdapter,
   ffmpegPath: "ffmpeg",
 });
 
@@ -104,6 +105,7 @@ const manager = createChannelStreamManager({
   transitionCoordinator: transitionAdapter,
   prepareLeadMs: 10_000,
   startupTimeoutMs: 5_000,
+  recoveryTimeoutMs: 5_000,
   idleGraceMs: 30_000,
   logger: loggerAdapter,
   subscriberBufferLimitBytes: 1_024,

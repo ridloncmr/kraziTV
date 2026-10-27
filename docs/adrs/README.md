@@ -25,6 +25,7 @@ Each ADR's status is the `## Status` section of the ADR itself.
 | [0015](0015-scheduled-interruption.md)                 | A reservation may cut the airing item seamlessly at its start      |
 | [0016](0016-prepared-ffmpeg-process.md)                | A prepared item's FFmpeg process starts ahead and holds its output |
 | [0017](0017-series-folder-and-folder-evidence.md)      | The series folder names a show and its seasons break title ties    |
+| [0018](0018-join-backlog.md)                           | A tuned viewer joins about ten seconds behind the live edge        |
 
 ## Format
 

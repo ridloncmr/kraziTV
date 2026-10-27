@@ -43,3 +43,22 @@ export function startsPesPacket(buffer: Buffer, offset: number): boolean {
     buffer[payload + 2] === 0x01
   );
 }
+
+/** The PID the packager maps every item's video to, in every FFmpeg process. */
+export const VIDEO_PID = 256;
+
+/**
+ * Reports whether the packet at `offset` starts a video keyframe: a video
+ * PES start whose adaptation field sets the random-access indicator, as
+ * FFmpeg's muxer does for keyframes. Audio frames set it too, so only the
+ * video PID counts.
+ */
+export function startsVideoKeyframe(buffer: Buffer, offset: number): boolean {
+  if (packetPid(buffer, offset) !== VIDEO_PID) return false;
+  if (((buffer[offset + 1] ?? 0) & 0x40) === 0) return false;
+  const adaptation = ((buffer[offset + 3] ?? 0) >> 4) & 0x3;
+  if ((adaptation & 0x2) === 0 || (buffer[offset + 4] ?? 0) === 0) {
+    return false;
+  }
+  return ((buffer[offset + 5] ?? 0) & 0x40) !== 0;
+}
