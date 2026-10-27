@@ -211,6 +211,8 @@ it("opens a program's card from its block, with its poster, facts, and descripti
   expect(within(card).getByText(/on 69 Northwoods TV$/)).toBeTruthy();
   expect(within(card).getByText("Drama")).toBeTruthy();
   expect(within(card).getByText("The second night is longer.")).toBeTruthy();
+  // TMDB's facts carry its logo and notice.
+  expect(within(card).getByRole("img", { name: "TMDB" })).toBeTruthy();
   // Off air is a label, not a program.
   expect(
     within(programs).queryByRole("button", { name: /Off air/ }),

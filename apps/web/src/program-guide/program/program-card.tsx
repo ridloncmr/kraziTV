@@ -1,3 +1,4 @@
+import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
 import { displayTimeRange } from "../../controls/display-time.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { Channel, GuideProgram } from "../../http/contracts/channels.js";
@@ -7,6 +8,8 @@ import { episodeCode } from "./program-words.js";
  * One program's card, opened from its guide block: the poster and facts the
  * server worded beside when and where it airs. It shows what the schedule
  * reports and offers nothing to change; programming is set in My Channels.
+ * Facts come from TMDB, whose terms want its logo and notice wherever they
+ * show, so a card with facts carries the attribution.
  */
 export function ProgramCard({
   program,
@@ -69,6 +72,7 @@ export function ProgramCard({
       {program.description && (
         <p className="program-description">{program.description}</p>
       )}
+      {program.kind !== null && <TmdbAttribution />}
       <div className="dialog-actions">
         <button type="button" onClick={onClose}>
           Close
