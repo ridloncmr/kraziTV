@@ -154,8 +154,15 @@
   text-overflow: ellipsis;
   color: var(--xp-muted);
 }
-/* A program block is a button that opens its card; it wears the block, not a control. */
-.program-page .guide-program {
+/*
+ * A program block is a button that opens its card, but the block is the
+ * control the reader sees: the button inside it draws no face, hover, press,
+ * or focus mark of its own, and the block shows hover and focus instead, as
+ * a list row does. Like a row it has no face to sink when pressed.
+ */
+.program-page .guide-block .guide-program,
+.program-page .guide-block .guide-program:hover,
+.program-page .guide-block .guide-program:active {
   display: block;
   width: 100%;
   min-height: 0;
@@ -163,14 +170,33 @@
   border: 0;
   background: none;
   box-shadow: none;
+  translate: none;
   color: inherit;
   font: inherit;
   text-align: left;
   overflow: hidden;
   cursor: pointer;
 }
-.program-page .guide-program:focus-visible {
-  outline-offset: 0;
+.program-page .guide-block .guide-program:focus-visible {
+  outline: none;
+}
+.guide-block {
+  transition:
+    border-color var(--xp-duration-fast) ease,
+    box-shadow var(--xp-duration-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .guide-block:has(> .guide-program:hover) {
+    border-color: var(--xp-title-primary);
+    box-shadow: inset 0 0 0 1px var(--xp-selection);
+  }
+}
+.guide-block:has(> .guide-program:focus-visible) {
+  outline: 1px dotted var(--xp-text);
+  outline-offset: -3px;
+}
+.guide-block.airing:has(> .guide-program:focus-visible) {
+  outline-color: var(--xp-window-surface);
 }
 .program-description {
   max-width: 560px;
