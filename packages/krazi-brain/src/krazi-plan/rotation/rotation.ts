@@ -272,7 +272,7 @@ export function isUsableAssignment(assignment: ProgrammingAssignment): boolean {
 
 /**
  * Whether default rotation can program the channel: some assignment in
- * normal rotation is usable. Without one, any time no rule wins reports
+ * normal rotation is usable. Without one, any time no rule is active reports
  * nothing schedulable, so callers outside kraziPlan, such as catalog
  * removal's warning, ask this rather than restate it.
  */

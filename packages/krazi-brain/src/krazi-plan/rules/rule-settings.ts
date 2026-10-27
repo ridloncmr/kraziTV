@@ -13,27 +13,27 @@ const FROM_ASSIGNMENT: SettingOrigins = Object.freeze({
 });
 
 /**
- * Returns the assignment as the winning rule runs it (programming spec
- * 0005): the rule's ordinary and marathon settings for a source it names,
- * or the assignment unchanged when no rule wins or the winner does not name
- * it. Playback mode and progress are never the rule's to change.
+ * Returns the assignment as the active rules run it (programming spec
+ * 0009): the ordinary and marathon settings of the first active rule naming
+ * it, or the assignment unchanged when none does. Settings are never merged
+ * across rules, and playback mode and progress are never a rule's to change.
  */
 export function applyRuleSettings(
   assignment: ProgrammingAssignment,
-  winner: ProgrammingRule | undefined,
+  active: readonly ProgrammingRule[],
 ): ProgrammingAssignment {
-  const source = findSource(winner, assignment.id);
+  const source = findSource(active, assignment.id);
   return source === undefined
     ? assignment
     : { ...assignment, ...effectiveStretches(source, assignment) };
 }
 
-/** Says where an assignment's settings come from while `winner` wins. */
+/** Says where an assignment's settings come from while `active` rules are active. */
 export function settingOrigins(
-  winner: ProgrammingRule | undefined,
+  active: readonly ProgrammingRule[],
   assignmentId: string,
 ): SettingOrigins {
-  const source = findSource(winner, assignmentId);
+  const source = findSource(active, assignmentId);
   if (source === undefined) return FROM_ASSIGNMENT;
   return {
     ordinary: source.ordinary === null ? "assignment" : "rule",
@@ -76,10 +76,26 @@ function effectiveStretches(
   };
 }
 
-/** The winner's reference to an assignment, if it has one. */
+/**
+ * The first active rule, in the saved rule order `active` is already in,
+ * that names an assignment. It alone supplies the assignment's settings and
+ * is recorded as the rule that chose its turn.
+ */
+export function findNamingRule(
+  active: readonly ProgrammingRule[],
+  assignmentId: string,
+): ProgrammingRule | undefined {
+  return active.find(({ sources }) =>
+    sources.some((source) => source.assignmentId === assignmentId),
+  );
+}
+
+/** The naming rule's reference to an assignment, if any active rule names it. */
 function findSource(
-  winner: ProgrammingRule | undefined,
+  active: readonly ProgrammingRule[],
   assignmentId: string,
 ): RuleSource | undefined {
-  return winner?.sources.find((source) => source.assignmentId === assignmentId);
+  return findNamingRule(active, assignmentId)?.sources.find(
+    (source) => source.assignmentId === assignmentId,
+  );
 }

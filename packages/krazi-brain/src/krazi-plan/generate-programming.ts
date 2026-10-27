@@ -35,8 +35,8 @@ import {
   findReservationAt,
   reservationEndedTurn,
 } from "./reservations/reservation-programs.js";
-import { settingOrigins } from "./rules/rule-settings.js";
-import { decideRule, ruleScope } from "./rules/winning-rule.js";
+import { findNamingRule, settingOrigins } from "./rules/rule-settings.js";
+import { decideRule, ruleScope } from "./rules/active-rules.js";
 import { resolveSize } from "./stretches/stretch-settings.js";
 import { turnSize } from "./stretches/turn-size.js";
 
@@ -85,7 +85,7 @@ type ProgrammingResult =
       progress: CollectionProgress[];
       /** Assignments the call's rounds passed over, for explaining them. */
       skips: AssignmentSkip[];
-      /** Rules each new block's decision passed over before its winner, for explaining them. */
+      /** Applicable rules each new block's decision dropped as unusable, for explaining them. */
       ruleSkips: (RuleSkip & { blockId: string })[];
       nextSequenceNumber: number;
       /**
@@ -104,9 +104,9 @@ interface OpenTurn {
 
 /**
  * Generates a channel's programming from `startsAt`: before every program
- * it asks which programming rule wins, continues the latest turn while its
- * assignment stays eligible in the same rotation context and its size is
- * unmet, and otherwise asks kraziPlan for the next turn and lets schedule
+ * it asks which programming rules are active, continues the latest turn
+ * while its assignment stays eligible in the same rotation context and its
+ * size is unmet, and otherwise asks kraziPlan for the next turn and lets schedule
  * generation choose its whole programs. A program is never cut for a
  * calendar window; the next one follows current eligibility. Reservations
  * are hard ends (programming spec 0006): the next program that cannot
@@ -229,7 +229,7 @@ export function generateProgramming(
     }
     if (startsAt >= through) break;
 
-    // The winning rule stands until some rule's applicability can change,
+    // The active rules stand until some rule's applicability can change,
     // so it is decided again only at the first program from then on.
     if (decision === undefined || startsAt >= decision.validUntil) {
       decision = decideRule(
@@ -239,7 +239,7 @@ export function generateProgramming(
         options.timeZone,
       );
     }
-    const scope = ruleScope(decision.winner, assignments);
+    const scope = ruleScope(decision.active, assignments);
     // Eligibility loss or a change of context ends a started turn here, at
     // a program boundary; its remainder is discarded without debt.
     const openId = open?.assignmentId;
@@ -306,8 +306,9 @@ export function generateProgramming(
           { round: turn.round, turnIndex: position.turnIndex },
         ),
         marathon: turn.marathon,
-        winningRuleId: decision.winner?.id ?? null,
-        settingOrigins: settingOrigins(decision.winner, turn.assignment.id),
+        winningRuleId:
+          findNamingRule(decision.active, turn.assignment.id)?.id ?? null,
+        settingOrigins: settingOrigins(decision.active, turn.assignment.id),
         endedByEdit: false,
         checkpoint: turn.checkpoint,
       };
@@ -322,7 +323,7 @@ export function generateProgramming(
 
     const hardEnd = findNextReservation(reservations, startsAt)?.startsAt;
     const generated = airSource(open.source, {
-      // Every program starting before the decision can change shares its winner.
+      // Every program starting before the decision can change shares its rules.
       through: Math.min(through, decision.validUntil),
       hardEnd,
       turn: open.size,

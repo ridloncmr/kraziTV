@@ -27,7 +27,7 @@ describe("turnTerms", () => {
     });
   });
 
-  it("changes when the winning rule changes the turn's settings", () => {
+  it("changes when an active rule changes the turn's settings", () => {
     const resized = programmingRule("resize", [
       {
         assignmentId: "office",
@@ -63,5 +63,38 @@ describe("turnTerms", () => {
         marathon: null,
       },
     );
+  });
+
+  it("changes the context when a second takeover joins, even for a show both include", () => {
+    const takeover = (id: string, ruleOrder: number) =>
+      programmingRule(id, ["office"], { behavior: "feature", ruleOrder });
+
+    expect(
+      turnTerms([takeover("a", 0)], ASSIGNMENTS, INSTANT, "UTC", "office")
+        .contextKey,
+    ).toBe("rule:a");
+    expect(
+      turnTerms(
+        [takeover("a", 0), takeover("b", 1)],
+        ASSIGNMENTS,
+        INSTANT,
+        "UTC",
+        "office",
+      ),
+    ).toEqual({
+      contextKey: "rule:a+b",
+      eligible: true,
+      ordinary: { kind: "programs", count: 3 },
+      marathon: null,
+    });
+  });
+
+  it("stays the same when a mix-in joins a takeover without naming the turn's show", () => {
+    const takeover = programmingRule("a", ["office"], { behavior: "feature" });
+    const mixIn = programmingRule("mix", ["christmas"], { ruleOrder: 1 });
+
+    expect(
+      turnTerms([takeover, mixIn], ASSIGNMENTS, INSTANT, "UTC", "office"),
+    ).toEqual(turnTerms([takeover], ASSIGNMENTS, INSTANT, "UTC", "office"));
   });
 });

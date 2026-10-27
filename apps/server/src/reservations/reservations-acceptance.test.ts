@@ -317,7 +317,7 @@ describe("spec 0006 acceptance", () => {
 
 describe("spec 0005 acceptance: reservations override both rule behaviors", () => {
   it.each(["join", "feature"] as const)(
-    "airs the reserved movie at its exact start while a %s rule wins",
+    "airs the reserved movie at its exact start while a %s rule is active",
     async (behavior) => {
       const context = await startScheduleScenarioServer();
       await send(

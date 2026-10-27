@@ -258,7 +258,8 @@ describe("recurring programming rules acceptance", () => {
     // each taking at most one turn a round.
     const decemberRounds = new Map<number, string[]>();
     for (const block of blocks) {
-      if (block.winning_rule_id !== rules.december) continue;
+      if (block.context_key !== "default") continue;
+      if (local(block.starts_at).month !== 12) continue;
       decemberRounds.set(block.round_number, [
         ...(decemberRounds.get(block.round_number) ?? []),
         block.assignment_id ?? "",

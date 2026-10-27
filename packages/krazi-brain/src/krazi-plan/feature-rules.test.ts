@@ -621,6 +621,262 @@ describe("generateProgramming: cooldown across rotation contexts", () => {
   });
 });
 
+describe("generateProgramming: takeovers at the same priority", () => {
+  // Saturday 2026-10-03, with later October Saturdays for longer runs.
+  const SATURDAY = utc("2026-10-03T00:00:00Z");
+  const at = (hour: number, day = SATURDAY) => day + hour * 60 * MINUTE_MS;
+  const cartoon = (id: string) => ({
+    ...sitcom(id),
+    participation: "rule_only" as const,
+  });
+  const office = sitcom("office");
+  const shows = ["sponge", "rugrats", "powerpuff", "dexter"].map(cartoon);
+  const pumpkin = collectionAssignment(
+    "pumpkin",
+    "c-pumpkin",
+    items("pumpkin", 40, 30),
+    { participation: "rule_only", ordinary: { kind: "programs", count: 1 } },
+  );
+  const assignments = [office, ...shows, pumpkin];
+  const saturdays = (startHour: number, endHour: number) => ({
+    weekdays: [6],
+    window: { startMinute: startHour * 60, endMinute: endHour * 60 },
+  });
+  const takeover = (
+    id: string,
+    sources: Parameters<typeof programmingRule>[1],
+    conditions: ReturnType<typeof saturdays>,
+    overrides: Partial<ProgrammingRule> = {},
+  ) =>
+    programmingRule(id, sources, {
+      behavior: "feature",
+      priority: 3,
+      conditions,
+      ...overrides,
+    });
+  const nick = takeover("nick", ["sponge", "rugrats"], saturdays(7, 11));
+  const cartoonNetwork = takeover(
+    "cartoon",
+    ["powerpuff", "dexter"],
+    saturdays(9, 11),
+    { ruleOrder: 1 },
+  );
+  const FOURTH_SATURDAY = SATURDAY + 21 * DAY_MS;
+  const run = (
+    rules: readonly ProgrammingRule[],
+    through = at(13, FOURTH_SATURDAY),
+  ): ReturnType<typeof generated> =>
+    generated(
+      generateProgramming(
+        options(assignments, rules, { startsAt: SATURDAY, through }),
+      ),
+    );
+  // Whether an entry starts on a Saturday between two UTC hours.
+  const inHours =
+    (from: number, to: number) =>
+    ({ startsAt }: { startsAt: number }) => {
+      const hour = (startsAt % DAY_MS) / (60 * MINUTE_MS);
+      return new Date(startsAt).getUTCDay() === 6 && hour >= from && hour < to;
+    };
+  const collections = (list: readonly { mediaCollectionId: string }[]) =>
+    new Set(list.map((entry) => entry.mediaCollectionId));
+
+  it("plays both takeovers' shows together, with no default shows, while both apply", () => {
+    const { blocks, entries } = run([nick, cartoonNetwork]);
+
+    expect(collections(entries.filter(inHours(7, 9)))).toEqual(
+      new Set(["c-sponge", "c-rugrats"]),
+    );
+    const together = entries.filter(inHours(9, 11));
+    expect(collections(together)).toEqual(
+      new Set(["c-sponge", "c-rugrats", "c-powerpuff", "c-dexter"]),
+    );
+    for (const entry of together) {
+      const block = blocks.find(({ id }) => id === entry.programmingBlockId);
+      expect(block?.checkpoint.activeContext).toBe("rule:cartoon+nick");
+    }
+    expect(collections(entries.filter(inHours(11, 13)))).toEqual(
+      new Set(["c-office"]),
+    );
+    // A lone takeover keeps its own key, so existing checkpoints resume.
+    expect(
+      blocks.find(({ startsAt }) => startsAt === at(7))?.checkpoint
+        .activeContext,
+    ).toBe("rule:nick");
+  });
+
+  it("ends a turn when a takeover joins, after its airing program, even though its show stays eligible", () => {
+    const { entries } = run([nick, cartoonNetwork]);
+    const entryAt = (hour: number) =>
+      entries.find(({ startsAt }) => startsAt === at(hour));
+
+    // Nick's 8:30 turn would run to 10:00; Cartoon Network joins at 9:00.
+    const nickTurn = entryAt(8.5)?.programmingBlockId;
+    expect(
+      entries.filter(
+        ({ programmingBlockId }) => programmingBlockId === nickTurn,
+      ),
+    ).toHaveLength(1);
+    expect(entryAt(9)?.programmingBlockId).not.toBe(nickTurn);
+  });
+
+  it("adds a same-priority mix-in to the takeovers' rotation, ending no turn when it starts", () => {
+    const halloween = programmingRule("halloween", ["pumpkin"], {
+      priority: 3,
+      conditions: saturdays(10, 11),
+    });
+    const october = programmingRule("october", ["pumpkin"], {
+      priority: 3,
+      conditions: {
+        dates: { kind: "annual", startMonthDay: "10-01", endMonthDay: "10-31" },
+      },
+    });
+
+    const midTurn = run([nick, cartoonNetwork, halloween]);
+    const entryAt = (hour: number) =>
+      midTurn.entries.find(({ startsAt }) => startsAt === at(hour));
+    // The 9:00 turn keeps airing through the mix-in's 10:00 start.
+    expect(entryAt(10)?.programmingBlockId).toBe(
+      entryAt(9)?.programmingBlockId,
+    );
+
+    const { blocks } = run([nick, cartoonNetwork, october]);
+    const pumpkins = blocks.filter(
+      (block) =>
+        block.assignmentId === "pumpkin" &&
+        block.checkpoint.activeContext === "rule:cartoon+nick",
+    );
+    expect(pumpkins.length).toBeGreaterThan(0);
+    for (const block of pumpkins) {
+      expect(block.winningRuleId).toBe("october");
+    }
+  });
+
+  it("lets a higher-priority takeover program alone, ignoring lower takeovers and mix-ins", () => {
+    const christmas = takeover("christmas", ["pumpkin"], saturdays(10, 11), {
+      priority: 4,
+    });
+    const halloween = programmingRule("halloween", ["office"], {
+      priority: 3,
+      conditions: saturdays(0, 24),
+    });
+
+    const { blocks, entries } = run([
+      nick,
+      cartoonNetwork,
+      halloween,
+      christmas,
+    ]);
+
+    const late = entries.filter(inHours(10, 11));
+    expect(collections(late)).toEqual(new Set(["c-pumpkin"]));
+    for (const entry of late) {
+      const block = blocks.find(({ id }) => id === entry.programmingBlockId);
+      expect(block?.checkpoint.activeContext).toBe("rule:christmas");
+      expect(block?.winningRuleId).toBe("christmas");
+    }
+  });
+
+  it("gives a show both takeovers name one turn a round, sized by the first rule in saved order", () => {
+    const sized = (count: number) => ({
+      assignmentId: "sponge",
+      ordinary: { kind: "programs" as const, count },
+      marathon: { mode: "inherit" as const },
+    });
+    // IDs sort the other way, so only saved order can pick Nick's settings.
+    const first = takeover("nick", [sized(1), "rugrats"], saturdays(9, 11));
+    const second = takeover(
+      "cartoon",
+      [sized(2), "powerpuff"],
+      saturdays(9, 11),
+      {
+        ruleOrder: 1,
+      },
+    );
+
+    const { blocks } = run([second, first]);
+
+    const combined = blocks.filter(
+      (block) => block.checkpoint.activeContext === "rule:cartoon+nick",
+    );
+    const sponge = combined.filter((block) => block.assignmentId === "sponge");
+    expect(sponge.length).toBeGreaterThan(0);
+    for (const block of sponge) {
+      expect(block.size).toEqual({ kind: "programs", value: 1 });
+      expect(block.winningRuleId).toBe("nick");
+      expect(block.settingOrigins.ordinary).toBe("rule");
+    }
+    const turns = new Map<number, string[]>();
+    for (const block of combined) {
+      turns.set(block.roundNumber, [
+        ...(turns.get(block.roundNumber) ?? []),
+        block.assignmentId ?? "",
+      ]);
+    }
+    for (const round of turns.values()) {
+      expect(new Set(round).size).toBe(round.length);
+    }
+  });
+
+  it("resumes a lone takeover's own rotation after a combination, continuing collection progress", () => {
+    const hour = takeover(
+      "cartoon",
+      ["powerpuff", "sponge"],
+      saturdays(9, 10),
+      {
+        ruleOrder: 1,
+      },
+    );
+
+    const { blocks, entries } = run([nick, hour]);
+
+    const contexts = blocks.map((block) => block.checkpoint.activeContext);
+    const combinedAt = contexts.indexOf("rule:cartoon+nick");
+    expect(combinedAt).toBeGreaterThan(0);
+    const before = blocks[combinedAt - 1];
+    const after = blocks
+      .slice(combinedAt)
+      .find((block) => block.checkpoint.activeContext === "rule:nick");
+    expect(before?.checkpoint.activeContext).toBe("rule:nick");
+    expect(after?.startsAt).toBe(at(10));
+    expect(after?.roundNumber).toBeGreaterThanOrEqual(before?.roundNumber ?? 0);
+    if (after?.roundNumber === before?.roundNumber) {
+      expect(after?.assignmentId).not.toBe(before?.assignmentId);
+    }
+    // One show's episodes air in order across every context.
+    const sponge = entries
+      .filter((entry) => entry.mediaCollectionId === "c-sponge")
+      .map((entry) => entry.mediaItemId);
+    expect(sponge.length).toBeGreaterThan(6);
+    expect(sponge).toEqual(sponge.map((_, index) => `sponge${index + 1}`));
+  });
+
+  it("generates the same combined programming in any chunk size", () => {
+    const halloween = programmingRule("halloween", ["pumpkin"], {
+      priority: 3,
+      conditions: saturdays(10, 11),
+    });
+    const base = {
+      ...options(assignments, [nick, cartoonNetwork, halloween]),
+      startsAt: SATURDAY,
+      through: at(13, SATURDAY + 14 * DAY_MS),
+    };
+
+    const whole = generateInChunks(
+      { ...base, createBlockId: sequentialBlockIds() },
+      100_000,
+    );
+    for (const size of [1, 7]) {
+      expect(
+        generateInChunks(
+          { ...base, createBlockId: sequentialBlockIds() },
+          size,
+        ),
+      ).toEqual(whole);
+    }
+  });
+});
+
 /** The latest default-context block before `block`. */
 function lastDefaultBlockBefore(
   blocks: readonly GeneratedBlock[],

@@ -340,7 +340,9 @@ describe("programming rule routes", () => {
       },
     ],
     ["an empty name", { name: "  " }],
-    ["a fractional priority", { priority: 1.5 }],
+    ["a fractional priority", { priority: 2.5 }],
+    ["a priority below 1", { priority: 0 }],
+    ["a priority above 5", { priority: 6 }],
     ["an unknown field", { exclusive: true }],
   ])("refuses %s", async (_, override) => {
     const { server } = await startServer();
@@ -351,6 +353,14 @@ describe("programming rule routes", () => {
       status: 400,
       body: { error: { code: "invalid_request" } },
     });
+  });
+
+  it.each([1, 5])("accepts priority %d", async (priority) => {
+    const { server } = await startServer();
+
+    await expect(
+      send(server, "POST", RULES_URL, { ...decemberBody, priority }),
+    ).resolves.toMatchObject({ status: 201, body: { priority } });
   });
 
   it("airs only a feature rule's sources in its window", async () => {
@@ -414,7 +424,7 @@ describe("rule-specific stretch settings", () => {
     ordinaryStretch: { kind: "programs", count: 1 },
   };
 
-  it("saves a source's own sizes and airs them while the rule wins, leaving the assignment alone", async () => {
+  it("saves a source's own sizes and airs them while the rule is active, leaving the assignment alone", async () => {
     const { server, db } = await startServer();
     const body = {
       ...decemberBody,

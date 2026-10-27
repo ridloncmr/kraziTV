@@ -4,7 +4,7 @@ import type { StretchKind } from "./programming-source-assignment-table.js";
 
 /**
  * One assignment a rule selects, in saved source order, with the stretch
- * settings that apply only while the rule wins. Null ordinary columns
+ * settings that apply while the rule is the first active rule naming it. Null ordinary columns
  * inherit the assignment's; marathon columns are set only to replace it.
  * Deleting the assignment deletes the reference.
  */

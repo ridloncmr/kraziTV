@@ -189,7 +189,7 @@ async function readRule(
   return rule;
 }
 
-// Inserts a rule's sources in saved order with the settings each applies while the rule wins.
+// Inserts a rule's sources in saved order with the settings each applies while the rule is active.
 async function writeSources(
   trx: Executor,
   channelId: string,

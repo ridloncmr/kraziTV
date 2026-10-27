@@ -15,7 +15,7 @@ export interface ProgrammingRuleTable {
   channel_id: string;
   name: string;
   behavior: ProgrammingRule["behavior"];
-  /** Higher wins. */
+  /** 1 through 5; higher wins. */
   priority: number;
   /** Saved rule order; breaks priority ties before the ID does. */
   rule_order: number;

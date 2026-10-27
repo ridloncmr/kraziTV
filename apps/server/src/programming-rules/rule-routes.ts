@@ -49,7 +49,7 @@ const ruleBody = z
   .strictObject({
     name: nameField,
     behavior: z.enum(RULE_BEHAVIORS),
-    priority: z.number().int(),
+    priority: z.number().int().min(1).max(5),
     dates: dates.default({ kind: "any" }),
     // No weekdays, like none named, means every day.
     weekdays: z

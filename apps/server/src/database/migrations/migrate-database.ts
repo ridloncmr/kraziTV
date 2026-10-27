@@ -38,6 +38,7 @@ import { programmingRevisionMigration } from "./030-programming-revision.js";
 import { correctedReleaseYearMigration } from "./031-corrected-release-year.js";
 import { unlistedEpisodeMigration } from "./032-unlisted-episode.js";
 import { assignmentNamesMigration } from "./033-assignment-names.js";
+import { rulePriorityRangeMigration } from "./034-rule-priority-range.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -74,6 +75,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "031_corrected_release_year": correctedReleaseYearMigration,
   "032_unlisted_episode": unlistedEpisodeMigration,
   "033_assignment_names": assignmentNamesMigration,
+  "034_rule_priority_range": rulePriorityRangeMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

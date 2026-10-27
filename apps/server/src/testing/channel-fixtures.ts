@@ -125,7 +125,7 @@ export const ruleFixture: Insertable<ProgrammingRuleTable> = {
   channel_id: channelFixture.id,
   name: "December",
   behavior: "join",
-  priority: 0,
+  priority: 3,
   rule_order: 0,
   date_kind: "annual",
   start_date: null,

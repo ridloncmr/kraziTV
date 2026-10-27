@@ -253,7 +253,7 @@ describe("GET /channels/:id/programming-preview: rule decisions", () => {
     };
   }
 
-  it("names each turn's winning rule, the rules it passed over and why, its decision time, and setting origins", async () => {
+  it("names the active rule that chose each turn, the rules it passed over and why, its decision time, and setting origins", async () => {
     const { server, christmasId, joinedId, brokenId } = await ruledServer();
 
     const { body } = await send(server, "GET", `${PREVIEW_URL}?turns=8`);
@@ -263,8 +263,10 @@ describe("GET /channels/:id/programming-preview: rule decisions", () => {
     );
     expect(fresh.length).toBeGreaterThan(4);
     for (const turn of fresh) {
+      // Only the mix-in's own show was chosen by it; a default show beside
+      // it was chosen by no rule.
       expect(turn).toMatchObject({
-        winningRuleId: joinedId,
+        winningRuleId: turn.assignmentId === christmasId ? joinedId : null,
         skippedRules: [{ ruleId: brokenId, reason: "no_usable_source" }],
       });
       expect(turn.decidedAt).toBe(turn.startsAt);

@@ -371,6 +371,15 @@
       "files": ["apps/web/src/channels/lineup/"],
       "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Add shows dialog, the Properties dialog that edits one show, the member names, show labels, and draft those share, and the channel's Marathons control with its Custom dialog.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: \"a lineup/ capability for the list, add dialog, and properties dialog\")"
+    },
+    {
+      "rule": "duplicate-code",
+      "files": [
+        "apps/server/src/database/migrations/021-source-assignments.ts",
+        "apps/server/src/database/migrations/034-rule-priority-range.ts"
+      ],
+      "reason": "Both migrations rebuild a table that other tables reference, so each declares the same foreign-keys-off transaction helper; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
+      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     }
   ]
 }
