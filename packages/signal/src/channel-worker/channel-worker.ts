@@ -41,10 +41,15 @@ export type ChannelWorkerOptions = {
   /** How long before each boundary the following item is selected and prepared. */
   prepareLeadMs: number;
   /**
-   * Also bounds each transition: every dependency call must finish by the
-   * scheduled boundary plus this window, or the worker fails.
+   * Bounds the whole startup, through the session's readiness, which may
+   * hold for the first viewer's backlog (ADR 0018).
    */
   startupTimeoutMs: number;
+  /**
+   * Bounds each transition: every dependency call must finish by the
+   * scheduled boundary plus this window, or the worker fails.
+   */
+  recoveryTimeoutMs: number;
   subscriberBufferLimitBytes: number;
   retentionLimitBytes: number;
   findJoinPoint: (retainedBytes: Buffer) => number | undefined;
@@ -167,7 +172,7 @@ export class ChannelWorker {
         clock: options.clock,
         timers: options.timers,
         prepareLeadMs: options.prepareLeadMs,
-        recoveryTimeoutMs: options.startupTimeoutMs,
+        recoveryTimeoutMs: options.recoveryTimeoutMs,
       },
       airing,
     );
@@ -244,6 +249,7 @@ async function stopStartupSession(
 /** Rejects invalid runtime limits before any provider or process side effect. */
 function validateOptions(options: ChannelWorkerOptions): void {
   assertPositiveSafeInteger(options.startupTimeoutMs, "startupTimeoutMs");
+  assertPositiveSafeInteger(options.recoveryTimeoutMs, "recoveryTimeoutMs");
   assertPositiveSafeInteger(options.prepareLeadMs, "prepareLeadMs");
   assertPositiveSafeInteger(
     options.subscriberBufferLimitBytes,

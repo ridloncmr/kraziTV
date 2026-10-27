@@ -20,6 +20,7 @@ describe("real FFmpeg filler", () => {
       ffmpegPath,
       logger: silentLogger,
       timers: new SystemRuntime(),
+      clock: new SystemRuntime(),
       terminationGraceMs: 5_000,
       itemReadinessTimeoutMs: 15_000,
       fillerFontFile: fontFile,

@@ -8,7 +8,7 @@ import type {
   ProgrammingRule,
   SourceAssignment,
 } from "../../http/contracts/programming.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { listNames, showLabel } from "../lineup/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import { RebuildDialog } from "../preview/rebuild-dialog.js";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { formText } from "../controls/form-text.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { WindowDialog } from "../controls/window-dialog.js";
-import { useMutation } from "../http/use-resource.js";
+import { useMutation } from "../http/resources/use-resource.js";
 import { FolderBrowser } from "./folder-browser.js";
 
 /**

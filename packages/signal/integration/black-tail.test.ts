@@ -78,6 +78,7 @@ describe("real FFmpeg black tail", () => {
         ffmpegPath,
         logger: silentLogger,
         timers: new SystemRuntime(),
+        clock: new SystemRuntime(),
         terminationGraceMs: 5_000,
         itemReadinessTimeoutMs: 15_000,
       });
@@ -140,6 +141,7 @@ describe("real FFmpeg black video", () => {
       ffmpegPath,
       logger: silentLogger,
       timers: new SystemRuntime(),
+      clock: new SystemRuntime(),
       terminationGraceMs: 5_000,
       itemReadinessTimeoutMs: 15_000,
     });

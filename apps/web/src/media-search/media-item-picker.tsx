@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { displayCount } from "../controls/display-count.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaItem } from "../http/contracts/media.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 
 const RESULT_LIMIT = 25;
@@ -67,7 +68,8 @@ export function MediaItemPicker({
         </select>
         {hidden > 0 && (
           <small className="secondary">
-            {hidden} more matches. Refine the search to narrow them.
+            {displayCount(hidden)} more matches. Refine the search to narrow
+            them.
           </small>
         )}
       </label>

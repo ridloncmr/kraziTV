@@ -1,4 +1,4 @@
-import { displayTime } from "../../controls/display-time.js";
+import { displayListTime } from "../../controls/display-time.js";
 import type {
   CollectionPreview,
   PreviewMember,
@@ -51,9 +51,10 @@ export function UpcomingSelections({
     <p>No upcoming selections yet.</p>
   ) : (
     <ol aria-label="Upcoming selections">
-      {selections.map((selection) => (
+      {selections.map((selection, index, all) => (
         <li key={selection.id}>
-          {displayTime(selection.startsAt)} · {selection.title}
+          {displayListTime(selection.startsAt, all[index - 1]?.startsAt)} ·{" "}
+          {selection.title}
         </li>
       ))}
     </ol>

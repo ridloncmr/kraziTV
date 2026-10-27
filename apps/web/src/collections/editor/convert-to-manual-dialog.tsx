@@ -1,6 +1,6 @@
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 
 /**
  * Confirms converting an automatic collection to manual. The dialog owns its

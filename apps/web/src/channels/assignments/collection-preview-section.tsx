@@ -6,7 +6,7 @@ import type {
   PlaybackMode,
   SourceAssignment,
 } from "../../http/contracts/programming.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "./playback-mode-choices.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";

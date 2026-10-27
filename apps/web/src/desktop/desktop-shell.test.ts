@@ -10,12 +10,15 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { PageRefreshScope } from "../http/resources/refresh-scope.js";
 import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { DesktopShell } from "./desktop-shell.js";
 
 afterEach(() => {
   cleanup();
+  // Windows reopen where a test left them unless the memory is cleared.
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -39,7 +42,10 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
   fireEvent.click(
     within(window).getByRole("button", { name: "Minimize Media Library" }),
   );
-  expect(screen.queryByRole("region", { name: "Media Library" })).toBeNull();
+  // The window stays for one beat while it shrinks toward the taskbar.
+  await waitFor(() =>
+    expect(screen.queryByRole("region", { name: "Media Library" })).toBeNull(),
+  );
   const taskbar = screen.getByRole("navigation", { name: "Open programs" });
   expect(within(taskbar).getAllByRole("button")).toHaveLength(1);
   fireEvent.click(
@@ -226,4 +232,43 @@ it("resizes by grip and keyboard within the space below and right of the window"
     fireEvent.keyDown(title, { key: "ArrowLeft", shiftKey: true });
   expect(size()).toEqual({ width: "360px", height: "728px" });
   expect(media.style.left).toBe("140px");
+});
+
+it("reloads a window brought to the front, and every open window when the browser regains focus", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply("/metadata/match-reviews", { steps: [] });
+  api.reply("/plex/setup", {});
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(
+      PageRefreshScope,
+      null,
+      createElement(DesktopShell, {
+        account,
+        onAccountChanged: () => {},
+        onLoggedOff: () => {},
+      }),
+    ),
+  );
+  const shortcuts = await screen.findByLabelText("Desktop programs");
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "Plex Setup" }),
+  );
+  await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(1));
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "Media Library" }),
+  );
+  await screen.findByRole("region", { name: "Media Library" });
+
+  fireEvent.pointerDown(screen.getByRole("region", { name: "Plex Setup" }));
+  await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(2));
+
+  act(() => {
+    globalThis.dispatchEvent(new Event("blur"));
+    globalThis.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(3));
 });

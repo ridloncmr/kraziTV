@@ -6,7 +6,7 @@ import { inRowMenu, RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
-import { useMutation, useResource } from "../../http/use-resource.js";
+import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
 import { listNames } from "../lineup/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";

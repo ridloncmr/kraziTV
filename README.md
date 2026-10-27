@@ -111,7 +111,8 @@ replaces the password, and logs every browser out. The server may keep running.
 The Web Admin at `http://127.0.0.1:5173` is an XP-inspired kraziTV desktop.
 Open Media Library to add and scan server paths, Collections to arrange media,
 and My Channels to configure channel identity and programming. Program Guide
-and Live Monitor display backend-computed state; Plex Setup supplies the
+shows every channel's next 24 hours as a grid with a line at now, Live Monitor
+shows one channel's current state, and Plex Setup supplies the
 server-configured tuner and XMLTV URLs. Programs are reachable through desktop
 shortcuts or Start; title bars support pointer dragging and arrow-key movement.
 Minimized programs retain form drafts and remain on the taskbar.

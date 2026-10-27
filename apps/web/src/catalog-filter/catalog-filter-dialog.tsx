@@ -9,7 +9,7 @@ import type {
   MediaRoot,
 } from "../http/contracts/media.js";
 import { WindowDialog } from "../controls/window-dialog.js";
-import { useResource } from "../http/use-resource.js";
+import { useResource } from "../http/resources/use-resource.js";
 import { FilterSection, type FilterOption } from "./filter-section.js";
 
 /** Sections whose values never change. */

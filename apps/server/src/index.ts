@@ -145,6 +145,7 @@ const channelStreams = composeChannelStreamManager({
   packager: createFfmpegSignalPackager({
     logger: toSignalLogger(logger),
     timers: runtime,
+    clock: runtime,
     ffmpegPath,
     fillerFontFile,
   }),

@@ -2,7 +2,7 @@ import { formText } from "../../controls/form-text.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { Channel } from "../../http/contracts/channels.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 
 /**
  * Creates a channel from its identity alone; its shows are added afterward
@@ -39,7 +39,12 @@ export function CreateChannelDialog({
           <div className="inline-form">
             <label>
               Channel number
-              <input name="number" required placeholder="69 or 69.1" />
+              <input
+                name="number"
+                inputMode="decimal"
+                required
+                placeholder="69 or 69.1"
+              />
             </label>
             <label>
               Channel name

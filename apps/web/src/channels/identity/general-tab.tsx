@@ -2,7 +2,7 @@ import { formText } from "../../controls/form-text.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { Channel } from "../../http/contracts/channels.js";
-import { useMutation } from "../../http/use-resource.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 
 /**
  * The General tab: the channel's number and name, saved by **Apply**.
@@ -37,7 +37,12 @@ export function GeneralTab({
       >
         <label>
           Number
-          <input name="number" defaultValue={channel.number} required />
+          <input
+            name="number"
+            inputMode="decimal"
+            defaultValue={channel.number}
+            required
+          />
         </label>
         <label>
           Name

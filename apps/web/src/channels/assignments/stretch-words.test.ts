@@ -26,7 +26,7 @@ describe("stretch words", () => {
   });
 
   it.each([
-    [null, null, "—"],
+    [null, null, ""],
     [{ kind: "programs", count: 6 } as const, null, "up to 6 programs"],
     [
       { kind: "programs", count: 6 } as const,

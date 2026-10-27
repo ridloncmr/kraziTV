@@ -1,23 +1,16 @@
 import { useState } from "react";
-import { displayTime } from "../controls/display-time.js";
+import { displayDuration } from "../controls/display-duration.js";
+import {
+  displayClockTime,
+  displayTimeRange,
+} from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
-import type {
-  Channel,
-  ChannelState,
-  ScheduleWindow,
-} from "../http/contracts/channels.js";
-import { useResource } from "../http/use-resource.js";
-import { scheduleWindowPath } from "../schedule-view/schedule-window-path.js";
+import type { Channel, ChannelState } from "../http/contracts/channels.js";
+import { useResource } from "../http/resources/use-resource.js";
 
-/** Guide and monitor share API observations; offsets are never advanced by browser time. */
-export function ChannelObservation({
-  visible,
-  guide = false,
-}: {
-  visible: boolean;
-  guide?: boolean;
-}) {
+/** Live Monitor's view of one channel's current state; offsets are never advanced by browser time. */
+export function ChannelObservation({ visible }: { visible: boolean }) {
   const channels = useResource<Channel[]>("/channels", visible);
   const [selected, setSelected] = useState("");
   const path = selected ? resourcePath("channels", selected) : null;
@@ -26,16 +19,6 @@ export function ChannelObservation({
     visible,
     10_000,
   );
-  // The 24-hour window starts at now each time the program comes back into
-  // view, so a restored window shows today, not the day it was minimized on.
-  // Adjusted during render so the first visible paint already asks for it.
-  const [anchor, setAnchor] = useState({ visible, startsAt: Date.now() });
-  if (anchor.visible !== visible) {
-    setAnchor({ visible, startsAt: visible ? Date.now() : anchor.startsAt });
-  }
-  const schedulePath =
-    selected && guide ? scheduleWindowPath(selected, anchor.startsAt) : null;
-  const schedule = useResource<ScheduleWindow>(schedulePath, visible);
   return (
     <>
       <div className="inline-form">
@@ -55,101 +38,69 @@ export function ChannelObservation({
           </select>
         </label>
         <button
-          disabled={now.loading || schedule.loading}
+          disabled={now.loading}
           onClick={() => {
             channels.refresh();
             now.refresh();
-            schedule.refresh();
           }}
         >
           Refresh
         </button>
       </div>
       <RequestFeedback
-        loading={channels.loading || now.loading || schedule.loading}
+        loading={channels.loading || now.loading}
         error={channels.error}
       />
       {channels.data?.length === 0 && (
         <p className="empty-state">
-          No channels to inspect. Open My Channels to create one.
+          No channels yet. Open My Channels to create one.
         </p>
       )}
       {!selected && (channels.data?.length ?? 0) > 0 && (
-        <p className="empty-state">
-          Choose a channel to inspect its backend-computed programming.
-        </p>
+        <p className="empty-state">Choose a channel to see what&apos;s on.</p>
       )}
       {selected && (
         <>
           <RequestFeedback error={now.error} />
           {now.data && (
             <fieldset>
-              <legend>Current channel state</legend>
+              <legend>On now</legend>
               {now.data.currentItem ? (
                 <dl className="facts">
                   <dt>On air</dt>
                   <dd>
                     <strong>{itemLabel(now.data.currentItem)}</strong>
                   </dd>
-                  <dt>Playback offset</dt>
-                  <dd>{now.data.currentItem.offsetMs ?? "Unavailable"} ms</dd>
+                  <dt>Position</dt>
+                  <dd>
+                    {now.data.currentItem.offsetMs === undefined
+                      ? "Unavailable"
+                      : displayDuration(now.data.currentItem.offsetMs)}
+                  </dd>
                   <dt>Airtime</dt>
                   <dd>
-                    {displayTime(now.data.currentItem.startsAt)} –{" "}
-                    {displayTime(now.data.currentItem.endsAt)}
+                    {displayTimeRange(
+                      now.data.currentItem.startsAt,
+                      now.data.currentItem.endsAt,
+                    )}
                   </dd>
                   <dt>Next program</dt>
                   <dd>
                     {now.data.nextItem
                       ? itemLabel(now.data.nextItem)
-                      : "No next program available"}
+                      : "Nothing scheduled next"}
                   </dd>
                 </dl>
               ) : (
                 <p className="empty-state">
-                  No current playout item.{" "}
-                  {now.data.reason?.replaceAll("_", " ")}
+                  Nothing on air. {now.data.reason?.replaceAll("_", " ")}
                 </p>
               )}
               <p className="secondary">
-                Evaluated by server: {displayTime(now.data.evaluatedAt)}.
-                Refreshes every 10 seconds while visible.
+                As of {displayClockTime(now.data.evaluatedAt)}. Updates every 10
+                seconds.
               </p>
             </fieldset>
-          )}
-          {guide && (
-            <>
-              <h2>Upcoming generated schedule</h2>
-              <RequestFeedback error={schedule.error} />
-              {schedule.data && guideRows(schedule.data).length === 0 && (
-                <p className="empty-state">
-                  No generated schedule entries. Check the channel's programming
-                  source in My Channels.
-                </p>
-              )}
-              {schedule.data && guideRows(schedule.data).length > 0 && (
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Start</th>
-                        <th>End</th>
-                        <th>Program</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {guideRows(schedule.data).map((row) => (
-                        <tr key={row.key}>
-                          <td>{displayTime(row.startsAt)}</td>
-                          <td>{displayTime(row.endsAt)}</td>
-                          <td>{row.label}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
           )}
         </>
       )}
@@ -165,25 +116,4 @@ function itemLabel(item: NonNullable<ChannelState["currentItem"]>): string {
   return item.type === "filler"
     ? `Off air — programming resumes at ${item.resumeTime}`
     : item.title;
-}
-
-/**
- * Lists the guide's rows in time order: each scheduled program, and each
- * planned filler interval as Off air, which is coverage, not an entry.
- */
-function guideRows(window: ScheduleWindow) {
-  return [
-    ...window.entries.map((entry) => ({
-      key: entry.id,
-      startsAt: entry.startsAt,
-      endsAt: entry.endsAt,
-      label: entry.title,
-    })),
-    ...window.fillerIntervals.map((interval) => ({
-      key: `off-air-${interval.startsAt}`,
-      startsAt: interval.startsAt,
-      endsAt: interval.endsAt,
-      label: "Off air",
-    })),
-  ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }

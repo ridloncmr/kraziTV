@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { windowReducer } from "./window-state.js";
 
 describe("desktop windows", () => {
+  it("opens a program where this browser last left it, else cascaded", () => {
+    const remembered = {
+      channels: { x: 10, y: 20, width: 500, height: 400, maximized: true },
+    };
+    let state = windowReducer([], { type: "open", id: "channels" }, remembered);
+    state = windowReducer(state, { type: "open", id: "media" }, remembered);
+    expect(state[0]).toMatchObject(remembered.channels);
+    expect(state[1]).toMatchObject({ x: 164, y: 64, width: 760, height: 540 });
+  });
+
   it("reopens a minimized singleton without losing its position", () => {
     let state = windowReducer([], { type: "open", id: "channels" });
     state = windowReducer(state, {

@@ -1,4 +1,4 @@
-import { displayTime } from "../../controls/display-time.js";
+import { displayListTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
@@ -6,7 +6,7 @@ import type {
   ProgrammingPreview,
   ProgrammingRule,
 } from "../../http/contracts/programming.js";
-import { useResource } from "../../http/use-resource.js";
+import { useResource } from "../../http/resources/use-resource.js";
 
 // Names why kraziPlan passed over an assignment's member.
 const SKIP_REASONS: Record<string, string> = {
@@ -64,13 +64,13 @@ export function UpcomingProgramming({
       {preview.data && (
         <>
           <ol aria-label="Upcoming turns">
-            {preview.data.turns.map((turn) => (
+            {preview.data.turns.map((turn, index, turns) => (
               <li
                 key={`${turn.roundNumber}:${turn.turnIndex}:${turn.startsAt}`}
               >
                 {turn.startsAt === null
                   ? ""
-                  : `${displayTime(turn.startsAt)} · `}
+                  : `${displayListTime(turn.startsAt, turns[index - 1]?.startsAt ?? undefined)} · `}
                 {memberName(turn)} · {describeTurn(turn)} ·{" "}
                 {describeDecision(turn, ruleName)}
               </li>

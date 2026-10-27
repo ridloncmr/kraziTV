@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import {
@@ -36,7 +37,15 @@ function renderApp(onOpenChannels?: () => void) {
   api.reply("/media-collections", collections);
   serveCollection(api, "favorites", ["z", "a"]);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(CollectionsApp, { visible: true, onOpenChannels }));
+  render(
+    createElement(RefreshScope, {
+      active: true,
+      children: createElement(CollectionsApp, {
+        visible: true,
+        onOpenChannels,
+      }),
+    }),
+  );
   return api;
 }
 
@@ -78,6 +87,25 @@ it("lists manual collections as cards with their member counts and opens one for
     "Favorites",
   );
   expect(screen.queryByRole("tablist")).toBeNull();
+});
+
+it("Refresh reloads the open collection's members, not only the grid", async () => {
+  const api = renderApp();
+  await open("Favorites");
+  await waitFor(() =>
+    expect(api.requestsTo("/media-collections/favorites/items")).toHaveLength(
+      1,
+    ),
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+  await waitFor(() =>
+    expect(api.requestsTo("/media-collections/favorites/items")).toHaveLength(
+      2,
+    ),
+  );
+  expect(api.requestsTo("/media-collections/favorites/status")).toHaveLength(2);
 });
 
 it("shows an empty Automatic tab without listing manual collections there", async () => {

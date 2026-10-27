@@ -20,6 +20,7 @@ Each spec's status is the `Status:` line at the top of the spec.
 | [0008-web-admin](specs/0008-web-admin.md)                               | Minimal browser flow for configuring and observing the MVP              |
 | [0009-background-catalog-scans](specs/0009-background-catalog-scans.md) | Background scan jobs with progress and a window-locking progress dialog |
 | [0010-catalog-removal](specs/0010-catalog-removal.md)                   | Removing media roots and media items without disturbing what is airing  |
+| [0011-program-guide-grid](specs/0011-program-guide-grid.md)             | Every channel's next 24 hours as a guide grid with a line at now        |
 
 The first release should intentionally be small and focused on proving the core loop.
 
