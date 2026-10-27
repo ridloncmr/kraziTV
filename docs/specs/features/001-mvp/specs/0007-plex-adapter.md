@@ -113,9 +113,12 @@ XMLTV output should include:
 - Channel numbers when representable
 - Programme entries from kraziTV schedule entries
 - Programme start and stop timestamps
-- Programme titles
+- Programme titles, and the content facts the Media Library shows for the
+  media: an episode's series title, episode title, and season and episode
+  numbers, a movie's TMDB title and release date, and either's description,
+  genres, and TMDB poster. Media without facts lists by its entry title.
 
-The MVP can use simple titles from schedule entries. Rich metadata such as season, episode, descriptions, ratings, categories, and artwork can be added later.
+Filler is never listed; [ADR 0014](../../../../adrs/0014-planned-filler-coverage.md) keeps XMLTV to schedule entries. Ratings and channel artwork can be added later.
 
 XMLTV generation reads the available schedule horizon and emits up to 72 hours of future guide data for Plex setup and basic browsing.
 

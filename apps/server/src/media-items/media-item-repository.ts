@@ -120,6 +120,22 @@ export class MediaItemRepository {
     );
   }
 
+  /**
+   * Loads several items in one read, keyed by ID, so a guide of hundreds of
+   * entries costs one query. Unknown and removed IDs are left out; the IDs
+   * bind as one JSON parameter, so any number stays under SQLite's limit.
+   */
+  async listByIds(ids: readonly string[]): Promise<Map<string, MediaItem>> {
+    if (ids.length === 0) return new Map();
+    const rows = await selectWithMetadata(this.#db)
+      .selectAll("media_items")
+      .select(METADATA_COLUMNS)
+      .where("media_items.id", "in", jsonIdList([...new Set(ids)]))
+      .where("media_items.removed_at", "is", null)
+      .execute();
+    return new Map(rows.map((row) => [row.id, toMediaItem(row)]));
+  }
+
   /** Loads one item; returns undefined when the ID is unknown or removed. */
   async findById(id: string): Promise<MediaItem | undefined> {
     const row = await selectWithMetadata(this.#db)

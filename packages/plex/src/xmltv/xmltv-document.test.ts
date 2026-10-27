@@ -70,9 +70,11 @@ describe("formatXmltv", () => {
         "  </channel>",
         '  <programme start="20261005120000 +0000" stop="20261005122200 +0000" channel="uuid-a.krazitv">',
         "    <title>Pilot</title>",
+        "    <previously-shown />",
         "  </programme>",
         '  <programme start="20261005122200 +0000" stop="20261005124500 +0000" channel="uuid-a.krazitv">',
         "    <title>Fish &amp; &lt;Chips&gt;</title>",
+        "    <previously-shown />",
         "  </programme>",
         "</tv>",
       ].join("\n"),
@@ -81,5 +83,59 @@ describe("formatXmltv", () => {
 
   it("emits an empty guide when no channel is enabled", () => {
     expect(formatXmltv([])).toContain('<tv generator-info-name="kraziTV">');
+  });
+
+  it("lists a programme's content facts in DTD order, leaves absent ones out, and marks every programme previously shown", () => {
+    const xml = formatXmltv([
+      {
+        id: "uuid-a",
+        number: "2",
+        name: "Two",
+        programmes: [
+          {
+            startsAt: T0,
+            endsAt: T0 + 45 * MINUTE,
+            title: "Firefly",
+            subTitle: "The Train <Job>",
+            description: "Mal & Zoe take a job.",
+            date: "20020920",
+            categories: ["Series", "Drama"],
+            iconUrl: "https://image.example/t/p/w500/firefly.jpg?a=1&b=2",
+            episode: { season: 1, episode: 5, lastEpisode: 6 },
+          },
+          {
+            startsAt: T0 + 45 * MINUTE,
+            endsAt: T0 + 60 * MINUTE,
+            title: "Christmas Special",
+            subTitle: null,
+            description: null,
+            categories: [],
+            episode: { season: 0, episode: 2 },
+          },
+        ],
+      },
+    ]);
+
+    expect(xml).toContain(
+      [
+        '  <programme start="20261005120000 +0000" stop="20261005124500 +0000" channel="uuid-a.krazitv">',
+        "    <title>Firefly</title>",
+        "    <sub-title>The Train &lt;Job&gt;</sub-title>",
+        "    <desc>Mal &amp; Zoe take a job.</desc>",
+        "    <date>20020920</date>",
+        "    <category>Series</category>",
+        "    <category>Drama</category>",
+        '    <icon src="https://image.example/t/p/w500/firefly.jpg?a=1&amp;b=2" />',
+        '    <episode-num system="xmltv_ns">0.4.</episode-num>',
+        '    <episode-num system="onscreen">S01E05-E06</episode-num>',
+        "    <previously-shown />",
+        "  </programme>",
+        '  <programme start="20261005124500 +0000" stop="20261005130000 +0000" channel="uuid-a.krazitv">',
+        "    <title>Christmas Special</title>",
+        '    <episode-num system="onscreen">S00E02</episode-num>',
+        "    <previously-shown />",
+        "  </programme>",
+      ].join("\n"),
+    );
   });
 });

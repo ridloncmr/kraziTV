@@ -266,6 +266,7 @@ function registerRoutes(
     server,
     dependencies.channels,
     dependencies.schedules,
+    dependencies.mediaItems,
     plex,
   );
 }

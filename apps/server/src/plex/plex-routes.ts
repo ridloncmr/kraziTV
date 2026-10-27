@@ -10,7 +10,9 @@ import type { FastifyInstance } from "fastify";
 
 import type { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
+import type { MediaItemRepository } from "../media-items/media-item-repository.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
+import { guideProgramme } from "./guide-programme.js";
 
 const LINEUP_PATH = "/lineup.json";
 const XML_CONTENT_TYPE = "application/xml; charset=utf-8";
@@ -24,13 +26,15 @@ export type PlexSettings = {
 
 /**
  * Registers the HDHomeRun-compatible and XMLTV routes Plex reads. They only
- * format what channels and schedules already hold; tuning happens at the
- * provider-neutral stream route the lineup links to.
+ * format what channels, schedules, and the catalog's content metadata
+ * already hold; tuning happens at the provider-neutral stream route the
+ * lineup links to.
  */
 export function registerPlexRoutes(
   server: FastifyInstance,
   channels: ChannelRepository,
   schedules: ScheduleService,
+  mediaItems: MediaItemRepository,
   settings: PlexSettings,
 ): void {
   const { publicBaseUrl, deviceId, tunerCount } = settings;
@@ -78,15 +82,18 @@ export function registerPlexRoutes(
       // listing entries generated before it became unschedulable.
       await schedules.ensureCoverage(channel.id, request.log);
       const { entries } = await schedules.readWindow(channel.id, start, end);
+      // Content facts are read after the window, outside its snapshot: a
+      // title or description a beat newer than the entries is harmless.
+      const items = await mediaItems.listByIds(
+        entries.map((entry) => entry.mediaItemId),
+      );
       guide.push({
         id: channel.id,
         number: channel.number,
         name: channel.name,
-        programmes: entries.map((entry) => ({
-          startsAt: entry.startsAt,
-          endsAt: entry.endsAt,
-          title: entry.title,
-        })),
+        programmes: entries.map((entry) =>
+          guideProgramme(entry, items.get(entry.mediaItemId)?.metadata),
+        ),
       });
     }
     return reply.type(XML_CONTENT_TYPE).send(formatXmltv(guide));

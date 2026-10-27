@@ -12,6 +12,8 @@ import {
 } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
 import { channelFixture } from "../testing/channel-fixtures.js";
+import { movieFacts } from "../testing/collection-fixtures.js";
+import { EPISODE_FACTS } from "../testing/metadata-match-fixtures.js";
 import { holdWriteAuthority } from "../testing/hold-write-authority.js";
 import {
   readOnlyScheduleState,
@@ -249,6 +251,58 @@ describe("GET /plex/xmltv.xml programmes", () => {
     expect(
       (await readOnlyScheduleState(db)).last_generated_through,
     ).toBeGreaterThanOrEqual(now + SCHEDULE_HORIZON_MS);
+  });
+
+  it("lists each programme by its content facts, and by the entry's title without them", async () => {
+    const { server, db } = await startScheduleScenarioServer();
+    await db
+      .insertInto("content_facts")
+      .values([
+        {
+          ...EPISODE_FACTS,
+          media_item_id: "item-001",
+          description: "Mal & Zoe take a job.",
+        },
+        {
+          ...movieFacts("item-002", null, "1979-05-25"),
+          title: "Alien",
+          genres: '["Horror"]',
+          poster_path: "/alien.jpg",
+          episode_unlisted: 0,
+        },
+      ])
+      .execute();
+
+    const xml = await readGuideXml(server);
+
+    expect(xml).toContain(
+      [
+        "    <title>Firefly</title>",
+        "    <sub-title>The Train Job</sub-title>",
+        "    <desc>Mal &amp; Zoe take a job.</desc>",
+        "    <date>20020920</date>",
+        "    <category>Series</category>",
+        "    <category>Drama</category>",
+        '    <icon src="https://image.tmdb.org/t/p/w500/firefly.jpg" />',
+        '    <episode-num system="xmltv_ns">0.4.</episode-num>',
+        '    <episode-num system="onscreen">S01E05-E06</episode-num>',
+      ].join("\n"),
+    );
+    expect(xml).toContain(
+      [
+        "    <title>Alien</title>",
+        "    <date>19790525</date>",
+        "    <category>Movie</category>",
+        "    <category>Horror</category>",
+        '    <icon src="https://image.tmdb.org/t/p/w500/alien.jpg" />',
+      ].join("\n"),
+    );
+    // The third item has no facts, so it keeps the file-derived entry title.
+    expect(
+      readGuideProgrammes(xml)
+        .slice(0, 3)
+        .map((programme) => programme.title),
+    ).toEqual(["Firefly", "Alien", "Item 3"]);
   });
 
   it("escapes XML metacharacters in programme titles", async () => {
