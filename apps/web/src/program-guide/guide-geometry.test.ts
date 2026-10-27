@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   GUIDE_WIDTH_PX,
   hourMarks,
+  guideStart,
   offsetPx,
   placeBlock,
 } from "./guide-geometry.js";
@@ -49,4 +50,20 @@ it("marks every whole hour inside the window, an hour apart", () => {
     expect(marks[i].instant - marks[i - 1].instant).toBe(3_600_000);
   }
   expect(marks.at(-1)!.left).toBeLessThan(GUIDE_WIDTH_PX);
+});
+
+it("starts the window at the top of the instant's local half hour", () => {
+  const start = guideStart(windowStart);
+  const date = new Date(start);
+  expect([
+    date.getMinutes() % 30,
+    date.getSeconds(),
+    date.getMilliseconds(),
+  ]).toEqual([0, 0, 0]);
+  expect(windowStart - start).toBeGreaterThanOrEqual(0);
+  expect(windowStart - start).toBeLessThan(1_800_000);
+  // Two instants in one half hour share a window; the next starts a new one.
+  expect(guideStart(windowStart + 60_000)).toBe(start);
+  expect(guideStart(start + 1_800_000)).toBe(start + 1_800_000);
+  expect(guideStart(start + 1_799_999)).toBe(start);
 });

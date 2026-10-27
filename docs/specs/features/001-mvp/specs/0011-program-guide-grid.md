@@ -37,16 +37,20 @@ where now fell in the day.
 ## User-Facing Behavior
 
 - Opening Program Guide shows the grid at once: each channel is a row named by
-  its number and name, with a **Disabled** badge where it is disabled, and the
-  next 24 hours run left to right from now, starting at the left edge.
+  its number and name, with a **Disabled** badge where it is disabled, and 24
+  hours run left to right from the top of the current half hour, as a broadcast
+  guide's grid does.
 - A ruler across the top names each whole hour, and names the day where one
   begins. Half-hour lines run down the grid.
 - Each program is a block at its start and end, reading its title and start
   time; a block too narrow to read keeps them in its tool tip. The block
   airing now is title-bar blue. Planned filler is a dashed **Off air** block.
 - A line marks the current time and moves once a minute while the window is
-  in view. The guide re-anchors to now whenever the window comes back into
-  view, so a restored window shows today.
+  in view. The guide moves to the current half hour whenever the window comes
+  back into view or reloads, so a restored or refocused window shows today,
+  and a guide left at its left edge follows the clock into the next half
+  hour. A guide scrolled ahead stays where the reader put it; **Now**, in the
+  ruler's corner, brings it back to the current half hour and its left edge.
 - A channel with nothing in the window reads **Nothing scheduled**. With no
   channels at all, the guide says so and points to My Channels.
 - The channel names stay in view while the grid scrolls sideways, and the
@@ -79,4 +83,6 @@ where now fell in the day.
 - The program whose times enclose now is marked as airing.
 - A channel with nothing scheduled says so; a failed row read shows its error
   in that row without hiding the others.
-- Each row's schedule request asks for 24 hours from the anchor.
+- Each row's schedule request asks for 24 hours from the anchor, the top of
+  the current half hour, and asks again from the new one when the guide
+  reloads in a later half hour or **Now** is pressed.

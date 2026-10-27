@@ -6,6 +6,20 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 /** The whole window's width in pixels. */
 export const GUIDE_WIDTH_PX = (GUIDE_WINDOW_MS / MINUTE_MS) * PX_PER_MINUTE;
+/** A half hour's width, for the gridlines down each row. */
+export const HALF_HOUR_PX = 30 * PX_PER_MINUTE;
+
+/**
+ * Where the window begins for an instant: the top of its local half hour,
+ * as a broadcast guide's grid begins. What is airing then starts within the
+ * first column even on a narrow track, and two anchors within one half hour
+ * are one window, so a reload inside it asks for the same rows it shows.
+ */
+export function guideStart(instant: number): number {
+  const start = new Date(instant);
+  start.setMinutes(start.getMinutes() < 30 ? 0 : 30, 0, 0);
+  return start.getTime();
+}
 
 /** Where an instant falls: pixels from the window's start, negative before it and past the width after it. */
 export function offsetPx(instant: number, windowStart: number): number {
