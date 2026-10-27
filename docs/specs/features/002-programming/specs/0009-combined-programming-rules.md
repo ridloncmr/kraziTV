@@ -1,6 +1,6 @@
 # Combined Programming Rules
 
-Status: Planned
+Status: Implemented
 
 ## Problem
 
