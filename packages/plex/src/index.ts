@@ -9,4 +9,4 @@ export {
   formatLineupStatus,
 } from "./hdhomerun/device.js";
 export { formatLineup } from "./hdhomerun/lineup.js";
-export { formatXmltv } from "./xmltv/xmltv-document.js";
+export { formatXmltv, type GuideProgramme } from "./xmltv/xmltv-document.js";
