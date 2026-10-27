@@ -67,7 +67,8 @@ export interface ProgrammingAssignment {
 /**
  * How an active rule changes the sources that take turns (programming specs
  * 0005 and 0009): `join` adds its sources to whatever is playing, and
- * `feature` replaces the default lineup with the active rules' sources. The one list of values; the server's validation derives from it.
+ * `feature` replaces the default lineup with the active rules' sources.
+ * The one list of values; the server's validation derives from it.
  */
 export const RULE_BEHAVIORS = ["join", "feature"] as const;
 
@@ -142,7 +143,7 @@ export interface RoundState {
  * channel-wide.
  */
 export interface RotationCheckpoint {
-  /** The context the turn ran in: `default`, or `rule:<id>` for a feature rule. */
+  /** The context the turn ran in: `default`, or `rule:` and the sorted active feature rule IDs joined by `+`. */
   activeContext: string;
   /** Each context's round as it was last left. */
   contexts: Record<string, RoundState>;

@@ -116,7 +116,7 @@ label, because no rule chose it. Skipped rules are explained as today.
 
 ### Choosing the active rules
 
-`decideRule` in `packages/krazi-brain/src/krazi-plan/rules/winning-rule.ts`
+`decideRule` in `packages/krazi-brain/src/krazi-plan/rules/active-rules.ts`
 returns the active rules instead of one winner:
 
 1. Group applicable rules by priority, highest first.

@@ -69,7 +69,7 @@ export interface PreviewTurn {
   turnIndex: number;
   /** The turn on air when the preview was read, continuing. */
   continues: boolean;
-  /** The rule that won when the turn was decided; null for default rotation. */
+  /** The first active rule naming the turn's show when it was decided; null when no rule chose it, including a default show beside mix-ins. */
   winningRuleId: string | null;
   /** Applicable rules dropped as unusable at or above the active priority; null for a continued turn. */
   skippedRules: { ruleId: string; reason: string }[] | null;

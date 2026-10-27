@@ -34,11 +34,11 @@ export interface ProgrammingBlockTable {
   marathon: SqliteBoolean;
   /** Set when a mode or stretch edit ended the turn; generation never continues it. */
   ended_by_edit: SqliteBoolean;
-  /** The rule that won when the turn started; null for default rotation or once the rule is deleted. */
+  /** The first active rule naming the turn's show when it started; null when no rule chose it or once the rule is deleted. */
   winning_rule_id: string | null;
   /**
-   * The rotation context the turn ran in: `default`, or `rule:<id>` for a
-   * feature rule. A copy of the checkpoint's `activeContext` for queries and
+   * The rotation context the turn ran in: `default`, or `rule:` and the
+   * sorted active feature rule IDs joined by `+`. A copy of the checkpoint's `activeContext` for queries and
    * diagnostics; generation reads the checkpoint.
    */
   context_key: string;
