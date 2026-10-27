@@ -70,9 +70,11 @@ describe("formatXmltv", () => {
         "  </channel>",
         '  <programme start="20261005120000 +0000" stop="20261005122200 +0000" channel="uuid-a.krazitv">',
         "    <title>Pilot</title>",
+        "    <previously-shown />",
         "  </programme>",
         '  <programme start="20261005122200 +0000" stop="20261005124500 +0000" channel="uuid-a.krazitv">',
         "    <title>Fish &amp; &lt;Chips&gt;</title>",
+        "    <previously-shown />",
         "  </programme>",
         "</tv>",
       ].join("\n"),
@@ -83,7 +85,7 @@ describe("formatXmltv", () => {
     expect(formatXmltv([])).toContain('<tv generator-info-name="kraziTV">');
   });
 
-  it("lists a programme's content facts in DTD order and leaves absent ones out", () => {
+  it("lists a programme's content facts in DTD order, leaves absent ones out, and marks every programme previously shown", () => {
     const xml = formatXmltv([
       {
         id: "uuid-a",
@@ -126,10 +128,12 @@ describe("formatXmltv", () => {
         '    <icon src="https://image.example/t/p/w500/firefly.jpg?a=1&amp;b=2" />',
         '    <episode-num system="xmltv_ns">0.4.</episode-num>',
         '    <episode-num system="onscreen">S01E05-E06</episode-num>',
+        "    <previously-shown />",
         "  </programme>",
         '  <programme start="20261005124500 +0000" stop="20261005130000 +0000" channel="uuid-a.krazitv">',
         "    <title>Christmas Special</title>",
         '    <episode-num system="onscreen">S00E02</episode-num>',
+        "    <previously-shown />",
         "  </programme>",
       ].join("\n"),
     );

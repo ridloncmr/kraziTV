@@ -76,8 +76,10 @@ function xmltvChannelId(channelId: string): string {
 
 /**
  * A programme's child elements in the order the XMLTV DTD fixes: title,
- * sub-title, desc, date, category, icon, then episode-num. Absent facts emit
- * nothing, so a client never sees an empty element.
+ * sub-title, desc, date, category, icon, episode-num, then previously-shown.
+ * Absent facts emit nothing, so a client never sees an empty element. Every
+ * programme is previously shown: kraziTV airs library content, and a client
+ * treats a programme without the element as a premiere and badges it new.
  */
 function programmeElements(programme: GuideProgramme): string[] {
   const lines = [`    <title>${escapeXml(programme.title)}</title>`];
@@ -91,7 +93,7 @@ function programmeElements(programme: GuideProgramme): string[] {
     lines.push(`    <category>${escapeXml(category)}</category>`);
   if (programme.iconUrl)
     lines.push(`    <icon src="${escapeXml(programme.iconUrl)}" />`);
-  lines.push(...episodeNumbers(programme.episode));
+  lines.push(...episodeNumbers(programme.episode), "    <previously-shown />");
   return lines;
 }
 
