@@ -13,7 +13,7 @@ import { useResource } from "../../http/resources/use-resource.js";
 import { scheduleWindowPath } from "../../schedule-view/schedule-window-path.js";
 import { placeBlock } from "./guide-geometry.js";
 import { ProgramCard } from "../program/program-card.js";
-import { programDetail } from "../program/program-words.js";
+import { programMark } from "../program/program-words.js";
 
 /** One block of the row: a program, or planned filler shown as Off air. */
 interface GuideBlock {
@@ -84,7 +84,10 @@ export function GuideRow({
                     onClick={() => setOpened(block)}
                   >
                     <strong>{block.program.title}</strong>
-                    <span>{blockLine(block.program, block.startsAt)}</span>
+                    {block.program.subTitle && (
+                      <span>{block.program.subTitle}</span>
+                    )}
+                    <span>{markedTime(block.program, block.startsAt)}</span>
                   </button>
                 ) : (
                   <>
@@ -110,17 +113,17 @@ export function GuideRow({
   );
 }
 
-// A block's second line: its detail, when it has one, then its start time.
-function blockLine(program: GuideProgram, startsAt: string): string {
-  const detail = programDetail(program);
+// A block's last line: the episode's code or the movie's year, then its start time.
+function markedTime(program: GuideProgram, startsAt: string): string {
+  const mark = programMark(program);
   const time = displayClockTime(startsAt);
-  return detail ? `${detail} · ${time}` : time;
+  return mark ? `${mark} · ${time}` : time;
 }
 
 // A block's tool tip: the whole of what the block may have cut short.
 function blockTip(program: GuideProgram, block: GuideBlock): string {
-  const detail = programDetail(program);
-  return `${program.title}${detail ? ` · ${detail}` : ""} · ${displayTimeRange(block.startsAt, block.endsAt)}`;
+  const parts = [program.title, program.subTitle, programMark(program)];
+  return `${parts.filter(Boolean).join(" · ")} · ${displayTimeRange(block.startsAt, block.endsAt)}`;
 }
 
 /**

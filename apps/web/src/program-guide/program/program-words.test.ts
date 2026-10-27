@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { GuideProgram } from "../../http/contracts/channels.js";
-import { episodeCode, programDetail } from "./program-words.js";
+import { episodeCode, programMark } from "./program-words.js";
 
 const bare: GuideProgram = {
   title: "Item",
@@ -23,24 +23,20 @@ it("codes an episode as its season folder would, spanning a multi-episode file",
   );
 });
 
-it("details an episode by its title, else its code, a movie by its year, and bare media by nothing", () => {
+it("marks an episode by its code, a movie by its year, and bare media by nothing", () => {
   expect(
-    programDetail({
+    programMark({
       ...bare,
       kind: "episode",
       subTitle: "The Train Job",
       episode: { season: 1, episode: 5, lastEpisode: null },
     }),
-  ).toBe("The Train Job");
-  expect(
-    programDetail({
-      ...bare,
-      kind: "episode",
-      episode: { season: 1, episode: 5, lastEpisode: null },
-    }),
   ).toBe("S01E05");
   expect(
-    programDetail({ ...bare, kind: "movie", releaseDate: "1979-05-25" }),
+    programMark({ ...bare, kind: "episode", subTitle: "Untitled" }),
+  ).toBeNull();
+  expect(
+    programMark({ ...bare, kind: "movie", releaseDate: "1979-05-25" }),
   ).toBe("1979");
-  expect(programDetail(bare)).toBeNull();
+  expect(programMark(bare)).toBeNull();
 });

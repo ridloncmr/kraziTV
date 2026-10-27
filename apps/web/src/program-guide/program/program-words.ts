@@ -13,12 +13,10 @@ export function episodeCode(
 }
 
 /**
- * The line under a program's title where a block has room for one: an
- * episode's own title, else its code, else a movie's year; null for media
- * without facts, whose title says everything the guide knows.
+ * A program's mark beside its time: an episode's code, or a movie's year;
+ * null for media without facts, whose title says everything the guide knows.
  */
-export function programDetail(program: GuideProgram): string | null {
-  if (program.subTitle) return program.subTitle;
+export function programMark(program: GuideProgram): string | null {
   if (program.episode) return episodeCode(program.episode);
   if (program.kind === "movie" && program.releaseDate)
     return program.releaseDate.slice(0, 4);

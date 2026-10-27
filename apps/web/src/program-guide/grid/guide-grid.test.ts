@@ -114,11 +114,14 @@ it("lays each channel's programs and Off air along the window at their times, ma
   expect(
     blocks.map((block) => block.querySelector("strong")?.textContent),
   ).toEqual(["Northwoods Nights", "Off air", "Reserved Movie"]);
-  // An episode's line reads its own title; media without facts shows its time alone.
-  expect(blocks[0].querySelector("span")?.textContent).toMatch(
-    /^Episode Two · /,
-  );
-  expect(blocks[2].querySelector("span")?.textContent).not.toContain("·");
+  // An episode reads its own title, then its code with the time; media
+  // without facts shows its time alone.
+  const lines = (block: HTMLElement) =>
+    [...block.querySelectorAll("span")].map((line) => line.textContent);
+  expect(lines(blocks[0])[0]).toBe("Episode Two");
+  expect(lines(blocks[0])[1]).toMatch(/^S01E02 · /);
+  expect(lines(blocks[2])).toHaveLength(1);
+  expect(lines(blocks[2])[0]).not.toContain("·");
   // Each block sits at its start, at four pixels a minute from the window.
   expect(blocks.map((block) => [block.style.left, block.style.width])).toEqual([
     [`${px("19:22")}px`, `${px("19:45") - px("19:22")}px`],
