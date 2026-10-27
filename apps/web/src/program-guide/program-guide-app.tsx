@@ -1,4 +1,4 @@
-import { GuideGrid } from "./guide-grid.js";
+import { GuideGrid } from "./grid/guide-grid.js";
 
 /** The guide fills its window with the grid, which draws server programming without adding browser scheduling policy. */
 export function ProgramGuideApp({ visible }: { visible: boolean }) {

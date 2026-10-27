@@ -9,6 +9,7 @@ import {
   sendThroughOutOfRange,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
+import type { MediaItemRepository } from "../../media-items/media-item-repository.js";
 import { resumeTime } from "../../playout/resume-message.js";
 import {
   idParams,
@@ -17,9 +18,11 @@ import {
 } from "../../http/request-schemas.js";
 import type {
   EnsureCoverageResult,
+  GuideProgram,
   ScheduleEntry,
   ScheduleWindow,
 } from "../contracts.js";
+import { guidePrograms } from "../guide/guide-program.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedule-coverage.js";
 import type { ScheduleService } from "../schedule-service.js";
 
@@ -38,6 +41,7 @@ type CoverageFailure = Exclude<EnsureCoverageResult, { kind: "covered" }>;
 export function registerScheduleRoutes(
   server: FastifyInstance,
   schedules: ScheduleService,
+  mediaItems: MediaItemRepository,
 ): void {
   server.get("/channels/:id/schedule", async (request, reply) => {
     const { id } = idParams.parse(request.params);
@@ -64,7 +68,11 @@ export function registerScheduleRoutes(
     if (coverage.kind === "unschedulable" && window.entries.length === 0) {
       return sendCoverageFailure(reply, id, coverage);
     }
-    return toApiScheduleWindow(window, schedules.programmingTimezone());
+    return toApiScheduleWindow(
+      window,
+      await guidePrograms(mediaItems, window.entries),
+      schedules.programmingTimezone(),
+    );
   });
 
   server.post("/channels/:id/schedule/generate", async (request, reply) => {
@@ -113,11 +121,20 @@ function sendCoverageFailure(
   }
 }
 
-// Shapes one schedule window for the API; each entry converts its own instants.
-function toApiScheduleWindow(window: ScheduleWindow, timeZone: string) {
+// Shapes one schedule window for the API; each entry converts its own
+// instants and carries how it reads as a program, so a guide shows the
+// media's content facts without a read per entry.
+function toApiScheduleWindow(
+  window: ScheduleWindow,
+  programs: { entry: ScheduleEntry; program: GuideProgram }[],
+  timeZone: string,
+) {
   return {
     scheduleRevision: window.scheduleRevision,
-    entries: window.entries.map(toApiScheduleEntry),
+    entries: programs.map(({ entry, program }) => ({
+      ...toApiScheduleEntry(entry),
+      program,
+    })),
     // Filler is listed apart from entries, so XMLTV and entry readers never
     // mistake it for a program; its resume time is worded where the
     // on-screen message is.

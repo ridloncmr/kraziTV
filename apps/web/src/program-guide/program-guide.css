@@ -149,7 +149,31 @@
   text-overflow: ellipsis;
 }
 .guide-block span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--xp-muted);
+}
+/* A program block is a button that opens its card; it wears the block, not a control. */
+.program-page .guide-program {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+.program-page .guide-program:focus-visible {
+  outline-offset: 0;
+}
+.program-description {
+  max-width: 560px;
 }
 .guide-block.off-air {
   border-style: dashed;
@@ -163,6 +187,9 @@
   color: var(--xp-window-surface);
 }
 .guide-block.airing span {
+  color: inherit;
+}
+.guide-block.airing .guide-program {
   color: inherit;
 }
 /* The now line stands over every row, behind the sticky names, at the browser's time. */

@@ -10,9 +10,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { RefreshScope } from "../http/resources/refresh-scope.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
-import { BrowserApi } from "../testing/browser-api.js";
+import { RefreshScope } from "../../http/resources/refresh-scope.js";
+import { adminFixtures } from "../../testing/admin-fixtures.js";
+import { BrowserApi } from "../../testing/browser-api.js";
 import { guideStart } from "./guide-geometry.js";
 import { GuideGrid } from "./guide-grid.js";
 
@@ -30,6 +30,17 @@ const startsAt = new Date(windowStart).toISOString();
 // Pixels from the window's start at four a minute, clipped at the left edge.
 const px = (time: string) =>
   Math.max(0, ((Date.parse(at(time)) - windowStart) / 60_000) * 4);
+// A program the server could word nothing about.
+const BARE_PROGRAM = {
+  title: "",
+  subTitle: null,
+  description: null,
+  releaseDate: null,
+  kind: null,
+  genres: [],
+  posterUrl: null,
+  episode: null,
+};
 // The starts every schedule read asked for, in order.
 const readStarts = (api: BrowserApi) =>
   api
@@ -57,15 +68,26 @@ function guideApi() {
     entries: [
       {
         id: "entry-1",
-        title: "Episode Two",
+        title: "s01e02",
         startsAt: at("19:22"),
         endsAt: at("19:45"),
+        program: {
+          ...BARE_PROGRAM,
+          title: "Northwoods Nights",
+          subTitle: "Episode Two",
+          description: "The second night is longer.",
+          kind: "episode",
+          genres: ["Drama"],
+          posterUrl: "https://image.tmdb.org/t/p/w500/nights.jpg",
+          episode: { season: 1, episode: 2, lastEpisode: 2 },
+        },
       },
       {
         id: "entry-2",
         title: "Reserved Movie",
         startsAt: at("20:00"),
         endsAt: at("21:30"),
+        program: { ...BARE_PROGRAM, title: "Reserved Movie" },
       },
     ],
     fillerIntervals: [
@@ -91,7 +113,12 @@ it("lays each channel's programs and Off air along the window at their times, ma
   const blocks = within(programs).getAllByRole("listitem");
   expect(
     blocks.map((block) => block.querySelector("strong")?.textContent),
-  ).toEqual(["Episode Two", "Off air", "Reserved Movie"]);
+  ).toEqual(["Northwoods Nights", "Off air", "Reserved Movie"]);
+  // An episode's line reads its own title; media without facts shows its time alone.
+  expect(blocks[0].querySelector("span")?.textContent).toMatch(
+    /^Episode Two · /,
+  );
+  expect(blocks[2].querySelector("span")?.textContent).not.toContain("·");
   // Each block sits at its start, at four pixels a minute from the window.
   expect(blocks.map((block) => [block.style.left, block.style.width])).toEqual([
     [`${px("19:22")}px`, `${px("19:45") - px("19:22")}px`],
@@ -161,6 +188,35 @@ it("brings the window back to the current half hour from Now and when the clock 
       new Date(guideStart(muchLater)).toISOString(),
     ),
   );
+});
+
+it("opens a program's card from its block, with its poster, facts, and description", async () => {
+  guideApi();
+  render(createElement(GuideGrid, { visible: true }));
+  const programs = await screen.findByRole("list", {
+    name: "Programs on Northwoods TV",
+  });
+
+  fireEvent.click(
+    within(programs).getByRole("button", { name: /Northwoods Nights/ }),
+  );
+
+  const card = screen.getByRole("dialog", { name: "Northwoods Nights" });
+  expect(
+    within(card)
+      .getByRole("img", { name: "Poster for Northwoods Nights" })
+      .getAttribute("src"),
+  ).toBe("https://image.tmdb.org/t/p/w500/nights.jpg");
+  expect(within(card).getByText("S01E02 · Episode Two")).toBeTruthy();
+  expect(within(card).getByText(/on 69 Northwoods TV$/)).toBeTruthy();
+  expect(within(card).getByText("Drama")).toBeTruthy();
+  expect(within(card).getByText("The second night is longer.")).toBeTruthy();
+  // Off air is a label, not a program.
+  expect(
+    within(programs).queryByRole("button", { name: /Off air/ }),
+  ).toBeNull();
+  fireEvent.click(within(card).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("names every channel, badges a disabled one, and says when a window is empty", async () => {

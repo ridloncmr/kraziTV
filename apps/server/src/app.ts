@@ -260,7 +260,11 @@ function registerRoutes(
     dependencies.schedules,
     stopInterrupted,
   );
-  registerScheduleRoutes(server, dependencies.schedules);
+  registerScheduleRoutes(
+    server,
+    dependencies.schedules,
+    dependencies.mediaItems,
+  );
   registerPlayoutRoutes(server, dependencies.playout, dependencies.schedules);
   registerPlexRoutes(
     server,

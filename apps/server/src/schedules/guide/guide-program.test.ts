@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_CONTENT_METADATA } from "../testing/metadata-match-fixtures.js";
-import { guideProgramme } from "./guide-programme.js";
+import { NO_CONTENT_METADATA } from "../../testing/metadata-match-fixtures.js";
+import { guideProgram } from "./guide-program.js";
 
-const entry = { title: "s01e05-e06", startsAt: 1_000, endsAt: 2_000 };
+const BARE = {
+  title: "s01e05-e06",
+  subTitle: null,
+  description: null,
+  releaseDate: null,
+  kind: null,
+  genres: [],
+  posterUrl: null,
+  episode: null,
+};
 
-describe("guideProgramme", () => {
+describe("guideProgram", () => {
   it("lists an episode under its series with its own title, numbers, and facts", () => {
     expect(
-      guideProgramme(entry, {
+      guideProgram("s01e05-e06", {
         ...NO_CONTENT_METADATA,
         matchState: "matched",
         title: "The Train Job",
@@ -22,21 +31,20 @@ describe("guideProgramme", () => {
         posterPath: "/firefly.jpg",
       }),
     ).toEqual({
-      startsAt: 1_000,
-      endsAt: 2_000,
       title: "Firefly",
       subTitle: "The Train Job",
       description: "Mal takes a job.",
-      date: "20020920",
-      categories: ["Series", "Drama", "Western"],
-      iconUrl: "https://image.tmdb.org/t/p/w500/firefly.jpg",
+      releaseDate: "2002-09-20",
+      kind: "episode",
+      genres: ["Drama", "Western"],
+      posterUrl: "https://image.tmdb.org/t/p/w500/firefly.jpg",
       episode: { season: 1, episode: 5, lastEpisode: 6 },
     });
   });
 
-  it("lists a movie under its TMDB title with its year, and no episode", () => {
+  it("lists a movie under its TMDB title with its release, and no episode", () => {
     expect(
-      guideProgramme(entry, {
+      guideProgram("alien", {
         ...NO_CONTENT_METADATA,
         matchState: "matched",
         title: "Alien",
@@ -44,39 +52,37 @@ describe("guideProgramme", () => {
         genres: ["Horror"],
       }),
     ).toEqual({
-      startsAt: 1_000,
-      endsAt: 2_000,
+      ...BARE,
       title: "Alien",
-      description: null,
-      date: "1979",
-      categories: ["Movie", "Horror"],
-      iconUrl: null,
+      releaseDate: "1979",
+      kind: "movie",
+      genres: ["Horror"],
     });
   });
 
   it("leaves an episode's numbers out until both season and episode are known", () => {
-    const programme = guideProgramme(entry, {
+    const program = guideProgram("s01e05-e06", {
       ...NO_CONTENT_METADATA,
       matchState: "matched",
       seriesName: "Firefly",
       seasonNumber: 1,
     });
-    expect(programme.title).toBe("Firefly");
-    expect(programme.episode).toBeNull();
-    expect(programme.subTitle).toBeNull();
+    expect(program.title).toBe("Firefly");
+    expect(program.kind).toBe("episode");
+    expect(program.episode).toBeNull();
+    expect(program.subTitle).toBeNull();
   });
 
   it("lists media without facts, and an extra, by the entry's own title alone", () => {
-    const bare = { startsAt: 1_000, endsAt: 2_000, title: "s01e05-e06" };
-    expect(guideProgramme(entry, undefined)).toEqual(bare);
-    expect(guideProgramme(entry, NO_CONTENT_METADATA)).toEqual(bare);
+    expect(guideProgram("s01e05-e06", undefined)).toEqual(BARE);
+    expect(guideProgram("s01e05-e06", NO_CONTENT_METADATA)).toEqual(BARE);
     expect(
-      guideProgramme(entry, {
+      guideProgram("s01e05-e06", {
         ...NO_CONTENT_METADATA,
         matchState: "extra",
         title: "Making Of",
         description: "Bonus material.",
       }),
-    ).toEqual(bare);
+    ).toEqual(BARE);
   });
 });
