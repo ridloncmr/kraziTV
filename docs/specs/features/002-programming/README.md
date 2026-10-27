@@ -36,6 +36,7 @@ in its own `Status:` line. Detailed implementation tickets belong in
 | [0006 — Clock-Anchored Programming And Boundary Coverage](specs/0006-clock-anchored-blocks.md) | Exact reservations and non-guide transmission coverage                           |
 | [0007 — Manual Programming Overrides And Publishing](specs/0007-manual-programming.md)         | Preview and publish, interruption, cancellation, and generated resumption        |
 | [0008 — Channel Programming Setup In My Channels](specs/0008-channel-setup-ux.md)              | Lineup list, show properties, per-sitting presets, and one marathon control      |
+| [0009 — Combined Programming Rules](specs/0009-combined-programming-rules.md)                  | Same-priority rules play together; a 1–5 priority scale                          |
 
 ## Dependency Shape
 
