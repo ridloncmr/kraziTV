@@ -678,7 +678,7 @@ describe("generateProgramming: takeovers at the same priority", () => {
       const hour = (startsAt % DAY_MS) / (60 * MINUTE_MS);
       return new Date(startsAt).getUTCDay() === 6 && hour >= from && hour < to;
     };
-  const collections = (list: readonly { mediaCollectionId: string }[]) =>
+  const collections = (list: readonly { mediaCollectionId: string | null }[]) =>
     new Set(list.map((entry) => entry.mediaCollectionId));
 
   it("plays both takeovers' shows together, with no default shows, while both apply", () => {
