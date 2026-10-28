@@ -5,11 +5,15 @@ import { FakeClock } from "../../testing/fake-clock.js";
 import { MarkerReadinessInspector } from "../../testing/marker-readiness-inspector.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
+import { VIDEO_PID } from "../mpeg-ts/mpeg-ts-packet-run.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
 import { transportPacket } from "../../testing/transport-packet.js";
-import { flushMicrotasks } from "../../testing/settle-promises.js";
+import {
+  flushMicrotasks,
+  settlePromises,
+} from "../../testing/settle-promises.js";
 import { trackSettlement } from "../../testing/settlement-flag.js";
 
 type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
@@ -36,6 +40,7 @@ const createHarness = () => {
   spawner.enqueue(child);
 
   const packager = new FfmpegSignalPackager({
+    isMediaPresent: presentMedia,
     ffmpegPath: "ffmpeg",
     spawner,
     timers,
@@ -49,6 +54,43 @@ const createHarness = () => {
 
 const packet = (fill: number): Buffer => transportPacket({ fill });
 
+/**
+ * The readiness marker as one whole transport packet, for tests whose later
+ * packets must stay aligned through the same process's forwarder.
+ */
+const markerPacket = (): Buffer => {
+  const marked = packet(9);
+  marked.write("usable-output", 20);
+  return marked;
+};
+const pat = (): Buffer => transportPacket({ pid: 0, fill: 1 });
+const videoKeyframe = (): Buffer =>
+  transportPacket({ pid: VIDEO_PID, keyframe: true });
+const videoFrameStart = (): Buffer =>
+  transportPacket({ pid: VIDEO_PID, pesStart: true });
+const videoFrame = (fill: number): Buffer =>
+  transportPacket({ pid: VIDEO_PID, fill });
+
+/** Clears each packet's continuity counter, which the session rewrites. */
+const withoutCounters = (packets: Buffer): Buffer => {
+  const cleared = Buffer.from(packets);
+  for (let offset = 3; offset < cleared.byteLength; offset += 188) {
+    cleared[offset] = (cleared[offset] ?? 0) & 0xf0;
+  }
+  return cleared;
+};
+
+/** Every media path exists, so only tests about missing media see a stand-in prepared. */
+const presentMedia = async (): Promise<boolean> => true;
+
+/** Asserts the offline card over silence that reads no media, as a stand-in airs. */
+const expectStandInArguments = (args: readonly string[] | undefined): void => {
+  expect(args).toContain("color=c=black:s=1920x1080:r=30");
+  expect(args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
+  expect(args?.join(" ")).not.toContain("movie.mkv");
+  expect(args?.join(" ")).toContain("text=Programming offline");
+};
+
 describe("FfmpegSignalPackager", () => {
   it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
     "rejects invalid committed-item readiness timeout %s",
@@ -56,6 +98,7 @@ describe("FfmpegSignalPackager", () => {
       expect(
         () =>
           new FfmpegSignalPackager({
+            isMediaPresent: presentMedia,
             ffmpegPath: "ffmpeg",
             spawner: new FakeProcessSpawner(),
             timers: new FakeClock(),
@@ -73,6 +116,7 @@ describe("FfmpegSignalPackager", () => {
     expect(
       () =>
         new FfmpegSignalPackager({
+          isMediaPresent: presentMedia,
           ffmpegPath: "",
           spawner,
           timers: new FakeClock(),
@@ -99,6 +143,7 @@ describe("FfmpegSignalPackager", () => {
     const spawner = new FakeProcessSpawner();
     spawner.enqueue(child);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       spawner,
       timers: new FakeClock(),
       clock: new FakeClock(),
@@ -138,39 +183,102 @@ describe("FfmpegSignalPackager", () => {
     await expect(session.ready).resolves.toBeUndefined();
   });
 
-  it("rejects readiness when the process fails first", async () => {
-    const { child, packager } = createHarness();
+  it("airs a stand-in when the first process fails before readiness", async () => {
+    const { child, packager, spawner, logger } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
     const session = packager.start(initialItem());
+    const completed = trackSettlement(session.completion);
 
     child.exit({ code: 1, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
 
-    const error = await expectSignalError(session.ready, "packaging_failed");
-    expect(error.details).not.toHaveProperty("mediaPath");
-    expect(JSON.stringify(error.details)).not.toContain("movie.mkv");
+    // A tune waits on readiness, so a missing or unreadable file still lets
+    // the viewer in, to the offline card rather than an error.
+    expect(spawner.spawnCalls).toHaveLength(2);
+    expectStandInArguments(spawner.spawnCalls[1]?.args);
+    standIn.writeStdout("usable-output");
+    await expect(session.ready).resolves.toBeUndefined();
+    expect(completed.settled).toBe(false);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_replaced_by_stand_in",
+        context: expect.objectContaining({
+          scheduleEntryId: "entry-1",
+          code: "packaging_failed",
+        }),
+      }),
+    );
+    const stopped = session.stop();
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
   });
 
   it("logs why FFmpeg failed with the item's media path redacted", async () => {
-    const { child, logger, packager } = createHarness();
-    const session = packager.start(initialItem());
+    const { child, logger, packager, spawner } = createHarness();
+    spawner.enqueue(new FakeProcess());
+    packager.start(initialItem());
     child.writeStderr("C:/private/media/movie.mkv: Invalid data found\n");
 
     child.exit({ code: 1, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
 
-    const error = await expectSignalError(session.ready, "packaging_failed");
-    expect(error.details).toMatchObject({
-      stderrSummary: "[redacted]: Invalid data found",
-    });
+    expect(logger.errors).toContainEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          stderrSummary: "[redacted]: Invalid data found",
+        }),
+      }),
+    );
     expect(JSON.stringify(logger.errors)).not.toContain("movie.mkv");
+    expect(JSON.stringify(logger.warns)).not.toContain("movie.mkv");
   });
 
-  it("reports a clean exit before readiness as premature", async () => {
+  it("airs a stand-in for a clean exit before readiness, reported as premature", async () => {
+    const { child, packager, spawner, logger } = createHarness();
+    spawner.enqueue(new FakeProcess());
+    packager.start(initialItem());
+
+    child.exit({ code: 0, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
+
+    expectStandInArguments(spawner.spawnCalls[1]?.args);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_replaced_by_stand_in",
+        context: expect.objectContaining({ reason: "premature_exit" }),
+      }),
+    );
+  });
+
+  it("fails the session when its stand-in fails too", async () => {
+    const { child, packager, spawner } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    const failed = expectSignalError(session.completion, "packaging_failed");
+
+    child.exit({ code: 1, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
+    standIn.exit({ code: 1, signal: null });
+
+    await failed;
+    await expectSignalError(session.ready, "packaging_failed");
+    expect(spawner.spawnCalls).toHaveLength(2);
+  });
+
+  it("fails the session when its stand-in cannot start", async () => {
+    // Nothing is arranged for the stand-in, so its spawn throws.
     const { child, packager } = createHarness();
     const session = packager.start(initialItem());
 
-    child.exit({ code: 0, signal: null });
+    child.exit({ code: 1, signal: null });
 
-    const error = await expectSignalError(session.ready, "packaging_failed");
-    expect(error.details).toMatchObject({ reason: "premature_exit" });
+    await expectSignalError(session.completion, "packaging_start_failed");
   });
 
   it("keeps the session alive when one item exits cleanly", async () => {
@@ -188,6 +296,252 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(false);
   });
 
+  it("replaces an airing process that hangs silent with a stand-in", async () => {
+    const { child, packager, spawner, timers, logger } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    const completed = trackSettlement(session.completion);
+    child.writeStdout("usable-output");
+    await session.ready;
+
+    timers.advanceBy(4_999);
+    expect(spawner.spawnCalls).toHaveLength(1);
+    timers.advanceBy(1);
+
+    expectStandInArguments(spawner.spawnCalls[1]?.args);
+    // Kept alive behind the card, in case it writes again.
+    expect(child.terminationSignals).toEqual([]);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_replaced_by_stand_in",
+        context: expect.objectContaining({ reason: "output_stalled" }),
+      }),
+    );
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("arms no stall timer for output FFmpeg writes while stopping", async () => {
+    const { child, packager, timers } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStdout(markerPacket());
+    await session.ready;
+
+    const stopped = session.stop();
+    // FFmpeg flushes its muxer on SIGTERM before it exits.
+    child.writeStdout(packet(1));
+    child.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+
+    expect(timers.pendingTimerCount).toBe(0);
+  });
+
+  it("keeps an airing process whose output keeps arriving", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStdout("usable-output");
+    await session.ready;
+
+    for (let tick = 0; tick < 3; tick += 1) {
+      timers.advanceBy(4_000);
+      child.writeStdout(packet(tick));
+    }
+
+    expect(spawner.spawnCalls).toHaveLength(1);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("replaces a program whose media ends before its airtime with a stand-in", async () => {
+    const { child, packager, spawner, timers, logger } = createHarness();
+    spawner.enqueue(new FakeProcess());
+    const session = packager.start(initialItem());
+    child.writeStdout("usable-output");
+    await session.ready;
+
+    // The file was shorter than its probe said: FFmpeg finishes cleanly
+    // long before the boundary.
+    child.exit({ code: 0, signal: null });
+    await flushMicrotasks(2);
+    timers.advanceBy(5_000);
+
+    expectStandInArguments(spawner.spawnCalls[1]?.args);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({ reason: "output_stalled" }),
+      }),
+    );
+  });
+
+  it("watches the committed process, not the one that ended at its boundary", async () => {
+    const { child, packager, spawner, timers, logger } = createHarness();
+    const second = new FakeProcess();
+    const standIn = new FakeProcess();
+    spawner.enqueue(second);
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    child.writeStdout("usable-output");
+    await session.ready;
+    const preparation = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    second.writeStdout("usable-output");
+
+    child.exit({ code: 0, signal: null });
+    await flushMicrotasks(2);
+    timers.advanceBy(1_000);
+    preparation.commit();
+    timers.advanceBy(4_000);
+    second.writeStdout(packet(1));
+    timers.advanceBy(4_000);
+
+    expect(spawner.spawnCalls).toHaveLength(2);
+    expect(logger.warns).toEqual([]);
+
+    // Five seconds after its last chunk, the committed process counts as hung.
+    timers.advanceBy(1_000);
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    const stopped = session.stop();
+    second.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("fails the session when its stand-in falls silent", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    const failed = expectSignalError(session.completion, "packaging_failed");
+    child.exit({ code: 1, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
+    standIn.writeStdout("usable-output");
+
+    timers.advanceBy(5_000);
+
+    await failed;
+    expect(spawner.spawnCalls).toHaveLength(2);
+  });
+
+  it("returns to a stalled process once it writes again, from its next keyframe", async () => {
+    const { child, packager, spawner, timers, logger } = createHarness();
+    const standIn = new FakeProcess();
+    const secondStandIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    spawner.enqueue(secondStandIn);
+    const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+    standIn.writeStdout(packet(4));
+    await flushMicrotasks(2);
+    const beforeResume = Buffer.concat(forwarded).byteLength;
+
+    // It writes again mid-frame: nothing before the next program tables and
+    // keyframe airs, so the splice back never starts on a broken frame.
+    child.writeStdout(
+      Buffer.concat([videoFrame(5), pat(), videoKeyframe(), videoFrameStart()]),
+    );
+    await flushMicrotasks(2);
+
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    expect(
+      withoutCounters(Buffer.concat(forwarded).subarray(beforeResume)),
+    ).toEqual(withoutCounters(Buffer.concat([pat(), videoKeyframe()])));
+    expect(logger.infos).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_resumed",
+        context: expect.objectContaining({ scheduleEntryId: "entry-1" }),
+      }),
+    );
+    standIn.writeStdout(packet(6));
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded).includes(packet(6))).toBe(false);
+
+    // The returned item is watched again, so a second stall brings the card back.
+    timers.advanceBy(5_000);
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    secondStandIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("stops a stalled process that never writes again at the next commit", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const standIn = new FakeProcess();
+    const second = new FakeProcess();
+    spawner.enqueue(standIn);
+    spawner.enqueue(second);
+    const session = packager.start(initialItem());
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+    const preparation = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    second.writeStdout("usable-output");
+
+    preparation.commit();
+
+    expect(child.terminationSignals).toEqual(["SIGTERM"]);
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    child.writeStdout(
+      Buffer.concat([pat(), videoKeyframe(), videoFrameStart()]),
+    );
+    await flushMicrotasks(2);
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    second.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("keeps the stand-in when a stalled process exits instead of writing again", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    const completed = trackSettlement(session.completion);
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+
+    child.exit({ code: 1, signal: null });
+    await flushMicrotasks(2);
+
+    expect(standIn.terminationSignals).toEqual([]);
+    expect(completed.settled).toBe(false);
+    expect(spawner.spawnCalls).toHaveLength(2);
+    const stopped = session.stop();
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("fails the session when its stand-in never produces output", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    spawner.enqueue(new FakeProcess());
+    const session = packager.start(initialItem());
+    const failed = expectSignalError(session.completion, "packaging_failed");
+    child.exit({ code: 1, signal: null });
+    await child.exited;
+    await flushMicrotasks(2);
+
+    timers.advanceBy(15_000);
+
+    await failed;
+  });
+
   it("tunes only the session's first process for a fast start and the join backlog", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
@@ -195,6 +549,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -227,6 +582,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(child);
     const clock = new FakeClock();
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: clock,
@@ -258,6 +614,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -307,6 +664,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -324,8 +682,8 @@ describe("FfmpegSignalPackager", () => {
         mediaPath: "C:/private/media/secret-next.mkv",
       }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     preparation.commit();
     first.exit({ code: null, signal: "SIGTERM" });
     const stopped = session.stop();
@@ -356,6 +714,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -374,8 +733,9 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout(Buffer.concat([ready, latePacket.subarray(0, 50)]));
     const preparation = await preparing;
+    second.writeStdout(Buffer.concat([ready, latePacket.subarray(0, 50)]));
+    await settlePromises();
     preparation.commit();
     second.writeStdout(latePacket.subarray(50));
     await flushMicrotasks(2);
@@ -396,6 +756,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -409,8 +770,8 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     second.writeStdout(packet(2));
 
     const discarding = preparation.discard();
@@ -455,13 +816,16 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
-  it("fails the commit of a prepared process that died before its boundary", async () => {
+  it("airs a stand-in at the commit of a prepared process that died before its boundary", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
+    const standIn = new FakeProcess();
     const spawner = new FakeProcessSpawner();
     spawner.enqueue(first);
     spawner.enqueue(second);
+    spawner.enqueue(standIn);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -470,27 +834,37 @@ describe("FfmpegSignalPackager", () => {
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    first.writeStdout("usable-output");
+    await session.ready;
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
-    const completion = expectSignalError(
-      session.completion,
-      "packaging_failed",
-    );
+    second.writeStdout("usable-output");
+    const completed = trackSettlement(session.completion);
 
     second.exit({ code: 1, signal: null });
     await second.exited;
     await flushMicrotasks(2);
+    // The airing item plays on until the boundary.
+    expect(spawner.spawnCalls).toHaveLength(2);
+    expect(first.terminationSignals).toEqual([]);
 
-    expect(() => preparation.commit()).toThrowError(
-      expect.objectContaining({ code: "packaging_failed" }),
-    );
-    await completion;
+    preparation.commit();
+
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    expect(first.terminationSignals).toEqual(["SIGTERM"]);
+    standIn.writeStdout(packet(3));
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded).subarray(-188)).toEqual(packet(3));
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
     first.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
   });
-
   it("releases everything a short prepared item finished emitting before its commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
@@ -498,6 +872,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -535,6 +910,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -570,6 +946,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -581,8 +958,8 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
 
     const stopped = session.stop();
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
@@ -599,19 +976,23 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
-  it("fails the session when a committed FFmpeg process produces no usable output in time", async () => {
+  it("replaces a committed FFmpeg process that produces no usable output in time with a stand-in", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
+    const standIn = new FakeProcess();
     const spawner = new FakeProcessSpawner();
     const timers = new FakeClock();
     spawner.enqueue(first);
     spawner.enqueue(second);
+    spawner.enqueue(standIn);
+    const logger = new RecordingLogger();
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
       clock: timers,
-      logger: new RecordingLogger(),
+      logger,
       itemReadinessTimeoutMs: 25,
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -626,17 +1007,186 @@ describe("FfmpegSignalPackager", () => {
     // ahead, and the readiness timeout, counted from its start, still bounds it.
     preparation.commit();
     first.exit({ code: null, signal: "SIGTERM" });
-    const completion = expectSignalError(
-      session.completion,
-      "packaging_failed",
-    );
+    const completed = trackSettlement(session.completion);
 
     timers.advanceBy(25);
+    await flushMicrotasks(2);
 
-    const error = await completion;
-    expect(error.details).toMatchObject({ reason: "item_readiness_timeout" });
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_replaced_by_stand_in",
+        context: expect.objectContaining({
+          scheduleEntryId: "entry-2",
+          reason: "item_readiness_timeout",
+        }),
+      }),
+    );
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
     second.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+  it("prepares a stand-in instead of FFmpeg for media that is not there", async () => {
+    const first = new FakeProcess();
+    const standIn = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    spawner.enqueue(first);
+    spawner.enqueue(standIn);
+    const logger = new RecordingLogger();
+    const checked: string[] = [];
+    const packager = new FfmpegSignalPackager({
+      isMediaPresent: async (mediaPath) => {
+        checked.push(mediaPath);
+        return false;
+      },
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers: new FakeClock(),
+      clock: new FakeClock(),
+      logger,
+      createReadinessInspector: () => new MarkerReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    first.writeStdout("usable-output");
+    await session.ready;
+
+    const preparation = await session.prepare(
+      initialItem({
+        scheduleEntryId: "entry-2",
+        mediaItemId: "media-2",
+        mediaPath: "C:/private/media/gone.mkv",
+      }),
+    );
+
+    // Started ahead and held like any preparation, so the boundary is seamless.
+    expect(checked).toEqual(["C:/private/media/gone.mkv"]);
+    expectStandInArguments(spawner.spawnCalls[1]?.args);
+    expect(logger.warns).toContainEqual({
+      message: "signal_media_missing",
+      context: {
+        channelId: "channel-1",
+        scheduleEntryId: "entry-2",
+        mediaItemId: "media-2",
+      },
+    });
+    standIn.writeStdout(packet(5));
+    await flushMicrotasks(2);
+    expect(forwarded).toEqual([]);
+    preparation.commit();
+    expect(Buffer.concat(forwarded)).toEqual(packet(5));
+    const stopped = session.stop();
+    first.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("starts FFmpeg anyway when the media check does not answer in time", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    const timers = new FakeClock();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    const packager = new FfmpegSignalPackager({
+      // A stalled network mount never answers.
+      isMediaPresent: () => new Promise<boolean>(() => undefined),
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers,
+      clock: timers,
+      logger: new RecordingLogger(),
+      createReadinessInspector: () => new MarkerReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+    first.writeStdout("usable-output");
+    await session.ready;
+
+    const preparing = trackSettlement(
+      session.prepare(
+        initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+      ),
+    );
+    await flushMicrotasks(2);
+    expect(preparing.settled).toBe(false);
+    timers.advanceBy(2_000);
+    await flushMicrotasks(5);
+
+    expect(preparing.settled).toBe(true);
+    expect(spawner.spawnCalls[1]?.args).toContain("C:/private/media/movie.mkv");
+    const stopped = session.stop();
+    first.exit({ code: null, signal: "SIGTERM" });
+    second.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("rejects a preparation that stop overtook during its media check", async () => {
+    const { child, packager, spawner } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStdout("usable-output");
+    await session.ready;
+
+    const preparing = session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+
+    await expectSignalError(preparing, "packaging_stopped");
+    await stopped;
+    expect(spawner.spawnCalls).toHaveLength(1);
+  });
+
+  it("ignores the readiness timeout of an item a later commit already replaced", async () => {
+    const first = new FakeProcess();
+    const second = new FakeProcess();
+    const third = new FakeProcess();
+    const spawner = new FakeProcessSpawner();
+    const timers = new FakeClock();
+    spawner.enqueue(first);
+    spawner.enqueue(second);
+    spawner.enqueue(third);
+    const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
+      ffmpegPath: "ffmpeg",
+      spawner,
+      timers,
+      clock: timers,
+      logger: new RecordingLogger(),
+      itemReadinessTimeoutMs: 25,
+      createReadinessInspector: () => new MarkerReadinessInspector(),
+    });
+    const session = packager.start(initialItem());
+    session.output.resume();
+    first.writeStdout("usable-output");
+    await session.ready;
+    // A short item committed before it said anything, then replaced at once.
+    (
+      await session.prepare(
+        initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+      )
+    ).commit();
+    const next = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-3", mediaItemId: "media-3" }),
+    );
+    third.writeStdout("usable-output");
+    next.commit();
+    const completed = trackSettlement(session.completion);
+
+    timers.advanceBy(25);
+    await flushMicrotasks(2);
+
+    expect(spawner.spawnCalls).toHaveLength(3);
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
+    for (const child of [first, second, third]) {
+      child.exit({ code: null, signal: "SIGTERM" });
+    }
+    await stopped;
   });
 
   it("stops every FFmpeg process retained across a committed transition before settling", async () => {
@@ -646,6 +1196,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
@@ -661,8 +1212,8 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     preparation.commit();
 
     const stopped = session.stop();
@@ -683,63 +1234,82 @@ describe("FfmpegSignalPackager", () => {
     expect(session.output.readableEnded).toBe(true);
   });
 
-  it("rejects completion when a later FFmpeg process fails", async () => {
+  it("replaces a committed process that fails mid-item with a stand-in until the next commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
+    const standIn = new FakeProcess();
+    const third = new FakeProcess();
     const spawner = new FakeProcessSpawner();
     spawner.enqueue(first);
     spawner.enqueue(second);
-    const logger = new RecordingLogger();
+    spawner.enqueue(standIn);
+    spawner.enqueue(third);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers: new FakeClock(),
       clock: new FakeClock(),
-      logger,
+      logger: new RecordingLogger(),
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
     const session = packager.start(initialItem());
-    session.output.resume();
-    const outputEnded = new Promise<void>((resolve) => {
-      session.output.once("end", resolve);
-    });
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     preparation.commit();
-    const failed = expectSignalError(session.completion, "packaging_failed");
+    first.exit({ code: null, signal: "SIGTERM" });
+    const completed = trackSettlement(session.completion);
 
     second.exit({ code: 1, signal: null });
+    await second.exited;
+    await flushMicrotasks(2);
 
-    await failed;
-    await outputEnded;
-    expect(session.output.readableEnded).toBe(true);
-    expect(logger.infos.at(-1)).toMatchObject({
-      message: "signal_session_failed",
-      context: {
-        channelId: "channel-1",
-        scheduleEntryId: "entry-2",
-        mediaItemId: "media-2",
-      },
-    });
-    first.exit({ code: null, signal: "SIGTERM" });
+    // The offline card for at most the failed item's whole airtime; the
+    // next commit truncates it.
+    const standInArgs = spawner.spawnCalls[2]?.args;
+    expectStandInArguments(standInArgs);
+    expect(standInArgs?.[standInArgs.indexOf("-t") + 1]).toBe("30.000");
+    standIn.writeStdout(packet(4));
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded).subarray(-188)).toEqual(packet(4));
+    expect(session.output.readableEnded).toBe(false);
+    expect(completed.settled).toBe(false);
+
+    const next = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-3", mediaItemId: "media-3" }),
+    );
+    third.writeStdout("usable-output");
+    next.commit();
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await flushMicrotasks(2);
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
+    third.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
   });
-
-  it("stops a prepared process that produces no usable output in time and fails its later commit", async () => {
+  it("stops a prepared process that produces no usable output in time and airs a stand-in at its commit", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
     const spawner = new FakeProcessSpawner();
     const timers = new FakeClock();
     spawner.enqueue(first);
     spawner.enqueue(second);
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const logger = new RecordingLogger();
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
       clock: timers,
-      logger: new RecordingLogger(),
+      logger,
       itemReadinessTimeoutMs: 25,
       createReadinessInspector: () => new MarkerReadinessInspector(),
     });
@@ -762,7 +1332,8 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
 
     // The airing item plays on; the silent process is stopped and never
-    // reaches the output, and the commit that would have aired it fails.
+    // reaches the output, and the commit that would have aired it airs a
+    // stand-in instead.
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
     expect(second.stdout.listenerCount("data")).toBe(0);
     expect(completed.settled).toBe(false);
@@ -772,18 +1343,20 @@ describe("FfmpegSignalPackager", () => {
     expect(Buffer.concat(forwarded)).toEqual(bytesAtFailure);
     expect(outputError).not.toHaveBeenCalled();
     second.exit({ code: null, signal: "SIGTERM" });
-    const completion = expectSignalError(
-      session.completion,
-      "packaging_failed",
-    );
-    expect(() => preparation.commit()).toThrowError(
-      expect.objectContaining({ code: "packaging_failed" }),
-    );
-    const error = await completion;
-    expect(error.details).toMatchObject({ reason: "item_readiness_timeout" });
-    first.exit({ code: null, signal: "SIGTERM" });
-  });
+    preparation.commit();
 
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    expect(logger.warns).toContainEqual(
+      expect.objectContaining({
+        context: expect.objectContaining({ reason: "item_readiness_timeout" }),
+      }),
+    );
+    expect(completed.settled).toBe(false);
+    const stopped = session.stop();
+    first.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
   it("cancels each prepared FFmpeg process readiness timeout on usable output", async () => {
     const first = new FakeProcess();
     const second = new FakeProcess();
@@ -792,6 +1365,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
@@ -806,8 +1380,8 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     preparation.commit();
     first.exit({ code: null, signal: "SIGTERM" });
 
@@ -831,6 +1405,7 @@ describe("FfmpegSignalPackager", () => {
     spawner.enqueue(first);
     spawner.enqueue(second);
     const packager = new FfmpegSignalPackager({
+      isMediaPresent: presentMedia,
       ffmpegPath: "ffmpeg",
       spawner,
       timers,
@@ -846,8 +1421,8 @@ describe("FfmpegSignalPackager", () => {
     const preparing = session.prepare(
       initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
     );
-    second.writeStdout("usable-output");
     const preparation = await preparing;
+    second.writeStdout("usable-output");
     preparation.commit();
     const completion = expectSignalError(
       session.completion,

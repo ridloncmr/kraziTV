@@ -26,7 +26,7 @@ export class MpegTsPacketForwarder {
   /** Starts forwarding immediately so no early FFmpeg bytes are missed. */
   constructor(
     private readonly source: Readable,
-    private readonly destination: PacketSink,
+    private destination: PacketSink,
   ) {
     source.on("data", this.forward);
     source.on("end", this.flush);
@@ -45,6 +45,15 @@ export class MpegTsPacketForwarder {
     });
     this.write(finished);
     this.reset();
+  }
+
+  /**
+   * Sends this process's packets to `destination` from now on, keeping the
+   * partial packet and every unfinished PES packet, so a stalled item can be
+   * set aside behind its stand-in and later return whole (ADR 0020).
+   */
+  redirect(destination: PacketSink): void {
+    this.destination = destination;
   }
 
   /** Holds complete 188-byte units and writes those every stream has finished. */

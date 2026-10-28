@@ -12,6 +12,12 @@ explicitly chose an interrupting reservation; the worker then crosses into
 the reservation at its start, keeping its subscribers. See
 [ADR 0015](0015-scheduled-interruption.md).
 
+Amended on 2026-10-28: an item whose FFmpeg process fails no longer fails
+the worker. Its signal session airs a stand-in until the next commit, so
+subscribers stay attached; "failed workers may terminate current
+subscribers" now covers only transition, stand-in, and cleanup failures. See
+[ADR 0020](0020-failed-item-stand-in.md).
+
 ## Context
 
 kraziTV channels should behave like broadcasts, not viewer sessions. The earlier MVP streaming shape allowed each viewer request to own its own FFmpeg process or process sequence. That can prove basic playback, but it does not match the product model where a channel exists independently of its viewers.

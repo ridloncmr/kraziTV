@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { SignalError } from "../../errors.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
-import { buildFfmpegArguments } from "./ffmpeg-arguments.js";
+import {
+  buildFfmpegArguments,
+  buildStandInArguments,
+} from "./ffmpeg-arguments.js";
 
 type ProgramItem = Extract<SignalPlayoutItem, { kind: "program" }>;
 type FillerItem = Extract<SignalPlayoutItem, { kind: "filler" }>;
@@ -403,5 +406,45 @@ describe("buildFfmpegArguments: filler", () => {
         details: { field },
       }),
     );
+  });
+});
+
+describe("buildStandInArguments", () => {
+  it("airs filler's offline card for the failed item's whole airtime", () => {
+    const options = { fontFile: "/fonts/DejaVuSans.ttf" };
+
+    // Media and black tail together: the next commit truncates the rest.
+    expect(
+      buildStandInArguments(
+        item({ mediaOffsetMs: 5_000, playDurationMs: 1_500, blackTailMs: 250 }),
+        options,
+      ),
+    ).toEqual(
+      buildFfmpegArguments(
+        {
+          kind: "filler",
+          channelId: "channel-1",
+          message: "Programming offline",
+          airtimeMs: 1_750,
+        },
+        options,
+      ),
+    );
+    const filler: FillerItem = {
+      kind: "filler",
+      channelId: "channel-1",
+      message: "Programming resumes at 8:00 PM",
+      airtimeMs: 4_000,
+    };
+    expect(buildStandInArguments(filler, options)).toEqual(
+      buildFfmpegArguments(
+        { ...filler, message: "Programming offline" },
+        options,
+      ),
+    );
+  });
+
+  it("never reads the failed item's media", () => {
+    expect(buildStandInArguments(item()).join(" ")).not.toContain("My Movie");
   });
 });

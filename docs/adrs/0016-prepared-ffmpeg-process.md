@@ -8,6 +8,11 @@ the compatibility spike: whether preparing the next playout item uses a second
 FFmpeg process. Keeps [ADR 0008](0008-shared-active-channel-stream-workers.md)'s
 rule of one committed pipeline and at most one prepared item per channel.
 
+Amended on 2026-10-28: a prepared process that fails or stays silent before
+its commit no longer fails the session there, and a committed one no longer
+fails it either; the session airs a stand-in until the next commit. See
+[ADR 0020](0020-failed-item-stand-in.md).
+
 ## Context
 
 A signal session serves one channel's broadcast from successive FFmpeg

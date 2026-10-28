@@ -196,7 +196,10 @@ export class FakeSignalSession implements SignalSession {
     this.readyState.resolve(undefined);
   }
 
-  /** Fails startup; the session also ends, as a real one does on that failure. */
+  /**
+   * Fails startup; the session also ends, as a real one does when even the
+   * stand-in for its first item cannot air.
+   */
   rejectReady(reason: unknown): void {
     this.readyState.reject(reason);
     this.completionState.reject(reason);

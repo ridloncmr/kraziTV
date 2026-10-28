@@ -17,6 +17,10 @@ const BLACK_TAIL_VIDEO_FILTER = "tpad=stop_mode=add:stop=-1:color=black";
 const SILENT_AUDIO_SOURCE = "anullsrc=channel_layout=stereo:sample_rate=48000";
 const BLACK_VIDEO_SOURCE = "color=c=black:s=1920x1080:r=30";
 
+// The owner's wording for an item that cannot air. Unlike filler's, it names
+// no time: the session cannot know when programming resumes.
+const STAND_IN_MESSAGE = "Programming offline";
+
 // Drops frame lookahead, so output starts as soon as input is read at
 // wall-clock speed.
 const ZERO_LATENCY_TUNING = ["-tune", "zerolatency"] as const;
@@ -197,6 +201,30 @@ function fillerArguments(
       audioFilter: "arealtime",
     }),
   ];
+}
+
+/**
+ * Packages the stand-in for an item that cannot air (ADR 0020): filler's
+ * card reading `STAND_IN_MESSAGE`, read from nothing, for at most the
+ * item's whole airtime. The next commit truncates it, so it never needs the
+ * time actually left.
+ */
+export function buildStandInArguments(
+  item: SignalPlayoutItem,
+  options: FfmpegArgumentOptions = {},
+): readonly string[] {
+  return fillerArguments(
+    {
+      kind: "filler",
+      channelId: item.channelId,
+      message: STAND_IN_MESSAGE,
+      airtimeMs:
+        item.kind === "filler"
+          ? item.airtimeMs
+          : item.playDurationMs + item.blackTailMs,
+    },
+    options,
+  );
 }
 
 /**
