@@ -161,7 +161,10 @@ export function MediaLibraryApp({
                         : displayTime(root.lastScannedAt)}
                     </td>
                     <td className="root-matches">
-                      <RootMatches counts={root.matchCounts} />
+                      <RootMatches
+                        counts={root.matchCounts}
+                        scanned={root.lastScannedAt !== null}
+                      />
                     </td>
                     <td>
                       <RowMenu
@@ -448,9 +451,18 @@ export function MediaLibraryApp({
 
 /**
  * A root's match counts in a few words: how much of it is matched, then
- * what still needs the owner, shown only when there is some.
+ * what still needs the owner, shown only when there is some. A root with no
+ * media says so instead of "0 of 0 matched".
  */
-function RootMatches({ counts }: { counts: MediaRoot["matchCounts"] }) {
+function RootMatches({
+  counts,
+  scanned,
+}: {
+  counts: MediaRoot["matchCounts"];
+  scanned: boolean;
+}) {
+  if (counts.items === 0)
+    return <>{scanned ? "No media found" : "Scan to find media"}</>;
   return (
     <>
       {displayCount(counts.matched)} of {displayCount(counts.items)} matched
