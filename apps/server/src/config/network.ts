@@ -1,3 +1,5 @@
+import { BlockList, isIP } from "node:net";
+import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { parseIntegerSetting } from "./integer-setting.js";
 
 interface ListenConfig {
@@ -66,6 +68,47 @@ function toHttpOrigin(value: string): string | undefined {
     return undefined;
   }
   return url.origin;
+}
+
+// Node's list also matches IPv4-mapped and expanded IPv6 spellings.
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet("127.0.0.0", 8, "ipv4");
+LOOPBACK.addAddress("::1", "ipv6");
+
+/**
+ * Whether a host or URL hostname names this computer only, through
+ * loopback, so Plex on another device can never reach it.
+ */
+export function isLoopbackHost(host: string): boolean {
+  const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
+  const family = isIP(bare);
+  if (family === 0) return bare === "localhost";
+  return LOOPBACK.check(bare, family === 6 ? "ipv6" : "ipv4");
+}
+
+/**
+ * This computer's address on its local network as an origin on `port`, to
+ * suggest as PUBLIC_BASE_URL, or null when it has none. Prefers a home
+ * network's 192.168 address over others, such as a container bridge's, and
+ * skips link-local addresses, which no router hands out.
+ */
+export function networkBaseUrl(
+  port: number,
+  interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
+): string | null {
+  const addresses = Object.values(interfaces)
+    .flatMap((entries) => entries ?? [])
+    .filter(
+      (entry) =>
+        entry.family === "IPv4" &&
+        !entry.internal &&
+        !entry.address.startsWith("169.254."),
+    )
+    .map((entry) => entry.address);
+  const address =
+    addresses.find((candidate) => candidate.startsWith("192.168.")) ??
+    addresses[0];
+  return address === undefined ? null : `http://${address}:${port}`;
 }
 
 /**

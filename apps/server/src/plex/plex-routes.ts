@@ -8,6 +8,7 @@ import {
 } from "@krazitv/plex";
 import type { FastifyInstance } from "fastify";
 
+import { isLoopbackHost } from "../config/network.js";
 import type { ChannelRepository } from "../channels/repository/channel-repository.js";
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
 import type { MediaItemRepository } from "../media-items/media-item-repository.js";
@@ -23,6 +24,10 @@ export type PlexSettings = {
   publicBaseUrl: string;
   deviceId: string;
   tunerCount: number;
+  /** The address the server listens on, the HOST setting. */
+  listenHost: string;
+  /** This computer's network address, which Plex Setup suggests as the public base URL. */
+  networkBaseUrl: string | null;
 };
 
 /**
@@ -39,11 +44,21 @@ export function registerPlexRoutes(
   settings: PlexSettings,
 ): void {
   const { publicBaseUrl, deviceId, tunerCount } = settings;
+  // The settings that keep Plex on another device out, because they name
+  // this computer only. Plex on this computer still reaches it.
+  const localOnlySettings = [
+    ...(isLoopbackHost(new URL(publicBaseUrl).hostname)
+      ? ["PUBLIC_BASE_URL"]
+      : []),
+    ...(isLoopbackHost(settings.listenHost) ? ["HOST"] : []),
+  ];
 
   // Administration reads configured public URLs without reproducing provider URL policy.
   server.get("/plex/setup", async () => ({
     tunerBaseUrl: publicBaseUrl,
     xmltvUrl: `${publicBaseUrl}/plex/xmltv.xml`,
+    localOnlySettings,
+    suggestedPublicBaseUrl: settings.networkBaseUrl,
   }));
 
   server.get("/discover.json", async () =>

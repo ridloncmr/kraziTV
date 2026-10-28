@@ -1,4 +1,5 @@
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
+import { inRowMenu } from "./row-menu.js";
 
 const ROW_CONTROLS = "button, input, select, textarea, a, label";
 
@@ -20,6 +21,25 @@ export function rowClickProps(action: (extend: boolean) => void) {
       if ((event.target as HTMLElement).closest(ROW_CONTROLS)) return;
       if (!event.shiftKey && window.getSelection()?.toString()) return;
       action(event.shiftKey);
+    },
+  };
+}
+
+/**
+ * Opens a row on double-click or Enter, as list views do. Inside the row's
+ * menu those keep the menu's meaning, so its own items act instead.
+ */
+export function rowOpenProps(open: () => void) {
+  return {
+    /** Opens the row unless the double-click landed in its menu. */
+    onDoubleClick(event: MouseEvent<HTMLElement>) {
+      if (!inRowMenu(event.target)) open();
+    },
+    /** Opens the row on Enter, which then does nothing else, unless the menu has focus. */
+    onKeyDown(event: KeyboardEvent<HTMLElement>) {
+      if (event.key !== "Enter" || inRowMenu(event.target)) return;
+      event.preventDefault();
+      open();
     },
   };
 }

@@ -16,9 +16,10 @@ import type {
   ProgramId,
   WindowAction,
 } from "./contracts.js";
-import { programs } from "./programs.js";
+import { programOf, programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { readWindowMemory, rememberWindows } from "./windows/window-memory.js";
+import { usePropertiesWindows } from "./windows/use-properties-windows.js";
 import { windowReducer } from "./windows/window-state.js";
 
 /** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
@@ -67,6 +68,7 @@ export function DesktopShell({
     (id: ProgramId) => dispatch({ type: "open", id }),
     [],
   );
+  const properties = usePropertiesWindows(dispatch);
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
   const [pageVisible, setPageVisible] = useState(
@@ -150,7 +152,9 @@ export function DesktopShell({
             <AppWindow
               key={window.id}
               window={window}
-              program={programs.find((program) => program.id === window.id)!}
+              program={programOf(window.id)}
+              title={properties.titleOf(window.id)}
+              unsavedName={properties.unsavedName(window.id)}
               avatarId={account.avatarId}
               active={activeId === window.id}
               index={windows.indexOf(window)}
@@ -168,6 +172,9 @@ export function DesktopShell({
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   openProgram={openProgram}
+                  channelWindows={properties.channels}
+                  collectionWindows={properties.collections}
+                  markUnsaved={properties.markUnsaved}
                 />
               </RefreshScope>
             </AppWindow>
@@ -175,6 +182,7 @@ export function DesktopShell({
         <Taskbar
           windows={windows}
           activeId={activeId}
+          titleOf={properties.titleOf}
           dispatch={dispatch}
           connection={connection}
           avatarId={account.avatarId}

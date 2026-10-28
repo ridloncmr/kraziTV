@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -13,7 +14,7 @@ import {
   adminFixtures,
   favoritesAssignment,
 } from "../testing/admin-fixtures.js";
-import { ChannelsApp } from "./channels-app.js";
+import { ChannelWindows } from "../testing/channel-windows.js";
 import { openChannelTab } from "../testing/channel-tabs.js";
 
 afterEach(() => {
@@ -26,9 +27,10 @@ async function selectChannel(name: string) {
   fireEvent.click(await screen.findByRole("button", { name }));
 }
 
-it("keeps a saved delete absent and retries cleanup on the same ID", async () => {
+it("keeps a saved delete absent, closes its Properties window, and retries cleanup on the same ID", async () => {
   const api = new BrowserApi();
   api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one", adminFixtures.channels[0]);
   api.handle(
     "/channels/one",
     () => {
@@ -56,16 +58,21 @@ it("keeps a saved delete absent and retries cleanup on the same ID", async () =>
     "DELETE",
   );
   vi.stubGlobal("fetch", api.fetch);
-  const view = render(createElement(ChannelsApp, { visible: true }));
-  await selectChannel("Northwoods TV");
+  const view = render(createElement(ChannelWindows));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
+  await screen.findByRole("tab", { name: "Lineup" });
   fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Delete channel permanently" }),
   );
   await screen.findByText("Channel deleted. Configuration saved.");
   await screen.findByText(/No channels yet/);
+  // Nothing is left to edit, so its window closed with the delete.
+  expect(screen.queryByRole("tab", { name: "Lineup" })).toBeNull();
   view.unmount();
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   expect(
     screen.getByRole("button", { name: "Retry runtime cleanup" }),
   ).toBeTruthy();
@@ -105,7 +112,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
     503,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Enable" }));
   await screen.findByText("Channel remains disabled. Re-enable was not saved.");
@@ -131,7 +138,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
 
 const ASSIGNMENTS = "/channels/one/programming-assignments";
 
-it("keeps a rejected create in its dialog, then selects the created channel", async () => {
+it("keeps a rejected create in its dialog, then selects and opens the created channel", async () => {
   const api = new BrowserApi();
   api.reply("/channels", []);
   api.reply(
@@ -143,7 +150,7 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
     409,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   fireEvent.click(
     await screen.findByRole("button", { name: "Create a channel…" }),
   );
@@ -163,6 +170,9 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
 
   api.reply("/channels", adminFixtures.channels[0], "POST");
   api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one", adminFixtures.channels[0]);
+  api.reply(ASSIGNMENTS, []);
+  api.reply("/media-collections", []);
   fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await waitFor(() =>
@@ -173,6 +183,8 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
         ?.classList.contains("selected-row"),
     ).toBe(true),
   );
+  // The new channel opens in Channel Properties.
+  await screen.findByRole("heading", { name: "69 · Northwoods TV" });
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ number: "69", name: "Northwoods TV" });
@@ -188,7 +200,7 @@ it("opens a delete confirmation without an earlier action's error", async () => 
     503,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Disable" }));
   await screen.findByText("Disable failed");
@@ -199,11 +211,11 @@ it("opens a delete confirmation without an earlier action's error", async () => 
   expect(screen.queryByText("Disable failed")).toBeNull();
 });
 
-it("selects a channel from anywhere on its row except the row's buttons", async () => {
+it("selects a channel from anywhere on its row except the row's buttons, and opens it only on request", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   const selected = (name: string) =>
     screen
       .getByRole("button", { name })
@@ -218,13 +230,21 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   );
   expect(selected("Northwoods TV")).toBe(false);
   expect(selected("Second channel")).toBe(true);
+
+  // A click only selects; Properties under the grid opens the selection.
+  expect(screen.queryByRole("tab")).toBeNull();
+  api.reply("/channels/two", adminFixtures.channels[1]);
+  api.reply("/channels/two/programming-assignments", []);
+  api.reply("/media-collections", []);
+  fireEvent.click(screen.getByRole("button", { name: "Properties" }));
+  await screen.findByRole("heading", { name: "70 · Second channel" });
 });
 
 it("offers Disable and Delete from a row's menu, and for the selected row under the grid", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   const under = (name: string) => screen.getByRole("button", { name });
 
   await screen.findByRole("button", { name: "Northwoods TV" });
@@ -235,7 +255,7 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   );
   expect(
     screen.getAllByRole("menuitem").map((item) => item.textContent),
-  ).toEqual(["Disable", "Delete…"]);
+  ).toEqual(["Properties", "Disable", "Delete…"]);
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
   await selectChannel("Northwoods TV");
@@ -246,18 +266,21 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   ).toContain("Northwoods TV");
 });
 
-// The tab names the selected channel's property sheet shows.
+// The tab names Channel Properties shows for the picked channel.
 const tabNames = () => screen.getAllByRole("tab").map((tab) => tab.textContent);
 
 it("opens a channel with an empty lineup on Lineup, without Rules or Preview", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one", adminFixtures.channels[0]);
   api.reply(ASSIGNMENTS, []);
   api.reply("/media-collections", adminFixtures.collections);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
 
-  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
 
   await screen.findByText(/No shows yet/);
   expect(
@@ -266,9 +289,11 @@ it("opens a channel with an empty lineup on Lineup, without Rules or Preview", a
   expect(tabNames()).toEqual(["General", "Lineup", "Specials"]);
 });
 
-it("shows every tab once the lineup has a show, keeps the chosen tab across channels, and has no schedule debug line", async () => {
+it("shows every tab once the lineup has a show, keeps each open channel on its own tab, and has no schedule debug line", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one", adminFixtures.channels[0]);
+  api.reply("/channels/two", adminFixtures.channels[1]);
   api.reply(ASSIGNMENTS, [favoritesAssignment("chronological")]);
   api.reply("/channels/two/programming-assignments", [
     favoritesAssignment("random"),
@@ -285,8 +310,10 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
     skips: [],
   });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
-  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+  render(createElement(ChannelWindows));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
 
   // A channel with a show opens on the first tab.
   await screen.findByRole("tab", { name: "Rules" });
@@ -302,15 +329,22 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
   await screen.findByRole("button", { name: "Rebuild the schedule…" });
   expect(screen.queryByLabelText("Name")).toBeNull();
 
-  fireEvent.click(screen.getByRole("button", { name: "Second channel" }));
+  fireEvent.keyDown(screen.getByRole("button", { name: "Second channel" }), {
+    key: "Enter",
+  });
+  // The second channel opens in a sheet of its own, on its first tab,
+  // while the first keeps Preview.
+  const sheet = (name: string) => screen.getByRole("region", { name });
+  const chosen = (region: HTMLElement) =>
+    within(region)
+      .getAllByRole("tab")
+      .find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
   await screen.findByRole("heading", { name: "70 · Second channel" });
-  await waitFor(() =>
-    expect(
-      screen
-        .getByRole("tab", { name: "Preview" })
-        .getAttribute("aria-selected"),
-    ).toBe("true"),
-  );
+  await within(sheet("70 · Second channel properties")).findByRole("tab", {
+    name: "Rules",
+  });
+  expect(chosen(sheet("70 · Second channel properties"))).toBe("General");
+  expect(chosen(sheet("69 · Northwoods TV properties"))).toBe("Preview");
   expect(document.body.textContent).not.toMatch(/Backend schedule/);
   expect(api.requestsTo("/channels/two/schedule")).toEqual([]);
 });
@@ -333,7 +367,11 @@ it("saves the channel's number and name from General with Apply", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
   await waitFor(() =>
-    expect(api.requestsTo("/channels/one")[0]?.body).toEqual({
+    expect(
+      api
+        .requestsTo("/channels/one")
+        .find((request) => request.method === "PATCH")?.body,
+    ).toEqual({
       number: "69",
       name: "Lakeside TV",
     }),

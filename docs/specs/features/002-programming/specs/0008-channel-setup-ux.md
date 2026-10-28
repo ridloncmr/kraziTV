@@ -84,8 +84,13 @@ only; the glossary's provider meaning of lineup is unchanged.
 
 ### Channel property sheet
 
-Selecting a channel shows an XP-style property sheet with tabs, replacing the
-single scrolling page:
+As in the lineup list, a click selects a channel, and double-click, Enter, or
+**Properties** (under the list or in the row menu) opens it in **Channel
+Properties**, a desktop window of its own beside My Channels, titled with the
+channel's name. Each channel opens in a window of its own, and opening one
+already open brings it forward. A new channel opens there as soon as it is
+created. It holds an XP-style property sheet with tabs, replacing
+the single scrolling page:
 
 | Tab          | Holds                                                                                               |
 | ------------ | --------------------------------------------------------------------------------------------------- |
@@ -300,7 +305,8 @@ None.
 
 ## Acceptance Criteria
 
-- Selecting a channel shows General, Lineup, Rules, Specials, and Preview tabs;
+- Opening a channel (double-click, Enter, or Properties) shows General,
+  Lineup, Rules, Specials, and Preview tabs in its Channel Properties window;
   Rules and Preview appear only once the lineup has a show.
 - The Lineup tab lists every assignment in saved order with show, order,
   per sitting, marathon, and rules-only columns, and no assignment is shown as
@@ -319,7 +325,8 @@ None.
 - Per-sitting presets read in movies for a movie show, in episodes for an
   episode show, and in programs otherwise, in both Properties and the lineup.
 - **Properties** edits one assignment in a window dialog that writes only on
-  **OK** or **Apply**; **Cancel** discards every change.
+  **OK** or **Apply**; **Cancel** discards every change. Closing the Channel
+  Properties window while it holds unsaved changes asks first.
 - Members, rule-only participation, marathon length override, collection
   preview, and restart from the beginning are reachable under **Advanced**.
 - Per sitting offers presets and **Custom…**; a saved custom value round-trips

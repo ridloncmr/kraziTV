@@ -15,7 +15,7 @@ import {
 } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
-import { ChannelsApp } from "../channels-app.js";
+import { ChannelWindows } from "../../testing/channel-windows.js";
 
 afterEach(() => {
   cleanup();
@@ -157,7 +157,7 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
   editor.unmount();
 
   // The retry outlives the closed window and repeats the rebuild's key.
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   await screen.findByText("Schedule rebuilt with fresh programming.");
   api.reply(
     "/channels/one/programming/rebuild",

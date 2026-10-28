@@ -1,12 +1,19 @@
-import type { ProgramDefinition } from "./contracts.js";
+import type {
+  ProgramDefinition,
+  ProgramId,
+  PropertiesKind,
+  WindowId,
+} from "./contracts.js";
 
 /** One navigation catalog supplies desktop, Start, title bars and taskbar labels. */
-export const programs: readonly ProgramDefinition[] = [
+export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
   {
     id: "channels",
     name: "My Channels",
     description: "Configure your broadcast channels",
     group: "Primary",
+    // Narrow enough that Channel Properties opens beside it.
+    placement: { x: 140, y: 40, width: 460, height: 540 },
   },
   {
     id: "media",
@@ -19,6 +26,8 @@ export const programs: readonly ProgramDefinition[] = [
     name: "Collections",
     description: "Arrange media for programming",
     group: "Primary",
+    // Narrow enough that Collection Properties opens beside it.
+    placement: { x: 140, y: 40, width: 460, height: 540 },
   },
   {
     id: "guide",
@@ -45,3 +54,53 @@ export const programs: readonly ProgramDefinition[] = [
     group: "Server",
   },
 ];
+
+/**
+ * One channel's or collection's own window. My Channels and Collections open
+ * them, so they have no desktop shortcut or Start entry; the first of each
+ * opens beside its program on a 1280px screen.
+ */
+const propertiesPrograms: Record<PropertiesKind, ProgramDefinition> = {
+  "channel-properties": {
+    id: "channel-properties",
+    name: "Channel Properties",
+    description: "Set up one channel's identity and programming",
+    group: "Primary",
+    placement: { x: 620, y: 40, width: 640, height: 600 },
+  },
+  "collection-properties": {
+    id: "collection-properties",
+    name: "Collection Properties",
+    description: "Edit one collection's members and order",
+    group: "Primary",
+    placement: { x: 620, y: 40, width: 640, height: 600 },
+  },
+};
+
+/** The window that shows one channel's or collection's properties. */
+export function propertiesWindow(
+  kind: PropertiesKind,
+  objectId: string,
+): WindowId {
+  return `${kind}:${objectId}`;
+}
+
+/** What a properties window shows, or undefined for any other window. */
+export function propertiesTarget(
+  id: WindowId,
+): { kind: PropertiesKind; objectId: string } | undefined {
+  const separator = id.indexOf(":");
+  if (separator === -1) return undefined;
+  return {
+    kind: id.slice(0, separator) as PropertiesKind,
+    objectId: id.slice(separator + 1),
+  };
+}
+
+/** Finds any window's definition, including those no launcher lists. */
+export function programOf(id: WindowId): ProgramDefinition {
+  const target = propertiesTarget(id);
+  return target
+    ? propertiesPrograms[target.kind]
+    : programs.find((program) => program.id === id)!;
+}

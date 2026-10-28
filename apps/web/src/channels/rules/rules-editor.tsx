@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps } from "../../controls/row-click.js";
-import { inRowMenu, RowMenu } from "../../controls/row-menu.js";
+import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
+import { RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type {
@@ -137,16 +137,7 @@ export function RulesEditor({
                     key={rule.id}
                     className={`clickable-row${rule.id === selectedId ? " selected-row" : ""}`}
                     {...rowClickProps(() => setSelectedId(rule.id))}
-                    onDoubleClick={(event) => {
-                      if (!inRowMenu(event.target)) open(rule);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" || inRowMenu(event.target)) {
-                        return;
-                      }
-                      event.preventDefault();
-                      open(rule);
-                    }}
+                    {...rowOpenProps(() => open(rule))}
                   >
                     <td>
                       <button

@@ -72,11 +72,14 @@ The Web Admin uses React, Vite, and TypeScript.
 
 The desktop represents the server. Shortcuts and an organized Start menu open
 singleton administrative programs in windows; the bottom taskbar represents open
-programs, including minimized ones. The system tray shows a clock and the result
-of actual API health requests, never inferred FFmpeg or Plex health. The
-browser remembers where each program's window was left, its size, and whether
-it was maximized, and reopens it there; this is shell state kept in the
-browser, never sent to the server.
+programs, including minimized ones. My Channels and Collections also open a
+properties window per channel or collection, one each; opening one already
+open brings it forward. The system tray shows a clock and the result of actual
+API health requests, never inferred FFmpeg or Plex health. The browser
+remembers where each program's window was left, its size, and whether it was
+maximized, and reopens it there; every properties window of one kind shares a
+single remembered placement, and a new one opens a step past the front one
+open. This is shell state kept in the browser, never sent to the server.
 
 | Program       | Existing capability                                              |
 | ------------- | ---------------------------------------------------------------- |
@@ -204,6 +207,12 @@ the server from configured public URL settings. The collection status endpoint
 using kraziBrain's existing eligibility policy; the browser never duplicates it.
 
 The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. The backend supplies these URLs from its configured `PUBLIC_BASE_URL`; the browser must not reconstruct them from its own location.
+
+When `PUBLIC_BASE_URL` or `HOST` names loopback, only Plex on the same
+computer can connect. `GET /plex/setup` then lists those settings in
+`localOnlySettings`, and suggests this computer's network address in
+`suggestedPublicBaseUrl`. Plex Setup warns first and gives each fix as a
+setting line to copy.
 
 ### API Integration
 

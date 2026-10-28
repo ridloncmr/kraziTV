@@ -9,4 +9,7 @@ export const plexSettingsFixture: PlexSettings = {
   publicBaseUrl: "http://krazitv.test",
   deviceId: "FEEDC0DE",
   tunerCount: 3,
+  listenHost: "0.0.0.0",
+  // A documentation address, so it never names a real machine.
+  networkBaseUrl: "http://192.0.2.10:3000",
 };

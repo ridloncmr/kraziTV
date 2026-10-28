@@ -31,7 +31,7 @@ export function CardMaintenanceStatus({
   return warning === undefined ? (
     <span>Up to date</span>
   ) : (
-    <span className="warning-label">
+    <span className="warning-label" title={warning}>
       <span role="img" aria-label="Warning">
         ⚠
       </span>{" "}

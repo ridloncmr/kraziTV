@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { displayClockTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps } from "../../controls/row-click.js";
-import { inRowMenu, RowMenu } from "../../controls/row-menu.js";
+import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
+import { RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
@@ -149,16 +149,7 @@ export function SpecialsSection({
                   key={special.id}
                   className={`clickable-row${special.id === selectedId ? " selected-row" : ""}`}
                   {...rowClickProps(() => setSelectedId(special.id))}
-                  onDoubleClick={(event) => {
-                    if (!inRowMenu(event.target)) open(special);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" || inRowMenu(event.target)) {
-                      return;
-                    }
-                    event.preventDefault();
-                    open(special);
-                  }}
+                  {...rowOpenProps(() => open(special))}
                 >
                   <td>
                     <button

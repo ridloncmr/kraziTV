@@ -57,6 +57,24 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/web/src/channels/rules/"],
+      "reason": "rules/ is already the rules-editor capability inside channels/: its dialog, draft, shows field, and wording all serve that one editor.",
+      "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/channels/specials/"],
+      "reason": "specials/ is already the specials capability inside channels/: its section, editor, preview, source fields, and end-early dialog all serve that one section.",
+      "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/desktop/windows/"],
+      "reason": "windows/ is already the desktop-window capability inside desktop/: the window frame, its placement reducer and memory, and the properties-window bookkeeping all serve desktop windows.",
+      "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["packages/signal/src/channel-worker/"],
       "reason": "Every file serves the worker, so the domain stays flat.",
       "source": "AGENTS.md (source layout: \"signal/src/channel-worker/ stays flat\")"

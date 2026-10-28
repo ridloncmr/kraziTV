@@ -17,7 +17,7 @@ import {
 import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
-import { ChannelsApp } from "../channels-app.js";
+import { ChannelWindows } from "../../testing/channel-windows.js";
 
 afterEach(() => {
   cleanup();
@@ -46,7 +46,12 @@ async function openLineup(
 // Selects the named show's row and opens it in Properties.
 async function openProperties(name = "Favorites") {
   fireEvent.click(await screen.findByRole("button", { name }));
-  fireEvent.click(screen.getByRole("button", { name: "Properties" }));
+  // The lineup's own Properties, not the one under the channel list.
+  fireEvent.click(
+    within(screen.getByRole("tabpanel")).getByRole("button", {
+      name: "Properties",
+    }),
+  );
   return screen.getByRole("dialog", { name });
 }
 
@@ -192,8 +197,8 @@ it("keeps an unsaved order across minimize and restore", async () => {
     target: { value: "random" },
   });
 
-  view.rerender(createElement(ChannelsApp, { visible: false }));
-  view.rerender(createElement(ChannelsApp, { visible: true }));
+  view.rerender(createElement(ChannelWindows, { visible: false }));
+  view.rerender(createElement(ChannelWindows));
 
   await waitFor(() => expect(api.requestsTo(ASSIGNMENTS)).toHaveLength(2));
   expect(

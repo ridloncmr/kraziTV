@@ -8,8 +8,18 @@ export type ProgramId =
   | "monitor"
   | "account";
 
+/** The properties windows, each showing one channel or one collection. */
+export type PropertiesKind = "channel-properties" | "collection-properties";
+
+/**
+ * A window's identity: a singleton program, or one object's properties
+ * window, such as `channel-properties:<channel id>`, so each channel and
+ * collection opens in a window of its own.
+ */
+export type WindowId = ProgramId | `${PropertiesKind}:${string}`;
+
 export interface DesktopWindow {
-  id: ProgramId;
+  id: WindowId;
   /** Creation order keeps taskbar positions stable when stacking order changes. */
   openedOrder: number;
   x: number;
@@ -23,10 +33,10 @@ export interface DesktopWindow {
 export type WindowAction =
   | {
       type: "open" | "close" | "focus" | "minimize" | "maximize";
-      id: ProgramId;
+      id: WindowId;
     }
-  | { type: "move"; id: ProgramId; x: number; y: number }
-  | { type: "resize"; id: ProgramId; width: number; height: number };
+  | { type: "move"; id: WindowId; x: number; y: number }
+  | { type: "resize"; id: WindowId; width: number; height: number };
 
 /** The usable desktop area: the browser viewport minus the taskbar. */
 export interface DesktopViewport {
@@ -35,8 +45,11 @@ export interface DesktopViewport {
 }
 
 export interface ProgramDefinition {
-  id: ProgramId;
+  /** A program, or a properties kind standing for every window of that kind. */
+  id: ProgramId | PropertiesKind;
   name: string;
   description: string;
   group: "Primary" | "Server";
+  /** Where the window first opens, before this browser remembers one; otherwise it cascades. */
+  placement?: Pick<DesktopWindow, "x" | "y" | "width" | "height">;
 }

@@ -1,5 +1,6 @@
 // Boots schedule-backed servers for tests only; production code must never import this module.
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
+import { RuleRepository } from "../programming-rules/rule-repository.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import {
   FIXTURE_TIME,
@@ -72,8 +73,9 @@ export async function startScheduleServer(
 /**
  * Boots the real composition over a seeded schedule scenario, by default
  * three chronological episodes, on a manual clock at FIXTURE_TIME. Only
- * `schedules` and `mediaCollections` are overridden, both on that clock, so
- * the default playout service shares it too. The data directory is
+ * `schedules` and `mediaCollections` are overridden on that clock, so the
+ * default playout service shares it too, and `rules`, with sequential IDs.
+ * The data directory is
  * returned so a test can open a second connection to the same file, and the
  * dependencies so a test can reach the default recording runtime. Pass a
  * logger to assert what the server logs, a stop deadline for hung-stop
@@ -107,6 +109,9 @@ export async function startScheduleScenarioServer(
       }),
       // Collection delete asks which reservations have ended by its clock.
       mediaCollections: new MediaCollectionRepository(db, { now: clock.now }),
+      // Rule IDs name rotation contexts, which seed kraziPlan's shuffles, so
+      // random IDs would make a rules suite's schedule differ run to run.
+      rules: new RuleRepository(db, { createId: sequentialIds("rule") }),
     }),
   });
   await server.ready();

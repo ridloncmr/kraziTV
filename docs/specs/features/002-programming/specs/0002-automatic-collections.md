@@ -62,8 +62,12 @@ Collections opens with two tabs, each displaying a grid of created collections:
 | **Automatic** | Accepted automatic collections; **New automatic collection…** and **Discover collections…** |
 
 Cards show the name and included member count. Automatic cards also show their
-matching basis and maintenance status, including failures. Opening a card opens
-its editor. Empty grids offer creation actions; recommendations do not appear as
+matching basis and maintenance status, including failures. Every card is the
+same height, each line cut to fit. Clicking a card opens its editor in
+**Collection Properties**, a window of its own beside Collections, so the grid
+stays in view and several collections can be open at once; a new collection
+opens there as soon as it is created. Closing a window with unsaved changes asks
+first. Empty grids offer creation actions; recommendations do not appear as
 created collections until accepted.
 
 **Discover collections…** opens recommendations within the Collections program.

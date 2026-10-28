@@ -1,11 +1,15 @@
 import type { DesktopWindow, WindowAction } from "../contracts.js";
+import { programOf } from "../programs.js";
 import type { WindowMemory } from "./window-memory.js";
 
 /**
  * Array order is stacking order, keeping taskbar membership and focus in one state.
  * Positions and sizes are where the user placed each window; viewport clamping happens
  * at render so a temporarily small browser never overwrites them. A program
- * opens where `remembered` last left it, else cascaded from the top left.
+ * opens where `remembered` last left it, else at its own default placement,
+ * else cascaded from the top left. Every window of one properties kind shares
+ * one remembered placement, and a new one opens a step past the front one
+ * already open, so the cascade never compounds with what memory recorded.
  */
 export function windowReducer(
   state: DesktopWindow[],
@@ -22,16 +26,24 @@ export function windowReducer(
     if (existing && !existing.minimized && state.at(-1) === existing)
       return state;
     const offset = 24 * state.length;
-    const item = existing ?? {
-      id: action.id,
-      openedOrder: Math.max(-1, ...state.map((entry) => entry.openedOrder)) + 1,
+    const program = programOf(action.id);
+    const placed = {
       x: 140 + offset,
       y: 40 + offset,
       width: 760,
       height: 540,
+      ...program.placement,
       minimized: false,
       maximized: false,
-      ...remembered[action.id],
+      ...remembered[program.id],
+    };
+    // Only properties kinds have siblings; a singleton never finds itself.
+    const front = state.findLast((entry) => programOf(entry.id) === program);
+    const item = existing ?? {
+      id: action.id,
+      openedOrder: Math.max(-1, ...state.map((entry) => entry.openedOrder)) + 1,
+      ...placed,
+      ...(front && { x: front.x + 24, y: front.y + 24 }),
     };
     return [
       ...state.filter((entry) => entry.id !== action.id),
