@@ -13,14 +13,14 @@ export function prematureExit(): SignalError {
 }
 
 /**
- * Reports a prepared item whose FFmpeg process stayed silent past its
- * readiness timeout, so a stalled startup fails the preparation instead of
- * leaving the channel quiet at the boundary (ADR 0016).
+ * Reports a prepared item or a stand-in whose FFmpeg process stayed silent
+ * past its readiness timeout, so a stalled startup fails instead of leaving
+ * the channel quiet (ADR 0016, ADR 0020).
  */
 export function itemReadinessTimeout(): SignalError {
   return new SignalError(
     "packaging_failed",
-    "Prepared FFmpeg item produced no usable output in time",
+    "FFmpeg item produced no usable output in time",
     { reason: "item_readiness_timeout" },
   );
 }
@@ -34,5 +34,18 @@ export function preparedOutputOverflow(): SignalError {
     "packaging_failed",
     "Prepared FFmpeg item held more output than its limit before commit",
     { reason: "prepared_output_limit" },
+  );
+}
+
+/**
+ * Reports an airing item whose FFmpeg process went silent, whether hung or
+ * finished early because its media was shorter than probed, so a stand-in
+ * fills the rest of its airtime instead of dead air (ADR 0020).
+ */
+export function outputStalled(): SignalError {
+  return new SignalError(
+    "packaging_failed",
+    "Airing FFmpeg item stopped producing output",
+    { reason: "output_stalled" },
   );
 }

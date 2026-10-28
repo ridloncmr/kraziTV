@@ -18,6 +18,8 @@ import {
 } from "./real-ffmpeg.js";
 
 const ITEM_MS = 8_000;
+/** Long enough that a stall detected seconds in still airs its stand-in. */
+const LONG_ITEM_MS = 14_000;
 const PREPARE_LEAD_MS = 3_000;
 /**
  * The longest pause a viewer may see while a stand-in's cold FFmpeg starts.
@@ -25,6 +27,12 @@ const PREPARE_LEAD_MS = 3_000;
  * viewer never needs to tune again.
  */
 const RECOVERY_GAP_CEILING_MS = 2_500;
+/**
+ * The longest pause a viewer may see when the airing process goes silent:
+ * the packager's five-second stall timeout, then a cold stand-in's start.
+ * Still inside the ten seconds a viewer holds from the join backlog.
+ */
+const STALL_RECOVERY_CEILING_MS = 7_500;
 /** What the stand-in's drawtext filter writes, which names its process. */
 const STAND_IN_MARKER = "Programming offline";
 
@@ -32,6 +40,25 @@ let fixtureDirectory: string;
 let episodePath: string;
 let nextPath: string;
 let afterPath: string;
+let longPath: string;
+let shortPath: string;
+
+/** Writes a toned test pattern of `seconds` to `path`. */
+function writeTonedFixture(path: string, seconds: number): void {
+  runFfmpeg(
+    [
+      ...["-y", "-f", "lavfi", "-i", `testsrc=s=320x240:r=30:d=${seconds}`],
+      ...[
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=440:sample_rate=48000:d=${seconds}`,
+      ],
+      ...["-c:v", "libx264", "-c:a", "aac", path],
+    ],
+    `FFmpeg could not generate the ${seconds}-second fixture`,
+  );
+}
 
 beforeAll(async () => {
   runFfmpeg(["-version"], "FFmpeg is required for test:ffmpeg");
@@ -39,14 +66,12 @@ beforeAll(async () => {
   // Toned throughout, so the stand-in's silence is the only silence. Each
   // program gets its own copy so its FFmpeg process can be found by path.
   episodePath = join(fixtureDirectory, "episode.mkv");
-  runFfmpeg(
-    [
-      ...["-y", "-f", "lavfi", "-i", "testsrc=s=320x240:r=30:d=8"],
-      ...["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=8"],
-      ...["-c:v", "libx264", "-c:a", "aac", episodePath],
-    ],
-    "FFmpeg could not generate the episode fixture",
-  );
+  writeTonedFixture(episodePath, ITEM_MS / 1_000);
+  longPath = join(fixtureDirectory, "long.mkv");
+  writeTonedFixture(longPath, LONG_ITEM_MS / 1_000);
+  // Far shorter than the airtime its probe will claim.
+  shortPath = join(fixtureDirectory, "short.mkv");
+  writeTonedFixture(shortPath, 3);
   nextPath = join(fixtureDirectory, "next.mkv");
   afterPath = join(fixtureDirectory, "after.mkv");
   await copyFile(episodePath, nextPath);
@@ -79,12 +104,18 @@ function childrenMatching(marker: string): number[] {
     .map(([, pid]) => Number(pid));
 }
 
-/** Kills the one FFmpeg child encoding `mediaPath`, as the OOM killer would. */
-function killFfmpegFor(mediaPath: string): number {
+/**
+ * Signals the one FFmpeg child encoding `mediaPath`: SIGKILL ends it as the
+ * OOM killer would, and SIGSTOP freezes it alive and silent, as a hang does.
+ */
+function signalFfmpegFor(
+  mediaPath: string,
+  signal: "SIGKILL" | "SIGSTOP" = "SIGKILL",
+): number {
   const pids = childrenMatching(mediaPath);
   expect(pids, `one FFmpeg process for ${mediaPath}`).toHaveLength(1);
   const pid = pids[0] ?? Number.NaN;
-  process.kill(pid, "SIGKILL");
+  process.kill(pid, signal);
   return pid;
 }
 
@@ -119,15 +150,27 @@ function longestGapMs(
 }
 
 /**
- * Tunes one viewer to a channel airing episode, next, and after, each one
- * toned 8-second program, and records every chunk and when it arrived.
+ * Tunes one viewer to a channel airing an episode, by default a toned
+ * 8-second program, then next and after, each a toned 8-second program, and
+ * records every chunk and when it arrived.
  */
-async function tuneViewer() {
+async function tuneViewer(
+  episodeMedia: { path: string; durationMs: number } = {
+    path: episodePath,
+    durationMs: ITEM_MS,
+  },
+) {
   const runtime = new SystemRuntime();
   const startsAt = runtime.now();
-  const episode = program("episode", episodePath, startsAt, ITEM_MS);
-  const next = program("next", nextPath, startsAt + ITEM_MS, ITEM_MS);
-  const after = program("after", afterPath, startsAt + 2 * ITEM_MS, ITEM_MS);
+  const nextAt = startsAt + episodeMedia.durationMs;
+  const episode = program(
+    "episode",
+    episodeMedia.path,
+    startsAt,
+    episodeMedia.durationMs,
+  );
+  const next = program("next", nextPath, nextAt, ITEM_MS);
+  const after = program("after", afterPath, nextAt + ITEM_MS, ITEM_MS);
 
   const provider = new FakePlayoutProvider();
   provider.enqueueCurrent(current(episode, startsAt));
@@ -214,13 +257,13 @@ function silences(chunks: readonly Buffer[]): number[] {
   );
 }
 
-describe("real FFmpeg killed mid-broadcast", () => {
+describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
   it("airs the stand-in for the rest of an episode whose FFmpeg was killed halfway, then the next program", async () => {
     const channel = await tuneViewer();
 
     await channel.until(ITEM_MS / 2);
     const killedAt = channel.runtime.now();
-    const killed = killFfmpegFor(episodePath);
+    const killed = signalFfmpegFor(episodePath);
     await waitUntil(
       () => childrenMatching(STAND_IN_MARKER).length === 1,
       3_000,
@@ -253,7 +296,7 @@ describe("real FFmpeg killed mid-broadcast", () => {
     // The next program's process is prepared, its output held, a second
     // before its boundary.
     await channel.until(ITEM_MS - 1_000);
-    killFfmpegFor(nextPath);
+    signalFfmpegFor(nextPath);
 
     await channel.until(ITEM_MS + 2_000);
     expect(channel.viewer.closed).toBe(false);
@@ -291,7 +334,7 @@ describe("real FFmpeg killed mid-broadcast", () => {
       ITEM_MS + 3_000,
     );
     const killedAt = channel.runtime.now();
-    killFfmpegFor(nextPath);
+    signalFfmpegFor(nextPath);
     await waitUntil(
       () => childrenMatching(STAND_IN_MARKER).length === 1,
       3_000,
@@ -312,5 +355,67 @@ describe("real FFmpeg killed mid-broadcast", () => {
     expect(others).toEqual([]);
     expect(silence).toBeGreaterThan(6.5);
     expect(silence).toBeLessThan(9.5);
+  }, 45_000);
+
+  it("airs the stand-in once a hung FFmpeg has been silent five seconds, then the next program", async () => {
+    const channel = await tuneViewer({
+      path: longPath,
+      durationMs: LONG_ITEM_MS,
+    });
+
+    await channel.until(3_000);
+    const frozenAt = channel.runtime.now();
+    const frozen = signalFfmpegFor(longPath, "SIGSTOP");
+    await waitUntil(
+      () => childrenMatching(STAND_IN_MARKER).length === 1,
+      8_000,
+    );
+    // The watchdog, not an exit, brought it in: a stopped process never exits.
+    expect(channel.runtime.now() - frozenAt).toBeGreaterThan(4_500);
+    // SIGTERM waits on a stopped process, so the grace period's SIGKILL ends it.
+    await waitUntil(() => !childrenMatching(longPath).includes(frozen), 8_000);
+
+    await channel.until(LONG_ITEM_MS + 3_000);
+    expect(channel.viewer.closed).toBe(false);
+    expect(channel.committed()).toEqual([
+      { kind: "program", scheduleEntryId: "next" },
+    ]);
+    expect(
+      longestGapMs(channel.arrivals, frozenAt - 1_000, frozenAt + 9_000),
+    ).toBeLessThan(STALL_RECOVERY_CEILING_MS);
+    await channel.finish();
+
+    const [silence, ...others] = silences(channel.chunks);
+    expect(others).toEqual([]);
+    expect(silence).toBeGreaterThan(3);
+  }, 45_000);
+
+  it("airs the stand-in once a file shorter than its probe runs out, then the next program", async () => {
+    const channel = await tuneViewer({
+      path: shortPath,
+      durationMs: LONG_ITEM_MS,
+    });
+
+    // FFmpeg finishes the 3-second file cleanly, 11 seconds early.
+    await waitUntil(() => childrenMatching(shortPath).length === 0, 6_000);
+    const endedAt = channel.runtime.now();
+    await waitUntil(
+      () => childrenMatching(STAND_IN_MARKER).length === 1,
+      8_000,
+    );
+
+    await channel.until(LONG_ITEM_MS + 3_000);
+    expect(channel.viewer.closed).toBe(false);
+    expect(channel.committed()).toEqual([
+      { kind: "program", scheduleEntryId: "next" },
+    ]);
+    expect(
+      longestGapMs(channel.arrivals, endedAt - 1_000, endedAt + 9_000),
+    ).toBeLessThan(STALL_RECOVERY_CEILING_MS);
+    await channel.finish();
+
+    const [silence, ...others] = silences(channel.chunks);
+    expect(others).toEqual([]);
+    expect(silence).toBeGreaterThan(3);
   }, 45_000);
 });

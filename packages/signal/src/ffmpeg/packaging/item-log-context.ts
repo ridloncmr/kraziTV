@@ -1,3 +1,4 @@
+import { SignalError } from "../../errors.js";
 import type { LogContext } from "../../runtime/signal-logger.js";
 import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
 
@@ -15,4 +16,13 @@ export function itemContext(item: SignalPlayoutItem): LogContext {
     scheduleEntryId: item.scheduleEntryId,
     mediaItemId: item.mediaItemId,
   };
+}
+
+/** Names why an item failed in a log without carrying its stderr or cause. */
+export function failureSummary(error: unknown): LogContext {
+  if (!(error instanceof SignalError)) return { code: "packaging_failed" };
+  const { reason } = error.details;
+  return reason === undefined
+    ? { code: error.code }
+    : { code: error.code, reason };
 }

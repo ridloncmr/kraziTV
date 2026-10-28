@@ -38,6 +38,8 @@ type FfmpegSignalPackagerDependencies = {
   terminationGraceMs?: number;
   /** How long a prepared item's FFmpeg process may stay silent before its preparation fails. */
   itemReadinessTimeoutMs?: number;
+  /** How long an airing FFmpeg process may stop producing output before a stand-in replaces it. */
+  outputStallTimeoutMs?: number;
   /** How much output a prepared process may hold before its commit (ADR 0016). */
   preparedOutputLimitBytes?: number;
   createReadinessInspector?: () => OutputReadinessInspector;
@@ -46,6 +48,10 @@ type FfmpegSignalPackagerDependencies = {
 };
 
 const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
+// A healthy process writes several chunks a second. Viewers hold about ten
+// seconds from their join backlog (ADR 0018), so a stand-in started after
+// five seconds of silence reaches them before their picture freezes.
+const DEFAULT_OUTPUT_STALL_TIMEOUT_MS = 5_000;
 // How long a first viewer's tune may wait for the burst backlog. Plex waited
 // out 15 s tunes in testing; the server's startup timeout must exceed this.
 const INITIAL_HOLD_LIMIT_MS = 10_000;
@@ -56,6 +62,7 @@ const DEFAULT_PREPARED_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024;
 /** Creates one retained FFmpeg session per active channel worker. */
 export class FfmpegSignalPackager implements SignalPackager {
   private readonly itemReadinessTimeoutMs: number;
+  private readonly outputStallTimeoutMs: number;
   private readonly preparedOutputLimitBytes: number;
 
   /**
@@ -71,6 +78,12 @@ export class FfmpegSignalPackager implements SignalPackager {
     assertPositiveSafeInteger(
       this.itemReadinessTimeoutMs,
       "itemReadinessTimeoutMs",
+    );
+    this.outputStallTimeoutMs =
+      dependencies.outputStallTimeoutMs ?? DEFAULT_OUTPUT_STALL_TIMEOUT_MS;
+    assertPositiveSafeInteger(
+      this.outputStallTimeoutMs,
+      "outputStallTimeoutMs",
     );
     this.preparedOutputLimitBytes =
       dependencies.preparedOutputLimitBytes ??
@@ -113,6 +126,7 @@ export class FfmpegSignalPackager implements SignalPackager {
       isMediaPresent: this.dependencies.isMediaPresent,
       timers: this.dependencies.timers,
       itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
+      outputStallTimeoutMs: this.outputStallTimeoutMs,
       preparedOutputLimitBytes: this.preparedOutputLimitBytes,
       logger: this.dependencies.logger,
     });
