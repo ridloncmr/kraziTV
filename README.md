@@ -81,7 +81,6 @@ Common commands:
 ```bash
 npm install
 npm run dev
-npm run dev:web
 npm run typecheck
 npm test
 npm run build
@@ -105,8 +104,10 @@ Settings come from environment variables. To keep them in a file, copy
 `npm run reset-password` read it at startup, and variables already set in the
 environment win over it.
 
-`npm run dev` starts the API at `http://127.0.0.1:3000`. During development the
-Web Admin runs separately: start it with `npm run dev:web` in a second terminal.
+`npm run dev` starts the API at `http://127.0.0.1:3000` and the Web Admin at
+`http://127.0.0.1:5173` together, with each line labeled `api` or `web`, and
+stops both when either stops. `npm run dev:server` and `npm run dev:web` start
+one alone.
 
 `npm run reset-password` sets a new password for the kraziTV account when the
 old one is forgotten. Run it in an interactive terminal on the server host, with
