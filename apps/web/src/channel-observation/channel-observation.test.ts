@@ -75,3 +75,22 @@ it("reports Off air with the resume time the server worded while filler airs", a
   ).toBeTruthy();
   expect(screen.getByText("Reserved Movie", { selector: "dd" })).toBeTruthy();
 });
+
+it("says in plain words why nothing is on air, never the server's reason code", async () => {
+  const api = monitorApi();
+  api.reply("/channels/one/now", {
+    evaluatedAt: at("19:50"),
+    currentItem: null,
+    nextItem: null,
+    reason: "schedule_gap",
+  });
+
+  await openMonitor();
+
+  expect(
+    await screen.findByText(
+      "Nothing is scheduled right now. Add shows on the channel's Lineup tab.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText(/schedule.gap/)).toBeNull();
+});

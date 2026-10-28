@@ -8,6 +8,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
+import { airingLabel, offAirWords } from "./airing-words.js";
 
 /** Live Monitor's view of one channel's current state; offsets are never advanced by browser time. */
 export function ChannelObservation({ visible }: { visible: boolean }) {
@@ -69,7 +70,7 @@ export function ChannelObservation({ visible }: { visible: boolean }) {
                 <dl className="facts">
                   <dt>On air</dt>
                   <dd>
-                    <strong>{itemLabel(now.data.currentItem)}</strong>
+                    <strong>{airingLabel(now.data.currentItem)}</strong>
                   </dd>
                   <dt>Position</dt>
                   <dd>
@@ -87,14 +88,12 @@ export function ChannelObservation({ visible }: { visible: boolean }) {
                   <dt>Next program</dt>
                   <dd>
                     {now.data.nextItem
-                      ? itemLabel(now.data.nextItem)
+                      ? airingLabel(now.data.nextItem)
                       : "Nothing scheduled next"}
                   </dd>
                 </dl>
               ) : (
-                <p className="empty-state">
-                  Nothing on air. {now.data.reason?.replaceAll("_", " ")}
-                </p>
+                <p className="empty-state">{offAirWords(now.data.reason)}</p>
               )}
               <p className="secondary">
                 As of {displayClockTime(now.data.evaluatedAt)}. Updates every 10
@@ -106,14 +105,4 @@ export function ChannelObservation({ visible }: { visible: boolean }) {
       )}
     </>
   );
-}
-
-/**
- * Names what airs: a program by its title, planned filler as Off air with
- * the resume time the server worded in the programming timezone.
- */
-function itemLabel(item: NonNullable<ChannelState["currentItem"]>): string {
-  return item.type === "filler"
-    ? `Off air — programming resumes at ${item.resumeTime}`
-    : item.title;
 }
