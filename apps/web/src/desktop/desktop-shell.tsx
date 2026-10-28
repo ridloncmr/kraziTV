@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
+import type { Channel } from "../http/contracts/channels.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { Tooltip } from "../controls/tooltip.js";
@@ -16,7 +17,7 @@ import type {
   ProgramId,
   WindowAction,
 } from "./contracts.js";
-import { programs } from "./programs.js";
+import { programById, programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { readWindowMemory, rememberWindows } from "./windows/window-memory.js";
 import { windowReducer } from "./windows/window-state.js";
@@ -66,6 +67,47 @@ export function DesktopShell({
   const openProgram = useCallback(
     (id: ProgramId) => dispatch({ type: "open", id }),
     [],
+  );
+  // The channel Channel Properties shows, as last read; set when My Channels
+  // opens one and whenever the window reads it again.
+  const [propertiesChannel, setPropertiesChannel] = useState<Channel>();
+  /** Opens or focuses Channel Properties on a channel. */
+  const showChannelProperties = useCallback((channel: Channel) => {
+    setPropertiesChannel(channel);
+    dispatch({ type: "open", id: "channel-properties" });
+  }, []);
+  /**
+   * Takes a fresh read of the channel shown. A read of a channel picked
+   * before it is ignored, and one that changed nothing keeps the title and
+   * list from redrawing.
+   */
+  const channelRead = useCallback(
+    (channel: Channel) =>
+      setPropertiesChannel((current) =>
+        current?.id !== channel.id ||
+        (current.number === channel.number &&
+          current.name === channel.name &&
+          current.enabled === channel.enabled)
+          ? current
+          : channel,
+      ),
+    [],
+  );
+  /** Closes Channel Properties, as after its channel is deleted. */
+  const closeChannelProperties = useCallback(
+    () => dispatch({ type: "close", id: "channel-properties" }),
+    [],
+  );
+  const propertiesOpen = windows.some(
+    (window) => window.id === "channel-properties",
+  );
+  /** A window's title: Channel Properties names its channel, as XP's did. */
+  const titleOf = useCallback(
+    (id: ProgramId) =>
+      id === "channel-properties" && propertiesChannel
+        ? `${propertiesChannel.name} Properties`
+        : programById(id).name,
+    [propertiesChannel],
   );
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
@@ -150,7 +192,8 @@ export function DesktopShell({
             <AppWindow
               key={window.id}
               window={window}
-              program={programs.find((program) => program.id === window.id)!}
+              program={programById(window.id)}
+              title={titleOf(window.id)}
               avatarId={account.avatarId}
               active={activeId === window.id}
               index={windows.indexOf(window)}
@@ -168,6 +211,12 @@ export function DesktopShell({
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   openProgram={openProgram}
+                  propertiesChannel={
+                    propertiesOpen ? propertiesChannel : undefined
+                  }
+                  showChannelProperties={showChannelProperties}
+                  channelRead={channelRead}
+                  closeChannelProperties={closeChannelProperties}
                 />
               </RefreshScope>
             </AppWindow>
@@ -175,6 +224,7 @@ export function DesktopShell({
         <Taskbar
           windows={windows}
           activeId={activeId}
+          titleOf={titleOf}
           dispatch={dispatch}
           connection={connection}
           avatarId={account.avatarId}

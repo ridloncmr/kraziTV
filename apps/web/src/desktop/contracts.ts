@@ -1,6 +1,11 @@
-/** Stable singleton program identities; the shell stores presentation only. */
+/**
+ * Stable window identities; the shell stores presentation only. Each is a
+ * singleton: Channel Properties shows whichever channel My Channels last
+ * opened in it.
+ */
 export type ProgramId =
   | "channels"
+  | "channel-properties"
   | "media"
   | "collections"
   | "guide"
@@ -39,4 +44,6 @@ export interface ProgramDefinition {
   name: string;
   description: string;
   group: "Primary" | "Server";
+  /** Where the window first opens, before this browser remembers one; otherwise it cascades. */
+  placement?: Pick<DesktopWindow, "x" | "y" | "width" | "height">;
 }

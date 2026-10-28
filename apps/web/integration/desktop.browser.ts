@@ -374,9 +374,14 @@ for (const viewport of [
       .getByRole("button", { name: "Create channel", exact: true })
       .click();
     await expect(newChannel).toBeHidden();
-    await channels.getByRole("tab", { name: "Lineup" }).click();
-    await channels.getByRole("button", { name: "Add shows…" }).click();
-    const addShows = channels.getByRole("dialog", { name: "Add shows" });
+    // The new channel opens in its own properties window.
+    const properties = page.getByRole("region", {
+      name: "Northwoods TV Properties",
+      exact: true,
+    });
+    await properties.getByRole("tab", { name: "Lineup" }).click();
+    await properties.getByRole("button", { name: "Add shows…" }).click();
+    const addShows = properties.getByRole("dialog", { name: "Add shows" });
     await addShows
       .getByRole("checkbox", { name: /^Northwoods collection/ })
       .check();
@@ -388,21 +393,24 @@ for (const viewport of [
     await addShows.getByRole("button", { name: "Add (1)" }).click();
     await expect(addShows).toBeHidden();
     // The server already generated the schedule; Let it finish just confirms.
-    const rebuild = channels.getByRole("dialog", {
+    const rebuild = properties.getByRole("dialog", {
       name: "Rebuild the schedule",
     });
     await rebuild.getByRole("button", { name: "Rebuild", exact: true }).click();
     await rebuild.getByRole("button", { name: "Close", exact: true }).click();
     await expect(rebuild).toBeHidden();
     await expect(
-      channels
+      properties
         .getByRole("table", { name: "Shows" })
         .getByRole("button", { name: "Northwoods collection", exact: true }),
     ).toBeVisible();
-    await channels.getByRole("tab", { name: "Preview" }).click();
+    await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
-      channels.getByRole("list", { name: "Upcoming turns" }),
+      properties.getByRole("list", { name: "Upcoming turns" }),
     ).toContainText("Northwoods collection");
+    await properties
+      .getByRole("button", { name: "Close Northwoods TV Properties" })
+      .click();
     await channels
       .getByRole("button", { name: "Maximize My Channels" })
       .click();

@@ -13,7 +13,7 @@ import {
   adminFixtures,
   favoritesAssignment,
 } from "../testing/admin-fixtures.js";
-import { ChannelsApp } from "./channels-app.js";
+import { ChannelWindows } from "../testing/channel-windows.js";
 import { openChannelTab } from "../testing/channel-tabs.js";
 
 afterEach(() => {
@@ -56,7 +56,7 @@ it("keeps a saved delete absent and retries cleanup on the same ID", async () =>
     "DELETE",
   );
   vi.stubGlobal("fetch", api.fetch);
-  const view = render(createElement(ChannelsApp, { visible: true }));
+  const view = render(createElement(ChannelWindows));
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
   fireEvent.click(
@@ -65,7 +65,7 @@ it("keeps a saved delete absent and retries cleanup on the same ID", async () =>
   await screen.findByText("Channel deleted. Configuration saved.");
   await screen.findByText(/No channels yet/);
   view.unmount();
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   expect(
     screen.getByRole("button", { name: "Retry runtime cleanup" }),
   ).toBeTruthy();
@@ -105,7 +105,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
     503,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Enable" }));
   await screen.findByText("Channel remains disabled. Re-enable was not saved.");
@@ -131,7 +131,7 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
 
 const ASSIGNMENTS = "/channels/one/programming-assignments";
 
-it("keeps a rejected create in its dialog, then selects the created channel", async () => {
+it("keeps a rejected create in its dialog, then selects and opens the created channel", async () => {
   const api = new BrowserApi();
   api.reply("/channels", []);
   api.reply(
@@ -143,7 +143,7 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
     409,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   fireEvent.click(
     await screen.findByRole("button", { name: "Create a channel…" }),
   );
@@ -163,6 +163,9 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
 
   api.reply("/channels", adminFixtures.channels[0], "POST");
   api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one", adminFixtures.channels[0]);
+  api.reply(ASSIGNMENTS, []);
+  api.reply("/media-collections", []);
   fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await waitFor(() =>
@@ -173,6 +176,8 @@ it("keeps a rejected create in its dialog, then selects the created channel", as
         ?.classList.contains("selected-row"),
     ).toBe(true),
   );
+  // The new channel opens in Channel Properties.
+  await screen.findByRole("heading", { name: "69 · Northwoods TV" });
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ number: "69", name: "Northwoods TV" });
@@ -188,7 +193,7 @@ it("opens a delete confirmation without an earlier action's error", async () => 
     503,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Disable" }));
   await screen.findByText("Disable failed");
@@ -203,7 +208,7 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   const selected = (name: string) =>
     screen
       .getByRole("button", { name })
@@ -224,7 +229,7 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   const under = (name: string) => screen.getByRole("button", { name });
 
   await screen.findByRole("button", { name: "Northwoods TV" });
@@ -246,16 +251,17 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   ).toContain("Northwoods TV");
 });
 
-// The tab names the selected channel's property sheet shows.
+// The tab names Channel Properties shows for the picked channel.
 const tabNames = () => screen.getAllByRole("tab").map((tab) => tab.textContent);
 
 it("opens a channel with an empty lineup on Lineup, without Rules or Preview", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one", adminFixtures.channels[0]);
   api.reply(ASSIGNMENTS, []);
   api.reply("/media-collections", adminFixtures.collections);
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
 
   fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
 
@@ -269,6 +275,8 @@ it("opens a channel with an empty lineup on Lineup, without Rules or Preview", a
 it("shows every tab once the lineup has a show, keeps the chosen tab across channels, and has no schedule debug line", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one", adminFixtures.channels[0]);
+  api.reply("/channels/two", adminFixtures.channels[1]);
   api.reply(ASSIGNMENTS, [favoritesAssignment("chronological")]);
   api.reply("/channels/two/programming-assignments", [
     favoritesAssignment("random"),
@@ -285,7 +293,7 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
     skips: [],
   });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(ChannelsApp, { visible: true }));
+  render(createElement(ChannelWindows));
   fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
 
   // A channel with a show opens on the first tab.
@@ -333,7 +341,11 @@ it("saves the channel's number and name from General with Apply", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
   await waitFor(() =>
-    expect(api.requestsTo("/channels/one")[0]?.body).toEqual({
+    expect(
+      api
+        .requestsTo("/channels/one")
+        .find((request) => request.method === "PATCH")?.body,
+    ).toEqual({
       number: "69",
       name: "Lakeside TV",
     }),

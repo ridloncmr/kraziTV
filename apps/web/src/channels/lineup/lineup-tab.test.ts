@@ -17,7 +17,7 @@ import {
 import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
-import { ChannelsApp } from "../channels-app.js";
+import { ChannelWindows } from "../../testing/channel-windows.js";
 
 afterEach(() => {
   cleanup();
@@ -192,8 +192,8 @@ it("keeps an unsaved order across minimize and restore", async () => {
     target: { value: "random" },
   });
 
-  view.rerender(createElement(ChannelsApp, { visible: false }));
-  view.rerender(createElement(ChannelsApp, { visible: true }));
+  view.rerender(createElement(ChannelWindows, { visible: false }));
+  view.rerender(createElement(ChannelWindows));
 
   await waitFor(() => expect(api.requestsTo(ASSIGNMENTS)).toHaveLength(2));
   expect(

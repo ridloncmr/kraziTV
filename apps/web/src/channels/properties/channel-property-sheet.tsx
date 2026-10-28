@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { TabbedPanel } from "../controls/tabbed-panel.js";
-import type { Channel } from "../http/contracts/channels.js";
-import { GeneralTab } from "./identity/general-tab.js";
-import { LineupTab } from "./lineup/lineup-tab.js";
-import { PreviewTab } from "./preview/preview-tab.js";
-import { useChannelProgramming } from "./use-channel-programming.js";
-import { RulesEditor } from "./rules/rules-editor.js";
-import { SpecialsSection } from "./specials/specials-section.js";
+import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import type { Channel } from "../../http/contracts/channels.js";
+import { GeneralTab } from "../identity/general-tab.js";
+import { LineupTab } from "../lineup/lineup-tab.js";
+import { PreviewTab } from "../preview/preview-tab.js";
+import { useChannelProgramming } from "../use-channel-programming.js";
+import { RulesEditor } from "../rules/rules-editor.js";
+import { SpecialsSection } from "../specials/specials-section.js";
 
 /** One tab of a channel's property sheet. */
 export type ChannelTab =

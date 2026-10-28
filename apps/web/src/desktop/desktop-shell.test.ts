@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { PageRefreshScope } from "../http/resources/refresh-scope.js";
+import { adminFixtures } from "../testing/admin-fixtures.js";
 import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { DesktopShell } from "./desktop-shell.js";
@@ -153,6 +154,8 @@ it("focuses inactive windows by pointer and moves the focused title with the key
   api.reply("/media-items", { items: [], total: 0 });
   api.reply("/media-collections", []);
   vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
   render(
     createElement(DesktopShell, {
       account,
@@ -271,4 +274,85 @@ it("reloads a window brought to the front, and every open window when the browse
     globalThis.dispatchEvent(new Event("focus"));
   });
   await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(3));
+});
+
+it("opens a picked channel in Channel Properties beside My Channels, follows a rename, and closes when the channel is deleted", async () => {
+  const [northwoods, second] = adminFixtures.channels;
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one", northwoods);
+  api.reply("/channels/two", second);
+  api.reply("/channels/one/programming-assignments", []);
+  api.reply("/channels/two/programming-assignments", []);
+  api.reply("/media-collections", []);
+  vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "My Channels",
+    }),
+  );
+  const list = await screen.findByRole("region", { name: "My Channels" });
+  fireEvent.click(
+    await within(list).findByRole("button", { name: "Northwoods TV" }),
+  );
+  const properties = await screen.findByRole("region", {
+    name: "Northwoods TV Properties",
+  });
+  // It opens to the right of My Channels, so neither hides the other.
+  expect(parseFloat(properties.style.left)).toBeGreaterThanOrEqual(
+    parseFloat(list.style.left) + parseFloat(list.style.width),
+  );
+  const taskbar = screen.getByRole("navigation", { name: "Open programs" });
+  expect(
+    within(taskbar)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual(["My Channels", "Northwoods TV Properties"]);
+
+  // Picking another channel retargets the one window.
+  fireEvent.click(within(list).getByRole("button", { name: "Second channel" }));
+  await screen.findByRole("region", { name: "Second channel Properties" });
+  expect(within(taskbar).getAllByRole("button")).toHaveLength(2);
+
+  // A rename there retitles the window and redraws the list.
+  const renamed = { ...second, name: "Lakeside TV" };
+  api.reply("/channels/two", renamed, "PATCH");
+  api.reply("/channels/two", renamed);
+  api.reply("/channels", [northwoods, renamed]);
+  const sheet = screen.getByRole("region", {
+    name: "Second channel Properties",
+  });
+  // An empty lineup opens on Lineup first.
+  await within(sheet).findByText(/No shows yet/);
+  fireEvent.click(within(sheet).getByRole("tab", { name: "General" }));
+  fireEvent.change(within(sheet).getByLabelText("Name"), {
+    target: { value: "Lakeside TV" },
+  });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Apply" }));
+  await screen.findByRole("region", { name: "Lakeside TV Properties" });
+  await within(list).findByRole("button", { name: "Lakeside TV" });
+
+  // Deleting the channel it shows closes it.
+  api.reply("/channels/two", undefined, "DELETE", 204);
+  api.reply("/channels", [northwoods]);
+  fireEvent.click(within(list).getByRole("button", { name: "Delete…" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Delete channel permanently" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("region", { name: "Lakeside TV Properties" }),
+    ).toBeNull(),
+  );
 });

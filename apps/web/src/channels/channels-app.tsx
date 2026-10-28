@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps } from "../controls/row-click.js";
 import { RowMenu } from "../controls/row-menu.js";
@@ -9,17 +9,30 @@ import type { Channel } from "../http/contracts/channels.js";
 import type { ProgrammingRebuild } from "../http/contracts/programming.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
-import {
-  type ChannelTab,
-  ChannelPropertySheet,
-} from "./channel-property-sheet.js";
 import { CreateChannelDialog } from "./identity/create-channel-dialog.js";
 import { useCleanupRetries } from "./use-cleanup-retries.js";
 
-/** Channel lifecycle feedback distinguishes persisted identity changes from unfinished runtime cleanup. */
-export function ChannelsApp({ visible }: { visible: boolean }) {
+/**
+ * Channel lifecycle feedback distinguishes persisted identity changes from
+ * unfinished runtime cleanup. Picking a channel opens it in Channel
+ * Properties, a window of its own, so its settings are in view at once.
+ */
+export function ChannelsApp({
+  visible,
+  propertiesChannel,
+  onShowProperties,
+  onCloseProperties,
+}: {
+  visible: boolean;
+  /** The channel Channel Properties shows, as it last read it, while that window is open. */
+  propertiesChannel: Channel | undefined;
+  /** Opens or focuses Channel Properties on a channel. */
+  onShowProperties: (channel: Channel) => void;
+  /** Closes Channel Properties, once the channel it shows is deleted. */
+  onCloseProperties: () => void;
+}) {
   const channels = useResource<Channel[]>("/channels", visible);
-  // Refresh reloads the open channel's tabs too, not just the list.
+  // Refresh reloads everything this window shows.
   const { refresh: refreshWindow } = useRefreshScope();
   const mutation = useMutation();
   const [selected, setSelected] = useState("");
@@ -30,9 +43,21 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
     attempted: boolean;
   }>();
   const [creating, setCreating] = useState(false);
-  // The property sheet's tab stays while the window is open, across channels.
-  const [tab, setTab] = useState<ChannelTab>("general");
+  // A created channel opens in Channel Properties only once the New channel
+  // dialog has returned focus to this window, or that focus would bring this
+  // window back over the one just opened.
+  const created = useRef<Channel>(undefined);
+  useEffect(() => {
+    if (creating || !created.current) return;
+    onShowProperties(created.current);
+    created.current = undefined;
+  }, [creating, onShowProperties]);
   const { refresh } = channels;
+  // Channel Properties read the channel anew, as after a rename there, so
+  // the list reads again to match.
+  useEffect(() => {
+    if (propertiesChannel) refresh();
+  }, [propertiesChannel, refresh]);
   const { remember } = cleanup;
   useEffect(() => {
     const error = mutation.error;
@@ -110,6 +135,11 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
     };
   };
   const selectedActions = selectedChannel && actionsFor(selectedChannel);
+  /** Selects a channel for the buttons under the grid and shows its properties. */
+  const open = (channel: Channel) => {
+    setSelected(channel.id);
+    onShowProperties(channel);
+  };
   return (
     <div className="program-page">
       <div className="program-toolbar">
@@ -197,13 +227,13 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                 <tr
                   key={channel.id}
                   className={`clickable-row${channel.id === selected ? " selected-row" : ""}`}
-                  {...rowClickProps(() => setSelected(channel.id))}
+                  {...rowClickProps(() => open(channel))}
                 >
                   <td className="narrow-column">{channel.number}</td>
                   <td>
                     <button
                       className="text-button"
-                      onClick={() => setSelected(channel.id)}
+                      onClick={() => open(channel)}
                     >
                       {channel.name}
                     </button>
@@ -244,6 +274,7 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
           created={(channel) => {
             setCreating(false);
             setSelected(channel.id);
+            created.current = channel;
             channels.refresh();
           }}
           onClose={() => setCreating(false)}
@@ -277,6 +308,8 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
                   undefined,
                   () => {
                     cleanup.settle(deleting.channel.id, "delete");
+                    if (propertiesChannel?.id === deleting.channel.id)
+                      onCloseProperties();
                     setDeleting(undefined);
                     setSelected("");
                     channels.refresh();
@@ -294,16 +327,6 @@ export function ChannelsApp({ visible }: { visible: boolean }) {
             </button>
           </div>
         </WindowDialog>
-      )}
-      {selectedChannel && (
-        <ChannelPropertySheet
-          key={selectedChannel.id}
-          channel={selectedChannel}
-          visible={visible}
-          tab={tab}
-          onTabChange={setTab}
-          changed={channels.refresh}
-        />
       )}
     </div>
   );
