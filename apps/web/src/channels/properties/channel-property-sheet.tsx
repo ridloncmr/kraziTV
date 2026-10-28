@@ -36,6 +36,7 @@ export function ChannelPropertySheet({
   tab,
   onTabChange,
   changed,
+  onDirtyChange,
 }: {
   channel: Channel;
   visible: boolean;
@@ -43,6 +44,8 @@ export function ChannelPropertySheet({
   onTabChange: (tab: ChannelTab) => void;
   /** Refreshes the channel list after an identity change. */
   changed: () => void;
+  /** Reports whether a tab holds unsaved edits, so closing the window asks first. */
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const programming = useChannelProgramming(channel.id, visible);
   const lineup = programming.assignments.data;
@@ -79,6 +82,7 @@ export function ChannelPropertySheet({
             channelId={channel.id}
             programming={programming}
             visible={visible}
+            onDirtyChange={onDirtyChange}
           />
         )}
         {shown === "rules" && lineup && (

@@ -61,6 +61,7 @@ export const ProgramContents = memo(function ProgramContents({
         channelId={target.objectId}
         visible={visible}
         windows={channelWindows}
+        onDirtyChange={onDirtyChange}
       />
     );
   if (target?.kind === "collection-properties")

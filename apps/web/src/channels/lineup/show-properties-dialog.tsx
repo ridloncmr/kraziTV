@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CheckboxOption } from "../../controls/checkbox-option.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { TabbedPanel } from "../../controls/tabbed-panel.js";
@@ -58,6 +58,7 @@ export function ShowPropertiesDialog({
   marathons,
   visible,
   changed,
+  onDirtyChange,
   onClose,
 }: {
   assignmentsPath: string;
@@ -74,6 +75,8 @@ export function ShowPropertiesDialog({
   visible: boolean;
   /** Runs after every write the server accepted. */
   changed: () => void;
+  /** Reports whether the draft holds edits not yet saved, so closing the window asks first. */
+  onDirtyChange: (dirty: boolean) => void;
   /** Closes the dialog, saying whether any save in it changed what airs. */
   onClose: (programmingChanged: boolean) => void;
 }) {
@@ -85,6 +88,14 @@ export function ShowPropertiesDialog({
   const tabsId = useId();
   const [tab, setTab] = useState<ShowTab>("general");
   const [draft, setDraft] = useState<ShowDraft>(() => toShowDraft(assignment));
+  // The draft as last saved here, so Apply leaves nothing unsaved even when
+  // the server stores it differently, such as a trimmed name.
+  const [savedDraft, setSavedDraft] = useState(draft);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(savedDraft);
+  useEffect(() => {
+    onDirtyChange(dirty);
+    return () => onDirtyChange(false);
+  }, [dirty, onDirtyChange]);
   // Names of members picked here, which the lineup has not read.
   const [pickedNames, setPickedNames] = useState<ReadonlyMap<string, string>>(
     new Map(),
@@ -162,7 +173,9 @@ export function ShowPropertiesDialog({
           }
           const closing = closeAfterSave.current;
           const airs = changesProgramming(assignment, draft);
-          void mutation.run(assignmentPath, "PATCH", toSettings(draft), () => {
+          const sent = draft;
+          void mutation.run(assignmentPath, "PATCH", toSettings(sent), () => {
+            setSavedDraft(sent);
             setSaves((count) => count + 1);
             if (airs) programmingSaved();
             else changed();

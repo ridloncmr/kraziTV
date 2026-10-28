@@ -14,17 +14,20 @@ import {
  * The Channel Properties window: one channel's property sheet, in its own
  * window beside My Channels. It reads the channel itself for the title bar,
  * and reports an identity change saved here so My Channels reads its list
- * again. The tab stays while the window is open.
+ * again. The tab stays while the window is open. An unsaved show goes to
+ * `onDirtyChange`, so closing the window asks first.
  */
 export function ChannelPropertiesApp({
   channelId,
   visible,
   windows,
+  onDirtyChange,
 }: {
   channelId: string;
   visible: boolean;
   /** Channel Properties windows: this one's title and My Channels' list follow its saves. */
   windows: PropertiesWindows;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const channel = useResource<Channel>(
     resourcePath("channels", channelId),
@@ -55,6 +58,7 @@ export function ChannelPropertiesApp({
           visible={visible}
           tab={tab}
           onTabChange={setTab}
+          onDirtyChange={onDirtyChange}
           changed={() => {
             channel.refresh();
             changed();

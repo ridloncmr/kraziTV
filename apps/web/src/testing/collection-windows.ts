@@ -1,11 +1,11 @@
-import { createElement, Fragment, useCallback } from "react";
+import { createElement, Fragment } from "react";
 import { CollectionsApp } from "../collections/collections-app.js";
 import { CollectionPropertiesApp } from "../collections/properties/collection-properties-app.js";
-import type { WindowId } from "../desktop/contracts.js";
 import { propertiesTarget } from "../desktop/programs.js";
-import { usePropertiesTestWindows } from "./properties-test-windows.js";
-
-type TestWindows = ReturnType<typeof usePropertiesTestWindows>;
+import {
+  PropertiesTestWindow,
+  usePropertiesTestWindows,
+} from "./properties-test-windows.js";
 
 /**
  * Collections beside a Collection Properties window per opened collection,
@@ -26,43 +26,19 @@ export function CollectionWindows({
     null,
     createElement(CollectionsApp, { visible, windows: windows.collections }),
     ...windows.open.map((id) =>
-      createElement(CollectionWindow, {
+      createElement(PropertiesTestWindow, {
         key: id,
         id,
-        visible,
         windows,
-        onOpenChannels,
+        render: (onDirtyChange) =>
+          createElement(CollectionPropertiesApp, {
+            collectionId: propertiesTarget(id)!.objectId,
+            visible,
+            windows: windows.collections,
+            onDirtyChange,
+            onOpenChannels,
+          }),
       }),
     ),
-  );
-}
-
-/** One Collection Properties window, with a stable unsaved callback as the shell gives it. */
-function CollectionWindow({
-  id,
-  visible,
-  windows,
-  onOpenChannels,
-}: {
-  id: WindowId;
-  visible: boolean;
-  windows: TestWindows;
-  onOpenChannels?: () => void;
-}) {
-  const { markUnsaved } = windows;
-  const onDirtyChange = useCallback(
-    (dirty: boolean) => markUnsaved(id, dirty),
-    [id, markUnsaved],
-  );
-  return createElement(
-    "section",
-    { "aria-label": windows.titleOf(id) },
-    createElement(CollectionPropertiesApp, {
-      collectionId: propertiesTarget(id)!.objectId,
-      visible,
-      windows: windows.collections,
-      onDirtyChange,
-      onOpenChannels,
-    }),
   );
 }

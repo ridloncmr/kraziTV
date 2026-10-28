@@ -11,7 +11,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { PageRefreshScope } from "../http/resources/refresh-scope.js";
-import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
+import {
+  adminFixtures,
+  collectionWith,
+  favoritesAssignment,
+} from "../testing/admin-fixtures.js";
 import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { serveCollection } from "../testing/collection-api.js";
@@ -459,4 +463,85 @@ it("opens a collection in its own Collection Properties, and asks before closing
   ).toBeNull();
   // Nothing was saved.
   expect(api.requests.some((request) => request.method === "PUT")).toBe(false);
+});
+
+it("asks before closing a Channel Properties window whose open show has unsaved changes, and not once they are applied", async () => {
+  const assignments = "/channels/one/programming-assignments";
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one", adminFixtures.channels[0]);
+  api.reply(assignments, [favoritesAssignment("chronological")]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.handle(
+    `${assignments}/assignment`,
+    () => {
+      const saved = favoritesAssignment("random");
+      api.reply(assignments, [saved]);
+      return api.response(saved);
+    },
+    "PATCH",
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "My Channels",
+    }),
+  );
+  const list = await screen.findByRole("region", { name: "My Channels" });
+  fireEvent.doubleClick(
+    await within(list).findByRole("button", { name: "Northwoods TV" }),
+  );
+  const window = await screen.findByRole("region", {
+    name: "Northwoods TV Properties",
+  });
+  fireEvent.click(await within(window).findByRole("tab", { name: "Lineup" }));
+  fireEvent.doubleClick(
+    await within(window).findByRole("button", { name: "Favorites" }),
+  );
+  const show = within(window).getByRole("dialog", { name: "Favorites" });
+  fireEvent.change(within(show).getByLabelText("Play order"), {
+    target: { value: "random" },
+  });
+  const close = () =>
+    fireEvent.click(
+      within(window).getByRole("button", {
+        name: "Close Northwoods TV Properties",
+      }),
+    );
+
+  close();
+  const confirm = within(window).getByRole("dialog", {
+    name: "Unsaved changes",
+  });
+  expect(confirm.textContent).toContain(
+    "Discard your unsaved changes to Northwoods TV?",
+  );
+  fireEvent.click(
+    within(confirm).getByRole("button", { name: "Keep editing" }),
+  );
+  // The show still holds the edit.
+  expect(
+    within(show).getByLabelText<HTMLSelectElement>("Play order").value,
+  ).toBe("random");
+
+  // Apply leaves the show open; once its save lands, which the lineup
+  // reading again shows, nothing is unsaved.
+  const reads = api.requestsTo(assignments).length;
+  fireEvent.click(within(show).getByRole("button", { name: "Apply" }));
+  await waitFor(() =>
+    expect(api.requestsTo(assignments).length).toBeGreaterThan(reads),
+  );
+  close();
+  expect(
+    screen.queryByRole("region", { name: "Northwoods TV Properties" }),
+  ).toBeNull();
 });

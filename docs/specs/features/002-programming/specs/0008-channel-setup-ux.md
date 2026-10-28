@@ -325,7 +325,8 @@ None.
 - Per-sitting presets read in movies for a movie show, in episodes for an
   episode show, and in programs otherwise, in both Properties and the lineup.
 - **Properties** edits one assignment in a window dialog that writes only on
-  **OK** or **Apply**; **Cancel** discards every change.
+  **OK** or **Apply**; **Cancel** discards every change. Closing the Channel
+  Properties window while it holds unsaved changes asks first.
 - Members, rule-only participation, marathon length override, collection
   preview, and restart from the beginning are reachable under **Advanced**.
 - Per sitting offers presets and **Custom…**; a saved custom value round-trips

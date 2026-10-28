@@ -37,10 +37,13 @@ export function LineupTab({
   channelId,
   programming,
   visible,
+  onDirtyChange,
 }: {
   channelId: string;
   programming: ChannelProgramming;
   visible: boolean;
+  /** Reports whether an open show holds unsaved edits, so closing the window asks first. */
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const { assignments, collections, assignmentsPath, changed } = programming;
   const listed = assignments.data ?? [];
@@ -212,6 +215,7 @@ export function LineupTab({
           key={edited.id}
           assignmentsPath={assignmentsPath}
           assignment={edited}
+          onDirtyChange={onDirtyChange}
           title={showName(edited)}
           collections={collections.data}
           memberName={memberName}
