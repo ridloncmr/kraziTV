@@ -1,0 +1,10 @@
+# Only what `npm ci` and `npm run build` need goes to the build stage.
+**/node_modules
+**/dist
+data
+**/data
+.git
+.env
+.env.*
+!.env.example
+*.log

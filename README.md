@@ -144,6 +144,30 @@ and catalog queries against SQLite), scheduling, playout, Plex formatting,
 shared-signal runtime primitives, server configuration, and browser interaction
 contracts. Real Plex compatibility and external-binary suites remain separate.
 
+## Run With Docker
+
+The image holds the server, the web app, and FFmpeg.
+
+```bash
+docker build -t krazitv .
+docker run -d --name krazitv -p 3000:3000 \
+  -v krazitv-data:/data \
+  -v /path/to/media:/media:ro \
+  -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
+  -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
+  krazitv
+```
+
+- Open kraziTV at `PUBLIC_BASE_URL`. Writes from any other address are
+  refused, so the logon screen links there instead. Left unset, it is
+  `http://127.0.0.1:3000`, which works only from the same computer.
+- Add `/media` (or whatever you mounted) as a media root in Media Library.
+- Data lives in the `/data` volume. The server runs as the image's `node`
+  user (uid 1000); a host folder bind-mounted there must be writable by it. Set `KRAZITV_PROGRAMMING_TIMEZONE`, since
+  containers usually report UTC.
+- To reset the password, run
+  `docker exec -it krazitv node apps/server/dist/reset-password.js`.
+
 ## License
 
 kraziTV is source-available under the
