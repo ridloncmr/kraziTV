@@ -57,7 +57,8 @@ export interface SignalPreparation {
   /**
    * Synchronously and irrevocably makes this item the session's output,
    * starting it and truncating the previous item. If the previous item ended
-   * first, output stays open and idle until this commit.
+   * first, output stays open and idle until this commit. A preparation whose
+   * process already failed commits its stand-in.
    */
   commit(): void;
   /** Releases an uncommitted preparation. This operation is idempotent. */
@@ -70,7 +71,10 @@ export interface SignalSession {
   /**
    * Settles only when the whole session ends through stop or fatal failure.
    * Ending an individual item, or any FFmpeg process that served it, is
-   * internal to the session and must not settle completion.
+   * internal to the session and must not settle completion. An item whose
+   * media is missing, or whose process fails before or after its commit,
+   * airs a stand-in card until the next commit instead (ADR 0020); only a
+   * stand-in that fails too is fatal.
    */
   readonly completion: Promise<void>;
   readonly output: Readable;

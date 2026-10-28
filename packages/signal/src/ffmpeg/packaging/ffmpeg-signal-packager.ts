@@ -3,7 +3,11 @@ import {
   type ProcessSpawner,
 } from "@krazitv/process";
 
-import { buildFfmpegArguments, sessionBacklogMs } from "./ffmpeg-arguments.js";
+import {
+  buildFfmpegArguments,
+  buildStandInArguments,
+  sessionBacklogMs,
+} from "./ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
 import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
 import { itemContext } from "./item-log-context.js";
@@ -20,6 +24,11 @@ import type {
 
 type FfmpegSignalPackagerDependencies = {
   spawner: ProcessSpawner;
+  /**
+   * Whether a prepared program's media can be read, checked before its
+   * FFmpeg process starts so a missing file prepares a stand-in instead.
+   */
+  isMediaPresent: (mediaPath: string) => Promise<boolean>;
   timers: TimerScheduler;
   /** Times how long a first viewer's tune is held for the burst backlog. */
   clock: Clock;
@@ -79,7 +88,10 @@ export class FfmpegSignalPackager implements SignalPackager {
    * the session starts prepared items normally.
    */
   start(initialItem: SignalPlayoutItem): SignalSession {
-    const process = this.startProcess(initialItem, true);
+    const process = this.spawnFor(
+      initialItem,
+      this.argumentsFor(initialItem, true),
+    );
     const createReadinessInspector =
       this.dependencies.createReadinessInspector ??
       (() => new MpegTsReadinessInspector());
@@ -89,7 +101,16 @@ export class FfmpegSignalPackager implements SignalPackager {
         this.dependencies.createReadinessInspector?.() ??
         this.initialReadinessInspector(initialItem),
       createReadinessInspector,
-      startProcess: (item) => this.startProcess(item, false),
+      startProcess: (item) =>
+        this.spawnFor(item, this.argumentsFor(item, false)),
+      startStandIn: (item) =>
+        this.spawnFor(
+          item,
+          buildStandInArguments(item, {
+            fontFile: this.dependencies.fillerFontFile,
+          }),
+        ),
+      isMediaPresent: this.dependencies.isMediaPresent,
       timers: this.dependencies.timers,
       itemReadinessTimeoutMs: this.itemReadinessTimeoutMs,
       preparedOutputLimitBytes: this.preparedOutputLimitBytes,
@@ -127,16 +148,16 @@ export class FfmpegSignalPackager implements SignalPackager {
   }
 
   /**
-   * Starts one item's FFmpeg process, whose normal exit remains internal to
-   * its session. Building the argv validates the item first, so an invalid
-   * one is refused before anything is spawned.
+   * Starts one FFmpeg process for an item, whose normal exit remains internal
+   * to its session. Callers build the argv first, which validates the item,
+   * so an invalid one is refused before anything is spawned.
    */
-  private startProcess(
+  private spawnFor(
     item: SignalPlayoutItem,
-    startsSession: boolean,
+    args: readonly string[],
   ): FfmpegProcess {
     const process = FfmpegProcess.start({
-      args: this.argumentsFor(item, startsSession),
+      args,
       spawner: this.dependencies.spawner,
       timers: this.dependencies.timers,
       logger: this.dependencies.logger,

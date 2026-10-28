@@ -1,3 +1,5 @@
+import { access, constants } from "node:fs/promises";
+
 import { NodeProcessSpawner } from "@krazitv/process";
 
 import { FfmpegSignalPackager } from "./ffmpeg/packaging/ffmpeg-signal-packager.js";
@@ -24,6 +26,7 @@ export function createFfmpegSignalPackager(
 ): SignalPackager {
   return new FfmpegSignalPackager({
     spawner: new NodeProcessSpawner(),
+    isMediaPresent: isReadableFile,
     timers: options.timers,
     clock: options.clock,
     logger: options.logger,
@@ -32,4 +35,20 @@ export function createFfmpegSignalPackager(
     itemReadinessTimeoutMs: options.itemReadinessTimeoutMs,
     fillerFontFile: options.fillerFontFile,
   });
+}
+
+/**
+ * Reports a file as missing only when the filesystem says it is absent or
+ * unreadable. Any other error, such as a flaky mount, is left for FFmpeg to
+ * report. Asynchronous, so a stalled mount blocks a worker thread, never the
+ * event loop.
+ */
+async function isReadableFile(path: string): Promise<boolean> {
+  try {
+    await access(path, constants.R_OK);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return !(code === "ENOENT" || code === "ENOTDIR" || code === "EACCES");
+  }
 }

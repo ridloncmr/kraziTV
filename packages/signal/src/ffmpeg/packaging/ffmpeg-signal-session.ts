@@ -1,6 +1,10 @@
 import { PassThrough, type Readable } from "node:stream";
 
-import { packagingStoppedError, toSignalError } from "../../errors.js";
+import {
+  packagingStoppedError,
+  SignalError,
+  toSignalError,
+} from "../../errors.js";
 import type {
   SignalPlayoutItem,
   SignalPreparation,
@@ -25,9 +29,20 @@ import {
   preparedOutputOverflow,
 } from "./packaging-errors.js";
 
+/**
+ * How long a prepared program's media check may take before its FFmpeg
+ * process starts anyway. A stalled network mount must not hold the
+ * preparation, so an unanswered check means FFmpeg itself finds out.
+ */
+const MEDIA_CHECK_TIMEOUT_MS = 2_000;
+
 /** One FFmpeg process the session owns and how its output reaches the session. */
 type ProcessBinding = {
   process: FfmpegProcess;
+  /** The item it serves, which a stand-in replacing it serves too. */
+  item: SignalPlayoutItem;
+  /** Whether it is a stand-in, which nothing replaces in turn. */
+  standIn: boolean;
   forwarder: MpegTsPacketForwarder;
   /** Where a prepared process's output waits for its commit; none once live. */
   held: HeldOutput | undefined;
@@ -55,6 +70,10 @@ type FfmpegSignalSessionOptions = {
   createReadinessInspector: () => OutputReadinessInspector;
   /** Validates an item by building its argv, then starts its FFmpeg process. */
   startProcess: (item: SignalPlayoutItem) => FfmpegProcess;
+  /** Starts the offline card for an item that cannot air. */
+  startStandIn: (item: SignalPlayoutItem) => FfmpegProcess;
+  /** Whether a program's media can be read before its process starts. */
+  isMediaPresent: (mediaPath: string) => Promise<boolean>;
   timers: TimerScheduler;
   /** How long a prepared process may stay silent, from its start, before it fails. */
   itemReadinessTimeoutMs: number;
@@ -83,6 +102,8 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   private readonly stopAttempt = new RetryableAttempt();
   private active: ProcessBinding;
   private preparation: PreparedItem | undefined;
+  /** Set while a prepare waits on its media check, which counts as outstanding. */
+  private checkingMedia = false;
 
   /** Attaches the initial FFmpeg process before exposing the session-owned stream. */
   constructor(
@@ -115,14 +136,29 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
    * commit (ADR 0016), so a commit at a boundary known a lead ahead switches
    * to a process already producing packets. Resolves as soon as the process
    * is started: readiness is observed while the output is held, and a
-   * process that fails or stays silent before its commit fails that commit.
+   * process that fails or stays silent before its commit airs a stand-in at
+   * that commit. A program whose media cannot be read prepares its stand-in
+   * instead of FFmpeg (ADR 0020), so even that boundary is seamless.
    */
   async prepare(item: SignalPlayoutItem): Promise<SignalPreparation> {
     this.assertRunning();
-    if (this.preparation !== undefined) {
+    if (this.preparation !== undefined || this.checkingMedia) {
       throw new Error("Session already has an outstanding preparation");
     }
-    const process = this.options.startProcess(item);
+    this.checkingMedia = true;
+    let present: boolean;
+    try {
+      present = await this.mediaPresent(item);
+    } finally {
+      this.checkingMedia = false;
+    }
+    this.assertRunning();
+    if (!present) {
+      this.options.logger.warn("signal_media_missing", itemContext(item));
+    }
+    const process = present
+      ? this.options.startProcess(item)
+      : this.options.startStandIn(item);
     const held = new HeldOutput(this.options.preparedOutputLimitBytes, () =>
       this.fail(preparedOutputOverflow()),
     );
@@ -134,6 +170,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
         this.options.createReadinessInspector(),
         held,
         held,
+        !present,
       ),
     };
     this.preparation = prepared;
@@ -158,30 +195,34 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   /**
    * Makes the prepared process the broadcast's source: the previous process's
    * finished packets go out, then everything the prepared one held, then its
-   * live output (ADR 0016). A prepared process that already failed fails the
-   * session here, as one that could not start did.
+   * live output (ADR 0016). A prepared process that already failed is
+   * replaced by its stand-in here (ADR 0020), so the boundary still lands.
    */
   commitPreparation(preparation: FfmpegSignalPreparation): void {
     this.assertRunning();
     const { binding } = this.currentPreparation(preparation);
     this.preparation = undefined;
-    if (binding.failure !== undefined) {
+
+    const previous = this.active;
+    previous.cancelReadiness();
+    previous.forwarder.detach();
+    if (binding.failure === undefined) {
+      binding.committed = true;
+      this.active = binding;
+      binding.held?.release(this.continuity);
+      binding.held = undefined;
+    } else if (binding.standIn) {
       const failure = toSignalError(
         binding.failure,
         "packaging_failed",
-        "Prepared FFmpeg process failed before its commit",
+        "Prepared stand-in failed before its commit",
         binding.context,
       );
       this.fail(failure);
       throw failure;
+    } else {
+      this.replaceWithStandIn(binding, binding.failure);
     }
-
-    const previous = this.active;
-    previous.forwarder.detach();
-    binding.committed = true;
-    this.active = binding;
-    binding.held?.release(this.continuity);
-    binding.held = undefined;
     this.options.logger.info("signal_transition_committed", binding.context);
     void previous.process.stop().catch((error: unknown) => this.fail(error));
   }
@@ -206,10 +247,11 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
 
   /**
    * Attaches packet forwarding to `sink` and observes one FFmpeg process as
-   * session-internal, judging its readiness with `inspector`. The initial process settles the session's readiness. A
-   * prepared one, holding its output in `held`, must produce usable output
-   * within the readiness timeout of its start; a failure before its commit is
-   * kept for that commit to report, and one after ends the session.
+   * session-internal, judging its readiness with `inspector`. A live process
+   * settles the session's readiness. A prepared one, holding its output in
+   * `held`, must produce usable output within the readiness timeout of its
+   * start; a failure before its commit is kept for that commit to handle, and
+   * one while airing brings in a stand-in.
    */
   private attach(
     process: FfmpegProcess,
@@ -217,6 +259,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     inspector: OutputReadinessInspector,
     sink: PacketSink,
     held: HeldOutput | undefined,
+    standIn = false,
   ): ProcessBinding {
     const forwarder = new MpegTsPacketForwarder(process.output, sink);
     const context = itemContext(item);
@@ -229,7 +272,9 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       usableOutputSeen = true;
       cancelReadiness();
       if (held === undefined) {
-        this.options.logger.info("signal_initial_output_ready", context);
+        if (!this.readySettled) {
+          this.options.logger.info("signal_initial_output_ready", context);
+        }
         this.settleReadySuccessfully();
       } else {
         this.options.logger.info("signal_prepared_item_ready", context);
@@ -242,6 +287,8 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     };
     const binding: ProcessBinding = {
       process,
+      item,
+      standIn,
       forwarder,
       held,
       context,
@@ -249,13 +296,17 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       discarded: false,
       cancelReadiness,
     };
-    // A failure once the process feeds the broadcast ends the session. Before
-    // that it is kept for the commit to report, and the process is stopped,
-    // while the airing item plays on; a discarded preparation reports nothing.
+    // A failure while the process feeds the broadcast brings in a stand-in,
+    // and one of the stand-in itself ends the session; a process already
+    // replaced no longer matters. Before its commit a failure is kept for that
+    // commit, and the process is stopped, while the airing item plays on; a
+    // discarded preparation reports nothing.
     const failed = (error: unknown): void => {
       cancelReadiness();
       if (binding.committed) {
-        this.fail(error);
+        if (binding !== this.active) return;
+        if (binding.standIn) this.fail(error);
+        else this.replaceWithStandIn(binding, error);
         return;
       }
       if (binding.discarded || binding.failure !== undefined) return;
@@ -287,6 +338,60 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       },
     );
     return binding;
+  }
+
+  /**
+   * Airs the offline card in place of an item whose FFmpeg process failed, so one bad file never ends the broadcast signal (ADR 0020). The
+   * stand-in runs until the worker's next commit, as the item would have;
+   * one that cannot start ends the session.
+   */
+  private replaceWithStandIn(failed: ProcessBinding, error: unknown): void {
+    if (this.stopping || this.completionSettled) return;
+    failed.forwarder.detach();
+    void failed.process.stop().catch(() => undefined);
+    this.options.logger.warn("signal_item_replaced_by_stand_in", {
+      ...failed.context,
+      ...failureSummary(error),
+    });
+    let process: FfmpegProcess;
+    try {
+      process = this.options.startStandIn(failed.item);
+    } catch (cause) {
+      this.fail(cause);
+      return;
+    }
+    this.active = this.attach(
+      process,
+      failed.item,
+      this.options.createReadinessInspector(),
+      this.continuity,
+      undefined,
+      true,
+    );
+  }
+
+  /**
+   * Answers whether a program's media can be read, within the check's
+   * timeout; filler reads nothing. A check that errors or stays unanswered
+   * counts as present, so only a clear "missing" skips FFmpeg.
+   */
+  private async mediaPresent(item: SignalPlayoutItem): Promise<boolean> {
+    if (item.kind === "filler") return true;
+    let timer: ScheduledTask | undefined;
+    const unanswered = new Promise<boolean>((resolve) => {
+      timer = this.options.timers.setTimeout(
+        () => resolve(true),
+        MEDIA_CHECK_TIMEOUT_MS,
+      );
+    });
+    try {
+      return await Promise.race([
+        this.options.isMediaPresent(item.mediaPath).catch(() => true),
+        unanswered,
+      ]);
+    } finally {
+      timer?.cancel();
+    }
   }
 
   /** Resolves initial readiness once without affecting later item inspection. */
@@ -350,4 +455,13 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     }
     return this.preparation;
   }
+}
+
+/** Names why an item failed in a log without carrying its stderr or cause. */
+function failureSummary(error: unknown): LogContext {
+  if (!(error instanceof SignalError)) return { code: "packaging_failed" };
+  const { reason } = error.details;
+  return reason === undefined
+    ? { code: error.code }
+    : { code: error.code, reason };
 }
