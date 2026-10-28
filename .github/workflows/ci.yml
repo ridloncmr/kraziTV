@@ -57,3 +57,40 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  browser:
+    name: Browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The suite imports the server's source, which resolves workspace
+      # packages through their built dist/.
+      - name: Build workspace packages
+        run: npm run build:node
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: npm run test:browser --workspace @krazitv/web
+
+      - name: Upload traces from failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results
+          path: data/web-browser-results/
+          if-no-files-found: ignore

@@ -129,7 +129,7 @@ same-origin requests. After `npm run build`, `npm start --workspace
 @krazitv/server` serves the web app and the API together on one port
 ([ADR 0019](docs/adrs/0019-same-origin-web-app-and-container.md)).
 For Chromium verification, run `npx playwright install chromium` and
-`npm run test:browser --workspace @krazitv/web`. This opt-in suite uses real
+`npm run test:browser --workspace @krazitv/web`. This suite uses real
 Fastify routes and SQLite, with the existing controlled probe adapter, and writes
 desktop/guide screenshots under `data/`. It does not tune Plex or test FFmpeg.
 
@@ -138,8 +138,9 @@ Browser CORS access defaults to the local Web UI at
 allowed origins when the UI is served elsewhere. CORS is not authentication and
 does not make a network-exposed API safe.
 
-CI runs install, formatting, typecheck, test, and build checks on every pull
-request and on pushes to `main`. Automated tests cover the local media catalog
+CI runs install, formatting, typecheck, test, and build checks, and the
+Chromium browser suite in a parallel job, on every pull request and on pushes
+to `main`. Automated tests cover the local media catalog
 end to end (media roots, discovery, probing through a controlled double, scans,
 and catalog queries against SQLite), scheduling, playout, Plex formatting,
 shared-signal runtime primitives, server configuration, and browser interaction
