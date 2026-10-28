@@ -1,6 +1,8 @@
 // Real-FFmpeg helpers shared by this package's opt-in integration suites; nothing under src/ imports them.
 import { spawnSync } from "node:child_process";
 
+import { expect } from "vitest";
+
 import {
   createChannelStreamManager,
   createFfmpegSignalPackager,
@@ -58,6 +60,18 @@ export function runFfmpeg(
     );
   }
   return result.stderr;
+}
+
+/**
+ * Asserts FFmpeg decoded a capture cleanly from its report: no corrupt
+ * frame, and no timestamp running backward at a splice, which browser
+ * players cannot play past (ADR 0021).
+ */
+export function expectCleanDecode(analysis: string): void {
+  expect(analysis).not.toMatch(/corrupt/i);
+  expect(analysis).not.toMatch(
+    /out of order|non monoton|timestamp discontinuity/i,
+  );
 }
 
 /** Lets a real broadcast run for a fixed wall-clock span. */

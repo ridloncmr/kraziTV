@@ -10,6 +10,7 @@ import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transiti
 import {
   CHANNEL,
   current,
+  expectCleanDecode,
   program,
   runFfmpeg,
   startManager,
@@ -131,6 +132,6 @@ describe("real FFmpeg boundary", () => {
     // Tone on both sides of the boundary: the timeline has no hole, and the
     // splice left no corrupt frame.
     expect(analysis).not.toMatch(/silence_start/);
-    expect(analysis).not.toMatch(/corrupt/i);
+    expectCleanDecode(analysis);
   }, 45_000);
 });

@@ -5,7 +5,11 @@ import { FakeClock } from "../../testing/fake-clock.js";
 import { MarkerReadinessInspector } from "../../testing/marker-readiness-inspector.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
-import { VIDEO_PID } from "../mpeg-ts/mpeg-ts-packet-run.js";
+import {
+  VIDEO_PID,
+  pesTimestampFields,
+  readTimestamp,
+} from "../mpeg-ts/mpeg-ts-packet-run.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
@@ -652,6 +656,45 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
     expect(Buffer.concat(forwarded)).toEqual(Buffer.concat([held, packet(5)]));
     expect(first.terminationSignals).toEqual(["SIGTERM"]);
+    first.exit({ code: null, signal: "SIGTERM" });
+    await flushMicrotasks(2);
+  });
+
+  it("continues the airing item's timestamps when the committed process starts its own over", async () => {
+    const { child: first, spawner, packager } = createHarness();
+    const second = new FakeProcess();
+    spawner.enqueue(second);
+    const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    // Every FFmpeg process stamps its first frame at 1.4 s.
+    const frameAt = (dts: number) =>
+      transportPacket({ pid: VIDEO_PID, pts: dts, dts });
+    first.writeStdout(Buffer.concat([frameAt(126_000), frameAt(129_000)]));
+    first.writeStdout(frameAt(132_000));
+    await flushMicrotasks(2);
+
+    const preparation = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-2" }),
+    );
+    second.writeStdout(Buffer.concat([frameAt(126_000), frameAt(129_000)]));
+    await flushMicrotasks(2);
+    preparation.commit();
+    // Starting a third frame finishes the second.
+    second.writeStdout(frameAt(132_000));
+    await flushMicrotasks(2);
+
+    // The first process's last frame was unfinished, so the commit dropped
+    // it, and the committed process's frames follow the last one written.
+    const written = Buffer.concat(forwarded);
+    const dtsValues = [];
+    for (let offset = 0; offset < written.byteLength; offset += 188) {
+      const fields = pesTimestampFields(written, offset);
+      if (fields?.dtsAt !== undefined) {
+        dtsValues.push(readTimestamp(written, fields.dtsAt));
+      }
+    }
+    expect(dtsValues).toEqual([126_000, 129_000, 132_000, 135_000]);
     first.exit({ code: null, signal: "SIGTERM" });
     await flushMicrotasks(2);
   });

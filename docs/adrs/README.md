@@ -28,6 +28,7 @@ Each ADR's status is the `## Status` section of the ADR itself.
 | [0018](0018-join-backlog.md)                           | A tuned viewer joins about ten seconds behind the live edge        |
 | [0019](0019-same-origin-web-app-and-container.md)      | The server serves the built web app; one image holds everything    |
 | [0020](0020-failed-item-stand-in.md)                   | A failed item airs a stand-in instead of ending the broadcast      |
+| [0021](0021-continuous-splice-timestamps.md)           | Splices continue one forward timestamp timeline                    |
 
 ## Format
 
