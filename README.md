@@ -172,9 +172,11 @@ docker run -d --name krazitv -p 3000:3000 \
 
 ## License
 
-kraziTV is source-available under the
-[PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and
-redistribute it for noncommercial purposes. Commercial use is not licensed.
+Copyright (c) 2026 Christian Ridlon. kraziTV is free software under the
+[GNU Affero General Public License, version 3 or later](LICENSE). You may use,
+modify, and redistribute it, commercially or not. If you distribute it, or run
+a modified version that others use over a network, you must offer them its
+source under the same license.
 
 Third-party material retains its own license and attribution notices. In
 particular, the adapted agent skills are covered by the complete MIT notice in

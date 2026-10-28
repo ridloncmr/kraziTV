@@ -2,7 +2,7 @@
 
 This file records license notices for third-party material included or adapted
 in kraziTV, and in the Docker image built from it. These notices apply to the identified third-party material; they do
-not replace the project's PolyForm Noncommercial license.
+not replace the project's AGPL-3.0 license.
 
 ## Web Admin Visual Reference
 
