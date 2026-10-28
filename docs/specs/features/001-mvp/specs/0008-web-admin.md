@@ -212,7 +212,7 @@ When `PUBLIC_BASE_URL` or `HOST` names loopback, only Plex on the same
 computer can connect. `GET /plex/setup` then lists those settings in
 `localOnlySettings`, and suggests this computer's network address in
 `suggestedPublicBaseUrl`. Plex Setup warns first and gives each fix as a
-setting line to copy.
+setting line to copy into kraziTV's `.env` file.
 
 ### API Integration
 

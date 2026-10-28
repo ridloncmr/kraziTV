@@ -11,6 +11,7 @@ import { TrackMappingService } from "./content-metadata/track-mapping/track-mapp
 import { MetadataRefreshService } from "./content-metadata/refresh/metadata-refresh-service.js";
 import { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
+import { loadEnvFile } from "./config/env-file.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
@@ -39,6 +40,8 @@ import {
   parsePublicBaseUrl,
 } from "./config/network.js";
 
+// Read before any setting so `.env` configures everything below.
+const envFile = loadEnvFile();
 const { host, port } = parseListenConfig(process.env);
 const publicBaseUrl = parsePublicBaseUrl(process.env.PUBLIC_BASE_URL, port);
 const tuner = parseTunerConfig(process.env);
@@ -50,6 +53,9 @@ const dataDirectory = resolveDataDirectory(
 // Created first so startup configuration, the stream runtime, and scan jobs
 // all log through the same logger.
 const logger = pino();
+if (envFile) {
+  logger.info({ envFile }, "Loaded settings from .env");
+}
 // Parsed before opening the database so invalid configuration fails fast.
 const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);

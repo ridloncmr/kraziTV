@@ -100,6 +100,11 @@ they are missing. `npm test` and CI do not run it.
 TMDB API. Set `TMDB_API_KEY` to your TMDB API Read Access Token; it fails
 rather than skips without one. `npm test` and CI do not run it.
 
+Settings come from environment variables. To keep them in a file, copy
+[`.env.example`](.env.example) to `.env` at the repo root; the server and
+`npm run reset-password` read it at startup, and variables already set in the
+environment win over it.
+
 `npm run dev` starts the API at `http://127.0.0.1:3000`. During development the
 Web Admin runs separately: start it with `npm run dev:web` in a second terminal.
 
