@@ -7,6 +7,7 @@ import { PageRefreshScope } from "./http/resources/refresh-scope.js";
 import { useResource } from "./http/resources/use-resource.js";
 import { LogonScreen } from "./logon/logon-screen.js";
 import { SetupScreen } from "./logon/setup-screen.js";
+import { WrongAddressScreen } from "./logon/wrong-address-screen.js";
 
 // Long enough that the boot screen reads as a deliberate step, not a flicker.
 const MINIMUM_BOOT_MS = 650;
@@ -71,6 +72,9 @@ export function App() {
         />
       </PageRefreshScope>
     );
+  // Setup and logon would both be refused from this address.
+  if (state.wrongAddress)
+    return <WrongAddressScreen advice={state.wrongAddress} />;
   if (state.setupRequired || !state.account)
     return <SetupScreen onSetUp={setState} onAlreadySetUp={reread} />;
   return <LogonScreen account={state.account} onLoggedIn={setState} />;
@@ -83,7 +87,13 @@ export function App() {
  */
 function BootRead({ onAnswer }: { onAnswer: (state: AuthState) => void }) {
   const [minimumElapsed, setMinimumElapsed] = useState(false);
-  const boot = useResource<AuthState>("/auth/state", true, RETRY_INTERVAL_MS);
+  // Names this page's own address, so the server can say when it would
+  // refuse this page's writes; a same-origin read carries no Origin header.
+  const boot = useResource<AuthState>(
+    `/auth/state?origin=${encodeURIComponent(window.location.origin)}`,
+    true,
+    RETRY_INTERVAL_MS,
+  );
   useEffect(() => {
     const timer = setTimeout(() => setMinimumElapsed(true), MINIMUM_BOOT_MS);
     return () => clearTimeout(timer);

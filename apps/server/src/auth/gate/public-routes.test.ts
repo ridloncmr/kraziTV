@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isPublicRoute, PUBLIC_ROUTES } from "./public-routes.js";
 
 describe("isPublicRoute", () => {
-  it("lists exactly the spec 0001 public routes plus the CORS preflight", () => {
+  it("lists exactly the spec 0001 public routes, the web app, and the CORS preflight", () => {
     expect([...PUBLIC_ROUTES].sort()).toEqual(
       [
         "GET /health",
@@ -17,6 +17,8 @@ describe("isPublicRoute", () => {
         "GET /device.xml",
         "GET /plex/xmltv.xml",
         "GET /channels/:id/stream",
+        "GET /",
+        "GET /assets/*",
         "OPTIONS *",
       ].sort(),
     );

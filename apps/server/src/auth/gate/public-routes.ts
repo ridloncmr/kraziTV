@@ -11,6 +11,10 @@ export const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
   "POST /auth/setup",
   "POST /auth/login",
   "POST /auth/logout",
+  // The built web app, which must load before anyone can log in. Its build
+  // is only index.html and hashed files under assets/ (registerWebAppRoutes).
+  "GET /",
+  "GET /assets/*",
   // Plex's HDHomeRun tuner cannot authenticate (ADR 0002).
   "GET /discover.json",
   "GET /lineup.json",

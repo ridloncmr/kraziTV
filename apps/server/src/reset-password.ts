@@ -12,6 +12,7 @@ import {
   resolveDatabasePath,
   resolveDataDirectory,
 } from "./config/data-directory.js";
+import { loadEnvFile } from "./config/env-file.js";
 import { openDatabase } from "./database/database.js";
 import { WriteAuthorityBusyError } from "./database/writes/immediate-transaction.js";
 import { PromptCancelled, promptHidden } from "./terminal/hidden-prompt.js";
@@ -22,6 +23,8 @@ import { PromptCancelled, promptHidden } from "./terminal/hidden-prompt.js";
  * the operator cancelled or input ended before the password was entered.
  */
 async function main(): Promise<number> {
+  // The same settings file as the server, so both open the same database.
+  loadEnvFile();
   const dataDirectory = resolveDataDirectory(
     process.env.KRAZITV_DATA_DIR,
     process.cwd(),

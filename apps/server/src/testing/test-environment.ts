@@ -73,6 +73,8 @@ export interface StartTestServerOptions {
   auth?: "signed-in" | "real";
   /** Observes every route as the server registers it, for route coverage tests. */
   onRoute?: ((route: RouteOptions) => void) | undefined;
+  /** A built web app to serve, such as writeWebAppFixture's; defaults to none. */
+  webAppDirectory?: string | undefined;
 }
 
 export interface TestServer {
@@ -252,6 +254,7 @@ export async function startTestServer(
       channelStopTimeoutMs: options.channelStopTimeoutMs,
       plex: { ...plexSettingsFixture, ...options.plex },
       onRoute: options.onRoute,
+      webAppDirectory: options.webAppDirectory,
     },
   );
   servers.push(server);

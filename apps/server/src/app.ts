@@ -9,6 +9,7 @@ import Fastify, {
 import type { AuthService } from "./auth/auth-service.js";
 import type { RequestAuthenticator } from "./auth/contracts.js";
 import { registerAuthGate } from "./auth/gate/auth-gate.js";
+import { withLoopbackAliases } from "./auth/gate/request-origin.js";
 import { registerAccountRoutes } from "./auth/routes/account-routes.js";
 import { registerAuthRoutes } from "./auth/routes/auth-routes.js";
 import { registerApiErrorHandlers } from "./http/api-error.js";
@@ -59,6 +60,7 @@ import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
+import { registerWebAppRoutes } from "./web-app/web-app-routes.js";
 
 const DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173"];
 
@@ -74,6 +76,8 @@ type BuildServerOptions = FastifyServerOptions & {
    * prove each route was decided public or gated.
    */
   onRoute?: ((route: RouteOptions) => void) | undefined;
+  /** The built web app to serve at `/`; left out, the server is API-only. */
+  webAppDirectory?: string | undefined;
 };
 
 export type ServerDatabaseLifecycle = {
@@ -158,14 +162,22 @@ function registerRoutes(
   // decides the cookie's Secure flag and is always an allowed write origin.
   const publicOrigin = new URL(plex.publicBaseUrl);
   const secureCookie = publicOrigin.protocol === "https:";
+  const allowedOrigins = new Set([
+    ...withLoopbackAliases(publicOrigin.origin),
+    ...corsOrigins,
+  ]);
   // After CORS and before every route; see registerAuthGate.
   registerAuthGate(server, dependencies.authenticator, {
-    allowedOrigins: new Set([publicOrigin.origin, ...corsOrigins]),
+    allowedOrigins,
     secureCookie,
   });
 
   server.get("/health", async () => ({ status: "ok" }));
-  registerAuthRoutes(server, dependencies.auth, { secureCookie });
+  registerAuthRoutes(server, dependencies.auth, {
+    secureCookie,
+    allowedOrigins,
+    publicBaseUrl: plex.publicBaseUrl,
+  });
   registerAccountRoutes(server, dependencies.auth);
   registerTmdbKeyRoutes(server, dependencies.tmdbKeys);
   registerMatchChoiceRoutes(
@@ -285,6 +297,7 @@ export function buildServer(
     channelStopTimeoutMs = DEFAULT_CHANNEL_STOP_TIMEOUT_MS,
     plex,
     onRoute,
+    webAppDirectory,
     ...fastifyOptions
   } = options;
   const server = Fastify(fastifyOptions);
@@ -333,6 +346,9 @@ export function buildServer(
   });
 
   registerRoutes(server, dependencies, corsOrigins, channelStopTimeoutMs, plex);
+  if (webAppDirectory !== undefined) {
+    registerWebAppRoutes(server, webAppDirectory);
+  }
 
   return server;
 }

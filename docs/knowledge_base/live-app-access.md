@@ -2,7 +2,7 @@
 
 Use this when an agent needs to see the owner's running kraziTV web app, not a
 test server. It drives headless Chromium through Playwright against the dev
-servers (`npm run dev` on `:3000`, `npm run dev:web` on `:5173`).
+servers that `npm run dev` starts (the API on `:3000`, the web app on `:5173`).
 
 ## Setup
 

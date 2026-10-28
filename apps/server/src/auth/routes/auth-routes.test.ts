@@ -27,10 +27,10 @@ function setUp(server: FastifyInstance, payload: unknown = owner) {
 }
 
 /** Reads auth state the way a browser holding `cookie` would. */
-async function readState(server: FastifyInstance, cookie?: string) {
+async function readState(server: FastifyInstance, cookie?: string, query = "") {
   const response = await server.inject({
     method: "GET",
-    url: "/auth/state",
+    url: `/auth/state${query}`,
     ...(cookie === undefined ? {} : { headers: { cookie } }),
   });
   return { status: response.statusCode, body: response.json<unknown>() };
@@ -51,7 +51,51 @@ describe("auth routes", () => {
 
     await expect(readState(server)).resolves.toEqual({
       status: 200,
-      body: { setupRequired: true, account: null, authenticated: false },
+      body: {
+        setupRequired: true,
+        account: null,
+        authenticated: false,
+        wrongAddress: null,
+      },
+    });
+  });
+
+  it("sends a browser on an address that cannot write to the public base URL", async () => {
+    const { server } = await startTestServer();
+
+    await expect(
+      readState(server, undefined, "?origin=http%3A%2F%2F192.168.1.10%3A3000"),
+    ).resolves.toMatchObject({
+      body: { wrongAddress: { kind: "open", url: "http://krazitv.test" } },
+    });
+  });
+
+  it("asks for a public base URL when it names this computer and the browser is elsewhere", async () => {
+    const { server } = await startTestServer({
+      plex: { publicBaseUrl: "http://127.0.0.1:3000" },
+    });
+
+    await expect(
+      readState(server, undefined, "?origin=http%3A%2F%2F192.168.1.10%3A3000"),
+    ).resolves.toMatchObject({ body: { wrongAddress: { kind: "configure" } } });
+    await expect(
+      readState(server, undefined, "?origin=http%3A%2F%2Flocalhost%3A3001"),
+    ).resolves.toMatchObject({
+      body: { wrongAddress: { kind: "open", url: "http://127.0.0.1:3000" } },
+    });
+  });
+
+  it.each([
+    ["the public base URL", "?origin=http%3A%2F%2Fkrazitv.test"],
+    ["the web origin", "?origin=http%3A%2F%2F127.0.0.1%3A5173"],
+    ["no origin", ""],
+    ["a repeated origin", "?origin=a&origin=b"],
+  ])("gives no advice to a browser sending %s", async (_, query) => {
+    const { server } = await startTestServer();
+
+    await expect(readState(server, undefined, query)).resolves.toMatchObject({
+      status: 200,
+      body: { wrongAddress: null },
     });
   });
 
@@ -79,6 +123,7 @@ describe("auth routes", () => {
         setupRequired: false,
         account: { displayName: "Owner", avatarId: DEFAULT_AVATAR_ID },
         authenticated: true,
+        wrongAddress: null,
       },
     });
     await expect(readState(server)).resolves.toMatchObject({

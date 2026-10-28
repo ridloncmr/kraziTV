@@ -9,10 +9,10 @@ This folder stores research notes, references, useful commands, and operational 
 - M3U playlist behavior
 - FFmpeg command patterns
 - Media probing notes
-- Local development setup
 
 ## Notes
 
+- [Running kraziTV](running-krazitv.md): install, connect Plex, and settings
 - [Child process and stream safety](child-process-stream-safety.md)
 - [FFmpeg filler text](ffmpeg-filler-text.md)
 - [FFmpeg real-time startup](ffmpeg-real-time-startup.md)

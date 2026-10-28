@@ -16,7 +16,10 @@ import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
 import { withoutTmdbKey } from "../../server/src/testing/scan-metadata.js";
 import { startScheduleScenarioServer } from "../../server/src/testing/schedule-server.js";
-import { injectBrowserApi } from "../src/testing/injected-api.js";
+import {
+  detachBrowserApi,
+  injectBrowserApi,
+} from "../src/testing/injected-api.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../../server/src/catalog-scan/writer/catalog-scan-writer.js";
 import {
@@ -26,7 +29,8 @@ import {
 
 let prober: ControlledProber | undefined;
 let commit: TestBarrier | undefined;
-test.afterEach(async () => {
+test.afterEach(async ({ page }) => {
+  await detachBrowserApi(page);
   commit?.release();
   prober?.resolveAll(PROBE_RESULT);
   await cleanUpTestEnvironment();

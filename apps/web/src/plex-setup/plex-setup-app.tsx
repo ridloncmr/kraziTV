@@ -66,8 +66,9 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
           <strong>Only Plex on this computer can reach kraziTV.</strong>
           <p>
             Plex on another device, such as a TV or a separate Plex server,
-            can&apos;t connect to these addresses. To fix it, add these settings
-            to the environment kraziTV starts in, then restart kraziTV:
+            can&apos;t connect to these addresses. To fix it, add these lines to
+            kraziTV&apos;s <code>.env</code> file, beside{" "}
+            <code>.env.example</code>, then restart kraziTV:
           </p>
           {localOnly.includes("PUBLIC_BASE_URL") &&
             (setup.data.suggestedPublicBaseUrl ? (
@@ -116,8 +117,8 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
         </ol>
         <p className="secondary">
           Plex must be able to reach these addresses. If it can&apos;t, set
-          kraziTV&apos;s <code>PUBLIC_BASE_URL</code> setting to an address it
-          can, then restart kraziTV.
+          <code>PUBLIC_BASE_URL</code> in kraziTV&apos;s <code>.env</code> file
+          to an address it can, then restart kraziTV.
         </p>
       </fieldset>
     </div>

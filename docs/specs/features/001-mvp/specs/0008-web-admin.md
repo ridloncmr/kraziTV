@@ -212,7 +212,7 @@ When `PUBLIC_BASE_URL` or `HOST` names loopback, only Plex on the same
 computer can connect. `GET /plex/setup` then lists those settings in
 `localOnlySettings`, and suggests this computer's network address in
 `suggestedPublicBaseUrl`. Plex Setup warns first and gives each fix as a
-setting line to copy.
+setting line to copy into kraziTV's `.env` file.
 
 ### API Integration
 
@@ -232,7 +232,7 @@ Expected API areas:
 
 The UI should handle loading, empty, success, and error states for each API-backed view.
 
-The browser API base URL uses `VITE_API_BASE_URL` when configured. During local development it defaults to `http://127.0.0.1:3000`; production packaging may use same-origin API requests when the variable is absent.
+The browser API base URL uses `VITE_API_BASE_URL` when configured. During local development it defaults to `http://127.0.0.1:3000`; a production build uses same-origin API requests when the variable is absent, and the server serves it ([ADR 0019](../../../../adrs/0019-same-origin-web-app-and-container.md)).
 
 Media scans are synchronous in the MVP. The UI shows a pending state while the request is active and displays the returned summary when it completes. Current channel state refreshes every 10 seconds while its view is visible and also supports manual refresh.
 
@@ -264,7 +264,6 @@ Important boundaries:
 
 ## Deferred Work
 
-- Decide how the Web Admin is served in production when packaging work begins.
 - Add authentication before treating the administration API as safe for untrusted networks.
 - Add background scan jobs and progress reporting if synchronous scans prove too slow.
 - Real Welcome/login, accounts and permissions, snap layouts/tiling, persistent
@@ -278,8 +277,8 @@ Important boundaries:
 The desktop replaces the original section-navigation model and the original
 non-goal of a polished design system. All functional requirements and accepted
 ADR boundaries remain. Two additive read-only projections above close existing
-MVP presentation gaps without adding telemetry or persistent data. Production
-hosting remains packaging work; there are no unresolved MVP design decisions.
+MVP presentation gaps without adding telemetry or persistent data. [ADR 0019](../../../../adrs/0019-same-origin-web-app-and-container.md)
+settles production hosting; there are no unresolved MVP design decisions.
 
 ## Acceptance Criteria
 

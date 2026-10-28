@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
+    "@fastify/static": "^10.1.8",
     "@krazitv/krazi-brain": "file:../../packages/krazi-brain",
     "@krazitv/media": "file:../../packages/media",
     "@krazitv/plex": "file:../../packages/plex",

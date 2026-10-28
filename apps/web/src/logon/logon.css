@@ -243,6 +243,13 @@
   font-size: 28px;
   font-weight: 400;
 }
+.logon-panel a {
+  color: inherit;
+  font-weight: 700;
+}
+.logon-panel-note {
+  font-size: 12px;
+}
 .logon-band-bottom {
   display: flex;
   align-items: center;

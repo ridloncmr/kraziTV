@@ -25,7 +25,7 @@ button:disabled {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: url("/northwoods.svg") center / cover;
+  background: url("./northwoods.svg") center / cover;
 }
 .desktop-shortcuts {
   display: flex;
