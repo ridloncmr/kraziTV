@@ -47,3 +47,13 @@ export async function injectBrowserApi(
     },
   ]);
 }
+
+/**
+ * Stops routing the page's API requests to the server. Call it before the
+ * server closes: the app keeps polling after a test's last step, and a
+ * request reaching a closed server would fail a test that already passed.
+ * Requests still in flight are dropped without error.
+ */
+export async function detachBrowserApi(page: Page): Promise<void> {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+}

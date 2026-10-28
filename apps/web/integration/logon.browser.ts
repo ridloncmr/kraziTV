@@ -7,9 +7,13 @@ import {
   cleanUpTestEnvironment,
   startTestServer,
 } from "../../server/src/testing/test-environment.js";
-import { injectBrowserApi } from "../src/testing/injected-api.js";
+import {
+  detachBrowserApi,
+  injectBrowserApi,
+} from "../src/testing/injected-api.js";
 
-test.afterEach(async () => {
+test.afterEach(async ({ page }) => {
+  await detachBrowserApi(page);
   await cleanUpTestEnvironment();
 });
 
