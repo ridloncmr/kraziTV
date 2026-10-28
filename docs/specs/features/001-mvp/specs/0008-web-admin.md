@@ -205,6 +205,12 @@ using kraziBrain's existing eligibility policy; the browser never duplicates it.
 
 The UI may include short instructions for using the tuner base URL and XMLTV URL in Plex Live TV setup. The backend supplies these URLs from its configured `PUBLIC_BASE_URL`; the browser must not reconstruct them from its own location.
 
+When `PUBLIC_BASE_URL` or `HOST` names loopback, only Plex on the same
+computer can connect. `GET /plex/setup` then lists those settings in
+`localOnlySettings`, and suggests this computer's network address in
+`suggestedPublicBaseUrl`. Plex Setup warns first and gives each fix as a
+setting line to copy.
+
 ### API Integration
 
 The Web Admin consumes existing API capabilities from the MVP specs.

@@ -33,6 +33,7 @@ import { parseFfmpegFontFile, parseFfmpegPath } from "./config/ffmpeg.js";
 import { parseTunerConfig } from "./config/tuner.js";
 import { resolveProgrammingTimezone } from "./config/programming-timezone.js";
 import {
+  networkBaseUrl,
   parseCorsOrigins,
   parseListenConfig,
   parsePublicBaseUrl,
@@ -181,7 +182,12 @@ const server = buildServer(
   },
   {
     loggerInstance: logger,
-    plex: { publicBaseUrl, ...tuner },
+    plex: {
+      publicBaseUrl,
+      ...tuner,
+      listenHost: host,
+      networkBaseUrl: networkBaseUrl(port),
+    },
     ...(corsOrigins ? { corsOrigins } : {}),
   },
 );

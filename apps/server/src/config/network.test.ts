@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { NetworkInterfaceInfo } from "node:os";
+
 import {
+  isLoopbackHost,
+  networkBaseUrl,
   parseCorsOrigins,
   parseListenConfig,
   parsePublicBaseUrl,
@@ -92,5 +96,50 @@ describe("parsePublicBaseUrl", () => {
     expect(() => parsePublicBaseUrl(value, 3000)).toThrow(
       `PUBLIC_BASE_URL must be an absolute http: or https: URL with no credentials, path, query, or fragment; received "${value}"`,
     );
+  });
+});
+
+describe("isLoopbackHost", () => {
+  it.each(["127.0.0.1", "127.1.2.3", "localhost", "LOCALHOST", "::1", "[::1]"])(
+    "treats %s as this computer only",
+    (host) => expect(isLoopbackHost(host)).toBe(true),
+  );
+
+  it.each(["0.0.0.0", "::", "192.168.1.10", "tv.example", "127.example"])(
+    "treats %s as reachable from the network",
+    (host) => expect(isLoopbackHost(host)).toBe(false),
+  );
+});
+
+describe("networkBaseUrl", () => {
+  /** One interface address as os.networkInterfaces reports it. */
+  const address = (
+    value: string,
+    family: "IPv4" | "IPv6" = "IPv4",
+    internal = false,
+  ) => ({ address: value, family, internal }) as NetworkInterfaceInfo;
+
+  it("prefers a home network's address over a container bridge's", () => {
+    expect(
+      networkBaseUrl(3000, {
+        lo: [address("127.0.0.1", "IPv4", true)],
+        docker0: [address("172.17.0.1")],
+        eth0: [address("fe80::1", "IPv6"), address("192.168.1.10")],
+      }),
+    ).toBe("http://192.168.1.10:3000");
+  });
+
+  it("falls back to any other network address, skipping link-local ones", () => {
+    expect(
+      networkBaseUrl(8080, {
+        eth0: [address("169.254.3.4"), address("10.0.0.5")],
+      }),
+    ).toBe("http://10.0.0.5:8080");
+  });
+
+  it("returns null with no network address", () => {
+    expect(
+      networkBaseUrl(3000, { lo: [address("127.0.0.1", "IPv4", true)] }),
+    ).toBeNull();
   });
 });
