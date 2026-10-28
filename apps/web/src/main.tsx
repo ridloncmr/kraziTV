@@ -9,5 +9,6 @@ import "./collections/collections.css";
 import "./catalog-filter/catalog-filter.css";
 import "./media-library/media-library.css";
 import "./program-guide/program-guide.css";
+import "./channel-observation/channel-observation.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
