@@ -12,6 +12,7 @@ import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
 import { MpegTsContinuity } from "../mpeg-ts/mpeg-ts-continuity.js";
 import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
 import { MpegTsRejoinGate } from "../mpeg-ts/mpeg-ts-rejoin-gate.js";
+import { MpegTsTimestamps } from "../mpeg-ts/mpeg-ts-timestamps.js";
 import type { OutputReadinessInspector, PacketSink } from "../contracts.js";
 import type { FfmpegProcess } from "../process/ffmpeg-process.js";
 import {
@@ -93,8 +94,14 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   readonly completion: Promise<void>;
   private readonly sessionOutput = new PassThrough();
   private readonly bindings = new Map<FfmpegProcess, ProcessBinding>();
-  /** Continues each stream's counters across every process, at the output. */
-  private readonly continuity = new MpegTsContinuity(this.sessionOutput);
+  /**
+   * Where every process's packets reach the output: its timestamps moved
+   * onto one forward timeline (ADR 0021), then each stream's counters
+   * continued. Each place a different process starts feeding it splices.
+   */
+  private readonly packetOutput = new MpegTsTimestamps(
+    new MpegTsContinuity(this.sessionOutput),
+  );
   private readonly resolveReady: () => void;
   private readonly rejectReady: (reason: unknown) => void;
   private readonly resolveCompletion: () => void;
@@ -132,7 +139,7 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       process,
       initialItem,
       options.initialReadinessInspector,
-      this.continuity,
+      this.packetOutput,
       undefined,
     );
   }
@@ -212,13 +219,18 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.preparation = undefined;
 
     // The previous process's finished packets go out before anything new.
+    // The set-aside item is forgotten before it is retired, because retiring
+    // flushes its finished packets into its rejoin gate, which must not
+    // bring it back now that its airtime is over.
     this.retire(this.active);
-    if (this.suspended !== undefined) this.retire(this.suspended);
+    const suspended = this.suspended;
     this.suspended = undefined;
+    if (suspended !== undefined) this.retire(suspended);
     if (binding.failure === undefined) {
       binding.committed = true;
       this.active = binding;
-      binding.held?.release(this.continuity);
+      this.packetOutput.splice();
+      binding.held?.release(this.packetOutput);
       binding.held = undefined;
       binding.watchForStall();
     } else if (binding.standIn) {
@@ -432,11 +444,12 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       this.fail(cause);
       return;
     }
+    this.packetOutput.splice();
     this.active = this.attach(
       process,
       failed.item,
       this.options.createReadinessInspector(),
-      this.continuity,
+      this.packetOutput,
       undefined,
       true,
     );
@@ -454,8 +467,9 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     }
     this.suspended = undefined;
     this.retire(this.active);
-    this.continuity.write(packets);
-    binding.forwarder.redirect(this.continuity);
+    this.packetOutput.splice();
+    this.packetOutput.write(packets);
+    binding.forwarder.redirect(this.packetOutput);
     this.active = binding;
     binding.watchForStall();
     this.options.logger.info("signal_item_resumed", binding.context);

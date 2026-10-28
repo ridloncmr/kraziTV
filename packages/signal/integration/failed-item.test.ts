@@ -10,6 +10,7 @@ import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transiti
 import {
   CHANNEL,
   current,
+  expectCleanDecode,
   program,
   runFfmpeg,
   startManager,
@@ -57,7 +58,7 @@ function analyze(chunks: readonly Buffer[]): string {
     "FFmpeg could not decode the failed-item capture",
     Buffer.concat(chunks),
   );
-  expect(analysis).not.toMatch(/corrupt/i);
+  expectCleanDecode(analysis);
   return analysis;
 }
 

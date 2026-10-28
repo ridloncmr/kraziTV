@@ -13,6 +13,10 @@ its commit no longer fails the session there, and a committed one no longer
 fails it either; the session airs a stand-in until the next commit. See
 [ADR 0020](0020-failed-item-stand-in.md).
 
+Amended on 2026-10-28: splices also shift each process's PTS, DTS, and PCR
+onto one forward timeline, not only its continuity counters. See
+[ADR 0021](0021-continuous-splice-timestamps.md).
+
 ## Context
 
 A signal session serves one channel's broadcast from successive FFmpeg

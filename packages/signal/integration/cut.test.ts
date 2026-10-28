@@ -10,6 +10,7 @@ import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transiti
 import {
   CHANNEL,
   current,
+  expectCleanDecode,
   program,
   runFfmpeg,
   startManager,
@@ -142,7 +143,7 @@ describe("real FFmpeg cut", () => {
       Number(times?.[1]) * 3_600 + Number(times?.[2]) * 60 + Number(times?.[3]);
     expect(endS - blackEnd).toBeLessThan(0.2);
     // The old FFmpeg process's unfinished frame was dropped, not spliced in.
-    expect(analysis).not.toMatch(/corrupt/i);
+    expectCleanDecode(analysis);
     // Tone on both sides of the cut: the timeline has no hole.
     expect(analysis).not.toMatch(/silence_start/);
   }, 45_000);

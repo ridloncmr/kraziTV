@@ -11,6 +11,7 @@ import { InMemoryTransitionCoordinator } from "../src/testing/in-memory-transiti
 import {
   CHANNEL,
   current,
+  expectCleanDecode,
   program,
   runFfmpeg,
   startManager,
@@ -234,10 +235,8 @@ async function tuneViewer(
  * of each silence in seconds. An abrupt kill can cut FFmpeg's output inside
  * a transport packet; the splice into the stand-in must still decode.
  *
- * Timestamp warnings are not failures: every FFmpeg process starts its
- * timestamps afresh and splices rewrite only continuity counters, so the
- * decoder reports each backward jump, and a short one after a briefly aired
- * item can misplace a frame. A clean boundary into a stand-in shows the same.
+ * Timestamps must run forward across every splice, into the stand-in and
+ * back out of it (ADR 0021).
  */
 function silences(chunks: readonly Buffer[]): number[] {
   const analysis = runFfmpeg(
@@ -248,7 +247,7 @@ function silences(chunks: readonly Buffer[]): number[] {
     "FFmpeg could not decode the killed-FFmpeg capture",
     Buffer.concat(chunks),
   );
-  expect(analysis).not.toMatch(/corrupt/i);
+  expectCleanDecode(analysis);
   expect(analysis.match(/silence_start/g)?.length ?? 0).toBe(
     analysis.match(/silence_end/g)?.length ?? 0,
   );
