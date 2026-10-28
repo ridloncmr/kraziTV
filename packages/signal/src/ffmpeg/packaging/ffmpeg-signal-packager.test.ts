@@ -278,7 +278,7 @@ describe("FfmpegSignalPackager", () => {
     child.writeStdout("usable-output");
     await session.ready;
 
-    timers.advanceBy(4_999);
+    timers.advanceBy(19_999);
     expect(spawner.spawnCalls).toHaveLength(1);
     timers.advanceBy(1);
 
@@ -304,7 +304,7 @@ describe("FfmpegSignalPackager", () => {
     await session.ready;
 
     for (let tick = 0; tick < 3; tick += 1) {
-      timers.advanceBy(4_000);
+      timers.advanceBy(19_000);
       child.writeStdout(packet(tick));
     }
 
@@ -325,7 +325,7 @@ describe("FfmpegSignalPackager", () => {
     // long before the boundary.
     child.exit({ code: 0, signal: null });
     await flushMicrotasks(2);
-    timers.advanceBy(5_000);
+    timers.advanceBy(20_000);
 
     expectStandInArguments(spawner.spawnCalls[1]?.args);
     expect(logger.warns).toContainEqual(
@@ -353,14 +353,14 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
     timers.advanceBy(1_000);
     preparation.commit();
-    timers.advanceBy(4_000);
+    timers.advanceBy(15_000);
     second.writeStdout(packet(1));
-    timers.advanceBy(4_000);
+    timers.advanceBy(19_000);
 
     expect(spawner.spawnCalls).toHaveLength(2);
     expect(logger.warns).toEqual([]);
 
-    // Five seconds after its last chunk, the committed process counts as hung.
+    // Twenty seconds after its last chunk, the committed process counts as hung.
     timers.advanceBy(1_000);
     expectStandInArguments(spawner.spawnCalls[2]?.args);
     expect(second.terminationSignals).toEqual(["SIGTERM"]);
@@ -381,7 +381,7 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
     standIn.writeStdout("usable-output");
 
-    timers.advanceBy(5_000);
+    timers.advanceBy(20_000);
 
     await failed;
     expect(spawner.spawnCalls).toHaveLength(2);

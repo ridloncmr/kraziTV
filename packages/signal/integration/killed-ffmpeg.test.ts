@@ -19,7 +19,7 @@ import {
 
 const ITEM_MS = 8_000;
 /** Long enough that a stall detected seconds in still airs its stand-in. */
-const LONG_ITEM_MS = 14_000;
+const LONG_ITEM_MS = 30_000;
 const PREPARE_LEAD_MS = 3_000;
 /**
  * The longest pause a viewer may see while a stand-in's cold FFmpeg starts.
@@ -29,10 +29,10 @@ const PREPARE_LEAD_MS = 3_000;
 const RECOVERY_GAP_CEILING_MS = 2_500;
 /**
  * The longest pause a viewer may see when the airing process goes silent:
- * the packager's five-second stall timeout, then a cold stand-in's start.
- * Still inside the ten seconds a viewer holds from the join backlog.
+ * the packager's twenty-second stall timeout, then a cold stand-in's start.
  */
-const STALL_RECOVERY_CEILING_MS = 7_500;
+const STALL_TIMEOUT_MS = 20_000;
+const STALL_RECOVERY_CEILING_MS = STALL_TIMEOUT_MS + 2_500;
 /** What the stand-in's drawtext filter writes, which names its process. */
 const STAND_IN_MARKER = "Programming offline";
 
@@ -357,7 +357,7 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     expect(silence).toBeLessThan(9.5);
   }, 45_000);
 
-  it("airs the stand-in once a hung FFmpeg has been silent five seconds, then the next program", async () => {
+  it("airs the stand-in once a hung FFmpeg has been silent twenty seconds, then the next program", async () => {
     const channel = await tuneViewer({
       path: longPath,
       durationMs: LONG_ITEM_MS,
@@ -368,10 +368,12 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     const frozen = signalFfmpegFor(longPath, "SIGSTOP");
     await waitUntil(
       () => childrenMatching(STAND_IN_MARKER).length === 1,
-      8_000,
+      STALL_RECOVERY_CEILING_MS + 1_000,
     );
     // The watchdog, not an exit, brought it in: a stopped process never exits.
-    expect(channel.runtime.now() - frozenAt).toBeGreaterThan(4_500);
+    expect(channel.runtime.now() - frozenAt).toBeGreaterThan(
+      STALL_TIMEOUT_MS - 500,
+    );
     // SIGTERM waits on a stopped process, so the grace period's SIGKILL ends it.
     await waitUntil(() => !childrenMatching(longPath).includes(frozen), 8_000);
 
@@ -381,14 +383,18 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
       { kind: "program", scheduleEntryId: "next" },
     ]);
     expect(
-      longestGapMs(channel.arrivals, frozenAt - 1_000, frozenAt + 9_000),
+      longestGapMs(
+        channel.arrivals,
+        frozenAt - 1_000,
+        frozenAt + STALL_TIMEOUT_MS + 4_000,
+      ),
     ).toBeLessThan(STALL_RECOVERY_CEILING_MS);
     await channel.finish();
 
     const [silence, ...others] = silences(channel.chunks);
     expect(others).toEqual([]);
     expect(silence).toBeGreaterThan(3);
-  }, 45_000);
+  }, 60_000);
 
   it("airs the stand-in once a file shorter than its probe runs out, then the next program", async () => {
     const channel = await tuneViewer({
@@ -396,12 +402,12 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
       durationMs: LONG_ITEM_MS,
     });
 
-    // FFmpeg finishes the 3-second file cleanly, 11 seconds early.
+    // FFmpeg finishes the 3-second file cleanly, 27 seconds early.
     await waitUntil(() => childrenMatching(shortPath).length === 0, 6_000);
     const endedAt = channel.runtime.now();
     await waitUntil(
       () => childrenMatching(STAND_IN_MARKER).length === 1,
-      8_000,
+      STALL_RECOVERY_CEILING_MS + 1_000,
     );
 
     await channel.until(LONG_ITEM_MS + 3_000);
@@ -410,12 +416,16 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
       { kind: "program", scheduleEntryId: "next" },
     ]);
     expect(
-      longestGapMs(channel.arrivals, endedAt - 1_000, endedAt + 9_000),
+      longestGapMs(
+        channel.arrivals,
+        endedAt - 1_000,
+        endedAt + STALL_TIMEOUT_MS + 4_000,
+      ),
     ).toBeLessThan(STALL_RECOVERY_CEILING_MS);
     await channel.finish();
 
     const [silence, ...others] = silences(channel.chunks);
     expect(others).toEqual([]);
     expect(silence).toBeGreaterThan(3);
-  }, 45_000);
+  }, 60_000);
 });

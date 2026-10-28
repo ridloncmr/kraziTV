@@ -48,10 +48,11 @@ type FfmpegSignalPackagerDependencies = {
 };
 
 const DEFAULT_ITEM_READINESS_TIMEOUT_MS = 15_000;
-// A healthy process writes several chunks a second. Viewers hold about ten
-// seconds from their join backlog (ADR 0018), so a stand-in started after
-// five seconds of silence reaches them before their picture freezes.
-const DEFAULT_OUTPUT_STALL_TIMEOUT_MS = 5_000;
+// A healthy process writes several chunks a second, so twenty seconds of
+// silence means the item is truly lost rather than a slow read that would
+// recover. Viewers hold only about ten seconds from their join backlog
+// (ADR 0018), so they may see buffering before the card (ADR 0020).
+const DEFAULT_OUTPUT_STALL_TIMEOUT_MS = 20_000;
 // How long a first viewer's tune may wait for the burst backlog. Plex waited
 // out 15 s tunes in testing; the server's startup timeout must exceed this.
 const INITIAL_HOLD_LIMIT_MS = 10_000;
