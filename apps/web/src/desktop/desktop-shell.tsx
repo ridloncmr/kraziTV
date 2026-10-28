@@ -108,11 +108,13 @@ export function DesktopShell({
       document.removeEventListener("visibilitychange", visibility);
     };
   }, []);
+  // Worded for the owner, who knows kraziTV, not its API.
+  const online = !health.error && health.data?.status === "ok";
   const connection = health.error
-    ? "API connection failed"
-    : health.data?.status === "ok"
-      ? "API connected"
-      : "Checking API connection";
+    ? "Can't reach kraziTV"
+    : online
+      ? "kraziTV is running"
+      : "Checking on kraziTV…";
   const activeId = windows.filter((window) => !window.minimized).at(-1)?.id;
   return (
     <>
@@ -185,6 +187,7 @@ export function DesktopShell({
           titleOf={properties.titleOf}
           dispatch={dispatch}
           connection={connection}
+          online={online}
           avatarId={account.avatarId}
           logOff={() => setLoggingOff(true)}
           tray={

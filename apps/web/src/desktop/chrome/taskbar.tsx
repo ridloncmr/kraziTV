@@ -22,6 +22,7 @@ export function Taskbar({
   titleOf,
   dispatch,
   connection,
+  online,
   avatarId,
   logOff,
   tray,
@@ -31,7 +32,10 @@ export function Taskbar({
   /** Each window's title, as its title bar shows it. */
   titleOf: (id: WindowId) => string;
   dispatch: Dispatch<WindowAction>;
+  /** What the tray dot says about reaching kraziTV. */
   connection: string;
+  /** Whether kraziTV answered its last health check, which colors the dot. */
+  online: boolean;
   /** The account's picture, which Account Settings' button and Start entry draw. */
   avatarId: string;
   /** Opens the Log Off confirmation, which returns focus to Start when it closes. */
@@ -117,11 +121,7 @@ export function Taskbar({
             aria-label={connection}
             onClick={() => dispatch({ type: "open", id: "monitor" })}
           >
-            <span
-              className={connection === "API connected" ? "online" : "offline"}
-            >
-              ●
-            </span>
+            <span className={online ? "online" : "offline"}>●</span>
           </button>
         </Tooltip>
         <Tooltip
