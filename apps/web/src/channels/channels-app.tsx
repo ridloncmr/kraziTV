@@ -3,6 +3,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps } from "../controls/row-click.js";
 import { inRowMenu, RowMenu } from "../controls/row-menu.js";
 import { WindowDialog } from "../controls/window-dialog.js";
+import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
 import type { Channel } from "../http/contracts/channels.js";
@@ -20,17 +21,11 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
  */
 export function ChannelsApp({
   visible,
-  channelsRevision,
-  onShowProperties,
-  onDeleted,
+  windows,
 }: {
   visible: boolean;
-  /** Counts channel changes made in Channel Properties, such as a rename. */
-  channelsRevision: number;
-  /** Opens a channel's own Channel Properties, or focuses it when already open. */
-  onShowProperties: (channel: Channel) => void;
-  /** Reports a deleted channel, so its Channel Properties closes. */
-  onDeleted: (channelId: string) => void;
+  /** Each channel's own Channel Properties: opened from here, closed on delete. */
+  windows: PropertiesWindows;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
   // Refresh reloads everything this window shows.
@@ -50,18 +45,18 @@ export function ChannelsApp({
   const created = useRef<Channel>(undefined);
   useEffect(() => {
     if (creating || !created.current) return;
-    onShowProperties(created.current);
+    windows.show(created.current);
     created.current = undefined;
-  }, [creating, onShowProperties]);
+  }, [creating, windows]);
   const { refresh } = channels;
   // A channel changed in Channel Properties, as by a rename there, so the
   // list reads again to match. The first render already reads it.
-  const seenRevision = useRef(channelsRevision);
+  const seenRevision = useRef(windows.revision);
   useEffect(() => {
-    if (seenRevision.current === channelsRevision) return;
-    seenRevision.current = channelsRevision;
+    if (seenRevision.current === windows.revision) return;
+    seenRevision.current = windows.revision;
     refresh();
-  }, [channelsRevision, refresh]);
+  }, [windows.revision, refresh]);
   const { remember } = cleanup;
   useEffect(() => {
     const error = mutation.error;
@@ -146,7 +141,7 @@ export function ChannelsApp({
   /** Selects a channel and opens it in Channel Properties. */
   function open(channel: Channel) {
     setSelected(channel.id);
-    onShowProperties(channel);
+    windows.show(channel);
   }
   const selectedActions = selectedChannel && actionsFor(selectedChannel);
   return (
@@ -333,7 +328,7 @@ export function ChannelsApp({
                   undefined,
                   () => {
                     cleanup.settle(deleting.channel.id, "delete");
-                    onDeleted(deleting.channel.id);
+                    windows.deleted(deleting.channel.id);
                     setDeleting(undefined);
                     setSelected("");
                     channels.refresh();

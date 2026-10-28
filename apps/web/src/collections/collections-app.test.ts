@@ -18,7 +18,7 @@ import {
   officeCollection,
   serveCollection,
 } from "../testing/collection-api.js";
-import { CollectionsApp } from "./collections-app.js";
+import { CollectionWindows } from "../testing/collection-windows.js";
 import { clickWhenEnabled } from "../testing/click-when-enabled.js";
 
 afterEach(() => {
@@ -31,35 +31,33 @@ const collections = [
   collectionWith("cartoons", "Cartoons", { memberCount: 1 }),
 ];
 
-// Serves two collections, favorites holding both fixture media, and renders the program.
+// Serves two collections, favorites holding both fixture media, and renders
+// Collections with a Collection Properties window per opened collection.
 function renderApp(onOpenChannels?: () => void) {
   const api = new BrowserApi();
   api.reply("/media-collections", collections);
+  for (const collection of collections)
+    api.reply(`/media-collections/${collection.id}`, collection);
   serveCollection(api, "favorites", ["z", "a"]);
   vi.stubGlobal("fetch", api.fetch);
   render(
     createElement(RefreshScope, {
       active: true,
-      children: createElement(CollectionsApp, {
-        visible: true,
-        onOpenChannels,
-      }),
+      children: createElement(CollectionWindows, { onOpenChannels }),
     }),
   );
   return api;
 }
 
-function disabled(name: string) {
-  return screen.getByRole("button", { name }).matches(":disabled");
-}
-
-// Opens a collection's card from the Manual grid once the list has loaded.
+// Opens a collection's card from the Manual grid once the list has loaded,
+// and returns its Collection Properties window.
 async function open(name: string) {
   fireEvent.click(await screen.findByRole("button", { name: `Open ${name}` }));
   await screen.findByRole("heading", { name });
+  return screen.getByRole("region", { name: `${name} Properties` });
 }
 
-it("lists manual collections as cards with their member counts and opens one for editing", async () => {
+it("lists manual collections as cards with their member counts and opens one in its own window, keeping the grid", async () => {
   renderApp();
 
   const manual = await screen.findByRole("tab", { name: "Manual" });
@@ -81,31 +79,33 @@ it("lists manual collections as cards with their member counts and opens one for
       description: "1 item",
     }),
   ).toBeTruthy();
-  await open("Favorites");
+  const favorites = await open("Favorites");
 
-  expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
+  expect(within(favorites).getByLabelText<HTMLInputElement>("Name").value).toBe(
     "Favorites",
   );
-  expect(screen.queryByRole("tablist")).toBeNull();
+  expect(screen.getByRole("tabpanel", { name: "Manual" })).toBeTruthy();
+
+  // A second collection opens beside it; opening one again adds nothing.
+  await open("Cartoons");
+  fireEvent.click(screen.getByRole("button", { name: "Open Favorites" }));
+  expect(
+    screen
+      .getAllByRole("region")
+      .map((region) => region.getAttribute("aria-label")),
+  ).toEqual(["Favorites Properties", "Cartoons Properties"]);
 });
 
-it("Refresh reloads the open collection's members, not only the grid", async () => {
+it("Refresh reloads the grid", async () => {
   const api = renderApp();
-  await open("Favorites");
-  await waitFor(() =>
-    expect(api.requestsTo("/media-collections/favorites/items")).toHaveLength(
-      1,
-    ),
-  );
+  await screen.findByRole("button", { name: "Open Favorites" });
+  expect(api.requestsTo("/media-collections")).toHaveLength(1);
 
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 
   await waitFor(() =>
-    expect(api.requestsTo("/media-collections/favorites/items")).toHaveLength(
-      2,
-    ),
+    expect(api.requestsTo("/media-collections")).toHaveLength(2),
   );
-  expect(api.requestsTo("/media-collections/favorites/status")).toHaveLength(2);
 });
 
 it("shows an empty Automatic tab without listing manual collections there", async () => {
@@ -119,24 +119,7 @@ it("shows an empty Automatic tab without listing manual collections there", asyn
   expect(screen.queryByRole("button", { name: "New collection…" })).toBeNull();
 });
 
-it("blocks leaving an unsaved draft until it is saved or discarded", async () => {
-  renderApp();
-  await open("Favorites");
-  fireEvent.click(await screen.findByLabelText("Select member Zulu"));
-  fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
-
-  expect(disabled("All collections")).toBe(true);
-  expect(
-    screen.getByText("Save or discard changes before leaving this collection."),
-  ).toBeTruthy();
-
-  fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() => expect(disabled("All collections")).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: "All collections" }));
-  await screen.findByRole("tab", { name: "Manual" });
-});
-
-it("deletes a collection only after confirmation and returns to the grid", async () => {
+it("deletes a collection only after confirmation and closes its window", async () => {
   const api = renderApp();
   api.reply("/media-collections/favorites", null, "DELETE", 204);
   await open("Favorites");
@@ -151,7 +134,11 @@ it("deletes a collection only after confirmation and returns to the grid", async
     screen.getByRole("button", { name: "Delete collection permanently" }),
   );
 
-  await screen.findByRole("tab", { name: "Manual" });
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("region", { name: "Favorites Properties" }),
+    ).toBeNull(),
+  );
   expect(
     api.requests.find((request) => request.method === "DELETE")?.path,
   ).toBe("/media-collections/favorites");
@@ -166,6 +153,7 @@ it("creates a collection in a dialog and opens it for editing", async () => {
     "POST",
   );
   serveCollection(api, "news", []);
+  api.reply("/media-collections/news", collectionWith("news", "News"));
   fireEvent.click(
     await screen.findByRole("button", { name: "New collection…" }),
   );
@@ -403,6 +391,7 @@ it("previews a series and creates an automatic collection listed under Automatic
     criterion: { kind: "series", tmdbId: 2316 },
   });
   api.reply("/media-collections", [...collections, officeCollection]);
+  api.reply(`/media-collections/${officeCollection.id}`, officeCollection);
   await clickWhenEnabled(
     within(dialog).getByRole("button", { name: "Create automatic collection" }),
   );
@@ -417,7 +406,7 @@ it("previews a series and creates an automatic collection listed under Automatic
     name: "The Office",
     criterion: { kind: "series", tmdbId: 2316 },
   });
-  fireEvent.click(screen.getByRole("button", { name: "All collections" }));
+  // The grid beside it shows the new card on its own tab.
   const grid = await screen.findByRole("tabpanel", { name: "Automatic" });
   expect(
     within(grid).getByRole("button", { name: "Open The Office" }).textContent,

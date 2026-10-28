@@ -8,11 +8,15 @@ export type ProgramId =
   | "monitor"
   | "account";
 
+/** The properties windows, each showing one channel or one collection. */
+export type PropertiesKind = "channel-properties" | "collection-properties";
+
 /**
- * A window's identity: a singleton program, or one channel's Channel
- * Properties, so each channel opens in a window of its own.
+ * A window's identity: a singleton program, or one object's properties
+ * window, such as `channel-properties:<channel id>`, so each channel and
+ * collection opens in a window of its own.
  */
-export type WindowId = ProgramId | `channel-properties:${string}`;
+export type WindowId = ProgramId | `${PropertiesKind}:${string}`;
 
 export interface DesktopWindow {
   id: WindowId;
@@ -41,8 +45,8 @@ export interface DesktopViewport {
 }
 
 export interface ProgramDefinition {
-  /** A program, or `channel-properties` for every Channel Properties window. */
-  id: ProgramId | "channel-properties";
+  /** A program, or a properties kind standing for every window of that kind. */
+  id: ProgramId | PropertiesKind;
   name: string;
   description: string;
   group: "Primary" | "Server";

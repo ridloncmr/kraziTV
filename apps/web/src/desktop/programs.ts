@@ -1,4 +1,9 @@
-import type { ProgramDefinition, ProgramId, WindowId } from "./contracts.js";
+import type {
+  ProgramDefinition,
+  ProgramId,
+  PropertiesKind,
+  WindowId,
+} from "./contracts.js";
 
 /** One navigation catalog supplies desktop, Start, title bars and taskbar labels. */
 export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
@@ -21,6 +26,8 @@ export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
     name: "Collections",
     description: "Arrange media for programming",
     group: "Primary",
+    // Narrow enough that Collection Properties opens beside it.
+    placement: { x: 140, y: 40, width: 460, height: 540 },
   },
   {
     id: "guide",
@@ -49,35 +56,51 @@ export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
 ];
 
 /**
- * One channel's property sheet, in a window per channel. My Channels opens
- * them, so they have no desktop shortcut or Start entry; the first opens
- * beside My Channels on a 1280px screen.
+ * One channel's or collection's own window. My Channels and Collections open
+ * them, so they have no desktop shortcut or Start entry; the first of each
+ * opens beside its program on a 1280px screen.
  */
-const channelProperties: ProgramDefinition = {
-  id: "channel-properties",
-  name: "Channel Properties",
-  description: "Set up one channel's identity and programming",
-  group: "Primary",
-  placement: { x: 620, y: 40, width: 640, height: 600 },
+const propertiesPrograms: Record<PropertiesKind, ProgramDefinition> = {
+  "channel-properties": {
+    id: "channel-properties",
+    name: "Channel Properties",
+    description: "Set up one channel's identity and programming",
+    group: "Primary",
+    placement: { x: 620, y: 40, width: 640, height: 600 },
+  },
+  "collection-properties": {
+    id: "collection-properties",
+    name: "Collection Properties",
+    description: "Edit one collection's members and order",
+    group: "Primary",
+    placement: { x: 620, y: 40, width: 640, height: 600 },
+  },
 };
 
-const PROPERTIES_PREFIX = "channel-properties:";
-
-/** The window that shows one channel's Channel Properties. */
-export function channelPropertiesWindow(channelId: string): WindowId {
-  return `${PROPERTIES_PREFIX}${channelId}`;
+/** The window that shows one channel's or collection's properties. */
+export function propertiesWindow(
+  kind: PropertiesKind,
+  objectId: string,
+): WindowId {
+  return `${kind}:${objectId}`;
 }
 
-/** The channel a Channel Properties window shows, or undefined for any other window. */
-export function propertiesChannelId(id: WindowId): string | undefined {
-  return id.startsWith(PROPERTIES_PREFIX)
-    ? id.slice(PROPERTIES_PREFIX.length)
-    : undefined;
+/** What a properties window shows, or undefined for any other window. */
+export function propertiesTarget(
+  id: WindowId,
+): { kind: PropertiesKind; objectId: string } | undefined {
+  const separator = id.indexOf(":");
+  if (separator === -1) return undefined;
+  return {
+    kind: id.slice(0, separator) as PropertiesKind,
+    objectId: id.slice(separator + 1),
+  };
 }
 
 /** Finds any window's definition, including those no launcher lists. */
 export function programOf(id: WindowId): ProgramDefinition {
-  return propertiesChannelId(id) === undefined
-    ? programs.find((program) => program.id === id)!
-    : channelProperties;
+  const target = propertiesTarget(id);
+  return target
+    ? propertiesPrograms[target.kind]
+    : programs.find((program) => program.id === id)!;
 }

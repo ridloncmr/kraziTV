@@ -29,8 +29,8 @@ const EMPTY_TEXT: Record<MaintenanceMode, string> = {
 
 /**
  * The Collections landing: Manual and Automatic tabs, each a grid of created
- * collections. The parent owns the chosen tab, so returning from an editor
- * lands on the tab the owner left.
+ * collections. The parent owns the chosen tab, so a created collection's tab
+ * is shown when it opens.
  */
 export function CollectionGrid({
   collections,
@@ -43,7 +43,8 @@ export function CollectionGrid({
   collections: readonly MediaCollectionSummary[];
   tab: MaintenanceMode;
   onTabChange: (tab: MaintenanceMode) => void;
-  onOpen: (id: string) => void;
+  /** Opens a collection in its own window. */
+  onOpen: (collection: MediaCollectionSummary) => void;
   /** Opens the creation dialog for the shown tab's kind of collection. */
   onCreate: (mode: MaintenanceMode) => void;
   /** Opens the recommendations; offered on the Automatic tab. */
@@ -77,22 +78,28 @@ export function CollectionGrid({
                 className="collection-card"
                 aria-label={`Open ${collection.name}`}
                 aria-describedby={countId(collection.id)}
-                onClick={() => onOpen(collection.id)}
+                onClick={() => onOpen(collection)}
               >
                 <strong>{collection.name}</strong>
                 <span className="secondary" id={countId(collection.id)}>
                   {criterionBasis(collection) !== null && (
                     <span>{criterionBasis(collection)}</span>
                   )}
-                  <span>
-                    {collection.memberCount}{" "}
-                    {collection.memberCount === 1 ? "item" : "items"}
+                  {/* Count and status share a line, keeping every card short. */}
+                  <span className="card-line">
+                    <span>
+                      {collection.memberCount}{" "}
+                      {collection.memberCount === 1 ? "item" : "items"}
+                    </span>
+                    {collection.maintenanceMode === "automatic" && (
+                      <CardMaintenanceStatus collection={collection} />
+                    )}
                   </span>
-                  {collection.maintenanceMode === "automatic" && (
-                    <CardMaintenanceStatus collection={collection} />
-                  )}
                   {collection.missingCount > 0 && (
-                    <span className="warning-label">
+                    <span
+                      className="warning-label"
+                      title={missingText(collection.missingCount)}
+                    >
                       {missingText(collection.missingCount)}
                     </span>
                   )}

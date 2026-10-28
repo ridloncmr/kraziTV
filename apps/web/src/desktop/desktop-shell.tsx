@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
-import type { Channel } from "../http/contracts/channels.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { Tooltip } from "../controls/tooltip.js";
@@ -16,16 +15,11 @@ import type {
   DesktopWindow,
   ProgramId,
   WindowAction,
-  WindowId,
 } from "./contracts.js";
-import {
-  channelPropertiesWindow,
-  programOf,
-  programs,
-  propertiesChannelId,
-} from "./programs.js";
+import { programOf, programs } from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { readWindowMemory, rememberWindows } from "./windows/window-memory.js";
+import { usePropertiesWindows } from "./windows/use-properties-windows.js";
 import { windowReducer } from "./windows/window-state.js";
 
 /** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
@@ -74,53 +68,7 @@ export function DesktopShell({
     (id: ProgramId) => dispatch({ type: "open", id }),
     [],
   );
-  // Each channel opened in Channel Properties, as its window last read it,
-  // for the window titles. `revision` counts the reads that changed a
-  // channel, so My Channels reads its list again after a rename there.
-  const [opened, setOpened] = useState<{
-    channels: Readonly<Record<string, Channel>>;
-    revision: number;
-  }>({ channels: {}, revision: 0 });
-  /** Opens a channel's own Channel Properties, or focuses it when already open. */
-  const showChannelProperties = useCallback((channel: Channel) => {
-    setOpened((current) => ({
-      ...current,
-      channels: { ...current.channels, [channel.id]: channel },
-    }));
-    dispatch({ type: "open", id: channelPropertiesWindow(channel.id) });
-  }, []);
-  /** Takes a window's fresh read of its channel; one that changed nothing redraws nothing. */
-  const channelRead = useCallback(
-    (channel: Channel) =>
-      setOpened((current) => {
-        const known = current.channels[channel.id];
-        return known &&
-          known.number === channel.number &&
-          known.name === channel.name &&
-          known.enabled === channel.enabled
-          ? current
-          : {
-              channels: { ...current.channels, [channel.id]: channel },
-              revision: current.revision + 1,
-            };
-      }),
-    [],
-  );
-  /** Closes a deleted channel's Channel Properties, if it is open. */
-  const channelDeleted = useCallback(
-    (channelId: string) =>
-      dispatch({ type: "close", id: channelPropertiesWindow(channelId) }),
-    [],
-  );
-  /** A window's title: Channel Properties names its channel, as XP's did. */
-  const titleOf = useCallback(
-    (id: WindowId) => {
-      const channelId = propertiesChannelId(id);
-      const channel = channelId && opened.channels[channelId];
-      return channel ? `${channel.name} Properties` : programOf(id).name;
-    },
-    [opened.channels],
-  );
+  const properties = usePropertiesWindows(dispatch);
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
   const [pageVisible, setPageVisible] = useState(
@@ -205,7 +153,8 @@ export function DesktopShell({
               key={window.id}
               window={window}
               program={programOf(window.id)}
-              title={titleOf(window.id)}
+              title={properties.titleOf(window.id)}
+              unsavedName={properties.unsavedName(window.id)}
               avatarId={account.avatarId}
               active={activeId === window.id}
               index={windows.indexOf(window)}
@@ -223,10 +172,9 @@ export function DesktopShell({
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   openProgram={openProgram}
-                  channelsRevision={opened.revision}
-                  showChannelProperties={showChannelProperties}
-                  channelRead={channelRead}
-                  channelDeleted={channelDeleted}
+                  channelWindows={properties.channels}
+                  collectionWindows={properties.collections}
+                  markUnsaved={properties.markUnsaved}
                 />
               </RefreshScope>
             </AppWindow>
@@ -234,7 +182,7 @@ export function DesktopShell({
         <Taskbar
           windows={windows}
           activeId={activeId}
-          titleOf={titleOf}
+          titleOf={properties.titleOf}
           dispatch={dispatch}
           connection={connection}
           avatarId={account.avatarId}

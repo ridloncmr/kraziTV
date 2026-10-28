@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import type {
   MediaCollection,
   MediaCollectionSummary,
@@ -8,44 +9,58 @@ import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
 import { DiscoverDialog } from "./discovery/discover-dialog.js";
-import { CollectionEditor } from "./editor/collection-editor.js";
 import { CollectionGrid } from "./landing/collection-grid.js";
 import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
 
 /**
  * Collections select programming eligibility independently of filesystem
- * discovery roots. The landing grids open one collection's editor; leaving
- * it while a draft is unsaved is blocked, because the draft would be dropped
- * silently.
+ * discovery roots. A card opens its collection in Collection Properties, a
+ * window of its own beside this one, so the grid stays in view and several
+ * collections can be open at once.
  */
 export function CollectionsApp({
   visible,
-  onOpenChannels,
+  windows,
 }: {
   visible: boolean;
-  /** Opens My Channels, where a special blocking a delete is resolved. */
-  onOpenChannels?: () => void;
+  /** Each collection's own Collection Properties: opened from here. */
+  windows: PropertiesWindows;
 }) {
   const collections = useResource<MediaCollectionSummary[]>(
     "/media-collections",
     visible,
   );
-  // Refresh reloads the open collection's editor too, not just the grid.
+  // Refresh reloads everything this window shows.
   const { refresh: refreshWindow } = useRefreshScope();
+  const { refresh } = collections;
+  // A collection saved or deleted in Collection Properties changes its card,
+  // so the grid reads again. The first render already reads it.
+  const seenRevision = useRef(windows.revision);
+  useEffect(() => {
+    if (seenRevision.current === windows.revision) return;
+    seenRevision.current = windows.revision;
+    refresh();
+  }, [windows.revision, refresh]);
   const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
-  const [selected, setSelected] = useState("");
-  const [dirty, setDirty] = useState(false);
   // Which kind of collection a creation dialog is open for, if any.
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
   const [discovering, setDiscovering] = useState(false);
-  const collection = collections.data?.find((item) => item.id === selected);
+  // A created collection opens in Collection Properties only once its
+  // creation dialog has returned focus to this window, or that focus would
+  // bring this window back over the one just opened.
+  const created = useRef<MediaCollection>(undefined);
+  useEffect(() => {
+    if (creating || !created.current) return;
+    windows.show(created.current);
+    created.current = undefined;
+  }, [creating, windows]);
 
   /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
-  function opened(created: MediaCollection) {
+  function opened(collection: MediaCollection) {
+    created.current = collection;
     setCreating(undefined);
-    setTab(created.maintenanceMode);
-    setSelected(created.id);
+    setTab(collection.maintenanceMode);
     collections.refresh();
   }
   return (
@@ -63,43 +78,15 @@ export function CollectionsApp({
         loading={collections.loading}
         error={collections.error}
       />
-      {collection ? (
-        <>
-          <div className="inline-form">
-            <button disabled={dirty} onClick={() => setSelected("")}>
-              All collections
-            </button>
-            {dirty && (
-              <small className="secondary">
-                Save or discard changes before leaving this collection.
-              </small>
-            )}
-          </div>
-          <h2>{collection.name}</h2>
-          <CollectionEditor
-            key={collection.id}
-            collection={collection}
-            visible={visible}
-            changed={collections.refresh}
-            deleted={() => {
-              setSelected("");
-              collections.refresh();
-            }}
-            onDirtyChange={setDirty}
-            onOpenChannels={onOpenChannels}
-          />
-        </>
-      ) : (
-        collections.data && (
-          <CollectionGrid
-            collections={collections.data}
-            tab={tab}
-            onTabChange={setTab}
-            onOpen={setSelected}
-            onCreate={setCreating}
-            onDiscover={() => setDiscovering(true)}
-          />
-        )
+      {collections.data && (
+        <CollectionGrid
+          collections={collections.data}
+          tab={tab}
+          onTabChange={setTab}
+          onOpen={windows.show}
+          onCreate={setCreating}
+          onDiscover={() => setDiscovering(true)}
+        />
       )}
       {creating === "manual" && (
         <CreateCollectionDialog

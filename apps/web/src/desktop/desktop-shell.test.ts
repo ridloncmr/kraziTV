@@ -11,9 +11,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { PageRefreshScope } from "../http/resources/refresh-scope.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
+import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
+import { serveCollection } from "../testing/collection-api.js";
 import { DesktopShell } from "./desktop-shell.js";
 
 afterEach(() => {
@@ -388,4 +389,74 @@ it("opens each channel in its own Channel Properties beside My Channels, follows
   expect(
     screen.getByRole("region", { name: "Northwoods TV Properties" }),
   ).toBeTruthy();
+});
+
+it("opens a collection in its own Collection Properties, and asks before closing it with unsaved changes", async () => {
+  const favorites = collectionWith("favorites", "Favorites", {
+    memberCount: 2,
+  });
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-collections", [favorites]);
+  api.reply("/media-collections/favorites", favorites);
+  serveCollection(api, "favorites", ["z", "a"]);
+  vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "Collections",
+    }),
+  );
+  const grid = await screen.findByRole("region", { name: "Collections" });
+  fireEvent.click(
+    await within(grid).findByRole("button", { name: "Open Favorites" }),
+  );
+  const window = await screen.findByRole("region", {
+    name: "Favorites Properties",
+  });
+  // It opens to the right of Collections, which keeps its grid.
+  expect(parseFloat(window.style.left)).toBeGreaterThanOrEqual(
+    parseFloat(grid.style.left) + parseFloat(grid.style.width),
+  );
+
+  fireEvent.click(await within(window).findByLabelText("Select member Zulu"));
+  fireEvent.click(within(window).getByRole("button", { name: "Move to top" }));
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Close Favorites Properties" }),
+  );
+  const confirm = within(window).getByRole("dialog", {
+    name: "Unsaved changes",
+  });
+  expect(confirm.textContent).toContain(
+    "Discard your unsaved changes to Favorites?",
+  );
+  fireEvent.click(
+    within(confirm).getByRole("button", { name: "Keep editing" }),
+  );
+  expect(
+    screen.getByRole("region", { name: "Favorites Properties" }),
+  ).toBeTruthy();
+
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Close Favorites Properties" }),
+  );
+  fireEvent.click(
+    within(
+      within(window).getByRole("dialog", { name: "Unsaved changes" }),
+    ).getByRole("button", { name: "Discard changes" }),
+  );
+  expect(
+    screen.queryByRole("region", { name: "Favorites Properties" }),
+  ).toBeNull();
+  // Nothing was saved.
+  expect(api.requests.some((request) => request.method === "PUT")).toBe(false);
 });

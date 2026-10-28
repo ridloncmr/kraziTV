@@ -342,16 +342,24 @@ for (const viewport of [
       .getByRole("button", { name: "Create collection" })
       .click();
     await expect(newCollection).toBeHidden();
-    await collections
+    // The new collection opens in its own properties window.
+    const collection = page.getByRole("region", {
+      name: "Northwoods collection Properties",
+      exact: true,
+    });
+    await collection
       .getByRole("checkbox", { name: /^Select Northwoods/ })
       .check();
-    await collections
+    await collection
       .getByRole("button", { name: "Add selected (1)", exact: true })
       .click();
-    await collections.getByRole("button", { name: "Save changes" }).click();
+    await collection.getByRole("button", { name: "Save changes" }).click();
     await expect(
-      collections.getByText(/Schedulable · 1 eligible/),
+      collection.getByText(/Schedulable · 1 eligible/),
     ).toBeVisible();
+    await collection
+      .getByRole("button", { name: "Close Northwoods collection Properties" })
+      .click();
     await collections
       .getByRole("button", { name: "Close Collections" })
       .click();

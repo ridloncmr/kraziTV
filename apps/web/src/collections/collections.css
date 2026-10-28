@@ -1,6 +1,8 @@
+/* Every row takes the tallest card's height, so the cards line up as one even grid. */
 .collection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-auto-rows: 1fr;
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -12,13 +14,32 @@
   align-items: flex-start;
   gap: 4px;
   width: 100%;
-  min-height: 64px;
+  height: 100%;
   padding: 8px 10px;
   text-align: left;
   overflow-wrap: anywhere;
 }
+.collection-card .secondary {
+  width: 100%;
+}
+/*
+ * Every line, the name included, takes one line and ends in an ellipsis,
+ * so every card is the same short height. The card's accessible name and
+ * description carry the full text, and a warning shows it on hover.
+ */
+.collection-card strong,
 .collection-card .secondary > span {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-line > span {
+  display: inline;
+}
+.card-line > span + span::before {
+  content: " · ";
 }
 /* Warnings, such as a missing member or failed maintenance, say so in text beside an icon; color only reinforces them. */
 .warning-label {

@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
-import { WindowDialogFrame } from "../../controls/window-dialog.js";
+import {
+  WindowDialog,
+  WindowDialogFrame,
+} from "../../controls/window-dialog.js";
 import { WindowStatusSlot } from "../../controls/window-status.js";
 import type {
   DesktopViewport,
@@ -49,6 +52,7 @@ export function AppWindow({
   window,
   program,
   title,
+  unsavedName,
   avatarId,
   active,
   index,
@@ -60,6 +64,8 @@ export function AppWindow({
   program: ProgramDefinition;
   /** The title bar's and region's name, which may name what the window shows. */
   title: string;
+  /** What holds unsaved changes in this window, if anything; closing it then asks first. */
+  unsavedName?: string;
   /** The account's picture, which Account Settings' title bar draws. */
   avatarId: string;
   active: boolean;
@@ -69,6 +75,14 @@ export function AppWindow({
   children: ReactNode;
 }) {
   const frame = useRef<HTMLElement>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  // Changes saved meanwhile leave nothing to discard, so the question ends.
+  if (confirmingClose && unsavedName === undefined) setConfirmingClose(false);
+  /** Closes the window, first asking whether to drop unsaved changes, which closing would lose silently. */
+  function close() {
+    if (unsavedName === undefined) dispatch({ type: "close", id: window.id });
+    else setConfirmingClose(true);
+  }
   const titleBar = useRef<HTMLDivElement>(null);
   // Where the program's pending requests show, once the status bar exists.
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
@@ -241,14 +255,36 @@ export function AppWindow({
           <button
             className="close-control"
             aria-label={`Close ${title}`}
-            onClick={() => dispatch({ type: "close", id: window.id })}
+            onClick={close}
           >
             ×
           </button>
         </span>
       </div>
       <WindowStatusSlot.Provider value={statusSlot}>
-        <WindowDialogFrame>{children}</WindowDialogFrame>
+        <WindowDialogFrame>
+          {children}
+          {confirmingClose && (
+            <WindowDialog
+              title="Unsaved changes"
+              onClose={() => setConfirmingClose(false)}
+            >
+              <p>
+                Discard your unsaved changes to <strong>{unsavedName}</strong>?
+              </p>
+              <div className="dialog-actions">
+                <button
+                  onClick={() => dispatch({ type: "close", id: window.id })}
+                >
+                  Discard changes
+                </button>
+                <button onClick={() => setConfirmingClose(false)}>
+                  Keep editing
+                </button>
+              </div>
+            </WindowDialog>
+          )}
+        </WindowDialogFrame>
       </WindowStatusSlot.Provider>
       <div className="window-status">
         <span>kraziTV · {program.description}</span>

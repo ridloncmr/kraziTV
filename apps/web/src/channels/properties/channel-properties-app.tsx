@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
+import type { PropertiesWindows } from "../../desktop/windows/use-properties-windows.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { useResource } from "../../http/resources/use-resource.js";
 import {
@@ -11,29 +12,29 @@ import {
 
 /**
  * The Channel Properties window: one channel's property sheet, in its own
- * window beside My Channels so it is in view the moment a channel is picked.
- * It reads the channel itself, so an identity change made here reaches the
- * title bar and My Channels through `onRead`. The tab stays while the window
- * is open, across channels.
+ * window beside My Channels. It reads the channel itself for the title bar,
+ * and reports an identity change saved here so My Channels reads its list
+ * again. The tab stays while the window is open.
  */
 export function ChannelPropertiesApp({
   channelId,
   visible,
-  onRead,
+  windows,
 }: {
   channelId: string;
   visible: boolean;
-  /** Reports each read of the channel, so the window title and list follow a rename. */
-  onRead: (channel: Channel) => void;
+  /** Channel Properties windows: this one's title and My Channels' list follow its saves. */
+  windows: PropertiesWindows;
 }) {
   const channel = useResource<Channel>(
     resourcePath("channels", channelId),
     visible,
   );
   const [tab, setTab] = useState<ChannelTab>("general");
+  const { read, changed } = windows;
   useEffect(() => {
-    if (channel.data) onRead(channel.data);
-  }, [channel.data, onRead]);
+    if (channel.data) read(channel.data);
+  }, [channel.data, read]);
   // Deleted elsewhere, such as from My Channels in another browser.
   const gone =
     channel.error instanceof ApiError && channel.error.status === 404;
@@ -54,7 +55,10 @@ export function ChannelPropertiesApp({
           visible={visible}
           tab={tab}
           onTabChange={setTab}
-          changed={channel.refresh}
+          changed={() => {
+            channel.refresh();
+            changed();
+          }}
         />
       )}
     </div>

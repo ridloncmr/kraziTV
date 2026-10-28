@@ -1,39 +1,27 @@
-import { createElement, Fragment, useCallback, useState } from "react";
+import { createElement, Fragment } from "react";
 import { ChannelsApp } from "../channels/channels-app.js";
 import { ChannelPropertiesApp } from "../channels/properties/channel-properties-app.js";
-import type { Channel } from "../http/contracts/channels.js";
+import { propertiesTarget } from "../desktop/programs.js";
+import { usePropertiesTestWindows } from "./properties-test-windows.js";
 
 /**
  * My Channels beside a Channel Properties window per opened channel, wired
- * as the desktop shell wires them, so a test can open channels and use
- * their property sheets without the whole desktop. Opening a channel again
- * keeps its one window. `visible` stands for every window being shown or
- * minimized.
+ * through the shell's own bookkeeping, so a test can open channels and use
+ * their property sheets without the whole desktop. `visible` stands for
+ * every window being shown or minimized.
  */
 export function ChannelWindows({ visible = true }: { visible?: boolean }) {
-  const [opened, setOpened] = useState<readonly string[]>([]);
-  const [revision, setRevision] = useState(0);
-  // Stable, as the shell's is, so a read reports once rather than every render.
-  const read = useCallback(() => setRevision((count) => count + 1), []);
+  const windows = usePropertiesTestWindows();
   return createElement(
     Fragment,
     null,
-    createElement(ChannelsApp, {
-      visible,
-      channelsRevision: revision,
-      onShowProperties: (channel: Channel) =>
-        setOpened((ids) =>
-          ids.includes(channel.id) ? ids : [...ids, channel.id],
-        ),
-      onDeleted: (channelId: string) =>
-        setOpened((ids) => ids.filter((id) => id !== channelId)),
-    }),
-    ...opened.map((channelId) =>
+    createElement(ChannelsApp, { visible, windows: windows.channels }),
+    ...windows.open.map((id) =>
       createElement(ChannelPropertiesApp, {
-        key: channelId,
-        channelId,
+        key: id,
+        channelId: propertiesTarget(id)!.objectId,
         visible,
-        onRead: read,
+        windows: windows.channels,
       }),
     ),
   );
