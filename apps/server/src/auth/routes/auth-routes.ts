@@ -11,6 +11,7 @@ import {
   readSessionCookie,
   sessionCookie,
 } from "../sessions/session-cookie.js";
+import { isForeignOrigin, isLoopbackOrigin } from "../gate/request-origin.js";
 import { displayNameField } from "./display-name-field.js";
 import { sendTooManyAttempts } from "./too-many-attempts.js";
 
@@ -21,10 +22,29 @@ const setupBody = z.strictObject({
 
 const loginBody = z.strictObject({ password: passwordField });
 
-/** Cookie settings fixed at startup from parsed configuration. */
+const stateQuery = z.object({ origin: z.string().optional() });
+
+/** Settings fixed at startup from parsed configuration. */
 interface AuthRouteSettings {
   /** True when the public base URL is https, so the cookie is sent only over TLS. */
   secureCookie: boolean;
+  /** The origins the auth gate accepts writes from. */
+  allowedOrigins: ReadonlySet<string>;
+  /** Where to send a browser whose own address cannot write. */
+  publicBaseUrl: string;
+}
+
+/** Decides the advice `GET /auth/state` gives a page at `origin`; see there. */
+function wrongAddress(origin: string | undefined, settings: AuthRouteSettings) {
+  if (
+    origin === undefined ||
+    !isForeignOrigin("POST", origin, settings.allowedOrigins)
+  ) {
+    return null;
+  }
+  return isLoopbackOrigin(settings.publicBaseUrl) && !isLoopbackOrigin(origin)
+    ? { kind: "configure" as const }
+    : { kind: "open" as const, url: settings.publicBaseUrl };
 }
 
 /**
@@ -41,9 +61,22 @@ export function registerAuthRoutes(
   const cookie = (token: string, maxAgeSeconds: number) =>
     sessionCookie(token, maxAgeSeconds, settings.secureCookie);
 
-  server.get("/auth/state", async (request) =>
-    auth.state(readSessionCookie(request.headers.cookie), request.log),
-  );
+  // `origin` is the web app's own address. When the gate would refuse its
+  // writes, `wrongAddress` says what works, so the owner is not handed a
+  // form that can only fail: open the public base URL, or, when that names
+  // the server's own computer and this browser is elsewhere, configure one.
+  // It is advice only: writes are still judged by their own Origin header.
+  server.get("/auth/state", async (request) => {
+    // A malformed query gets no advice rather than an error.
+    const origin = stateQuery.safeParse(request.query).data?.origin;
+    return {
+      ...(await auth.state(
+        readSessionCookie(request.headers.cookie),
+        request.log,
+      )),
+      wrongAddress: wrongAddress(origin, settings),
+    };
+  });
 
   server.post("/auth/setup", async (request, reply) => {
     const body = setupBody.safeParse(request.body);

@@ -65,6 +65,53 @@ it("shows the logon screen with the account's tile when the browser has no sessi
   expect(screen.queryByRole("button", { name: "start" })).toBeNull();
 });
 
+it("sends its own address with the boot read, so the server can say when it would refuse it", async () => {
+  const api = stubAuthApi(loggedOut);
+  render(createElement(App));
+  await screen.findByRole("main", { name: "Log on to kraziTV" });
+  expect(api.requestsTo("/auth/state")[0]?.query.get("origin")).toBe(
+    window.location.origin,
+  );
+});
+
+it.each([
+  ["setup", setupRequired],
+  ["logon", loggedOut],
+])(
+  "links to the working address instead of %s when the server would refuse this one",
+  async (_, state) => {
+    stubAuthApi({
+      ...state,
+      wrongAddress: { kind: "open", url: "http://192.168.1.10:3000" },
+    });
+    render(createElement(App));
+    const screenRegion = await screen.findByRole("main", {
+      name: "Open kraziTV at its address",
+    });
+    expect(
+      within(screenRegion)
+        .getByRole("link", { name: "Open http://192.168.1.10:3000" })
+        .getAttribute("href"),
+    ).toBe("http://192.168.1.10:3000");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Marguerite" })).toBeNull();
+  },
+);
+
+it("asks for this address as the public base URL when the server's names only its own computer", async () => {
+  stubAuthApi({ ...setupRequired, wrongAddress: { kind: "configure" } });
+  render(createElement(App));
+  const screenRegion = await screen.findByRole("main", {
+    name: "Open kraziTV at its address",
+  });
+  expect(within(screenRegion).queryByRole("link")).toBeNull();
+  expect(
+    within(screenRegion).getByText(window.location.origin, {
+      selector: "code",
+    }),
+  ).toBeTruthy();
+});
+
 it("shows the setup screen while the account is not set up and opens the desktop once it is", async () => {
   const api = stubAuthApi(setupRequired);
   api.reply("/auth/setup", loggedIn, "POST", 201);

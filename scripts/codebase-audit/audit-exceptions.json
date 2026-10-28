@@ -75,6 +75,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/web/src/logon/"],
+      "reason": "logon/ is one capability: the screens shown before the desktop. The setup, logon, and wrong-address screens share its backdrop, and the account tile is the logon screen's own control.",
+      "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["packages/signal/src/channel-worker/"],
       "reason": "Every file serves the worker, so the domain stays flat.",
       "source": "AGENTS.md (source layout: \"signal/src/channel-worker/ stays flat\")"

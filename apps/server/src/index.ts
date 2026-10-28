@@ -12,6 +12,7 @@ import { MetadataRefreshService } from "./content-metadata/refresh/metadata-refr
 import { TmdbKeyService } from "./content-metadata/tmdb-key/tmdb-key-service.js";
 import { resolveDataDirectory } from "./config/data-directory.js";
 import { loadEnvFile } from "./config/env-file.js";
+import { findBuiltWebApp } from "./web-app/web-app-routes.js";
 import { openDatabase } from "./database/database.js";
 import { MediaRootRepository } from "./media-roots/media-root-repository.js";
 import { MediaItemRepository } from "./media-items/media-item-repository.js";
@@ -61,6 +62,10 @@ const probeConfig = parseProbeConfig(process.env);
 const ffmpegPath = parseFfmpegPath(process.env);
 const fillerFontFile = parseFfmpegFontFile(process.env, process.platform);
 const programmingTimezone = resolveProgrammingTimezone(process.env, logger);
+const webAppDirectory = findBuiltWebApp();
+if (webAppDirectory === undefined) {
+  logger.info("No built web app found; run npm run build to serve it here");
+}
 const database = await openDatabase({ dataDirectory });
 
 const auth = new AuthService(database.db);
@@ -195,6 +200,7 @@ const server = buildServer(
       networkBaseUrl: networkBaseUrl(port),
     },
     ...(corsOrigins ? { corsOrigins } : {}),
+    webAppDirectory,
   },
 );
 

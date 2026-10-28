@@ -124,7 +124,9 @@ Minimized programs retain form drafts and remain on the taskbar.
 
 Set `VITE_API_BASE_URL` when the browser should use a different API origin.
 Development defaults to `http://127.0.0.1:3000`; a production build defaults to
-same-origin requests. Serving the built UI is still deployment/packaging work.
+same-origin requests. After `npm run build`, `npm start --workspace
+@krazitv/server` serves the web app and the API together on one port
+([ADR 0019](docs/adrs/0019-same-origin-web-app-and-container.md)).
 For Chromium verification, run `npx playwright install chromium` and
 `npm run test:browser --workspace @krazitv/web`. This opt-in suite uses real
 Fastify routes and SQLite, with the existing controlled probe adapter, and writes

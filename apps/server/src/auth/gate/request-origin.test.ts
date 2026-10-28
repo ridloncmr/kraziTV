@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isForeignOrigin } from "./request-origin.js";
+import { isForeignOrigin, withLoopbackAliases } from "./request-origin.js";
 
 const allowed = new Set(["http://127.0.0.1:5173", "https://tv.lan"]);
 
@@ -43,5 +43,23 @@ describe("isForeignOrigin", () => {
     "http://127.0.0.1:5173, http://evil.example",
   ])("refuses a write from %j", (origin) => {
     expect(isForeignOrigin("DELETE", origin, allowed)).toBe(true);
+  });
+});
+
+describe("withLoopbackAliases", () => {
+  it("adds every loopback spelling of a loopback origin, keeping its scheme and port", () => {
+    expect(withLoopbackAliases("http://127.0.0.1:3000")).toEqual(
+      new Set([
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "http://[::1]:3000",
+      ]),
+    );
+  });
+
+  it("leaves a network origin alone", () => {
+    expect(withLoopbackAliases("https://tv.lan")).toEqual(
+      new Set(["https://tv.lan"]),
+    );
   });
 });

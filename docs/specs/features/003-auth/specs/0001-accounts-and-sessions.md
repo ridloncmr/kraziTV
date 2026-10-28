@@ -90,13 +90,14 @@ not a login credential.
   session.
 - The public route list is fixed in one file:
 
-  | Route                                                                                  | Why public                      |
-  | -------------------------------------------------------------------------------------- | ------------------------------- |
-  | `GET /health`                                                                          | Startup and liveness checks     |
-  | `GET /auth/state`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`         | A logged-out browser needs them |
-  | `GET /discover.json`, `GET /lineup.json`, `GET /lineup_status.json`, `GET /device.xml` | Plex HDHomeRun tuner            |
-  | `GET /plex/xmltv.xml`                                                                  | Plex guide                      |
-  | `GET /channels/:id/stream`                                                             | Plex tunes channels             |
+  | Route                                                                                  | Why public                                                                                 |
+  | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+  | `GET /health`                                                                          | Startup and liveness checks                                                                |
+  | `GET /auth/state`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`         | A logged-out browser needs them                                                            |
+  | `GET /discover.json`, `GET /lineup.json`, `GET /lineup_status.json`, `GET /device.xml` | Plex HDHomeRun tuner                                                                       |
+  | `GET /plex/xmltv.xml`                                                                  | Plex guide                                                                                 |
+  | `GET /channels/:id/stream`                                                             | Plex tunes channels                                                                        |
+  | `GET /`, `GET /assets/*`                                                               | The built web app ([ADR 0019](../../../../adrs/0019-same-origin-web-app-and-container.md)) |
 
 - `GET /plex/setup` stays gated: it is admin information, not a Plex call.
 - Matching uses Fastify's matched route pattern and method, never the raw URL,

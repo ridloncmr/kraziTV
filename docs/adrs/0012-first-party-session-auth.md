@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted on 2026-10-07.
+Accepted on 2026-10-07. Amended by
+[ADR 0019](0019-same-origin-web-app-and-container.md): the web app's two
+routes join the public route list, and loopback spellings of the public base
+URL are allowed write origins.
 
 ## Context
 

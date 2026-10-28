@@ -11,7 +11,7 @@ import { isForeignOrigin } from "./request-origin.js";
 
 /** Settings fixed at startup from parsed configuration. */
 interface AuthGateSettings {
-  /** Normalized origins a browser write may come from: the public base URL's and the CORS list. */
+  /** Normalized origins a browser write may come from: the public base URL's, its loopback spellings, and the CORS list. */
   allowedOrigins: ReadonlySet<string>;
   /** Whether a reissued session cookie is `Secure`; the auth routes use the same value. */
   secureCookie: boolean;

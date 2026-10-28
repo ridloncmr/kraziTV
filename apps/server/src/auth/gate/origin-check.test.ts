@@ -27,6 +27,11 @@ describe("cross-site request check", () => {
     ["an opaque origin", "null"],
     ["a malformed origin", "not an origin"],
     ["a configured origin on another port", "http://127.0.0.1:5174"],
+    ["a loopback spelling of the CORS origin", "http://localhost:5173"],
+    [
+      "a loopback spelling of the CORS origin's other host",
+      "http://[::1]:5173",
+    ],
   ])(
     "refuses a signed-in write from %s and writes nothing",
     async (_, origin) => {
@@ -53,6 +58,36 @@ describe("cross-site request check", () => {
     await expect(
       send(server, "POST", "/channels", channel, { cookie, ...headers }),
     ).resolves.toMatchObject({ status: 201 });
+  });
+
+  it.each(["http://localhost:3000", "http://[::1]:3000"])(
+    "accepts a write from %s when the public base URL is 127.0.0.1 on that port",
+    async (origin) => {
+      const { server } = await startTestServer({
+        auth: "real",
+        plex: { publicBaseUrl: "http://127.0.0.1:3000" },
+      });
+      const { cookie } = await signIn(server);
+
+      await expect(
+        send(server, "POST", "/channels", channel, { cookie, origin }),
+      ).resolves.toMatchObject({ status: 201 });
+    },
+  );
+
+  it("refuses a loopback spelling of the public base URL on another port", async () => {
+    const { server } = await startTestServer({
+      auth: "real",
+      plex: { publicBaseUrl: "http://127.0.0.1:3000" },
+    });
+    const { cookie } = await signIn(server);
+
+    await expect(
+      send(server, "POST", "/channels", channel, {
+        cookie,
+        origin: "http://localhost:3001",
+      }),
+    ).resolves.toMatchObject({ status: 403 });
   });
 
   it("lets a foreign site read, which changes nothing", async () => {

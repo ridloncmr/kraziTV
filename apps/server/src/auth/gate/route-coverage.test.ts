@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { signIn } from "../../testing/api-requests.js";
 import { ControlledChannelStreams } from "../../testing/controlled-channel-streams.js";
+import { writeWebAppFixture } from "../../testing/web-app-fixture.js";
 import {
   cleanUpTestEnvironment,
   startTestServer,
@@ -124,6 +125,7 @@ async function startRecordedServer() {
   const { server } = await startTestServer({
     auth: "real",
     overrides: () => ({ channelStreams: streams }),
+    webAppDirectory: await writeWebAppFixture(),
     onRoute: (route: RouteOptions) => {
       for (const method of [route.method].flat()) {
         routes.push({ method, url: route.url });

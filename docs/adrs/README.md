@@ -26,6 +26,7 @@ Each ADR's status is the `## Status` section of the ADR itself.
 | [0016](0016-prepared-ffmpeg-process.md)                | A prepared item's FFmpeg process starts ahead and holds its output |
 | [0017](0017-series-folder-and-folder-evidence.md)      | The series folder names a show and its seasons break title ties    |
 | [0018](0018-join-backlog.md)                           | A tuned viewer joins about ten seconds behind the live edge        |
+| [0019](0019-same-origin-web-app-and-container.md)      | The server serves the built web app; one image holds everything    |
 
 ## Format
 

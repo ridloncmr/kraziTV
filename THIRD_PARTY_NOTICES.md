@@ -13,7 +13,7 @@ under MPL-2.0. Its `assets/desktop.css`, `assets/loader.css`, `desktop.html`, an
 taskbar, and boot composition. The kraziTV implementation was written
 independently from the design brief's tokens; no upstream code, Microsoft
 wallpaper, logos, icons, or font binaries are distributed. The CRT mark,
-program icons, and `apps/web/public/northwoods.svg` are original kraziTV vector
+program icons, and `apps/web/src/desktop/chrome/northwoods.svg` are original kraziTV vector
 artwork and use the project's license.
 
 ## Matt Pocock Skills
