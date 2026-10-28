@@ -517,16 +517,7 @@ describe("combined programming rules acceptance", () => {
       );
     }
     expect(fresh.some((turn) => turn.winningRuleId === null)).toBe(true);
-    // Which takeover show wins the 09:00 window depends on the shuffle, which
-    // the rule IDs seed. The airing Nick turn ends by 09:30 and Halloween
-    // takes one turn a round, so a takeover show's turn starts before 11:00.
-    expect(
-      fresh.some(
-        (turn) =>
-          turn.winningRuleId === rules.nick ||
-          turn.winningRuleId === rules.cartoon,
-      ),
-    ).toBe(true);
+    expect(fresh.some((turn) => turn.winningRuleId === rules.nick)).toBe(true);
 
     await coverUntil(second.server, clock, COMBINED_END);
     const entries = await readScheduleEntries(second.db, CHANNEL_ID);
@@ -548,29 +539,9 @@ describe("combined programming rules acceptance", () => {
         (aired.get(key) ?? new Set()).add(entry.media_collection_id ?? ""),
       );
     }
-    // The default lineup's combinations air for weeks, so each airs all of
-    // its collections. A takeover window airs a few hours, and which shows
-    // fit depends on the shuffle the rule IDs seed, so its collections need
-    // only air somewhere.
-    const airedAnywhere = new Set<string>();
     for (const [key, collections] of aired) {
-      if (key.startsWith("office,parks")) {
-        expect([...collections].sort()).toEqual(key.split(",").sort());
-      }
-      for (const collection of collections) airedAnywhere.add(collection);
+      expect([...collections].sort()).toEqual(key.split(",").sort());
     }
-    expect([...airedAnywhere].sort()).toEqual(
-      [
-        "cartoon",
-        "christmas",
-        "halloween",
-        "nick",
-        "office",
-        "parks",
-        "snow",
-        "sponge",
-      ].sort(),
-    );
 
     // Each turn records the first rule, in saved order, naming its show:
     // Nick for the shared show, at Nick's size.

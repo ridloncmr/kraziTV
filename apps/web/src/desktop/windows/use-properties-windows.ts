@@ -3,7 +3,7 @@ import type { PropertiesKind, WindowAction, WindowId } from "../contracts.js";
 import { programOf, propertiesWindow } from "../programs.js";
 
 /** What a properties window shows: a channel or a collection, by its ID and name. */
-interface PropertiesObject {
+export interface PropertiesObject {
   id: string;
   name: string;
 }

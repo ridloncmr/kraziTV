@@ -305,7 +305,8 @@ None.
 
 ## Acceptance Criteria
 
-- Selecting a channel shows General, Lineup, Rules, Specials, and Preview tabs;
+- Opening a channel (double-click, Enter, or Properties) shows General,
+  Lineup, Rules, Specials, and Preview tabs in its Channel Properties window;
   Rules and Preview appear only once the lineup has a show.
 - The Lineup tab lists every assignment in saved order with show, order,
   per sitting, marathon, and rules-only columns, and no assignment is shown as

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps } from "../../controls/row-click.js";
-import { inRowMenu, RowMenu } from "../../controls/row-menu.js";
+import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
+import { RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type {
   MarathonSettings,
@@ -107,19 +107,10 @@ export function LineupTab({
                   key={assignment.id}
                   className={`clickable-row${assignment.id === selectedId ? " selected-row" : ""}`}
                   {...rowClickProps(() => setSelectedId(assignment.id))}
-                  onDoubleClick={(event) => {
-                    if (inRowMenu(event.target)) return;
+                  {...rowOpenProps(() => {
                     setSelectedId(assignment.id);
                     setEditing(assignment.id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" || inRowMenu(event.target)) {
-                      return;
-                    }
-                    event.preventDefault();
-                    setSelectedId(assignment.id);
-                    setEditing(assignment.id);
-                  }}
+                  })}
                 >
                   <td>
                     <button

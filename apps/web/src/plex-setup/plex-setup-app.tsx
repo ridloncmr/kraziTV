@@ -79,7 +79,7 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
               <p>
                 <code>
                   PUBLIC_BASE_URL=http://&lt;this computer&apos;s network
-                  address&gt;:{new URL(setup.data.tunerBaseUrl).port}
+                  address&gt;{portSuffix(setup.data.tunerBaseUrl)}
                 </code>
               </p>
             ))}
@@ -122,4 +122,10 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
       </fieldset>
     </div>
   );
+}
+
+/** The `:port` a suggested address keeps from the current one; a URL on its scheme's default port has none. */
+function portSuffix(url: string): string {
+  const { port } = new URL(url);
+  return port === "" ? "" : `:${port}`;
 }

@@ -100,14 +100,28 @@ describe("parsePublicBaseUrl", () => {
 });
 
 describe("isLoopbackHost", () => {
-  it.each(["127.0.0.1", "127.1.2.3", "localhost", "LOCALHOST", "::1", "[::1]"])(
-    "treats %s as this computer only",
-    (host) => expect(isLoopbackHost(host)).toBe(true),
+  it.each([
+    "127.0.0.1",
+    "127.1.2.3",
+    "localhost",
+    "LOCALHOST",
+    "::1",
+    "[::1]",
+    "0:0:0:0:0:0:0:1",
+    "::ffff:127.0.0.1",
+  ])("treats %s as this computer only", (host) =>
+    expect(isLoopbackHost(host)).toBe(true),
   );
 
-  it.each(["0.0.0.0", "::", "192.168.1.10", "tv.example", "127.example"])(
-    "treats %s as reachable from the network",
-    (host) => expect(isLoopbackHost(host)).toBe(false),
+  it.each([
+    "0.0.0.0",
+    "::",
+    "192.168.1.10",
+    "::ffff:192.168.1.10",
+    "tv.example",
+    "127.example",
+  ])("treats %s as reachable from the network", (host) =>
+    expect(isLoopbackHost(host)).toBe(false),
   );
 });
 

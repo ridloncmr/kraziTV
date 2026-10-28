@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { DesktopWindow } from "../contracts.js";
+import { rememberWindows, type WindowMemory } from "./window-memory.js";
 import { windowReducer } from "./window-state.js";
 
 describe("desktop windows", () => {
@@ -43,6 +45,34 @@ describe("desktop windows", () => {
       "channel-properties:two",
       "channel-properties:one",
     ]);
+  });
+
+  it("keeps a steady cascade while memory follows the front properties window, as the shell does", () => {
+    let memory: WindowMemory = {
+      "collection-properties": {
+        x: 300,
+        y: 100,
+        width: 500,
+        height: 400,
+        maximized: false,
+      },
+    };
+    let state: DesktopWindow[] = [];
+    const open = (id: `collection-properties:${string}`) => {
+      state = windowReducer(state, { type: "open", id }, memory);
+      memory = rememberWindows(memory, state);
+    };
+    for (const id of ["a", "b", "c", "d"] as const)
+      open(`collection-properties:${id}`);
+    expect(state.map(({ x }) => x)).toEqual([300, 324, 348, 372]);
+    // A new window never lands on top of one still open.
+    state = windowReducer(state, {
+      type: "close",
+      id: "collection-properties:a",
+    });
+    memory = rememberWindows(memory, state);
+    open("collection-properties:e");
+    expect(state.at(-1)).toMatchObject({ x: 396, y: 196 });
   });
 
   it("reopens a minimized singleton without losing its position", () => {

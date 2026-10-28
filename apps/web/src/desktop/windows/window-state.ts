@@ -7,8 +7,9 @@ import type { WindowMemory } from "./window-memory.js";
  * Positions and sizes are where the user placed each window; viewport clamping happens
  * at render so a temporarily small browser never overwrites them. A program
  * opens where `remembered` last left it, else at its own default placement,
- * else cascaded from the top left. Every Channel Properties window shares
- * one remembered placement, and each opens a step past those already open.
+ * else cascaded from the top left. Every window of one properties kind shares
+ * one remembered placement, and a new one opens a step past the front one
+ * already open, so the cascade never compounds with what memory recorded.
  */
 export function windowReducer(
   state: DesktopWindow[],
@@ -36,15 +37,13 @@ export function windowReducer(
       maximized: false,
       ...remembered[program.id],
     };
-    // Only Channel Properties has siblings; a singleton never counts itself.
-    const step =
-      24 * state.filter((entry) => programOf(entry.id) === program).length;
+    // Only properties kinds have siblings; a singleton never finds itself.
+    const front = state.findLast((entry) => programOf(entry.id) === program);
     const item = existing ?? {
       id: action.id,
       openedOrder: Math.max(-1, ...state.map((entry) => entry.openedOrder)) + 1,
       ...placed,
-      x: placed.x + step,
-      y: placed.y + step,
+      ...(front && { x: front.x + 24, y: front.y + 24 }),
     };
     return [
       ...state.filter((entry) => entry.id !== action.id),

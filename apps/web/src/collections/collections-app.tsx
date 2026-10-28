@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { usePropertiesList } from "../desktop/windows/use-properties-list.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import type {
   MediaCollection,
@@ -32,33 +33,22 @@ export function CollectionsApp({
   );
   // Refresh reloads everything this window shows.
   const { refresh: refreshWindow } = useRefreshScope();
-  const { refresh } = collections;
-  // A collection saved or deleted in Collection Properties changes its card,
-  // so the grid reads again. The first render already reads it.
-  const seenRevision = useRef(windows.revision);
-  useEffect(() => {
-    if (seenRevision.current === windows.revision) return;
-    seenRevision.current = windows.revision;
-    refresh();
-  }, [windows.revision, refresh]);
   const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
   // Which kind of collection a creation dialog is open for, if any.
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
   const [discovering, setDiscovering] = useState(false);
-  // A created collection opens in Collection Properties only once its
-  // creation dialog has returned focus to this window, or that focus would
-  // bring this window back over the one just opened.
-  const created = useRef<MediaCollection>(undefined);
-  useEffect(() => {
-    if (creating || !created.current) return;
-    windows.show(created.current);
-    created.current = undefined;
-  }, [creating, windows]);
+  // A save or delete in Collection Properties reads the grid again; a
+  // created collection opens in its own window once its dialog has closed.
+  const openCreated = usePropertiesList(
+    windows,
+    collections.refresh,
+    creating !== undefined,
+  );
 
   /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
   function opened(collection: MediaCollection) {
-    created.current = collection;
+    openCreated(collection);
     setCreating(undefined);
     setTab(collection.maintenanceMode);
     collections.refresh();

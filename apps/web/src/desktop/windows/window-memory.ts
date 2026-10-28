@@ -13,8 +13,8 @@ type WindowPlacement = Pick<
 
 /**
  * What this browser remembers, by program; a program never opened here has
- * no entry. Every Channel Properties window shares one entry, so the memory
- * never grows with the channels opened.
+ * no entry. Every window of one properties kind shares one entry, so the
+ * memory never grows with the channels or collections opened.
  */
 export type WindowMemory = Partial<
   Record<ProgramDefinition["id"], WindowPlacement>
@@ -57,7 +57,7 @@ export function rememberWindows(
   windows: readonly DesktopWindow[],
 ): WindowMemory {
   const next: WindowMemory = { ...memory };
-  // Array order is stacking order, so the front Channel Properties wins.
+  // Array order is stacking order, so the front window of each properties kind wins.
   for (const { id, x, y, width, height, maximized } of windows) {
     next[programOf(id).id] = { x, y, width, height, maximized };
   }

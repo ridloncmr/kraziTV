@@ -27,9 +27,10 @@ async function selectChannel(name: string) {
   fireEvent.click(await screen.findByRole("button", { name }));
 }
 
-it("keeps a saved delete absent and retries cleanup on the same ID", async () => {
+it("keeps a saved delete absent, closes its Properties window, and retries cleanup on the same ID", async () => {
   const api = new BrowserApi();
   api.reply("/channels", [adminFixtures.channels[0]]);
+  api.reply("/channels/one", adminFixtures.channels[0]);
   api.handle(
     "/channels/one",
     () => {
@@ -58,13 +59,18 @@ it("keeps a saved delete absent and retries cleanup on the same ID", async () =>
   );
   vi.stubGlobal("fetch", api.fetch);
   const view = render(createElement(ChannelWindows));
-  await selectChannel("Northwoods TV");
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
+  await screen.findByRole("tab", { name: "Lineup" });
   fireEvent.click(screen.getByRole("button", { name: "Delete…" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Delete channel permanently" }),
   );
   await screen.findByText("Channel deleted. Configuration saved.");
   await screen.findByText(/No channels yet/);
+  // Nothing is left to edit, so its window closed with the delete.
+  expect(screen.queryByRole("tab", { name: "Lineup" })).toBeNull();
   view.unmount();
   render(createElement(ChannelWindows));
   expect(

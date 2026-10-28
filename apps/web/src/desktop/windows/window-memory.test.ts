@@ -44,7 +44,7 @@ it("ignores stored entries that are not placements, so an edited value never ope
   expect(readWindowMemory()).toEqual({});
 });
 
-it("keeps one placement for every Channel Properties window, from the front one", () => {
+it("keeps one placement for each properties kind, from the front window", () => {
   const properties = (channelId: string, x: number): DesktopWindow => ({
     ...channels,
     id: `channel-properties:${channelId}`,

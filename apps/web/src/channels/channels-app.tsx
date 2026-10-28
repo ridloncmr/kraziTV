@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
-import { rowClickProps } from "../controls/row-click.js";
-import { inRowMenu, RowMenu } from "../controls/row-menu.js";
+import { rowClickProps, rowOpenProps } from "../controls/row-click.js";
+import { RowMenu } from "../controls/row-menu.js";
 import { WindowDialog } from "../controls/window-dialog.js";
+import { usePropertiesList } from "../desktop/windows/use-properties-list.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
@@ -39,27 +40,18 @@ export function ChannelsApp({
     attempted: boolean;
   }>();
   const [creating, setCreating] = useState(false);
-  // A created channel opens in Channel Properties only once the New channel
-  // dialog has returned focus to this window, or that focus would bring this
-  // window back over the one just opened.
-  const created = useRef<Channel>(undefined);
-  useEffect(() => {
-    if (creating || !created.current) return;
-    windows.show(created.current);
-    created.current = undefined;
-  }, [creating, windows]);
   const { refresh } = channels;
-  // A channel changed in Channel Properties, as by a rename there, so the
-  // list reads again to match. The first render already reads it.
-  const seenRevision = useRef(windows.revision);
-  useEffect(() => {
-    if (seenRevision.current === windows.revision) return;
-    seenRevision.current = windows.revision;
-    refresh();
-  }, [windows.revision, refresh]);
+  // A rename in Channel Properties reads the list again; a created channel
+  // opens in its own window once the New channel dialog has closed.
+  const openCreated = usePropertiesList(windows, refresh, creating);
   const { remember } = cleanup;
+  // Each failed cleanup is handled once: closing a deleted channel's window
+  // bumps the revision, which re-runs this effect with the same error.
+  const handledError = useRef<unknown>(undefined);
   useEffect(() => {
     const error = mutation.error;
+    if (error === handledError.current) return;
+    handledError.current = error;
     if (
       error instanceof ApiError &&
       error.code === "channel_runtime_cleanup_failed"
@@ -69,17 +61,21 @@ export function ChannelsApp({
         typeof channelId === "string" &&
         (operation === "disable" || operation === "delete")
       ) {
+        const committed = persistenceCommitted === true;
         remember({
           id: channelId,
           operation,
-          committed: persistenceCommitted === true,
+          committed,
           message: error.message,
         });
         setDeleting(undefined);
-        refresh();
+        // A committed delete leaves nothing for its Properties window to
+        // edit; closing it also reads the list again.
+        if (operation === "delete" && committed) windows.deleted(channelId);
+        else refresh();
       }
     }
-  }, [mutation.error, refresh, remember]);
+  }, [mutation.error, refresh, remember, windows]);
   // Cleanup responses are authoritative about committed persistence even if the follow-up read fails.
   const displayedChannels = channels.data
     ?.filter(
@@ -232,16 +228,7 @@ export function ChannelsApp({
                   key={channel.id}
                   className={`clickable-row${channel.id === selected ? " selected-row" : ""}`}
                   {...rowClickProps(() => setSelected(channel.id))}
-                  onDoubleClick={(event) => {
-                    if (!inRowMenu(event.target)) open(channel);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" || inRowMenu(event.target)) {
-                      return;
-                    }
-                    event.preventDefault();
-                    open(channel);
-                  }}
+                  {...rowOpenProps(() => open(channel))}
                 >
                   <td className="narrow-column">{channel.number}</td>
                   <td>
@@ -294,7 +281,7 @@ export function ChannelsApp({
           created={(channel) => {
             setCreating(false);
             setSelected(channel.id);
-            created.current = channel;
+            openCreated(channel);
             channels.refresh();
           }}
           onClose={() => setCreating(false)}
@@ -328,10 +315,10 @@ export function ChannelsApp({
                   undefined,
                   () => {
                     cleanup.settle(deleting.channel.id, "delete");
+                    // Closing its window also reads the list again.
                     windows.deleted(deleting.channel.id);
                     setDeleting(undefined);
                     setSelected("");
-                    channels.refresh();
                   },
                 );
               }}

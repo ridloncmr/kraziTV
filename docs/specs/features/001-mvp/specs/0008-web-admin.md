@@ -72,11 +72,14 @@ The Web Admin uses React, Vite, and TypeScript.
 
 The desktop represents the server. Shortcuts and an organized Start menu open
 singleton administrative programs in windows; the bottom taskbar represents open
-programs, including minimized ones. The system tray shows a clock and the result
-of actual API health requests, never inferred FFmpeg or Plex health. The
-browser remembers where each program's window was left, its size, and whether
-it was maximized, and reopens it there; this is shell state kept in the
-browser, never sent to the server.
+programs, including minimized ones. My Channels and Collections also open a
+properties window per channel or collection, one each; opening one already
+open brings it forward. The system tray shows a clock and the result of actual
+API health requests, never inferred FFmpeg or Plex health. The browser
+remembers where each program's window was left, its size, and whether it was
+maximized, and reopens it there; every properties window of one kind shares a
+single remembered placement, and a new one opens a step past the front one
+open. This is shell state kept in the browser, never sent to the server.
 
 | Program       | Existing capability                                              |
 | ------------- | ---------------------------------------------------------------- |

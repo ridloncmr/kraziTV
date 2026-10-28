@@ -1,3 +1,4 @@
+import { BlockList, isIP } from "node:net";
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { parseIntegerSetting } from "./integer-setting.js";
 
@@ -69,15 +70,20 @@ function toHttpOrigin(value: string): string | undefined {
   return url.origin;
 }
 
+// Node's list also matches IPv4-mapped and expanded IPv6 spellings.
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet("127.0.0.0", 8, "ipv4");
+LOOPBACK.addAddress("::1", "ipv6");
+
 /**
  * Whether a host or URL hostname names this computer only, through
  * loopback, so Plex on another device can never reach it.
  */
 export function isLoopbackHost(host: string): boolean {
   const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
-  return (
-    bare === "localhost" || bare === "::1" || /^127(\.\d{1,3}){3}$/.test(bare)
-  );
+  const family = isIP(bare);
+  if (family === 0) return bare === "localhost";
+  return LOOPBACK.check(bare, family === 6 ? "ipv6" : "ipv4");
 }
 
 /**
