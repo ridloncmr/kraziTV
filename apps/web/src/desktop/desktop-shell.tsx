@@ -16,8 +16,14 @@ import type {
   DesktopWindow,
   ProgramId,
   WindowAction,
+  WindowId,
 } from "./contracts.js";
-import { programById, programs } from "./programs.js";
+import {
+  channelPropertiesWindow,
+  programOf,
+  programs,
+  propertiesChannelId,
+} from "./programs.js";
 import { AppWindow } from "./windows/app-window.js";
 import { readWindowMemory, rememberWindows } from "./windows/window-memory.js";
 import { windowReducer } from "./windows/window-state.js";
@@ -68,46 +74,52 @@ export function DesktopShell({
     (id: ProgramId) => dispatch({ type: "open", id }),
     [],
   );
-  // The channel Channel Properties shows, as last read; set when My Channels
-  // opens one and whenever the window reads it again.
-  const [propertiesChannel, setPropertiesChannel] = useState<Channel>();
-  /** Opens or focuses Channel Properties on a channel. */
+  // Each channel opened in Channel Properties, as its window last read it,
+  // for the window titles. `revision` counts the reads that changed a
+  // channel, so My Channels reads its list again after a rename there.
+  const [opened, setOpened] = useState<{
+    channels: Readonly<Record<string, Channel>>;
+    revision: number;
+  }>({ channels: {}, revision: 0 });
+  /** Opens a channel's own Channel Properties, or focuses it when already open. */
   const showChannelProperties = useCallback((channel: Channel) => {
-    setPropertiesChannel(channel);
-    dispatch({ type: "open", id: "channel-properties" });
+    setOpened((current) => ({
+      ...current,
+      channels: { ...current.channels, [channel.id]: channel },
+    }));
+    dispatch({ type: "open", id: channelPropertiesWindow(channel.id) });
   }, []);
-  /**
-   * Takes a fresh read of the channel shown. A read of a channel picked
-   * before it is ignored, and one that changed nothing keeps the title and
-   * list from redrawing.
-   */
+  /** Takes a window's fresh read of its channel; one that changed nothing redraws nothing. */
   const channelRead = useCallback(
     (channel: Channel) =>
-      setPropertiesChannel((current) =>
-        current?.id !== channel.id ||
-        (current.number === channel.number &&
-          current.name === channel.name &&
-          current.enabled === channel.enabled)
+      setOpened((current) => {
+        const known = current.channels[channel.id];
+        return known &&
+          known.number === channel.number &&
+          known.name === channel.name &&
+          known.enabled === channel.enabled
           ? current
-          : channel,
-      ),
+          : {
+              channels: { ...current.channels, [channel.id]: channel },
+              revision: current.revision + 1,
+            };
+      }),
     [],
   );
-  /** Closes Channel Properties, as after its channel is deleted. */
-  const closeChannelProperties = useCallback(
-    () => dispatch({ type: "close", id: "channel-properties" }),
+  /** Closes a deleted channel's Channel Properties, if it is open. */
+  const channelDeleted = useCallback(
+    (channelId: string) =>
+      dispatch({ type: "close", id: channelPropertiesWindow(channelId) }),
     [],
-  );
-  const propertiesOpen = windows.some(
-    (window) => window.id === "channel-properties",
   );
   /** A window's title: Channel Properties names its channel, as XP's did. */
   const titleOf = useCallback(
-    (id: ProgramId) =>
-      id === "channel-properties" && propertiesChannel
-        ? `${propertiesChannel.name} Properties`
-        : programById(id).name,
-    [propertiesChannel],
+    (id: WindowId) => {
+      const channelId = propertiesChannelId(id);
+      const channel = channelId && opened.channels[channelId];
+      return channel ? `${channel.name} Properties` : programOf(id).name;
+    },
+    [opened.channels],
   );
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
@@ -192,7 +204,7 @@ export function DesktopShell({
             <AppWindow
               key={window.id}
               window={window}
-              program={programById(window.id)}
+              program={programOf(window.id)}
               title={titleOf(window.id)}
               avatarId={account.avatarId}
               active={activeId === window.id}
@@ -211,12 +223,10 @@ export function DesktopShell({
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   openProgram={openProgram}
-                  propertiesChannel={
-                    propertiesOpen ? propertiesChannel : undefined
-                  }
+                  channelsRevision={opened.revision}
                   showChannelProperties={showChannelProperties}
                   channelRead={channelRead}
-                  closeChannelProperties={closeChannelProperties}
+                  channelDeleted={channelDeleted}
                 />
               </RefreshScope>
             </AppWindow>

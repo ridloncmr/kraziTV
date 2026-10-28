@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -282,7 +283,7 @@ it("opens a channel with an empty lineup on Lineup, without Rules or Preview", a
   expect(tabNames()).toEqual(["General", "Lineup", "Specials"]);
 });
 
-it("shows every tab once the lineup has a show, keeps the chosen tab across channels, and has no schedule debug line", async () => {
+it("shows every tab once the lineup has a show, keeps each open channel on its own tab, and has no schedule debug line", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   api.reply("/channels/one", adminFixtures.channels[0]);
@@ -325,14 +326,19 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
   fireEvent.keyDown(screen.getByRole("button", { name: "Second channel" }), {
     key: "Enter",
   });
+  // The second channel opens in a sheet of its own, on its first tab,
+  // while the first keeps Preview.
+  const sheet = (name: string) => screen.getByRole("region", { name });
+  const chosen = (region: HTMLElement) =>
+    within(region)
+      .getAllByRole("tab")
+      .find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
   await screen.findByRole("heading", { name: "70 · Second channel" });
-  await waitFor(() =>
-    expect(
-      screen
-        .getByRole("tab", { name: "Preview" })
-        .getAttribute("aria-selected"),
-    ).toBe("true"),
-  );
+  await within(sheet("70 · Second channel properties")).findByRole("tab", {
+    name: "Rules",
+  });
+  expect(chosen(sheet("70 · Second channel properties"))).toBe("General");
+  expect(chosen(sheet("69 · Northwoods TV properties"))).toBe("Preview");
   expect(document.body.textContent).not.toMatch(/Backend schedule/);
   expect(api.requestsTo("/channels/two/schedule")).toEqual([]);
 });

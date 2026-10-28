@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { ProgramId } from "../desktop/contracts.js";
+import type { ProgramDefinition } from "../desktop/contracts.js";
 import { AccountPicture } from "./avatars/account-picture.js";
 import { ProgramIcon } from "./program-icon.js";
 
@@ -16,7 +16,7 @@ export const DesktopProgramIcon = memo(function DesktopProgramIcon({
   avatarId,
   size,
 }: {
-  program: ProgramId;
+  program: ProgramDefinition["id"];
   avatarId: string;
   size: number;
 }) {

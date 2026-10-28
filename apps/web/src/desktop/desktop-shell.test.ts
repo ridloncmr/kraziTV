@@ -276,7 +276,7 @@ it("reloads a window brought to the front, and every open window when the browse
   await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(3));
 });
 
-it("opens a picked channel in Channel Properties beside My Channels, follows a rename, and closes when the channel is deleted", async () => {
+it("opens each channel in its own Channel Properties beside My Channels, follows a rename, and closes one when its channel is deleted", async () => {
   const [northwoods, second] = adminFixtures.channels;
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
@@ -324,12 +324,35 @@ it("opens a picked channel in Channel Properties beside My Channels, follows a r
       .map((button) => button.textContent),
   ).toEqual(["My Channels", "Northwoods TV Properties"]);
 
-  // Opening another channel, here by double-click, retargets the one window.
+  // Another channel, here by double-click, opens in a window of its own a
+  // step past the first; opening the first again only brings it forward.
   fireEvent.doubleClick(
     within(list).getByRole("button", { name: "Second channel" }),
   );
-  await screen.findByRole("region", { name: "Second channel Properties" });
-  expect(within(taskbar).getAllByRole("button")).toHaveLength(2);
+  const secondWindow = await screen.findByRole("region", {
+    name: "Second channel Properties",
+  });
+  // Measured downward: at 1280px the step right meets the screen's edge.
+  expect(parseFloat(secondWindow.style.top)).toBe(
+    parseFloat(properties.style.top) + 24,
+  );
+  fireEvent.doubleClick(
+    within(list).getByRole("button", { name: "Northwoods TV" }),
+  );
+  expect(
+    within(taskbar)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual([
+    "My Channels",
+    "Northwoods TV Properties",
+    "Second channel Properties",
+  ]);
+  expect(
+    within(taskbar)
+      .getByRole("button", { name: "Northwoods TV Properties" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
 
   // A rename there retitles the window and redraws the list.
   const renamed = { ...second, name: "Lakeside TV" };
@@ -349,9 +372,10 @@ it("opens a picked channel in Channel Properties beside My Channels, follows a r
   await screen.findByRole("region", { name: "Lakeside TV Properties" });
   await within(list).findByRole("button", { name: "Lakeside TV" });
 
-  // Deleting the channel it shows closes it.
+  // Deleting a channel closes its window and leaves the others open.
   api.reply("/channels/two", undefined, "DELETE", 204);
   api.reply("/channels", [northwoods]);
+  fireEvent.click(within(list).getByRole("button", { name: "Lakeside TV" }));
   fireEvent.click(within(list).getByRole("button", { name: "Delete…" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Delete channel permanently" }),
@@ -361,4 +385,7 @@ it("opens a picked channel in Channel Properties beside My Channels, follows a r
       screen.queryByRole("region", { name: "Lakeside TV Properties" }),
     ).toBeNull(),
   );
+  expect(
+    screen.getByRole("region", { name: "Northwoods TV Properties" }),
+  ).toBeTruthy();
 });

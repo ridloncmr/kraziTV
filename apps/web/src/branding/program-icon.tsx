@@ -11,7 +11,7 @@ export const ProgramIcon = memo(function ProgramIcon({
   program = "channels",
   size = 48,
 }: {
-  program?: Exclude<ProgramId, "account" | "channel-properties"> | "logo";
+  program?: Exclude<ProgramId, "account"> | "logo";
   size?: number;
 }) {
   const id = useId();

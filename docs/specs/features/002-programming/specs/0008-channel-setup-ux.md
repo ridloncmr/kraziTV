@@ -87,7 +87,9 @@ only; the glossary's provider meaning of lineup is unchanged.
 As in the lineup list, a click selects a channel, and double-click, Enter, or
 **Properties** (under the list or in the row menu) opens it in **Channel
 Properties**, a desktop window of its own beside My Channels, titled with the
-channel's name. A new channel opens there as soon as it is created. It holds an XP-style property sheet with tabs, replacing
+channel's name. Each channel opens in a window of its own, and opening one
+already open brings it forward. A new channel opens there as soon as it is
+created. It holds an XP-style property sheet with tabs, replacing
 the single scrolling page:
 
 | Tab          | Holds                                                                                               |

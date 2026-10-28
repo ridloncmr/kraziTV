@@ -3,7 +3,8 @@ import { AccountSettingsApp } from "../account-settings/account-settings-app.js"
 import { ChannelPropertiesApp } from "../channels/properties/channel-properties-app.js";
 import { ChannelsApp } from "../channels/channels-app.js";
 import { CollectionsApp } from "../collections/collections-app.js";
-import type { ProgramId } from "../desktop/contracts.js";
+import type { ProgramId, WindowId } from "../desktop/contracts.js";
+import { propertiesChannelId } from "../desktop/programs.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { Channel } from "../http/contracts/channels.js";
 import { LiveMonitorApp } from "../live-monitor/live-monitor-app.js";
@@ -17,7 +18,7 @@ import { ProgramGuideApp } from "../program-guide/program-guide-app.js";
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
  * `onTmdbKeyChanged`, `openProgram`, and the Channel Properties callbacks stable, changes
- * `tmdbTaskRequest` only when the tray asks, and `propertiesChannel` only when what it shows changes.
+ * `tmdbTaskRequest` only when the tray asks, and `channelsRevision` only when a channel changes.
  */
 export const ProgramContents = memo(function ProgramContents({
   id,
@@ -28,12 +29,12 @@ export const ProgramContents = memo(function ProgramContents({
   tmdbTaskRequest,
   onTmdbKeyChanged,
   openProgram,
-  propertiesChannel,
+  channelsRevision,
   showChannelProperties,
   channelRead,
-  closeChannelProperties,
+  channelDeleted,
 }: {
-  id: ProgramId;
+  id: WindowId;
   visible: boolean;
   connection: string;
   account: AccountProfile;
@@ -42,32 +43,31 @@ export const ProgramContents = memo(function ProgramContents({
   onTmdbKeyChanged: () => void;
   /** Opens another program, as a refusal's link to where it is resolved does. */
   openProgram: (id: ProgramId) => void;
-  /** The channel Channel Properties shows while that window is open. */
-  propertiesChannel: Channel | undefined;
+  /** Counts channel changes Channel Properties saw, so My Channels reads its list again. */
+  channelsRevision: number;
   showChannelProperties: (channel: Channel) => void;
   channelRead: (channel: Channel) => void;
-  closeChannelProperties: () => void;
+  channelDeleted: (channelId: string) => void;
 }) {
   const openChannels = () => openProgram("channels");
-  switch (id) {
+  const channelId = propertiesChannelId(id);
+  if (channelId !== undefined)
+    return (
+      <ChannelPropertiesApp
+        channelId={channelId}
+        visible={visible}
+        onRead={channelRead}
+      />
+    );
+  switch (id as ProgramId) {
     case "channels":
       return (
         <ChannelsApp
           visible={visible}
-          propertiesChannel={propertiesChannel}
+          channelsRevision={channelsRevision}
           onShowProperties={showChannelProperties}
-          onCloseProperties={closeChannelProperties}
+          onDeleted={channelDeleted}
         />
-      );
-    case "channel-properties":
-      return (
-        propertiesChannel && (
-          <ChannelPropertiesApp
-            channelId={propertiesChannel.id}
-            visible={visible}
-            onRead={channelRead}
-          />
-        )
       );
     case "media":
       return (

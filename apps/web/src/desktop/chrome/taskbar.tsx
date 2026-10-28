@@ -9,9 +9,10 @@ import {
 } from "react";
 import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/program-icon.js";
-import type { DesktopWindow, ProgramId, WindowAction } from "../contracts.js";
+import type { DesktopWindow, WindowAction, WindowId } from "../contracts.js";
 import { Tooltip } from "../../controls/tooltip.js";
 import { usePopupDismissal } from "../../controls/use-popup-dismissal.js";
+import { programOf } from "../programs.js";
 import { StartMenu } from "./start-menu.js";
 
 /** Taskbar derives its buttons directly from window state; minimized programs remain reachable. */
@@ -26,9 +27,9 @@ export function Taskbar({
   tray,
 }: {
   windows: DesktopWindow[];
-  activeId?: ProgramId;
+  activeId?: WindowId;
   /** Each window's title, as its title bar shows it. */
-  titleOf: (id: ProgramId) => string;
+  titleOf: (id: WindowId) => string;
   dispatch: Dispatch<WindowAction>;
   connection: string;
   /** The account's picture, which Account Settings' button and Start entry draw. */
@@ -98,7 +99,7 @@ export function Taskbar({
                   data-taskbar-window={window.id}
                 >
                   <DesktopProgramIcon
-                    program={window.id}
+                    program={programOf(window.id).id}
                     avatarId={avatarId}
                     size={18}
                   />

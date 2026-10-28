@@ -1,11 +1,6 @@
-/**
- * Stable window identities; the shell stores presentation only. Each is a
- * singleton: Channel Properties shows whichever channel My Channels last
- * opened in it.
- */
+/** Stable singleton program identities; the shell stores presentation only. */
 export type ProgramId =
   | "channels"
-  | "channel-properties"
   | "media"
   | "collections"
   | "guide"
@@ -13,8 +8,14 @@ export type ProgramId =
   | "monitor"
   | "account";
 
+/**
+ * A window's identity: a singleton program, or one channel's Channel
+ * Properties, so each channel opens in a window of its own.
+ */
+export type WindowId = ProgramId | `channel-properties:${string}`;
+
 export interface DesktopWindow {
-  id: ProgramId;
+  id: WindowId;
   /** Creation order keeps taskbar positions stable when stacking order changes. */
   openedOrder: number;
   x: number;
@@ -28,10 +29,10 @@ export interface DesktopWindow {
 export type WindowAction =
   | {
       type: "open" | "close" | "focus" | "minimize" | "maximize";
-      id: ProgramId;
+      id: WindowId;
     }
-  | { type: "move"; id: ProgramId; x: number; y: number }
-  | { type: "resize"; id: ProgramId; width: number; height: number };
+  | { type: "move"; id: WindowId; x: number; y: number }
+  | { type: "resize"; id: WindowId; width: number; height: number };
 
 /** The usable desktop area: the browser viewport minus the taskbar. */
 export interface DesktopViewport {
@@ -40,7 +41,8 @@ export interface DesktopViewport {
 }
 
 export interface ProgramDefinition {
-  id: ProgramId;
+  /** A program, or `channel-properties` for every Channel Properties window. */
+  id: ProgramId | "channel-properties";
   name: string;
   description: string;
   group: "Primary" | "Server";

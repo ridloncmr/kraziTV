@@ -20,17 +20,17 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
  */
 export function ChannelsApp({
   visible,
-  propertiesChannel,
+  channelsRevision,
   onShowProperties,
-  onCloseProperties,
+  onDeleted,
 }: {
   visible: boolean;
-  /** The channel Channel Properties shows, as it last read it, while that window is open. */
-  propertiesChannel: Channel | undefined;
-  /** Opens or focuses Channel Properties on a channel. */
+  /** Counts channel changes made in Channel Properties, such as a rename. */
+  channelsRevision: number;
+  /** Opens a channel's own Channel Properties, or focuses it when already open. */
   onShowProperties: (channel: Channel) => void;
-  /** Closes Channel Properties, once the channel it shows is deleted. */
-  onCloseProperties: () => void;
+  /** Reports a deleted channel, so its Channel Properties closes. */
+  onDeleted: (channelId: string) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
   // Refresh reloads everything this window shows.
@@ -54,11 +54,14 @@ export function ChannelsApp({
     created.current = undefined;
   }, [creating, onShowProperties]);
   const { refresh } = channels;
-  // Channel Properties read the channel anew, as after a rename there, so
-  // the list reads again to match.
+  // A channel changed in Channel Properties, as by a rename there, so the
+  // list reads again to match. The first render already reads it.
+  const seenRevision = useRef(channelsRevision);
   useEffect(() => {
-    if (propertiesChannel) refresh();
-  }, [propertiesChannel, refresh]);
+    if (seenRevision.current === channelsRevision) return;
+    seenRevision.current = channelsRevision;
+    refresh();
+  }, [channelsRevision, refresh]);
   const { remember } = cleanup;
   useEffect(() => {
     const error = mutation.error;
@@ -330,8 +333,7 @@ export function ChannelsApp({
                   undefined,
                   () => {
                     cleanup.settle(deleting.channel.id, "delete");
-                    if (propertiesChannel?.id === deleting.channel.id)
-                      onCloseProperties();
+                    onDeleted(deleting.channel.id);
                     setDeleting(undefined);
                     setSelected("");
                     channels.refresh();

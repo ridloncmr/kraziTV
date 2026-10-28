@@ -43,3 +43,22 @@ it("ignores stored entries that are not placements, so an edited value never ope
   localStorage.setItem("krazitv.windows", "not json");
   expect(readWindowMemory()).toEqual({});
 });
+
+it("keeps one placement for every Channel Properties window, from the front one", () => {
+  const properties = (channelId: string, x: number): DesktopWindow => ({
+    ...channels,
+    id: `channel-properties:${channelId}`,
+    x,
+  });
+  expect(
+    rememberWindows({}, [properties("one", 100), properties("two", 400)]),
+  ).toEqual({
+    "channel-properties": {
+      x: 400,
+      y: 90,
+      width: 800,
+      height: 500,
+      maximized: false,
+    },
+  });
+});
