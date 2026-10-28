@@ -1,12 +1,11 @@
 import { JOIN_BACKLOG_MS } from "../join-backlog.js";
 import {
   MPEG_TS_PACKET_BYTES,
+  PAT_PID,
   packetPid,
   startsAlignedPacketRun,
   startsVideoKeyframe,
 } from "./mpeg-ts-packet-run.js";
-
-const PAT_PID = 0;
 
 // The packager's GOP is one second (`-g 30` at 30 fps), so each keyframe back
 // from the newest adds about a second of replay.

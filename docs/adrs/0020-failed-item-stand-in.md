@@ -33,18 +33,27 @@ same way mid-program.
   The session's completion does not settle, so the worker, its subscribers,
   and its transition loop carry on.
 - **An airing item that falls silent has failed too.** Once an airing
-  process has produced usable output, twenty seconds without another chunk
+  process has produced usable output, five seconds without another chunk
   bring in its stand-in. That catches FFmpeg hung on a stalled read, and
   media shorter than its probe said, whose FFmpeg finishes cleanly before
   the boundary, both of which once left the output idle until then. A
-  healthy process writes several chunks a second; twenty seconds is chosen
-  so that the item is almost certainly lost, not a slow read about to
-  recover, at the cost of outlasting the roughly ten seconds a viewer holds
-  from the join backlog (ADR 0018). The watch
+  healthy process writes several chunks a second, and five seconds is
+  shorter than the roughly ten seconds a viewer holds from the join backlog
+  (ADR 0018), so the card arrives before the picture freezes. The watch
   moves with every commit, so a process that ends at its boundary is never
   replaced. A stand-in started while airing gets the readiness timeout, so
   one that never produces output, or later falls silent, fails the session.
-- **The stand-in lasts until the worker's next commit.** It is started for
+- **A stalled item that recovers returns.** A silent process that is still
+  running is set aside behind its stand-in rather than stopped, and its
+  output is dropped until a clean entry point: a PAT, then a video
+  keyframe. There the stand-in stops and the item cuts back in. FFmpeg
+  paces itself afresh after a pause rather than bursting through what it
+  missed, so the item resumes where it froze and runs late by the stall;
+  the next commit still lands on time and cuts its last seconds. An item
+  that never writes again is stopped at that commit, and one whose process
+  has exited, as with short media, cannot return.
+- **The stand-in lasts until the worker's next commit**, or until its stalled
+  item returns. It is started for
   the failed item's whole airtime, an upper bound the next commit truncates,
   as it truncates every item. The worker's boundaries are unchanged: the
   next playout item airs at its scheduled start.
@@ -76,12 +85,11 @@ same way mid-program.
   error line, and `signal_media_missing` when the check found the file gone.
 - A worker still fails on transition failures, a failed stand-in, and
   cleanup failures; those keep ADR 0008's behavior of ending subscribers.
-- A hung or short item costs viewers about twenty seconds without new
-  output before the card, roughly the last ten of them buffering in Plex,
-  logged as `signal_item_replaced_by_stand_in` with reason `output_stalled`.
-  A read that stalls longer than that and would have recovered loses the
-  rest of its item.
+- A hung or short item costs viewers up to five seconds of frozen picture
+  before the card, logged as `signal_item_replaced_by_stand_in` with reason
+  `output_stalled`. A hang that clears brings the item back, logged as
+  `signal_item_resumed`, minus its last seconds at the boundary.
 - `npm run test:ffmpeg` covers a missing file mid-schedule and at tune-in;
   an FFmpeg process killed with SIGKILL mid-program, while held before its
-  boundary, and just after its commit; one frozen with SIGSTOP; and a file
-  shorter than its airtime.
+  boundary, and just after its commit; one frozen with SIGSTOP that never
+  resumes and one that does; and a file shorter than its airtime.

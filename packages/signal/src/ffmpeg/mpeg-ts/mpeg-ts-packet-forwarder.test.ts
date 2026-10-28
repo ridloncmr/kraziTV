@@ -102,4 +102,29 @@ describe("MpegTsPacketForwarder", () => {
       }),
     ).then(() => undefined);
   });
+
+  it("keeps alignment and every unfinished PES packet when redirected", () => {
+    const source = new PassThrough();
+    const first = new PassThrough();
+    const second = new PassThrough();
+    const toFirst = collect(first);
+    const toSecond = collect(second);
+    const forwarder = new MpegTsPacketForwarder(source, first);
+    const done = transportPacket({ pid: 0x100, fill: 1, pesStart: true });
+    const open = transportPacket({ pid: 0x100, fill: 2, pesStart: true });
+    const next = transportPacket({ pid: 0x100, fill: 3, pesStart: true });
+
+    source.write(Buffer.concat([done, open, next.subarray(0, 100)]));
+    forwarder.redirect(second);
+    source.write(next.subarray(100));
+
+    // The open frame was not lost at the redirect, and the packet split
+    // across it arrived whole.
+    expect(toFirst()).toEqual(done);
+    expect(toSecond()).toEqual(open);
+    forwarder.detach();
+    expect(toSecond()).toEqual(open);
+    source.write(transportPacket({ pid: 0x100, pesStart: true }));
+    expect(toSecond()).toEqual(open);
+  });
 });

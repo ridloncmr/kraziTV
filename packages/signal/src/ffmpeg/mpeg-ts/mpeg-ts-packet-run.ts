@@ -44,6 +44,9 @@ export function startsPesPacket(buffer: Buffer, offset: number): boolean {
   );
 }
 
+/** The PID of the program association table, which starts every clean entry point. */
+export const PAT_PID = 0;
+
 /** The PID the packager maps every item's video to, in every FFmpeg process. */
 export const VIDEO_PID = 256;
 

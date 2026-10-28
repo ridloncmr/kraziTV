@@ -5,6 +5,7 @@ import { FakeClock } from "../../testing/fake-clock.js";
 import { MarkerReadinessInspector } from "../../testing/marker-readiness-inspector.js";
 import { FakeProcess, FakeProcessSpawner } from "../../testing/fake-process.js";
 import { FfmpegSignalPackager } from "./ffmpeg-signal-packager.js";
+import { VIDEO_PID } from "../mpeg-ts/mpeg-ts-packet-run.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";
 import { expectSignalError } from "../../testing/expect-signal-error.js";
 import { RecordingLogger } from "../../testing/recording-logger.js";
@@ -52,6 +53,32 @@ const createHarness = () => {
 };
 
 const packet = (fill: number): Buffer => transportPacket({ fill });
+
+/**
+ * The readiness marker as one whole transport packet, for tests whose later
+ * packets must stay aligned through the same process's forwarder.
+ */
+const markerPacket = (): Buffer => {
+  const marked = packet(9);
+  marked.write("usable-output", 20);
+  return marked;
+};
+const pat = (): Buffer => transportPacket({ pid: 0, fill: 1 });
+const videoKeyframe = (): Buffer =>
+  transportPacket({ pid: VIDEO_PID, keyframe: true });
+const videoFrameStart = (): Buffer =>
+  transportPacket({ pid: VIDEO_PID, pesStart: true });
+const videoFrame = (fill: number): Buffer =>
+  transportPacket({ pid: VIDEO_PID, fill });
+
+/** Clears each packet's continuity counter, which the session rewrites. */
+const withoutCounters = (packets: Buffer): Buffer => {
+  const cleared = Buffer.from(packets);
+  for (let offset = 3; offset < cleared.byteLength; offset += 188) {
+    cleared[offset] = (cleared[offset] ?? 0) & 0xf0;
+  }
+  return cleared;
+};
 
 /** Every media path exists, so only tests about missing media see a stand-in prepared. */
 const presentMedia = async (): Promise<boolean> => true;
@@ -278,12 +305,13 @@ describe("FfmpegSignalPackager", () => {
     child.writeStdout("usable-output");
     await session.ready;
 
-    timers.advanceBy(19_999);
+    timers.advanceBy(4_999);
     expect(spawner.spawnCalls).toHaveLength(1);
     timers.advanceBy(1);
 
     expectStandInArguments(spawner.spawnCalls[1]?.args);
-    expect(child.terminationSignals).toEqual(["SIGTERM"]);
+    // Kept alive behind the card, in case it writes again.
+    expect(child.terminationSignals).toEqual([]);
     expect(logger.warns).toContainEqual(
       expect.objectContaining({
         message: "signal_item_replaced_by_stand_in",
@@ -297,6 +325,21 @@ describe("FfmpegSignalPackager", () => {
     await stopped;
   });
 
+  it("arms no stall timer for output FFmpeg writes while stopping", async () => {
+    const { child, packager, timers } = createHarness();
+    const session = packager.start(initialItem());
+    child.writeStdout(markerPacket());
+    await session.ready;
+
+    const stopped = session.stop();
+    // FFmpeg flushes its muxer on SIGTERM before it exits.
+    child.writeStdout(packet(1));
+    child.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+
+    expect(timers.pendingTimerCount).toBe(0);
+  });
+
   it("keeps an airing process whose output keeps arriving", async () => {
     const { child, packager, spawner, timers } = createHarness();
     const session = packager.start(initialItem());
@@ -304,7 +347,7 @@ describe("FfmpegSignalPackager", () => {
     await session.ready;
 
     for (let tick = 0; tick < 3; tick += 1) {
-      timers.advanceBy(19_000);
+      timers.advanceBy(4_000);
       child.writeStdout(packet(tick));
     }
 
@@ -325,7 +368,7 @@ describe("FfmpegSignalPackager", () => {
     // long before the boundary.
     child.exit({ code: 0, signal: null });
     await flushMicrotasks(2);
-    timers.advanceBy(20_000);
+    timers.advanceBy(5_000);
 
     expectStandInArguments(spawner.spawnCalls[1]?.args);
     expect(logger.warns).toContainEqual(
@@ -353,17 +396,16 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
     timers.advanceBy(1_000);
     preparation.commit();
-    timers.advanceBy(15_000);
+    timers.advanceBy(4_000);
     second.writeStdout(packet(1));
-    timers.advanceBy(19_000);
+    timers.advanceBy(4_000);
 
     expect(spawner.spawnCalls).toHaveLength(2);
     expect(logger.warns).toEqual([]);
 
-    // Twenty seconds after its last chunk, the committed process counts as hung.
+    // Five seconds after its last chunk, the committed process counts as hung.
     timers.advanceBy(1_000);
     expectStandInArguments(spawner.spawnCalls[2]?.args);
-    expect(second.terminationSignals).toEqual(["SIGTERM"]);
     const stopped = session.stop();
     second.exit({ code: null, signal: "SIGTERM" });
     standIn.exit({ code: null, signal: "SIGTERM" });
@@ -381,10 +423,109 @@ describe("FfmpegSignalPackager", () => {
     await flushMicrotasks(2);
     standIn.writeStdout("usable-output");
 
-    timers.advanceBy(20_000);
+    timers.advanceBy(5_000);
 
     await failed;
     expect(spawner.spawnCalls).toHaveLength(2);
+  });
+
+  it("returns to a stalled process once it writes again, from its next keyframe", async () => {
+    const { child, packager, spawner, timers, logger } = createHarness();
+    const standIn = new FakeProcess();
+    const secondStandIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    spawner.enqueue(secondStandIn);
+    const session = packager.start(initialItem());
+    const forwarded: Buffer[] = [];
+    session.output.on("data", (chunk: Buffer) => forwarded.push(chunk));
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+    standIn.writeStdout(packet(4));
+    await flushMicrotasks(2);
+    const beforeResume = Buffer.concat(forwarded).byteLength;
+
+    // It writes again mid-frame: nothing before the next program tables and
+    // keyframe airs, so the splice back never starts on a broken frame.
+    child.writeStdout(
+      Buffer.concat([videoFrame(5), pat(), videoKeyframe(), videoFrameStart()]),
+    );
+    await flushMicrotasks(2);
+
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    expect(
+      withoutCounters(Buffer.concat(forwarded).subarray(beforeResume)),
+    ).toEqual(withoutCounters(Buffer.concat([pat(), videoKeyframe()])));
+    expect(logger.infos).toContainEqual(
+      expect.objectContaining({
+        message: "signal_item_resumed",
+        context: expect.objectContaining({ scheduleEntryId: "entry-1" }),
+      }),
+    );
+    standIn.writeStdout(packet(6));
+    await flushMicrotasks(2);
+    expect(Buffer.concat(forwarded).includes(packet(6))).toBe(false);
+
+    // The returned item is watched again, so a second stall brings the card back.
+    timers.advanceBy(5_000);
+    expectStandInArguments(spawner.spawnCalls[2]?.args);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    secondStandIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("stops a stalled process that never writes again at the next commit", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const standIn = new FakeProcess();
+    const second = new FakeProcess();
+    spawner.enqueue(standIn);
+    spawner.enqueue(second);
+    const session = packager.start(initialItem());
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+    const preparation = await session.prepare(
+      initialItem({ scheduleEntryId: "entry-2", mediaItemId: "media-2" }),
+    );
+    second.writeStdout("usable-output");
+
+    preparation.commit();
+
+    expect(child.terminationSignals).toEqual(["SIGTERM"]);
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    child.writeStdout(
+      Buffer.concat([pat(), videoKeyframe(), videoFrameStart()]),
+    );
+    await flushMicrotasks(2);
+    expect(standIn.terminationSignals).toEqual(["SIGTERM"]);
+    const stopped = session.stop();
+    child.exit({ code: null, signal: "SIGTERM" });
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    second.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
+  });
+
+  it("keeps the stand-in when a stalled process exits instead of writing again", async () => {
+    const { child, packager, spawner, timers } = createHarness();
+    const standIn = new FakeProcess();
+    spawner.enqueue(standIn);
+    const session = packager.start(initialItem());
+    const completed = trackSettlement(session.completion);
+    child.writeStdout(markerPacket());
+    await session.ready;
+    timers.advanceBy(5_000);
+
+    child.exit({ code: 1, signal: null });
+    await flushMicrotasks(2);
+
+    expect(standIn.terminationSignals).toEqual([]);
+    expect(completed.settled).toBe(false);
+    expect(spawner.spawnCalls).toHaveLength(2);
+    const stopped = session.stop();
+    standIn.exit({ code: null, signal: "SIGTERM" });
+    await stopped;
   });
 
   it("fails the session when its stand-in never produces output", async () => {

@@ -19,7 +19,7 @@ import {
 
 const ITEM_MS = 8_000;
 /** Long enough that a stall detected seconds in still airs its stand-in. */
-const LONG_ITEM_MS = 30_000;
+const LONG_ITEM_MS = 14_000;
 const PREPARE_LEAD_MS = 3_000;
 /**
  * The longest pause a viewer may see while a stand-in's cold FFmpeg starts.
@@ -29,9 +29,9 @@ const PREPARE_LEAD_MS = 3_000;
 const RECOVERY_GAP_CEILING_MS = 2_500;
 /**
  * The longest pause a viewer may see when the airing process goes silent:
- * the packager's twenty-second stall timeout, then a cold stand-in's start.
+ * the packager's five-second stall timeout, then a cold stand-in's start.
  */
-const STALL_TIMEOUT_MS = 20_000;
+const STALL_TIMEOUT_MS = 5_000;
 const STALL_RECOVERY_CEILING_MS = STALL_TIMEOUT_MS + 2_500;
 /** What the stand-in's drawtext filter writes, which names its process. */
 const STAND_IN_MARKER = "Programming offline";
@@ -357,7 +357,7 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     expect(silence).toBeLessThan(9.5);
   }, 45_000);
 
-  it("airs the stand-in once a hung FFmpeg has been silent twenty seconds, then the next program", async () => {
+  it("airs the stand-in while a frozen FFmpeg never resumes, then the next program", async () => {
     const channel = await tuneViewer({
       path: longPath,
       durationMs: LONG_ITEM_MS,
@@ -374,7 +374,12 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     expect(channel.runtime.now() - frozenAt).toBeGreaterThan(
       STALL_TIMEOUT_MS - 500,
     );
-    // SIGTERM waits on a stopped process, so the grace period's SIGKILL ends it.
+    // Set aside, not stopped, in case it writes again.
+    expect(childrenMatching(longPath)).toEqual([frozen]);
+
+    // The next commit stops it; SIGTERM waits on a stopped process, so the
+    // grace period's SIGKILL ends it.
+    await channel.until(LONG_ITEM_MS);
     await waitUntil(() => !childrenMatching(longPath).includes(frozen), 8_000);
 
     await channel.until(LONG_ITEM_MS + 3_000);
@@ -394,7 +399,50 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     const [silence, ...others] = silences(channel.chunks);
     expect(others).toEqual([]);
     expect(silence).toBeGreaterThan(3);
-  }, 60_000);
+  }, 45_000);
+
+  it("returns to a frozen FFmpeg that resumes, and still starts the next program on time", async () => {
+    const channel = await tuneViewer({
+      path: longPath,
+      durationMs: LONG_ITEM_MS,
+    });
+
+    await channel.until(3_000);
+    const frozen = signalFfmpegFor(longPath, "SIGSTOP");
+    await waitUntil(
+      () => childrenMatching(STAND_IN_MARKER).length === 1,
+      STALL_RECOVERY_CEILING_MS + 1_000,
+    );
+    await channel.until(10_000);
+    const resumedAt = channel.runtime.now();
+    process.kill(frozen, "SIGCONT");
+
+    // The episode cuts back in at its next keyframe and the card stops.
+    await waitUntil(
+      () => childrenMatching(STAND_IN_MARKER).length === 0,
+      3_000,
+    );
+    expect(channel.runtime.now() - resumedAt).toBeLessThan(2_500);
+    expect(childrenMatching(longPath)).toEqual([frozen]);
+
+    await channel.until(LONG_ITEM_MS + 3_000);
+    expect(channel.viewer.closed).toBe(false);
+    expect(channel.committed()).toEqual([
+      { kind: "program", scheduleEntryId: "next" },
+    ]);
+    const boundaryAt = channel.startsAt + LONG_ITEM_MS;
+    expect(
+      longestGapMs(channel.arrivals, resumedAt, boundaryAt + 2_000),
+    ).toBeLessThan(RECOVERY_GAP_CEILING_MS);
+    await channel.finish();
+
+    // Tone, the card's silence while it was frozen, then tone again from
+    // the episode itself, before the next program's.
+    const [silence, ...others] = silences(channel.chunks);
+    expect(others).toEqual([]);
+    expect(silence).toBeGreaterThan(0.5);
+    expect(silence).toBeLessThan(5);
+  }, 45_000);
 
   it("airs the stand-in once a file shorter than its probe runs out, then the next program", async () => {
     const channel = await tuneViewer({
@@ -402,7 +450,7 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
       durationMs: LONG_ITEM_MS,
     });
 
-    // FFmpeg finishes the 3-second file cleanly, 27 seconds early.
+    // FFmpeg finishes the 3-second file cleanly, 11 seconds early.
     await waitUntil(() => childrenMatching(shortPath).length === 0, 6_000);
     const endedAt = channel.runtime.now();
     await waitUntil(
@@ -427,5 +475,5 @@ describe("real FFmpeg killed, hung, or short mid-broadcast", () => {
     const [silence, ...others] = silences(channel.chunks);
     expect(others).toEqual([]);
     expect(silence).toBeGreaterThan(3);
-  }, 60_000);
+  }, 45_000);
 });
