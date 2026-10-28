@@ -12,11 +12,15 @@ COPY . .
 RUN npm ci && npm run build && npm prune --omit=dev
 
 FROM node:22-trixie-slim
+LABEL org.opencontainers.image.source="https://github.com/ridloncmr/kraziTV" \
+  org.opencontainers.image.description="kraziTV: a linear TV channel simulator for Plex"
 # FFmpeg and ffprobe for probing and streaming; a font for the filler screen.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+# kraziTV's license and the notices for everything else in this image.
+COPY LICENSE THIRD_PARTY_NOTICES.md ./
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
