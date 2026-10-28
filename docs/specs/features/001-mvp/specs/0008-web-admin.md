@@ -81,14 +81,14 @@ maximized, and reopens it there; every properties window of one kind shares a
 single remembered placement, and a new one opens a step past the front one
 open. This is shell state kept in the browser, never sent to the server.
 
-| Program       | Existing capability                                              |
-| ------------- | ---------------------------------------------------------------- |
-| Media Library | Media roots, synchronous scans, catalog and availability         |
-| Collections   | Collection names and explicit ordered membership                 |
-| My Channels   | Channel identity, lifecycle, cleanup retries, programming blocks |
-| Program Guide | Selected channel's generated schedule and current/next state     |
-| Plex Setup    | Backend-supplied tuner and XMLTV URLs and copy actions           |
-| Live Monitor  | API connection and backend-computed selected channel state       |
+| Program       | Existing capability                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| Media Library | Media roots, synchronous scans, catalog and availability                                              |
+| Collections   | Collection names and explicit ordered membership                                                      |
+| My Channels   | Channel identity, lifecycle, cleanup retries, programming blocks, what each channel airs now and next |
+| Program Guide | Selected channel's generated schedule and current/next state                                          |
+| Plex Setup    | Backend-supplied tuner and XMLTV URLs and copy actions                                                |
+| Live Monitor  | Whether kraziTV is reachable, and backend-computed selected channel state                             |
 
 The shell supports open, close, focus, stacking, title-bar dragging,
 minimize/restore, and maximize/restore. Reopening a program restores and focuses

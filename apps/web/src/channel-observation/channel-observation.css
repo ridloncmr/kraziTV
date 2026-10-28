@@ -1,0 +1,4 @@
+/* What airs next sits under what airs now, in My Channels' On now column. */
+.now-next-line {
+  display: block;
+}

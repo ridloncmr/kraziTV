@@ -123,7 +123,8 @@ export function RulesEditor({
                 <th>Rule</th>
                 <th>When</th>
                 <th>Plays</th>
-                <th>Plays</th>
+                {/* The rule dialog's own words for the behavior choice. */}
+                <th>While it applies</th>
                 <th>Priority</th>
                 <th aria-label="Actions" />
               </tr>

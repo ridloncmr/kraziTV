@@ -888,6 +888,31 @@ it("shows each root's match counts and disables Retry failed lookups when none f
   ).toBe(true);
 });
 
+it("says a root with no media has none, rather than 0 of 0 matched", async () => {
+  const empty = { items: 0, matched: 0, needsChoice: 0, failedLookups: 0 };
+  renderScanLibrary([
+    mediaRoot({
+      id: "new",
+      path: "/new",
+      lastScannedAt: null,
+      matchCounts: empty,
+    }),
+    mediaRoot({
+      id: "bare",
+      path: "/bare",
+      lastScannedAt: "2026-10-27T12:00:00.000Z",
+      matchCounts: empty,
+    }),
+  ]);
+  await advance();
+
+  const row = (path: string) =>
+    screen.getByText(path).closest("tr") as HTMLElement;
+  expect(within(row("/new")).getByText("Scan to find media")).toBeTruthy();
+  expect(within(row("/bare")).getByText("No media found")).toBeTruthy();
+  expect(screen.queryByText(/0 of 0 matched/)).toBeNull();
+});
+
 it("retries a root's failed lookups in the progress dialog, opening at enriching and summarizing lookups only", async () => {
   const { api, scan } = renderScanLibrary([
     mediaRoot({

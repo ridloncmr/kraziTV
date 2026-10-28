@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChannelNowNext } from "../channel-observation/channel-now-next.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps, rowOpenProps } from "../controls/row-click.js";
 import { RowMenu } from "../controls/row-menu.js";
@@ -219,6 +220,7 @@ export function ChannelsApp({
               <tr>
                 <th className="narrow-column">Number</th>
                 <th>Channel</th>
+                <th>On now</th>
                 <th aria-label="Actions" />
               </tr>
             </thead>
@@ -241,6 +243,9 @@ export function ChannelsApp({
                     {!channel.enabled && (
                       <span className="row-badge">Disabled</span>
                     )}
+                  </td>
+                  <td>
+                    <ChannelNowNext channel={channel} visible={visible} />
                   </td>
                   <td>
                     <RowMenu

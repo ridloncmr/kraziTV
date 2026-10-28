@@ -481,7 +481,7 @@ for (const viewport of [
       exact: true,
     });
     await expect(
-      monitor.getByText("API connected", { exact: true }),
+      monitor.getByText("kraziTV is running", { exact: true }),
     ).toBeVisible();
     await monitor
       .getByRole("combobox", { name: "Channel", exact: true })

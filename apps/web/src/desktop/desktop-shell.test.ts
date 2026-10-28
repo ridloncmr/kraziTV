@@ -107,7 +107,7 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
   ).toBeNull();
   expect(document.activeElement).toBe(start);
   expect(
-    await screen.findByRole("button", { name: "API connection failed" }),
+    await screen.findByRole("button", { name: "Can't reach kraziTV" }),
   ).toBeTruthy();
 });
 

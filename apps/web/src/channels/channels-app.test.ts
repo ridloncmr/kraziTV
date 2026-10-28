@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { displayClockTime } from "../controls/display-time.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import {
   adminFixtures,
@@ -376,4 +377,102 @@ it("saves the channel's number and name from General with Apply", async () => {
       name: "Lakeside TV",
     }),
   );
+});
+
+it("shows what each enabled channel is airing now and next, and asks nothing of a disabled one", async () => {
+  const api = new BrowserApi();
+  const [northwoods, second] = adminFixtures.channels;
+  api.reply("/channels", [
+    northwoods,
+    second,
+    { id: "three", number: "71", name: "Resting TV", enabled: false },
+  ]);
+  api.reply("/channels/one/now", adminFixtures.now);
+  api.reply("/channels/two/now", {
+    evaluatedAt: "2026-10-05T15:00:00.000Z",
+    currentItem: {
+      type: "filler",
+      startsAt: "2026-10-05T14:45:00.000Z",
+      endsAt: "2026-10-05T20:00:00.000Z",
+      resumeTime: "8:00 PM",
+    },
+    nextItem: null,
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelWindows));
+
+  const row = async (name: string) =>
+    (await screen.findByRole("button", { name })).closest("tr") as HTMLElement;
+  const northwoodsRow = await row("Northwoods TV");
+  expect(await within(northwoodsRow).findByText("Alpha")).toBeTruthy();
+  expect(
+    within(northwoodsRow).getByText(
+      `Next at ${displayClockTime("2026-10-05T15:10:00.000Z")}: Zulu`,
+    ),
+  ).toBeTruthy();
+  const secondRow = await row("Second channel");
+  expect(
+    await within(secondRow).findByText(
+      "Off air — programming resumes at 8:00 PM",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(await row("Resting TV")).getByText("Not broadcasting"),
+  ).toBeTruthy();
+  expect(api.requestsTo("/channels/three/now")).toEqual([]);
+});
+
+it("says why a channel has nothing on air, and keeps a row whose read failed quiet", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one/now", {
+    evaluatedAt: "2026-10-05T15:00:00.000Z",
+    currentItem: null,
+    nextItem: null,
+    reason: "schedule_gap",
+  });
+  api.reply(
+    "/channels/two/now",
+    { error: { code: "schedule_busy", message: "Busy" } },
+    "GET",
+    503,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelWindows));
+
+  expect(
+    await screen.findByText(
+      "Nothing is scheduled right now. Check that the channel's shows have media, and its Lineup and Rules tabs.",
+    ),
+  ).toBeTruthy();
+  const secondRow = (
+    await screen.findByRole("button", { name: "Second channel" })
+  ).closest("tr") as HTMLElement;
+  expect(await within(secondRow).findByText("Unavailable")).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("replaces what a channel aired with Unavailable when a later read fails", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  try {
+    const api = new BrowserApi();
+    api.reply("/channels", [adminFixtures.channels[0]]);
+    api.reply("/channels/one/now", adminFixtures.now);
+    vi.stubGlobal("fetch", api.fetch);
+    render(createElement(ChannelWindows));
+    expect(await screen.findByText("Alpha")).toBeTruthy();
+
+    api.reply(
+      "/channels/one/now",
+      { error: { code: "offline", message: "Offline" } },
+      "GET",
+      503,
+    );
+    vi.advanceTimersByTime(60_000);
+
+    expect(await screen.findByText("Unavailable")).toBeTruthy();
+    expect(screen.queryByText("Alpha")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });

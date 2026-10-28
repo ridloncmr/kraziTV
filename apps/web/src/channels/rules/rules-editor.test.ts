@@ -364,6 +364,12 @@ it("says in words when each rule applies, which shows it plays, and how", async 
   await openChannelTab(api, "Rules");
 
   const table = await screen.findByRole("table", { name: "Rules by priority" });
+  // Each column has its own heading, the last one unlabeled for actions.
+  expect(
+    within(table)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent),
+  ).toEqual(["Rule", "When", "Plays", "While it applies", "Priority", ""]);
   const [, row] = within(table).getAllByRole("row");
   if (row === undefined) throw new Error("The rule should be listed");
   await waitFor(() =>

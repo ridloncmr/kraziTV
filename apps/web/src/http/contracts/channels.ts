@@ -59,5 +59,6 @@ export interface ChannelState {
   evaluatedAt: string;
   currentItem: CurrentItem | null;
   nextItem: CurrentItem | null;
-  reason?: string;
+  /** Why nothing is on air, present only when `currentItem` is null. */
+  reason?: "schedule_gap" | "media_unavailable";
 }
