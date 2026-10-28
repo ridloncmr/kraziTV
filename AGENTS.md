@@ -40,7 +40,11 @@ It should behave like a small broadcast automation system, not a playlist genera
   documentation with the resolved decision.
 - Update only documentation that still serves an active planning, user,
   operator, or architecture purpose.
-- `README.md` is a high-level product and architecture overview.
+- `README.md` introduces kraziTV to people deciding whether to use it: what
+  it does, screenshots from `docs/images/`, and a quick start. Detail goes
+  elsewhere: install, Plex, and settings in
+  `docs/knowledge_base/running-krazitv.md`; development setup and the
+  architecture summary in `CONTRIBUTING.md`.
 - `docs/specs/` records feature intent and acceptance targets before and during
   implementation.
 - `docs/adrs/` records the reasoning behind architecture decisions.
