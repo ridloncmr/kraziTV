@@ -11,7 +11,8 @@ const NOW_NEXT_POLL_MS = 60_000;
  * What one channel airs now and next, for its row in My Channels. A disabled
  * channel broadcasts nothing, so it is never asked. A failed read stays a
  * quiet word in its cell, so one busy channel never fills the window with
- * alerts; the next poll tries again.
+ * alerts, and replaces what an earlier read said, which may no longer be
+ * airing; the next poll tries again.
  */
 export function ChannelNowNext({
   channel,
@@ -27,12 +28,8 @@ export function ChannelNowNext({
   );
   if (!channel.enabled)
     return <span className="secondary">Not broadcasting</span>;
-  if (!now.data)
-    return (
-      <span className="secondary">
-        {now.error ? "Unavailable" : "Checking…"}
-      </span>
-    );
+  if (now.error) return <span className="secondary">Unavailable</span>;
+  if (!now.data) return <span className="secondary">Checking…</span>;
   const { currentItem, nextItem } = now.data;
   if (!currentItem)
     return <span className="secondary">{offAirWords(now.data.reason)}</span>;

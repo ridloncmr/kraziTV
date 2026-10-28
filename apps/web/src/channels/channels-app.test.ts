@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { displayClockTime } from "../controls/display-time.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import {
   adminFixtures,
@@ -16,7 +17,6 @@ import {
 } from "../testing/admin-fixtures.js";
 import { ChannelWindows } from "../testing/channel-windows.js";
 import { openChannelTab } from "../testing/channel-tabs.js";
-import { displayClockTime } from "../controls/display-time.js";
 
 afterEach(() => {
   cleanup();
@@ -442,7 +442,7 @@ it("says why a channel has nothing on air, and keeps a row whose read failed qui
 
   expect(
     await screen.findByText(
-      "Nothing is scheduled right now. Add shows on the channel's Lineup tab.",
+      "Nothing is scheduled right now. Check that the channel's shows have media, and its Lineup and Rules tabs.",
     ),
   ).toBeTruthy();
   const secondRow = (
@@ -450,4 +450,29 @@ it("says why a channel has nothing on air, and keeps a row whose read failed qui
   ).closest("tr") as HTMLElement;
   expect(await within(secondRow).findByText("Unavailable")).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("replaces what a channel aired with Unavailable when a later read fails", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  try {
+    const api = new BrowserApi();
+    api.reply("/channels", [adminFixtures.channels[0]]);
+    api.reply("/channels/one/now", adminFixtures.now);
+    vi.stubGlobal("fetch", api.fetch);
+    render(createElement(ChannelWindows));
+    expect(await screen.findByText("Alpha")).toBeTruthy();
+
+    api.reply(
+      "/channels/one/now",
+      { error: { code: "offline", message: "Offline" } },
+      "GET",
+      503,
+    );
+    vi.advanceTimersByTime(60_000);
+
+    expect(await screen.findByText("Unavailable")).toBeTruthy();
+    expect(screen.queryByText("Alpha")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
