@@ -46,7 +46,12 @@ async function openLineup(
 // Selects the named show's row and opens it in Properties.
 async function openProperties(name = "Favorites") {
   fireEvent.click(await screen.findByRole("button", { name }));
-  fireEvent.click(screen.getByRole("button", { name: "Properties" }));
+  // The lineup's own Properties, not the one under the channel list.
+  fireEvent.click(
+    within(screen.getByRole("tabpanel")).getByRole("button", {
+      name: "Properties",
+    }),
+  );
   return screen.getByRole("dialog", { name });
 }
 

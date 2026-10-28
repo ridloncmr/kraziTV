@@ -18,7 +18,9 @@ export async function openChannelTab(
   api.reply("/channels", [channel]);
   api.reply(`/channels/${channel.id}`, channel);
   const view = render(createElement(ChannelWindows));
-  fireEvent.click(await screen.findByRole("button", { name: channel.name }));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: channel.name }),
+  );
   fireEvent.click(await screen.findByRole("tab", { name: tab }));
   return view;
 }

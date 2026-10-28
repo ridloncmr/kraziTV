@@ -204,7 +204,7 @@ it("opens a delete confirmation without an earlier action's error", async () => 
   expect(screen.queryByText("Disable failed")).toBeNull();
 });
 
-it("selects a channel from anywhere on its row except the row's buttons", async () => {
+it("selects a channel from anywhere on its row except the row's buttons, and opens it only on request", async () => {
   const api = new BrowserApi();
   api.reply("/channels", adminFixtures.channels);
   vi.stubGlobal("fetch", api.fetch);
@@ -223,6 +223,14 @@ it("selects a channel from anywhere on its row except the row's buttons", async 
   );
   expect(selected("Northwoods TV")).toBe(false);
   expect(selected("Second channel")).toBe(true);
+
+  // A click only selects; Properties under the grid opens the selection.
+  expect(screen.queryByRole("tab")).toBeNull();
+  api.reply("/channels/two", adminFixtures.channels[1]);
+  api.reply("/channels/two/programming-assignments", []);
+  api.reply("/media-collections", []);
+  fireEvent.click(screen.getByRole("button", { name: "Properties" }));
+  await screen.findByRole("heading", { name: "70 · Second channel" });
 });
 
 it("offers Disable and Delete from a row's menu, and for the selected row under the grid", async () => {
@@ -240,7 +248,7 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   );
   expect(
     screen.getAllByRole("menuitem").map((item) => item.textContent),
-  ).toEqual(["Disable", "Delete…"]);
+  ).toEqual(["Properties", "Disable", "Delete…"]);
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
   await selectChannel("Northwoods TV");
@@ -263,7 +271,9 @@ it("opens a channel with an empty lineup on Lineup, without Rules or Preview", a
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ChannelWindows));
 
-  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
 
   await screen.findByText(/No shows yet/);
   expect(
@@ -294,7 +304,9 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
   });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(ChannelWindows));
-  fireEvent.click(await screen.findByRole("button", { name: "Northwoods TV" }));
+  fireEvent.doubleClick(
+    await screen.findByRole("button", { name: "Northwoods TV" }),
+  );
 
   // A channel with a show opens on the first tab.
   await screen.findByRole("tab", { name: "Rules" });
@@ -310,7 +322,9 @@ it("shows every tab once the lineup has a show, keeps the chosen tab across chan
   await screen.findByRole("button", { name: "Rebuild the schedule…" });
   expect(screen.queryByLabelText("Name")).toBeNull();
 
-  fireEvent.click(screen.getByRole("button", { name: "Second channel" }));
+  fireEvent.keyDown(screen.getByRole("button", { name: "Second channel" }), {
+    key: "Enter",
+  });
   await screen.findByRole("heading", { name: "70 · Second channel" });
   await waitFor(() =>
     expect(

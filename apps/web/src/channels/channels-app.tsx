@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps } from "../controls/row-click.js";
-import { RowMenu } from "../controls/row-menu.js";
+import { inRowMenu, RowMenu } from "../controls/row-menu.js";
 import { WindowDialog } from "../controls/window-dialog.js";
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
@@ -14,8 +14,9 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
 
 /**
  * Channel lifecycle feedback distinguishes persisted identity changes from
- * unfinished runtime cleanup. Picking a channel opens it in Channel
- * Properties, a window of its own, so its settings are in view at once.
+ * unfinished runtime cleanup. As in a channel's lineup, a click selects a
+ * channel, and double-click, Enter, or **Properties** opens it in Channel
+ * Properties, a window of its own beside this one.
  */
 export function ChannelsApp({
   visible,
@@ -108,10 +109,15 @@ export function ChannelsApp({
   const selectedChannel = displayedChannels?.find(
     (channel) => channel.id === selected,
   );
-  /** One channel's lifecycle commands, shared by its row menu and the buttons under the grid. */
+  /** One channel's commands, shared by its row menu and the buttons under the grid. */
   const actionsFor = (channel: Channel) => {
     const blocked = mutation.pending || lifecycleRetryPending(channel.id);
     return {
+      properties: {
+        label: "Properties",
+        disabled: false,
+        onSelect: () => open(channel),
+      },
       toggle: {
         label: channel.enabled ? "Disable" : "Enable",
         disabled: blocked,
@@ -134,12 +140,12 @@ export function ChannelsApp({
       },
     };
   };
-  const selectedActions = selectedChannel && actionsFor(selectedChannel);
-  /** Selects a channel for the buttons under the grid and shows its properties. */
-  const open = (channel: Channel) => {
+  /** Selects a channel and opens it in Channel Properties. */
+  function open(channel: Channel) {
     setSelected(channel.id);
     onShowProperties(channel);
-  };
+  }
+  const selectedActions = selectedChannel && actionsFor(selectedChannel);
   return (
     <div className="program-page">
       <div className="program-toolbar">
@@ -227,13 +233,23 @@ export function ChannelsApp({
                 <tr
                   key={channel.id}
                   className={`clickable-row${channel.id === selected ? " selected-row" : ""}`}
-                  {...rowClickProps(() => open(channel))}
+                  {...rowClickProps(() => setSelected(channel.id))}
+                  onDoubleClick={(event) => {
+                    if (!inRowMenu(event.target)) open(channel);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || inRowMenu(event.target)) {
+                      return;
+                    }
+                    event.preventDefault();
+                    open(channel);
+                  }}
                 >
                   <td className="narrow-column">{channel.number}</td>
                   <td>
                     <button
                       className="text-button"
-                      onClick={() => open(channel)}
+                      onClick={() => setSelected(channel.id)}
                     >
                       {channel.name}
                     </button>
@@ -255,6 +271,12 @@ export function ChannelsApp({
       )}
       {displayedChannels && displayedChannels.length > 0 && (
         <div className="row-actions">
+          <button
+            disabled={!selectedActions}
+            onClick={selectedActions?.properties.onSelect}
+          >
+            Properties
+          </button>
           <button
             disabled={!selectedActions || selectedActions.toggle.disabled}
             onClick={selectedActions?.toggle.onSelect}

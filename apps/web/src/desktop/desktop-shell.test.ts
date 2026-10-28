@@ -303,9 +303,13 @@ it("opens a picked channel in Channel Properties beside My Channels, follows a r
     }),
   );
   const list = await screen.findByRole("region", { name: "My Channels" });
+  // The row menu's Properties opens it.
   fireEvent.click(
-    await within(list).findByRole("button", { name: "Northwoods TV" }),
+    await within(list).findByRole("button", {
+      name: "Actions for Northwoods TV",
+    }),
   );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Properties" }));
   const properties = await screen.findByRole("region", {
     name: "Northwoods TV Properties",
   });
@@ -320,8 +324,10 @@ it("opens a picked channel in Channel Properties beside My Channels, follows a r
       .map((button) => button.textContent),
   ).toEqual(["My Channels", "Northwoods TV Properties"]);
 
-  // Picking another channel retargets the one window.
-  fireEvent.click(within(list).getByRole("button", { name: "Second channel" }));
+  // Opening another channel, here by double-click, retargets the one window.
+  fireEvent.doubleClick(
+    within(list).getByRole("button", { name: "Second channel" }),
+  );
   await screen.findByRole("region", { name: "Second channel Properties" });
   expect(within(taskbar).getAllByRole("button")).toHaveLength(2);
 
