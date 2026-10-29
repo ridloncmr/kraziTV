@@ -13,7 +13,7 @@ import {
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams } from "../../http/request-schemas.js";
-import type { ScheduleService } from "../../schedules/schedule-service.js";
+import type { SchedulePreview } from "../../schedules/preview/schedule-preview.js";
 
 const MINUTE_MS = 60_000;
 
@@ -32,7 +32,7 @@ const previewQuery = z.strictObject({
  */
 export function registerProgrammingPreviewRoutes(
   server: FastifyInstance,
-  schedules: ScheduleService,
+  schedulePreview: SchedulePreview,
 ): void {
   server.get("/channels/:id/programming-preview", async (request, reply) => {
     const { id } = idParams.parse(request.params);
@@ -40,7 +40,7 @@ export function registerProgrammingPreviewRoutes(
     if (!query.success) {
       return sendInvalidRequest(reply, query.error);
     }
-    const preview = await schedules.previewProgramming(id, request.log);
+    const preview = await schedulePreview.previewProgramming(id, request.log);
     switch (preview.kind) {
       case "channel_not_found":
         return sendChannelNotFound(reply, id);

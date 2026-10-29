@@ -32,6 +32,7 @@ import { AssignmentRepository } from "../programming-assignments/persistence/ass
 import { RuleRepository } from "../programming-rules/rule-repository.js";
 import { ReservationRepository } from "../reservations/persistence/reservation-repository.js";
 import { PlayoutService } from "../playout/playout-service.js";
+import { SchedulePreview } from "../schedules/preview/schedule-preview.js";
 import { ScheduleService } from "../schedules/schedule-service.js";
 import { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import { MediaCollectionRepository } from "../media-collections/persistence/media-collection-repository.js";
@@ -179,6 +180,14 @@ export async function startTestServer(
       schedules: scheduleService,
       log: pino({ level: "silent" }),
     });
+  // Built per dependency set, so previews read on an overridden schedule
+  // service's clock and programming timezone.
+  const defaultPreview = (scheduleService: ScheduleService) =>
+    new SchedulePreview(
+      database.db,
+      () => scheduleService.now(),
+      scheduleService.programmingTimezone(),
+    );
   const auth = new AuthService(database.db);
   const defaults: TestServerDependencies = {
     auth,
@@ -208,13 +217,15 @@ export async function startTestServer(
     rules: new RuleRepository(database.db),
     reservations: new ReservationRepository(database.db),
     schedules,
+    schedulePreview: defaultPreview(schedules),
     playout: new PlayoutService(database.db, schedules),
   };
   const overridden = options.overrides?.(database.db, defaults) ?? {};
   const dependencies: TestServerDependencies = { ...defaults, ...overridden };
-  // A default playout service, scanner, and removal service follow the final
-  // schedule service (and the scanner the final roots), so overriding
-  // `schedules` alone keeps every consumer on one clock and one service.
+  // A default playout service, scanner, removal service, and schedule preview
+  // follow the final schedule service (and the scanner the final roots), so
+  // overriding `schedules` alone keeps every consumer on one clock and one
+  // service.
   if (overridden.playout === undefined) {
     dependencies.playout = new PlayoutService(
       database.db,
@@ -229,6 +240,9 @@ export async function startTestServer(
   }
   if (overridden.catalogRemovals === undefined) {
     dependencies.catalogRemovals = defaultRemovals(dependencies.schedules);
+  }
+  if (overridden.schedulePreview === undefined) {
+    dependencies.schedulePreview = defaultPreview(dependencies.schedules);
   }
   // Rebuilt only for an overridden schedule service: maintenance holds
   // pass state, so an override that took the default keeps the one instance
