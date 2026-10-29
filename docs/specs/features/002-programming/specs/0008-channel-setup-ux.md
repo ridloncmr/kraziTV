@@ -169,8 +169,9 @@ out of the results, since a member plays in one show at a time.
 **OK**, **Cancel**, and **Apply**. Nothing writes until **OK** or **Apply**.
 
 General and Show properties share one property-sheet footer: **OK**,
-**Cancel**, and **Apply** at the bottom right, **OK** and **Apply** enabled
-only once a field changed, and **Cancel** asking before it discards a change;
+**Cancel**, and **Apply** at the bottom right, **Apply** enabled only once a
+field changed, **OK** saving a change and closing, or just closing an unchanged
+sheet, and **Cancel** asking before it discards a change;
 General's **OK** and **Cancel** close the Channel Properties window.
 
 Main section:

@@ -391,7 +391,7 @@ async function openGeneral() {
 it("saves General's number and name with Apply, which is enabled only while a field changed", async () => {
   const { button, window, patches } = await openGeneral();
   expect(button("Apply").disabled).toBe(true);
-  expect(button("OK").disabled).toBe(true);
+  expect(button("OK").disabled).toBe(false);
 
   fireEvent.change(screen.getByLabelText("Name"), {
     target: { value: "Lakeside TV" },
@@ -409,7 +409,17 @@ it("saves General's number and name with Apply, which is enabled only while a fi
   ]);
   // The fields now match the saved channel, so nothing is left to save.
   await waitFor(() => expect(button("Apply").disabled).toBe(true));
-  expect(button("OK").disabled).toBe(true);
+  expect(button("OK").disabled).toBe(false);
+});
+
+it("closes an unchanged General tab with OK and saves nothing, as an XP sheet did", async () => {
+  const { button, window, patches } = await openGeneral();
+
+  fireEvent.click(button("OK"));
+
+  await waitFor(() => expect(window()).toBeNull());
+  expect(screen.queryByRole("dialog", { name: "Unsaved changes" })).toBeNull();
+  expect(patches()).toEqual([]);
 });
 
 it("saves General with OK and closes the window", async () => {

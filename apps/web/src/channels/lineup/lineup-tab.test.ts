@@ -227,8 +227,8 @@ it("asks before Cancel discards every change, so reopening shows the saved setti
   const dialog = await openProperties();
   const button = (name: string) =>
     within(dialog).getByRole<HTMLButtonElement>("button", { name });
-  // Nothing changed yet, so there is nothing to save.
-  expect(button("OK").disabled).toBe(true);
+  // Nothing changed yet, so there is nothing to apply; OK would just close.
+  expect(button("OK").disabled).toBe(false);
   expect(button("Apply").disabled).toBe(true);
   chooseOption(perSitting(dialog), "1 program");
   fireEvent.click(
@@ -261,6 +261,16 @@ it("asks before Cancel discards every change, so reopening shows the saved setti
       "Only air when a rule picks it",
     ).checked,
   ).toBe(false);
+  expect(patches(api)).toEqual([]);
+});
+
+it("closes an unchanged show with OK and saves nothing", async () => {
+  const { api } = await openLineup([favoritesAssignment("chronological")]);
+  const dialog = await openProperties();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  expect(screen.queryByRole("dialog")).toBeNull();
   expect(patches(api)).toEqual([]);
 });
 
