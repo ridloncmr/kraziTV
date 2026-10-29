@@ -22,12 +22,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("explains upcoming turns: continuation, overrun, marathons, and skips", async () => {
+it("lists upcoming turns in owner words: the show, what plays, already airing, overrun, marathons, and skips", async () => {
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", [
-    favoritesAssignment("chronological"),
+    favoritesAssignment("chronological", { name: "Evening Favorites" }),
   ]);
   api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/programming-assignments/stretch-suggestion", {
+    ordinaryStretch: { kind: "programs", count: 3 },
+    contentKind: "episodes",
+  });
   const program = (title: string) => ({
     mediaItemId: title,
     title,
@@ -77,26 +81,38 @@ it("explains upcoming turns: continuation, overrun, marathons, and skips", async
       },
     ],
     skips: [
-      { assignmentId: "empty", roundNumber: 2, reasons: ["empty_collection"] },
+      {
+        assignmentId: "assignment",
+        roundNumber: 2,
+        reasons: ["empty_collection"],
+      },
     ],
   });
   vi.stubGlobal("fetch", api.fetch);
   await openChannelTab(api, "Preview");
 
-  const turns = await screen.findByRole("list", { name: "Upcoming turns" });
+  const turns = await screen.findByRole("list", { name: "Upcoming shows" });
+  // The owner's name for the show, and its episodes once the suggestion
+  // has named the content kind.
+  await waitFor(() =>
+    expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
+      /Evening Favorites · 1 episode \(22 min\) · already airing$/,
+    ),
+  );
   const lines = within(turns)
     .getAllByRole("listitem")
     .map((item) => item.textContent);
-  expect(lines[0]).toMatch(
-    /Favorites · 1 program, 22 min · continues the turn on air/,
-  );
   expect(lines[1]).toMatch(
-    /3 programs, 66 min · 6 min over its 60-minute target/,
+    /3 episodes \(1 hr 6 min\) · 6 min over its 1 hr target, since whole programs air$/,
   );
-  expect(lines[2]).toMatch(/marathon, from this round's 10% chance/);
-  expect(
-    screen.getByRole("list", { name: "Skipped assignments" }).textContent,
-  ).toMatch(/Round 2 skips an assignment: its collection is empty/);
+  expect(lines[2]).toMatch(
+    /Evening Favorites · marathon, 3 episodes \(1 hr 6 min\)$/,
+  );
+  expect(screen.getByRole("list", { name: "Skipped shows" }).textContent).toBe(
+    "Evening Favorites is skipped: its collection is empty.",
+  );
+  const preview = screen.getByRole("region", { name: "Upcoming programming" });
+  expect(preview.textContent).not.toMatch(/assignment|round|%|rotation/i);
 });
 
 it("lets the airing program finish by default when rebuilding", async () => {
@@ -248,7 +264,7 @@ it("explains which rule chose each turn, the rules it passed over, and where its
   vi.stubGlobal("fetch", api.fetch);
   await openChannelTab(api, "Preview");
 
-  const turns = await screen.findByRole("list", { name: "Upcoming turns" });
+  const turns = await screen.findByRole("list", { name: "Upcoming shows" });
   await waitFor(() =>
     expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
       /chosen by Friday movies/,
@@ -258,12 +274,13 @@ it("explains which rule chose each turn, the rules it passed over, and where its
     .getAllByRole("listitem")
     .map((item) => item.textContent);
   expect(ruled).toMatch(
-    /passed over Nothing to air: none of its sources can air/,
+    /passed over Nothing to air: none of its shows can air/,
   );
-  expect(ruled).toMatch(
-    /the rule.s turn length · marathons off under the rule/,
+  expect(ruled).toMatch(/length set by the rule · no marathons under the rule/);
+  // A default turn says so only because a rule is in play beside it.
+  expect(defaulted).toMatch(
+    /Favorites · 1 program \(1 hr 30 min\) · normal rotation$/,
   );
-  expect(defaulted).toMatch(/normal rotation/);
   expect(screen.getByText(/checked at program boundaries/).textContent).toMatch(
     /never promises a program starts exactly when a window opens/,
   );
