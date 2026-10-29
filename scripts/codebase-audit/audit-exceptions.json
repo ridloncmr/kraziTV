@@ -210,7 +210,7 @@
         "apps/server/src/content-metadata/match-choice/match-choice-service.ts",
         "apps/server/src/content-metadata/track-mapping/track-mapping-service.ts"
       ],
-      "reason": "The repeat is each service's injected constructor (database, TMDB key reader, shared TMDB client, collection maintenance, clock) and its field assignments; a shared base class would add indirection for five fields.",
+      "reason": "Covers only the constructor clone between the two services: each one's injected constructor (database, TMDB key reader, shared TMDB client, collection maintenance, clock) and its field assignments; a shared base class would add indirection for five fields. The match-choice service's own key-and-item read repeat is gone into #readKeyAndWaiting, so no other clone remains to cover.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     },
     {

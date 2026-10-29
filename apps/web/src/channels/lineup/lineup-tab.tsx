@@ -20,7 +20,7 @@ import {
   perSittingLabel,
 } from "../assignments/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
-import { showLabel } from "./show-labels.js";
+import { assignmentShowLabel } from "./show-labels.js";
 import { useMemberNames } from "./use-member-names.js";
 
 /**
@@ -59,7 +59,7 @@ export function LineupTab({
   );
   // Names a show as the lineup and its dialogs show it.
   const showName = (assignment: SourceAssignment) =>
-    showLabel(assignment.name, assignment.members.map(memberName));
+    assignmentShowLabel(assignment, memberName);
   const settingsPath = `${programming.channelPath}/programming-settings`;
   const marathons = useResource<MarathonSettings>(settingsPath, visible);
   const marathonsOff = marathons.data?.marathonChancePercent === 0;
