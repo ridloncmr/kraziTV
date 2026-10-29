@@ -418,7 +418,7 @@ for (const viewport of [
     await expect(properties.getByRole("dialog")).toHaveCount(0);
     await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
-      properties.getByRole("list", { name: "Upcoming turns" }),
+      properties.getByRole("list", { name: "Upcoming shows" }),
     ).toContainText("Northwoods collection");
     await properties
       .getByRole("button", { name: "Close Northwoods TV Properties" })
