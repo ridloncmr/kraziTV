@@ -227,9 +227,8 @@ and by judgment `setting-location/`, added by POLISH-014), and
 `channels/assignments/` became `channels/stretch/`,
 `channels/collection-preview/`, and `channels/members/`, which by judgment
 also holds `play-order-field.tsx` and `playback-mode-choices.ts`. Both
-exceptions are gone, `formatting/`'s seven one-capability files record a
-flat-folder exception, and the nesting check now reviews a kind folder below a
-nested capability.
+exceptions are gone, and `formatting/`'s seven one-capability files record a
+flat-folder exception.
 
 **Goal**: The two folders past the hard count read as their capabilities and
 their exceptions go away.

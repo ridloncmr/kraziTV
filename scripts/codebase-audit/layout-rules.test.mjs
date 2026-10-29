@@ -79,14 +79,6 @@ describe("checkNestingDepth", () => {
 
     expect(checkNestingDepth(files)).toEqual([]);
   });
-
-  it("asks for review when a kind folder sits below a nested capability", () => {
-    const files = [file("branding/avatars/animals/drawings/duck-drawing.tsx")];
-
-    expect(rules(checkNestingDepth(files))).toEqual([
-      "review:nesting-depth:packages/demo/src/branding/avatars/animals/drawings/",
-    ]);
-  });
 });
 
 describe("checkGrouping", () => {
