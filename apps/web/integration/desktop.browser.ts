@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
@@ -536,6 +536,34 @@ for (const viewport of [
     await page.screenshot({
       path: `../../data/web-guide-${viewport.width}.png`,
     });
+    // The first run ends watching the channel in TV. The browser job has no
+    // FFmpeg, so the stream answers with the committed test pattern; this
+    // route is registered after the API route, so it answers first.
+    const pattern = await readFile(
+      new URL("fixtures/test-pattern.mpegts", import.meta.url),
+    );
+    await page.route("http://127.0.0.1:3000/channels/*/stream", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: {
+          "Content-Type": "video/MP2T",
+          "Access-Control-Allow-Origin": "http://127.0.0.1:5173",
+        },
+        body: pattern,
+      }),
+    );
+    await guide
+      .getByRole("button", { name: "Watch 69 Northwoods TV on TV" })
+      .click();
+    const tv = page.getByRole("region", { name: "TV", exact: true });
+    await expect
+      .poll(() =>
+        tv
+          .getByLabel("69 Northwoods TV")
+          .evaluate((video: HTMLVideoElement) => video.currentTime),
+      )
+      .toBeGreaterThan(1);
+    await tv.getByRole("button", { name: "Close TV" }).click();
     await guide.getByRole("button", { name: "Close Program Guide" }).click();
 
     await page
