@@ -56,9 +56,11 @@ field and Zod code in `http/refusal-words.ts`, every reservation refusal in
 shows, and a failed runtime stop in the My Channels cleanup notice; an
 overlap names the other Special by its airtime, since a Special has no
 title. Route tests assert through `testing/refusal-details.ts` that each
-changed sender's message holds no ID and its details do. The reservation
-preview's `channel_unschedulable` branch has no route test, because a
-previewed reservation always airs and so keeps the channel schedulable.
+changed sender's message holds no ID and its details do. Deferred: the
+reservation preview's `channel_unschedulable` sender has no route test. Its
+message is a fixed string with `channelId` in details, and it is reachable
+with an explicit-end collection Special on an empty collection on a channel
+with no shows.
 
 **Goal**: No `✖`, no `→ at`, no database ID, and no "reservation" reaches
 the owner.
