@@ -210,12 +210,15 @@ working in. Do not report work as done until all of these hold.
    npm run lint
    npm test
    npm run audit:strict
+   npm run agents:check
+   npm run build
    ```
 
    Also run `npm run test:ffprobe` when you change ffprobe integration,
    `npm run test:ffmpeg` when you change FFmpeg packaging arguments or the
    channel stream runtime, and `npm run test:tmdb` (with `TMDB_API_KEY` set)
-   when you change the TMDB client.
+   when you change the TMDB client. CI also runs the browser suite;
+   `CONTRIBUTING.md` says how to run it locally, and how to run one test.
 
 4. Resolve every audit `review` item in a file you touched, or say why it
    stands.
