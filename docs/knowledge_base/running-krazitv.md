@@ -49,8 +49,9 @@ kraziTV serves the web app and everything else on one port, by default
 ## First Steps
 
 1. Open kraziTV and create your account.
-2. In **Media Library**, add a folder of media and scan it. To match it with
-   TMDB, add your TMDB API key when kraziTV asks.
+2. In **Media Library**, add a folder of media. kraziTV offers to scan it
+   right away; a folder you skip keeps a **Scan** button in its row. To match
+   media with TMDB, add your TMDB API key when kraziTV asks.
 3. In **Collections**, accept the automatic collections kraziTV suggests, or
    build your own.
 4. In **My Channels**, create a channel and add shows to its **Lineup**.

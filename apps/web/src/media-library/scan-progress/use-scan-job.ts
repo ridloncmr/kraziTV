@@ -68,21 +68,24 @@ export function useScanJob(roots: MediaRoot[] | undefined) {
   /**
    * Opens the dialog only for a job the server holds: the started one, or the
    * running one a `409` `scan_in_progress` names. Any other rejection is the
-   * page's request feedback, with no dialog.
+   * page's request feedback, with no dialog. The root's path comes from the
+   * caller, so a root added a moment ago is named before the list refreshes.
    */
-  async function start(root: MediaRoot): Promise<void> {
+  async function start(root: Pick<MediaRoot, "id" | "path">): Promise<void> {
     const path = scanPath(root.id);
-    await follow((signal) =>
-      apiRequest<ScanStatus>(path, { method: "POST", signal }).catch(
-        (failure: unknown) => {
-          if (
-            failure instanceof ApiError &&
-            failure.code === "scan_in_progress"
-          )
-            return apiRequest<ScanStatus>(path, { signal });
-          throw failure;
-        },
-      ),
+    await follow(
+      (signal) =>
+        apiRequest<ScanStatus>(path, { method: "POST", signal }).catch(
+          (failure: unknown) => {
+            if (
+              failure instanceof ApiError &&
+              failure.code === "scan_in_progress"
+            )
+              return apiRequest<ScanStatus>(path, { signal });
+            throw failure;
+          },
+        ),
+      root.path,
     );
   }
 
@@ -103,10 +106,12 @@ export function useScanJob(roots: MediaRoot[] | undefined) {
 
   /**
    * Runs one start request at a time and follows the job it answers with,
-   * unless this program closed meanwhile or a dialog is already open.
+   * unless this program closed meanwhile or a dialog is already open. A
+   * retry does not know its root, so its path comes from the listed roots.
    */
   async function follow(
     request: (signal: AbortSignal) => Promise<ScanStatus>,
+    knownRootPath?: string,
   ): Promise<void> {
     if (owner.current) return;
     const controller = new AbortController();
@@ -116,7 +121,9 @@ export function useScanJob(roots: MediaRoot[] | undefined) {
     try {
       const status = await request(controller.signal);
       const rootPath =
-        roots?.find((root) => root.id === status.rootId)?.path ?? "";
+        knownRootPath ??
+        roots?.find((root) => root.id === status.rootId)?.path ??
+        "";
       if (!controller.signal.aborted)
         setFollowed((current) => current ?? { rootPath, status });
     } catch (failure) {

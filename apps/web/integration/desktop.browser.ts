@@ -72,7 +72,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   return { ...started, prober: controlled };
 }
 
-/** Adds `directory` as a media root in the Media Library and starts its scan. */
+/** Adds `directory` as a media root in the Media Library and accepts the scan it offers. */
 async function scanNewRoot(page: Page, directory: string) {
   await page
     .getByLabel("Desktop programs")
@@ -86,9 +86,8 @@ async function scanNewRoot(page: Page, directory: string) {
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
   await addRoot.getByLabel("Absolute server path").fill(directory);
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+  await addRoot.getByRole("button", { name: "Scan", exact: true }).click();
   await expect(addRoot).toBeHidden();
-  await media.getByRole("button", { name: `Actions for ${directory}` }).click();
-  await page.getByRole("menuitem", { name: "Scan", exact: true }).click();
   const scanning = media.getByRole("dialog", { name: "Scanning media root" });
   await expect(scanning).toBeVisible();
   return { media, scanning };
@@ -222,6 +221,11 @@ test("picks a media root by browsing real server folders at narrow width", async
     addRoot.getByRole("button", { name: "Add root", exact: true }),
   ).toBeInViewport();
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+  // The scan offer stays inside the window too; declining keeps the root.
+  await expect(
+    addRoot.getByRole("button", { name: "Not now", exact: true }),
+  ).toBeInViewport();
+  await addRoot.getByRole("button", { name: "Not now", exact: true }).click();
 
   await expect(addRoot).toBeHidden();
   await expect(

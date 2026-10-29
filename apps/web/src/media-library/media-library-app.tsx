@@ -92,6 +92,11 @@ export function MediaLibraryApp({
   function choose(ids: string[], on: boolean) {
     setChosen(withIds(chosen, ids, on));
   }
+  /** Starts a root's scan, from its row, its menu, or the add dialog, and follows it in the progress dialog. */
+  function startScan(root: Pick<MediaRoot, "id" | "path">) {
+    setLastRequest("scan");
+    void scan.start(root);
+  }
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
     roots.refresh();
@@ -167,48 +172,58 @@ export function MediaLibraryApp({
                       />
                     </td>
                     <td>
-                      <RowMenu
-                        label={`Actions for ${root.path}`}
-                        items={[
-                          {
-                            label: root.enabled ? "Disable" : "Enable",
-                            onSelect: () => {
-                              setLastRequest("root");
-                              void mutation.run(
-                                resourcePath("media-roots", root.id),
-                                "PATCH",
-                                { enabled: !root.enabled },
-                                refresh,
-                              );
+                      <div className="root-actions">
+                        {/* A root never scanned raises Scan beside the menu, so the first run finds it. */}
+                        {root.lastScannedAt === null && (
+                          <button
+                            aria-label={`Scan ${root.path}`}
+                            disabled={!root.enabled}
+                            onClick={() => startScan(root)}
+                          >
+                            Scan
+                          </button>
+                        )}
+                        <RowMenu
+                          label={`Actions for ${root.path}`}
+                          items={[
+                            {
+                              label: root.enabled ? "Disable" : "Enable",
+                              onSelect: () => {
+                                setLastRequest("root");
+                                void mutation.run(
+                                  resourcePath("media-roots", root.id),
+                                  "PATCH",
+                                  { enabled: !root.enabled },
+                                  refresh,
+                                );
+                              },
                             },
-                          },
-                          {
-                            label: "Scan",
-                            disabled: !root.enabled,
-                            onSelect: () => {
-                              setLastRequest("scan");
-                              void scan.start(root);
+                            {
+                              label: "Scan",
+                              disabled: !root.enabled,
+                              onSelect: () => startScan(root),
                             },
-                          },
-                          {
-                            label: "Retry failed lookups",
-                            disabled:
-                              !root.enabled ||
-                              root.matchCounts.failedLookups === 0,
-                            onSelect: () => {
-                              setLastRequest("scan");
-                              void scan.retry({
-                                scope: "failed",
-                                mediaRootId: root.id,
-                              });
+                            {
+                              label: "Retry failed lookups",
+                              disabled:
+                                !root.enabled ||
+                                root.matchCounts.failedLookups === 0,
+                              onSelect: () => {
+                                setLastRequest("scan");
+                                void scan.retry({
+                                  scope: "failed",
+                                  mediaRootId: root.id,
+                                });
+                              },
                             },
-                          },
-                          {
-                            label: "Delete…",
-                            onSelect: () => setRemoving({ kind: "root", root }),
-                          },
-                        ]}
-                      />
+                            {
+                              label: "Delete…",
+                              onSelect: () =>
+                                setRemoving({ kind: "root", root }),
+                            },
+                          ]}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -341,9 +356,10 @@ export function MediaLibraryApp({
       )}
       {adding && (
         <AddMediaRootDialog
-          added={() => {
+          added={refresh}
+          onScan={(root) => {
             setAdding(false);
-            refresh();
+            startScan(root);
           }}
           onClose={() => setAdding(false)}
         />
