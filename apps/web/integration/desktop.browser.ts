@@ -408,18 +408,14 @@ for (const viewport of [
       .selectOption({ label: "1 program" });
     await addShows.getByRole("button", { name: "Add (1)" }).click();
     await expect(addShows).toBeHidden();
-    // The server already generated the schedule; Let it finish just confirms.
-    const rebuild = properties.getByRole("dialog", {
-      name: "Rebuild the schedule",
-    });
-    await rebuild.getByRole("button", { name: "Rebuild", exact: true }).click();
-    await rebuild.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(rebuild).toBeHidden();
+    // The server already generated the schedule, and nothing was airing on
+    // the new channel, so the first show asks no rebuild question.
     await expect(
       properties
         .getByRole("table", { name: "Shows" })
         .getByRole("button", { name: "Northwoods collection", exact: true }),
     ).toBeVisible();
+    await expect(properties.getByRole("dialog")).toHaveCount(0);
     await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
       properties.getByRole("list", { name: "Upcoming turns" }),
