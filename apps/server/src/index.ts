@@ -87,7 +87,7 @@ const schedules = new ScheduleService(database.db, { programmingTimezone });
 const schedulePreview = new SchedulePreview(
   database.db,
   () => schedules.now(),
-  programmingTimezone,
+  schedules.programmingTimezone(),
 );
 const playout = new PlayoutService(database.db, schedules);
 
