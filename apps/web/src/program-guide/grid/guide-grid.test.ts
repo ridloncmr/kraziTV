@@ -105,7 +105,7 @@ function guideApi() {
 
 it("lays each channel's programs and Off air along the window at their times, marking what airs", async () => {
   const api = guideApi();
-  render(createElement(GuideGrid, { visible: true }));
+  render(createElement(GuideGrid, { visible: true, onWatch: () => {} }));
 
   const programs = await screen.findByRole("list", {
     name: "Programs on Northwoods TV",
@@ -143,7 +143,7 @@ it("moves the window to the current half hour when its scope reloads, and not wi
   const grid = (active: boolean) =>
     createElement(RefreshScope, {
       active,
-      children: createElement(GuideGrid, { visible: true }),
+      children: createElement(GuideGrid, { visible: true, onWatch: () => {} }),
     });
   const view = render(grid(true));
   await screen.findByRole("list", { name: "Programs on Northwoods TV" });
@@ -167,7 +167,7 @@ it("moves the window to the current half hour when its scope reloads, and not wi
 it("brings the window back to the current half hour from Now and when the clock turns", async () => {
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   const api = guideApi();
-  render(createElement(GuideGrid, { visible: true }));
+  render(createElement(GuideGrid, { visible: true, onWatch: () => {} }));
   await screen.findByRole("list", { name: "Programs on Northwoods TV" });
 
   // Scrolled nowhere, the guide follows the clock into the next half hour.
@@ -195,7 +195,7 @@ it("brings the window back to the current half hour from Now and when the clock 
 
 it("opens a program's card from its block, with its poster, facts, and description", async () => {
   guideApi();
-  render(createElement(GuideGrid, { visible: true }));
+  render(createElement(GuideGrid, { visible: true, onWatch: () => {} }));
   const programs = await screen.findByRole("list", {
     name: "Programs on Northwoods TV",
   });
@@ -226,7 +226,7 @@ it("opens a program's card from its block, with its poster, facts, and descripti
 
 it("names every channel, badges a disabled one, and says when a window is empty", async () => {
   guideApi();
-  render(createElement(GuideGrid, { visible: true }));
+  render(createElement(GuideGrid, { visible: true, onWatch: () => {} }));
 
   await screen.findByRole("list", { name: "Channels" });
   const rows = channelRows();
@@ -246,10 +246,22 @@ it("shows a row's failed read in that row and keeps the others", async () => {
     "GET",
     503,
   );
-  render(createElement(GuideGrid, { visible: true }));
+  render(createElement(GuideGrid, { visible: true, onWatch: () => {} }));
 
   await screen.findByRole("list", { name: "Programs on Northwoods TV" });
   const rows = channelRows();
   await within(rows[1]).findByText("Schedule unavailable");
   expect(within(rows[0]).queryByText("Schedule unavailable")).toBeNull();
+});
+
+it("opens TV from an enabled channel's name, and offers nothing for a disabled one", async () => {
+  guideApi();
+  const onWatch = vi.fn();
+  render(createElement(GuideGrid, { visible: true, onWatch }));
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Watch 69 Northwoods TV on TV" }),
+  );
+  expect(onWatch).toHaveBeenCalledWith("one");
+  expect(screen.queryByRole("button", { name: /Second channel/ })).toBeNull();
 });

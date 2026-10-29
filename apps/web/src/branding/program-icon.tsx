@@ -31,7 +31,8 @@ export const ProgramIcon = memo(function ProgramIcon({
       {program === "logo" ||
       program === "channels" ||
       program === "plex" ||
-      program === "monitor" ? (
+      program === "monitor" ||
+      program === "tv" ? (
         <>
           <path
             d="M23 9 17 3m24 6 6-6"
@@ -65,6 +66,13 @@ export const ProgramIcon = memo(function ProgramIcon({
               stroke="#a7fb73"
               strokeWidth="3"
             />
+          ) : program === "tv" ? (
+            <>
+              {/* Sky over a green hill: a picture on the set, not test bars. */}
+              <path d="M11 17h37v28H11z" fill="#4fa6e8" />
+              <path d="M11 37q12-10 37-3v11H11z" fill="#5fb43c" />
+              <circle cx="40" cy="24" r="3" fill="#fff" opacity=".8" />
+            </>
           ) : (
             <>
               <path d="M14 21h13v9H14z" fill="#f96646" />

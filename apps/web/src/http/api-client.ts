@@ -24,6 +24,14 @@ export function onUnauthorized(listener: () => void): () => void {
   };
 }
 
+/**
+ * The absolute URL of an API path, for what the browser loads without
+ * `apiRequest`, such as the TV program's broadcast stream.
+ */
+export function apiUrl(path: string): string {
+  return `${baseUrl}${path}`;
+}
+
 /** Public paths use encoded IDs so user-controlled identity never changes routing. */
 export function resourcePath(area: string, id: string): string {
   return `/${area}/${encodeURIComponent(id)}`;
@@ -44,7 +52,7 @@ export async function apiRequest<T>(
   const signal = options.signal
     ? AbortSignal.any([timeout, options.signal])
     : timeout;
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: options.method ?? "GET",
     credentials: "include",
     signal,

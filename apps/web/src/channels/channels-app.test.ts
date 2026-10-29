@@ -256,7 +256,7 @@ it("offers Disable and Delete from a row's menu, and for the selected row under 
   );
   expect(
     screen.getAllByRole("menuitem").map((item) => item.textContent),
-  ).toEqual(["Properties", "Disable", "Delete…"]);
+  ).toEqual(["Watch", "Properties", "Disable", "Delete…"]);
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
   await selectChannel("Northwoods TV");
@@ -475,4 +475,28 @@ it("replaces what a channel aired with Unavailable when a later read fails", asy
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("opens TV on the selected channel from Watch, and not on a disabled one", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", [
+    adminFixtures.channels[0],
+    { ...adminFixtures.channels[1], enabled: false },
+  ]);
+  vi.stubGlobal("fetch", api.fetch);
+  const onWatch = vi.fn();
+  render(createElement(ChannelWindows, { onWatch }));
+  const watch = () => screen.getByRole("button", { name: "Watch" });
+
+  await selectChannel("Second channel");
+  expect(watch()).toHaveProperty("disabled", true);
+  await selectChannel("Northwoods TV");
+  fireEvent.click(watch());
+  expect(onWatch).toHaveBeenCalledWith("one");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Actions for Northwoods TV" }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Watch" }));
+  expect(onWatch).toHaveBeenCalledTimes(2);
 });

@@ -19,13 +19,21 @@ import {
 import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { serveCollection } from "../testing/collection-api.js";
+import { fakeBroadcasts } from "../testing/fake-broadcasts.js";
 import { DesktopShell } from "./desktop-shell.js";
+
+// TV's player needs Media Source Extensions, which jsdom lacks.
+vi.mock("../tv/broadcast-player.js", async () => {
+  const { fakeBroadcasts } = await import("../testing/fake-broadcasts.js");
+  return { startBroadcast: fakeBroadcasts.start };
+});
 
 afterEach(() => {
   cleanup();
   // Windows reopen where a test left them unless the memory is cleared.
   localStorage.clear();
   vi.unstubAllGlobals();
+  fakeBroadcasts.reset();
 });
 
 it("navigates Start, restores one singleton and synchronizes the taskbar through close", async () => {
@@ -544,4 +552,46 @@ it("asks before closing a Channel Properties window whose open show has unsaved 
   expect(
     screen.queryByRole("region", { name: "Northwoods TV Properties" }),
   ).toBeNull();
+});
+
+it("opens TV on the channel Watch names, and retunes an open TV", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one/now", adminFixtures.now);
+  api.reply("/channels/two/now", adminFixtures.now);
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  const shortcuts = screen.getByLabelText("Desktop programs");
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "My Channels" }),
+  );
+  const channels = await screen.findByRole("region", { name: "My Channels" });
+  const watch = async (name: string) => {
+    fireEvent.click(await within(channels).findByRole("button", { name }));
+    fireEvent.click(within(channels).getByRole("button", { name: "Watch" }));
+  };
+
+  await watch("Second channel");
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await waitFor(() =>
+    expect(
+      within(tv).getByRole<HTMLSelectElement>("combobox", { name: "Channel" })
+        .value,
+    ).toBe("two"),
+  );
+  await watch("Northwoods TV");
+  await waitFor(() =>
+    expect(new URL(fakeBroadcasts.latest!.url).pathname).toBe(
+      "/channels/one/stream",
+    ),
+  );
 });

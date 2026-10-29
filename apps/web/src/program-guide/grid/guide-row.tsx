@@ -31,13 +31,15 @@ interface GuideBlock {
  * and planned filler laid along the window at the server's times. The row
  * reads its own schedule window, so rows arrive independently and a failed
  * read shows here without hiding the others. A program block opens its
- * card; Off air is only a label.
+ * card; Off air is only a label. An enabled channel's name opens it on TV,
+ * as choosing a channel in a TV guide tunes it.
  */
 export function GuideRow({
   channel,
   windowStart,
   now,
   visible,
+  onWatch,
 }: {
   channel: Channel;
   /** The instant at the window's left edge. */
@@ -45,6 +47,7 @@ export function GuideRow({
   /** The instant the now line marks; the block enclosing it is airing. */
   now: number;
   visible: boolean;
+  onWatch: (channelId: string) => void;
 }) {
   const schedule = useResource<ScheduleWindow>(
     scheduleWindowPath(channel.id, windowStart),
@@ -55,8 +58,22 @@ export function GuideRow({
   return (
     <li className="guide-row">
       <div className="guide-channel">
-        <strong>{channel.number}</strong> {channel.name}
-        {!channel.enabled && <span className="row-badge">Disabled</span>}
+        {channel.enabled ? (
+          <button
+            type="button"
+            className="guide-tune"
+            aria-label={`Watch ${channel.number} ${channel.name} on TV`}
+            title={`Watch ${channel.number} ${channel.name} on TV`}
+            onClick={() => onWatch(channel.id)}
+          >
+            <strong>{channel.number}</strong> {channel.name}
+          </button>
+        ) : (
+          <>
+            <strong>{channel.number}</strong> {channel.name}
+            <span className="row-badge">Disabled</span>
+          </>
+        )}
       </div>
       <div className="guide-track">
         <RequestFeedback loading={schedule.loading} error={schedule.error} />
