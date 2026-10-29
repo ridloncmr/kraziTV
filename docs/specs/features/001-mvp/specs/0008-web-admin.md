@@ -119,6 +119,26 @@ to its trigger. Forms retain labels, validation messages, visible focus,
 pending/disabled states, explicit destructive confirmations, and useful empty
 states. Reduced-motion preferences disable boot animation.
 
+Program and properties window captions use Trebuchet MS, as Luna did, with
+Tahoma where it is missing; a caption that does not fit ends in an ellipsis
+before the window controls. Window dialog captions keep the Tahoma body font.
+
+### Motion Limits
+
+Motion says what appeared or went away; it never decorates. Every screen keeps
+to these limits, and a change that needs to break one names it here first.
+
+- A transition finishes in under 200 ms. The only longer motions are
+  progress indicators that loop while work runs, Log Off's confirmation (the
+  desktop draining to gray and its dialog settling from a slight scale), and
+  TV's channel banner fading after it has been read.
+- Under reduced motion only opacity changes. Anything that grows, slides, or
+  shrinks keeps its fade and drops the movement; motion that is opacity alone,
+  such as TV's Tuning… fade, needs no override.
+- Actions driven from the keyboard or repeated quickly change at once:
+  moving or resizing a window with arrow keys, channel up and down, moving
+  between tabs and list rows, and typing.
+
 ### Media Root UI
 
 The user can:

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -8,23 +9,20 @@ import {
   type ReactNode,
 } from "react";
 import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
-import {
-  WindowDialog,
-  WindowDialogFrame,
-} from "../../controls/dialogs/window-dialog.js";
+import { UnsavedChangesDialog } from "../../controls/dialogs/unsaved-changes-dialog.js";
+import { WindowDialogFrame } from "../../controls/dialogs/window-dialog.js";
 import { WindowStatusSlot } from "../../controls/dialogs/window-status.js";
+import { CloseWindow } from "./close-window.js";
 import type {
   DesktopViewport,
   DesktopWindow,
   ProgramDefinition,
   WindowAction,
 } from "../contracts.js";
+import { POPUP_MS } from "../chrome/xp-motion.js";
 
 /** Smallest window that still shows its title controls and a usable slice of content. */
 const minimumSize = { width: 360, height: 240 };
-
-/** How long a minimized window stays shown while it shrinks; `--xp-duration-popup` in xp-tokens.css draws it. */
-const MINIMIZE_MS = 150;
 
 /** Shrinks a window to the usable viewport, then shifts it until it sits fully inside. */
 function withinViewport(
@@ -78,9 +76,14 @@ export function AppWindow({
   const [confirmingClose, setConfirmingClose] = useState(false);
   // Changes saved meanwhile leave nothing to discard, so the question ends.
   if (confirmingClose && unsavedName === undefined) setConfirmingClose(false);
+  // Closes without asking; stable, so lending it re-renders no program.
+  const closeNow = useCallback(
+    () => dispatch({ type: "close", id: window.id }),
+    [dispatch, window.id],
+  );
   /** Closes the window, first asking whether to drop unsaved changes, which closing would lose silently. */
   function close() {
-    if (unsavedName === undefined) dispatch({ type: "close", id: window.id });
+    if (unsavedName === undefined) closeNow();
     else setConfirmingClose(true);
   }
   const titleBar = useRef<HTMLDivElement>(null);
@@ -108,7 +111,7 @@ export function AppWindow({
       setShrinkOrigin(
         `${target.left + target.width / 2 - own.left}px ${target.top - own.top}px`,
       );
-    const timer = setTimeout(() => setShrinking(false), MINIMIZE_MS);
+    const timer = setTimeout(() => setShrinking(false), POPUP_MS);
     return () => clearTimeout(timer);
   }, [window.minimized, window.id]);
   const gesture = useRef<{
@@ -237,7 +240,7 @@ export function AppWindow({
             avatarId={avatarId}
             size={19}
           />
-          {title}
+          <span className="window-title">{title}</span>
         </span>
         <span className="window-controls">
           <button
@@ -263,26 +266,15 @@ export function AppWindow({
       </div>
       <WindowStatusSlot.Provider value={statusSlot}>
         <WindowDialogFrame>
-          {children}
-          {confirmingClose && (
-            <WindowDialog
-              title="Unsaved changes"
-              onClose={() => setConfirmingClose(false)}
-            >
-              <p>
-                Discard your unsaved changes to <strong>{unsavedName}</strong>?
-              </p>
-              <div className="dialog-actions">
-                <button
-                  onClick={() => dispatch({ type: "close", id: window.id })}
-                >
-                  Discard changes
-                </button>
-                <button onClick={() => setConfirmingClose(false)}>
-                  Keep editing
-                </button>
-              </div>
-            </WindowDialog>
+          <CloseWindow.Provider value={closeNow}>
+            {children}
+          </CloseWindow.Provider>
+          {confirmingClose && unsavedName !== undefined && (
+            <UnsavedChangesDialog
+              name={unsavedName}
+              onDiscard={closeNow}
+              onKeepEditing={() => setConfirmingClose(false)}
+            />
           )}
         </WindowDialogFrame>
       </WindowStatusSlot.Provider>

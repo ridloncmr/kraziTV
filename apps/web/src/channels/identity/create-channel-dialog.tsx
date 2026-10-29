@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { formText } from "../../controls/formatting/form-text.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
@@ -17,6 +18,7 @@ export function CreateChannelDialog({
   onClose: () => void;
 }) {
   const mutation = useMutation();
+  const numberHintId = useId();
   return (
     <WindowDialog title="New channel" busy={mutation.pending} onClose={onClose}>
       <form
@@ -44,6 +46,7 @@ export function CreateChannelDialog({
                 inputMode="decimal"
                 required
                 placeholder="69 or 69.1"
+                aria-describedby={numberHintId}
               />
             </label>
             <label>
@@ -51,6 +54,9 @@ export function CreateChannelDialog({
               <input name="name" required />
             </label>
           </div>
+          <small id={numberHintId} className="secondary">
+            The number viewers tune to; Plex sorts the guide by it.
+          </small>
         </fieldset>
         <RequestFeedback loading={mutation.pending} error={mutation.error} />
         <div className="dialog-actions">

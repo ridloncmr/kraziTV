@@ -1,5 +1,6 @@
 import { createElement, useCallback, useState, type ReactElement } from "react";
 import type { WindowAction, WindowId } from "../desktop/contracts.js";
+import { CloseWindow } from "../desktop/windows/close-window.js";
 import { usePropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 
 /**
@@ -16,13 +17,14 @@ export function usePropertiesTestWindows() {
     if (action.type === "close")
       setOpen((ids) => ids.filter((id) => id !== action.id));
   }, []);
-  return { open, ...usePropertiesWindows(dispatch) };
+  return { open, dispatch, ...usePropertiesWindows(dispatch) };
 }
 
 /**
  * One properties window as the shell frames it: a region named for its
  * title, whose content gets a stable unsaved callback bound to the window,
- * since an unstable one would re-run the content's dirty effect forever.
+ * since an unstable one would re-run the content's dirty effect forever,
+ * and the window's close, which closes at once as the shell's does.
  */
 export function PropertiesTestWindow({
   id,
@@ -33,14 +35,22 @@ export function PropertiesTestWindow({
   windows: ReturnType<typeof usePropertiesTestWindows>;
   render: (onDirtyChange: (dirty: boolean) => void) => ReactElement;
 }) {
-  const { markUnsaved } = windows;
+  const { markUnsaved, dispatch } = windows;
   const onDirtyChange = useCallback(
     (dirty: boolean) => markUnsaved(id, dirty),
     [id, markUnsaved],
   );
+  const close = useCallback(
+    () => dispatch({ type: "close", id }),
+    [dispatch, id],
+  );
   return createElement(
     "section",
     { "aria-label": windows.titleOf(id) },
-    render(onDirtyChange),
+    createElement(
+      CloseWindow.Provider,
+      { value: close },
+      render(onDirtyChange),
+    ),
   );
 }

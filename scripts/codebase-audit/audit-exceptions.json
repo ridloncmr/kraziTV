@@ -76,6 +76,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/web/src/desktop/chrome/"],
+      "reason": "chrome/ is already the desktop-chrome capability inside desktop/: the boot screen, Start menu, taskbar, Log Off dialog, and the XP tokens with their xp-motion.ts timing counterpart all draw the shell around the windows.",
+      "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/web/src/logon/"],
       "reason": "logon/ is one capability: the screens shown before the desktop. The setup, logon, and wrong-address screens share its backdrop, and the account tile is the logon screen's own control.",
       "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
@@ -130,6 +136,12 @@
       "files": ["apps/web/src/controls/formatting/"],
       "reason": "Every file serves one capability, turning a value into the text a screen shows or a form holds: counts, durations, times, file names, and channel numbers for display, a datetime-local value to and from an API instant, and a text field read from form data. The other shared controls already sit in selection/, dialogs/, popups/, and one folder per standalone control.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); release-readiness plan POLISH-020 (names formatting/ and its seven files)"
+    },
+    {
+      "rule": "grouping",
+      "files": ["apps/web/src/controls/dialogs/"],
+      "reason": "Every file serves one capability, the dialogs a window lends its program: the window dialog and its layer, the unsaved-changes question, the status slot and request feedback a dialog reports through, and the specials that block a delete dialog. The property-sheet footer, a standalone control, sits in its own sheet-footer/ folder.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); first-run-flow plan POLISH-006 (adds unsaved-changes-dialog.tsx beside window-dialog.tsx)"
     },
     {
       "rule": "grouping",

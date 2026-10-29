@@ -10,6 +10,7 @@ import {
   rootFixture,
   titledItemFixture,
 } from "../../server/src/testing/catalog-fixtures.js";
+import { createChannel } from "../../server/src/testing/api-requests.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { IdleMetadataRefresh } from "../../server/src/testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
@@ -271,6 +272,79 @@ test("operates title-bar controls on an inactive window with one click", async (
   await expect(media).toHaveClass(/inactive/);
   await media.getByRole("button", { name: "Minimize Media Library" }).click();
   await expect(media).toBeHidden();
+});
+
+test("keeps My Channels' buttons in view over nine channels and ends a long caption in an ellipsis", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server } = await startTestServer();
+  const longName =
+    "The Northwoods Late Night Classic Movie and Saturday Cartoon Network";
+  // The long name sorts first, so its row is in view without scrolling.
+  for (let number = 1; number <= 9; number++)
+    await createChannel(server, {
+      number: String(number),
+      name: number === 1 ? longName : `Channel ${number}`,
+    });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "My Channels", exact: true })
+    .click();
+  const channels = page.getByRole("region", {
+    name: "My Channels",
+    exact: true,
+  });
+  await expect(channels.getByRole("row")).toHaveCount(10);
+  // A shorter window, so nine rows overflow it.
+  const title = page.getByLabel(/My Channels window/);
+  for (let step = 0; step < 12; step++) await title.press("Shift+ArrowUp");
+
+  const content = channels.locator(".window-content");
+  expect(
+    await content.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
+  ).toBe(true);
+  const bar = channels.locator(".sticky-list-actions");
+  const shown = await content.boundingBox();
+  const stuck = await bar.boundingBox();
+  expect(stuck!.y + stuck!.height).toBeLessThanOrEqual(
+    shown!.y + shown!.height + 1,
+  );
+  await page.screenshot({ path: "../../data/web-my-channels-nine.png" });
+
+  await channels.getByRole("button", { name: longName, exact: true }).click();
+  await channels
+    .getByRole("button", { name: "Properties", exact: true })
+    .click();
+  const properties = page.getByRole("region", {
+    name: `${longName} Properties`,
+    exact: true,
+  });
+  // Narrowed to its minimum width, so the caption overflows whichever
+  // fallback font the machine has.
+  const propertiesTitle = properties.getByLabel(/ Properties window\./);
+  for (let step = 0; step < 16; step++)
+    await propertiesTitle.press("Shift+ArrowLeft");
+  const caption = properties.locator(".window-title");
+  expect(
+    await caption.evaluate((element) => ({
+      overflows: element.scrollWidth > element.clientWidth,
+      textOverflow: getComputedStyle(element).textOverflow,
+    })),
+  ).toEqual({ overflows: true, textOverflow: "ellipsis" });
+  // The caption gives way; the close button stays inside the window.
+  const frame = await properties.boundingBox();
+  const close = await properties
+    .getByRole("button", { name: `Close ${longName} Properties` })
+    .boundingBox();
+  expect(close!.x + close!.width).toBeLessThanOrEqual(frame!.x + frame!.width);
+  await properties.locator(".title-bar").screenshot({
+    path: "../../data/web-long-caption.png",
+  });
 });
 
 for (const viewport of [

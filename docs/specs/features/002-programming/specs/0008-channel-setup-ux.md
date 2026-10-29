@@ -94,7 +94,7 @@ the single scrolling page:
 
 | Tab          | Holds                                                                                               |
 | ------------ | --------------------------------------------------------------------------------------------------- |
-| **General**  | Number and name, with **Apply**.                                                                    |
+| **General**  | Number and name, with the property-sheet footer.                                                    |
 | **Lineup**   | The show list, **Add shows…**, **Properties**, **Remove**, and the channel's **Marathons** control. |
 | **Rules**    | The existing programming rules editor. Shown once the lineup has a show.                            |
 | **Specials** | The existing specials section.                                                                      |
@@ -167,6 +167,12 @@ out of the results, since a member plays in one show at a time.
 
 **Properties** opens a window dialog titled with the show's name, with
 **OK**, **Cancel**, and **Apply**. Nothing writes until **OK** or **Apply**.
+
+General and Show properties share one property-sheet footer: **OK**,
+**Cancel**, and **Apply** at the bottom right, **Apply** enabled only once a
+field changed, **OK** saving a change and closing, or just closing an unchanged
+sheet, and **Cancel** asking before it discards a change;
+General's **OK** and **Cancel** close the Channel Properties window.
 
 Main section:
 

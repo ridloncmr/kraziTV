@@ -96,6 +96,12 @@ async function letItFinish(api: BrowserApi) {
   expect(api.requestsTo("/channels/one/schedule/generate")).toEqual([]);
 }
 
+// Gives the show in an open Properties dialog a name, an edit that leaves
+// what it plays alone.
+const rename = (dialog: HTMLElement, name: string) =>
+  fireEvent.change(within(dialog).getByLabelText("Name"), {
+    target: { value: name },
+  });
 const perSitting = (dialog: HTMLElement) =>
   within(dialog).getByLabelText<HTMLSelectElement>("Plays at a time");
 const patches = (api: BrowserApi) =>
@@ -216,15 +222,36 @@ it("keeps an unsaved order across minimize and restore", async () => {
   ).toBe("random");
 });
 
-it("discards every change on Cancel, so reopening shows the saved settings", async () => {
+it("asks before Cancel discards every change, so reopening shows the saved settings", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
   const dialog = await openProperties();
+  const button = (name: string) =>
+    within(dialog).getByRole<HTMLButtonElement>("button", { name });
+  // Nothing changed yet, so there is nothing to apply; OK would just close.
+  expect(button("OK").disabled).toBe(false);
+  expect(button("Apply").disabled).toBe(true);
   chooseOption(perSitting(dialog), "1 program");
   fireEvent.click(
     within(dialog).getByLabelText("Only air when a rule picks it"),
   );
+  expect(button("OK").disabled).toBe(false);
+  expect(button("Apply").disabled).toBe(false);
 
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  const confirm = () => {
+    fireEvent.click(button("Cancel"));
+    const question = screen.getByRole("dialog", { name: "Unsaved changes" });
+    expect(question.textContent).toContain(
+      "Discard your unsaved changes to Favorites?",
+    );
+    return question;
+  };
+  fireEvent.click(
+    within(confirm()).getByRole("button", { name: "Keep editing" }),
+  );
+  expect(chosenOption(perSitting(dialog))).toBe("1 program");
+  fireEvent.click(
+    within(confirm()).getByRole("button", { name: "Discard changes" }),
+  );
 
   expect(screen.queryByRole("dialog")).toBeNull();
   const reopened = await openProperties();
@@ -234,6 +261,16 @@ it("discards every change on Cancel, so reopening shows the saved settings", asy
       "Only air when a rule picks it",
     ).checked,
   ).toBe(false);
+  expect(patches(api)).toEqual([]);
+});
+
+it("closes an unchanged show with OK and saves nothing", async () => {
+  const { api } = await openLineup([favoritesAssignment("chronological")]);
+  const dialog = await openProperties();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+  expect(screen.queryByRole("dialog")).toBeNull();
   expect(patches(api)).toEqual([]);
 });
 
@@ -423,6 +460,8 @@ it("keeps a saved marathon length override on General, and returns to the derive
     within(dialog).getByLabelText<HTMLInputElement>("Marathon minutes per turn")
       .value,
   ).toBe("240");
+  // Saving another setting sends the override unchanged.
+  rename(dialog, "Favorites night");
   fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
   await waitFor(() => expect(patches(api)).toHaveLength(1));
 
@@ -701,6 +740,8 @@ it("round-trips a custom per sitting as Custom, in words in the lineup", async (
   expect(
     within(dialog).getByLabelText<HTMLInputElement>("At most minutes").value,
   ).toBe("90");
+  // Saving another setting sends the custom range unchanged.
+  rename(dialog, "Favorites night");
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(patches(api)).toHaveLength(1));

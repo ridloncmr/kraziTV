@@ -12,6 +12,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { fakeBroadcasts } from "../testing/fake-broadcasts.js";
+import { elapse } from "../testing/fake-time.js";
 import { TvApp, type WatchRequest } from "./tv-app.js";
 
 vi.mock("./broadcast-player.js", async () => {
@@ -24,6 +25,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   fakeBroadcasts.reset();
   localStorage.clear();
+  vi.useRealTimers();
 });
 
 const [northwoods, second] = adminFixtures.channels;
@@ -56,15 +58,37 @@ function renderTv(
 const tunedPaths = () =>
   fakeBroadcasts.started.map((broadcast) => new URL(broadcast.url).pathname);
 
-it("tunes the first enabled channel's stream and clears the screen once it plays", async () => {
+it("tunes the first enabled channel's stream and fades Tuning… out once it plays", async () => {
   tvApi();
   renderTv();
 
   await screen.findByText("Alpha");
   expect(tunedPaths()).toEqual(["/channels/one/stream"]);
-  expect(screen.getByText("Tuning…")).toBeTruthy();
+  const message = screen.getByRole("status");
+  expect(message.textContent).toBe("Tuning…");
+  expect(message.classList.contains("fading")).toBe(false);
+  vi.useFakeTimers();
   fireEvent.playing(screen.getByLabelText("69 Northwoods TV"));
+  // The same element fades, so its opacity transition runs instead of a cut.
+  expect(screen.getByRole("status")).toBe(message);
+  expect(message.classList.contains("fading")).toBe(true);
+  await elapse(149);
+  expect(screen.getByText("Tuning…")).toBeTruthy();
+  await elapse(1);
   expect(screen.queryByText("Tuning…")).toBeNull();
+});
+
+it("shows Tuning… again without a fade when the channel changes mid-fade", async () => {
+  tvApi();
+  renderTv();
+  await screen.findByText("Alpha");
+
+  vi.useFakeTimers();
+  fireEvent.playing(screen.getByLabelText("69 Northwoods TV"));
+  fireEvent.click(screen.getByRole("button", { name: "Channel up" }));
+  expect(screen.getByRole("status").classList.contains("fading")).toBe(false);
+  await elapse(150);
+  expect(screen.getByText("Tuning…")).toBeTruthy();
 });
 
 it("steps up and down the lineup past disabled channels, ending the last channel's broadcast", async () => {
