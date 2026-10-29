@@ -796,6 +796,10 @@
   margin: 12px 0;
   font-size: 11px;
 }
+/* The logo's link is sized to the logo, so no text line box shifts it off center. */
+.tmdb-attribution a {
+  display: flex;
+}
 .tmdb-attribution img {
   height: 12px;
 }
