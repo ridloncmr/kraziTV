@@ -36,6 +36,7 @@ When another harness is adopted, add only the entry point and adapter files it r
 - `architect` - Architecture, ADRs, boundaries, and sequencing.
 - `backend-engineer` - Fastify, SQLite, TypeScript core, and scheduling logic.
 - `media-engineer` - FFmpeg, ffprobe, streams, and media normalization.
+- `web-engineer` - The React web app: XP desktop shell, programs, windows, dialogs, TV, and owner-facing words.
 - `docs-maintainer` - README, specs, ADRs, implementation plans, and knowledge base.
 - `reviewer` - Diffs, risks, missing tests, and boundary violations.
 - `ai-infra-maintainer` - Shared guidance, skills, roles, adapters, and infrastructure docs.
@@ -117,6 +118,14 @@ Adapted from Matt Pocock's public skills repository:
 - `handoff`
 - `to-spec`
 - `to-tickets`
+
+User-level design-engineering skills, which the `web-engineer` role names but this
+repository does not contain or redistribute: `emil-design-eng`, `review-animations`,
+`find-animation-opportunities`, `improve-animations`, and `break-ui`. Each machine
+installs them at the user level; a role that needs a missing one says so and uses
+its stated fallback checklist. Because nothing is copied into the repository, they
+need no entry in `THIRD_PARTY_NOTICES.md`; vendoring one later would need its
+upstream license first.
 
 Skills are classified by who should invoke them:
 

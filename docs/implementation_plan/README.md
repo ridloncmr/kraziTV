@@ -63,6 +63,12 @@ at the top of each plan are generated from ticket Status blocks by
 - [Auth Spec 0002 Implementation Plan: Logon Screen](003-auth/0002-logon-screen.md) - 6 of 6 tickets complete
 - [Auth Spec 0003 Implementation Plan: Account Settings](003-auth/0003-account-settings.md) - 5 of 5 tickets complete
 
+### 004-release-polish
+
+- [Release Polish Spec 0001 Implementation Plan: First-Run Flow](004-release-polish/0001-first-run-flow.md) - 0 of 8 tickets complete
+- [Release Polish Spec 0002 Implementation Plan: Owner-Facing Words](004-release-polish/0002-owner-facing-words.md) - 0 of 6 tickets complete
+- [Release Polish Spec 0003 Implementation Plan: Release Readiness](004-release-polish/0003-release-readiness.md) - 0 of 11 tickets complete
+
 <!-- plan-index:end -->
 
 ## MVP Build Order
