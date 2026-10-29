@@ -282,10 +282,10 @@ Complete on 2026-10-29. The match-choice service reads its key and item
 through `#readKeyAndWaiting`, leaving its `duplicate-code` exception to the
 constructor; `displayDay` is gone, `schedule-window-path.ts` lives in
 `program-guide/grid/`, `programOf` throws `UnknownWindowError`, and the six
-sleeps settle with `flushMicrotasks` or fake timers. The missing-member words
-moved to `collections/collection-words.ts` and the assignment show label to
-`assignmentShowLabel`; the Upcoming programming copy from POLISH-013 switches
-to it once that lands.
+sleeps settle with `flushMicrotasks` or fake timers. As follow-ups to
+POLISH-011 and POLISH-013, the missing-member words moved into
+`collections/collection-words.ts` beside `canAirWords`, and the Lineup, Rules,
+and Upcoming programming show labels share `assignmentShowLabel`.
 
 **Goal**: The audit's minor code items are closed in one pass.
 
