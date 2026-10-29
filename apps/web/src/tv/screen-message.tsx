@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { POPUP_MS } from "../desktop/chrome/xp-motion.js";
 import type { Channel } from "../http/contracts/channels.js";
 import type { BroadcastProblem } from "./broadcast-player.js";
 
@@ -11,7 +13,8 @@ export type ScreenState =
 /**
  * What the screen says over the picture: nothing while it plays, a prompt
  * when the browser wants a click before sound, and otherwise why there is
- * no picture, with a way on.
+ * no picture, with a way on. Tuning… fades out over one popup beat when
+ * the picture starts, instead of vanishing.
  */
 export function ScreenMessage({
   state,
@@ -28,6 +31,21 @@ export function ScreenMessage({
   onPlay: () => void;
   onRetry: () => void;
 }) {
+  // Adjusted during render, so the first playing paint still draws Tuning…
+  // and its fade starts from it; any other change ends the fade at once.
+  const [seenKind, setSeenKind] = useState(state.kind);
+  const [fading, setFading] = useState(false);
+  if (state.kind !== seenKind) {
+    setSeenKind(state.kind);
+    setFading(seenKind === "tuning" && state.kind === "playing");
+  }
+  useEffect(() => {
+    /** Unmounts the faded Tuning… once its transition, which tv.css draws, has played. */
+    if (!fading) return;
+    const timer = setTimeout(() => setFading(false), POPUP_MS);
+    return () => clearTimeout(timer);
+  }, [fading]);
+
   if (channels && !tuned)
     return (
       <div className="tv-message">
@@ -40,10 +58,10 @@ export function ScreenMessage({
         <button onClick={onOpenChannels}>Open My Channels</button>
       </div>
     );
-  if (state.kind === "playing" || !tuned) return null;
-  if (state.kind === "tuning")
+  if (!tuned || (state.kind === "playing" && !fading)) return null;
+  if (state.kind === "tuning" || state.kind === "playing")
     return (
-      <div className="tv-message" role="status">
+      <div className={`tv-message${fading ? " fading" : ""}`} role="status">
         <span>Tuning…</span>
       </div>
     );

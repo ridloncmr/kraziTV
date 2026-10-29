@@ -238,16 +238,17 @@
 .clickable-row {
   cursor: pointer;
 }
-/* A row's status word, such as a show's Rules only, reads as text in a bordered box. */
+/* A row's status word, such as a show's Rules only, reads as text in a bordered box that never touches the text or badge before it. */
 .row-badge {
+  margin-left: 6px;
   border: 1px solid var(--xp-border);
   border-radius: 2px;
   padding: 0 4px;
   white-space: nowrap;
 }
-/* A row with several badges, such as a rule-only wheel, keeps them apart. */
-.row-badge + .row-badge {
-  margin-left: 4px;
+/* A cell that holds only badges, such as the Lineup tab's, starts its first badge flush with the column. */
+.badge-cell > .row-badge:first-child {
+  margin-left: 0;
 }
 /* A selected row is title-bar blue with white text, as XP list views were; everything in it, links and warnings included, turns white. */
 .program-page .selected-row {
@@ -421,20 +422,28 @@
   flex: 1 1 320px;
   margin: 0;
 }
+/* One sticky bar look, so the save bar and a list's action bar never drift apart. */
+.save-bar,
+.sticky-list-actions {
+  position: sticky;
+  z-index: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
 /* Keeps Save and Discard reachable while a long member list scrolls. */
 .save-bar {
-  position: sticky;
   top: 0;
-  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin: 8px 0;
-  padding: 6px 8px;
-  border: 1px solid var(--xp-border);
-  background: var(--xp-menu-surface);
+}
+/* Keeps the buttons for a list's selected row in view while a long list scrolls, as the save bar keeps Save. */
+.sticky-list-actions {
+  bottom: 0;
 }
 .bulk-actions {
   align-items: center;
@@ -996,9 +1005,6 @@
 }
 .rule-shows > li + li {
   border-top: 1px solid var(--xp-border);
-}
-.rule-shows .row-badge {
-  margin-left: 6px;
 }
 /* A special's programs as numbered rows: each search and choice, with Remove beside them. */
 .special-programs {

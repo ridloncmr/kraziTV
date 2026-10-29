@@ -47,6 +47,8 @@
   --xp-progress-block: 10px;
   --xp-progress-pitch: 12px;
   --xp-font-ui: Tahoma, "Segoe UI", Arial, sans-serif;
+  /* Luna drew window captions in Trebuchet MS; Tahoma stands in where it is missing. */
+  --xp-font-caption: "Trebuchet MS", Tahoma, sans-serif;
   /* One motion vocabulary: a strong ease-out for things that appear, and
      two beats, a fast one for hover and menus and a popup one for dialogs,
      windows, and the Start menu. Nothing on screen moves longer than this. */

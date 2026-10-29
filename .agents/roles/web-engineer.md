@@ -42,7 +42,8 @@ into the repository; they are not kraziTV's to redistribute.
 - Never open another program except through the callback the program host
   supplies; never let a program own window placement or focus.
 - Never add motion or chrome that breaks the XP desktop idiom that
-  `docs/specs/features/001-mvp/specs/0008-web-admin.md` describes.
+  `docs/specs/features/001-mvp/specs/0008-web-admin.md` describes, or motion
+  outside that spec's **Motion Limits** section.
 - Never let a developer word reach a screen: no IDs, revisions, codes, or
   underscores. The web app chooses every word the owner reads.
 - Never create a second broadcast for a viewer. TV subscribes to the shared

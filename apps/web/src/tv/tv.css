@@ -53,6 +53,11 @@
   color: #d8d8d8;
   text-align: center;
 }
+/* Tuning… fades as the picture starts. Opacity only, so reduced motion keeps it: nothing moves. */
+.tv-message.fading {
+  opacity: 0;
+  transition: opacity var(--xp-duration-popup) var(--xp-ease-out);
+}
 .tv-message strong {
   font-size: 20px;
   letter-spacing: 0.08em;

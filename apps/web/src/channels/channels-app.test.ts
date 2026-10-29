@@ -164,7 +164,12 @@ it("keeps a rejected create in its dialog, then selects and opens the created ch
     await screen.findByRole("button", { name: "Create a channel…" }),
   );
   const dialog = screen.getByRole("dialog", { name: "New channel" });
-  fireEvent.change(screen.getByLabelText("Channel number"), {
+  const number = screen.getByLabelText("Channel number");
+  expect(
+    document.getElementById(number.getAttribute("aria-describedby") ?? "")
+      ?.textContent,
+  ).toBe("The number viewers tune to; Plex sorts the guide by it.");
+  fireEvent.change(number, {
     target: { value: "69" },
   });
   fireEvent.change(screen.getByLabelText("Channel name"), {

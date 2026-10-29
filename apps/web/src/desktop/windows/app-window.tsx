@@ -19,12 +19,10 @@ import type {
   ProgramDefinition,
   WindowAction,
 } from "../contracts.js";
+import { POPUP_MS } from "../chrome/xp-motion.js";
 
 /** Smallest window that still shows its title controls and a usable slice of content. */
 const minimumSize = { width: 360, height: 240 };
-
-/** How long a minimized window stays shown while it shrinks; `--xp-duration-popup` in xp-tokens.css draws it. */
-const MINIMIZE_MS = 150;
 
 /** Shrinks a window to the usable viewport, then shifts it until it sits fully inside. */
 function withinViewport(
@@ -108,7 +106,7 @@ export function AppWindow({
       setShrinkOrigin(
         `${target.left + target.width / 2 - own.left}px ${target.top - own.top}px`,
       );
-    const timer = setTimeout(() => setShrinking(false), MINIMIZE_MS);
+    const timer = setTimeout(() => setShrinking(false), POPUP_MS);
     return () => clearTimeout(timer);
   }, [window.minimized, window.id]);
   const gesture = useRef<{
@@ -237,7 +235,7 @@ export function AppWindow({
             avatarId={avatarId}
             size={19}
           />
-          {title}
+          <span className="window-title">{title}</span>
         </span>
         <span className="window-controls">
           <button
