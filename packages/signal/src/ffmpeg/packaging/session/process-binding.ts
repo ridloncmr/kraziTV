@@ -69,7 +69,12 @@ export class ProcessBinding {
   private usableOutputSeen = false;
   /** Whether output still goes through the readiness inspector. */
   private inspecting = true;
-  /** Whether the session has asked for silence to be timed. */
+  /**
+   * Whether the session has asked for silence to be timed. The session must
+   * clear it, through cancelStallWatch or release, on every path that takes
+   * the binding off the air, or a chunk would arm a stall timer for a binding
+   * that no longer airs.
+   */
   private watching: boolean;
   private readinessTimer: ScheduledTask | undefined;
   private stallTimer: ScheduledTask | undefined;
