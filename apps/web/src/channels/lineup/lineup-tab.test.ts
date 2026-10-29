@@ -1115,12 +1115,15 @@ it("toggles Add shows between collections and filtered single items, keeping pic
   fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
   const dialog = screen.getByRole("dialog", { name: "Add shows" });
 
-  // Collections come first, and no catalog page is read until items are asked for.
+  // Collections come first, and no catalog page is read until items are
+  // asked for; My Channels' own one-item read is not a page.
   fireEvent.click(result(dialog, "Favorites"));
   expect(within(dialog).queryByRole("checkbox", { name: /^Alpha / })).toBe(
     null,
   );
-  expect(api.requestsTo("/media-items")).toEqual([]);
+  expect(
+    api.requestsTo("/media-items").filter((request) => request.query.has("q")),
+  ).toEqual([]);
 
   searchFor(dialog, "Single items");
   await within(dialog).findByRole("checkbox", {
@@ -1530,4 +1533,52 @@ it("lists a named show by its name, and renames it or clears the name from Prope
   ]);
   // A new name changes nothing that airs, so no rebuild is offered.
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("adds shows from the empty state, which holds the only Add shows… until the first show", async () => {
+  await openLineup([]);
+  const panel = screen.getByRole("tabpanel");
+
+  const empty = await within(panel).findByText(/No shows yet/);
+  expect(empty.className).toBe("empty-state");
+  const addShows = within(panel).getAllByRole("button", { name: "Add shows…" });
+  expect(addShows).toHaveLength(1);
+  expect(addShows[0].parentElement).toBe(empty);
+  expect(within(panel).queryByRole("button", { name: "Remove…" })).toBeNull();
+  fireEvent.click(addShows[0]);
+
+  expect(screen.getByRole("dialog", { name: "Add shows" })).toBeTruthy();
+});
+
+it("opens Media Library from the picker when nothing exists to pick, and not when nothing matches", async () => {
+  const api = new BrowserApi();
+  api.reply(ASSIGNMENTS, []);
+  api.reply("/media-collections", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  vi.stubGlobal("fetch", api.fetch);
+  const openProgram = vi.fn();
+  await openChannelTab(api, "Lineup", adminFixtures.channels[0], openProgram);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const openLibrary = () =>
+    within(dialog).getByRole("button", { name: "Open Media Library" });
+
+  await within(dialog).findByText("There are no collections yet.");
+  fireEvent.click(openLibrary());
+  expect(openProgram).toHaveBeenCalledWith("media");
+
+  // A search that misses is not an empty catalog.
+  fireEvent.change(within(dialog).getByLabelText("Find collections"), {
+    target: { value: "Nope" },
+  });
+  within(dialog).getByText("No collection matches that search.");
+  expect(
+    within(dialog).queryByRole("button", { name: "Open Media Library" }),
+  ).toBeNull();
+
+  searchFor(dialog, "Single items");
+  await within(dialog).findByText("The catalog has no media yet.");
+  fireEvent.click(openLibrary());
+  expect(openProgram).toHaveBeenCalledTimes(2);
+  expect(openProgram).toHaveBeenLastCalledWith("media");
 });

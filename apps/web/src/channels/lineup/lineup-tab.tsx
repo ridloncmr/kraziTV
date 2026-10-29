@@ -26,8 +26,8 @@ import { useMemberNames } from "./use-member-names.js";
 /**
  * The Lineup tab: the channel's shows, its programming source assignments,
  * as a read-only list in saved order, badging a wheel (a show of several
- * members that share its turns). **Add shows…** adds several at once;
- * a selected show opens in
+ * members that share its turns). **Add shows…** adds several at once, from
+ * the empty state until the first show exists; a selected show opens in
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
  * calls `changed`. A write that changes what airs has already regenerated
@@ -92,7 +92,10 @@ export function LineupTab({
       />
       {assignments.data?.length === 0 && (
         <p className="empty-state">
-          No shows yet. Add shows to begin broadcasting.
+          No shows yet. Add shows to begin broadcasting.{" "}
+          <button type="button" onClick={() => setAdding(true)}>
+            Add shows…
+          </button>
         </p>
       )}
       {listed.length > 0 && (
@@ -173,7 +176,8 @@ export function LineupTab({
           </table>
         </div>
       )}
-      {assignments.data && (
+      {/* The empty state carries Add shows…, so the bar waits for the first show. */}
+      {listed.length > 0 && (
         <div className="row-actions">
           <button type="button" onClick={() => setAdding(true)}>
             Add shows…
