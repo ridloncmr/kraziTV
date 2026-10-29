@@ -70,6 +70,7 @@ export const ProgramContents = memo(function ProgramContents({
         visible={visible}
         windows={channelWindows}
         onDirtyChange={onDirtyChange}
+        openProgram={openProgram}
       />
     );
   if (target?.kind === "collection-properties")
@@ -89,6 +90,7 @@ export const ProgramContents = memo(function ProgramContents({
           visible={visible}
           windows={channelWindows}
           onWatch={watchChannel}
+          openProgram={openProgram}
         />
       );
     case "media":
@@ -98,7 +100,13 @@ export const ProgramContents = memo(function ProgramContents({
     case "collections":
       return <CollectionsApp visible={visible} windows={collectionWindows} />;
     case "guide":
-      return <ProgramGuideApp visible={visible} onWatch={watchChannel} />;
+      return (
+        <ProgramGuideApp
+          visible={visible}
+          onWatch={watchChannel}
+          openProgram={openProgram}
+        />
+      );
     case "tv":
       return (
         <TvApp
@@ -110,7 +118,13 @@ export const ProgramContents = memo(function ProgramContents({
     case "plex":
       return <PlexSetupApp visible={visible} />;
     case "monitor":
-      return <LiveMonitorApp visible={visible} connection={connection} />;
+      return (
+        <LiveMonitorApp
+          visible={visible}
+          connection={connection}
+          openProgram={openProgram}
+        />
+      );
     case "account":
       return (
         <AccountSettingsApp

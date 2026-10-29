@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type { PropertiesWindows } from "../../desktop/windows/use-properties-windows.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { useResource } from "../../http/resources/use-resource.js";
@@ -22,12 +23,15 @@ export function ChannelPropertiesApp({
   visible,
   windows,
   onDirtyChange,
+  openProgram,
 }: {
   channelId: string;
   visible: boolean;
   /** Channel Properties windows: this one's title and My Channels' list follow its saves. */
   windows: PropertiesWindows;
   onDirtyChange: (dirty: boolean) => void;
+  /** Opens another program, which the lineup's show picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const channel = useResource<Channel>(
     resourcePath("channels", channelId),
@@ -59,6 +63,7 @@ export function ChannelPropertiesApp({
           tab={tab}
           onTabChange={setTab}
           onDirtyChange={onDirtyChange}
+          openProgram={openProgram}
           changed={() => {
             channel.refresh();
             changed();

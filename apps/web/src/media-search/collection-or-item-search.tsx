@@ -5,6 +5,7 @@ import {
 } from "../catalog-filter/catalog-filter-dialog.js";
 import { Pager } from "../controls/pager.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import type { ProgramId } from "../desktop/contracts.js";
 import type { MediaCollection } from "../http/contracts/collections.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
 import type { AssignmentMember } from "../http/contracts/programming.js";
@@ -48,6 +49,8 @@ export function CollectionOrItemSearch({
   hidden?: ReadonlySet<string>;
   visible: boolean;
   onToggle: (found: FoundMember, checked: boolean) => void;
+  /** Opens another program, such as Media Library when there is nothing to pick. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const kindName = useId();
   const [kind, setKind] = useState<"collections" | "items">("collections");

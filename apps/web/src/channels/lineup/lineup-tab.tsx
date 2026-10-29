@@ -3,6 +3,7 @@ import { RequestFeedback } from "../../controls/request-feedback.js";
 import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
 import { RowMenu } from "../../controls/row-menu.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type {
   MarathonSettings,
   SourceAssignment,
@@ -38,12 +39,15 @@ export function LineupTab({
   programming,
   visible,
   onDirtyChange,
+  openProgram,
 }: {
   channelId: string;
   programming: ChannelProgramming;
   visible: boolean;
   /** Reports whether an open show holds unsaved edits, so closing the window asks first. */
   onDirtyChange: (dirty: boolean) => void;
+  /** Opens another program, which the show picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const { assignments, collections, assignmentsPath, changed } = programming;
   const listed = assignments.data ?? [];
@@ -208,6 +212,7 @@ export function LineupTab({
           visible={visible}
           changed={applied}
           onClose={() => setAdding(false)}
+          openProgram={openProgram}
         />
       )}
       {edited && (
@@ -232,6 +237,7 @@ export function LineupTab({
             setEditing(undefined);
             if (programmingChanged) setRebuilding(true);
           }}
+          openProgram={openProgram}
         />
       )}
       {removing && (

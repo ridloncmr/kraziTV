@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import type { ProgramId } from "../../desktop/contracts.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { CheckboxOption } from "../../controls/checkbox-option.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
@@ -61,6 +62,7 @@ export function ShowPropertiesDialog({
   changed,
   onDirtyChange,
   onClose,
+  openProgram,
 }: {
   assignmentsPath: string;
   assignment: SourceAssignment;
@@ -80,6 +82,8 @@ export function ShowPropertiesDialog({
   onDirtyChange: (dirty: boolean) => void;
   /** Closes the dialog, saying whether any save in it changed what airs. */
   onClose: (programmingChanged: boolean) => void;
+  /** Opens another program, which the member picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const mutation = useMutation();
   const turnOn = useMutation();
@@ -326,6 +330,7 @@ export function ShowPropertiesDialog({
                   unavailable={unavailable}
                   visible={visible}
                   edit={editMembers}
+                  openProgram={openProgram}
                   onPicked={(member, picked) =>
                     setPickedNames((current) =>
                       new Map(current).set(memberKey(member), picked),
