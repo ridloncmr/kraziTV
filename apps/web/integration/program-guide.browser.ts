@@ -70,7 +70,8 @@ test("a program only minutes long can still be hovered and opened in the guide",
     exact: true,
   });
   const short = guide.getByRole("button", { name: /^Olaf Presents/ });
-  const block = guide.locator(".guide-block", { has: short });
+  // The block is the button's list item, which draws its border.
+  const block = short.locator("xpath=..");
 
   // The button fills its eight-pixel block, so the pointer finds it.
   const box = await short.boundingBox();
