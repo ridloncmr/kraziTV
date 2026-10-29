@@ -1,6 +1,6 @@
 # Spec 0002: Owner-Facing Words
 
-Status: In Development
+Status: Implemented
 
 ## Intent
 
