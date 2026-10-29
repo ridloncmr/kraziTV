@@ -26,8 +26,9 @@ and kraziTV keeps programming them for as long as it runs.
 - **Specials at exact times.** Book a movie for 8:00 PM Friday. Regular
   programming wraps up cleanly before it starts.
 - **Your library, understood.** With a free TMDB key, kraziTV recognizes your
-  shows, seasons, and episodes from file and folder names, and builds
-  collections for every series, franchise, and genre automatically.
+  shows, seasons, and episodes from file and folder names, and suggests a
+  collection for each series and franchise in your library. Keep the ones you
+  want.
 - **A full guide in Plex.** kraziTV shows up in Plex as a TV tuner with a
   program guide, so it works on every TV, phone, and tablet Plex does.
 - **One stream per channel.** Everyone watching a channel shares the same
@@ -37,13 +38,13 @@ and kraziTV keeps programming them for as long as it runs.
 
 Every channel's next day, at a glance:
 
-![The Program Guide, showing eight channels' schedules](docs/images/guide.png)
+![The Program Guide, showing every channel's schedule](docs/images/guide.png)
 
 Shows, play order, and rules, each in its own Properties window:
 
 ![A show's properties over a channel's lineup, with another channel's rules behind](docs/images/programming.png)
 
-Scan your folders and let kraziTV sort them into collections:
+Scan your folders and keep the collections kraziTV suggests:
 
 ![Media Library, the automatic Collections, and one collection's members](docs/images/library.png)
 
@@ -52,24 +53,25 @@ Scan your folders and let kraziTV sort them into collections:
 kraziTV runs anywhere Docker does:
 
 ```bash
-docker build -t krazitv .
 docker run -d --name krazitv -p 3000:3000 \
   -v krazitv-data:/data \
   -v /path/to/your/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  krazitv
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1
 ```
 
 Replace `192.168.1.10` with your server's address, open it in a browser, and
 create your account. Then:
 
-1. **Media Library:** add `/media` and scan it.
+1. **Media Library:** add `/media`, and scan it when kraziTV offers.
 2. **My Channels:** create a channel and add shows to its lineup.
 3. **Plex Setup:** copy the two addresses into Plex's **Live TV & DVR**
    settings.
 
 That's it. Your channels are in Plex Live TV.
+
+Prefer to build kraziTV from source? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The [setup guide](docs/knowledge_base/running-krazitv.md) covers running
 without Docker, connecting Plex step by step, and every setting.
@@ -79,7 +81,7 @@ without Docker, connecting Plex step by step, and every setting.
 kraziTV is young and actively developed. Today:
 
 - It works with **Plex**. Jellyfin support is planned.
-- You watch through Plex. Watching in the browser is planned.
+- Watch in Plex, or in the browser with the TV program.
 - Every channel is re-encoded to 1080p H.264, so watching uses some CPU.
 - It is meant for a **home network**. Anyone who can reach it can watch its
   channels, so don't expose it to the internet.

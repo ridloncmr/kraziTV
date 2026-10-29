@@ -5,16 +5,19 @@ README's quick start is the short version.
 
 ## Install With Docker
 
-The image includes kraziTV, its web app, and FFmpeg.
+The image includes kraziTV, its web app, and FFmpeg. Every kraziTV release
+publishes it to the GitHub Container Registry as
+`ghcr.io/ridloncmr/krazitv:<release tag>`. Pre-releases publish only their
+tag; a full release also moves `latest`. The command below runs the newest
+release, `v0.9.0-rc.1`.
 
 ```bash
-docker build -t krazitv .
 docker run -d --name krazitv -p 3000:3000 \
   -v krazitv-data:/data \
   -v /path/to/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  krazitv
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1
 ```
 
 - Set `PUBLIC_BASE_URL` to the address of the machine running kraziTV, and
@@ -26,6 +29,9 @@ docker run -d --name krazitv -p 3000:3000 \
 - Data lives in the `/data` volume. The server runs as the image's `node`
   user (uid 1000), so a host folder mounted there must be writable by it.
 - Mount media read-only. kraziTV never changes media files.
+- To build the image yourself, run `docker build -t krazitv .` in a checkout
+  and use `krazitv` as the image name. [CONTRIBUTING.md](../../CONTRIBUTING.md)
+  covers working from source.
 
 ## Install From Source
 
@@ -43,8 +49,10 @@ npm start --workspace @krazitv/server
 
 kraziTV serves the web app and everything else on one port, by default
 `http://127.0.0.1:3000`
-([ADR 0019](../adrs/0019-same-origin-web-app-and-container.md)). Set
-`HOST=0.0.0.0` to reach it from other devices.
+([ADR 0019](../adrs/0019-same-origin-web-app-and-container.md)). To reach it
+from other devices, set `HOST=0.0.0.0` and set `PUBLIC_BASE_URL` to the
+address they use, such as `http://192.168.1.10:3000`. kraziTV only accepts
+changes from that address.
 
 ## First Steps
 
@@ -57,7 +65,9 @@ kraziTV serves the web app and everything else on one port, by default
 4. In **My Channels**, create a channel and add shows to its **Lineup**.
    Add **Rules** for times and seasons and **Specials** for exact times.
 5. Check **Program Guide** to see what will air.
-6. Open **Plex Setup** for the two addresses Plex needs.
+6. Open **TV** to watch a channel in the browser. **Watch** in My Channels,
+   or a channel's name in the Program Guide, opens TV on that channel.
+7. Open **Plex Setup** for the two addresses Plex needs.
 
 ## Connect Plex
 
@@ -119,6 +129,4 @@ replaces the password, and logs every browser out. kraziTV may keep running.
 ## Current Limits
 
 - Plex only; Jellyfin is planned.
-- No playback in the browser yet.
 - Every channel is re-encoded to 1080p, 30 fps, H.264 with AAC audio.
-- If FFmpeg fails mid-program, viewers' streams end and they must tune again.

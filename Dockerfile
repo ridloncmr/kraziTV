@@ -1,6 +1,6 @@
 # kraziTV: the server, the built web app, and FFmpeg in one image.
 # Build:  docker build -t krazitv .
-# Run:    see "Run with Docker" in README.md.
+# Run:    see "Get Started" in README.md.
 
 FROM node:22-trixie-slim AS build
 # better-sqlite3 compiles from source when no prebuilt binary matches.
