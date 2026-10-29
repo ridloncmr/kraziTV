@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { formText } from "../controls/formatting/form-text.js";
-import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
-import { WindowDialog } from "../controls/dialogs/window-dialog.js";
-import type { MediaRoot } from "../http/contracts/media.js";
-import { useMutation } from "../http/resources/use-resource.js";
+import { formText } from "../../controls/formatting/form-text.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import type { MediaRoot } from "../../http/contracts/media.js";
+import { useMutation } from "../../http/resources/use-resource.js";
 import { FolderBrowser } from "./folder-browser.js";
 
 /** What `POST /media-roots` answers with; it carries no scan or match counts. */
