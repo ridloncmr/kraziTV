@@ -11,7 +11,7 @@ import {
 
 afterEach(cleanUpTestEnvironment);
 
-it("reports schedulability with the missing and too-short counts for empty, missing, short and eligible members", async () => {
+it("reports schedulability with the missing, could-not-read, and too-short counts for empty, missing, unreadable, short and eligible members", async () => {
   const { server } = await startTestServer({
     seed: async (db) => {
       await db.insertInto("media_roots").values(rootFixture).execute();
@@ -22,6 +22,11 @@ it("reports schedulability with the missing and too-short counts for empty, miss
           titledItemFixture("missing", {
             status: "missing",
             duration_ms: 2000,
+          }),
+          titledItemFixture("unreadable", {
+            status: "probe_failed",
+            duration_ms: null,
+            probe_error: "Invalid data found when processing input",
           }),
           titledItemFixture("eligible", { duration_ms: 1000 }),
         ])
@@ -35,6 +40,7 @@ it("reports schedulability with the missing and too-short counts for empty, miss
         schedulable: false,
         schedulableCount: 0,
         missingCount: 0,
+        couldNotReadCount: 0,
         tooShortCount: 0,
       },
     ],
@@ -44,7 +50,18 @@ it("reports schedulability with the missing and too-short counts for empty, miss
         schedulable: false,
         schedulableCount: 0,
         missingCount: 1,
+        couldNotReadCount: 0,
         tooShortCount: 1,
+      },
+    ],
+    [
+      ["unreadable"],
+      {
+        schedulable: false,
+        schedulableCount: 0,
+        missingCount: 0,
+        couldNotReadCount: 1,
+        tooShortCount: 0,
       },
     ],
     [
@@ -53,6 +70,7 @@ it("reports schedulability with the missing and too-short counts for empty, miss
         schedulable: true,
         schedulableCount: 1,
         missingCount: 0,
+        couldNotReadCount: 0,
         tooShortCount: 1,
       },
     ],

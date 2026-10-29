@@ -121,7 +121,7 @@ function lastBody(api: BrowserApi, path: string, method: string) {
 it("previews media items in order and saves exactly what was previewed", async () => {
   const api = renderSection();
   await startNewSpecial();
-  await screen.findByRole("option", { name: "Alpha (available)" });
+  await screen.findByRole("option", { name: "Alpha" });
   fireEvent.change(screen.getByLabelText("Program 1"), {
     target: { value: "z" },
   });

@@ -85,6 +85,7 @@ export function serveCollection(
       memberCount: saved.length,
       schedulableCount: 1,
       missingCount: 0,
+      couldNotReadCount: 0,
       tooShortCount: 0,
     }),
   );

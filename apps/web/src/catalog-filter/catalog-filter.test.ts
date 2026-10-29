@@ -78,6 +78,26 @@ it("applies several values of several sections together, read from the catalog l
   expect(screen.getByRole("button", { name: "Filter (6)…" })).toBeTruthy();
 });
 
+it("labels availability with the library's words and filters by the status they name", async () => {
+  const api = await showFilterableLibrary();
+  const dialog = openFilter();
+
+  const section = within(
+    (await dialog.findByText("Availability")).closest("fieldset")!,
+  );
+  expect(
+    section
+      .getAllByRole("checkbox")
+      .map((box) => box.closest("label")?.textContent),
+  ).toEqual(["Available", "Missing", "Could not be read"]);
+  fireEvent.click(section.getByRole("checkbox", { name: "Could not be read" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Apply" }));
+
+  await vi.waitFor(() =>
+    expect(lastFilter(api)).toEqual({ status: ["probe_failed"] }),
+  );
+});
+
 it("narrows a long section by typing without unchecking what it hides", async () => {
   await showFilterableLibrary();
   const dialog = openFilter();

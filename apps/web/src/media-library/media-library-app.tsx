@@ -19,6 +19,7 @@ import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
+import { AVAILABILITY_LABELS } from "./availability-label.js";
 import {
   CatalogFilterDialog,
   keysInUse,
@@ -335,7 +336,7 @@ export function MediaLibraryApp({
                       <small className="error-message">{item.probeError}</small>
                     )}
                   </td>
-                  <td>{item.status}</td>
+                  <td>{AVAILABILITY_LABELS[item.status]}</td>
                   <td>{displayDuration(item.durationMs)}</td>
                   <td>
                     <div className="match-cell">

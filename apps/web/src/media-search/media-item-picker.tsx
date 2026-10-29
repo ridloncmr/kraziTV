@@ -4,6 +4,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { useResource } from "../http/resources/use-resource.js";
+import { AVAILABILITY_LABELS } from "../media-library/availability-label.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 
 const RESULT_LIMIT = 25;
@@ -62,7 +63,9 @@ export function MediaItemPicker({
           <option value="">Choose media</option>
           {options.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.title} ({item.status})
+              {item.status === "available"
+                ? item.title
+                : `${item.title} (${AVAILABILITY_LABELS[item.status]})`}
             </option>
           ))}
         </select>

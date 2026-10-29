@@ -29,8 +29,8 @@ it("keeps a chosen item outside the results listed by loading it by ID", async (
     }),
   );
 
-  await screen.findByRole("option", { name: "Alpha (available)" });
-  await screen.findByRole("option", { name: "Far away (available)" });
+  await screen.findByRole("option", { name: "Alpha" });
+  await screen.findByRole("option", { name: "Far away" });
   expect(
     screen.getByLabelText<HTMLSelectElement>("Programming source").value,
   ).toBe("far");
@@ -50,7 +50,7 @@ it("hides excluded items and says how many matches the page left out", async () 
     }),
   );
 
-  await screen.findByRole("option", { name: "Alpha (available)" });
-  expect(screen.queryByRole("option", { name: "Zulu (missing)" })).toBeNull();
+  await screen.findByRole("option", { name: "Alpha" });
+  expect(screen.queryByRole("option", { name: "Zulu (Missing)" })).toBeNull();
   expect(screen.getByText(/28 more matches/)).toBeTruthy();
 });

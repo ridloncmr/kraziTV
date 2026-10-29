@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../../testing/browser-api.js";
-import { adminFixtures } from "../../testing/admin-fixtures.js";
+import { adminFixtures, UNREADABLE } from "../../testing/admin-fixtures.js";
 import {
   catalogSeries,
   episodes,
@@ -25,13 +25,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Serves a collection, favorites by default, with the given saved order and renders its editor.
+// Serves a collection, favorites by default, with the given saved order and renders its editor; `serve` replaces routes first.
 function renderEditor(
   memberIds: string[],
   collection = adminFixtures.collections[0],
+  serve?: (api: BrowserApi) => void,
 ) {
   const api = new BrowserApi();
   serveCollection(api, collection.id, memberIds);
+  serve?.(api);
   vi.stubGlobal("fetch", api.fetch);
   const onDirtyChange = vi.fn();
   render(
@@ -351,6 +353,75 @@ it("labels a missing member as not airing until its file returns, with an icon b
   ).toBeTruthy();
   expect(within(zulu).getByRole("img", { name: "Warning" })).toBeTruthy();
   expect(within(alpha).queryByText(/Missing/)).toBeNull();
+});
+
+// One fixture item per availability: Alpha available, Zulu missing, Unreadable could not be read.
+const EVERY_AVAILABILITY = [...adminFixtures.media, UNREADABLE];
+
+// The line under a row's title: what the row says and the full path it keeps for hovering.
+function fileLine(row: HTMLElement) {
+  const line = row.querySelector<HTMLElement>(".path-cell")!;
+  return [line.textContent, line.title];
+}
+
+it("names each member's availability beside its file name, keeping the full path for hovering", async () => {
+  renderEditor([], adminFixtures.collections[0], (api) =>
+    api.reply(
+      "/media-collections/favorites/items",
+      EVERY_AVAILABILITY.map(
+        ({ id, title, path, status, durationMs }, position) => ({
+          position,
+          mediaItemId: id,
+          title,
+          path,
+          status,
+          durationMs,
+        }),
+      ),
+    ),
+  );
+
+  const row = async (title: string) =>
+    (await screen.findByLabelText(`Select member ${title}`)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
+  expect(screen.queryByText(/probe_failed/)).toBeNull();
+});
+
+it("names each catalog item's availability beside its file name in the picker", async () => {
+  renderEditor([], adminFixtures.collections[0], (api) =>
+    api.reply(
+      "/media-items/search",
+      { items: EVERY_AVAILABILITY, total: EVERY_AVAILABILITY.length },
+      "POST",
+    ),
+  );
+
+  const row = async (title: string) =>
+    (await screen.findByLabelText(`Select ${title}`)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
+  expect(screen.queryByText(/probe_failed/)).toBeNull();
 });
 
 it("explains incomplete maintenance in the automatic editor", async () => {

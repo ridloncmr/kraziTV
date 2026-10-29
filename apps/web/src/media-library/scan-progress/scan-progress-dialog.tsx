@@ -10,6 +10,7 @@ import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/resources/use-resource.js";
+import { AVAILABILITY_LABELS } from "../availability-label.js";
 import {
   LOOKUP_FAILED_LABEL,
   MATCH_STATE_LABELS,
@@ -195,8 +196,8 @@ function summaryFacts(
     status.kind === "scan"
       ? [
           ["Files found", summary.discoveredCount],
-          ["Could not be read", summary.probeFailedCount],
-          ["Missing", summary.missingCount],
+          [AVAILABILITY_LABELS.probe_failed, summary.probeFailedCount],
+          [AVAILABILITY_LABELS.missing, summary.missingCount],
         ]
       : [];
   const lookups: [string, number][] =

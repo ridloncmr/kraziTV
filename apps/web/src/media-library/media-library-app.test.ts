@@ -12,13 +12,14 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { WindowDialogFrame } from "../controls/window-dialog.js";
 import type { FolderListing, MediaRoot } from "../http/contracts/media.js";
-import { adminFixtures } from "../testing/admin-fixtures.js";
+import { adminFixtures, UNREADABLE } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import {
   mediaRoot,
   scanStatus,
   scanSummary,
 } from "../testing/scan-fixtures.js";
+import { showMediaLibrary } from "../testing/media-library-actions.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
 afterEach(() => {
@@ -53,6 +54,18 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   });
   await waitFor(() => expect(lastQuery()?.get("q")).toBe("pilot"));
   expect(lastQuery()?.get("offset")).toBe("0");
+});
+
+it("names each item's availability in the owner's words, never the status code", async () => {
+  await showMediaLibrary([...adminFixtures.media, UNREADABLE]);
+
+  const availability = (title: string) =>
+    within(screen.getByText(title).closest("tr")!).getAllByRole("cell")[2]
+      .textContent;
+  expect(availability("Alpha")).toBe("Available");
+  expect(availability("Zulu")).toBe("Missing");
+  expect(availability("Unreadable")).toBe("Could not be read");
+  expect(screen.queryByText(/probe_failed/)).toBeNull();
 });
 
 it("keeps the current rows on screen while the next page loads", async () => {

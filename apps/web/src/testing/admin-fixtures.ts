@@ -120,6 +120,17 @@ export function collectionWith(
   };
 }
 
+/** A cataloged file the last scan could not read, beside the fixture media's available and missing items. */
+export const UNREADABLE = {
+  ...adminFixtures.media[0],
+  id: "u",
+  title: "Unreadable",
+  path: "/media/shows/unreadable.mkv",
+  status: "probe_failed",
+  durationMs: null,
+  probeError: "Invalid data found when processing input",
+} satisfies MediaItem;
+
 /** A listed item titled `title` whose metadata overrides the unknown defaults. */
 export function itemWith(title: string, metadata: Partial<ContentMetadata>) {
   return {
