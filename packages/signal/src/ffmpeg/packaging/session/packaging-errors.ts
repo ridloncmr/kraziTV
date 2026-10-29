@@ -1,4 +1,4 @@
-import { SignalError } from "../../errors.js";
+import { SignalError } from "../../../errors.js";
 
 /**
  * Reports an FFmpeg process that closed before its output ever became usable,

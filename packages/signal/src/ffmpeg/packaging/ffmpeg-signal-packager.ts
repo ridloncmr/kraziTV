@@ -7,10 +7,10 @@ import {
   buildFfmpegArguments,
   buildStandInArguments,
   sessionBacklogMs,
-} from "./ffmpeg-arguments.js";
+} from "./arguments/ffmpeg-arguments.js";
 import { FfmpegProcess } from "../process/ffmpeg-process.js";
-import { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
-import { itemContext } from "./item-log-context.js";
+import { FfmpegSignalSession } from "./session/ffmpeg-signal-session.js";
+import { itemContext } from "./session/item-log-context.js";
 import type { OutputReadinessInspector } from "../contracts.js";
 import { MpegTsBacklogInspector } from "../mpeg-ts/mpeg-ts-backlog-inspector.js";
 import { MpegTsReadinessInspector } from "../mpeg-ts/mpeg-ts-readiness-inspector.js";

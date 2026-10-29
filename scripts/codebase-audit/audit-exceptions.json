@@ -100,9 +100,18 @@
     },
     {
       "rule": "grouping",
-      "files": ["packages/signal/src/ffmpeg/packaging/"],
-      "reason": "Every file serves one capability, turning playout items into FFmpeg-packaged output, so the folder stays flat.",
+      "files": ["packages/signal/src/ffmpeg/packaging/session/"],
+      "reason": "Every file serves one capability, running one signal session: the session and its process bindings, the preparation handle, the held output, the item log context, and the packaging errors those raise.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "nesting-depth",
+      "files": [
+        "packages/signal/src/ffmpeg/packaging/arguments/",
+        "packages/signal/src/ffmpeg/packaging/session/"
+      ],
+      "reason": "packaging/ has nine source files serving two capabilities, argument construction and session running, so it meets the grouping rule itself and groups them one level further; the packager that coordinates both stays at its root.",
+      "source": "AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
     },
     {
       "rule": "grouping",
