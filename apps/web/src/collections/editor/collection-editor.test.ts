@@ -10,7 +10,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../../testing/browser-api.js";
-import { adminFixtures } from "../../testing/admin-fixtures.js";
+import { adminFixtures, UNREADABLE } from "../../testing/admin-fixtures.js";
+import type { MediaItem } from "../../http/contracts/media.js";
 import {
   catalogSeries,
   episodes,
@@ -29,9 +30,10 @@ afterEach(() => {
 function renderEditor(
   memberIds: string[],
   collection = adminFixtures.collections[0],
+  extraCatalog: readonly MediaItem[] = [],
 ) {
   const api = new BrowserApi();
-  serveCollection(api, collection.id, memberIds);
+  serveCollection(api, collection.id, memberIds, extraCatalog);
   vi.stubGlobal("fetch", api.fetch);
   const onDirtyChange = vi.fn();
   render(
@@ -353,6 +355,74 @@ it("labels a missing member as not airing until its file returns, with an icon b
   expect(within(alpha).queryByText(/Missing/)).toBeNull();
 });
 
+// One catalog item per availability: Alpha available, Zulu missing, Unreadable could not be read.
+const EVERY_AVAILABILITY = ["z", "a", UNREADABLE.id];
+
+// The line under a row's title: what the row says and the full path it keeps for hovering.
+function fileLine(row: HTMLElement) {
+  const line = row.querySelector<HTMLElement>(".path-cell")!;
+  return [line.textContent, line.title];
+}
+
+it("names each member's availability beside its file name, keeping the full path for hovering", async () => {
+  renderEditor(EVERY_AVAILABILITY, adminFixtures.collections[0], [UNREADABLE]);
+
+  const row = async (title: string) =>
+    (await screen.findByLabelText(`Select member ${title}`)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
+  expect(screen.queryByText(/probe_failed/)).toBeNull();
+});
+
+it("names each catalog item's availability beside its file name in the picker", async () => {
+  renderEditor([], adminFixtures.collections[0], [UNREADABLE]);
+
+  const row = async (title: string) =>
+    (await screen.findByLabelText(`Select ${title}`)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
+  expect(screen.queryByText(/probe_failed/)).toBeNull();
+});
+
+it("names each read-only member's availability beside its file name in an automatic collection", async () => {
+  renderEditor(EVERY_AVAILABILITY, officeCollection, [UNREADABLE]);
+
+  const row = async (title: string) =>
+    (await screen.findByText(title)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
+});
+
 it("explains incomplete maintenance in the automatic editor", async () => {
   renderEditor(["e2", "e10"], {
     ...officeCollection,
@@ -428,7 +498,9 @@ it("excludes a member, lists excluded items labelled with whether they still qua
   const row = within(excluded).getByText("Alpha").closest("tr")!;
   expect(within(row).getByText("Excluded")).toBeTruthy();
   expect(within(row).getByText("No longer matches")).toBeTruthy();
+  expect(fileLine(row)).toEqual(["alpha.mp4", "/media/alpha.mp4"]);
   const unknown = within(excluded).getByText("Zulu").closest("tr")!;
+  expect(fileLine(unknown)).toEqual(["Missing · zulu.mp4", "/media/zulu.mp4"]);
   expect(
     within(unknown).getByText("Unknown — its TMDB data expired"),
   ).toBeTruthy();

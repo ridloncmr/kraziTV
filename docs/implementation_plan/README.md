@@ -66,7 +66,7 @@ at the top of each plan are generated from ticket Status blocks by
 ### 004-release-polish
 
 - [Release Polish Spec 0001 Implementation Plan: First-Run Flow](004-release-polish/0001-first-run-flow.md) - 6 of 8 tickets complete
-- [Release Polish Spec 0002 Implementation Plan: Owner-Facing Words](004-release-polish/0002-owner-facing-words.md) - 5 of 6 tickets complete
+- [Release Polish Spec 0002 Implementation Plan: Owner-Facing Words](004-release-polish/0002-owner-facing-words.md) - 6 of 6 tickets complete
 - [Release Polish Spec 0003 Implementation Plan: Release Readiness](004-release-polish/0003-release-readiness.md) - 6 of 11 tickets complete
 
 <!-- plan-index:end -->

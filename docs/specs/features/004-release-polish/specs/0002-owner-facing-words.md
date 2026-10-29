@@ -1,6 +1,6 @@
 # Spec 0002: Owner-Facing Words
 
-Status: In Development
+Status: Implemented
 
 ## Intent
 
@@ -32,8 +32,9 @@ glossary's labels (Show, Wheel, Special, Delete).
 - The collection status strip says what can air and why the rest cannot:
   "Nothing to air yet, add media below." when an empty manual collection has
   the picker below, "Nothing to air yet." for an empty automatic one, otherwise
-  "12 of 14 can air (1 missing, 1 too short)". The status endpoint reports the
-  missing and too-short counts.
+  "12 of 14 can air (1 missing, 1 too short)", naming a file the last scan
+  could not read the same way. The status endpoint reports the missing,
+  could-not-read, and too-short counts.
 - The scan summary uses the same words the match review uses: Files found,
   Could not be read, Missing, then the match states as
   [spec 0001](../../002-programming/specs/0001-metadata-enrichment.md) labels

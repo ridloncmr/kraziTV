@@ -1,4 +1,5 @@
 // Wire shapes of media collections, their members, and recommendations.
+import type { MediaItem } from "./media.js";
 /** What an automatic collection matches on: one TMDB series or movie franchise, one tag, or one genre. */
 export type CollectionCriterion =
   | { kind: "series" | "franchise"; tmdbId: number }
@@ -46,7 +47,7 @@ export interface CollectionMember {
   mediaItemId: string;
   title: string;
   path: string;
-  status: string;
+  status: MediaItem["status"];
   durationMs: number | null;
   position: number;
 }
@@ -68,13 +69,15 @@ export interface Recommendation {
   collectionId: string | null;
   decision: "accepted" | "dismissed" | null;
 }
-/** `GET /media-collections/:id/status`: how many members can air, and the two causes the strip words. */
+/** `GET /media-collections/:id/status`: how many members can air, and the causes the strip words for the rest. */
 export interface CollectionStatus {
   schedulable: boolean;
   schedulableCount: number;
   memberCount: number;
   /** Members whose file is missing. */
   missingCount: number;
+  /** Members whose file the last scan could not read. */
+  couldNotReadCount: number;
   /** Available members below kraziBrain's duration floor. */
   tooShortCount: number;
 }
