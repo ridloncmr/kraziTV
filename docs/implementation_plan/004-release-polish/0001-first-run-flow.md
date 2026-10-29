@@ -12,7 +12,7 @@ Progress: 2 of 8 tickets complete.
 | POLISH-004 | The TMDB task says where a token comes from                  | Complete on 2026-10-29 |
 | POLISH-005 | Ask the rebuild question only while a program is airing      | Open                   |
 | POLISH-006 | One property-sheet footer                                    | Open                   |
-| POLISH-007 | Add shows leads with search; Add all confirms                | Open                   |
+| POLISH-007 | Add shows leads with search; Add all confirms                | Complete on 2026-10-29 |
 | POLISH-008 | Chrome and copy one-liners                                   | Open                   |
 
 <!-- plan-progress:end -->
@@ -220,6 +220,14 @@ disables; OK saves and closes; Cancel with changes asks.
 **Docs impact**: Spec 0008 (channel setup UX) gets one line on the footer.
 
 ### POLISH-007: Add shows leads with search; Add all confirms
+
+**Status**
+
+Complete on 2026-10-29. Add shows renders the search first and
+shows **Add as** above Next only with two or more picks; a lone pick is
+always its own show. The collection editor's **Add all (N)** opens a
+`WindowDialog` naming N and the collection when N exceeds one page, and adds
+directly otherwise.
 
 **Goal**: The first Add shows is about picking, not about wheels; nobody adds
 14,000 items by accident.

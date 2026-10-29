@@ -1444,6 +1444,33 @@ it("adds picks as one named wheel whose members share its turns, badged Wheel in
   ]);
 });
 
+it("leads Add shows with the search, and offers Add as only once two picks could be grouped", async () => {
+  await openLineup([], [collectionWith("movies", "Movies")], serveSuggestions);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const addAs = () => within(dialog).queryByRole("group", { name: "Add as" });
+  expect(addAs()).toBeNull();
+
+  fireEvent.click(result(dialog, "Favorites"));
+  expect(addAs()).toBeNull();
+  fireEvent.click(result(dialog, "Movies"));
+  const group = addAs();
+  expect(group).not.toBeNull();
+  // The search comes before the grouping choice, which sits above Next.
+  const search = within(dialog).getByRole("list", { name: "Search results" });
+  expect(
+    search.compareDocumentPosition(group!) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
+  within(dialog).getByLabelText("Wheel name");
+
+  // A lone pick is its own show again, whatever was chosen for two.
+  fireEvent.click(result(dialog, "Movies"));
+  expect(addAs()).toBeNull();
+  next(dialog, 1);
+  within(dialog).getByRole("button", { name: "Add (1)" });
+});
+
 it("names a refused wheel by its name", async () => {
   const { api } = await openLineup(
     [],
@@ -1458,9 +1485,9 @@ it("names a refused wheel by its name", async () => {
   );
   fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
   const dialog = screen.getByRole("dialog", { name: "Add shows" });
-  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
   fireEvent.click(result(dialog, "Favorites"));
   fireEvent.click(result(dialog, "Movies"));
+  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
   fireEvent.change(within(dialog).getByLabelText("Wheel name"), {
     target: { value: "Weekend" },
   });

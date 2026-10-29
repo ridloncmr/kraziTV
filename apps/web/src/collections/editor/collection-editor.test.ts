@@ -123,6 +123,41 @@ it("adds every match of the settled search and refuses a capped match list", asy
   expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]);
 });
 
+it("confirms Add all of more than one page, naming the count and the collection", async () => {
+  const { api } = renderEditor(["z"]);
+  // The server reports more matches than the page shows.
+  api.handle(
+    "/media-items/search",
+    () => api.response({ items: episodes, total: 1234 }),
+    "POST",
+  );
+  await screen.findByText("Add all (1,234)");
+  api.reply("/media-items/matches", { items: episodes, total: 2 }, "POST");
+  click("Add all (1,234)");
+
+  const dialog = screen.getByRole("dialog", { name: "Add all" });
+  expect(dialog.textContent).toMatch(
+    /Add all 1,234 matching items to Favorites\?/,
+  );
+  expect(api.requests.some((r) => r.path === "/media-items/matches")).toBe(
+    false,
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("dialog", { name: "Add all" })).toBeNull();
+
+  click("Add all (1,234)");
+  fireEvent.click(
+    within(screen.getByRole("dialog", { name: "Add all" })).getByRole(
+      "button",
+      { name: "Add 1,234 items" },
+    ),
+  );
+  expect(screen.queryByRole("dialog", { name: "Add all" })).toBeNull();
+  await waitFor(() =>
+    expect(memberOrder()).toEqual(["Alpha", "Episode 2", "Episode 10"]),
+  );
+});
+
 it("narrows the catalog with Media Library's filter, for its pages and Add all", async () => {
   const { api } = renderEditor(["z"]);
   api.reply("/media-roots", []);
