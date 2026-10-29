@@ -203,10 +203,19 @@ button:disabled {
   display: flex;
   gap: 5px;
   align-items: center;
-  font-size: 13px;
-  font-weight: bold;
+  min-width: 0;
+  font: bold 13px var(--xp-font-caption);
   overflow: hidden;
   white-space: nowrap;
+}
+/* The icon keeps its size; a caption that does not fit ends in an ellipsis. */
+.window-caption > :not(.window-title) {
+  flex-shrink: 0;
+}
+.window-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .window-controls {
   display: flex;

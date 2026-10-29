@@ -238,16 +238,13 @@
 .clickable-row {
   cursor: pointer;
 }
-/* A row's status word, such as a show's Rules only, reads as text in a bordered box. */
+/* A row's status word, such as a show's Rules only, reads as text in a bordered box that never touches the text or badge before it. */
 .row-badge {
+  margin-left: 6px;
   border: 1px solid var(--xp-border);
   border-radius: 2px;
   padding: 0 4px;
   white-space: nowrap;
-}
-/* A row with several badges, such as a rule-only wheel, keeps them apart. */
-.row-badge + .row-badge {
-  margin-left: 4px;
 }
 /* A selected row is title-bar blue with white text, as XP list views were; everything in it, links and warnings included, turns white. */
 .program-page .selected-row {
@@ -432,6 +429,15 @@
   justify-content: space-between;
   gap: 8px;
   margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+/* Keeps the buttons for a list's selected row in view while a long list scrolls, as the save bar keeps Save. */
+.sticky-list-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   padding: 6px 8px;
   border: 1px solid var(--xp-border);
   background: var(--xp-menu-surface);
@@ -996,9 +1002,6 @@
 }
 .rule-shows > li + li {
   border-top: 1px solid var(--xp-border);
-}
-.rule-shows .row-badge {
-  margin-left: 6px;
 }
 /* A special's programs as numbered rows: each search and choice, with Remove beside them. */
 .special-programs {

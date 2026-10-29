@@ -116,9 +116,6 @@
 .guide-channel strong {
   margin-right: 4px;
 }
-.guide-channel .row-badge {
-  margin-left: 6px;
-}
 /* Half-hour lines run down the track; blocks sit over them at their times. */
 .guide-track {
   position: relative;

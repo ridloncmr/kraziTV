@@ -305,7 +305,7 @@ export function ChannelsApp({
         </div>
       )}
       {displayedChannels && displayedChannels.length > 0 && (
-        <div className="row-actions">
+        <div className="row-actions sticky-list-actions">
           <button
             disabled={!selectedActions || selectedActions.watch.disabled}
             onClick={selectedActions?.watch.onSelect}
