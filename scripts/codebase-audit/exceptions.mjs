@@ -3,7 +3,11 @@
 
 import { readFileSync } from "node:fs";
 
-/** Reads the exceptions file; every exception must say why and on what authority. */
+/**
+ * Reads the exceptions file; every exception must say why and on what
+ * authority. `excludedPaths` leaves whole workspaces out of every rule;
+ * `duplicateCodeExcludedPaths` leaves folders out of the copy scan alone.
+ */
 export function loadExceptions(path) {
   const config = JSON.parse(readFileSync(path, "utf8"));
   for (const exception of config.exceptions ?? []) {
@@ -15,6 +19,7 @@ export function loadExceptions(path) {
   }
   return {
     excludedPaths: config.excludedPaths ?? [],
+    duplicateCodeExcludedPaths: config.duplicateCodeExcludedPaths ?? [],
     exceptions: config.exceptions ?? [],
   };
 }

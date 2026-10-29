@@ -1,5 +1,6 @@
 {
   "excludedPaths": [],
+  "duplicateCodeExcludedPaths": ["apps/server/src/database/migrations/"],
   "exceptions": [
     {
       "rule": "cross-package-copy",
@@ -87,12 +88,6 @@
     },
     {
       "rule": "grouping",
-      "files": ["apps/server/src/database/schema/"],
-      "reason": "schema/ is a kind folder holding one file per table.",
-      "source": "AGENTS.md (source layout reference tree for database/)"
-    },
-    {
-      "rule": "grouping",
       "files": ["packages/signal/src/channel-stream-manager/"],
       "reason": "Every file serves the manager, so the domain stays flat.",
       "source": "AGENTS.md (file composition: \"packages/signal/src/channel-stream-manager/ is the reference\")"
@@ -100,14 +95,8 @@
     {
       "rule": "grouping",
       "files": ["packages/krazi-brain/src/schedule/"],
-      "reason": "Every file serves one capability, pure schedule generation, so the domain stays flat.",
-      "source": "docs/implementation_plan/001-mvp/0004-schedule-generation.md (File Placement: \"krazi-brain/src/schedule/ ends with five source files serving one capability\")"
-    },
-    {
-      "rule": "grouping",
-      "files": ["apps/server/src/database/migrations/"],
-      "reason": "migrations/ is a kind folder holding one file per migration plus their runner; every file serves the migration history.",
-      "source": "AGENTS.md (source layout reference tree for database/: \"migrations/ migrate-database.ts, 001-initial-catalog.ts, ...\")"
+      "reason": "Every file serves one capability, pure schedule generation: generate-schedule-entries.ts builds the entries, playback-selection.ts picks each member in its playback mode, ordered-view.ts orders a collection for that mode, regeneration.ts finds the regeneration boundary and restores playback progress, schedule-policy.ts holds the horizon and duration floor, and seeded-hash.ts derives the seeds.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
       "rule": "grouping",
@@ -190,19 +179,9 @@
     {
       "rule": "duplicate-code",
       "files": [
-        "apps/server/src/database/migrations/003-channels.ts",
-        "apps/server/src/database/migrations/005-schedules.ts"
-      ],
-      "reason": "Committed migrations are frozen history; each keeps its own column definitions so a shared edit can never change an applied migration.",
-      "source": "apps/server/src/database/migrations/003-channels.ts (\"Each migration keeps its own copy so committed history never shifts under a shared edit\")"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
         "apps/server/src/programming-assignments/routes/assignment-routes.ts",
         "apps/server/src/programming-assignments/routes/marathon-settings-routes.ts",
-        "apps/server/src/programming-rules/rule-routes.ts",
-        "apps/server/src/reservations/routes/reservation-routes.ts"
+        "apps/server/src/programming-rules/rule-routes.ts"
       ],
       "reason": "Each write route repeats only its param and body parsing before running a different input change, and each list route only its channel check; a helper would hide those lines behind indirection.",
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
@@ -216,26 +195,8 @@
     {
       "rule": "grouping",
       "files": ["packages/signal/src/ffmpeg/mpeg-ts/"],
-      "reason": "Every file serves one capability, carrying MPEG-TS packets from FFmpeg processes to the session output: packet alignment, the join point, readiness, forwarding, and continuity counters.",
+      "reason": "Every file serves one capability, carrying MPEG-TS packets from FFmpeg processes to the session output: packet alignment, the join point, readiness, forwarding, and continuity counters, plus the three added since: the backlog inspector that holds a first process until it has written the join backlog, the rejoin gate that returns a stalled item on a clean entry point, and the timestamps that keep one forward timeline across splices.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
-    },
-    {
-      "rule": "grouping",
-      "files": ["apps/web/src/http/contracts/"],
-      "reason": "contracts/ is a kind folder holding the browser-side wire types, one file per API area; every file serves one capability, declaring what the API answers.",
-      "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged)"
-    },
-    {
-      "rule": "grouping",
-      "files": ["apps/web/src/branding/avatars/drawings/"],
-      "reason": "drawings/ is a kind folder holding one file per built-in avatar drawing; every file serves one capability.",
-      "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged)"
-    },
-    {
-      "rule": "nesting-depth",
-      "files": ["apps/web/src/branding/avatars/drawings/"],
-      "reason": "The avatars capability holds nine source files, the frame plus eight drawings, which meets the more-than-eight grouping rule, so its drawings nest one level further.",
-      "source": "AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
     },
     {
       "rule": "duplicate-code",
@@ -247,91 +208,10 @@
       "source": "AGENTS.md (governing principles: KISS; \"SOLID and DRY are tools, not goals\")"
     },
     {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/002-media-collections.ts",
-        "apps/server/src/database/migrations/015-collection-exclusions.ts"
-      ],
-      "reason": "Both migrations declare a collection-and-item foreign key pair; each migration keeps its own DDL so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/012-metadata-corrections.ts",
-        "apps/server/src/database/migrations/016-tags.ts"
-      ],
-      "reason": "Migration 016 rebuilds the corrections table 012 created, so it declares the same columns and checks; each migration keeps its own DDL so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/005-schedules.ts",
-        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts"
-      ],
-      "reason": "Migration 018 rebuilds the progress table 005 created, and its down step recreates 005's shape, so it declares the same columns, checks, and safe-integer helper; each migration keeps its own DDL so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts",
-        "apps/server/src/database/migrations/021-source-assignments.ts"
-      ],
-      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/005-schedules.ts",
-        "apps/server/src/database/migrations/024-programming-rules.ts"
-      ],
-      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/005-schedules.ts",
-        "apps/server/src/database/migrations/027-reservations.ts"
-      ],
-      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/018-playback-progress-per-mode.ts",
-        "apps/server/src/database/migrations/024-programming-rules.ts"
-      ],
-      "reason": "Both migrations declare the safe-integer check helper and its MAX_SAFE_INTEGER constant; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
       "rule": "grouping",
       "files": ["apps/server/src/media-collections/persistence/"],
       "reason": "Every file serves one capability, collection persistence: the repository, row inserts and conversion, membership replacement, criterion labels, and the channels-using-collection read.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/010-content-metadata.ts",
-        "apps/server/src/database/migrations/011-episode-metadata.ts"
-      ],
-      "reason": "Migration 011 rebuilds the provider refs table 010 created, so it declares the same columns and checks; each migration keeps its own DDL so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
-    },
-    {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/021-source-assignments.ts",
-        "apps/server/src/database/migrations/024-programming-rules.ts"
-      ],
-      "reason": "Both migrations declare the safe-integer-at-least check and the stretch column shape; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
     },
     {
       "rule": "grouping",
@@ -395,24 +275,15 @@
     },
     {
       "rule": "grouping",
-      "files": ["apps/server/src/programming-assignments/routes/"],
-      "reason": "routes/ is a kind folder holding the domain's HTTP routes: the assignment, marathon settings, programming preview, and rebuild route groups, plus the refusal mappers the assignment routes answer with. Every file serves one capability, so it stays flat.",
-      "source": "AGENTS.md (source layout: folders named for a specific kind of file are encouraged; group only \"more than four source files spanning more than one capability\")"
-    },
-    {
-      "rule": "grouping",
       "files": ["apps/web/src/channels/lineup/"],
       "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Add shows dialog, the Properties dialog that edits one show, the member names, show labels, and draft those share, and the channel's Marathons control with its Custom dialog.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: \"a lineup/ capability for the list, add dialog, and properties dialog\")"
     },
     {
-      "rule": "duplicate-code",
-      "files": [
-        "apps/server/src/database/migrations/021-source-assignments.ts",
-        "apps/server/src/database/migrations/034-rule-priority-range.ts"
-      ],
-      "reason": "Both migrations rebuild a table that other tables reference, so each declares the same foreign-keys-off transaction helper; each migration keeps its own DDL helpers so committed history never shifts under a shared edit.",
-      "source": "apps/server/src/database/migrations (per-migration copy convention stated in each migration header)"
+      "rule": "grouping",
+      "files": ["apps/web/src/tv/"],
+      "reason": "Every file serves one desktop program, TV: its app, the broadcast player that plays a channel's signal through mpegts.js, the channel dial that picks which channel shows, the screen message over the picture, and the memory of what this browser last watched.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     }
   ]
 }
