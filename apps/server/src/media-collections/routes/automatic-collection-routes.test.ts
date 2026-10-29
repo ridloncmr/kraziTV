@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import { createChannel, send, windowUrl } from "../../testing/api-requests.js";
 import {
@@ -225,7 +226,9 @@ describe("automatic series collections", () => {
     });
 
     expect(replaced.status).toBe(409);
-    expect(replaced.body.error.code).toBe("media_collection_automatic");
+    expectRefusal(replaced.body, "media_collection_automatic", {
+      mediaCollectionId: created.body.id,
+    });
     expect(ids((await send(server, "GET", itemsUrl)).body)).toEqual([
       "office-1",
       "office-2",

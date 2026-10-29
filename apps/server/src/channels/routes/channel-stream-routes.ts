@@ -96,23 +96,24 @@ function sendStartupFailure(
         reply,
         409,
         "no_current_playout",
-        `Channel ${id} has nothing airing now`,
+        "The channel has nothing airing now",
+        { channelId: id },
       );
     case "playout_unavailable":
       return sendApiError(
         reply,
         503,
         "playout_unavailable",
-        `Channel ${id} playout is temporarily unavailable; retry the request`,
-        { retryable: true },
+        "The channel's playout is temporarily unavailable; retry the request",
+        { channelId: id, retryable: true },
       );
     case "worker_startup_timeout":
       return sendApiError(
         reply,
         503,
         "stream_startup_timeout",
-        `Channel ${id} did not start streaming in time; retry the request`,
-        { retryable: true },
+        "The channel did not start streaming in time; retry the request",
+        { channelId: id, retryable: true },
       );
     case "manager_shutdown":
     case "runtime_cleanup_failed":
@@ -121,15 +122,16 @@ function sendStartupFailure(
         reply,
         503,
         "stream_unavailable",
-        `Channel ${id} cannot stream right now; retry the request`,
-        { retryable: true },
+        "The channel cannot stream right now; retry the request",
+        { channelId: id, retryable: true },
       );
     default:
       return sendApiError(
         reply,
         500,
         "stream_failed",
-        `Channel ${id} failed to start streaming`,
+        "The channel failed to start streaming",
+        { channelId: id },
       );
   }
 }

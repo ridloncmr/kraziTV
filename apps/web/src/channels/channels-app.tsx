@@ -83,7 +83,7 @@ export function ChannelsApp({
           id: channelId,
           operation,
           committed,
-          message: error.message,
+          message: cleanupWords(committed),
         });
         setDeleting(undefined);
         // A committed delete leaves nothing for its Properties window to
@@ -175,10 +175,15 @@ export function ChannelsApp({
         Give each channel an identity and a programming source. kraziTV handles
         what airs and when.
       </p>
-      {/* An open confirmation reports its own request, so the page does not repeat it. */}
+      {/* An open confirmation reports its own request, and a failed runtime
+          stop has its own notice below, so the page repeats neither. */}
       <RequestFeedback
         loading={channels.loading || (!deleting && mutation.pending)}
-        error={(deleting ? undefined : mutation.error) ?? channels.error}
+        error={
+          (deleting || isCleanupFailure(mutation.error)
+            ? undefined
+            : mutation.error) ?? channels.error
+        }
         message={deleting ? undefined : mutation.message}
       />
       {cleanup.retries.map((retry) => (
@@ -384,4 +389,22 @@ export function ChannelsApp({
       )}
     </div>
   );
+}
+
+/** Whether a request failed only because its runtime stop did not finish, which the cleanup notice reports. */
+function isCleanupFailure(error: Error | undefined): boolean {
+  return (
+    error instanceof ApiError && error.code === "channel_runtime_cleanup_failed"
+  );
+}
+
+/**
+ * Says what a failed runtime stop left to do. The server's message is for
+ * logs; the owner reads these words (release-polish spec 0002), and the
+ * notice's heading already says whether the change saved.
+ */
+function cleanupWords(committed: boolean): string {
+  return committed
+    ? "The channel's broadcast did not stop cleanly. Retry to finish stopping it."
+    : "An earlier stop of the channel's broadcast did not finish. Retry it, then enable the channel again.";
 }

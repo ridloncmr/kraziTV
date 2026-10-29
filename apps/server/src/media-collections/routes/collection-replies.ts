@@ -33,7 +33,8 @@ export function sendManualRefusal(reply: FastifyReply, id: string) {
     reply,
     409,
     "media_collection_manual",
-    `Media collection ${id} is manual; it has no criterion or exclusions`,
+    "The media collection is manual; it has no criterion or exclusions",
+    { mediaCollectionId: id },
   );
 }
 
@@ -43,6 +44,7 @@ export function sendCollectionNotFound(reply: FastifyReply, id: string) {
     reply,
     404,
     "media_collection_not_found",
-    `Media collection ${id} does not exist`,
+    "The media collection does not exist",
+    { mediaCollectionId: id },
   );
 }

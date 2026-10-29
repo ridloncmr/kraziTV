@@ -4,6 +4,7 @@ import {
 } from "@krazitv/signal";
 import { pino } from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectRefusal } from "../testing/refusal-details.js";
 
 import { iso, send } from "../testing/api-requests.js";
 import { FIXTURE_TIME } from "../testing/catalog-fixtures.js";
@@ -159,7 +160,7 @@ describe("channel stream acceptance", () => {
     const { status, body } = await send(server, "GET", STREAM_URL);
 
     expect(status).toBe(409);
-    expect(body).toMatchObject({ error: { code: "channel_disabled" } });
+    expectRefusal(body, "channel_disabled", { channelId: CHANNEL_ID });
     expect(packager.sessions).toHaveLength(0);
   });
 

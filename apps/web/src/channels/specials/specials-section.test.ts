@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import type { Special, SpecialPreview } from "./contracts.js";
+import { airtimeWords } from "./special-words.js";
 import { SpecialsSection } from "./specials-section.js";
 
 afterEach(() => {
@@ -237,6 +238,38 @@ it("asks for a fresh preview when the schedule changed since the preview", async
     screen.getByRole<HTMLButtonElement>("button", { name: "Save special" })
       .disabled,
   ).toBe(true);
+});
+
+it("names the special an overlap conflict hits by its airtime, never its ID", async () => {
+  const api = renderSection();
+  await startNewSpecial();
+  api.reply(
+    PREVIEW,
+    {
+      programmingRevision: 7,
+      commitment: "exact",
+      conflicts: [
+        {
+          code: "reservation_overlap",
+          message: "The range overlaps another reservation",
+          reservationId: "special-9",
+          startsAt: START,
+          endsAt: END,
+        },
+      ],
+    },
+    "POST",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+  const conflicts = await screen.findByRole("alert", {
+    name: "Special conflicts",
+  });
+  expect(conflicts.textContent).toContain(
+    `It overlaps the special airing ${airtimeWords({ startsAt: START, endsAt: END })}.`,
+  );
+  expect(conflicts.textContent).not.toMatch(/special-9|reservation/);
 });
 
 it("shows a start more than a year ahead as a conflict and offers no save", async () => {

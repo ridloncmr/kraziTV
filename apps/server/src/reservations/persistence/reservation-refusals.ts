@@ -81,7 +81,7 @@ export async function resolveReservationRange(
   }
   const overlapping = await trx
     .selectFrom("reservations")
-    .select("id")
+    .select(["id", "starts_at", "ends_at"])
     .where("channel_id", "=", channelId)
     .where("starts_at", "<", endsAt)
     .where("ends_at", ">", startsAt)
@@ -91,7 +91,12 @@ export async function resolveReservationRange(
     .orderBy("starts_at")
     .executeTakeFirst();
   if (overlapping !== undefined) {
-    return { kind: "reservation_overlap", reservationId: overlapping.id };
+    return {
+      kind: "reservation_overlap",
+      reservationId: overlapping.id,
+      startsAt: overlapping.starts_at,
+      endsAt: overlapping.ends_at,
+    };
   }
   return {
     kind: "resolved",

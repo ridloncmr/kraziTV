@@ -174,8 +174,9 @@ export function registerMediaCollectionRoutes(
         reply,
         409,
         "media_collection_in_use",
-        `Media collection ${id} is played by assignments or reservations on channels: ${result.channelIds.join(", ")}`,
+        "The media collection is played by assignments or reservations on channels",
         {
+          mediaCollectionId: id,
           channelIds: result.channelIds,
           reservations: result.reservations.map((reservation) => ({
             ...reservation,
@@ -250,7 +251,8 @@ export function registerMediaCollectionRoutes(
         reply,
         409,
         "media_collection_automatic",
-        `Media collection ${id} keeps its own members; convert it to manual to edit them`,
+        "The media collection keeps its own members; convert it to manual to edit them",
+        { mediaCollectionId: id },
       );
     }
     if (result.kind === "unknown_media_items") {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../testing/refusal-details.js";
 
 import { send } from "../testing/api-requests.js";
 import { collectionAssignment } from "../testing/assignment-bodies.js";
@@ -268,16 +269,13 @@ describe("programming rule routes", () => {
       "rule-001",
     ]);
 
-    await expect(
-      send(server, "PUT", `${RULES_URL}/order`, { ruleIds: ["rule-001"] }),
-    ).resolves.toMatchObject({
-      status: 409,
-      body: {
-        error: {
-          code: "programming_rule_order_mismatch",
-          ruleIds: ["rule-002", "rule-001"],
-        },
-      },
+    const mismatched = await send(server, "PUT", `${RULES_URL}/order`, {
+      ruleIds: ["rule-001"],
+    });
+    expect(mismatched.status).toBe(409);
+    expectRefusal(mismatched.body, "programming_rule_order_mismatch", {
+      channelId: CHANNEL_ID,
+      ruleIds: ["rule-002", "rule-001"],
     });
   });
 
@@ -298,19 +296,14 @@ describe("programming rule routes", () => {
   it("refuses a source the channel does not have", async () => {
     const { server } = await startServer();
 
-    await expect(
-      send(server, "POST", RULES_URL, {
-        ...decemberBody,
-        sources: [{ assignmentId: "missing" }],
-      }),
-    ).resolves.toMatchObject({
-      status: 400,
-      body: {
-        error: {
-          code: "programming_assignment_not_found",
-          assignmentId: "missing",
-        },
-      },
+    const response = await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      sources: [{ assignmentId: "missing" }],
+    });
+
+    expect(response.status).toBe(400);
+    expectRefusal(response.body, "programming_assignment_not_found", {
+      assignmentId: "missing",
     });
   });
 
@@ -401,16 +394,16 @@ describe("programming rule routes", () => {
     const { server } = await startServer();
 
     for (const method of ["PATCH", "DELETE"] as const) {
-      await expect(
-        send(
-          server,
-          method,
-          `${RULES_URL}/missing`,
-          method === "PATCH" ? decemberBody : undefined,
-        ),
-      ).resolves.toMatchObject({
-        status: 404,
-        body: { error: { code: "programming_rule_not_found" } },
+      const response = await send(
+        server,
+        method,
+        `${RULES_URL}/missing`,
+        method === "PATCH" ? decemberBody : undefined,
+      );
+      expect(response.status).toBe(404);
+      expectRefusal(response.body, "programming_rule_not_found", {
+        channelId: CHANNEL_ID,
+        ruleId: "missing",
       });
     }
   });
@@ -467,30 +460,28 @@ describe("rule-specific stretch settings", () => {
   it("refuses an effective pair that is invalid, naming the source", async () => {
     const { server } = await startServer();
 
-    await expect(
-      send(server, "POST", RULES_URL, {
-        ...decemberBody,
-        sources: [
-          {
-            assignmentId: "assignment-002",
-            ordinaryStretch: { kind: "programs", count: 3 },
-            marathon: {
-              mode: "replace",
-              stretch: { kind: "programs", count: 2 },
-            },
-          },
-        ],
-      }),
-    ).resolves.toMatchObject({
-      status: 400,
-      body: {
-        error: {
-          code: "programming_rule_stretch_invalid",
+    const response = await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      sources: [
+        {
           assignmentId: "assignment-002",
-          problem: "a marathon must be longer than the ordinary stretch",
+          ordinaryStretch: { kind: "programs", count: 3 },
+          marathon: {
+            mode: "replace",
+            stretch: { kind: "programs", count: 2 },
+          },
         },
-      },
+      ],
     });
+
+    expect(response.status).toBe(400);
+    expectRefusal(response.body, "programming_rule_stretch_invalid", {
+      assignmentId: "assignment-002",
+    });
+    // The problem is plain text, so the message may quote it.
+    expect(response.body.error.problem).toBe(
+      "a marathon must be longer than the ordinary stretch",
+    );
   });
 
   it("refuses an assignment edit that breaks a pair whose marathon the rule inherits", async () => {

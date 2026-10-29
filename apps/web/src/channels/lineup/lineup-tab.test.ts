@@ -1426,7 +1426,10 @@ it("names the show the server's validation refused, from the picks as they were 
     {
       error: {
         code: "invalid_request",
-        message: "✖ Invalid input\n  → at assignments[1].ordinaryStretch",
+        message: "assignments[1].ordinaryStretch: Invalid input",
+        fields: [
+          { path: "assignments[1].ordinaryStretch", code: "invalid_union" },
+        ],
       },
     },
     "POST",
@@ -1537,6 +1540,41 @@ it("adds picks as one named wheel whose members share its turns, badged Wheel in
       ],
     },
   ]);
+});
+
+it("words why a show could not be added instead of the server's message", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    serveSuggestions,
+  );
+  api.reply(
+    BATCH,
+    {
+      error: {
+        code: "programming_member_assigned",
+        message: "Another assignment on this channel already plays that member",
+        index: 1,
+        assignmentId: "assignment-1",
+      },
+    },
+    "POST",
+    409,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Favorites"));
+  fireEvent.click(result(dialog, "Movies"));
+  next(dialog, 2);
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add (2)",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Movies could not be added: It is already in this channel's lineup.",
+  );
 });
 
 it("leads Add shows with the search, and offers Add as only once two picks could be grouped", async () => {

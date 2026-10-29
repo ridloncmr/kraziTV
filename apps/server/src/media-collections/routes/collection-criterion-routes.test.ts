@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import { send } from "../../testing/api-requests.js";
 import {
@@ -199,6 +200,8 @@ describe("changing an automatic collection's criterion", () => {
     });
     expect(await members(server, office)).toEqual(["e1", "e3"]);
     expect(refused.status).toBe(409);
-    expect(refused.body.error.code).toBe("media_collection_manual");
+    expectRefusal(refused.body, "media_collection_manual", {
+      mediaCollectionId: manual.body.id,
+    });
   });
 });

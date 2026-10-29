@@ -36,7 +36,7 @@ export function registerCatalogScanRoutes(
   server.post("/media-roots/:id/scan", async (request, reply) => {
     const { id } = idParams.parse(request.params);
     return sendScanStart(reply, await scanner.start(id), {
-      root: `Media root ${id}`,
+      details: { mediaRootId: id },
       notFound: () => sendMediaRootNotFound(reply, id),
     });
   });
@@ -49,13 +49,13 @@ export function registerCatalogScanRoutes(
     if (scope.scope === "failed") {
       const id = scope.mediaRootId;
       return sendScanStart(reply, result, {
-        root: `Media root ${id}`,
+        details: { mediaRootId: id },
         notFound: () => sendMediaRootNotFound(reply, id),
       });
     }
     const id = scope.mediaItemId;
     return sendScanStart(reply, result, {
-      root: `The media root of item ${id}`,
+      details: { mediaItemId: id },
       notFound: () => sendMediaItemNotFound(reply, id),
     });
   });
@@ -77,13 +77,16 @@ export function registerCatalogScanRoutes(
 
 /**
  * Maps each start outcome of a scan or retry to its HTTP status and
- * structured error code. `root` names the media root in messages, and
- * `notFound` answers for the resource the request addressed.
+ * structured error code. `details` names the media root or item the request
+ * addressed, and `notFound` answers for it.
  */
 function sendScanStart(
   reply: FastifyReply,
   result: RetryStart,
-  { root, notFound }: { root: string; notFound: () => FastifyReply },
+  {
+    details,
+    notFound,
+  }: { details: Record<string, string>; notFound: () => FastifyReply },
 ): FastifyReply {
   switch (result.kind) {
     case "started":
@@ -96,14 +99,16 @@ function sendScanStart(
         reply,
         409,
         "media_root_disabled",
-        `${root} is disabled; enable it before scanning`,
+        "The media root is disabled; enable it before scanning",
+        details,
       );
     case "scan_in_progress":
       return sendApiError(
         reply,
         409,
         "scan_in_progress",
-        `${root} is already being scanned`,
+        "The media root is already being scanned",
+        details,
       );
     case "tmdb_key_missing":
       return sendApiError(
@@ -138,6 +143,7 @@ async function sendNoScan(
     reply,
     404,
     "scan_not_found",
-    `Media root ${id} has not been scanned since the server started`,
+    "The media root has not been scanned since the server started",
+    { mediaRootId: id },
   );
 }

@@ -61,7 +61,8 @@ describe("POST /metadata/lookup-retries", () => {
       body: {
         error: {
           code: "scan_in_progress",
-          message: `The media root of item ${id} is already being scanned`,
+          message: "The media root is already being scanned",
+          mediaItemId: id,
         },
       },
     });

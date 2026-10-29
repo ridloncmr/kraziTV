@@ -237,6 +237,9 @@ describe("GET /channels/:id/now", () => {
     expect(body.error).toMatchObject({
       code: "invalid_request",
       message: `at must not be after ${iso(T0 + SCHEDULE_REQUEST_LIMIT_MS)}`,
+      // Names the field as a body failure would, so the web app can word it.
+      fields: [{ path: "at", code: "too_big" }],
+      latestThrough: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS),
     });
     await expect(readScheduleEntries(db, CHANNEL_ID)).resolves.toEqual(before);
   });

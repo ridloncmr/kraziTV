@@ -90,7 +90,8 @@ it("keeps the form open with the server's reason when the item was removed meanw
     {
       error: {
         code: "media_item_not_found",
-        message: "Media item Firefly does not exist",
+        message: "The media item does not exist",
+        mediaItemId: FIREFLY.id,
       },
     },
     "PATCH",
@@ -102,7 +103,7 @@ it("keeps the form open with the server's reason when the item was removed meanw
   fireEvent.click(form.getByRole("button", { name: "Save" }));
 
   expect(
-    await form.findByText("Media item Firefly does not exist", {
+    await form.findByText("The media item does not exist", {
       exact: false,
     }),
   ).toBeTruthy();
