@@ -8,6 +8,7 @@ import { displayDuration } from "../../controls/display-duration.js";
 import { Pager } from "../../controls/pager.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { useRangeToggle } from "../../controls/use-range-toggle.js";
+import { WindowDialog } from "../../controls/window-dialog.js";
 import type {
   MediaFilter,
   MediaItem,
@@ -24,13 +25,18 @@ const PAGE_SIZE = 50;
  * the current search and filter at once. The **Filter** dialog is the one
  * Media Library's cataloged media uses, so both narrow the catalog the same
  * way. The server leaves draft members out of results and counts, so an
- * addition never duplicates a member.
+ * addition never duplicates a member. **Add all** of more than the owner can
+ * see on one page confirms first, naming the count and the collection, so a
+ * blank search never adds the whole catalog by accident.
  */
 export function CatalogPicker({
+  collectionName,
   memberIds,
   visible,
   onAdd,
 }: {
+  /** Names the collection in the Add all confirmation. */
+  collectionName: string;
   memberIds: ReadonlySet<string>;
   visible: boolean;
   onAdd: (media: MediaItem[]) => void;
@@ -56,6 +62,7 @@ export function CatalogPicker({
   );
   const matches = useMutation();
   const [overflow, setOverflow] = useState<Error>();
+  const [confirming, setConfirming] = useState(false);
   // The previous page stays shown while the next loads, so drop media added since.
   const items = (results.data?.items ?? []).filter(
     (item) => !memberIds.has(item.id),
@@ -99,6 +106,7 @@ export function CatalogPicker({
 
   /** Adds every match in one step, refusing a capped response rather than adding part of it. */
   function addAllMatches() {
+    setConfirming(false);
     void matches.run<MediaItemPage>(
       "/media-items/matches",
       "POST",
@@ -141,7 +149,9 @@ export function CatalogPicker({
         </button>
         <button
           disabled={total === 0 || matches.pending}
-          onClick={addAllMatches}
+          onClick={() =>
+            total > PAGE_SIZE ? setConfirming(true) : addAllMatches()
+          }
         >
           Add all ({displayCount(total)})
         </button>
@@ -220,6 +230,23 @@ export function CatalogPicker({
             </tbody>
           </table>
         </div>
+      )}
+      {confirming && (
+        <WindowDialog title="Add all" onClose={() => setConfirming(false)}>
+          <p>
+            Add all {displayCount(total)} matching items to{" "}
+            <strong>{collectionName}</strong>? They are added here as a draft;
+            nothing changes until you save.
+          </p>
+          <div className="dialog-actions">
+            <button type="button" onClick={addAllMatches}>
+              Add {displayCount(total)} items
+            </button>
+            <button type="button" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        </WindowDialog>
       )}
       {filtering && (
         <CatalogFilterDialog

@@ -298,6 +298,7 @@ export function CollectionEditor({
             disabled={mutation.pending || !members.data}
           >
             <CatalogPicker
+              collectionName={collection.name}
               memberIds={memberIds}
               visible={visible}
               onAdd={(media) => edit((current) => appendMedia(current, media))}
