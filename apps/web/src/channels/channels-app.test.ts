@@ -442,7 +442,7 @@ it("says why a channel has nothing on air, and keeps a row whose read failed qui
 
   expect(
     await screen.findByText(
-      "Nothing is scheduled right now. Check that the channel's shows have media, and its Lineup and Rules tabs.",
+      "Nothing is scheduled right now. Check that the channel's shows have media that can air (not missing or too short), and its Lineup and Rules tabs.",
     ),
   ).toBeTruthy();
   const secondRow = (

@@ -89,7 +89,7 @@ it("says in plain words why nothing is on air, never the server's reason code", 
 
   expect(
     await screen.findByText(
-      "Nothing is scheduled right now. Check that the channel's shows have media, and its Lineup and Rules tabs.",
+      "Nothing is scheduled right now. Check that the channel's shows have media that can air (not missing or too short), and its Lineup and Rules tabs.",
     ),
   ).toBeTruthy();
   expect(screen.queryByText(/schedule.gap/)).toBeNull();
