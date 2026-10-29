@@ -459,7 +459,7 @@ it.each([
       }),
     }),
     line: "Scan completed.",
-    facts: ["Discovered 7", "Probed 5", "Probe failures 2", "Missing 3"],
+    facts: ["Files found 7", "Could not be read 2", "Missing 3"],
     note: null,
   },
   {
@@ -593,11 +593,11 @@ it.each([
     const shown = [...dialog.querySelectorAll(".facts dt")].map(
       (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
     );
-    expect(shown.slice(4)).toEqual([
-      "Matched 3",
-      `Ambiguous ${ambiguousCount}`,
-      "Unmatched 1",
-      `Lookup errors ${3 - ambiguousCount}`,
+    expect(shown.slice(3)).toEqual([
+      "Identified on TMDB 3",
+      `Need your choice ${ambiguousCount}`,
+      "Not identified 1",
+      `Lookup failed ${3 - ambiguousCount}`,
     ]);
     expect(
       within(dialog).queryByText(/need your choice/)?.textContent ?? null,
@@ -946,7 +946,7 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
   });
   await advance(1_000);
   expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
-  expect(within(dialog).getByText("Matched")).toBeTruthy();
-  expect(within(dialog).queryByText("Discovered")).toBeNull();
-  expect(within(dialog).queryByText("Probed")).toBeNull();
+  expect(within(dialog).getByText("Identified on TMDB")).toBeTruthy();
+  expect(within(dialog).queryByText("Files found")).toBeNull();
+  expect(within(dialog).queryByText("Could not be read")).toBeNull();
 });

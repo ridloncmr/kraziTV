@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { displayCount } from "../../controls/display-count.js";
 import { fileName } from "../../controls/file-name.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
@@ -142,30 +142,12 @@ export function ScanProgressDialog({
       )}
       {completed && polled.summary && (
         <dl className="facts">
-          {polled.kind === "scan" && (
-            <>
-              <dt>Discovered</dt>
-              <dd>{displayCount(polled.summary.discoveredCount)}</dd>
-              <dt>Probed</dt>
-              <dd>{displayCount(polled.summary.probedCount)}</dd>
-              <dt>Probe failures</dt>
-              <dd>{displayCount(polled.summary.probeFailedCount)}</dd>
-              <dt>Missing</dt>
-              <dd>{displayCount(polled.summary.missingCount)}</dd>
-            </>
-          )}
-          {polled.lookupCount > 0 && (
-            <>
-              <dt>Matched</dt>
-              <dd>{displayCount(polled.summary.matchedCount)}</dd>
-              <dt>Ambiguous</dt>
-              <dd>{displayCount(polled.summary.ambiguousCount)}</dd>
-              <dt>Unmatched</dt>
-              <dd>{displayCount(polled.summary.unmatchedCount)}</dd>
-              <dt>Lookup errors</dt>
-              <dd>{displayCount(polled.summary.lookupErrorCount)}</dd>
-            </>
-          )}
+          {summaryFacts(polled, polled.summary).map(([label, count]) => (
+            <Fragment key={label}>
+              <dt>{label}</dt>
+              <dd>{displayCount(count)}</dd>
+            </Fragment>
+          ))}
         </dl>
       )}
       {needChoice > 0 && <p>{displayCount(needChoice)} need your choice.</p>}
@@ -191,6 +173,37 @@ export function ScanProgressDialog({
       </div>
     </WindowDialog>
   );
+}
+
+/**
+ * A completed job's summary as the owner reads it: what the scan found and
+ * what the lookups decided, in the words the match review uses. A retry never
+ * discovers or probes, so it lists lookups only; a scan that looked nothing
+ * up lists files only. Probed files are the found files that could be read,
+ * so they are not listed again.
+ */
+function summaryFacts(
+  status: ScanStatus,
+  summary: NonNullable<ScanStatus["summary"]>,
+): [label: string, count: number][] {
+  const files: [string, number][] =
+    status.kind === "scan"
+      ? [
+          ["Files found", summary.discoveredCount],
+          ["Could not be read", summary.probeFailedCount],
+          ["Missing", summary.missingCount],
+        ]
+      : [];
+  const lookups: [string, number][] =
+    status.lookupCount > 0
+      ? [
+          ["Identified on TMDB", summary.matchedCount],
+          ["Need your choice", summary.ambiguousCount],
+          ["Not identified", summary.unmatchedCount],
+          ["Lookup failed", summary.lookupErrorCount],
+        ]
+      : [];
+  return [...files, ...lookups];
 }
 
 /**

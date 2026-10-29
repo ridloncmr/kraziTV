@@ -317,7 +317,7 @@ for (const viewport of [
     // A disabled close button must not look like the one that works.
     expect(await closeButtonLook(close)).not.toEqual(busyClose);
     await expect(
-      scanning.locator(".facts dt", { hasText: "Discovered" }).locator("+ dd"),
+      scanning.locator(".facts dt", { hasText: "Files found" }).locator("+ dd"),
     ).toHaveText("1");
     await scanning.getByRole("button", { name: "OK", exact: true }).click();
     await expect(scanning).toBeHidden();
