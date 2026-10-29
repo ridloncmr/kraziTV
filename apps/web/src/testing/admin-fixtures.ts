@@ -42,6 +42,8 @@ export const adminFixtures: {
   media: MediaItem[];
   collections: MediaCollectionSummary[];
   now: ChannelState;
+  /** The same instant with nothing on air: a schedule gap, so a write never asks. */
+  offAir: ChannelState;
 } = {
   channels: [
     { id: "one", number: "69", name: "Northwoods TV", enabled: true },
@@ -88,6 +90,12 @@ export const adminFixtures: {
       startsAt: "2026-10-05T15:10:00.000Z",
       endsAt: "2026-10-05T15:31:40.000Z",
     },
+  },
+  offAir: {
+    evaluatedAt: "2026-10-05T15:00:00.000Z",
+    currentItem: null,
+    nextItem: null,
+    reason: "schedule_gap",
   },
 };
 

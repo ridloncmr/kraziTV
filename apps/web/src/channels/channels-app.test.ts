@@ -450,7 +450,7 @@ it("says why a channel has nothing on air, and keeps a row whose read failed qui
 
   expect(
     await screen.findByText(
-      "Nothing is scheduled right now. Check that the channel's shows have media, and its Lineup and Rules tabs.",
+      "Nothing is scheduled right now. Check that the channel's shows have media that can air (not missing or too short), and its Lineup and Rules tabs.",
     ),
   ).toBeTruthy();
   const secondRow = (
@@ -507,4 +507,40 @@ it("opens TV on the selected channel from Watch, and not on a disabled one", asy
   );
   fireEvent.click(screen.getByRole("menuitem", { name: "Watch" }));
   expect(onWatch).toHaveBeenCalledTimes(2);
+});
+
+it("sends the owner to Media Library first when there are no channels and no media", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  vi.stubGlobal("fetch", api.fetch);
+  const openProgram = vi.fn();
+  render(createElement(ChannelWindows, { openProgram }));
+
+  await screen.findByText(
+    "Add your media in Media Library first, then create a channel.",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Create a channel…" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Open Media Library" }));
+
+  expect(openProgram).toHaveBeenCalledWith("media");
+  // One item answers the question.
+  expect(
+    api.requestsTo("/media-items").map((request) => request.query.get("limit")),
+  ).toEqual(["1"]);
+});
+
+it("offers to create a channel when the catalog has media and there are no channels", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", []);
+  api.reply("/media-items", { items: [adminFixtures.media[0]], total: 2 });
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelWindows));
+
+  expect(
+    await screen.findByRole("button", { name: "Create a channel…" }),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Media Library first/)).toBeNull();
 });

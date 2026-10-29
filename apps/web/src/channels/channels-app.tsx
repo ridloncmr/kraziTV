@@ -10,6 +10,7 @@ import type { PropertiesWindows } from "../desktop/windows/use-properties-window
 import { resourcePath } from "../http/api-client.js";
 import { ApiError } from "../http/api-error.js";
 import type { Channel } from "../http/contracts/channels.js";
+import type { MediaItemPage } from "../http/contracts/media.js";
 import type { ProgrammingRebuild } from "../http/contracts/programming.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
@@ -21,12 +22,14 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
  * unfinished runtime cleanup. As in a channel's lineup, a click selects a
  * channel, and double-click, Enter, or **Properties** opens it in Channel
  * Properties, a window of its own beside this one. **Watch** opens TV on an
- * enabled channel.
+ * enabled channel. With no channels and an empty catalog, the empty state
+ * sends the owner to Media Library first, since a channel needs media.
  */
 export function ChannelsApp({
   visible,
   windows,
   onWatch,
+  openProgram,
 }: {
   visible: boolean;
   /** Each channel's own Channel Properties: opened from here, closed on delete. */
@@ -37,6 +40,12 @@ export function ChannelsApp({
   openProgram: (id: ProgramId) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
+  // One item is enough to tell an empty catalog from one with media. The
+  // empty state waits for the answer so its words do not change under the
+  // owner; a failed read settles on the ordinary words.
+  const catalog = useResource<MediaItemPage>("/media-items?limit=1", visible);
+  const catalogKnown =
+    catalog.data !== undefined || catalog.error !== undefined;
   // Refresh reloads everything this window shows.
   const { refresh: refreshWindow } = useRefreshScope();
   const mutation = useMutation();
@@ -222,13 +231,28 @@ export function ChannelsApp({
           </button>
         </div>
       ))}
-      {displayedChannels?.length === 0 && (
+      {displayedChannels?.length === 0 && catalogKnown && (
         <div className="empty-state">
-          <p>
-            No channels yet. Create a channel, then assign its programming
-            source.
-          </p>
-          <button onClick={() => setCreating(true)}>Create a channel…</button>
+          {catalog.data?.total === 0 ? (
+            <>
+              <p>
+                Add your media in Media Library first, then create a channel.
+              </p>
+              <button onClick={() => openProgram("media")}>
+                Open Media Library
+              </button>
+            </>
+          ) : (
+            <>
+              <p>
+                No channels yet. Create a channel, then assign its programming
+                source.
+              </p>
+              <button onClick={() => setCreating(true)}>
+                Create a channel…
+              </button>
+            </>
+          )}
         </div>
       )}
       {displayedChannels && displayedChannels.length > 0 && (

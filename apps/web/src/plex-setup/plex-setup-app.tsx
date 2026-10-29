@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import { SettingLocation } from "../controls/setting-location.js";
 import type { PlexSetup } from "../http/contracts/plex.js";
 import { useResource } from "../http/resources/use-resource.js";
 
@@ -66,9 +67,8 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
           <strong>Only Plex on this computer can reach kraziTV.</strong>
           <p>
             Plex on another device, such as a TV or a separate Plex server,
-            can&apos;t connect to these addresses. To fix it, add these lines to
-            kraziTV&apos;s <code>.env</code> file, beside{" "}
-            <code>.env.example</code>, then restart kraziTV:
+            can&apos;t connect to these addresses. To fix it, add these
+            settings, then restart kraziTV:
           </p>
           {localOnly.includes("PUBLIC_BASE_URL") &&
             (setup.data.suggestedPublicBaseUrl ? (
@@ -86,6 +86,9 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
             ))}
           {localOnly.includes("HOST") &&
             copyRow("Listen setting", "HOST=0.0.0.0")}
+          <p>
+            <SettingLocation names={localOnly} />
+          </p>
           <p className="secondary">
             If Plex runs on this computer, you can leave these as they are.
           </p>
@@ -101,10 +104,7 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
       <fieldset>
         <legend>Setup in Plex</legend>
         <ol className="setup-steps">
-          <li>
-            Create and enable a channel with a programming assignment in My
-            Channels.
-          </li>
+          <li>Create a channel and add at least one show on its Lineup tab.</li>
           <li>
             In Plex server settings, open Live TV &amp; DVR and add a tuner
             manually using the tuner base URL above.
@@ -116,9 +116,9 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
           <li>Open Plex Live TV to tune a channel.</li>
         </ol>
         <p className="secondary">
-          Plex must be able to reach these addresses. If it can&apos;t, set
-          <code>PUBLIC_BASE_URL</code> in kraziTV&apos;s <code>.env</code> file
-          to an address it can, then restart kraziTV.
+          Plex must be able to reach these addresses. If it can&apos;t, set{" "}
+          <code>PUBLIC_BASE_URL</code> to an address it can, then restart
+          kraziTV. <SettingLocation names={["PUBLIC_BASE_URL"]} />
         </p>
       </fieldset>
     </div>

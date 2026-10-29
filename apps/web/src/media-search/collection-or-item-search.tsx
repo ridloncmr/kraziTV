@@ -14,6 +14,11 @@ import { useMediaItemPage } from "./use-media-item-page.js";
 
 const ITEM_LIMIT = 25;
 
+// The two empty results that mean nothing exists to pick yet, rather than
+// nothing matching, so the next step is in Media Library.
+const NO_COLLECTIONS_YET = "There are no collections yet.";
+const NO_MEDIA_YET = "The catalog has no media yet.";
+
 /** One search result: a collection or a single item, with the name it shows. */
 export interface FoundMember {
   member: AssignmentMember;
@@ -30,7 +35,8 @@ export interface FoundMember {
  * **Filter** dialog the Media Library uses, so the results never hold the
  * whole catalog. `unavailable` results show why they cannot be checked;
  * `hidden` results are left out entirely, for a caller where they would be
- * clutter, so a page of items may show fewer than its limit.
+ * clutter, so a page of items may show fewer than its limit. When nothing
+ * exists to pick yet, the empty result opens Media Library.
  */
 export function CollectionOrItemSearch({
   collections,
@@ -39,6 +45,7 @@ export function CollectionOrItemSearch({
   hidden = new Set(),
   visible,
   onToggle,
+  openProgram,
 }: {
   collections: readonly MediaCollection[] | undefined;
   /** Results shown checked, by member key. */
@@ -103,15 +110,16 @@ export function CollectionOrItemSearch({
         ? collections && found.length === 0
           ? words
             ? "No collection matches that search."
-            : "There are no collections yet."
+            : NO_COLLECTIONS_YET
           : undefined
         : items.data?.total === 0
           ? items.search
             ? "No media matches that search."
             : filtersInUse > 0
               ? "No media matches these filters."
-              : "The catalog has no media yet."
+              : NO_MEDIA_YET
           : undefined;
+  const nothingYet = empty === NO_COLLECTIONS_YET || empty === NO_MEDIA_YET;
   return (
     <div>
       <fieldset className="inline-form">
@@ -200,7 +208,19 @@ export function CollectionOrItemSearch({
           );
         })}
       </ul>
-      {empty && <p className="secondary">{empty}</p>}
+      {empty && (
+        <p className="secondary">
+          {empty}
+          {nothingYet && (
+            <>
+              {" "}
+              <button type="button" onClick={() => openProgram("media")}>
+                Open Media Library
+              </button>
+            </>
+          )}
+        </p>
+      )}
       {kind === "items" && (
         <RequestFeedback loading={items.loading} error={items.error} />
       )}

@@ -49,6 +49,37 @@ it("shows no key set, TMDB's logo and notice, and no Remove", async () => {
   expect(within(window).queryByRole("button", { name: "Remove" })).toBeNull();
 });
 
+it("says the token is free and links to where TMDB keeps it, in a new tab", async () => {
+  const { window } = await openTmdbTask(false);
+
+  expect(
+    within(window).getByText(
+      (_, element) =>
+        element?.tagName === "P" &&
+        element.textContent ===
+          "The token is free: it is the API Read Access Token under Settings, API on themoviedb.org.",
+    ),
+  ).toBeTruthy();
+  const link = within(window).getByRole("link", {
+    name: "Settings, API on themoviedb.org",
+  });
+  expect(link.getAttribute("href")).toBe(
+    "https://www.themoviedb.org/settings/api",
+  );
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noopener");
+});
+
+it("links the TMDB logo to TMDB in a new tab", async () => {
+  const { window } = await openTmdbTask(false);
+
+  const link = within(window).getByRole("link", { name: "TMDB" });
+  expect(link.getAttribute("href")).toBe("https://www.themoviedb.org/");
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noopener");
+  expect(within(link).getByRole("img", { name: "TMDB" })).toBeTruthy();
+});
+
 it("shows a saved key as set, never its value, and offers Remove", async () => {
   const { window } = await openTmdbTask(true);
 

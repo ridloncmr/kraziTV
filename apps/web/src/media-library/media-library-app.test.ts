@@ -113,11 +113,95 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   api.reply("/media-roots", root, "POST");
   api.reply("/media-roots", [mediaRoot()]);
   fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+  // Not now keeps the root and asks nothing more of the owner.
+  fireEvent.click(await screen.findByRole("button", { name: "Not now" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await screen.findByRole("button", { name: "Actions for /media" });
   expect(
     api.requests.find((request) => request.method === "POST")?.body,
   ).toEqual({ path: "/media" });
+  expect(api.requestsTo("/media-roots/root/scan")).toEqual([]);
+});
+
+it("offers to scan an added root, with Scan focused, and opens the progress dialog on Scan", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply(
+    "/media-roots",
+    { id: "root", path: "/media", enabled: true, lastScannedAt: null },
+    "POST",
+  );
+  api.hold("/media-roots/root/scan", "POST");
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a media root…" }),
+  );
+  fireEvent.change(screen.getByLabelText("Absolute server path"), {
+    target: { value: "/media" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add root" }));
+
+  const dialog = screen.getByRole("dialog", { name: "Add media root" });
+  await within(dialog).findByText("/media was added. Scan it now?");
+  const scanButton = within(dialog).getByRole("button", { name: "Scan" });
+  expect(document.activeElement).toBe(scanButton);
+  // The list refreshed on the add, before the owner answered.
+  expect(api.readAfterLastWrite("/media-roots")).toBe(true);
+
+  api.reply("/media-roots", [mediaRoot()]);
+  fireEvent.click(scanButton);
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Add media root" })).toBeNull(),
+  );
+  expect(api.requestsTo("/media-roots/root/scan")).toHaveLength(1);
+  api.release(
+    "/media-roots/root/scan",
+    scanStatus({ phase: "discovering", discoveredCount: 3 }),
+    "POST",
+    202,
+  );
+  const scanning = await screen.findByRole("dialog", {
+    name: "Scanning media root",
+  });
+  expect(within(scanning).getByRole("status").textContent).toBe(
+    "Looking for media files in /media…",
+  );
+});
+
+it("raises Scan in the row of a never-scanned root only, starting the same scan as the menu", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", [
+    mediaRoot(),
+    mediaRoot({
+      id: "old",
+      path: "/old",
+      lastScannedAt: "2026-10-27T12:00:00.000Z",
+    }),
+    mediaRoot({ id: "off", path: "/off", enabled: false }),
+  ]);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.hold("/media-roots/root/scan", "POST");
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(MediaLibraryApp, { visible: true }));
+
+  const scanButton = await screen.findByRole("button", { name: "Scan /media" });
+  expect(screen.queryByRole("button", { name: "Scan /old" })).toBeNull();
+  expect(
+    screen.getByRole<HTMLButtonElement>("button", { name: "Scan /off" })
+      .disabled,
+  ).toBe(true);
+  expect(screen.getAllByRole("button", { name: /^Actions for/ })).toHaveLength(
+    3,
+  );
+
+  fireEvent.click(scanButton);
+  await waitFor(() =>
+    expect(api.requestsTo("/media-roots/root/scan")).toHaveLength(1),
+  );
+  api.release("/media-roots/root/scan", scanStatus(), "POST", 202);
+  await screen.findByRole("dialog", { name: "Scanning media root" });
 });
 
 it("fills the path by browsing server folders from the typed path", async () => {
@@ -459,7 +543,7 @@ it.each([
       }),
     }),
     line: "Scan completed.",
-    facts: ["Discovered 7", "Probed 5", "Probe failures 2", "Missing 3"],
+    facts: ["Files found 7", "Could not be read 2", "Missing 3"],
     note: null,
   },
   {
@@ -563,15 +647,9 @@ it("shows lookup progress while the scan looks media up on TMDB", async () => {
   ).toBe(true);
 });
 
-it.each([
-  {
-    ambiguousCount: 2,
-    note: "2 need your choice.",
-  },
-  { ambiguousCount: 0, note: null },
-])(
+it.each([{ ambiguousCount: 2 }, { ambiguousCount: 0 }])(
   "adds lookup counts to a scan that looked media up (ambiguous: $ambiguousCount)",
-  async ({ ambiguousCount, note }) => {
+  async ({ ambiguousCount }) => {
     const { api, scan } = renderScanLibrary([mediaRoot()]);
     api.reply("/metadata/tmdb-key", { configured: true });
     const dialog = await startScan();
@@ -593,19 +671,18 @@ it.each([
     const shown = [...dialog.querySelectorAll(".facts dt")].map(
       (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
     );
-    expect(shown.slice(4)).toEqual([
+    expect(shown.slice(3)).toEqual([
       "Matched 3",
-      `Ambiguous ${ambiguousCount}`,
+      `Needs your choice ${ambiguousCount}`,
       "Unmatched 1",
-      `Lookup errors ${3 - ambiguousCount}`,
+      `Lookup failed ${3 - ambiguousCount}`,
     ]);
-    expect(
-      within(dialog).queryByText(/need your choice/)?.textContent ?? null,
-    ).toBe(note);
+    // The count row says it once; no sentence repeats it.
+    expect(within(dialog).queryByText(/need your choice/)).toBeNull();
     expect(
       within(dialog).queryByRole("button", { name: "Review matches…" }) !==
         null,
-    ).toBe(note !== null);
+    ).toBe(ambiguousCount > 0);
   },
 );
 
@@ -947,6 +1024,6 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
   await advance(1_000);
   expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
   expect(within(dialog).getByText("Matched")).toBeTruthy();
-  expect(within(dialog).queryByText("Discovered")).toBeNull();
-  expect(within(dialog).queryByText("Probed")).toBeNull();
+  expect(within(dialog).queryByText("Files found")).toBeNull();
+  expect(within(dialog).queryByText("Could not be read")).toBeNull();
 });

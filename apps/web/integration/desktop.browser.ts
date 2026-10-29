@@ -72,7 +72,7 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   return { ...started, prober: controlled };
 }
 
-/** Adds `directory` as a media root in the Media Library and starts its scan. */
+/** Adds `directory` as a media root in the Media Library and accepts the scan it offers. */
 async function scanNewRoot(page: Page, directory: string) {
   await page
     .getByLabel("Desktop programs")
@@ -86,9 +86,8 @@ async function scanNewRoot(page: Page, directory: string) {
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
   await addRoot.getByLabel("Absolute server path").fill(directory);
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+  await addRoot.getByRole("button", { name: "Scan", exact: true }).click();
   await expect(addRoot).toBeHidden();
-  await media.getByRole("button", { name: `Actions for ${directory}` }).click();
-  await page.getByRole("menuitem", { name: "Scan", exact: true }).click();
   const scanning = media.getByRole("dialog", { name: "Scanning media root" });
   await expect(scanning).toBeVisible();
   return { media, scanning };
@@ -222,6 +221,11 @@ test("picks a media root by browsing real server folders at narrow width", async
     addRoot.getByRole("button", { name: "Add root", exact: true }),
   ).toBeInViewport();
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
+  // The scan offer stays inside the window too; declining keeps the root.
+  await expect(
+    addRoot.getByRole("button", { name: "Not now", exact: true }),
+  ).toBeInViewport();
+  await addRoot.getByRole("button", { name: "Not now", exact: true }).click();
 
   await expect(addRoot).toBeHidden();
   await expect(
@@ -317,7 +321,7 @@ for (const viewport of [
     // A disabled close button must not look like the one that works.
     expect(await closeButtonLook(close)).not.toEqual(busyClose);
     await expect(
-      scanning.locator(".facts dt", { hasText: "Discovered" }).locator("+ dd"),
+      scanning.locator(".facts dt", { hasText: "Files found" }).locator("+ dd"),
     ).toHaveText("1");
     await scanning.getByRole("button", { name: "OK", exact: true }).click();
     await expect(scanning).toBeHidden();
@@ -359,7 +363,7 @@ for (const viewport of [
       .click();
     await collection.getByRole("button", { name: "Save changes" }).click();
     await expect(
-      collection.getByText(/Schedulable · 1 eligible/),
+      collection.getByText("1 of 1 can air", { exact: true }),
     ).toBeVisible();
     await collection
       .getByRole("button", { name: "Close Northwoods collection Properties" })
@@ -404,21 +408,17 @@ for (const viewport of [
       .selectOption({ label: "1 program" });
     await addShows.getByRole("button", { name: "Add (1)" }).click();
     await expect(addShows).toBeHidden();
-    // The server already generated the schedule; Let it finish just confirms.
-    const rebuild = properties.getByRole("dialog", {
-      name: "Rebuild the schedule",
-    });
-    await rebuild.getByRole("button", { name: "Rebuild", exact: true }).click();
-    await rebuild.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(rebuild).toBeHidden();
+    // The server already generated the schedule, and nothing was airing on
+    // the new channel, so the first show asks no rebuild question.
     await expect(
       properties
         .getByRole("table", { name: "Shows" })
         .getByRole("button", { name: "Northwoods collection", exact: true }),
     ).toBeVisible();
+    await expect(properties.getByRole("dialog")).toHaveCount(0);
     await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
-      properties.getByRole("list", { name: "Upcoming turns" }),
+      properties.getByRole("list", { name: "Upcoming shows" }),
     ).toContainText("Northwoods collection");
     await properties
       .getByRole("button", { name: "Close Northwoods TV Properties" })

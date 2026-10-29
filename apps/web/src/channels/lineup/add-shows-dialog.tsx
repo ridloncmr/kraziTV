@@ -47,10 +47,13 @@ type ShowChoice = { mode?: PlaybackMode; stretch?: StretchDraft };
 
 /**
  * Adds shows to a channel from one picker that toggles between collections
- * and filterable single items. **Add as** says what the picks become: each
- * its own show, taking its own turns in normal rotation, or one wheel the
- * owner may name: a show whose picks share its turns, taking them one after
- * another in the order picked, as a broadcast wheel series does. **Next**
+ * and filterable single items. The search leads, so the first visit is
+ * about picking; **Add as** appears under it only once two or more picks
+ * could be grouped, and says what they become: each its own show, taking
+ * its own turns in normal rotation, or one wheel the owner may name: a show
+ * whose picks share its turns, taking them one after another in the order
+ * picked, as a broadcast wheel series does. A lone pick is always its own
+ * show, whatever was chosen while there were more. **Next**
  * counts the picks so ones in the other view stay in sight, and opens a
  * second page boxing each show to add with its play order, collection
  * order unless changed, and its per sitting, the server's suggestion
@@ -94,7 +97,9 @@ export function AddShowsDialog({
       ?.focus();
   }, [page]);
   const [picks, setPicks] = useState<FoundMember[]>([]);
-  const [grouping, setGrouping] = useState<Grouping>("separate");
+  const [chosenGrouping, setGrouping] = useState<Grouping>("separate");
+  // One pick is its own show; the wheel choice waits for a second pick.
+  const grouping: Grouping = picks.length >= 2 ? chosenGrouping : "separate";
   const [name, setName] = useState("");
   // The shows' names as last sent, so a refusal names the show it refused
   // even after the owner changes the picks.
@@ -207,53 +212,6 @@ export function AddShowsDialog({
           <div ref={pageBody}>
             {/* Kept mounted while hidden, so Back returns to the same search. */}
             <div hidden={page !== "pick"}>
-              <fieldset className="inline-form">
-                <legend>Add as</legend>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="add-as"
-                    checked={grouping === "separate"}
-                    onChange={() => setGrouping("separate")}
-                  />
-                  Separate shows
-                </label>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="add-as"
-                    checked={grouping === "wheel"}
-                    onChange={() => setGrouping("wheel")}
-                  />
-                  A wheel
-                </label>
-              </fieldset>
-              <p className="secondary">
-                {grouping === "separate"
-                  ? "Each pick becomes its own show and gets its own turns in the rotation."
-                  : "The picks share one turn in the rotation and take it one after another, in the order picked, like the shows in NBC's Mystery Movie."}
-              </p>
-              {grouping === "wheel" && (
-                <div className="form-stack">
-                  <label>
-                    Wheel name
-                    <input
-                      value={name}
-                      maxLength={80}
-                      placeholder={
-                        picks.length > 0
-                          ? joinShowNames(picks.map((pick) => pick.name))
-                          : "Adult Animation"
-                      }
-                      aria-describedby={nameHintId}
-                      onChange={(event) => setName(event.target.value)}
-                    />
-                  </label>
-                  <small id={nameHintId} className="secondary">
-                    Optional. Leave blank to name the wheel after what it plays.
-                  </small>
-                </div>
-              )}
               <CollectionOrItemSearch
                 collections={collections}
                 checked={new Set(picks.map((pick) => memberKey(pick.member)))}
@@ -271,6 +229,56 @@ export function AddShowsDialog({
                   )
                 }
               />
+              {picks.length >= 2 && (
+                <>
+                  <fieldset className="inline-form">
+                    <legend>Add as</legend>
+                    <label className="choice">
+                      <input
+                        type="radio"
+                        name="add-as"
+                        checked={chosenGrouping === "separate"}
+                        onChange={() => setGrouping("separate")}
+                      />
+                      Separate shows
+                    </label>
+                    <label className="choice">
+                      <input
+                        type="radio"
+                        name="add-as"
+                        checked={chosenGrouping === "wheel"}
+                        onChange={() => setGrouping("wheel")}
+                      />
+                      A wheel
+                    </label>
+                  </fieldset>
+                  <p className="secondary">
+                    {grouping === "separate"
+                      ? "Each pick becomes its own show and gets its own turns in the rotation."
+                      : "The picks share one turn in the rotation and take it one after another, in the order picked, like the shows in NBC's Mystery Movie."}
+                  </p>
+                  {grouping === "wheel" && (
+                    <div className="form-stack">
+                      <label>
+                        Wheel name
+                        <input
+                          value={name}
+                          maxLength={80}
+                          placeholder={joinShowNames(
+                            picks.map((pick) => pick.name),
+                          )}
+                          aria-describedby={nameHintId}
+                          onChange={(event) => setName(event.target.value)}
+                        />
+                      </label>
+                      <small id={nameHintId} className="secondary">
+                        Optional. Leave blank to name the wheel after what it
+                        plays.
+                      </small>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             {page === "settings" && (
               <>

@@ -39,15 +39,15 @@ export function marathonLabel(
   }
 }
 
-// Counts programs in the content's unit, singular for one.
-function countWords(count: number, kind: ContentKind): string {
+/** Counts programs in the content's unit, such as `1 episode` or `3 movies`; `program` when the kind is unknown. */
+export function countWords(count: number, kind: ContentKind): string {
   const unit =
     kind === "movies" ? "movie" : kind === "episodes" ? "episode" : "program";
   return count === 1 ? `1 ${unit}` : `${count} ${unit}s`;
 }
 
-// Words whole minutes as hours and minutes, such as `1 hr 30 min`.
-function minutesWords(minutes: number): string {
+/** Words whole minutes as hours and minutes, such as `1 hr 30 min`. */
+export function minutesWords(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   if (hours === 0) return `${rest} min`;

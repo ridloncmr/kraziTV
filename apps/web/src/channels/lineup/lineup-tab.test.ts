@@ -28,7 +28,8 @@ const ASSIGNMENTS = "/channels/one/programming-assignments";
 const ASSIGNMENT = `${ASSIGNMENTS}/assignment`;
 
 // The Lineup tab over `assignments` and the fixture collections plus
-// `extra`; `setup` adds replies the tab reads as it opens.
+// `extra`, while the fixture program Alpha airs unless `setup` replies
+// otherwise; `setup` adds replies the tab reads as it opens.
 async function openLineup(
   assignments: SourceAssignment[],
   extra: ReturnType<typeof collectionWith>[] = [],
@@ -37,6 +38,7 @@ async function openLineup(
   const api = new BrowserApi();
   api.reply(ASSIGNMENTS, assignments);
   api.reply("/media-collections", [...adminFixtures.collections, ...extra]);
+  api.reply("/channels/one/now", adminFixtures.now);
   setup(api);
   vi.stubGlobal("fetch", api.fetch);
   const view = await openChannelTab(api, "Lineup");
@@ -75,13 +77,19 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
   );
 }
 
-const REBUILD = "Rebuild the schedule";
+// The rebuild question a lineup change asks while the fixture program airs.
+const REBUILD = "What should happen to Alpha?";
 
-// Answers the rebuild choice a lineup change offers with Let it finish,
-// which the change already applied, so nothing more is sent.
+// Answers the rebuild question a lineup change asks with Let it finish, its
+// default, which the change already applied, so nothing more is sent.
 async function letItFinish(api: BrowserApi) {
   const dialog = await screen.findByRole("dialog", { name: REBUILD });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+  expect(
+    within(dialog).getByRole<HTMLInputElement>("radio", {
+      name: "Let it finish",
+    }).checked,
+  ).toBe(true);
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
   await within(dialog).findByText(/rebuilt after what is airing now/);
   fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -325,17 +333,61 @@ it("removes a show only after a confirmation that names it", async () => {
     "DELETE",
   ]);
 
-  // Removal offers the rebuild choice; stopping now rebuilds from now.
+  // Removal asks about the airing program; stopping it now rebuilds from
+  // now, and the dialog says so in the owner's words.
   api.reply("/channels/one/programming/rebuild", { stopFailed: false }, "POST");
   const rebuild = await screen.findByRole("dialog", { name: REBUILD });
   fireEvent.click(
     within(rebuild).getByRole("radio", {
-      name: "Stop it now and rebuild the schedule",
+      name: "Stop it now and start the new lineup",
     }),
   );
-  fireEvent.click(within(rebuild).getByRole("button", { name: "Rebuild" }));
+  expect(rebuild.textContent).toMatch(
+    /Alpha stops and the new lineup starts now\. Viewers watching now are disconnected and must tune in again\./,
+  );
+  expect(rebuild.textContent).not.toMatch(/round|cooldown|assignment|member/i);
+  fireEvent.click(within(rebuild).getByRole("button", { name: "OK" }));
   await within(rebuild).findByText(/rebuilt from now/);
   expect(api.requestsTo("/channels/one/programming/rebuild")).toHaveLength(1);
+});
+
+it("removes a show without asking while filler airs", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [],
+    (api) =>
+      api.reply("/channels/one/now", {
+        ...adminFixtures.now,
+        currentItem: {
+          type: "filler",
+          startsAt: "2026-10-05T14:50:00.000Z",
+          endsAt: "2026-10-05T15:10:00.000Z",
+          resumeTime: "11:10 AM",
+        },
+      }),
+  );
+  api.handle(
+    ASSIGNMENT,
+    () => {
+      api.reply(ASSIGNMENTS, []);
+      return api.response(undefined, 204);
+    },
+    "DELETE",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
+  fireEvent.click(
+    within(screen.getByRole("dialog", { name: "Remove show" })).getByRole(
+      "button",
+      { name: "Remove" },
+    ),
+  );
+
+  await screen.findByText(/No shows yet/);
+  expect(api.requestsTo(ASSIGNMENT).map((request) => request.method)).toEqual([
+    "DELETE",
+  ]);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("derives the marathon length from per sitting once the show can marathon", async () => {
@@ -982,6 +1034,46 @@ it("adds three picks as three shows in one request, each with its suggested per 
   ).toEqual([]);
 });
 
+it("adds the first show without asking while nothing airs", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    (api) => {
+      serveSuggestions(api);
+      api.reply("/channels/one/now", adminFixtures.offAir);
+    },
+  );
+  api.handle(
+    BATCH,
+    (request) => {
+      const { assignments } = request.body as { assignments: object[] };
+      api.reply(
+        ASSIGNMENTS,
+        assignments.map((settings, index) => ({
+          ...settings,
+          id: `show-${index}`,
+        })),
+      );
+      return api.response([], 201);
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Movies"));
+  next(dialog, 1);
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add (1)",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+
+  // The show is listed and nothing asks what should happen to the air.
+  await screen.findByRole("button", { name: "Movies" });
+  expect(api.requestsTo(BATCH)).toHaveLength(1);
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
 it("asks for per sitting before Add for a pick with no suggestion", async () => {
   const { api } = await openLineup(
     [],
@@ -1115,12 +1207,15 @@ it("toggles Add shows between collections and filtered single items, keeping pic
   fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
   const dialog = screen.getByRole("dialog", { name: "Add shows" });
 
-  // Collections come first, and no catalog page is read until items are asked for.
+  // Collections come first, and no catalog page is read until items are
+  // asked for; My Channels' own one-item read is not a page.
   fireEvent.click(result(dialog, "Favorites"));
   expect(within(dialog).queryByRole("checkbox", { name: /^Alpha / })).toBe(
     null,
   );
-  expect(api.requestsTo("/media-items")).toEqual([]);
+  expect(
+    api.requestsTo("/media-items").filter((request) => request.query.has("q")),
+  ).toEqual([]);
 
   searchFor(dialog, "Single items");
   await within(dialog).findByRole("checkbox", {
@@ -1482,6 +1577,33 @@ it("words why a show could not be added instead of the server's message", async 
   );
 });
 
+it("leads Add shows with the search, and offers Add as only once two picks could be grouped", async () => {
+  await openLineup([], [collectionWith("movies", "Movies")], serveSuggestions);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const addAs = () => within(dialog).queryByRole("group", { name: "Add as" });
+  expect(addAs()).toBeNull();
+
+  fireEvent.click(result(dialog, "Favorites"));
+  expect(addAs()).toBeNull();
+  fireEvent.click(result(dialog, "Movies"));
+  const group = addAs();
+  expect(group).not.toBeNull();
+  // The search comes before the grouping choice, which sits above Next.
+  const search = within(dialog).getByRole("list", { name: "Search results" });
+  expect(
+    search.compareDocumentPosition(group!) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
+  within(dialog).getByLabelText("Wheel name");
+
+  // A lone pick is its own show again, whatever was chosen for two.
+  fireEvent.click(result(dialog, "Movies"));
+  expect(addAs()).toBeNull();
+  next(dialog, 1);
+  within(dialog).getByRole("button", { name: "Add (1)" });
+});
+
 it("names a refused wheel by its name", async () => {
   const { api } = await openLineup(
     [],
@@ -1496,9 +1618,9 @@ it("names a refused wheel by its name", async () => {
   );
   fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
   const dialog = screen.getByRole("dialog", { name: "Add shows" });
-  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
   fireEvent.click(result(dialog, "Favorites"));
   fireEvent.click(result(dialog, "Movies"));
+  fireEvent.click(within(dialog).getByRole("radio", { name: "A wheel" }));
   fireEvent.change(within(dialog).getByLabelText("Wheel name"), {
     target: { value: "Weekend" },
   });
@@ -1541,4 +1663,52 @@ it("lists a named show by its name, and renames it or clears the name from Prope
   ]);
   // A new name changes nothing that airs, so no rebuild is offered.
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("adds shows from the empty state, which holds the only Add shows… until the first show", async () => {
+  await openLineup([]);
+  const panel = screen.getByRole("tabpanel");
+
+  const empty = await within(panel).findByText(/No shows yet/);
+  expect(empty.className).toBe("empty-state");
+  const addShows = within(panel).getAllByRole("button", { name: "Add shows…" });
+  expect(addShows).toHaveLength(1);
+  expect(addShows[0].parentElement).toBe(empty);
+  expect(within(panel).queryByRole("button", { name: "Remove…" })).toBeNull();
+  fireEvent.click(addShows[0]);
+
+  expect(screen.getByRole("dialog", { name: "Add shows" })).toBeTruthy();
+});
+
+it("opens Media Library from the picker when nothing exists to pick, and not when nothing matches", async () => {
+  const api = new BrowserApi();
+  api.reply(ASSIGNMENTS, []);
+  api.reply("/media-collections", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  vi.stubGlobal("fetch", api.fetch);
+  const openProgram = vi.fn();
+  await openChannelTab(api, "Lineup", adminFixtures.channels[0], openProgram);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  const openLibrary = () =>
+    within(dialog).getByRole("button", { name: "Open Media Library" });
+
+  await within(dialog).findByText("There are no collections yet.");
+  fireEvent.click(openLibrary());
+  expect(openProgram).toHaveBeenCalledWith("media");
+
+  // A search that misses is not an empty catalog.
+  fireEvent.change(within(dialog).getByLabelText("Find collections"), {
+    target: { value: "Nope" },
+  });
+  within(dialog).getByText("No collection matches that search.");
+  expect(
+    within(dialog).queryByRole("button", { name: "Open Media Library" }),
+  ).toBeNull();
+
+  searchFor(dialog, "Single items");
+  await within(dialog).findByText("The catalog has no media yet.");
+  fireEvent.click(openLibrary());
+  expect(openProgram).toHaveBeenCalledTimes(2);
+  expect(openProgram).toHaveBeenLastCalledWith("media");
 });

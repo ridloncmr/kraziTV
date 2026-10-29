@@ -21,6 +21,7 @@ import {
 } from "../automatic/automatic-status.js";
 import { ChangeCriterionDialog } from "../automatic/change-criterion-dialog.js";
 import type { DraftMember } from "../contracts.js";
+import { canAirWords } from "../collection-words.js";
 import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import { ConvertToManualDialog } from "./convert-to-manual-dialog.js";
@@ -231,9 +232,7 @@ export function CollectionEditor({
       )}
       {status.data && (
         <p className="info-strip">
-          {status.data.schedulable ? "Schedulable" : "No schedulable media"} ·{" "}
-          {status.data.schedulableCount} eligible of {status.data.memberCount}{" "}
-          saved members
+          {canAirWords(status.data, collection.maintenanceMode)}
         </p>
       )}
       {collection.maintenanceMode === "automatic" ? (
@@ -298,6 +297,7 @@ export function CollectionEditor({
             disabled={mutation.pending || !members.data}
           >
             <CatalogPicker
+              collectionName={collection.name}
               memberIds={memberIds}
               visible={visible}
               onAdd={(media) => edit((current) => appendMedia(current, media))}

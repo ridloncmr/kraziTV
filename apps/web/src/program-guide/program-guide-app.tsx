@@ -5,6 +5,7 @@ import { GuideGrid } from "./grid/guide-grid.js";
 export function ProgramGuideApp({
   visible,
   onWatch,
+  openProgram,
 }: {
   visible: boolean;
   /** Opens TV on a channel, as choosing a channel in a TV guide tunes it. */
@@ -14,7 +15,11 @@ export function ProgramGuideApp({
 }) {
   return (
     <div className="program-page guide-page">
-      <GuideGrid visible={visible} onWatch={onWatch} />
+      <GuideGrid
+        visible={visible}
+        onWatch={onWatch}
+        openProgram={openProgram}
+      />
     </div>
   );
 }
