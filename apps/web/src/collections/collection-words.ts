@@ -1,5 +1,5 @@
 import { displayCount } from "../controls/display-count.js";
-import { AVAILABILITY_LABELS } from "../media-library/availability-label.js";
+import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
 import type {
   CollectionStatus,
   MediaCollection,

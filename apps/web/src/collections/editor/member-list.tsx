@@ -4,7 +4,7 @@ import { displayDuration } from "../../controls/display-duration.js";
 import { withIds } from "../../controls/id-selection.js";
 import { Pager } from "../../controls/pager.js";
 import { useRangeToggle } from "../../controls/use-range-toggle.js";
-import { fileNote } from "../../media-library/availability-label.js";
+import { fileNote } from "../../media-availability/availability-label.js";
 import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
 import { MissingLabel } from "./missing-label.js";

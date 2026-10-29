@@ -74,12 +74,13 @@ apps/web/src` finds nothing.
 
 **Status**
 
-Complete on 2026-10-29. `media-library/availability-label.ts` names each
-status Available, Missing, or Could not be read for the library column, the
-Filter, the scan summary, the Special media picker, and every collection row,
-which now shows the file name (the full path on hover); the status route also
-counts unreadable members, so the strip says "1 could not be read". There was
-no link color on `.secondary.path-cell` to drop.
+Complete on 2026-10-29. `media-availability/availability-label.ts`, a
+top-level folder because four web domains read it, names each status
+Available, Missing, or Could not be read for the library column, the Filter,
+the scan summary, the Special media picker, and every collection row, which
+now shows the file name (the full path on hover); the status route also counts
+unreadable members, so the strip says "1 could not be read". There was no link
+color on `.secondary.path-cell` to drop.
 
 **Goal**: `probe_failed` never appears on a screen; rows are scannable.
 

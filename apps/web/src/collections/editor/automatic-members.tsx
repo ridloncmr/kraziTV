@@ -6,7 +6,7 @@ import type {
   ExcludedItem,
 } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
-import { fileNote } from "../../media-library/availability-label.js";
+import { fileNote } from "../../media-availability/availability-label.js";
 import { ReadOnlyMembers } from "./read-only-members.js";
 
 /**

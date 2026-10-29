@@ -4,7 +4,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { useResource } from "../http/resources/use-resource.js";
-import { AVAILABILITY_LABELS } from "../media-library/availability-label.js";
+import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 
 const RESULT_LIMIT = 25;

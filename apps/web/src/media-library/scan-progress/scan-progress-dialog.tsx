@@ -10,7 +10,7 @@ import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/resources/use-resource.js";
-import { AVAILABILITY_LABELS } from "../availability-label.js";
+import { AVAILABILITY_LABELS } from "../../media-availability/availability-label.js";
 import {
   LOOKUP_FAILED_LABEL,
   MATCH_STATE_LABELS,

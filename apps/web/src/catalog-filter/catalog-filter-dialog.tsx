@@ -9,7 +9,7 @@ import type {
   MediaRoot,
 } from "../http/contracts/media.js";
 import { WindowDialog } from "../controls/window-dialog.js";
-import { AVAILABILITY_LABELS } from "../media-library/availability-label.js";
+import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { FilterSection, type FilterOption } from "./filter-section.js";
 

@@ -17,7 +17,7 @@ import type {
 } from "../../http/contracts/media.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
-import { fileNote } from "../../media-library/availability-label.js";
+import { fileNote } from "../../media-availability/availability-label.js";
 
 const PAGE_SIZE = 50;
 

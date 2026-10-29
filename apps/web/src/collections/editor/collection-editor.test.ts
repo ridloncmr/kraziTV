@@ -364,21 +364,21 @@ function fileLine(row: HTMLElement) {
   return [line.textContent, line.title];
 }
 
+// The fixture items of every availability as the server's member projection.
+const EVERY_AVAILABILITY_MEMBERS = EVERY_AVAILABILITY.map(
+  ({ id, title, path, status, durationMs }, position) => ({
+    position,
+    mediaItemId: id,
+    title,
+    path,
+    status,
+    durationMs,
+  }),
+);
+
 it("names each member's availability beside its file name, keeping the full path for hovering", async () => {
   renderEditor([], adminFixtures.collections[0], (api) =>
-    api.reply(
-      "/media-collections/favorites/items",
-      EVERY_AVAILABILITY.map(
-        ({ id, title, path, status, durationMs }, position) => ({
-          position,
-          mediaItemId: id,
-          title,
-          path,
-          status,
-          durationMs,
-        }),
-      ),
-    ),
+    api.reply("/media-collections/favorites/items", EVERY_AVAILABILITY_MEMBERS),
   );
 
   const row = async (title: string) =>
@@ -422,6 +422,27 @@ it("names each catalog item's availability beside its file name in the picker", 
     "/media/shows/unreadable.mkv",
   ]);
   expect(screen.queryByText(/probe_failed/)).toBeNull();
+});
+
+it("names each read-only member's availability beside its file name in an automatic collection", async () => {
+  renderEditor([], officeCollection, (api) =>
+    api.reply("/media-collections/office/items", EVERY_AVAILABILITY_MEMBERS),
+  );
+
+  const row = async (title: string) =>
+    (await screen.findByText(title)).closest("tr")!;
+  expect(fileLine(await row("Alpha"))).toEqual([
+    "alpha.mp4",
+    "/media/alpha.mp4",
+  ]);
+  expect(fileLine(await row("Zulu"))).toEqual([
+    "Missing · zulu.mp4",
+    "/media/zulu.mp4",
+  ]);
+  expect(fileLine(await row("Unreadable"))).toEqual([
+    "Could not be read · unreadable.mkv",
+    "/media/shows/unreadable.mkv",
+  ]);
 });
 
 it("explains incomplete maintenance in the automatic editor", async () => {
@@ -499,7 +520,9 @@ it("excludes a member, lists excluded items labelled with whether they still qua
   const row = within(excluded).getByText("Alpha").closest("tr")!;
   expect(within(row).getByText("Excluded")).toBeTruthy();
   expect(within(row).getByText("No longer matches")).toBeTruthy();
+  expect(fileLine(row)).toEqual(["alpha.mp4", "/media/alpha.mp4"]);
   const unknown = within(excluded).getByText("Zulu").closest("tr")!;
+  expect(fileLine(unknown)).toEqual(["Missing · zulu.mp4", "/media/zulu.mp4"]);
   expect(
     within(unknown).getByText("Unknown — its TMDB data expired"),
   ).toBeTruthy();

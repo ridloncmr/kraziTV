@@ -19,7 +19,7 @@ import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
 import { AddMediaRootDialog } from "./add-media-root-dialog.js";
-import { AVAILABILITY_LABELS } from "./availability-label.js";
+import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
 import {
   CatalogFilterDialog,
   keysInUse,
