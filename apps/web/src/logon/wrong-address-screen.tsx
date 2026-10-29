@@ -1,3 +1,4 @@
+import { SettingLocation } from "../controls/setting-location.js";
 import type { WrongAddress } from "../http/contracts/auth.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 
@@ -29,8 +30,7 @@ export function WrongAddressScreen({ advice }: { advice: WrongAddress }) {
           </p>
         )}
         <p className="logon-panel-note">
-          <code>PUBLIC_BASE_URL</code> goes in kraziTV&apos;s <code>.env</code>{" "}
-          file, or in <code>-e</code> when it runs in Docker.
+          <SettingLocation names={["PUBLIC_BASE_URL"]} />
         </p>
       </section>
     </LogonBackdrop>

@@ -543,7 +543,7 @@ it.each([
       }),
     }),
     line: "Scan completed.",
-    facts: ["Discovered 7", "Probed 5", "Probe failures 2", "Missing 3"],
+    facts: ["Files found 7", "Could not be read 2", "Missing 3"],
     note: null,
   },
   {
@@ -647,15 +647,9 @@ it("shows lookup progress while the scan looks media up on TMDB", async () => {
   ).toBe(true);
 });
 
-it.each([
-  {
-    ambiguousCount: 2,
-    note: "2 need your choice.",
-  },
-  { ambiguousCount: 0, note: null },
-])(
+it.each([{ ambiguousCount: 2 }, { ambiguousCount: 0 }])(
   "adds lookup counts to a scan that looked media up (ambiguous: $ambiguousCount)",
-  async ({ ambiguousCount, note }) => {
+  async ({ ambiguousCount }) => {
     const { api, scan } = renderScanLibrary([mediaRoot()]);
     api.reply("/metadata/tmdb-key", { configured: true });
     const dialog = await startScan();
@@ -677,19 +671,18 @@ it.each([
     const shown = [...dialog.querySelectorAll(".facts dt")].map(
       (term) => `${term.textContent} ${term.nextElementSibling?.textContent}`,
     );
-    expect(shown.slice(4)).toEqual([
+    expect(shown.slice(3)).toEqual([
       "Matched 3",
-      `Ambiguous ${ambiguousCount}`,
+      `Needs your choice ${ambiguousCount}`,
       "Unmatched 1",
-      `Lookup errors ${3 - ambiguousCount}`,
+      `Lookup failed ${3 - ambiguousCount}`,
     ]);
-    expect(
-      within(dialog).queryByText(/need your choice/)?.textContent ?? null,
-    ).toBe(note);
+    // The count row says it once; no sentence repeats it.
+    expect(within(dialog).queryByText(/need your choice/)).toBeNull();
     expect(
       within(dialog).queryByRole("button", { name: "Review matches…" }) !==
         null,
-    ).toBe(note !== null);
+    ).toBe(ambiguousCount > 0);
   },
 );
 
@@ -1031,6 +1024,6 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
   await advance(1_000);
   expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
   expect(within(dialog).getByText("Matched")).toBeTruthy();
-  expect(within(dialog).queryByText("Discovered")).toBeNull();
-  expect(within(dialog).queryByText("Probed")).toBeNull();
+  expect(within(dialog).queryByText("Files found")).toBeNull();
+  expect(within(dialog).queryByText("Could not be read")).toBeNull();
 });

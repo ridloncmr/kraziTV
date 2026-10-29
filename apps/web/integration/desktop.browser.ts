@@ -321,7 +321,7 @@ for (const viewport of [
     // A disabled close button must not look like the one that works.
     expect(await closeButtonLook(close)).not.toEqual(busyClose);
     await expect(
-      scanning.locator(".facts dt", { hasText: "Discovered" }).locator("+ dd"),
+      scanning.locator(".facts dt", { hasText: "Files found" }).locator("+ dd"),
     ).toHaveText("1");
     await scanning.getByRole("button", { name: "OK", exact: true }).click();
     await expect(scanning).toBeHidden();
@@ -363,7 +363,7 @@ for (const viewport of [
       .click();
     await collection.getByRole("button", { name: "Save changes" }).click();
     await expect(
-      collection.getByText(/Schedulable · 1 eligible/),
+      collection.getByText("1 of 1 can air", { exact: true }),
     ).toBeVisible();
     await collection
       .getByRole("button", { name: "Close Northwoods collection Properties" })
@@ -418,7 +418,7 @@ for (const viewport of [
     await expect(properties.getByRole("dialog")).toHaveCount(0);
     await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
-      properties.getByRole("list", { name: "Upcoming turns" }),
+      properties.getByRole("list", { name: "Upcoming shows" }),
     ).toContainText("Northwoods collection");
     await properties
       .getByRole("button", { name: "Close Northwoods TV Properties" })

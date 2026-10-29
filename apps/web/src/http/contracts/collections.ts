@@ -68,8 +68,13 @@ export interface Recommendation {
   collectionId: string | null;
   decision: "accepted" | "dismissed" | null;
 }
+/** `GET /media-collections/:id/status`: how many members can air, and the two causes the strip words. */
 export interface CollectionStatus {
   schedulable: boolean;
   schedulableCount: number;
   memberCount: number;
+  /** Members whose file is missing. */
+  missingCount: number;
+  /** Available members below kraziBrain's duration floor. */
+  tooShortCount: number;
 }
