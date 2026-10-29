@@ -4,7 +4,7 @@ import type { MouseEvent } from "react";
  * The XP property-sheet footer: OK, Cancel, and Apply at the bottom right.
  * OK and Apply are the form's submit buttons, so Enter in a field presses OK,
  * but each checks the form's required fields and then calls its handler
- * instead of submitting. As on XP, OK is always available: on an unchanged
+ * instead of submitting. As on XP, OK is available except during a save: on an unchanged
  * sheet it just closes, through Cancel, which closes an unchanged sheet
  * without asking. Apply stays disabled until a field changed, since there is
  * nothing to save, and every button waits out a pending save.
