@@ -1,4 +1,5 @@
 import { useId } from "react";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { AssignmentMember } from "../../http/contracts/programming.js";
 import {
@@ -21,6 +22,7 @@ export function MemberRows({
   visible,
   edit,
   onPicked,
+  openProgram,
 }: {
   members: readonly AssignmentMember[];
   name: (member: AssignmentMember) => string;
@@ -30,6 +32,8 @@ export function MemberRows({
   visible: boolean;
   edit: (change: (rows: AssignmentMember[]) => AssignmentMember[]) => void;
   onPicked: (member: AssignmentMember, name: string) => void;
+  /** Opens another program, which the picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const captionId = useId();
   const keys = new Set(members.map(memberKey));
@@ -81,6 +85,7 @@ export function MemberRows({
         checked={keys}
         unavailable={new Map([...unavailable, ...locked])}
         visible={visible}
+        openProgram={openProgram}
         onToggle={({ member, name: picked }, checked) => {
           if (checked) onPicked(member, picked);
           edit((rows) => {

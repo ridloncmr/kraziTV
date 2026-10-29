@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { GeneralTab } from "../identity/general-tab.js";
 import { LineupTab } from "../lineup/lineup-tab.js";
@@ -37,6 +38,7 @@ export function ChannelPropertySheet({
   onTabChange,
   changed,
   onDirtyChange,
+  openProgram,
 }: {
   channel: Channel;
   visible: boolean;
@@ -46,6 +48,8 @@ export function ChannelPropertySheet({
   changed: () => void;
   /** Reports whether a tab holds unsaved edits, so closing the window asks first. */
   onDirtyChange: (dirty: boolean) => void;
+  /** Opens another program, which the lineup's show picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const programming = useChannelProgramming(channel.id, visible);
   const lineup = programming.assignments.data;
@@ -87,6 +91,7 @@ export function ChannelPropertySheet({
             programming={programming}
             visible={visible}
             onDirtyChange={onDirtyChange}
+            openProgram={openProgram}
           />
         )}
         {shown === "rules" && lineup && (

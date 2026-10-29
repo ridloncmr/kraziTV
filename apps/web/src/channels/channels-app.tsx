@@ -4,6 +4,7 @@ import { RequestFeedback } from "../controls/request-feedback.js";
 import { rowClickProps, rowOpenProps } from "../controls/row-click.js";
 import { RowMenu } from "../controls/row-menu.js";
 import { WindowDialog } from "../controls/window-dialog.js";
+import type { ProgramId } from "../desktop/contracts.js";
 import { usePropertiesList } from "../desktop/windows/use-properties-list.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import { resourcePath } from "../http/api-client.js";
@@ -32,6 +33,8 @@ export function ChannelsApp({
   windows: PropertiesWindows;
   /** Opens TV on the channel. */
   onWatch: (channelId: string) => void;
+  /** Opens another program, such as Media Library when the catalog is empty. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
   // Refresh reloads everything this window shows.

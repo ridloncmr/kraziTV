@@ -299,7 +299,8 @@ it("removes a show only after a confirmation that names it", async () => {
     },
     "DELETE",
   );
-  const remove = screen.getByRole<HTMLButtonElement>("button", {
+  // The bar renders with the list, so wait for it rather than read it at once.
+  const remove = await screen.findByRole<HTMLButtonElement>("button", {
     name: "Remove…",
   });
   expect(remove.disabled).toBe(true);

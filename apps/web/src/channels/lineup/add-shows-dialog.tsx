@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
@@ -67,6 +68,7 @@ export function AddShowsDialog({
   visible,
   changed,
   onClose,
+  openProgram,
 }: {
   assignmentsPath: string;
   collections: MediaCollection[] | undefined;
@@ -76,6 +78,8 @@ export function AddShowsDialog({
   /** Runs after the server added the shows. */
   changed: () => void;
   onClose: () => void;
+  /** Opens another program, which the picker needs for Media Library. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const mutation = useMutation();
   const nameHintId = useId();
@@ -252,6 +256,7 @@ export function AddShowsDialog({
                 checked={new Set(picks.map((pick) => memberKey(pick.member)))}
                 hidden={inLineup}
                 visible={visible}
+                openProgram={openProgram}
                 onToggle={(found, checked) =>
                   setPicks((current) =>
                     checked
