@@ -259,7 +259,7 @@ describe("planned filler in playout reads", () => {
 });
 
 describe("planned filler in guide output", () => {
-  it("lists filler apart from schedule entries, with its resume time, and never as an XMLTV programme", async () => {
+  it("lists filler apart from schedule entries, with its resume time, and as an Off air XMLTV programme", async () => {
     const { server } = await reservedAtSixty();
 
     const window = await send(
@@ -278,13 +278,18 @@ describe("planned filler in guide output", () => {
         (entry) => entry.startsAt,
       ),
     ).toEqual([iso(at(22)), iso(at(60))]);
+    // Plex lists 45-60 as Off air between the episode and the movie (ADR 0022).
     const programmes = readGuideProgrammes(guide.body);
     expect(
-      programmes.some(({ start }) => start === xmltvTimestamp(at(45))),
-    ).toBe(false);
-    // The movie follows the second episode directly: nothing fills 45-60.
-    expect(programmes.slice(0, 3).map(({ start }) => start)).toEqual(
-      [0, 22, 60].map((minutes) => xmltvTimestamp(at(minutes))),
+      programmes.slice(0, 4).map(({ start, title }) => [start, title]),
+    ).toEqual([
+      [xmltvTimestamp(at(0)), expect.not.stringMatching(/^Off air$/)],
+      [xmltvTimestamp(at(22)), expect.not.stringMatching(/^Off air$/)],
+      [xmltvTimestamp(at(45)), "Off air"],
+      [xmltvTimestamp(at(60)), expect.not.stringMatching(/^Off air$/)],
+    ]);
+    expect(guide.body).toContain(
+      "<desc>Programming resumes at 1:00 AM.</desc>",
     );
   });
 

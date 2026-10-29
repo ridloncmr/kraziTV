@@ -12,6 +12,9 @@ Amended on 2026-10-16: the user's explicit interruption of airing filler is
 an interrupting reservation, which ends the filler at the reservation's start.
 See [ADR 0015](0015-scheduled-interruption.md).
 
+Partly superseded on 2026-10-28: XMLTV now lists planned filler as Off air.
+See [ADR 0022](0022-xmltv-lists-off-air.md).
+
 ## Context
 
 [Programming spec 0006](../specs/features/002-programming/specs/0006-clock-anchored-blocks.md)

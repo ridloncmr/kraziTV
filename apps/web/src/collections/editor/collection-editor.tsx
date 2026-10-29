@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { BlockingSpecials } from "../../controls/blocking-specials.js";
 import { channelNumberIn } from "../../controls/channel-number.js";
 import { displayDuration } from "../../controls/display-duration.js";
@@ -75,10 +76,7 @@ export function CollectionEditor({
     setLocal((current) => (current?.dirty ? current : undefined));
   }, [members.data]);
   const dirty = local?.dirty ?? false;
-  useEffect(() => {
-    onDirtyChange(dirty);
-    return () => onDirtyChange(false);
-  }, [dirty, onDirtyChange]);
+  useUnsavedReport(dirty, onDirtyChange);
   const saved: readonly DraftMember[] = members.data ?? [];
   const draft = local?.members ?? saved;
   const memberIds = useMemo(

@@ -1,4 +1,4 @@
-import { ProgramIcon } from "../../branding/program-icon.js";
+import { ProgramIcon } from "../../branding/icons/program-icon.js";
 
 /**
  * Stays up while the app asks the server whether this browser is logged in.

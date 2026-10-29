@@ -31,10 +31,13 @@ export function RulesEditor({
   channelId,
   visible,
   programming,
+  onDirtyChange,
 }: {
   channelId: string;
   visible: boolean;
   programming: ChannelProgramming;
+  /** Reports whether the open rule dialog holds unsaved edits. */
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const { rules, collections, contentKind, changed } = programming;
   const assignments = programming.assignments.data ?? [];
@@ -215,6 +218,7 @@ export function RulesEditor({
           choices={choices}
           timezone={timezone.data?.programmingTimezone}
           saved={saved}
+          onDirtyChange={onDirtyChange}
           onClose={() => setEditing(undefined)}
         />
       )}

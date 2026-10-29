@@ -1,5 +1,8 @@
 import { useId } from "react";
-import { IconGradients, iconGradient } from "../../branding/icon-gradients.js";
+import {
+  IconGradients,
+  iconGradient,
+} from "../../branding/icons/icon-gradients.js";
 
 /**
  * Original decorative artwork for the scan dialog: a sheet of paper arcing

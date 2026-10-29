@@ -1,6 +1,6 @@
 # MVP Feature
 
-Status: In Development
+Status: Implemented
 
 This feature folder contains the goal and vertical-slice specs for the first usable kraziTV release.
 

@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
-import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
-import { ProgramIcon } from "../../branding/program-icon.js";
+import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
+import { ProgramIcon } from "../../branding/icons/program-icon.js";
+import { SourceCodeLink } from "../../branding/attribution/source-code-link.js";
 import type { ProgramId } from "../contracts.js";
 import { programs } from "../programs.js";
 
 /**
  * Start is complete navigation to real programs, plus Log Off, which ends
- * this browser's session. It has no pretend OS actions such as Turn Off.
+ * this browser's session, and a link to kraziTV's source code. It has no
+ * pretend OS actions such as Turn Off.
  */
 export function StartMenu({
   avatarId,
@@ -61,6 +63,7 @@ export function StartMenu({
       </div>
       <div className="start-menu-footer">
         <span>Local media. Your channels. Always on schedule.</span>
+        <SourceCodeLink className="start-menu-source" />
         <button type="button" onClick={logOff}>
           Log Off
         </button>

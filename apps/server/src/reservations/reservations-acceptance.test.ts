@@ -190,7 +190,7 @@ describe("spec 0006 acceptance", () => {
     ).toEqual([`${iso(at(150))}/${iso(at(170))}`]);
   });
 
-  it("shows planned filler as Off air intervals, never as a schedule entry or XMLTV programme", async () => {
+  it("shows planned filler as Off air, in the guide window and in XMLTV, never as a schedule entry", async () => {
     const { server } = await reservedMovie();
 
     const shape = await windowShape(server, at(30), at(70));
@@ -200,12 +200,14 @@ describe("spec 0006 acceptance", () => {
 
     expect(shape.filler).toEqual([`${iso(at(45))}/${iso(at(60))}`]);
     expect(shape.programs).toHaveLength(2);
-    expect(guide.map(({ start }) => start)).not.toContain(
-      xmltvTimestamp(at(45)),
+    // Plex lists the filler as Off air in its place, between the programs.
+    expect(guide.slice(0, 4).map(({ start }) => start)).toEqual(
+      [0, 22, 45, 60].map((minutes) => xmltvTimestamp(at(minutes))),
     );
-    expect(guide.slice(0, 3).map(({ start }) => start)).toEqual(
-      [0, 22, 60].map((minutes) => xmltvTimestamp(at(minutes))),
-    );
+    expect(guide[2]).toMatchObject({
+      stop: xmltvTimestamp(at(60)),
+      title: "Off air",
+    });
   });
 
   it("joins a viewer tuning during filler at its offset, with the reserved program next", async () => {

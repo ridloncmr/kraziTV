@@ -1,6 +1,6 @@
 # Programming Feature
 
-Status: Planned
+Status: In Development
 
 This feature grows kraziTV from one looping programming block per channel into
 continuous, rule-driven programming that a user configures once and mostly leaves

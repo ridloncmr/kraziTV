@@ -75,7 +75,11 @@ export function ChannelPropertySheet({
         onSelect={onTabChange}
       >
         {shown === "general" && (
-          <GeneralTab channel={channel} changed={changed} />
+          <GeneralTab
+            channel={channel}
+            changed={changed}
+            onDirtyChange={onDirtyChange}
+          />
         )}
         {shown === "lineup" && (
           <LineupTab
@@ -90,10 +94,15 @@ export function ChannelPropertySheet({
             channelId={channel.id}
             visible={visible}
             programming={programming}
+            onDirtyChange={onDirtyChange}
           />
         )}
         {shown === "specials" && (
-          <SpecialsSection channelId={channel.id} visible={visible} />
+          <SpecialsSection
+            channelId={channel.id}
+            visible={visible}
+            onDirtyChange={onDirtyChange}
+          />
         )}
         {shown === "preview" && (
           <PreviewTab

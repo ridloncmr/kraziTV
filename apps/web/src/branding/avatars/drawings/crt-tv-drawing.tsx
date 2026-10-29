@@ -1,4 +1,4 @@
-import { iconGradient } from "../../icon-gradients.js";
+import { iconGradient } from "../../icons/icon-gradients.js";
 
 /**
  * A boxy wood-cabinet CRT with a rabbit-ear aerial and a glowing screen.

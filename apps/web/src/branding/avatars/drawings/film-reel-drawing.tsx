@@ -1,4 +1,4 @@
-import { iconGradient } from "../../icon-gradients.js";
+import { iconGradient } from "../../icons/icon-gradients.js";
 
 /**
  * A silver film reel with its strip unspooling off the right edge. `id`

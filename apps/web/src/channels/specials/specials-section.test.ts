@@ -68,7 +68,13 @@ function renderSection(specials: Special[] = []) {
   api.reply("/media-collections", adminFixtures.collections);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(SpecialsSection, { channelId: "one", visible: true }));
+  render(
+    createElement(SpecialsSection, {
+      channelId: "one",
+      visible: true,
+      onDirtyChange: () => {},
+    }),
+  );
   return api;
 }
 

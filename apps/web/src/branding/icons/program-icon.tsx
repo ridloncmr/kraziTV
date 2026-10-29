@@ -1,5 +1,5 @@
 import { memo, useId } from "react";
-import type { ProgramId } from "../desktop/contracts.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import { IconGradients, iconGradient } from "./icon-gradients.js";
 
 /**

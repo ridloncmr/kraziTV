@@ -1,4 +1,4 @@
-import { iconGradient } from "../../icon-gradients.js";
+import { iconGradient } from "../../icons/icon-gradients.js";
 
 /**
  * A rooftop TV antenna against its own pale sky, with a sun and a cloud. It

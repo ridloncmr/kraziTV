@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
+import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
 import { displayDuration } from "../../controls/display-duration.js";
 import { formText } from "../../controls/form-text.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";

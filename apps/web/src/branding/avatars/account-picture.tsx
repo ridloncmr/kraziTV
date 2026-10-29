@@ -1,5 +1,5 @@
 import { useId, type ComponentType } from "react";
-import { IconGradients, iconGradient } from "../icon-gradients.js";
+import { IconGradients, iconGradient } from "../icons/icon-gradients.js";
 import { AntennaDrawing } from "./drawings/antenna-drawing.js";
 import { ChessDrawing } from "./drawings/chess-drawing.js";
 import { CrtTvDrawing } from "./drawings/crt-tv-drawing.js";

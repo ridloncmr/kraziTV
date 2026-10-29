@@ -7,7 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { DesktopProgramIcon } from "../../branding/desktop-program-icon.js";
+import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
 import {
   WindowDialog,
   WindowDialogFrame,

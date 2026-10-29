@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { CheckboxOption } from "../../controls/checkbox-option.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { ProgrammingRule } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/resources/use-resource.js";
@@ -29,7 +30,9 @@ const TABS: readonly { key: RuleTab; label: string }[] = [
  * programming timezone, and **What plays** picks the lineup entries it plays with any
  * sizes it applies while it is active. Nothing writes until **OK**, which
  * first shows the tab of any missing field; the server validates the rest
- * and its message shows here. `saved` runs after a write it accepted.
+ * and its message shows here. `saved` runs after a write it accepted. A
+ * draft that differs from the rule it opened on counts as unsaved, so
+ * closing the window asks first.
  */
 export function RuleDialog({
   path,
@@ -37,6 +40,7 @@ export function RuleDialog({
   choices,
   timezone,
   saved,
+  onDirtyChange,
   onClose,
 }: {
   /** The rules collection for a new rule, or the rule's own path. */
@@ -46,6 +50,8 @@ export function RuleDialog({
   /** The server's programming timezone, once read. */
   timezone: string | undefined;
   saved: () => void;
+  /** Reports whether the draft holds edits not yet saved. */
+  onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }) {
   const mutation = useMutation();
@@ -53,6 +59,11 @@ export function RuleDialog({
   const [tab, setTab] = useState<RuleTab>("general");
   const [draft, setDraft] = useState<RuleDraft>(() =>
     toRuleDraft(rule, choices),
+  );
+  const [opened] = useState(draft);
+  useUnsavedReport(
+    JSON.stringify(draft) !== JSON.stringify(opened),
+    onDirtyChange,
   );
   // Every field edits through this, so a change never drops the rest.
   const edit = (change: Partial<RuleDraft>) =>
