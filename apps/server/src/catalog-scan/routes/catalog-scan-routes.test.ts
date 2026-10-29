@@ -280,7 +280,11 @@ describe("POST /media-roots/:id/scan", () => {
     expect(await start(server, "/media-roots/root-unknown/scan")).toEqual({
       status: 404,
       body: {
-        error: { code: "media_root_not_found", message: expect.any(String) },
+        error: {
+          code: "media_root_not_found",
+          message: expect.any(String),
+          mediaRootId: "root-unknown",
+        },
       },
     });
   });
@@ -292,7 +296,11 @@ describe("POST /media-roots/:id/scan", () => {
     expect(await start(server)).toEqual({
       status: 409,
       body: {
-        error: { code: "media_root_disabled", message: expect.any(String) },
+        error: {
+          code: "media_root_disabled",
+          message: expect.any(String),
+          mediaRootId: rootFixture.id,
+        },
       },
     });
     expect(discover).not.toHaveBeenCalled();
@@ -308,7 +316,11 @@ describe("POST /media-roots/:id/scan", () => {
     expect(await start(server)).toEqual({
       status: 409,
       body: {
-        error: { code: "scan_in_progress", message: expect.any(String) },
+        error: {
+          code: "scan_in_progress",
+          message: expect.any(String),
+          mediaRootId: rootFixture.id,
+        },
       },
     });
     expect(discover).toHaveBeenCalledTimes(1);
@@ -448,12 +460,22 @@ describe("GET /media-roots/:id/scan", () => {
 
     expect(await read(server)).toEqual({
       status: 404,
-      body: { error: { code: "scan_not_found", message: expect.any(String) } },
+      body: {
+        error: {
+          code: "scan_not_found",
+          message: expect.any(String),
+          mediaRootId: rootFixture.id,
+        },
+      },
     });
     expect(await read(server, "/media-roots/root-unknown/scan")).toEqual({
       status: 404,
       body: {
-        error: { code: "media_root_not_found", message: expect.any(String) },
+        error: {
+          code: "media_root_not_found",
+          message: expect.any(String),
+          mediaRootId: "root-unknown",
+        },
       },
     });
   });

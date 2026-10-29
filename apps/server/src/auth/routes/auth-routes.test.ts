@@ -173,6 +173,23 @@ describe("auth routes", () => {
     });
   });
 
+  it("names the refused field in details, with a plain message", async () => {
+    const { server } = await startTestServer();
+
+    const response = await send(server, "POST", "/auth/setup", {
+      displayName: "n".repeat(41),
+      password: "pw-long-enough",
+    });
+
+    // The web app words the field; the message is for logs, never Zod's printout.
+    expect(response.status).toBe(400);
+    expect(response.body.error).toEqual({
+      code: "invalid_request",
+      message: "displayName: displayName must be at most 40 characters",
+      fields: [{ path: "displayName", code: "too_big" }],
+    });
+  });
+
   it.each([
     ["a blank name", { displayName: "   ", password: "correct horse" }],
     [

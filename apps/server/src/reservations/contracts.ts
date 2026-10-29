@@ -99,7 +99,13 @@ export type ReservationRefusal =
   /** The filler airing now depends on this reservation, so changing it would change what airs. */
   | { kind: "airing_filler_conflict"; fillerEndsAt: number }
   | { kind: "reservation_crosses_airing"; airingEndsAt: number }
-  | { kind: "reservation_overlap"; reservationId: string }
+  /** Carries the other reservation's range, so the owner is told which one by its time. */
+  | {
+      kind: "reservation_overlap";
+      reservationId: string;
+      startsAt: number;
+      endsAt: number;
+    }
   | { kind: "reservation_does_not_fit"; programsEndAt: number }
   | { kind: "reservation_media_unplayable"; mediaItemIds: string[] }
   | { kind: "media_item_not_found"; mediaItemIds: string[] }

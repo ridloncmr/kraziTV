@@ -113,8 +113,8 @@ function sendCoverageFailure(
         reply,
         409,
         "channel_unschedulable",
-        `Channel ${channelId} cannot generate a schedule`,
-        { reason: failure.reason },
+        "The channel cannot generate a schedule",
+        { channelId, reason: failure.reason },
       );
     case "through_out_of_range":
       return sendThroughOutOfRange(reply, "through", failure.latestThrough);

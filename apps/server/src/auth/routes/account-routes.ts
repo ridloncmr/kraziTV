@@ -47,7 +47,8 @@ export function registerAccountRoutes(
         reply,
         400,
         "unknown_avatar",
-        `Unknown avatar: ${avatarId}`,
+        "The avatar does not exist",
+        { avatarId },
       );
     }
     return auth.updateProfile(body.data);

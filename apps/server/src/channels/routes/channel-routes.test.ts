@@ -163,9 +163,11 @@ describe("GET /channels/:id", () => {
     const response = await get(server, "/channels/missing");
 
     expect(response.statusCode).toBe(404);
+    // The ID travels in the details, never in the message the owner may read.
     expect(response.json().error).toEqual({
       code: "channel_not_found",
-      message: "Channel missing does not exist",
+      message: "The channel does not exist",
+      channelId: "missing",
     });
   });
 });

@@ -10,6 +10,7 @@ import type {
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
+import { refusalWords, refusedFields } from "../../http/refusal-words.js";
 import {
   useMutation,
   useResourceMap,
@@ -168,7 +169,9 @@ export function AddShowsDialog({
   const refused = refusedShow(mutation.error, sent);
   const failure =
     refused && mutation.error
-      ? new Error(`${refused} could not be added: ${mutation.error.message}`)
+      ? new Error(
+          `${refused} could not be added: ${showRefusal(mutation.error)}`,
+        )
       : mutation.error;
   return (
     <WindowDialog title="Add shows" busy={mutation.pending} onClose={onClose}>
@@ -349,17 +352,31 @@ export function AddShowsDialog({
 
 /**
  * Names the show a refused batch names: by the refusal's `index`, or, for a
- * request the server's validation refused, by the `assignments[N]` path its
- * message cites.
+ * request the server's validation refused, by the `assignments[N]` path of
+ * the first field its details cite.
  */
 function refusedShow(
   error: Error | undefined,
   sent: readonly string[],
 ): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
+  const cited = refusedFields(error)
+    .map((field) => /^assignments\[(\d+)\]/.exec(field.path)?.[1])
+    .find((match) => match !== undefined);
   const index =
     typeof error.details.index === "number"
       ? error.details.index
-      : Number(/assignments\[(\d+)\]/.exec(error.message)?.[1]);
+      : Number(cited);
   return Number.isInteger(index) ? sent[index] : undefined;
+}
+
+/**
+ * Says why the named show could not be added. A member already on the
+ * lineup is worded here, where the lineup is the context; any other
+ * refusal takes its shared words, else the server's message.
+ */
+function showRefusal(error: Error): string {
+  if (error instanceof ApiError && error.code === "programming_member_assigned")
+    return "It is already in this channel's lineup.";
+  return refusalWords(error) ?? error.message;
 }

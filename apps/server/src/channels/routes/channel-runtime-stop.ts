@@ -44,11 +44,12 @@ export async function stopRuntime(
 }
 
 // Tells the client whether the change already saved, so a retry is understood
-// as finishing cleanup rather than repeating or reversing the change.
+// as finishing cleanup rather than repeating or reversing the change. The
+// channel is named only in details; the web app words this for the owner.
 function cleanupFailedMessage(stop: OperationStop): string {
   if (!stop.persistenceCommitted) {
-    return `Channel ${stop.channelId} stays disabled because its earlier runtime cleanup did not finish; retry to finish cleanup before enabling`;
+    return "The channel stays disabled because its earlier runtime cleanup did not finish; retry to finish cleanup before enabling";
   }
   const change = stop.operation === "disable" ? "disabled" : "deleted";
-  return `Channel ${stop.channelId} was ${change}, but its runtime cleanup did not finish; retry the ${stop.operation} to finish cleanup`;
+  return `The channel was ${change}, but its runtime cleanup did not finish; retry the ${stop.operation} to finish cleanup`;
 }

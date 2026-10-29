@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { displayClockTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
 import { RowMenu } from "../../controls/row-menu.js";
@@ -13,6 +12,7 @@ import { useMemberNames } from "../lineup/use-member-names.js";
 import type { Special } from "./contracts.js";
 import { EndEarlyDialog } from "./end-early-dialog.js";
 import { SpecialEditor } from "./special-editor.js";
+import { airtimeWords } from "./special-words.js";
 
 // Where a special stands, in the words its Status column shows.
 const STATUS_WORDS: Record<Special["status"], string> = {
@@ -20,12 +20,6 @@ const STATUS_WORDS: Record<Special["status"], string> = {
   running: "On air",
   ended: "Ended",
 };
-
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
 
 /**
  * The Specials tab: the channel's specials as a list saying when each airs,
@@ -252,15 +246,4 @@ export function SpecialsSection({
       )}
     </section>
   );
-}
-
-/**
- * Says when a special airs, such as `Sat, Oct 24 · 8:00 PM – 10:00 PM`,
- * naming the end's date too when it falls on another day.
- */
-function airtimeWords(special: Special): string {
-  const startDate = dateFormat.format(new Date(special.startsAt));
-  const endDate = dateFormat.format(new Date(special.endsAt));
-  const endClock = displayClockTime(special.endsAt);
-  return `${startDate} · ${displayClockTime(special.startsAt)} – ${startDate === endDate ? "" : `${endDate} `}${endClock}`;
 }

@@ -140,7 +140,11 @@ describe("GET /media-items", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({
-      error: { code: "invalid_request", message: expect.any(String) },
+      error: {
+        code: "invalid_request",
+        message: expect.any(String),
+        fields: expect.any(Array),
+      },
     });
   });
 
@@ -369,7 +373,11 @@ describe("GET /media-items/:id", () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.json()).toEqual({
-      error: { code: "media_item_not_found", message: expect.any(String) },
+      error: {
+        code: "media_item_not_found",
+        message: expect.any(String),
+        mediaItemId: "item-404",
+      },
     });
   });
 });

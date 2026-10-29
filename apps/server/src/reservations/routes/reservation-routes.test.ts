@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import { orderingChange } from "../../media-collections/maintenance/maintenance-writes.js";
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
@@ -224,6 +225,7 @@ describe("reservation routes", () => {
       body: () => itemsBody(at(60), ["nope"]),
       status: 400,
       code: "media_item_not_found",
+      details: { mediaItemIds: ["nope"] },
     },
     {
       name: "a collection without an explicit end",
@@ -251,8 +253,9 @@ describe("reservation routes", () => {
       }),
       status: 400,
       code: "media_collection_not_found",
+      details: { mediaCollectionId: "nope" },
     },
-  ])("refuses $name", async ({ body, status, code }) => {
+  ])("refuses $name", async ({ body, status, code, details }) => {
     const { server, db, movie } = await scheduled();
     const before = await readOnlyScheduleState(db);
 
@@ -264,7 +267,7 @@ describe("reservation routes", () => {
     );
 
     expect(refused.status).toBe(status);
-    expect(refused.body.error.code).toBe(code);
+    expectRefusal(refused.body, code, details ?? {});
     expect((await readOnlyScheduleState(db)).schedule_revision).toBe(
       before.schedule_revision,
     );
@@ -288,8 +291,7 @@ describe("reservation routes", () => {
     );
 
     expect(refused.status).toBe(409);
-    expect(refused.body.error).toMatchObject({
-      code: "reservation_media_unplayable",
+    expectRefusal(refused.body, "reservation_media_unplayable", {
       mediaItemIds: ["gone"],
     });
   });
@@ -322,11 +324,14 @@ describe("reservation routes", () => {
       itemsBody(at(100), [movie]),
     );
 
+    // The other reservation is named by ID and range in the details, so the
+    // web app can say which special by its time; the message carries no ID.
     for (const refused of [overlapping, moved]) {
       expect(refused.status).toBe(409);
-      expect(refused.body.error).toMatchObject({
-        code: "reservation_overlap",
+      expectRefusal(refused.body, "reservation_overlap", {
         reservationId: first.body.id,
+        startsAt: first.body.startsAt,
+        endsAt: first.body.endsAt,
       });
     }
   });
@@ -357,7 +362,12 @@ describe("reservation routes", () => {
     expect(started.status).toBe(409);
     expect(started.body.error.code).toBe("reservation_started");
     expect(elsewhere.status).toBe(404);
-    expect(elsewhere.body.error.code).toBe("reservation_not_found");
+    expect(elsewhere.body.error).toEqual({
+      code: "reservation_not_found",
+      message: "The channel has no such reservation",
+      channelId: "other",
+      reservationId: created.body.id,
+    });
   });
 
   it("airs a collection's programs that fit and consumes its progress across reservations", async () => {
@@ -588,8 +598,7 @@ describe("reservation routes: revision, progress, and history", () => {
       itemsBody(at(60), ["removed"]),
     );
 
-    expect(refused.body.error).toMatchObject({
-      code: "reservation_media_unplayable",
+    expectRefusal(refused.body, "reservation_media_unplayable", {
       mediaItemIds: ["removed"],
     });
   });

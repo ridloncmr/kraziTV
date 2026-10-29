@@ -106,14 +106,15 @@ it("disables the form while setup runs", async () => {
   expect(screen.getByLabelText("Your name").matches(":disabled")).toBe(true);
 });
 
-it("shows the server's invalid_request message", async () => {
+it("words the server's invalid_request by the field it names", async () => {
   const api = new BrowserApi();
   api.reply(
     "/auth/setup",
     {
       error: {
         code: "invalid_request",
-        message: "✖ displayName must be at most 40 characters",
+        message: "displayName: displayName must be at most 40 characters",
+        fields: [{ path: "displayName", code: "too_big" }],
       },
     },
     "POST",
@@ -122,7 +123,7 @@ it("shows the server's invalid_request message", async () => {
   const { onSetUp, onAlreadySetUp } = renderSetup(api);
   submitSetup("Marguerite", "correct horse");
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "✖ displayName must be at most 40 characters",
+    "Type a name of 1 to 40 characters.",
   );
   expect(onSetUp).not.toHaveBeenCalled();
   expect(onAlreadySetUp).not.toHaveBeenCalled();

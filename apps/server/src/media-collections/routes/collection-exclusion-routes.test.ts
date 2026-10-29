@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import { send } from "../../testing/api-requests.js";
 import { seedEpisodes } from "../../testing/collection-fixtures.js";
@@ -133,10 +134,15 @@ describe("collection exclusion routes", () => {
     );
 
     expect(manual.status).toBe(409);
-    expect(manual.body.error.code).toBe("media_collection_manual");
+    expectRefusal(manual.body, "media_collection_manual", {
+      mediaCollectionId: snapshot,
+    });
     expect(unknownItem.status).toBe(400);
     expect(unknownItem.body.error.code).toBe("media_item_not_found");
     expect(unknownCollection.status).toBe(404);
+    expectRefusal(unknownCollection.body, "media_collection_not_found", {
+      mediaCollectionId: "ghost",
+    });
     expect(await members(server, snapshot)).toEqual(["e1"]);
   });
 });

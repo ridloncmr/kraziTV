@@ -348,7 +348,7 @@ export class CatalogScanner {
       candidates,
       metadataMatches,
     });
-    if (commit.kind !== "committed") return rootRejected(root.id, commit);
+    if (commit.kind !== "committed") return rootRejected(commit);
     // Both log their own failures, so a completed commit is never reported
     // as failed. Purging first keeps the schedule pass from regenerating
     // around rows that are about to go.
@@ -418,7 +418,7 @@ export class CatalogScanner {
           : [{ id: item.id, record, read: item.read }];
       }),
     );
-    if (commit.kind !== "committed") return rootRejected(root.id, commit);
+    if (commit.kind !== "committed") return rootRejected(commit);
     return {
       phase: "completed",
       summary: {

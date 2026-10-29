@@ -25,7 +25,8 @@ export function sendAssignmentNotFound(
     reply,
     404,
     "programming_assignment_not_found",
-    `Channel ${channelId} has no programming assignment ${assignmentId}`,
+    "The channel has no such programming assignment",
+    { channelId, assignmentId },
   );
 }
 
@@ -39,7 +40,8 @@ export function sendNotAssigned(
     reply,
     404,
     "media_collection_not_assigned",
-    `Programming assignment ${assignmentId} on this channel does not play media collection ${mediaCollectionId}`,
+    "The programming assignment does not play that media collection",
+    { assignmentId, mediaCollectionId },
   );
 }
 
@@ -56,7 +58,7 @@ export function sendMemberRefused(
       reply,
       409,
       "programming_member_assigned",
-      `Programming assignment ${result.assignmentId} on this channel already plays that member`,
+      "Another programming assignment on this channel already plays that member",
       { ...details, member: result.member, assignmentId: result.assignmentId },
     );
   }
@@ -65,8 +67,8 @@ export function sendMemberRefused(
       reply,
       400,
       "media_collection_not_found",
-      `Media collection ${result.mediaCollectionId} does not exist`,
-      details,
+      "The media collection does not exist",
+      { ...details, mediaCollectionId: result.mediaCollectionId },
     );
   }
   return sendUnknownMediaItems(reply, [result.mediaItemId], details);

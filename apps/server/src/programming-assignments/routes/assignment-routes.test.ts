@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { send } from "../../testing/api-requests.js";
+import { expectRefusal } from "../../testing/refusal-details.js";
 import {
   collectionAssignment,
   itemAssignment,
@@ -155,7 +156,14 @@ describe("programming assignment routes", () => {
 
     const response = await send(server, "POST", ASSIGNMENTS_URL, body);
 
-    expect(response).toMatchObject({ status: 400, body: { error: { code } } });
+    expect(response.status).toBe(400);
+    expectRefusal(
+      response.body,
+      code,
+      code === "media_collection_not_found"
+        ? { mediaCollectionId: "missing" }
+        : { mediaItemIds: ["missing"] },
+    );
     await expect(
       db.selectFrom("programming_source_assignments").selectAll().execute(),
     ).resolves.toEqual([]);
@@ -282,15 +290,10 @@ describe("programming assignment routes", () => {
     );
 
     for (const response of [created, changed]) {
-      expect(response).toMatchObject({
-        status: 409,
-        body: {
-          error: {
-            code: "programming_member_assigned",
-            assignmentId: "assignment-001",
-            member: { kind: "collection", mediaCollectionId: COLLECTION_ID },
-          },
-        },
+      expect(response.status).toBe(409);
+      expectRefusal(response.body, "programming_member_assigned", {
+        assignmentId: "assignment-001",
+        member: { kind: "collection", mediaCollectionId: COLLECTION_ID },
       });
     }
     await expect(
@@ -319,16 +322,11 @@ describe("programming assignment routes", () => {
       ["assignment-001", "assignment-001"],
       ["assignment-001", "assignment-002", "missing"],
     ]) {
-      await expect(
-        send(server, "PUT", ORDER_URL, { assignmentIds }),
-      ).resolves.toMatchObject({
-        status: 409,
-        body: {
-          error: {
-            code: "programming_assignment_order_mismatch",
-            assignmentIds: ["assignment-002", "assignment-001"],
-          },
-        },
+      const response = await send(server, "PUT", ORDER_URL, { assignmentIds });
+      expect(response.status).toBe(409);
+      expectRefusal(response.body, "programming_assignment_order_mismatch", {
+        channelId: CHANNEL_ID,
+        assignmentIds: ["assignment-002", "assignment-001"],
       });
     }
     await expect(
@@ -560,7 +558,9 @@ describe("batch create", () => {
         assignments: bodies,
       });
 
-      expect(response).toMatchObject({ status, body: { error } });
+      expect(response.status).toBe(status);
+      const { code, ...details } = error;
+      expectRefusal(response.body, code, details);
       await expect(
         db.selectFrom("programming_source_assignments").select("id").execute(),
       ).resolves.toEqual([{ id: "assignment-001" }]);
@@ -820,19 +820,21 @@ describe("collection preview", () => {
     const { server } = await startServer();
     await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
 
-    await expect(send(server, "GET", PREVIEW_URL)).resolves.toMatchObject({
-      status: 404,
-      body: { error: { code: "media_collection_not_assigned" } },
+    const unplayed = await send(server, "GET", PREVIEW_URL);
+    expect(unplayed.status).toBe(404);
+    expectRefusal(unplayed.body, "media_collection_not_assigned", {
+      assignmentId: "assignment-001",
+      mediaCollectionId: COLLECTION_ID,
     });
-    await expect(
-      send(
-        server,
-        "GET",
-        `${ASSIGNMENTS_URL}/missing/preview?mediaCollectionId=${COLLECTION_ID}`,
-      ),
-    ).resolves.toMatchObject({
-      status: 404,
-      body: { error: { code: "media_collection_not_assigned" } },
+    const unknown = await send(
+      server,
+      "GET",
+      `${ASSIGNMENTS_URL}/missing/preview?mediaCollectionId=${COLLECTION_ID}`,
+    );
+    expect(unknown.status).toBe(404);
+    expectRefusal(unknown.body, "media_collection_not_assigned", {
+      assignmentId: "missing",
+      mediaCollectionId: COLLECTION_ID,
     });
     await expect(
       send(server, "GET", `${PREVIEW_URL}&playbackMode=shuffle`),
@@ -964,19 +966,17 @@ describe("progress reset", () => {
   it("refuses an unknown assignment, a collection it does not play, and a missing body", async () => {
     const { server } = await startServer();
 
-    await expect(
-      send(server, "POST", RESET_URL, RESET_BODY),
-    ).resolves.toMatchObject({
-      status: 404,
-      body: { error: { code: "media_collection_not_assigned" } },
-    });
-    await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
-    await expect(
-      send(server, "POST", RESET_URL, RESET_BODY),
-    ).resolves.toMatchObject({
-      status: 404,
-      body: { error: { code: "media_collection_not_assigned" } },
-    });
+    for (const assigned of [false, true]) {
+      if (assigned) {
+        await send(server, "POST", ASSIGNMENTS_URL, itemAssignment(ITEM_ID));
+      }
+      const response = await send(server, "POST", RESET_URL, RESET_BODY);
+      expect(response.status).toBe(404);
+      expectRefusal(response.body, "media_collection_not_assigned", {
+        assignmentId: "assignment-001",
+        mediaCollectionId: RESET_BODY.mediaCollectionId,
+      });
+    }
     await expect(send(server, "POST", RESET_URL)).resolves.toMatchObject({
       status: 400,
       body: { error: { code: "invalid_request" } },
@@ -1068,22 +1068,25 @@ describe("changing and deleting an assignment", () => {
   });
 
   it.each([
-    ["an unknown assignment", `${ASSIGNMENTS_URL}/missing`],
+    [
+      "an unknown assignment",
+      `${ASSIGNMENTS_URL}/missing`,
+      { channelId: CHANNEL_ID, assignmentId: "missing" },
+    ],
     [
       "another channel's assignment",
       "/channels/missing/programming-assignments/assignment-001",
+      { channelId: "missing", assignmentId: "assignment-001" },
     ],
-  ])("reports %s as not found", async (_, url) => {
+  ])("reports %s as not found", async (_, url, ids) => {
     const { server } = await startScheduled();
 
     const patched = await send(server, "PATCH", url, randomBody);
     const deleted = await send(server, "DELETE", url);
 
     for (const response of [patched, deleted]) {
-      expect(response).toMatchObject({
-        status: 404,
-        body: { error: { code: "programming_assignment_not_found" } },
-      });
+      expect(response.status).toBe(404);
+      expectRefusal(response.body, "programming_assignment_not_found", ids);
     }
   });
 
@@ -1098,9 +1101,9 @@ describe("changing and deleting an assignment", () => {
       collectionAssignment("missing"),
     );
 
-    expect(response).toMatchObject({
-      status: 400,
-      body: { error: { code: "media_collection_not_found" } },
+    expect(response.status).toBe(400);
+    expectRefusal(response.body, "media_collection_not_found", {
+      mediaCollectionId: "missing",
     });
     await expect(readSchedule(db)).resolves.toEqual(before);
   });
