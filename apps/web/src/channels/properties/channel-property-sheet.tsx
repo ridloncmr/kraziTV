@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import { TabbedPanel } from "../../controls/tabbed-panel/tabbed-panel.js";
 import type { ProgramId } from "../../desktop/contracts.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { GeneralTab } from "../identity/general-tab.js";

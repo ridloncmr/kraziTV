@@ -9,7 +9,7 @@ import {
   suggestMarathon,
   toStretchDraft,
   toStretchSetting,
-} from "../assignments/stretch-fields.js";
+} from "../stretch/stretch-fields.js";
 
 /** One show's settings as its Properties dialog edits them, before OK or Apply. */
 export interface ShowDraft {

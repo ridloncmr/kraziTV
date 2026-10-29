@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
-import { RowMenu } from "../../controls/row-menu.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import {
+  rowClickProps,
+  rowOpenProps,
+} from "../../controls/selection/row-click.js";
+import { RowMenu } from "../../controls/popups/row-menu.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { ProgramId } from "../../desktop/contracts.js";
 import type {
   MarathonSettings,
@@ -10,15 +13,12 @@ import type {
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
-import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
 import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import { AddShowsDialog } from "./add-shows-dialog.js";
 import { MarathonsControl } from "./marathons-control.js";
-import {
-  marathonLabel,
-  perSittingLabel,
-} from "../assignments/stretch-words.js";
+import { marathonLabel, perSittingLabel } from "../stretch/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
 import { assignmentShowLabel } from "./show-labels.js";
 import { useMemberNames } from "./use-member-names.js";

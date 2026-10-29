@@ -1,4 +1,7 @@
-import { displayClockTime, displayTime } from "../../controls/display-time.js";
+import {
+  displayClockTime,
+  displayTime,
+} from "../../controls/formatting/display-time.js";
 
 // The owner's words for specials: what a refusal asks them to change, and
 // how a special's airtime is named. The API says reservation; every sentence

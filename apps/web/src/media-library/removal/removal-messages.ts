@@ -1,4 +1,4 @@
-import { displayCount } from "../../controls/display-count.js";
+import { displayCount } from "../../controls/formatting/display-count.js";
 import { ApiError } from "../../http/api-error.js";
 import type {
   CatalogRemoval,

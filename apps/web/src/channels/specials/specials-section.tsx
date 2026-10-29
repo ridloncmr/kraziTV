@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
-import { RowMenu } from "../../controls/row-menu.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import {
+  rowClickProps,
+  rowOpenProps,
+} from "../../controls/selection/row-click.js";
+import { RowMenu } from "../../controls/popups/row-menu.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "../assignments/playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
 import { listNames } from "../lineup/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import type { Special } from "./contracts.js";

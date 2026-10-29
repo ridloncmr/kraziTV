@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { displayCount } from "../../controls/display-count.js";
-import { fileName } from "../../controls/file-name.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { SegmentedProgressBar } from "../../controls/segmented-progress-bar.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayCount } from "../../controls/formatting/display-count.js";
+import { fileName } from "../../controls/formatting/file-name.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { SegmentedProgressBar } from "../../controls/segmented-progress-bar/segmented-progress-bar.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { apiRequest } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";

@@ -101,14 +101,17 @@ export function checkFolderNames(files) {
 
 /**
  * Nesting beyond `src/<domain>/<capability>/` needs a capability that meets
- * the grouping rule; a kind folder may sit inside any capability.
+ * the grouping rule. A kind folder may sit one level inside a capability;
+ * below a nested capability it gets the same review, because the reviewer
+ * has to judge the capability that holds it.
  */
 export function checkNestingDepth(files) {
   const deep = new Set();
   for (const file of files) {
     if (isTestingFile(file)) continue;
     const segments = folderSegments(file.srcPath);
-    if (segments.length > 2 && !isKindFolder(segments)) {
+    const kindInCapability = segments.length === 3 && isKindFolder(segments);
+    if (segments.length > 2 && !kindInCapability) {
       deep.add(`${file.workspace}/src/${segments.join("/")}/`);
     }
   }

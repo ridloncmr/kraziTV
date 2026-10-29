@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Tooltip } from "../controls/tooltip.js";
+import { Tooltip } from "../controls/popups/tooltip.js";
 import {
   isReminderDue,
   snoozeReminder,

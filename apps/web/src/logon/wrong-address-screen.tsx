@@ -1,4 +1,4 @@
-import { SettingLocation } from "../controls/setting-location.js";
+import { SettingLocation } from "../controls/setting-location/setting-location.js";
 import type { WrongAddress } from "../http/contracts/auth.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 

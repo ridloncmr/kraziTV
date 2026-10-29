@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { usePropertiesList } from "../desktop/windows/use-properties-list.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import type {

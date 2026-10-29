@@ -1,6 +1,6 @@
 import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
-import { displayTimeRange } from "../../controls/display-time.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayTimeRange } from "../../controls/formatting/display-time.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { Channel, GuideProgram } from "../../http/contracts/channels.js";
 import { episodeCode } from "./program-words.js";
 

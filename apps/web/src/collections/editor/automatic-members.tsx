@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { displayDuration } from "../../controls/display-duration.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { displayDuration } from "../../controls/formatting/display-duration.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type {
   CollectionMember,
   ExcludedItem,

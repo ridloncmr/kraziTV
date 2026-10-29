@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { displayCount } from "../../controls/display-count.js";
+import { displayCount } from "../../controls/formatting/display-count.js";
 import {
   CatalogFilterDialog,
   keysInUse,
 } from "../../catalog-filter/catalog-filter-dialog.js";
-import { displayDuration } from "../../controls/display-duration.js";
-import { Pager } from "../../controls/pager.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { useRangeToggle } from "../../controls/use-range-toggle.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayDuration } from "../../controls/formatting/display-duration.js";
+import { Pager } from "../../controls/pager/pager.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type {
   MediaFilter,
   MediaItem,

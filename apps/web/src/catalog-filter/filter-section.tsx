@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { displayCount } from "../controls/display-count.js";
+import { displayCount } from "../controls/formatting/display-count.js";
 
 /** One value a filter section offers: what the server receives and what the owner reads. */
 export interface FilterOption {

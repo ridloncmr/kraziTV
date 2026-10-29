@@ -255,10 +255,10 @@ stretch fields in the rule form use the same per-sitting presets with
 - Marathon presets map to existing `MarathonSettings` values.
 - The assignment-order endpoint stays in the server; the web app stops calling
   it. New assignments append in creation order.
-- The capability folders under `apps/web/src/channels/` (`assignments/`,
-  `programming/`, `rules/`, `specials/`) are regrouped as the source-layout
-  rule requires once the new files land; for example a `lineup/` capability
-  for the list, add dialog, and properties dialog.
+- `apps/web/src/channels/` is grouped by capability as the source-layout rule
+  requires: `identity/`, `properties/`, `lineup/` (the list, add dialog, and
+  show properties dialog), `members/`, `stretch/`, `collection-preview/`,
+  `preview/`, `rules/`, and `specials/`.
 
 ## Data Model Impact
 

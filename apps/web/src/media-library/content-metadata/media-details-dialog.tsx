@@ -1,8 +1,8 @@
 import { Fragment, useState } from "react";
 import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
-import { displayTime } from "../../controls/display-time.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayTime } from "../../controls/formatting/display-time.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts/media.js";
 import type { TrackFolder } from "../../http/contracts/metadata.js";

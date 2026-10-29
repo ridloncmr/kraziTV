@@ -9,7 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { displayClockTime } from "../controls/display-time.js";
+import { displayClockTime } from "../controls/formatting/display-time.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import {
   adminFixtures,

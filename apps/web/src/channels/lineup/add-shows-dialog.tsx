@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { ProgramId } from "../../desktop/contracts.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
@@ -20,15 +20,15 @@ import {
   type FoundMember,
   memberKey,
 } from "../../media-search/collection-or-item-search.js";
-import { PerSittingField } from "../assignments/per-sitting-field.js";
-import { PlayOrderField } from "../assignments/play-order-field.js";
+import { PerSittingField } from "../stretch/per-sitting-field.js";
+import { PlayOrderField } from "../members/play-order-field.js";
 import {
   isStretchComplete,
   type StretchDraft,
   toStretchDraft,
   toStretchSetting,
   UNCHOSEN_STRETCH,
-} from "../assignments/stretch-fields.js";
+} from "../stretch/stretch-fields.js";
 import { suggestionPath } from "./show-draft.js";
 import { joinShowNames, showLabel } from "./show-labels.js";
 

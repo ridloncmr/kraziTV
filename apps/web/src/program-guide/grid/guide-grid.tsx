@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   displayClockTime,
   displayShortDay,
-} from "../../controls/display-time.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+} from "../../controls/formatting/display-time.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type { ProgramId } from "../../desktop/contracts.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { useRefreshScope } from "../../http/resources/refresh-scope.js";

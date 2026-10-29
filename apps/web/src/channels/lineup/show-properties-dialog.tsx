@@ -1,10 +1,10 @@
 import { useId, useRef, useState } from "react";
 import type { ProgramId } from "../../desktop/contracts.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
-import { CheckboxOption } from "../../controls/checkbox-option.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { TabbedPanel } from "../../controls/tabbed-panel.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { TabbedPanel } from "../../controls/tabbed-panel/tabbed-panel.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   AssignmentMember,
@@ -13,15 +13,15 @@ import type {
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
-import { CollectionPreviewSection } from "../assignments/collection-preview-section.js";
-import { MemberRows } from "../assignments/member-rows.js";
-import { PlayOrderField } from "../assignments/play-order-field.js";
+import { CollectionPreviewSection } from "../collection-preview/collection-preview-section.js";
+import { MemberRows } from "../members/member-rows.js";
+import { PlayOrderField } from "../members/play-order-field.js";
 import {
   isStretchComplete,
   StretchFields,
   suggestMarathon,
   toStretchSetting,
-} from "../assignments/stretch-fields.js";
+} from "../stretch/stretch-fields.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
 import {
   changesProgramming,
@@ -31,8 +31,8 @@ import {
   toSettings,
   toShowDraft,
 } from "./show-draft.js";
-import { PerSittingField } from "../assignments/per-sitting-field.js";
-import { marathonLabel } from "../assignments/stretch-words.js";
+import { PerSittingField } from "../stretch/per-sitting-field.js";
+import { marathonLabel } from "../stretch/stretch-words.js";
 import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
 import { joinShowNames } from "./show-labels.js";
 

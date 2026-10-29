@@ -3,7 +3,7 @@ import { DesktopProgramIcon } from "../branding/icons/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
-import { Tooltip } from "../controls/tooltip.js";
+import { Tooltip } from "../controls/popups/tooltip.js";
 import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";

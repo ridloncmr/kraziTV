@@ -10,8 +10,8 @@ import {
 import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
 import { ProgramIcon } from "../../branding/icons/program-icon.js";
 import type { DesktopWindow, WindowAction, WindowId } from "../contracts.js";
-import { Tooltip } from "../../controls/tooltip.js";
-import { usePopupDismissal } from "../../controls/use-popup-dismissal.js";
+import { Tooltip } from "../../controls/popups/tooltip.js";
+import { usePopupDismissal } from "../../controls/popups/use-popup-dismissal.js";
 import { programOf } from "../programs.js";
 import { StartMenu } from "./start-menu.js";
 

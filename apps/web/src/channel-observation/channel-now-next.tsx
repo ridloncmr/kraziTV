@@ -1,4 +1,4 @@
-import { displayClockTime } from "../controls/display-time.js";
+import { displayClockTime } from "../controls/formatting/display-time.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";

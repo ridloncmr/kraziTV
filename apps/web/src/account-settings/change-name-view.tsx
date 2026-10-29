@@ -1,5 +1,5 @@
 import { displayNameRefusal } from "../account-fields/display-name-refusal.js";
-import { formText } from "../controls/form-text.js";
+import { formText } from "../controls/formatting/form-text.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import { AccountTaskForm } from "./account-task-form.js";
 import { useAccountTask } from "./use-account-task.js";

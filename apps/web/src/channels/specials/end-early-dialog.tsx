@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { displayTime } from "../../controls/display-time.js";
-import { fromLocalInput } from "../../controls/local-instant.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayTime } from "../../controls/formatting/display-time.js";
+import { fromLocalInput } from "../../controls/formatting/local-instant.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { useMutation } from "../../http/resources/use-resource.js";
 import type { Special } from "./contracts.js";
 

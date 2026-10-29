@@ -1,8 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { fromLocalInput, toLocalInput } from "../../controls/local-instant.js";
-import { CheckboxOption } from "../../controls/checkbox-option.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import {
+  fromLocalInput,
+  toLocalInput,
+} from "../../controls/formatting/local-instant.js";
+import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
