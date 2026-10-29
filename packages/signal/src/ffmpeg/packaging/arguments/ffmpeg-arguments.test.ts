@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SignalError } from "../../errors.js";
-import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
+import { SignalError } from "../../../errors.js";
+import type { SignalPlayoutItem } from "../../../signal-packager/contracts.js";
 import {
   buildFfmpegArguments,
   buildStandInArguments,

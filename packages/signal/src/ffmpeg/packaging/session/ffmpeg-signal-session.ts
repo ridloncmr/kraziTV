@@ -1,32 +1,27 @@
 import { PassThrough, type Readable } from "node:stream";
 
-import { packagingStoppedError, toSignalError } from "../../errors.js";
+import { packagingStoppedError, toSignalError } from "../../../errors.js";
 import type {
   SignalPlayoutItem,
   SignalPreparation,
   SignalSession,
-} from "../../signal-packager/contracts.js";
-import type { ScheduledTask, TimerScheduler } from "../../runtime/clock.js";
-import { RetryableAttempt } from "../../runtime/retryable-attempt.js";
-import type { LogContext, SignalLogger } from "../../runtime/signal-logger.js";
-import { MpegTsContinuity } from "../mpeg-ts/mpeg-ts-continuity.js";
-import { MpegTsPacketForwarder } from "../mpeg-ts/mpeg-ts-packet-forwarder.js";
-import { MpegTsRejoinGate } from "../mpeg-ts/mpeg-ts-rejoin-gate.js";
-import { MpegTsTimestamps } from "../mpeg-ts/mpeg-ts-timestamps.js";
-import type { OutputReadinessInspector, PacketSink } from "../contracts.js";
-import type { FfmpegProcess } from "../process/ffmpeg-process.js";
-import {
-  FfmpegSignalPreparation,
-  type PreparationOwner,
-} from "./ffmpeg-signal-preparation.js";
+} from "../../../signal-packager/contracts.js";
+import type { ScheduledTask, TimerScheduler } from "../../../runtime/clock.js";
+import { RetryableAttempt } from "../../../runtime/retryable-attempt.js";
+import type { SignalLogger } from "../../../runtime/signal-logger.js";
+import { MpegTsContinuity } from "../../mpeg-ts/mpeg-ts-continuity.js";
+import { MpegTsRejoinGate } from "../../mpeg-ts/mpeg-ts-rejoin-gate.js";
+import { MpegTsTimestamps } from "../../mpeg-ts/mpeg-ts-timestamps.js";
+import type { OutputReadinessInspector } from "../../contracts.js";
+import type { FfmpegProcess } from "../../process/ffmpeg-process.js";
+import { FfmpegSignalPreparation } from "./ffmpeg-signal-preparation.js";
 import { HeldOutput } from "./held-output.js";
 import { failureSummary, itemContext } from "./item-log-context.js";
+import { outputStalled, preparedOutputOverflow } from "./packaging-errors.js";
 import {
-  itemReadinessTimeout,
-  outputStalled,
-  prematureExit,
-  preparedOutputOverflow,
-} from "./packaging-errors.js";
+  ProcessBinding,
+  type ProcessBindingEvents,
+} from "./process-binding.js";
 
 /**
  * How long a prepared program's media check may take before its FFmpeg
@@ -34,30 +29,6 @@ import {
  * preparation, so an unanswered check means FFmpeg itself finds out.
  */
 const MEDIA_CHECK_TIMEOUT_MS = 2_000;
-
-/** One FFmpeg process the session owns and how its output reaches the session. */
-type ProcessBinding = {
-  process: FfmpegProcess;
-  /** The item it serves, which a stand-in replacing it serves too. */
-  item: SignalPlayoutItem;
-  /** Whether it is a stand-in, which nothing replaces in turn. */
-  standIn: boolean;
-  forwarder: MpegTsPacketForwarder;
-  /** Where a prepared process's output waits for its commit; none once live. */
-  held: HeldOutput | undefined;
-  context: LogContext;
-  /** Whether the process feeds the broadcast yet; a prepared one does not. */
-  committed: boolean;
-  /** Set once the worker discarded the preparation, so a late end means nothing. */
-  discarded: boolean;
-  /** Why the process ended or stayed silent before its commit, which that commit reports. */
-  failure?: unknown;
-  cancelReadiness(): void;
-  /** Starts watching for silence, which counts only once it airs usable output. */
-  watchForStall(): void;
-  /** Stops the silence timer, once the process no longer airs. */
-  cancelStallWatch(): void;
-};
 
 /** The next item, held from its prepare until its commit or discard. */
 type PreparedItem = {
@@ -88,7 +59,7 @@ type FfmpegSignalSessionOptions = {
 };
 
 /** Owns one stable output while sequential FFmpeg processes serve its items. */
-export class FfmpegSignalSession implements SignalSession, PreparationOwner {
+export class FfmpegSignalSession implements SignalSession {
   readonly output: Readable;
   readonly ready: Promise<void>;
   readonly completion: Promise<void>;
@@ -117,6 +88,13 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   private checkingMedia = false;
   /** A stalled item set aside behind its stand-in, in case it writes again. */
   private suspended: ProcessBinding | undefined;
+  /** How the session hears from every process it binds. */
+  private readonly bindingEvents: ProcessBindingEvents = {
+    onReady: (binding) => this.itemReady(binding),
+    onExited: (binding) => this.itemExited(binding),
+    onFailed: (binding, error) => this.itemFailed(binding, error),
+    onStalled: (binding) => this.itemStalled(binding),
+  };
 
   /** Attaches the initial FFmpeg process before exposing the session-owned stream. */
   constructor(
@@ -139,7 +117,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       process,
       initialItem,
       options.initialReadinessInspector,
-      this.packetOutput,
       undefined,
     );
   }
@@ -181,7 +158,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
         process,
         item,
         this.options.createReadinessInspector(),
-        held,
         held,
         !present,
       ),
@@ -227,12 +203,9 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     this.suspended = undefined;
     if (suspended !== undefined) this.retire(suspended);
     if (binding.failure === undefined) {
-      binding.committed = true;
       this.active = binding;
       this.packetOutput.splice();
-      binding.held?.release(this.packetOutput);
-      binding.held = undefined;
-      binding.watchForStall();
+      binding.commit(this.packetOutput);
     } else if (binding.standIn) {
       const failure = toSignalError(
         binding.failure,
@@ -257,157 +230,103 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     preparation: FfmpegSignalPreparation,
   ): Promise<void> {
     const prepared = this.currentPreparation(preparation);
-    const { binding } = prepared;
-    binding.discarded = true;
-    binding.cancelReadiness();
-    binding.forwarder.detach();
-    binding.held?.discard();
-    await binding.process.stop();
+    prepared.binding.discarded = true;
+    await prepared.binding.release((error) => {
+      throw error;
+    });
     if (this.preparation === prepared) this.preparation = undefined;
   }
 
   /**
-   * Attaches packet forwarding to `sink` and observes one FFmpeg process as
-   * session-internal, judging its readiness with `inspector`. A live process
-   * settles the session's readiness. A prepared one, holding its output in
-   * `held`, must produce usable output within the readiness timeout of its
-   * start; a failure before its commit is kept for that commit to handle, and
-   * one while airing brings in a stand-in. So does an airing process that
-   * falls silent after usable output, hung or finished early, since only
-   * the next commit may end an item's airtime; one still running is set
-   * aside rather than stopped, in case it writes again (ADR 0020).
+   * Binds one FFmpeg process as session-internal, judging its readiness with
+   * `inspector`. A live process feeds the broadcast; a prepared one holds its
+   * output in `held` and, like a stand-in, must produce usable output within
+   * the readiness timeout of its start. The first process has the worker's
+   * startup timeout instead.
    */
   private attach(
     process: FfmpegProcess,
     item: SignalPlayoutItem,
     inspector: OutputReadinessInspector,
-    sink: PacketSink,
     held: HeldOutput | undefined,
     standIn = false,
   ): ProcessBinding {
-    const forwarder = new MpegTsPacketForwarder(process.output, sink);
-    const context = itemContext(item);
-    let usableOutputSeen = false;
-    let readinessTimer: ScheduledTask | undefined;
-    let stallTimer: ScheduledTask | undefined;
-    const inspect = (chunk: Buffer | Uint8Array | string): void => {
-      const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
-      if (!inspector.observe(bytes)) return;
-
-      usableOutputSeen = true;
-      cancelReadiness();
-      if (held === undefined) {
-        if (!this.readySettled) {
-          this.options.logger.info("signal_initial_output_ready", context);
-        }
-        this.settleReadySuccessfully();
-      } else {
-        this.options.logger.info("signal_prepared_item_ready", context);
-      }
-    };
-    const cancelReadiness = (): void => {
-      process.output.off("data", inspect);
-      readinessTimer?.cancel();
-      readinessTimer = undefined;
-    };
-    // Restarted by every chunk. A process that exits keeps its timer, so
-    // media ending early is caught; a process that no longer airs, or a
-    // session that is ending, arms none, though FFmpeg flushes as it stops.
-    const watchForStall = (): void => {
-      cancelStallWatch();
-      if (
-        !usableOutputSeen ||
-        !binding.committed ||
-        binding !== this.active ||
-        this.stopping ||
-        this.completionSettled
-      ) {
-        return;
-      }
-      stallTimer = this.options.timers.setTimeout(
-        stalled,
-        this.options.outputStallTimeoutMs,
-      );
-    };
-    const cancelStallWatch = (): void => {
-      stallTimer?.cancel();
-      stallTimer = undefined;
-    };
-    // A silent stand-in ends the session. A silent item airs one, and is
-    // set aside while its process lives, since a slow read may recover.
-    const stalled = (): void => {
-      stallTimer = undefined;
-      if (binding !== this.active) return;
-      if (binding.standIn) this.fail(outputStalled());
-      else {
-        this.replaceWithStandIn(
-          binding,
-          outputStalled(),
-          this.bindings.has(process),
-        );
-      }
-    };
-    const binding: ProcessBinding = {
+    const binding = new ProcessBinding({
       process,
       item,
       standIn,
-      forwarder,
       held,
-      context,
-      committed: held === undefined,
-      discarded: false,
-      cancelReadiness,
-      watchForStall,
-      cancelStallWatch,
-    };
-    // A failure while the process feeds the broadcast brings in a stand-in,
-    // and one of the stand-in itself ends the session; a process already
-    // replaced no longer matters. Before its commit a failure is kept for that
-    // commit, and the process is stopped, while the airing item plays on; a
-    // discarded preparation reports nothing.
-    const failed = (error: unknown): void => {
-      cancelReadiness();
-      cancelStallWatch();
-      process.output.off("data", watchForStall);
-      if (binding.committed) {
-        if (binding !== this.active) return;
-        if (binding.standIn) this.fail(error);
-        else this.replaceWithStandIn(binding, error);
-        return;
-      }
-      if (binding.discarded || binding.failure !== undefined) return;
-      binding.failure = error;
-      forwarder.detach();
-      binding.held?.discard();
-      void process.stop().catch(() => undefined);
-    };
+      output: this.packetOutput,
+      inspector,
+      timers: this.options.timers,
+      readinessTimeoutMs:
+        held !== undefined || standIn
+          ? this.options.itemReadinessTimeoutMs
+          : undefined,
+      stallTimeoutMs: this.options.outputStallTimeoutMs,
+      events: this.bindingEvents,
+    });
     this.bindings.set(process, binding);
-    process.output.on("data", inspect);
-    process.output.on("data", watchForStall);
-    // The first process has the worker's startup timeout instead.
-    if (held !== undefined || standIn) {
-      readinessTimer = this.options.timers.setTimeout(
-        () => failed(itemReadinessTimeout()),
-        this.options.itemReadinessTimeoutMs,
+    return binding;
+  }
+
+  /**
+   * A live process's first usable output makes the session ready for its
+   * first viewer; a prepared one's is only logged, since its commit decides.
+   */
+  private itemReady(binding: ProcessBinding): void {
+    if (binding.prepared) {
+      this.options.logger.info("signal_prepared_item_ready", binding.context);
+      return;
+    }
+    if (!this.readySettled) {
+      this.options.logger.info("signal_initial_output_ready", binding.context);
+    }
+    this.settleReadySuccessfully();
+  }
+
+  /** Forgets an ended process, which nothing needs to stop or bring back now. */
+  private itemExited(binding: ProcessBinding): void {
+    this.bindings.delete(binding.process);
+    if (this.suspended === binding) this.suspended = undefined;
+  }
+
+  /**
+   * A failure while the process feeds the broadcast brings in a stand-in,
+   * and one of the stand-in itself ends the session; a process already
+   * replaced no longer matters, nor does any failure once the session is
+   * ending. Before its commit a failure is kept for that commit, and the
+   * process is stopped, while the airing item plays on; a discarded
+   * preparation reports nothing (ADR 0020).
+   */
+  private itemFailed(binding: ProcessBinding, error: unknown): void {
+    if (binding.committed) {
+      if (binding !== this.active) return;
+      if (binding.standIn) this.fail(error);
+      else this.replaceWithStandIn(binding, error);
+      return;
+    }
+    if (binding.discarded || binding.failure !== undefined) return;
+    binding.failure = error;
+    void binding.release(() => undefined);
+  }
+
+  /**
+   * A silent stand-in ends the session. A silent item airs one, hung or
+   * finished early, since only the next commit may end an item's airtime;
+   * one whose process still runs is set aside rather than stopped, since a
+   * slow read may recover (ADR 0020).
+   */
+  private itemStalled(binding: ProcessBinding): void {
+    if (binding !== this.active) return;
+    if (binding.standIn) this.fail(outputStalled());
+    else {
+      this.replaceWithStandIn(
+        binding,
+        outputStalled(),
+        this.bindings.has(binding.process),
       );
     }
-    const release = (): void => {
-      cancelReadiness();
-      process.output.off("data", watchForStall);
-      this.bindings.delete(process);
-      if (this.suspended === binding) this.suspended = undefined;
-    };
-    void process.completion.then(
-      () => {
-        release();
-        if (!usableOutputSeen && !this.stopping) failed(prematureExit());
-      },
-      (error: unknown) => {
-        release();
-        failed(error);
-      },
-    );
-    return binding;
   }
 
   /**
@@ -423,15 +342,14 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
     resumable = false,
   ): void {
     if (this.stopping || this.completionSettled) return;
-    failed.cancelStallWatch();
     if (resumable) {
+      failed.cancelStallWatch();
       this.suspended = failed;
       failed.forwarder.redirect(
         new MpegTsRejoinGate((packets) => this.resume(failed, packets)),
       );
     } else {
-      failed.forwarder.detach();
-      void failed.process.stop().catch(() => undefined);
+      void failed.release(() => undefined);
     }
     this.options.logger.warn("signal_item_replaced_by_stand_in", {
       ...failed.context,
@@ -449,7 +367,6 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
       process,
       failed.item,
       this.options.createReadinessInspector(),
-      this.packetOutput,
       undefined,
       true,
     );
@@ -476,15 +393,11 @@ export class FfmpegSignalSession implements SignalSession, PreparationOwner {
   }
 
   /**
-   * Takes a process off the broadcast for good: its timers stop, its
-   * finished packets go out, and it is stopped, a failure of which ends the
-   * session like any cleanup failure.
+   * Takes a process off the broadcast for good; a failure to stop it ends
+   * the session like any cleanup failure.
    */
   private retire(binding: ProcessBinding): void {
-    binding.cancelReadiness();
-    binding.cancelStallWatch();
-    binding.forwarder.detach();
-    void binding.process.stop().catch((error: unknown) => this.fail(error));
+    void binding.release((error) => this.fail(error));
   }
 
   /**
