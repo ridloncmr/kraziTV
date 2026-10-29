@@ -13,6 +13,7 @@ import type { ChannelRepository } from "../channels/repository/channel-repositor
 import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
 import type { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { guidePrograms } from "../schedules/guide/guide-program.js";
+import type { SchedulePreview } from "../schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import { offAirProgramme, xmltvProgramme } from "./xmltv-programme.js";
 
@@ -40,6 +41,7 @@ export function registerPlexRoutes(
   server: FastifyInstance,
   channels: ChannelRepository,
   schedules: ScheduleService,
+  schedulePreview: SchedulePreview,
   mediaItems: MediaItemRepository,
   settings: PlexSettings,
 ): void {
@@ -98,7 +100,7 @@ export function registerPlexRoutes(
       // Any outcome still reads the window: an unschedulable channel keeps
       // listing entries generated before it became unschedulable.
       await schedules.ensureCoverage(channel.id, request.log);
-      const { entries, fillerIntervals } = await schedules.readWindow(
+      const { entries, fillerIntervals } = await schedulePreview.readWindow(
         channel.id,
         start,
         end,

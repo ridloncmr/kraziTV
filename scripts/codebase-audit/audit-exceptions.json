@@ -106,6 +106,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/server/src/schedules/persistence/"],
+      "reason": "Every file serves one capability, schedule persistence through the caller's executor: schedule entries and state, generated blocks, collection progress, the assignment sources generation reads, and programming-inputs.ts, which gathers them for kraziPlan for both the writer and previews.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/web/src/collections/editor/"],
       "reason": "Every file serves one capability, the collection editor: the manual draft order with its catalog picker and member list, the automatic read-only members with their exclusions and conversion to manual, and the missing-member label their rows show.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
@@ -139,7 +145,7 @@
     {
       "rule": "file-size",
       "files": ["apps/server/src/schedules/schedule-service.ts"],
-      "reason": "Reviewed in the 2026-10-02 and 2026-10-17 audits: the class reads as its schedule transitions; pure checks and persistence live in schedule-coverage.ts, persistence/, and reservations/persistence/preview-settings.ts.",
+      "reason": "Reviewed in the 2026-10-02 and 2026-10-17 audits and again for POLISH-022: after windows and previews moved to preview/schedule-preview.ts and loadProgrammingInputs to persistence/programming-inputs.ts, the file holds only the schedule writer, whose ensure, regenerate, input-change, interrupt, rebuild, extend, and write-chunk transitions share its clock, IDs, hooks, and write authority; pure checks live in schedule-coverage.ts.",
       "source": "AGENTS.md (file composition: \"Judge the result by whether the class reads as its transitions, not by line count\")"
     },
     {

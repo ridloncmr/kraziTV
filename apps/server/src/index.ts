@@ -24,6 +24,7 @@ import { toSignalLogger } from "./channels/runtime/signal-log.js";
 import { AssignmentRepository } from "./programming-assignments/persistence/assignment-repository.js";
 import { RuleRepository } from "./programming-rules/rule-repository.js";
 import { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
+import { SchedulePreview } from "./schedules/preview/schedule-preview.js";
 import { ScheduleService } from "./schedules/schedule-service.js";
 import { PlayoutService } from "./playout/playout-service.js";
 import { CatalogScanWriter } from "./catalog-scan/writer/catalog-scan-writer.js";
@@ -82,6 +83,12 @@ const assignments = new AssignmentRepository(database.db);
 const rules = new RuleRepository(database.db);
 const reservations = new ReservationRepository(database.db);
 const schedules = new ScheduleService(database.db, { programmingTimezone });
+// Reads on the writer's clock and timezone, so previews match what it writes.
+const schedulePreview = new SchedulePreview(
+  database.db,
+  () => schedules.now(),
+  programmingTimezone,
+);
 const playout = new PlayoutService(database.db, schedules);
 
 // Every writer of facts automatic collections match on asks this one
@@ -189,6 +196,7 @@ const server = buildServer(
     rules,
     reservations,
     schedules,
+    schedulePreview,
     playout,
   },
   {
