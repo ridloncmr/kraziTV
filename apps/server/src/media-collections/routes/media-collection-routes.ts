@@ -205,18 +205,28 @@ export function registerMediaCollectionRoutes(
     return members.map(toApiMediaCollectionMember);
   });
 
-  // The browser displays eligibility; kraziBrain alone owns its duration/status policy.
+  // The browser displays eligibility; kraziBrain alone owns its duration/status
+  // policy. The two causes it can word are counted in the same pass: a missing
+  // file, or an available one below the duration floor. A member whose probe
+  // failed is in neither.
   server.get("/media-collections/:id/status", async (request, reply) => {
     const { id } = idParams.parse(request.params);
     const members = await mediaCollections.listMembers(id);
     if (members === undefined) return sendCollectionNotFound(reply, id);
-    const schedulableCount = members.filter((member) =>
-      isSchedulableMedia(member),
-    ).length;
+    let schedulableCount = 0;
+    let missingCount = 0;
+    let tooShortCount = 0;
+    for (const member of members) {
+      if (isSchedulableMedia(member)) schedulableCount += 1;
+      else if (member.status === "missing") missingCount += 1;
+      else if (member.status === "available") tooShortCount += 1;
+    }
     return {
       schedulable: schedulableCount > 0,
       memberCount: members.length,
       schedulableCount,
+      missingCount,
+      tooShortCount,
     };
   });
 
