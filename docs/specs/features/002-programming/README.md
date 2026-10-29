@@ -15,16 +15,16 @@ materialized from blocks, and playback progress is tracked per channel,
 collection, and playback mode.
 
 Source and executable tests describe current behavior. Accepted ADRs remain
-architectural constraints; the specs below propose new behavior and identify
-decisions that must be resolved before implementation. This feature extends the
-MVP rather than redefining its completed specs.
+architectural constraints; the specs below record the intent each capability
+was built from. This feature extends the MVP rather than redefining its
+completed specs.
 
 ## Related Specs
 
-Each spec owns its purpose, scope, non-goals, dependencies, proposed policy, open
+Each spec owns its purpose, scope, non-goals, dependencies, policy, open
 questions, architecture impact, and acceptance criteria. Spec status appears only
-in its own `Status:` line. Detailed implementation tickets belong in
-`docs/implementation_plan/` once product and architecture decisions are resolved.
+in its own `Status:` line. Implementation tickets live in
+`docs/implementation_plan/`.
 
 | Spec                                                                                           | Capability                                                                       |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -61,26 +61,20 @@ implementation. Detailed delivery sequencing belongs in the implementation plans
 - kraziPlan writes programming blocks; it never writes schedule entries
   directly.
 - Saved user overrides take precedence over generated blocks.
-- Regenerating an edited block replaces only its own future entries and never
-  the entry currently airing.
+- Regeneration starts at the regeneration boundary, so it never alters the
+  playout item currently airing; editing a reservation regenerates ordinary
+  programming from there, per the 2026-10-16 amendment.
 - How a collection was built is invisible to blocks and channels; every
   collection is consumed as an ordered list of media items.
 
-## Decisions Required Before Implementation
+## Resolved Decisions
 
-- Manual edits can change downstream durations or selection progress. Spec 0007
-  requires a resolution of ADR 0009's localized-regeneration constraint before
-  implementing broader reflow.
-- Exact boundaries introduce intentional non-guide intervals and richer playout
-  cursors. Spec 0006 requires coherent coverage and revision semantics rather than
-  treating those intervals as accidental schedule gaps.
+- Exact boundaries, filler, and their coverage and revisions: [ADR 0014](../../../adrs/0014-planned-filler-coverage.md).
+- Manual programming's interruption: [ADR 0015](../../../adrs/0015-scheduled-interruption.md); its downstream reflow: [ADR 0009](../../../adrs/0009-programming-blocks.md)'s 2026-10-16 amendment.
 
 ## Release Scope And Deferred Work
 
-Proposed first richer-programming release: metadata, recommendations, ordering,
-multi-source programming, and recurring rules. Include specs 0006 and 0007 together
-if exact-time specials are required for that release. The meaning and scope of
-"1.0" still need a product decision; this is not a change to the original MVP goal.
+The 1.0 release is scoped by the [release-polish feature](../004-release-polish/README.md).
 
 Commercials, bumpers, station identification, promos, and seasonal presentation
 belong in a separate future feature. kraziBrain owns their selection and timing
@@ -91,6 +85,4 @@ editing, scheduled rescans, and media acquisition.
 
 ## Open Questions
 
-The capability-specific questions live in each spec. Review those proposals before
-accepting them; drafting a spec does not approve its open product choices or amend
-an accepted ADR.
+Capability-specific open questions live in each spec.

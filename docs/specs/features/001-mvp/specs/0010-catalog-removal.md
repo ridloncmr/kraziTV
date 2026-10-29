@@ -30,7 +30,7 @@ assume catalog rows are permanent:
   referenced by that channel's schedule history.
 - The playout queries inner-join schedule entries to media items because
   "production never deletes media items"
-  ([playout-repository.ts](../../../../../apps/server/src/playout/playout-repository.ts)).
+  ([playout-repository.ts](../../../../../apps/server/src/playout/persistence/playout-repository.ts)).
 - [ADR 0003](../../../../adrs/0003-materialized-schedule-entries.md) says
   configuration changes must not silently change what is currently airing,
   and that regeneration begins at the end of the current program.
