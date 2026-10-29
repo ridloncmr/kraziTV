@@ -97,12 +97,27 @@ export function sendApiError(
     .send({ error: { ...details, code, message } });
 }
 
-/** Every body failure shares one code; the message carries Zod's field detail. */
+/**
+ * Every body failure shares one code. `details.fields` names each failing
+ * field by its dotted path and Zod issue code, so the web app can say what
+ * to change; the message lists the issues plainly for logs and tests, never
+ * as Zod's decorated printout (release-polish spec 0002).
+ */
 export function sendInvalidRequest(
   reply: FastifyReply,
   error: z.ZodError,
 ): FastifyReply {
-  return sendApiError(reply, 400, "invalid_request", z.prettifyError(error));
+  const fields = error.issues.map((issue) => ({
+    path: z.core.toDotPath(issue.path),
+    code: issue.code,
+  }));
+  const message = error.issues
+    .map((issue, index) => {
+      const path = fields[index]?.path ?? "";
+      return path === "" ? issue.message : `${path}: ${issue.message}`;
+    })
+    .join("; ");
+  return sendApiError(reply, 400, "invalid_request", message, { fields });
 }
 
 /** One 404 shape for every route that addresses a channel, in any domain. */
@@ -114,7 +129,8 @@ export function sendChannelNotFound(
     reply,
     404,
     "channel_not_found",
-    `Channel ${id} does not exist`,
+    "The channel does not exist",
+    { channelId: id },
   );
 }
 
@@ -127,7 +143,8 @@ export function sendChannelDisabled(
     reply,
     409,
     "channel_disabled",
-    `Channel ${id} is disabled`,
+    "The channel is disabled",
+    { channelId: id },
   );
 }
 
@@ -148,18 +165,21 @@ export function sendScheduleBusy(reply: FastifyReply): FastifyReply {
 /**
  * One 400 shape for every schedule or playout request whose coverage instant
  * lies past the request limit. `param` names the query or body field that
- * set the instant, so the client knows which value to change.
+ * set the instant, in `details.fields` as a body failure would, so the
+ * client knows which value to change.
  */
 export function sendThroughOutOfRange(
   reply: FastifyReply,
   param: string,
   latestThrough: number,
 ): FastifyReply {
+  const latest = toApiTimestamp(latestThrough);
   return sendApiError(
     reply,
     400,
     "invalid_request",
-    `${param} must not be after ${toApiTimestamp(latestThrough)}`,
+    `${param} must not be after ${latest}`,
+    { fields: [{ path: param, code: "too_big" }], latestThrough: latest },
   );
 }
 
@@ -172,7 +192,8 @@ export function sendMediaRootNotFound(
     reply,
     404,
     "media_root_not_found",
-    `Media root ${id} does not exist`,
+    "The media root does not exist",
+    { mediaRootId: id },
   );
 }
 
@@ -185,15 +206,16 @@ export function sendMediaItemNotFound(
     reply,
     404,
     "media_item_not_found",
-    `Media item ${id} does not exist`,
+    "The media item does not exist",
+    { mediaItemId: id },
   );
 }
 
 /**
- * Lists every unknown media item ID a request referenced, so the client can
- * point at exactly what to fix. A 400, not a 404: the addressed resource
- * exists, the body names items that do not. `details` locates them in a
- * body that holds several, such as a batch's index.
+ * Lists every unknown media item ID a request referenced in `details`, so
+ * the client can point at exactly what to fix. A 400, not a 404: the
+ * addressed resource exists, the body names items that do not. `details`
+ * also locates them in a body that holds several, such as a batch's index.
  */
 export function sendUnknownMediaItems(
   reply: FastifyReply,
@@ -204,8 +226,8 @@ export function sendUnknownMediaItems(
     reply,
     400,
     "media_item_not_found",
-    `Unknown media items: ${ids.join(", ")}`,
-    details,
+    "Some media items are not in the catalog",
+    { ...details, mediaItemIds: ids },
   );
 }
 

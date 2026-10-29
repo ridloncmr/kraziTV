@@ -68,10 +68,12 @@ describe("GET /channels/:id/stream startup failures", () => {
 
       expect(statusCode).toBe(status);
       expect(headers["content-type"]).toMatch(/^application\/json/);
+      // The channel is named in the details, never in the message.
       expect(JSON.parse(body)).toEqual({
         error: {
           code: apiCode,
-          message: expect.stringContaining(CHANNEL_ID) as string,
+          message: expect.not.stringContaining(CHANNEL_ID) as string,
+          channelId: CHANNEL_ID,
           ...(retryable ? { retryable: true } : {}),
         },
       });

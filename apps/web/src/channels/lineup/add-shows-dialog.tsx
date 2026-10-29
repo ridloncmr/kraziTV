@@ -341,17 +341,23 @@ export function AddShowsDialog({
 
 /**
  * Names the show a refused batch names: by the refusal's `index`, or, for a
- * request the server's validation refused, by the `assignments[N]` path its
- * message cites.
+ * request the server's validation refused, by the `assignments[N]` path of
+ * the first field its details cite.
  */
 function refusedShow(
   error: Error | undefined,
   sent: readonly string[],
 ): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
+  const fields = Array.isArray(error.details.fields)
+    ? (error.details.fields as { path?: unknown }[])
+    : [];
+  const cited = fields
+    .map((field) => /^assignments\[(\d+)\]/.exec(String(field.path))?.[1])
+    .find((match) => match !== undefined);
   const index =
     typeof error.details.index === "number"
       ? error.details.index
-      : Number(/assignments\[(\d+)\]/.exec(error.message)?.[1]);
+      : Number(cited);
   return Number.isInteger(index) ? sent[index] : undefined;
 }

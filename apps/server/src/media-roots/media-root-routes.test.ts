@@ -88,9 +88,14 @@ describe("POST /media-roots", () => {
 
     const response = await createRoot(server, { path: join("media", "TV") });
 
+    // Names the field as a body failure would, so the web app can word it.
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({
-      error: { code: "invalid_request", message: expect.any(String) },
+      error: {
+        code: "invalid_request",
+        message: expect.any(String),
+        fields: [{ path: "path", code: "custom" }],
+      },
     });
   });
 
@@ -311,7 +316,11 @@ describe("PATCH /media-roots/:id", () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.json()).toEqual({
-      error: { code: "media_root_not_found", message: expect.any(String) },
+      error: {
+        code: "media_root_not_found",
+        message: expect.any(String),
+        mediaRootId: "root-404",
+      },
     });
   });
 });

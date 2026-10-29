@@ -45,6 +45,14 @@ test-environment.ts` and `api-requests.ts` for route tests;
 
 ### POLISH-009: Refusals carry codes and details; the web app says what to change
 
+**Status**: Complete on 2026-10-29. Every server refusal now carries IDs and
+instants only in `details` (`invalid_request` names each field's path and Zod
+code in `details.fields`), and the web app words `invalid_request` by field
+in `http/refusal-words.ts` and every reservation refusal in
+`channels/specials/special-words.ts`, which `RequestFeedback`, the special
+preview, the setup screen, and the account forms show. An overlap names the
+other Special by its airtime, since a Special has no title.
+
 **Goal**: No `✖`, no `→ at`, no database ID, and no "reservation" reaches
 the owner.
 

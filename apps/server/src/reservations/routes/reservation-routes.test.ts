@@ -322,12 +322,17 @@ describe("reservation routes", () => {
       itemsBody(at(100), [movie]),
     );
 
+    // The other reservation is named by ID and range in the details, so the
+    // web app can say which special by its time; the message carries no ID.
     for (const refused of [overlapping, moved]) {
       expect(refused.status).toBe(409);
       expect(refused.body.error).toMatchObject({
         code: "reservation_overlap",
         reservationId: first.body.id,
+        startsAt: first.body.startsAt,
+        endsAt: first.body.endsAt,
       });
+      expect(refused.body.error.message).not.toContain(first.body.id);
     }
   });
 
@@ -357,7 +362,12 @@ describe("reservation routes", () => {
     expect(started.status).toBe(409);
     expect(started.body.error.code).toBe("reservation_started");
     expect(elsewhere.status).toBe(404);
-    expect(elsewhere.body.error.code).toBe("reservation_not_found");
+    expect(elsewhere.body.error).toEqual({
+      code: "reservation_not_found",
+      message: "The channel has no such reservation",
+      channelId: "other",
+      reservationId: created.body.id,
+    });
   });
 
   it("airs a collection's programs that fit and consumes its progress across reservations", async () => {

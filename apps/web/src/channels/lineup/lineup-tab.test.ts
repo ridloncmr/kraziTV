@@ -1331,7 +1331,10 @@ it("names the show the server's validation refused, from the picks as they were 
     {
       error: {
         code: "invalid_request",
-        message: "✖ Invalid input\n  → at assignments[1].ordinaryStretch",
+        message: "assignments[1].ordinaryStretch: Invalid input",
+        fields: [
+          { path: "assignments[1].ordinaryStretch", code: "invalid_union" },
+        ],
       },
     },
     "POST",

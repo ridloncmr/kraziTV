@@ -1,13 +1,15 @@
 import { displayTime, displayTimeRange } from "../../controls/display-time.js";
 import type { SpecialPreview as Preview } from "./contracts.js";
+import { specialWords } from "./special-words.js";
 
 /**
  * Shows what saving a special would air, exactly as the server previewed
  * it: its range, its programs, the filler before and inside it, the
  * ordinary program it pushes later, what resumes after it, and every
- * conflict. Beyond the horizon
- * the surrounding schedule is planned closer to the date, so it says so and
- * labels a collection's programs as estimated.
+ * conflict in the owner's words, or the server's for a conflict the web app
+ * has no words for. Beyond the horizon the surrounding schedule is planned
+ * closer to the date, so it says so and labels a collection's programs as
+ * estimated.
  */
 export function SpecialPreview({ preview }: { preview: Preview }) {
   // Words one interval as the times the owner reads in the guide.
@@ -19,7 +21,9 @@ export function SpecialPreview({ preview }: { preview: Preview }) {
         <p>This special cannot be saved:</p>
         <ul>
           {preview.conflicts.map((conflict) => (
-            <li key={conflict.code}>{conflict.message}</li>
+            <li key={conflict.code}>
+              {specialWords(conflict.code, conflict) ?? conflict.message}
+            </li>
           ))}
         </ul>
       </div>

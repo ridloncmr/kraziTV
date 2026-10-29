@@ -284,8 +284,8 @@ export function registerAssignmentRoutes(
             reply,
             409,
             "programming_assignment_order_mismatch",
-            `The order must name each of channel ${id}'s assignments once`,
-            { assignmentIds: result.assignmentIds },
+            "The order must name each of the channel's assignments once",
+            { channelId: id, assignmentIds: result.assignmentIds },
           );
       }
     },

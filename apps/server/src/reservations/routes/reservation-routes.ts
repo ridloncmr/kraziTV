@@ -199,8 +199,9 @@ export function registerReservationRoutes(
           reply,
           409,
           "channel_unschedulable",
-          `Channel ${id} cannot generate a schedule`,
+          "The channel cannot generate a schedule",
           {
+            channelId: id,
             reason: preview.reason,
             programmingRevision: preview.programmingRevision,
           },
@@ -398,7 +399,8 @@ function sendReservationNotFound(
     reply,
     404,
     "reservation_not_found",
-    `Channel ${channelId} has no reservation ${reservationId}`,
+    "The channel has no such reservation",
+    { channelId, reservationId },
   );
 }
 

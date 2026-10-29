@@ -4,6 +4,7 @@ import { newPasswordRefusal } from "../account-fields/new-password-refusal.js";
 import { formText } from "../controls/form-text.js";
 import { ApiError } from "../http/api-error.js";
 import type { AuthState } from "../http/contracts/auth.js";
+import { refusalWords } from "../http/refusal-words.js";
 import { useMutation } from "../http/resources/use-resource.js";
 import { LogonBackdrop } from "./logon-backdrop.js";
 
@@ -34,8 +35,13 @@ export function SetupScreen({
     // back to the first field so the owner can correct and resend.
     else if (setup.error) nameField.current?.focus();
   }, [setup.error, onAlreadySetUp]);
+  // The form's own refusal first; then the owner's words for the server's,
+  // or its message for one the web app has no words for.
   const message =
-    refusal ?? (isAlreadySetUp(setup.error) ? undefined : setup.error?.message);
+    refusal ??
+    (isAlreadySetUp(setup.error) || setup.error === undefined
+      ? undefined
+      : (refusalWords(setup.error) ?? setup.error.message));
 
   /**
    * Checks the fields first, so a refused form never reaches the server. The

@@ -49,8 +49,8 @@ export function registerProgrammingPreviewRoutes(
           reply,
           409,
           "channel_unschedulable",
-          `Channel ${id} cannot generate a schedule`,
-          { reason: preview.reason },
+          "The channel cannot generate a schedule",
+          { channelId: id, reason: preview.reason },
         );
     }
     const turns = [

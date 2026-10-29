@@ -7,6 +7,7 @@ import {
 } from "react";
 import { AccountPicture } from "../branding/avatars/account-picture.js";
 import type { AccountProfile, AuthState } from "../http/contracts/auth.js";
+import { refusalWords } from "../http/refusal-words.js";
 import { useMutation } from "../http/resources/use-resource.js";
 import {
   isWrongPassword,
@@ -34,7 +35,9 @@ function balloonFor(error: Error | undefined, waitSeconds: number): ReactNode {
         <strong>Please wait.</strong> {throttleWaitMessage(waitSeconds)}
       </>
     );
-  return throttleSeconds(error) > 0 ? undefined : error.message;
+  return throttleSeconds(error) > 0
+    ? undefined
+    : (refusalWords(error) ?? error.message);
 }
 
 /**

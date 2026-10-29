@@ -13,7 +13,9 @@ import type {
 /**
  * Describes each refusal once, for a save and a preview alike: a body naming
  * what does not exist or cannot fit is a 400; a range the schedule or
- * catalog refuses now is a 409.
+ * catalog refuses now is a 409. The message is for logs and tests; every ID
+ * and instant the web app words for the owner travels in the details
+ * (release-polish spec 0002).
  */
 export function describeRefusal(refusal: ReservationRefusal): {
   status: 400 | 409;
@@ -26,13 +28,15 @@ export function describeRefusal(refusal: ReservationRefusal): {
       return {
         status: 400,
         code: refusal.kind,
-        message: `Unknown media items: ${refusal.mediaItemIds.join(", ")}`,
+        message: "Some media items are not in the catalog",
+        mediaItemIds: refusal.mediaItemIds,
       };
     case "media_collection_not_found":
       return {
         status: 400,
         code: refusal.kind,
-        message: `Media collection ${refusal.mediaCollectionId} does not exist`,
+        message: "The media collection does not exist",
+        mediaCollectionId: refusal.mediaCollectionId,
       };
     case "reservation_does_not_fit":
       return {
@@ -113,8 +117,10 @@ export function describeRefusal(refusal: ReservationRefusal): {
       return {
         status: 409,
         code: refusal.kind,
-        message: `The range overlaps reservation ${refusal.reservationId}`,
+        message: "The range overlaps another reservation",
         reservationId: refusal.reservationId,
+        startsAt: toApiTimestamp(refusal.startsAt),
+        endsAt: toApiTimestamp(refusal.endsAt),
       };
     case "reservation_media_unplayable":
       return {
@@ -123,7 +129,7 @@ export function describeRefusal(refusal: ReservationRefusal): {
         message:
           refusal.mediaItemIds.length === 0
             ? "This collection has nothing to air"
-            : `Media items cannot air: ${refusal.mediaItemIds.join(", ")}`,
+            : "Some media items cannot air",
         mediaItemIds: refusal.mediaItemIds,
       };
   }

@@ -185,8 +185,8 @@ export function registerRuleRoutes(
             reply,
             409,
             "programming_rule_order_mismatch",
-            `The order must name each of channel ${id}'s rules once`,
-            { ruleIds: result.ruleIds },
+            "The order must name each of the channel's rules once",
+            { channelId: id, ruleIds: result.ruleIds },
           );
       }
     },
@@ -221,7 +221,8 @@ function sendRuleNotFound(
     reply,
     404,
     "programming_rule_not_found",
-    `Channel ${channelId} has no programming rule ${ruleId}`,
+    "The channel has no such programming rule",
+    { channelId, ruleId },
   );
 }
 
@@ -233,7 +234,7 @@ function sendSourceRefusal(reply: FastifyReply, result: RuleSourceRefusal) {
       reply,
       400,
       "programming_rule_stretch_invalid",
-      `Rule settings for programming assignment ${result.assignmentId} are invalid: ${result.problem}`,
+      `Rule settings for the programming assignment are invalid: ${result.problem}`,
       { assignmentId: result.assignmentId, problem: result.problem },
     );
   }
@@ -241,7 +242,7 @@ function sendSourceRefusal(reply: FastifyReply, result: RuleSourceRefusal) {
     reply,
     400,
     "programming_assignment_not_found",
-    `This channel has no programming assignment ${result.assignmentId}`,
+    "This channel has no such programming assignment",
     { assignmentId: result.assignmentId },
   );
 }

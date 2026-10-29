@@ -165,7 +165,8 @@ describe("POST /media-collections", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toEqual({
       code: "media_item_not_found",
-      message: "Unknown media items: ghost-1, ghost-2",
+      message: "Some media items are not in the catalog",
+      mediaItemIds: ["ghost-1", "ghost-2"],
     });
     expect(
       (
@@ -359,7 +360,8 @@ describe("DELETE /media-collections/:id", () => {
     expect(response.json()).toEqual({
       error: {
         code: "media_collection_in_use",
-        message: expect.stringContaining(collectionFixture.id),
+        message: expect.not.stringContaining(collectionFixture.id),
+        mediaCollectionId: collectionFixture.id,
         channelIds: [channelFixture.id],
         reservations: [],
       },
@@ -524,7 +526,8 @@ describe("PUT /media-collections/:id/items", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toEqual({
       code: "media_item_not_found",
-      message: "Unknown media items: ghost",
+      message: "Some media items are not in the catalog",
+      mediaItemIds: ["ghost"],
     });
     expect((await listMembers(server, "collection-001")).json()).toMatchObject([
       { mediaItemId: "pilot" },
