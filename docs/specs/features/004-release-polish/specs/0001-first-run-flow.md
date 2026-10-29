@@ -1,6 +1,6 @@
 # Spec 0001: First-Run Flow
 
-Status: In Development
+Status: Implemented
 
 ## Intent
 
