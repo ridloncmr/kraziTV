@@ -10,6 +10,8 @@ its screenshot, and checked the code and docs against `AGENTS.md`. The audit
 report itself lives outside git under `data/polish-audit/`; everything a
 contributor needs is restated in the specs and plans here.
 
+This feature defines the bar for kraziTV 1.0.
+
 ## Decisions
 
 Settled with the owner on 2026-10-28 before the work was split up. Tickets cite
