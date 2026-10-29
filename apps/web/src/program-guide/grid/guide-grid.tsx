@@ -4,6 +4,7 @@ import {
   displayShortDay,
 } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import { useRefreshScope } from "../../http/resources/refresh-scope.js";
 import { useResource } from "../../http/resources/use-resource.js";
@@ -23,14 +24,18 @@ const NOW_TICK_MS = 60_000;
  * The guide grid: every channel down the side, 24 hours across from the top
  * of the current half hour, and a line at now. It draws what the server reports
  * and decides nothing; the one instant it takes from the browser is where
- * to draw the line. A channel's name opens it on TV.
+ * to draw the line. A channel's name opens it on TV; with no channels, the
+ * empty state opens My Channels.
  */
 export function GuideGrid({
   visible,
   onWatch,
+  openProgram,
 }: {
   visible: boolean;
   onWatch: (channelId: string) => void;
+  /** Opens another program, such as My Channels when there is nothing to list. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
   const { signal } = useRefreshScope();
@@ -81,7 +86,10 @@ export function GuideGrid({
       <RequestFeedback loading={channels.loading} error={channels.error} />
       {channels.data?.length === 0 && (
         <p className="empty-state">
-          No channels yet. Open My Channels to create one.
+          No channels yet. Create one in My Channels.{" "}
+          <button type="button" onClick={() => openProgram("channels")}>
+            Open My Channels
+          </button>
         </p>
       )}
       {channels.data && channels.data.length > 0 && (
