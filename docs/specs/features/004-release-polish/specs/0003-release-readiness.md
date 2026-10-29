@@ -15,7 +15,7 @@ contributor-only cleanups the audit found are done rather than deferred
 ### Install
 
 - A GitHub Release publishes the image to GHCR; the README's quick start pulls
-  it (decision 6). `THIRD_PARTY_NOTICES` is regenerated with the image.
+  it (decision 6). `THIRD_PARTY_NOTICES.md` is regenerated with the image.
 - The README says TV exists and that collections are suggested, not created.
   The running guide drops its stale limits, mentions TV in First Steps, and
   tells from-source installs to set `PUBLIC_BASE_URL` beside `HOST`.

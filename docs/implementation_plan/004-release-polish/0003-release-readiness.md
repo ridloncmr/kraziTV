@@ -31,7 +31,7 @@ shared across the three release-polish plans.
 
 | Area                  | Files                                                                                                                                                                                                                         | What changes                                                               |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Release               | `.github/workflows/` (only `ci.yml` today), `Dockerfile`, `THIRD_PARTY_NOTICES`                                                                                                                                               | A release workflow publishes to GHCR.                                      |
+| Release               | `.github/workflows/` (only `ci.yml` today), `Dockerfile`, `THIRD_PARTY_NOTICES.md`                                                                                                                                            | A release workflow publishes to GHCR.                                      |
 | User docs             | `README.md`, `docs/knowledge_base/running-krazitv.md`, `docs/images/*.png`                                                                                                                                                    | Truthful features, quick start, settings, screenshots.                     |
 | Contributor docs      | `CONTRIBUTING.md`, `AGENTS.md` "Before You Finish"                                                                                                                                                                            | Complete check list, build prerequisite, running one test, server domains. |
 | Status and vocabulary | `docs/specs/features/002-programming/README.md` and `specs/0001-*.md`, `specs/0010-catalog-removal.md`, `docs/knowledge_base/README.md`, `.agents/skills/research/SKILL.md`, `GLOSSARY.md`, `.agents/roles/media-engineer.md` | Statuses, link, index, terms.                                              |
@@ -54,7 +54,7 @@ Helpers to reuse: `apps/server/src/testing/flush-microtasks.ts`,
 
 **Scope**: A `release.yml` workflow that, on a published GitHub Release,
 builds the existing `Dockerfile` and pushes `ghcr.io/ridloncmr/krazitv:<tag>`
-and `:latest`. `THIRD_PARTY_NOTICES` is regenerated in the same release.
+and `:latest`. `THIRD_PARTY_NOTICES.md` is regenerated in the same release.
 
 **Out of scope**: Multi-architecture images beyond what the base image gives
 for free; signing.
@@ -150,18 +150,29 @@ kind folders (`schema/`, `migrations/`, `drawings/`, `http/contracts/`) are
 exempt from the count; implement that in `layout-rules.mjs`; add an
 `excludedPaths` entry for `apps/server/src/database/migrations/` to the
 duplicate-code rule and remove the eleven migration pair exceptions it covers;
-add the `apps/web/src/tv/` grouping exception; rewrite the reasons of E14
-(`krazi-brain/schedule/`, six files) and E29 (`ffmpeg/mpeg-ts/`, name the
-three new files); drop `reservation-routes.ts` from E27.
+add the `apps/web/src/tv/` grouping exception; rewrite the reasons of the
+`grouping` exceptions for `packages/krazi-brain/src/schedule/` (six files, not
+five) and `packages/signal/src/ffmpeg/mpeg-ts/` (name the three files added
+since); drop `reservation-routes.ts` from the `duplicate-code` exception that
+names the assignment, marathon-settings, and rule routes. Exceptions are
+cited here by rule and path because the file has no IDs and positions shift
+when entries are removed.
 
 **Out of scope**: Regrouping folders (POLISH-020, POLISH-021) and the
 match-choice helper (POLISH-023).
 
 **Blocking dependencies**: None. Blocks POLISH-020.
 
-**Implementation notes**: If kind folders are exempt, E12 and E15 become
-unnecessary and are removed too. The recommended answer: exempt them, since
+**Implementation notes**: If kind folders are exempt, the `grouping`
+exceptions for `apps/server/src/database/schema/`, `database/migrations/`,
+`apps/web/src/http/contracts/`, `apps/web/src/branding/avatars/drawings/`,
+and `apps/server/src/programming-assignments/routes/` become unnecessary and
+are removed, as does the `nesting-depth` exception for `drawings/`, whose
+reason cites the count. The recommended answer: exempt them, since
 `AGENTS.md`'s reference tree already draws `schema/` and `migrations/` flat.
+ADR 0010's Consequences say the thresholds are "judgment aids, not lint"
+while `npm run audit:strict` fails CI on them; reconcile that sentence in the
+same amendment.
 
 **Verification**: `npm run audit:strict` passes; `npm run test:audit` covers
 the new exclusion and exemption.
@@ -177,9 +188,12 @@ their exceptions go away.
 display-duration, display-time, local-instant, file-name, channel-number,
 form-text), `selection/` (id-selection, row-click, use-range-toggle),
 `dialogs/` (window-dialog, window-status, request-feedback, blocking-specials),
-and `widgets/` (pager, row-menu, tabbed-panel, tooltip, checkbox-option,
-segmented-progress-bar, use-popup-dismissal). `apps/web/src/channels/
-assignments/` into `stretch/`, `preview/`, `members/`. Remove E18 and E48.
+`popups/` (row-menu, tooltip, use-popup-dismissal), and folders named for
+what they are for the remaining four (pager, tabbed-panel, checkbox-option,
+segmented-progress-bar); never a catch-all name. `controls.css` stays at the
+domain root as its stylesheet. `apps/web/src/channels/assignments/` into
+`stretch/`, `collection-preview/` (not `preview/`, which `channels/preview/`
+already uses), and `members/`. Remove the two `grouping` exceptions.
 
 **Out of scope**: Behavior.
 
@@ -202,7 +216,8 @@ cancel readiness, detach, discard, stop; a `ProcessBinding` class in
 `packaging/process-binding.ts` owning the readiness timer, stall timer, and
 usable-output flag, built with `onReady`, `onFailed`, `onStalled`; the session
 keeps every decision that reads `active`, `suspended`, or `stopping`. Then
-group `packaging/` into `arguments/` and `session/` and rewrite or remove E16.
+group `packaging/` into `arguments/` and `session/` and rewrite or remove its
+`grouping` exception.
 Decide `PreparationOwner`: drop it for `import type { FfmpegSignalSession }`,
 or keep it with a comment saying why.
 
@@ -228,8 +243,8 @@ audit:strict` shows no file-size review item.
 `(db, now, timeZone)` receives `readWindow`, `readCollectionPreview`,
 `previewProgramming`, `previewReservation`, and the two private preview
 helpers; `loadProgrammingInputs` moves to `schedules/persistence/`; the
-refused-shape literal is written once. Rewrite E22's reason to describe the
-file that remains.
+refused-shape literal is written once. Rewrite the `file-size` exception's
+reason to describe the file that remains.
 
 **Out of scope**: Changing any preview result.
 
@@ -245,10 +260,11 @@ apart from imports; `npm run audit:strict`.
 **Goal**: The audit's minor code items are closed in one pass.
 
 **Scope**: `#readKeyAndWaiting(mediaItemId)` in `match-choice-service.ts`
-used by `search`, `runtime`, `choose`, and E33 narrowed to the constructor;
+used by `search`, `runtime`, `choose`, and its `duplicate-code` exception
+narrowed to the constructor;
 delete `displayDay` and its test; move `schedule-window-path.ts` into
 `program-guide/grid/` and delete `schedule-view/`; `programOf` throws a named
-error instead of `!`; replace the six negative-wait sleeps (`app.session-end.
+error instead of `!`; replace the six sleep-then-assert-nothing waits (`app.session-end.
 test.ts` 86 and 137, `catalog-scanner-enrichment.test.ts` 291,
 `look-up-episodes.test.ts` 340 and 482, `tmdb-client.test.ts` 292) with
 `flushMicrotasks` or fake timers.

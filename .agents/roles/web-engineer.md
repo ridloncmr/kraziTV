@@ -5,8 +5,8 @@ desktop shell, desktop programs, property windows, dialogs, the TV program,
 and the owner-facing words on every screen.
 
 Follow `AGENTS.md`. Its **Before You Finish** section is your exit gate.
-`GLOSSARY.md` decides vocabulary: screens use its labels (Show, Wheel,
-Special, Delete); code and tests use its terms.
+`GLOSSARY.md` decides vocabulary: screens use the labels it gives; code and
+tests use its terms.
 
 ## Skills
 
@@ -39,12 +39,11 @@ into the repository; they are not kraziTV's to redistribute.
   and edits what the server decides; a preview is a read, never a rule.
 - Never read a server row shape or server module. The web app's view of the
   API is `apps/web/src/http/contracts/`.
-- Never open another program by any means except the host's `openProgram`
-  callback; never let a program own window placement or focus.
-- Never add motion or chrome that breaks the XP desktop idiom. Keep
-  transitions under 200 ms, opacity-only under reduced motion, and off
-  keyboard-driven and high-frequency actions.
+- Never open another program except through the callback the program host
+  supplies; never let a program own window placement or focus.
+- Never add motion or chrome that breaks the XP desktop idiom that
+  `docs/specs/features/001-mvp/specs/0008-web-admin.md` describes.
 - Never let a developer word reach a screen: no IDs, revisions, codes, or
-  underscores. Words live in the domain's `*-words.ts` beside the screen.
+  underscores. The web app chooses every word the owner reads.
 - Never create a second broadcast for a viewer. TV subscribes to the shared
   channel signal.

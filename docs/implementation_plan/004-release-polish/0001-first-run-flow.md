@@ -167,7 +167,12 @@ still resets when nothing is airing, as spec 0004 says.
 
 **Implementation notes**: `useChannelProgramming` does not read `now`; add
 one `useResource` of the channel's now path there so Lineup and Rules share
-it. Do not add a server round trip to the write itself.
+it. Do not add a server round trip to the write itself. The read is polled,
+so it can be stale at write time; because the write has already applied as
+"Let it finish", a stale read only hides the Stop-now offer and never
+interrupts, and the Preview tab's Rebuild remains the recovery. Spec 0004 is
+`Implemented`; its rebuild paragraph is amended anyway because `GLOSSARY.md`
+links it for **Fresh rebuild**, so it still serves as the owning description.
 
 **Verification**: jsdom: add a show with `now` returning no current item and
 see no dialog; with an airing program see the dialog with Let it finish
@@ -188,7 +193,7 @@ buttons.
 
 **Out of scope**: The collection editor's save bar (decision 8).
 
-**Blocking dependencies**: POLISH-019 if `controls/` is regrouped first;
+**Blocking dependencies**: POLISH-020 if `controls/` is regrouped first;
 otherwise place the footer under the folder the regroup chooses for dialogs.
 
 **Implementation notes**: The window already reports dirty state through
