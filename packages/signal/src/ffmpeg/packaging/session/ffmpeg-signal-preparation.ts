@@ -1,15 +1,8 @@
 import type {
   SignalPlayoutItem,
   SignalPreparation,
-} from "../../signal-packager/contracts.js";
-
-/** The session side a preparation hands its decision to. */
-export interface PreparationOwner {
-  /** Makes the preparation's held process the session's output, synchronously. */
-  commitPreparation(preparation: FfmpegSignalPreparation): void;
-  /** Stops the preparation's process and drops what it held; retryable. */
-  discardPreparation(preparation: FfmpegSignalPreparation): Promise<void>;
-}
+} from "../../../signal-packager/contracts.js";
+import type { FfmpegSignalSession } from "./ffmpeg-signal-session.js";
 
 type PreparationState = "pending" | "committed" | "discarded";
 
@@ -20,9 +13,9 @@ type PreparationState = "pending" | "committed" | "discarded";
 export class FfmpegSignalPreparation implements SignalPreparation {
   private state: PreparationState = "pending";
 
-  /** Binds the item to the session that started its process. */
+  /** Binds the item to the session that started its process and owns its decision. */
   constructor(
-    private readonly owner: PreparationOwner,
+    private readonly owner: FfmpegSignalSession,
     readonly item: SignalPlayoutItem,
   ) {}
 

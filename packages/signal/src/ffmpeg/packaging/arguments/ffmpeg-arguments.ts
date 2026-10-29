@@ -3,10 +3,10 @@ import {
   isPositiveSafeInteger,
 } from "@krazitv/process";
 
-import { SignalError } from "../../errors.js";
-import { JOIN_BACKLOG_MS } from "../join-backlog.js";
-import { VIDEO_PID } from "../mpeg-ts/mpeg-ts-packet-run.js";
-import type { SignalPlayoutItem } from "../../signal-packager/contracts.js";
+import { SignalError } from "../../../errors.js";
+import { JOIN_BACKLOG_MS } from "../../join-backlog.js";
+import { VIDEO_PID } from "../../mpeg-ts/mpeg-ts-packet-run.js";
+import type { SignalPlayoutItem } from "../../../signal-packager/contracts.js";
 
 const VIDEO_FILTER =
   "scale=1920:1080:force_original_aspect_ratio=decrease," +
