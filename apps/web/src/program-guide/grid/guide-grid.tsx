@@ -23,9 +23,15 @@ const NOW_TICK_MS = 60_000;
  * The guide grid: every channel down the side, 24 hours across from the top
  * of the current half hour, and a line at now. It draws what the server reports
  * and decides nothing; the one instant it takes from the browser is where
- * to draw the line.
+ * to draw the line. A channel's name opens it on TV.
  */
-export function GuideGrid({ visible }: { visible: boolean }) {
+export function GuideGrid({
+  visible,
+  onWatch,
+}: {
+  visible: boolean;
+  onWatch: (channelId: string) => void;
+}) {
   const channels = useResource<Channel[]>("/channels", visible);
   const { signal } = useRefreshScope();
   // The window moves to the current half hour whenever the program comes
@@ -117,6 +123,7 @@ export function GuideGrid({ visible }: { visible: boolean }) {
                   windowStart={anchor.startsAt}
                   now={now}
                   visible={visible}
+                  onWatch={onWatch}
                 />
               ))}
             </ol>

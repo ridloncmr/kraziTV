@@ -36,6 +36,14 @@ export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
     group: "Primary",
   },
   {
+    id: "tv",
+    name: "TV",
+    description: "Watch your channels",
+    group: "Primary",
+    // A 16:9 picture over the now and next strip and the controls.
+    placement: { x: 180, y: 60, width: 660, height: 500 },
+  },
+  {
     id: "plex",
     name: "Plex Setup",
     description: "Connect your Plex Live TV tuner",

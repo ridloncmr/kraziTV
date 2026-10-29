@@ -12,14 +12,24 @@ import {
  * through the shell's own bookkeeping, so a test can open channels and use
  * their property sheets without the whole desktop. `visible` stands for
  * every window being shown or minimized. Each window is a region named for
- * its title, as on the desktop.
+ * its title, as on the desktop. `onWatch` stands for the shell opening TV.
  */
-export function ChannelWindows({ visible = true }: { visible?: boolean }) {
+export function ChannelWindows({
+  visible = true,
+  onWatch = () => {},
+}: {
+  visible?: boolean;
+  onWatch?: (channelId: string) => void;
+}) {
   const windows = usePropertiesTestWindows();
   return createElement(
     Fragment,
     null,
-    createElement(ChannelsApp, { visible, windows: windows.channels }),
+    createElement(ChannelsApp, {
+      visible,
+      windows: windows.channels,
+      onWatch,
+    }),
     ...windows.open.map((id) =>
       createElement(PropertiesTestWindow, {
         key: id,

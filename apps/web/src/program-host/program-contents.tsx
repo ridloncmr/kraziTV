@@ -12,14 +12,16 @@ import { LiveMonitorApp } from "../live-monitor/live-monitor-app.js";
 import { MediaLibraryApp } from "../media-library/media-library-app.js";
 import { PlexSetupApp } from "../plex-setup/plex-setup-app.js";
 import { ProgramGuideApp } from "../program-guide/program-guide-app.js";
+import { TvApp, type WatchRequest } from "../tv/tv-app.js";
 
 /**
  * Application composition maps navigation identity to programs without teaching windows domain behavior.
  * Memoized because the shell re-renders on every window move, focus and health poll; a program
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
- * `onTmdbKeyChanged`, `openProgram`, and `markUnsaved` stable, changes `tmdbTaskRequest` only
- * when the tray asks, and each kind's properties windows only when that kind saves a change.
+ * `onTmdbKeyChanged`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
+ * `tmdbTaskRequest` only when the tray asks, `watchRequest` only when a channel is watched, and
+ * each kind's properties windows only when that kind saves a change.
  */
 export const ProgramContents = memo(function ProgramContents({
   id,
@@ -30,6 +32,8 @@ export const ProgramContents = memo(function ProgramContents({
   tmdbTaskRequest,
   onTmdbKeyChanged,
   openProgram,
+  watchRequest,
+  watchChannel,
   channelWindows,
   collectionWindows,
   markUnsaved,
@@ -43,6 +47,10 @@ export const ProgramContents = memo(function ProgramContents({
   onTmdbKeyChanged: () => void;
   /** Opens another program, as a refusal's link to where it is resolved does. */
   openProgram: (id: ProgramId) => void;
+  /** The latest request to watch a channel, which TV tunes to. */
+  watchRequest: WatchRequest | undefined;
+  /** Opens TV on a channel, as My Channels' and the guide's Watch do. */
+  watchChannel: (channelId: string) => void;
   channelWindows: PropertiesWindows;
   collectionWindows: PropertiesWindows;
   /** Records whether a window holds unsaved changes, so closing it asks first. */
@@ -76,7 +84,13 @@ export const ProgramContents = memo(function ProgramContents({
     );
   switch (id as ProgramId) {
     case "channels":
-      return <ChannelsApp visible={visible} windows={channelWindows} />;
+      return (
+        <ChannelsApp
+          visible={visible}
+          windows={channelWindows}
+          onWatch={watchChannel}
+        />
+      );
     case "media":
       return (
         <MediaLibraryApp visible={visible} onOpenChannels={openChannels} />
@@ -84,7 +98,15 @@ export const ProgramContents = memo(function ProgramContents({
     case "collections":
       return <CollectionsApp visible={visible} windows={collectionWindows} />;
     case "guide":
-      return <ProgramGuideApp visible={visible} />;
+      return <ProgramGuideApp visible={visible} onWatch={watchChannel} />;
+    case "tv":
+      return (
+        <TvApp
+          visible={visible}
+          request={watchRequest}
+          onOpenChannels={openChannels}
+        />
+      );
     case "plex":
       return <PlexSetupApp visible={visible} />;
     case "monitor":

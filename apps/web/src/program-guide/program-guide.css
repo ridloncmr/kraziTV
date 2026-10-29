@@ -97,6 +97,22 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* The name tunes TV, so it reads as a name, not as a raised button. */
+.guide-page .guide-channel .guide-tune {
+  all: unset;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.guide-page .guide-channel .guide-tune:hover {
+  color: var(--xp-focus);
+  text-decoration: underline;
+}
+.guide-page .guide-channel .guide-tune:focus-visible {
+  outline: 1px dotted var(--xp-text);
+}
 .guide-channel strong {
   margin-right: 4px;
 }

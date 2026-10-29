@@ -8,6 +8,7 @@ import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
+import type { WatchRequest } from "../tv/tv-app.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import type {
@@ -95,6 +96,20 @@ export function DesktopShell({
     dispatch({ type: "open", id: "account" });
     setTmdbTaskRequest((count) => count + 1);
   }, []);
+  // The latest request to watch a channel on TV, counted like the TMDB task
+  // request and cleared once TV closes, so a plain open later starts on the
+  // channel TV was last left on.
+  const [watchRequest, setWatchRequest] = useState<WatchRequest>();
+  if (watchRequest && !windows.some((window) => window.id === "tv"))
+    setWatchRequest(undefined);
+  /** Opens or focuses TV and tunes it to the channel. */
+  const watchChannel = useCallback((channelId: string) => {
+    dispatch({ type: "open", id: "tv" });
+    setWatchRequest((request) => ({
+      channelId,
+      count: (request?.count ?? 0) + 1,
+    }));
+  }, []);
   useEffect(() => {
     /** Windows clamp to the live viewport at render, so shrinking never loses their saved positions. */
     const resize = () => setViewport(usableViewport());
@@ -174,6 +189,8 @@ export function DesktopShell({
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   openProgram={openProgram}
+                  watchRequest={watchRequest}
+                  watchChannel={watchChannel}
                   channelWindows={properties.channels}
                   collectionWindows={properties.collections}
                   markUnsaved={properties.markUnsaved}

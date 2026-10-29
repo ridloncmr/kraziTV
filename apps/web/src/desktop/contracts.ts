@@ -4,6 +4,7 @@ export type ProgramId =
   | "media"
   | "collections"
   | "guide"
+  | "tv"
   | "plex"
   | "monitor"
   | "account";

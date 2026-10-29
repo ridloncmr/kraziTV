@@ -19,15 +19,19 @@ import { useCleanupRetries } from "./use-cleanup-retries.js";
  * Channel lifecycle feedback distinguishes persisted identity changes from
  * unfinished runtime cleanup. As in a channel's lineup, a click selects a
  * channel, and double-click, Enter, or **Properties** opens it in Channel
- * Properties, a window of its own beside this one.
+ * Properties, a window of its own beside this one. **Watch** opens TV on an
+ * enabled channel.
  */
 export function ChannelsApp({
   visible,
   windows,
+  onWatch,
 }: {
   visible: boolean;
   /** Each channel's own Channel Properties: opened from here, closed on delete. */
   windows: PropertiesWindows;
+  /** Opens TV on the channel. */
+  onWatch: (channelId: string) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
   // Refresh reloads everything this window shows.
@@ -108,6 +112,12 @@ export function ChannelsApp({
   const actionsFor = (channel: Channel) => {
     const blocked = mutation.pending || lifecycleRetryPending(channel.id);
     return {
+      watch: {
+        label: "Watch",
+        // A disabled channel broadcasts nothing to watch.
+        disabled: !channel.enabled,
+        onSelect: () => onWatch(channel.id),
+      },
       properties: {
         label: "Properties",
         disabled: false,
@@ -261,6 +271,12 @@ export function ChannelsApp({
       )}
       {displayedChannels && displayedChannels.length > 0 && (
         <div className="row-actions">
+          <button
+            disabled={!selectedActions || selectedActions.watch.disabled}
+            onClick={selectedActions?.watch.onSelect}
+          >
+            Watch
+          </button>
           <button
             disabled={!selectedActions}
             onClick={selectedActions?.properties.onSelect}
