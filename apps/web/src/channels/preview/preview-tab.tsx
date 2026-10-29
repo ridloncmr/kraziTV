@@ -21,10 +21,8 @@ export function PreviewTab({
     <section aria-label="Preview">
       <UpcomingProgramming
         key={`preview-${programming.changes}`}
-        path={`${programming.channelPath}/programming-preview`}
+        programming={programming}
         visible={visible}
-        collections={programming.collections.data}
-        rules={programming.rules.data}
       />
       <button type="button" onClick={() => setRebuilding(true)}>
         Rebuild the schedule…
