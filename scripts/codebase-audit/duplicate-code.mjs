@@ -7,7 +7,10 @@
 // arrange-and-assert repeats, all under 25 lines, which would bury the
 // findings that matter. Repeated setup across suites is the codebase-audit
 // skill's manual check. Test doubles in `src/testing/` and the helpers of
-// opt-in suites in `integration/` are scanned like production code.
+// opt-in suites in `integration/` are scanned like production code. Folders
+// whose copies are the convention, such as migrations that each keep their
+// own DDL so applied history never shifts, are left out by path through
+// `duplicateCodeExcludedPaths` in audit-exceptions.json.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -15,7 +18,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
-import { toPosix } from "./inventory.mjs";
+import { isExcluded, toPosix } from "./inventory.mjs";
 
 const MIN_TOKENS = 50;
 const SCANNED_FOLDERS = ["src", "integration"];
@@ -27,7 +30,7 @@ const IGNORED = [
 ];
 
 /** Runs jscpd over every workspace's `src/` and `integration/` and converts clones to findings. */
-export function checkDuplicates(repoRoot, inventory) {
+export function checkDuplicates(repoRoot, inventory, excludedPaths = []) {
   const paths = inventory.workspaces
     .flatMap((workspace) =>
       SCANNED_FOLDERS.map((folder) => join(repoRoot, workspace.name, folder)),
@@ -61,7 +64,7 @@ export function checkDuplicates(repoRoot, inventory) {
     const report = JSON.parse(
       readFileSync(join(outputDir, "jscpd-report.json"), "utf8"),
     );
-    return report.duplicates.map((clone) => toFinding(repoRoot, clone));
+    return findingsFromClones(repoRoot, report.duplicates, excludedPaths);
   } finally {
     rmSync(outputDir, { recursive: true, force: true });
   }
@@ -75,6 +78,20 @@ function jscpdBin() {
   const bin =
     typeof manifest.bin === "string" ? manifest.bin : manifest.bin.jscpd;
   return join(dirname(manifestPath), bin);
+}
+
+/**
+ * Converts jscpd clones to findings, dropping every clone that touches an
+ * excluded path, so a folder whose copies are the convention is never
+ * reported pair by pair.
+ */
+export function findingsFromClones(repoRoot, clones, excludedPaths) {
+  return clones
+    .map((clone) => toFinding(repoRoot, clone))
+    .filter(
+      (finding) =>
+        !finding.files.some((path) => isExcluded(path, excludedPaths)),
+    );
 }
 
 /** Converts a jscpd path, which may use Windows' `\\?\` long-path prefix, to repo-relative form. */

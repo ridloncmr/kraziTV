@@ -4,6 +4,11 @@
 
 Accepted on 2026-10-01.
 
+Amended on 2026-10-28: a kind folder, one named for a specific kind of file,
+is exempt from both grouping counts and may nest inside any capability, and
+`npm run audit:strict` enforces the thresholds rather than leaving them to
+judgment (release polish decision 5).
+
 ## Context
 
 `AGENTS.md` laid out every `src/` as one folder per domain and allowed a
@@ -39,6 +44,11 @@ and wants that shape to be the norm.
 - Allow folders named for a specific kind of file, such as `migrations/`,
   `schema/`, `routes/`, and `types/`. Continue to ban vague folders such as
   `utils/`, `common/`, `helpers/`, `internal/`, `shared/`, `lib/`, and `misc/`.
+- A kind folder holds one capability however many files it gathers, because
+  its name already says what every file is. It is exempt from both grouping
+  counts and may nest inside any capability;
+  `scripts/codebase-audit/layout-rules.mjs` lists the names the audit
+  recognizes.
 - `apps/server/src/database/` joins `packages/signal/src` as a reference
   layout.
 
@@ -50,8 +60,11 @@ skills and the engineer roles point to it.
 - Folders stay navigable as the server grows; finding a table, migration, or
   route group means opening its file rather than searching one large file.
 - Reviewers flag mixed flat domains instead of nested folders.
-- The thresholds are judgment aids, not lint. A folder at the boundary may go
-  either way; the capability test decides.
+- `npm run audit:strict` enforces the thresholds: CI fails on a flat folder
+  with more than eight counted files. Between four and eight the capability
+  test decides, and a folder that stays flat records its reason in
+  `scripts/codebase-audit/audit-exceptions.json`. Kind folders need no such
+  exception.
 - Existing folders that meet the rule are drift to fix when next touched:
   `apps/server/src/catalog-scan/` is the known case.
 - Import paths get one segment longer inside grouped domains.

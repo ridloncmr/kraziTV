@@ -88,7 +88,12 @@ It should behave like a small broadcast automation system, not a playlist genera
     has more than four source files spanning more than one capability, or more
     than eight source files in total. Tests and `contracts.ts` do not count. A
     capability is a part a reader would look for on its own, such as HTTP
-    routes, persistence, a processing pipeline, or schema definitions.
+    routes, persistence, a processing pipeline, or schema definitions. A kind
+    folder, one named for a specific kind of file such as `migrations/` or
+    `schema/`, is exempt from both counts and may nest inside any capability,
+    because its name already says what every file is;
+    `scripts/codebase-audit/layout-rules.mjs` lists the names the audit
+    recognizes.
   - Leave a domain flat when its files all serve one capability:
     `signal/src/channel-worker/` stays flat because every file serves the
     worker. Group a domain whose files serve several capabilities, as

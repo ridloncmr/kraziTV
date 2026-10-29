@@ -18,6 +18,16 @@ const VAGUE_FOLDERS = new Set([
   "lib",
   "misc",
 ]);
+// Folders named for one kind of file hold one capability however many files
+// they gather, so the grouping counts and the nesting limit skip them.
+const KIND_FOLDERS = new Set([
+  "migrations",
+  "schema",
+  "routes",
+  "types",
+  "contracts",
+  "drawings",
+]);
 const FLAT_REVIEW_LIMIT = 4;
 const FLAT_ERROR_LIMIT = 8;
 const CANONICAL_TESTING_EXCLUDE = "src/testing/**/*.ts";
@@ -89,13 +99,16 @@ export function checkFolderNames(files) {
   return [...findings.values()];
 }
 
-/** Nesting beyond `src/<domain>/<capability>/` needs a capability that meets the grouping rule. */
+/**
+ * Nesting beyond `src/<domain>/<capability>/` needs a capability that meets
+ * the grouping rule; a kind folder may sit inside any capability.
+ */
 export function checkNestingDepth(files) {
   const deep = new Set();
   for (const file of files) {
     if (isTestingFile(file)) continue;
     const segments = folderSegments(file.srcPath);
-    if (segments.length > 2) {
+    if (segments.length > 2 && !isKindFolder(segments)) {
       deep.add(`${file.workspace}/src/${segments.join("/")}/`);
     }
   }
@@ -113,6 +126,7 @@ export function checkNestingDepth(files) {
  * one with more than four must be grouped if they span several capabilities.
  * A grouped folder's root holds only files that coordinate the whole
  * domain, so more than four counted files there need the same review.
+ * Kind folders are exempt from both counts.
  */
 export function checkGrouping(files) {
   const folders = new Map();
@@ -121,6 +135,7 @@ export function checkGrouping(files) {
     const segments = folderSegments(file.srcPath);
     // Every ancestor folder learns whether it has subfolders.
     for (let depth = 1; depth <= segments.length; depth += 1) {
+      if (isKindFolder(segments.slice(0, depth))) continue;
       const key = `${file.workspace}/src/${segments.slice(0, depth).join("/")}/`;
       const folder = folders.get(key) ?? { counted: 0, hasSubfolders: false };
       if (depth < segments.length) folder.hasSubfolders = true;
@@ -159,6 +174,11 @@ export function checkGrouping(files) {
     }
   }
   return findings;
+}
+
+/** Whether a folder, given as its `src/`-relative segments, is named for one kind of file. */
+function isKindFolder(segments) {
+  return KIND_FOLDERS.has(segments[segments.length - 1]);
 }
 
 /** Build configs exclude tests and `src/testing/` with the same patterns everywhere. */

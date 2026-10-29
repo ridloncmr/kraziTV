@@ -73,6 +73,12 @@ describe("checkNestingDepth", () => {
       "review:nesting-depth:packages/demo/src/db/schema/deep/",
     ]);
   });
+
+  it("lets a kind folder sit inside a capability", () => {
+    const files = [file("branding/avatars/drawings/duck-drawing.tsx")];
+
+    expect(checkNestingDepth(files)).toEqual([]);
+  });
 });
 
 describe("checkGrouping", () => {
@@ -97,6 +103,15 @@ describe("checkGrouping", () => {
     expect(rules(checkGrouping(flat(9)))).toEqual([
       "error:grouping:packages/demo/src/domain/",
     ]);
+  });
+
+  it("exempts a kind folder from both counts", () => {
+    const files = [
+      ...Array.from({ length: 9 }, (_, i) => file(`db/migrations/00${i}.ts`)),
+      ...Array.from({ length: 5 }, (_, i) => file(`http/contracts/c${i}.ts`)),
+    ];
+
+    expect(checkGrouping(files)).toEqual([]);
   });
 
   it("lets a grouped domain keep up to four coordinating files at its root", () => {

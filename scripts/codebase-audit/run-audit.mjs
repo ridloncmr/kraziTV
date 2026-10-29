@@ -23,16 +23,17 @@ const auditDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(auditDir, "..", "..");
 const args = new Set(process.argv.slice(2));
 
-const { excludedPaths, exceptions } = loadExceptions(
-  join(auditDir, "audit-exceptions.json"),
-);
+const { excludedPaths, duplicateCodeExcludedPaths, exceptions } =
+  loadExceptions(join(auditDir, "audit-exceptions.json"));
 const inventory = loadInventory(repoRoot, { excludedPaths });
 const findings = [
   ...checkLayout(inventory),
   ...checkModules(inventory),
   ...checkExports(inventory),
   ...checkPackageExports(inventory),
-  ...(args.has("--no-duplicates") ? [] : checkDuplicates(repoRoot, inventory)),
+  ...(args.has("--no-duplicates")
+    ? []
+    : checkDuplicates(repoRoot, inventory, duplicateCodeExcludedPaths)),
 ];
 const { active, excepted } = applyExceptions(findings, exceptions);
 const result = {
