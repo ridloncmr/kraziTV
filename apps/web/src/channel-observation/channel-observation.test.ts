@@ -59,7 +59,9 @@ function monitorApi() {
 
 // Opens the monitor and chooses Northwoods TV.
 async function openMonitor() {
-  render(createElement(ChannelObservation, { visible: true }));
+  render(
+    createElement(ChannelObservation, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.change(await screen.findByLabelText("Channel"), {
     target: { value: "one" },
   });
@@ -93,4 +95,19 @@ it("says in plain words why nothing is on air, never the server's reason code", 
     ),
   ).toBeTruthy();
   expect(screen.queryByText(/schedule.gap/)).toBeNull();
+});
+
+it("opens My Channels from the empty state when there are no channels", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", []);
+  vi.stubGlobal("fetch", api.fetch);
+  const openProgram = vi.fn();
+  render(createElement(ChannelObservation, { visible: true, openProgram }));
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Open My Channels" }),
+  );
+
+  expect(openProgram).toHaveBeenCalledWith("channels");
+  expect(screen.getByText(/No channels yet/).className).toBe("empty-state");
 });

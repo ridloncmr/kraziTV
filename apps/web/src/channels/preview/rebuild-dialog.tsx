@@ -13,25 +13,28 @@ const STOP_FAILED_MESSAGE =
 /**
  * Asks how to apply programming changes now: Let it finish, the default,
  * regenerates after the airing program and keeps rounds and cooldown; Stop
- * it now and rebuild the schedule interrupts the airing program and starts
- * a fresh programming slate, disconnecting viewers. One idempotency key per
- * dialog makes a resend repeat the same rebuild rather than start another.
- * A failed worker stop becomes a cleanup retry that outlives this dialog,
- * and a later rebuild whose stop succeeds settles any earlier one. After an
- * edit the server already applied, `finishApplied` makes Let it finish
- * confirm without regenerating again.
+ * it now interrupts the airing program and starts a fresh programming
+ * slate, disconnecting viewers. One idempotency key per dialog makes a
+ * resend repeat the same rebuild rather than start another. A failed worker
+ * stop becomes a cleanup retry that outlives this dialog, and a later
+ * rebuild whose stop succeeds settles any earlier one. After an edit the
+ * server already applied, `appliedAfter` names the airing program the
+ * dialog asks about, and Let it finish confirms without regenerating again;
+ * without it the dialog is the Preview tab's explicit rebuild. Every word
+ * here is the owner's: no round, cooldown, assignment, or member.
  */
 export function RebuildDialog({
   channelId,
   rebuilt,
   onClose,
-  finishApplied = false,
+  appliedAfter,
 }: {
   channelId: string;
   /** Runs after either choice the server accepted. */
   rebuilt: () => void;
   onClose: () => void;
-  finishApplied?: boolean;
+  /** The airing program an edit already applied after, when it did. */
+  appliedAfter?: string;
 }) {
   const mutation = useMutation();
   const cleanup = useCleanupRetries();
@@ -42,7 +45,7 @@ export function RebuildDialog({
   const channelPath = resourcePath("channels", channelId);
   // Sends the chosen change; a rebuild repeats this dialog's one key.
   const submit = () => {
-    if (choice === "finish" && finishApplied) {
+    if (choice === "finish" && appliedAfter !== undefined) {
       setDone(true);
       return;
     }
@@ -81,7 +84,11 @@ export function RebuildDialog({
   };
   return (
     <WindowDialog
-      title="Rebuild the schedule"
+      title={
+        appliedAfter === undefined
+          ? "Rebuild the schedule"
+          : `What should happen to ${appliedAfter}?`
+      }
       busy={mutation.pending}
       onClose={onClose}
     >
@@ -122,18 +129,16 @@ export function RebuildDialog({
                 checked={choice === "rebuild"}
                 onChange={() => setChoice("rebuild")}
               />
-              Stop it now and rebuild the schedule
+              {appliedAfter === undefined
+                ? "Stop it now and rebuild the schedule"
+                : "Stop it now and start the new lineup"}
             </label>
           </fieldset>
-          <p>
-            {choice === "finish"
-              ? "The airing program finishes; later programming is rebuilt, and rounds and marathon cooldown carry on."
-              : "Viewers watching now are disconnected and must tune in again. Rounds, marathon cooldown, and which member each assignment plays next start fresh; each collection keeps its place."}
-          </p>
+          <p>{explanation(choice, appliedAfter)}</p>
           <RequestFeedback loading={mutation.pending} error={mutation.error} />
           <div className="dialog-actions">
             <button disabled={mutation.pending} onClick={submit}>
-              Rebuild
+              {appliedAfter === undefined ? "Rebuild" : "OK"}
             </button>
             <button disabled={mutation.pending} onClick={onClose}>
               Cancel
@@ -143,4 +148,22 @@ export function RebuildDialog({
       )}
     </WindowDialog>
   );
+}
+
+// What happens to viewers and the lineup under the chosen choice, naming
+// the airing program when the dialog follows an edit applied after it.
+function explanation(
+  choice: "finish" | "rebuild",
+  appliedAfter: string | undefined,
+): string {
+  const disconnect =
+    "Viewers watching now are disconnected and must tune in again.";
+  if (appliedAfter === undefined) {
+    return choice === "finish"
+      ? "The airing program finishes; the schedule after it is rebuilt."
+      : `${disconnect} The channel starts over from now with fresh programming; each show picks up where it left off.`;
+  }
+  return choice === "finish"
+    ? `${appliedAfter} finishes, and the new lineup starts after it.`
+    : `${appliedAfter} stops and the new lineup starts now. ${disconnect} Each show picks up where it left off.`;
 }

@@ -5,6 +5,7 @@ import type { ProgramId } from "../desktop/contracts.js";
 export function LiveMonitorApp({
   visible,
   connection,
+  openProgram,
 }: {
   visible: boolean;
   connection: string;
@@ -16,7 +17,7 @@ export function LiveMonitorApp({
       <p className="info-strip" role="status">
         {connection}
       </p>
-      <ChannelObservation visible={visible} />
+      <ChannelObservation visible={visible} openProgram={openProgram} />
     </div>
   );
 }

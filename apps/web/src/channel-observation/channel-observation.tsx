@@ -5,13 +5,25 @@ import {
   displayTimeRange,
 } from "../controls/display-time.js";
 import { RequestFeedback } from "../controls/request-feedback.js";
+import type { ProgramId } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { airingLabel, offAirWords } from "./airing-words.js";
 
-/** Live Monitor's view of one channel's current state; offsets are never advanced by browser time. */
-export function ChannelObservation({ visible }: { visible: boolean }) {
+/**
+ * Live Monitor's view of one channel's current state; offsets are never
+ * advanced by browser time. With no channels, the empty state opens My
+ * Channels.
+ */
+export function ChannelObservation({
+  visible,
+  openProgram,
+}: {
+  visible: boolean;
+  /** Opens another program, such as My Channels when there is nothing to observe. */
+  openProgram: (id: ProgramId) => void;
+}) {
   const channels = useResource<Channel[]>("/channels", visible);
   const [selected, setSelected] = useState("");
   const path = selected ? resourcePath("channels", selected) : null;
@@ -54,7 +66,10 @@ export function ChannelObservation({ visible }: { visible: boolean }) {
       />
       {channels.data?.length === 0 && (
         <p className="empty-state">
-          No channels yet. Open My Channels to create one.
+          No channels yet. Create one in My Channels.{" "}
+          <button type="button" onClick={() => openProgram("channels")}>
+            Open My Channels
+          </button>
         </p>
       )}
       {!selected && (channels.data?.length ?? 0) > 0 && (
