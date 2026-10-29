@@ -30,7 +30,8 @@ glossary's labels (Show, Wheel, Special, Delete).
   everywhere it appears; picker and member rows omit the word when the item is
   available, and show the file name rather than the full path.
 - The collection status strip says what can air and why the rest cannot:
-  "Nothing to air yet, add media below." when empty, otherwise
+  "Nothing to air yet, add media below." when an empty manual collection has
+  the picker below, "Nothing to air yet." for an empty automatic one, otherwise
   "12 of 14 can air (1 missing, 1 too short)". The status endpoint reports the
   missing and too-short counts.
 - The scan summary uses the same words the match review uses: Files found,
