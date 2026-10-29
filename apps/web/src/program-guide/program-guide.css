@@ -146,11 +146,15 @@
 .guide-track .request-feedback:empty {
   display: none;
 }
+/*
+ * The block draws no padding: its program button fills it and carries the
+ * padding, so a program only minutes long, narrower than the padding, is
+ * still the button the reader clicks.
+ */
 .guide-block {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  padding: 3px 6px;
   border: 1px solid var(--xp-border);
   border-radius: 2px;
   background: var(--xp-window-surface);
@@ -182,8 +186,9 @@
 .program-page .guide-block .guide-program:active {
   display: block;
   width: 100%;
+  height: 100%;
   min-height: 0;
-  padding: 0;
+  padding: 3px 6px;
   border: 0;
   background: none;
   box-shadow: none;
@@ -219,6 +224,7 @@
   max-width: 560px;
 }
 .guide-block.off-air {
+  padding: 3px 6px;
   border-style: dashed;
   background: var(--xp-menu-surface);
   color: var(--xp-muted);
