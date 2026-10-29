@@ -1,5 +1,6 @@
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import {
   collectionFixture,
@@ -265,7 +266,9 @@ describe("GET /media-collections/:id", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe("media_collection_not_found");
+    expectRefusal(response.json(), "media_collection_not_found", {
+      mediaCollectionId: "unknown",
+    });
   });
 });
 
@@ -316,7 +319,9 @@ describe("PATCH /media-collections/:id", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe("media_collection_not_found");
+    expectRefusal(response.json(), "media_collection_not_found", {
+      mediaCollectionId: "unknown",
+    });
   });
 });
 
@@ -385,7 +390,9 @@ describe("DELETE /media-collections/:id", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe("media_collection_not_found");
+    expectRefusal(response.json(), "media_collection_not_found", {
+      mediaCollectionId: "unknown",
+    });
   });
 });
 
@@ -443,7 +450,9 @@ describe("GET /media-collections/:id/items", () => {
     const response = await listMembers(server, "unknown");
 
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe("media_collection_not_found");
+    expectRefusal(response.json(), "media_collection_not_found", {
+      mediaCollectionId: "unknown",
+    });
   });
 });
 
@@ -555,6 +564,8 @@ describe("PUT /media-collections/:id/items", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe("media_collection_not_found");
+    expectRefusal(response.json(), "media_collection_not_found", {
+      mediaCollectionId: "unknown",
+    });
   });
 });

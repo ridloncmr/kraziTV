@@ -2,6 +2,7 @@
 // composition and a real temporary SQLite file, on a manual clock.
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../testing/refusal-details.js";
 
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import { iso, send } from "../testing/api-requests.js";
@@ -263,15 +264,12 @@ describe("catalog removal of media items", () => {
       source: "media_item",
     });
 
-    await expect(removeItems(server, [B, A])).resolves.toMatchObject({
-      status: 409,
-      body: {
-        error: {
-          code: "media_item_in_use",
-          channelIds: [CHANNEL_ID],
-          mediaItemIds: [A],
-        },
-      },
+    const response = await removeItems(server, [B, A]);
+
+    expect(response.status).toBe(409);
+    expectRefusal(response.body, "media_item_in_use", {
+      channelIds: [CHANNEL_ID],
+      mediaItemIds: [A],
     });
   });
 

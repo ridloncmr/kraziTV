@@ -1,5 +1,6 @@
 import { SCHEDULE_HORIZON_MS } from "@krazitv/krazi-brain";
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import { iso, send, windowUrl } from "../../testing/api-requests.js";
 import { captureLogLines } from "../../testing/captured-log-lines.js";
@@ -235,8 +236,8 @@ describe("GET /channels/:id/schedule", () => {
       );
 
       expect(status).toBe(409);
-      expect(body.error).toMatchObject({
-        code: "channel_unschedulable",
+      expectRefusal(body, "channel_unschedulable", {
+        channelId: CHANNEL_ID,
         reason,
       });
     },
@@ -400,6 +401,9 @@ describe("POST /channels/:id/schedule/generate", () => {
     expect(body.error).toMatchObject({
       code: "invalid_request",
       message: `through must not be after ${iso(T0 + SCHEDULE_REQUEST_LIMIT_MS)}`,
+      // Names the field as a body failure would, so the web app can word it.
+      fields: [{ path: "through", code: "too_big" }],
+      latestThrough: iso(T0 + SCHEDULE_REQUEST_LIMIT_MS),
     });
     await expect(readOnlyScheduleState(db)).resolves.toEqual(before);
   });
@@ -502,8 +506,8 @@ describe("POST /channels/:id/schedule/generate", () => {
       const { status, body } = await send(server, "POST", GENERATE_URL, {});
 
       expect(status).toBe(409);
-      expect(body.error).toMatchObject({
-        code: "channel_unschedulable",
+      expectRefusal(body, "channel_unschedulable", {
+        channelId: CHANNEL_ID,
         reason,
       });
     },

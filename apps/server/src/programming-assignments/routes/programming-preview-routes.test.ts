@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { iso, send } from "../../testing/api-requests.js";
@@ -184,14 +185,11 @@ describe("GET /channels/:id/programming-preview", () => {
       status: 404,
       body: { error: { code: "channel_not_found" } },
     });
-    await expect(send(server, "GET", PREVIEW_URL)).resolves.toMatchObject({
-      status: 409,
-      body: {
-        error: {
-          code: "channel_unschedulable",
-          reason: "no_programming_assignment",
-        },
-      },
+    const unschedulable = await send(server, "GET", PREVIEW_URL);
+    expect(unschedulable.status).toBe(409);
+    expectRefusal(unschedulable.body, "channel_unschedulable", {
+      channelId: CHANNEL_ID,
+      reason: "no_programming_assignment",
     });
     await expect(
       send(server, "GET", `${PREVIEW_URL}?turns=0`),

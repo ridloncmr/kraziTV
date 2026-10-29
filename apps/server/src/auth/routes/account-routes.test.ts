@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
+import { expectRefusal } from "../../testing/refusal-details.js";
 
 import {
   cookieOf,
@@ -95,10 +96,8 @@ describe("account routes", () => {
       cookie,
     );
 
-    expect(response).toMatchObject({
-      status: 400,
-      body: { error: { code: "unknown_avatar" } },
-    });
+    expect(response.status).toBe(400);
+    expectRefusal(response.body, "unknown_avatar", { avatarId: "pizza" });
     await expect(readProfile(server)).resolves.toEqual({
       displayName: "Owner",
       avatarId: DEFAULT_AVATAR_ID,

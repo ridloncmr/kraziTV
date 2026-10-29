@@ -86,19 +86,19 @@ export function finishJob(
   if (outcome.phase === "failed") status.error = outcome.error;
 }
 
-/** The failed outcome of a job whose root its commit refused; nothing was written. */
-export function rootRejected(
-  rootId: string,
-  rejection: RootRejection,
-): ScanOutcome {
+/**
+ * The failed outcome of a job whose root its commit refused; nothing was
+ * written. The status names the root in `rootId`, so the message never does.
+ */
+export function rootRejected(rejection: RootRejection): ScanOutcome {
   return rejection.kind === "root_not_found"
     ? failed(
         "media_root_not_found",
-        `Media root ${rootId} was removed before the scan committed; the catalog is unchanged`,
+        "The media root was removed before the scan committed; the catalog is unchanged",
       )
     : failed(
         "media_root_disabled",
-        `Media root ${rootId} was disabled before the scan committed; the catalog is unchanged`,
+        "The media root was disabled before the scan committed; the catalog is unchanged",
       );
 }
 

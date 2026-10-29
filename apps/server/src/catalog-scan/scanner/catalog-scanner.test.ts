@@ -534,10 +534,15 @@ describe("CatalogScanner", () => {
     const before = await catalogSnapshot(db);
     prober.resolveAll(PROBE_RESULT);
 
+    // The status names the root; the message the owner reads never does.
     expect(await finished(scanner)).toMatchObject({
+      rootId: rootFixture.id,
       phase: "failed",
       summary: null,
-      error: { code: "media_root_not_found" },
+      error: {
+        code: "media_root_not_found",
+        message: expect.not.stringContaining(rootFixture.id),
+      },
     });
     expect(await catalogSnapshot(db)).toEqual(before);
     expect(removals.purge).not.toHaveBeenCalled();
@@ -557,9 +562,13 @@ describe("CatalogScanner", () => {
     prober.resolveAll(PROBE_RESULT);
 
     expect(await finished(scanner)).toMatchObject({
+      rootId: rootFixture.id,
       phase: "failed",
       summary: null,
-      error: { code: "media_root_disabled" },
+      error: {
+        code: "media_root_disabled",
+        message: expect.not.stringContaining(rootFixture.id),
+      },
     });
     expect(await catalogSnapshot(db)).toEqual(before);
   });

@@ -1,34 +1,80 @@
 import { expect, it } from "vitest";
 import { ApiError } from "./api-error.js";
-import { refusalWords } from "./refusal-words.js";
+import { refusalWords, refusedFields } from "./refusal-words.js";
 
 // An invalid_request refusal as the server sends it: the fields in details.
-const invalid = (...paths: string[]) =>
+const invalid = (...fields: [path: string, code: string][]) =>
   new ApiError("invalid_request", "for logs", 400, {
-    fields: paths.map((path) => ({ path, code: "custom" })),
+    fields: fields.map(([path, code]) => ({ path, code })),
   });
 
 it("says what a channel number looks like when the number is refused", () => {
-  expect(refusalWords(invalid("number"))).toBe(
+  expect(refusalWords(invalid(["number", "custom"]))).toBe(
     "A channel number is a whole number such as 12, or one with a subchannel such as 12.1.",
   );
 });
 
 it("words a field by its own name wherever it sits in the body", () => {
-  expect(refusalWords(invalid("assignments[1].name"))).toBe("Type a name.");
-});
-
-it("joins the sentences of several refused fields, each once", () => {
-  expect(refusalWords(invalid("startsAt", "endsAt", "endsAt"))).toBe(
-    "Type a start date and time. The end must come after the start.",
+  expect(refusalWords(invalid(["assignments[1].name", "too_small"]))).toBe(
+    "Type a name.",
   );
 });
 
-it("has no words for a field it does not know, so the server's message shows", () => {
-  expect(refusalWords(invalid("ordinaryStretch"))).toBeUndefined();
+it("words a field by the check it failed, so no sentence is wrong", () => {
+  // A long name is not a missing one.
+  expect(refusalWords(invalid(["name", "too_big"]))).toBe(
+    "Use a shorter name.",
+  );
+  // A login refuses only the cap; the setup minimum belongs to setup.
+  expect(refusalWords(invalid(["password", "too_big"]))).toBe(
+    "Use a password of at most 256 characters.",
+  );
+  expect(refusalWords(invalid(["password", "too_small"]))).toBe(
+    "Use a password of at least 8 characters.",
+  );
+  // A collection special with no end and an end before the start share one sentence.
+  expect(refusalWords(invalid(["endsAt", "custom"]))).toBe(
+    "Pick an end after the start.",
+  );
+  expect(refusalWords(invalid(["endsAt", "invalid_format"]))).toBe(
+    "Type an end date and time.",
+  );
+});
+
+it("joins the sentences of several refused fields, each once", () => {
+  expect(
+    refusalWords(
+      invalid(
+        ["startsAt", "invalid_union"],
+        ["endsAt", "custom"],
+        ["endsAt", "custom"],
+      ),
+    ),
+  ).toBe("Type a start date and time. Pick an end after the start.");
+});
+
+it("has no words for a field or check it does not know, so the server's message shows", () => {
+  expect(refusalWords(invalid(["ordinaryStretch", "custom"]))).toBeUndefined();
+  expect(refusalWords(invalid(["number", "invalid_type"]))).toBeUndefined();
   expect(
     refusalWords(new ApiError("invalid_request", "for logs", 400)),
   ).toBeUndefined();
+});
+
+it("reads each refused field's path and code, skipping malformed entries", () => {
+  const error = new ApiError("invalid_request", "for logs", 400, {
+    fields: [
+      { path: "assignments[2].name", code: "too_big" },
+      { path: 3 },
+      "x",
+    ],
+  });
+
+  expect(refusedFields(error)).toEqual([
+    { path: "assignments[2].name", code: "too_big" },
+  ]);
+  expect(refusedFields(new Error("Failed to fetch"))).toEqual([]);
+  expect(refusedFields(undefined)).toEqual([]);
 });
 
 it("words a special refusal from its code and details", () => {

@@ -21,7 +21,7 @@ glossary's labels (Show, Wheel, Special, Delete).
 - The web app maps each code it can meet to one owner sentence that says what
   to change: a bad channel number says what a channel number looks like; a
   Special set in the past says so in those words; an overlap names the other
-  Special by its title and time, not an ID.
+  Special by its airtime, not an ID.
 - A code the web app does not know still shows, so nothing is silently lost.
 
 ### Labels and summaries

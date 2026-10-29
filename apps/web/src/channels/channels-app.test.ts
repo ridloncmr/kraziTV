@@ -69,6 +69,11 @@ it("keeps a saved delete absent, closes its Properties window, and retries clean
     screen.getByRole("button", { name: "Delete channel permanently" }),
   );
   await screen.findByText("Channel deleted. Configuration saved.");
+  // The web app words the notice; the server's message is for logs.
+  screen.getByText(
+    "The channel's broadcast did not stop cleanly. Retry to finish stopping it.",
+  );
+  expect(screen.queryByText(/cleanup did not finish/)).toBeNull();
   await screen.findByText(/No channels yet/);
   // Nothing is left to edit, so its window closed with the delete.
   expect(screen.queryByRole("tab", { name: "Lineup" })).toBeNull();
@@ -117,6 +122,9 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
   await selectChannel("Northwoods TV");
   fireEvent.click(screen.getByRole("button", { name: "Enable" }));
   await screen.findByText("Channel remains disabled. Re-enable was not saved.");
+  screen.getByText(
+    "An earlier stop of the channel's broadcast did not finish. Retry it, then enable the channel again.",
+  );
   api.reply(
     "/channels/one",
     { ...adminFixtures.channels[0], enabled: false },

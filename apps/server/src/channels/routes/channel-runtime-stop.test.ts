@@ -45,7 +45,8 @@ function cleanupFailed(
   return {
     error: {
       code: "channel_runtime_cleanup_failed",
-      message: expect.any(String),
+      // The channel is named in details only; the web app words the notice.
+      message: expect.not.stringContaining("channel-001"),
       channelId: "channel-001",
       operation,
       persistenceCommitted,

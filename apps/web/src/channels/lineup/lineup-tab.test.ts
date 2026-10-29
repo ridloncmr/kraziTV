@@ -1447,6 +1447,41 @@ it("adds picks as one named wheel whose members share its turns, badged Wheel in
   ]);
 });
 
+it("words why a show could not be added instead of the server's message", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    serveSuggestions,
+  );
+  api.reply(
+    BATCH,
+    {
+      error: {
+        code: "programming_member_assigned",
+        message: "Another assignment on this channel already plays that member",
+        index: 1,
+        assignmentId: "assignment-1",
+      },
+    },
+    "POST",
+    409,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Favorites"));
+  fireEvent.click(result(dialog, "Movies"));
+  next(dialog, 2);
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add (2)",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Movies could not be added: It is already in this channel's lineup.",
+  );
+});
+
 it("names a refused wheel by its name", async () => {
   const { api } = await openLineup(
     [],
