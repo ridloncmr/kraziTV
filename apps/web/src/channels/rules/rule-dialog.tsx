@@ -1,9 +1,9 @@
 import { useId, useState } from "react";
-import { CheckboxOption } from "../../controls/checkbox-option.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { TabbedPanel } from "../../controls/tabbed-panel/tabbed-panel.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { ProgrammingRule } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/resources/use-resource.js";
 import {

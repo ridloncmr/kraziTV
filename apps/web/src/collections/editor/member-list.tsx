@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { displayCount } from "../../controls/display-count.js";
-import { displayDuration } from "../../controls/display-duration.js";
-import { withIds } from "../../controls/id-selection.js";
-import { Pager } from "../../controls/pager.js";
-import { useRangeToggle } from "../../controls/use-range-toggle.js";
+import { displayCount } from "../../controls/formatting/display-count.js";
+import { displayDuration } from "../../controls/formatting/display-duration.js";
+import { withIds } from "../../controls/selection/id-selection.js";
+import { Pager } from "../../controls/pager/pager.js";
+import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
 import { fileNote } from "../../media-availability/availability-label.js";
 import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";

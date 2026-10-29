@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { displayDuration } from "../controls/display-duration.js";
+import { displayDuration } from "../controls/formatting/display-duration.js";
 import {
   displayClockTime,
   displayTimeRange,
-} from "../controls/display-time.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
+} from "../controls/formatting/display-time.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import type { ProgramId } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";

@@ -1,11 +1,8 @@
 import type { RuleMarathon } from "../../http/contracts/programming.js";
-import { CheckboxOption } from "../../controls/checkbox-option.js";
-import { PerSittingField } from "../assignments/per-sitting-field.js";
-import {
-  StretchFields,
-  suggestMarathon,
-} from "../assignments/stretch-fields.js";
-import { perSittingLabel } from "../assignments/stretch-words.js";
+import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
+import { PerSittingField } from "../stretch/per-sitting-field.js";
+import { StretchFields, suggestMarathon } from "../stretch/stretch-fields.js";
+import { perSittingLabel } from "../stretch/stretch-words.js";
 import {
   newSource,
   type RuleSourceChoice,

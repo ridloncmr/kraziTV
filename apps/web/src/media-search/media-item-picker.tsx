@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { displayCount } from "../controls/display-count.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { displayCount } from "../controls/formatting/display-count.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { useResource } from "../http/resources/use-resource.js";

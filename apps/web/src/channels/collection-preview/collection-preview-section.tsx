@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   CollectionPreview,
@@ -7,7 +7,7 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useResource } from "../../http/resources/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "./playback-mode-choices.js";
+import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";
 

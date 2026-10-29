@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ChannelNowNext } from "../channel-observation/channel-now-next.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { rowClickProps, rowOpenProps } from "../controls/row-click.js";
-import { RowMenu } from "../controls/row-menu.js";
-import { WindowDialog } from "../controls/window-dialog.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
+import {
+  rowClickProps,
+  rowOpenProps,
+} from "../controls/selection/row-click.js";
+import { RowMenu } from "../controls/popups/row-menu.js";
+import { WindowDialog } from "../controls/dialogs/window-dialog.js";
 import type { ProgramId } from "../desktop/contracts.js";
 import { usePropertiesList } from "../desktop/windows/use-properties-list.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";

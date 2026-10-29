@@ -1,5 +1,5 @@
 import { TmdbAttribution } from "../branding/attribution/tmdb-attribution.js";
-import { formText } from "../controls/form-text.js";
+import { formText } from "../controls/formatting/form-text.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { AccountTaskForm } from "./account-task-form.js";

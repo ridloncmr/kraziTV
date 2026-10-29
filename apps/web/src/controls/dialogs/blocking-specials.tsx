@@ -1,5 +1,5 @@
-import { ApiError } from "../http/api-error.js";
-import { displayTime } from "./display-time.js";
+import { ApiError } from "../../http/api-error.js";
+import { displayTime } from "../formatting/display-time.js";
 
 /**
  * Names the specials that refuse a delete, each by its channel and start,

@@ -1,6 +1,6 @@
-import { formText } from "../../controls/form-text.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { formText } from "../../controls/formatting/form-text.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type {
   CorrectableField,

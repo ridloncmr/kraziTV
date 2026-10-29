@@ -1,4 +1,4 @@
-import { displayCount } from "../controls/display-count.js";
+import { displayCount } from "../controls/formatting/display-count.js";
 import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
 import type {
   CollectionStatus,

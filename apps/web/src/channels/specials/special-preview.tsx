@@ -1,4 +1,7 @@
-import { displayTime, displayTimeRange } from "../../controls/display-time.js";
+import {
+  displayTime,
+  displayTimeRange,
+} from "../../controls/formatting/display-time.js";
 import type { SpecialPreview as Preview } from "./contracts.js";
 import { specialWords } from "./special-words.js";
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { displayDuration } from "../../controls/display-duration.js";
-import { Pager } from "../../controls/pager.js";
+import { displayDuration } from "../../controls/formatting/display-duration.js";
+import { Pager } from "../../controls/pager/pager.js";
 import type { CollectionMember } from "../../http/contracts/collections.js";
 import { fileNote } from "../../media-availability/availability-label.js";
 import { MissingLabel } from "./missing-label.js";

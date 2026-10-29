@@ -11,7 +11,7 @@ import {
   toStretchDraft,
   toStretchSetting,
   UNCHOSEN_STRETCH,
-} from "../assignments/stretch-fields.js";
+} from "../stretch/stretch-fields.js";
 import type { ContentKind } from "../contracts.js";
 
 /** One show a rule can select, named as the lineup names it. */

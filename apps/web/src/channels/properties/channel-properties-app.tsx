@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { ProgramId } from "../../desktop/contracts.js";

@@ -1,4 +1,4 @@
-import { fileName } from "../controls/file-name.js";
+import { fileName } from "../controls/formatting/file-name.js";
 import type { MediaItem } from "../http/contracts/media.js";
 
 /**

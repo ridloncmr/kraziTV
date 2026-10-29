@@ -11,8 +11,8 @@ import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js
 import {
   WindowDialog,
   WindowDialogFrame,
-} from "../../controls/window-dialog.js";
-import { WindowStatusSlot } from "../../controls/window-status.js";
+} from "../../controls/dialogs/window-dialog.js";
+import { WindowStatusSlot } from "../../controls/dialogs/window-status.js";
 import type {
   DesktopViewport,
   DesktopWindow,

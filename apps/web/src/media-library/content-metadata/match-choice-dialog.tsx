@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
-import { displayDuration } from "../../controls/display-duration.js";
-import { formText } from "../../controls/form-text.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { displayDuration } from "../../controls/formatting/display-duration.js";
+import { formText } from "../../controls/formatting/form-text.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaItem } from "../../http/contracts/media.js";

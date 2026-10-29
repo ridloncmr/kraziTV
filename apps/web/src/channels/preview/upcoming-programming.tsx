@@ -1,6 +1,6 @@
 import { rulesInPlay, skipWords, turnWords } from "./preview-words.js";
-import { displayListTime } from "../../controls/display-time.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { displayListTime } from "../../controls/formatting/display-time.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type {
   PreviewTurn,
   ProgrammingPreview,

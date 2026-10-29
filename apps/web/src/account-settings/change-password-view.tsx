@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { newPasswordRefusal } from "../account-fields/new-password-refusal.js";
-import { formText } from "../controls/form-text.js";
+import { formText } from "../controls/formatting/form-text.js";
 import { refusalWords } from "../http/refusal-words.js";
 import {
   isWrongPassword,

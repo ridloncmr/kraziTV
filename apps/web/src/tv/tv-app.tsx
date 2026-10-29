@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChannelNowNext } from "../channel-observation/channel-now-next.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { apiUrl, resourcePath } from "../http/api-client.js";
 import type { Channel } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
