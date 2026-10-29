@@ -57,7 +57,7 @@ docker run -d --name krazitv -p 3000:3000 \
   -v /path/to/your/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  ghcr.io/ridloncmr/krazitv:latest
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1
 ```
 
 Replace `192.168.1.10` with your server's address, open it in a browser, and

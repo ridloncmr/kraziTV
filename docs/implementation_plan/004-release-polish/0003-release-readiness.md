@@ -83,11 +83,12 @@ README run command start kraziTV on a clean machine and show the logon screen.
 **Status**
 
 Complete on 2026-10-29. The README quick start and the running guide's Docker
-section run `ghcr.io/ridloncmr/krazitv:latest`, both say TV and the scan prompt
-exist, collections are suggested, from-source installs set `PUBLIC_BASE_URL`
-beside `HOST`, and the four screenshots were recaptured from the live app with
-TV on the desktop. Verifying the published image on a clean machine is left to
-the orchestrator once the GHCR package is public.
+section run the published `ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1`, both say TV
+and the scan prompt exist, collections are suggested, from-source installs set
+`PUBLIC_BASE_URL` beside `HOST`, and the four screenshots were recaptured from
+the live app with TV on the desktop. The package is public, but `latest` moves
+only on a full release, so the first full release switches both commands to
+`latest` and verifies them on a clean machine.
 
 **Goal**: A first-time user who follows the README alone installs and sees
 what the app can do.

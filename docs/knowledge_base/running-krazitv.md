@@ -7,7 +7,9 @@ README's quick start is the short version.
 
 The image includes kraziTV, its web app, and FFmpeg. Every kraziTV release
 publishes it to the GitHub Container Registry as
-`ghcr.io/ridloncmr/krazitv`.
+`ghcr.io/ridloncmr/krazitv:<release tag>`. Pre-releases publish only their
+tag; a full release also moves `latest`. The command below runs the newest
+release, `v0.9.0-rc.1`.
 
 ```bash
 docker run -d --name krazitv -p 3000:3000 \
@@ -15,7 +17,7 @@ docker run -d --name krazitv -p 3000:3000 \
   -v /path/to/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  ghcr.io/ridloncmr/krazitv:latest
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1
 ```
 
 - Set `PUBLIC_BASE_URL` to the address of the machine running kraziTV, and
