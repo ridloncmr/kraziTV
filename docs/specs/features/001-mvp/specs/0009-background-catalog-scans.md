@@ -74,11 +74,11 @@ The dialog shows an animation, a status line, a progress bar, counts, and a
 
 When the scan ends, the dialog changes in place:
 
-| Outcome     | Dialog content                                                                 | Button |
-| ----------- | ------------------------------------------------------------------------------ | ------ |
-| `completed` | `Scan completed.`, then the files found, could not be read, and missing counts | OK     |
-| `failed`    | The server's error message, then `The catalog is unchanged.`                   | OK     |
-| `cancelled` | `Scan cancelled. The catalog is unchanged.`                                    | OK     |
+| Outcome     | Dialog content                                                                    | Button |
+| ----------- | --------------------------------------------------------------------------------- | ------ |
+| `completed` | `Scan completed.`, then the discovered, probed, probe-failure, and missing counts | OK     |
+| `failed`    | The server's error message, then `The catalog is unchanged.`                      | OK     |
+| `cancelled` | `Scan cancelled. The catalog is unchanged.`                                       | OK     |
 
 OK closes the dialog, unlocks the window, and refreshes media roots and the
 catalog. The dialog replaces the current **Completed scan** fieldset and the

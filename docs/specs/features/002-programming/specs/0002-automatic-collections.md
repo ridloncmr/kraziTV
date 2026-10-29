@@ -164,6 +164,10 @@ or user tags; do not infer Christmas from an unrelated genre.
 
 ### Descriptive Theme Spike And Stretch Goal
 
+[COL-012](../../../../implementation_plan/002-programming/0002-automatic-collections.md#col-012-spike-descriptive-theme-collections)
+closed this without the spike: descriptive themes are deferred to a later
+feature spec. The text below records the original intent.
+
 Investigate whether a phrase such as “Pulpy Action Adventure” can produce a useful,
 explainable automatic collection. This is a feasibility spike, not a promised
 feature or an acceptance gate for the required collection types.

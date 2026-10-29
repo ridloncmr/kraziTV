@@ -132,7 +132,9 @@ Complete on 2026-10-29. Spec 0001 reads In Development until META-012, the
 programming README points its settled decisions at ADRs 0009, 0014, and 0015,
 spec 0010's link, the knowledge-base index, the research skill, the glossary,
 `AGENTS.md`, and the media-engineer role agree with the code, and COL-012 is
-closed as deferred; the carried-over spec and plan wording is aligned too.
+closed as deferred. Carried-over wording outside the Scope line was aligned in
+the same change: `AGENTS.md`'s kind-folder list, release-polish specs 0002 and
+0003, POLISH-012's Scope, and spec 0002's theme-spike note.
 
 **Goal**: Specs, plans, the knowledge base, agent docs, and the glossary agree
 with the code.

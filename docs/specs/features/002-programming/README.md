@@ -21,10 +21,10 @@ completed specs.
 
 ## Related Specs
 
-Each spec owns its purpose, scope, non-goals, dependencies, proposed policy, open
+Each spec owns its purpose, scope, non-goals, dependencies, policy, open
 questions, architecture impact, and acceptance criteria. Spec status appears only
-in its own `Status:` line. Detailed implementation tickets belong in
-`docs/implementation_plan/` once product and architecture decisions are resolved.
+in its own `Status:` line. Implementation tickets live in
+`docs/implementation_plan/`.
 
 | Spec                                                                                           | Capability                                                                       |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -61,8 +61,9 @@ implementation. Detailed delivery sequencing belongs in the implementation plans
 - kraziPlan writes programming blocks; it never writes schedule entries
   directly.
 - Saved user overrides take precedence over generated blocks.
-- Regenerating an edited block replaces only its own future entries and never
-  the entry currently airing.
+- Regeneration starts at the regeneration boundary, so it never alters the
+  playout item currently airing; editing a reservation regenerates ordinary
+  programming from there, per the 2026-10-16 amendment.
 - How a collection was built is invisible to blocks and channels; every
   collection is consumed as an ordered list of media items.
 
