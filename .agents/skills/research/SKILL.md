@@ -26,13 +26,9 @@ Avoid relying on unverified blog posts unless they point to primary sources.
 
 Save durable research in `docs/knowledge_base/`.
 
-Use filenames like:
-
-- `plex-live-tv.md`
-- `xmltv.md`
-- `m3u.md`
-- `ffmpeg-mpeg-ts.md`
-- `ffprobe-json.md`
+Check the index in `docs/knowledge_base/README.md` first. Extend a note that
+already covers the topic; add a new note only when none does, and list it in
+the index in the same change.
 
 ## Research Note Shape
 

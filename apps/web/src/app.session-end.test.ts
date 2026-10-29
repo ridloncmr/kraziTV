@@ -15,10 +15,12 @@ import {
   setupRequired,
   stubAuthApi,
 } from "./testing/auth-fixtures.js";
+import { elapse } from "./testing/fake-time.js";
 import { App } from "./app.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -81,9 +83,11 @@ it("ignores a late 401 from the closed desktop once the logon screen is up", asy
   fireEvent.click(tile);
   const box = screen.getByLabelText<HTMLInputElement>("Type your password");
   fireEvent.change(box, { target: { value: "half typed" } });
-  // The unmounted program's aborted read still comes back 401.
+  // The unmounted program's aborted read still comes back 401. Fake time
+  // lets every reaction to it run before the check, without a real wait.
+  vi.useFakeTimers();
   api.release("/media-items", unauthenticated, "GET", 401);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await elapse(50);
   expect(api.requestsTo("/auth/state")).toHaveLength(2);
   expect(
     screen.getByLabelText<HTMLInputElement>("Type your password").value,
@@ -134,6 +138,8 @@ it("does not loop when the state read itself answers 401", async () => {
   expect(
     await screen.findByText("kraziTV can't reach its server."),
   ).toBeTruthy();
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Fake time runs any re-read the 401 queued before the count is checked.
+  vi.useFakeTimers();
+  await elapse(50);
   expect(api.requestsTo("/auth/state")).toHaveLength(1);
 });

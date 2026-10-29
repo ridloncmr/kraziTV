@@ -6,6 +6,7 @@ import type {
   ExcludedItem,
 } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
+import { fileNote } from "../../media-availability/availability-label.js";
 import { ReadOnlyMembers } from "./read-only-members.js";
 
 /**
@@ -87,7 +88,9 @@ export function AutomaticMembers({
                     <td>
                       <strong className="excluded-label">Excluded</strong>{" "}
                       {item.title}
-                      <small className="secondary path-cell">{item.path}</small>
+                      <small className="secondary path-cell" title={item.path}>
+                        {fileNote(item)}
+                      </small>
                     </td>
                     <td>{displayDuration(item.durationMs)}</td>
                     <td>

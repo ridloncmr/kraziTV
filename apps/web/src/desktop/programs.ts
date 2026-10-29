@@ -4,6 +4,7 @@ import type {
   PropertiesKind,
   WindowId,
 } from "./contracts.js";
+import { UnknownWindowError } from "./unknown-window-error.js";
 
 /** One navigation catalog supplies desktop, Start, title bars and taskbar labels. */
 export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
@@ -105,10 +106,16 @@ export function propertiesTarget(
   };
 }
 
-/** Finds any window's definition, including those no launcher lists. */
+/**
+ * Finds any window's definition, including those no launcher lists. Throws
+ * `UnknownWindowError` for an ID no program defines, since every window is
+ * opened from this catalog.
+ */
 export function programOf(id: WindowId): ProgramDefinition {
   const target = propertiesTarget(id);
-  return target
-    ? propertiesPrograms[target.kind]
-    : programs.find((program) => program.id === id)!;
+  const program = target
+    ? (propertiesPrograms[target.kind] as ProgramDefinition | undefined)
+    : programs.find((candidate) => candidate.id === id);
+  if (program === undefined) throw new UnknownWindowError(id);
+  return program;
 }

@@ -16,12 +16,6 @@ const clockFormat = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-});
-
 const shortDayFormat = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
   month: "short",
@@ -36,11 +30,6 @@ export function displayClockTime(value: string): string {
 /** Formats an API instant for observation, never deriving authoritative playback state. */
 export function displayTime(value: string): string {
   return instantFormat.format(new Date(value));
-}
-
-/** Names an instant's day, such as `Monday, October 26`, for a heading over that day's rows. */
-export function displayDay(value: string): string {
-  return dayFormat.format(new Date(value));
 }
 
 /** Names an instant's day briefly, such as `Tue, Oct 27`, where a ruler has room for little. */

@@ -7,11 +7,13 @@ const counts = (
   schedulableCount: number,
   missingCount = 0,
   tooShortCount = 0,
+  couldNotReadCount = 0,
 ): CollectionStatus => ({
   schedulable: schedulableCount > 0,
   memberCount,
   schedulableCount,
   missingCount,
+  couldNotReadCount,
   tooShortCount,
 });
 
@@ -32,6 +34,13 @@ it("names only the causes present after the airable count", () => {
   expect(canAirWords(counts(3, 2, 0, 1), "manual")).toBe(
     "2 of 3 can air (1 too short)",
   );
+  expect(canAirWords(counts(1, 0, 0, 0, 1), "manual")).toBe(
+    "0 of 1 can air (1 could not be read)",
+  );
+  expect(canAirWords(counts(4, 1, 1, 1, 1), "automatic")).toBe(
+    "1 of 4 can air (1 missing, 1 could not be read, 1 too short)",
+  );
+  expect(canAirWords(counts(1, 1), "manual")).toBe("1 of 1 can air");
   expect(canAirWords(counts(1200, 1200), "manual")).toBe(
     "1,200 of 1,200 can air",
   );

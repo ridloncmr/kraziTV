@@ -145,9 +145,11 @@ It should behave like a small broadcast automation system, not a playlist genera
     source, never by weakening a rule.
   - Name every folder so a reader can tell exactly what belongs in it. Folders
     named for a specific kind of file are encouraged: `migrations/`,
-    `schema/`, `routes/`, and `types/` for type-only declarations. Never
-    create vague folders such as `internal`, `utils`, `common`, `helpers`,
-    `shared`, `lib`, or `misc`, where anything could land.
+    `schema/`, `routes/`, `types/` for type-only declarations, `contracts/`
+    for one API area's request and response shapes per file, and `drawings/`
+    for one drawing per file. Never create vague folders such as `internal`,
+    `utils`, `common`, `helpers`, `shared`, `lib`, or `misc`, where anything
+    could land.
 - Keep exports deliberate and minimal. Export only the package or module surface
   that another file actually needs; do not use barrel exports as dumping grounds.
 - Give every method a concise comment that explains its purpose, policy, or
@@ -168,7 +170,7 @@ Do not leak provider-specific assumptions into core scheduling logic.
 
 Do not put programming or scheduling decisions inside the SignalPackager.
 
-Do not create independent programming or encoding sessions per viewer for the same active channel.
+Do not create independent programming or signal sessions per viewer for the same active channel.
 
 Do not make FFmpeg command construction part of kraziBrain.
 
@@ -210,12 +212,15 @@ working in. Do not report work as done until all of these hold.
    npm run lint
    npm test
    npm run audit:strict
+   npm run agents:check
+   npm run build
    ```
 
    Also run `npm run test:ffprobe` when you change ffprobe integration,
    `npm run test:ffmpeg` when you change FFmpeg packaging arguments or the
    channel stream runtime, and `npm run test:tmdb` (with `TMDB_API_KEY` set)
-   when you change the TMDB client.
+   when you change the TMDB client. CI also runs the browser suite;
+   `CONTRIBUTING.md` says how to run it locally, and how to run one test.
 
 4. Resolve every audit `review` item in a file you touched, or say why it
    stands.

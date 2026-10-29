@@ -23,7 +23,6 @@ later metadata lookup and Jellyfin reuse do not require copying the pipeline.
 ## Never
 
 - Never make programming or media-selection decisions in SignalPackager.
-- Never create a packaging or encoding session per viewer for an active
-  channel.
+- Never create a signal session per viewer for an active channel.
 - Never let one viewer's backpressure change channel timing or stall other
   subscribers.

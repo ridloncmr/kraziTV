@@ -17,6 +17,7 @@ import type {
 } from "../../http/contracts/media.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { useMediaItemPage } from "../../media-search/use-media-item-page.js";
+import { fileNote } from "../../media-availability/availability-label.js";
 
 const PAGE_SIZE = 50;
 
@@ -220,8 +221,8 @@ export function CatalogPicker({
                   </td>
                   <td>
                     {item.title}
-                    <small className="secondary path-cell">
-                      {item.status} · {item.path}
+                    <small className="secondary path-cell" title={item.path}>
+                      {fileNote(item)}
                     </small>
                   </td>
                   <td>{displayDuration(item.durationMs)}</td>

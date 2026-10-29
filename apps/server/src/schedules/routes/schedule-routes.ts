@@ -24,6 +24,7 @@ import type {
 } from "../contracts.js";
 import { guidePrograms } from "../guide/guide-program.js";
 import { SCHEDULE_REQUEST_LIMIT_MS } from "../schedule-coverage.js";
+import type { SchedulePreview } from "../preview/schedule-preview.js";
 import type { ScheduleService } from "../schedule-service.js";
 
 const scheduleWindowQuery = windowQuery(SCHEDULE_REQUEST_LIMIT_MS);
@@ -41,6 +42,7 @@ type CoverageFailure = Exclude<EnsureCoverageResult, { kind: "covered" }>;
 export function registerScheduleRoutes(
   server: FastifyInstance,
   schedules: ScheduleService,
+  schedulePreview: SchedulePreview,
   mediaItems: MediaItemRepository,
 ): void {
   server.get("/channels/:id/schedule", async (request, reply) => {
@@ -59,7 +61,7 @@ export function registerScheduleRoutes(
     ) {
       return sendCoverageFailure(reply, id, coverage);
     }
-    const window = await schedules.readWindow(
+    const window = await schedulePreview.readWindow(
       id,
       query.data.start,
       query.data.end,
