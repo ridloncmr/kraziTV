@@ -118,7 +118,7 @@ XMLTV output should include:
   numbers, a movie's TMDB title and release date, and either's description,
   genres, and TMDB poster. Media without facts lists by its entry title.
 
-Filler is never listed; [ADR 0014](../../../../adrs/0014-planned-filler-coverage.md) keeps XMLTV to schedule entries. Ratings and channel artwork can be added later.
+Planned filler is listed as **Off air**, with when programming resumes ([ADR 0022](../../../../adrs/0022-xmltv-lists-off-air.md)). Ratings and channel artwork can be added later.
 
 XMLTV generation reads the available schedule horizon and emits up to 72 hours of future guide data for Plex setup and basic browsing.
 

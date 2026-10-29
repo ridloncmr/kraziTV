@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { xmltvProgramme } from "./xmltv-programme.js";
+import { offAirProgramme, xmltvProgramme } from "./xmltv-programme.js";
 
 const entry = { startsAt: 1_000, endsAt: 2_000 };
 const bare = {
@@ -54,5 +54,17 @@ it("passes a bare program through with no categories or date", () => {
     categories: [],
     iconUrl: null,
     episode: null,
+  });
+});
+
+it("lists planned filler as Off air with when programming resumes, in the programming timezone", () => {
+  const startsAt = Date.parse("2026-10-05T00:45:00.000Z");
+  const endsAt = Date.parse("2026-10-05T01:00:00.000Z");
+
+  expect(offAirProgramme({ startsAt, endsAt }, "America/Chicago")).toEqual({
+    startsAt,
+    endsAt,
+    title: "Off air",
+    description: "Programming resumes at 8:00 PM.",
   });
 });

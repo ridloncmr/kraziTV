@@ -1,4 +1,4 @@
-import { ProgramIcon } from "../branding/program-icon.js";
+import { ProgramIcon } from "../branding/icons/program-icon.js";
 import type { AccountProfile, AuthState } from "../http/contracts/auth.js";
 import { AccountTile } from "./account-tile.js";
 import { LogonBackdrop } from "./logon-backdrop.js";

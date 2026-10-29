@@ -1,6 +1,6 @@
 import { memo } from "react";
-import type { ProgramDefinition } from "../desktop/contracts.js";
-import { AccountPicture } from "./avatars/account-picture.js";
+import type { ProgramDefinition } from "../../desktop/contracts.js";
+import { AccountPicture } from "../avatars/account-picture.js";
 import { ProgramIcon } from "./program-icon.js";
 
 /**

@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { CheckboxOption } from "../../controls/checkbox-option.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { TabbedPanel } from "../../controls/tabbed-panel.js";
@@ -92,10 +93,7 @@ export function ShowPropertiesDialog({
   // the server stores it differently, such as a trimmed name.
   const [savedDraft, setSavedDraft] = useState(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedDraft);
-  useEffect(() => {
-    onDirtyChange(dirty);
-    return () => onDirtyChange(false);
-  }, [dirty, onDirtyChange]);
+  useUnsavedReport(dirty, onDirtyChange);
   // Names of members picked here, which the lineup has not read.
   const [pickedNames, setPickedNames] = useState<ReadonlyMap<string, string>>(
     new Map(),

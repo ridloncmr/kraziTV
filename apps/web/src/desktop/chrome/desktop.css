@@ -523,6 +523,11 @@ button:disabled {
   padding: 10px;
   font-size: 11px;
 }
+.start-menu-source {
+  flex: none;
+  margin-left: auto;
+  color: inherit;
+}
 .start-menu-footer button {
   flex: none;
   padding: 3px 8px;

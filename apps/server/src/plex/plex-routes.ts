@@ -14,7 +14,7 @@ import { channelStreamPath } from "../channels/routes/channel-stream-routes.js";
 import type { MediaItemRepository } from "../media-items/media-item-repository.js";
 import { guidePrograms } from "../schedules/guide/guide-program.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
-import { xmltvProgramme } from "./xmltv-programme.js";
+import { offAirProgramme, xmltvProgramme } from "./xmltv-programme.js";
 
 const LINEUP_PATH = "/lineup.json";
 const XML_CONTENT_TYPE = "application/xml; charset=utf-8";
@@ -32,8 +32,8 @@ export type PlexSettings = {
 
 /**
  * Registers the HDHomeRun-compatible and XMLTV routes Plex reads. They only
- * format what channels, schedules, and the catalog's content metadata
- * already hold; tuning happens at the provider-neutral stream route the
+ * format what channels, schedules, planned filler, and the catalog's content
+ * metadata already hold; tuning happens at the provider-neutral stream route the
  * lineup links to.
  */
 export function registerPlexRoutes(
@@ -89,6 +89,7 @@ export function registerPlexRoutes(
 
   // A busy schedule writer propagates to the shared schedule_busy 503 handler.
   server.get("/plex/xmltv.xml", async (request, reply) => {
+    const timeZone = schedules.programmingTimezone();
     const start = schedules.now();
     const end = start + SCHEDULE_HORIZON_MS;
     const guide = [];
@@ -97,14 +98,25 @@ export function registerPlexRoutes(
       // Any outcome still reads the window: an unschedulable channel keeps
       // listing entries generated before it became unschedulable.
       await schedules.ensureCoverage(channel.id, request.log);
-      const { entries } = await schedules.readWindow(channel.id, start, end);
+      const { entries, fillerIntervals } = await schedules.readWindow(
+        channel.id,
+        start,
+        end,
+      );
+      // Planned filler lists as Off air among the programs (ADR 0022).
+      const programmes = [
+        ...(await guidePrograms(mediaItems, entries)).map(
+          ({ entry, program }) => xmltvProgramme(entry, program),
+        ),
+        ...fillerIntervals.map((interval) =>
+          offAirProgramme(interval, timeZone),
+        ),
+      ].sort((a, b) => a.startsAt - b.startsAt);
       guide.push({
         id: channel.id,
         number: channel.number,
         name: channel.name,
-        programmes: (await guidePrograms(mediaItems, entries)).map(
-          ({ entry, program }) => xmltvProgramme(entry, program),
-        ),
+        programmes,
       });
     }
     return reply.type(XML_CONTENT_TYPE).send(formatXmltv(guide));

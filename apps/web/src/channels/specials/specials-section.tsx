@@ -39,9 +39,12 @@ const dateFormat = new Intl.DateTimeFormat(undefined, {
 export function SpecialsSection({
   channelId,
   visible,
+  onDirtyChange,
 }: {
   channelId: string;
   visible: boolean;
+  /** Reports whether the open special editor holds unsaved edits. */
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const path = `${resourcePath("channels", channelId)}/reservations`;
   const specials = useResource<Special[]>(path, visible);
@@ -199,6 +202,7 @@ export function SpecialsSection({
           collections={collections.data}
           visible={visible}
           saved={changed}
+          onDirtyChange={onDirtyChange}
           onClose={() => setEditing(undefined)}
         />
       )}

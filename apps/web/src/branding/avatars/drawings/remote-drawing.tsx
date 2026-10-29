@@ -1,4 +1,4 @@
-import { iconGradient } from "../../icon-gradients.js";
+import { iconGradient } from "../../icons/icon-gradients.js";
 
 // The four color keys along the remote's foot, left to right.
 const COLOR_KEYS = ["#e2442f", "#4fb34a", "#f2c534", "#3b82e0"];

@@ -1,4 +1,4 @@
-import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
+import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
 import { displayTimeRange } from "../../controls/display-time.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
 import type { Channel, GuideProgram } from "../../http/contracts/channels.js";

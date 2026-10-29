@@ -160,7 +160,7 @@ ADR 0003/0009 extension explicitly before changing coverage semantics.
   within an explicit range receives filler.
 - The kraziTV Program Guide labels planned filler **Off air** without creating a
   schedule entry or XMLTV program listing.
-- Filler is absent from XMLTV program listings but visible in backend channel state.
+- Filler is listed in XMLTV as **Off air**, never as a schedule entry ([ADR 0022](../../../../adrs/0022-xmltv-lists-off-air.md)), and is visible in backend channel state.
 - Tuning during filler joins at the correct offset and reaches the reserved program.
 - Planned filler does not trigger gap repair or produce `schedule_gap`.
 - Concurrent coverage requests do not duplicate reservations or filler identities.

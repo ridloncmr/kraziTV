@@ -51,6 +51,11 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
   );
   fireEvent.click(await screen.findByRole("button", { name: "start" }));
   const menu = screen.getByRole("navigation", { name: "Start programs" });
+  expect(
+    within(menu)
+      .getByRole("link", { name: "Source code" })
+      .getAttribute("href"),
+  ).toBe("https://github.com/ridloncmr/kraziTV");
   fireEvent.click(within(menu).getByRole("button", { name: /Media Library/ }));
   const window = await screen.findByRole("region", { name: "Media Library" });
   fireEvent.click(
@@ -553,6 +558,88 @@ it("asks before closing a Channel Properties window whose open show has unsaved 
     screen.queryByRole("region", { name: "Northwoods TV Properties" }),
   ).toBeNull();
 });
+
+it.each([
+  {
+    tab: "General",
+    edit: async (window: HTMLElement) =>
+      fireEvent.change(await within(window).findByLabelText("Name"), {
+        target: { value: "Northwoods Two" },
+      }),
+  },
+  {
+    tab: "Rules",
+    edit: async (window: HTMLElement) => {
+      fireEvent.click(
+        await within(window).findByRole("button", { name: "New rule…" }),
+      );
+      const rule = within(window).getByRole("dialog", { name: "New rule" });
+      fireEvent.change(within(rule).getByLabelText("Name"), {
+        target: { value: "Weekends" },
+      });
+    },
+  },
+  {
+    tab: "Specials",
+    edit: async (window: HTMLElement) => {
+      fireEvent.click(
+        await within(window).findByRole("button", { name: "New special…" }),
+      );
+      fireEvent.change(within(window).getByLabelText("Starts"), {
+        target: { value: "2026-12-24T20:00" },
+      });
+    },
+  },
+])(
+  "asks before closing a Channel Properties window with an unsaved edit on its $tab tab",
+  async ({ tab, edit }) => {
+    const api = new BrowserApi();
+    api.reply("/health", { status: "ok" });
+    api.reply("/media-roots", []);
+    api.reply("/channels", [adminFixtures.channels[0]]);
+    api.reply("/channels/one", adminFixtures.channels[0]);
+    api.reply("/channels/one/programming-assignments", [
+      favoritesAssignment("chronological"),
+    ]);
+    api.reply("/channels/one/programming-rules", []);
+    api.reply("/channels/one/reservations", []);
+    api.reply("/programming-timezone", { programmingTimezone: "UTC" });
+    api.reply("/media-collections", adminFixtures.collections);
+    api.reply("/media-items", { items: adminFixtures.media, total: 2 });
+    vi.stubGlobal("fetch", api.fetch);
+    render(
+      createElement(DesktopShell, {
+        account,
+        onAccountChanged: () => {},
+        onLoggedOff: () => {},
+      }),
+    );
+    fireEvent.click(
+      within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+        name: "My Channels",
+      }),
+    );
+    const list = await screen.findByRole("region", { name: "My Channels" });
+    fireEvent.doubleClick(
+      await within(list).findByRole("button", { name: "Northwoods TV" }),
+    );
+    const window = await screen.findByRole("region", {
+      name: "Northwoods TV Properties",
+    });
+    fireEvent.click(await within(window).findByRole("tab", { name: tab }));
+    await edit(window);
+
+    fireEvent.click(
+      within(window).getByRole("button", {
+        name: "Close Northwoods TV Properties",
+      }),
+    );
+    expect(
+      within(window).getByRole("dialog", { name: "Unsaved changes" })
+        .textContent,
+    ).toContain("Discard your unsaved changes to Northwoods TV?");
+  },
+);
 
 it("opens TV on the channel Watch names, and retunes an open TV", async () => {
   const api = new BrowserApi();

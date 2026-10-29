@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { DesktopProgramIcon } from "../branding/desktop-program-icon.js";
+import { DesktopProgramIcon } from "../branding/icons/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";

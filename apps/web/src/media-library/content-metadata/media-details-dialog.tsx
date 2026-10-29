@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { TmdbAttribution } from "../../branding/tmdb-attribution.js";
+import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
 import { displayTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";

@@ -192,3 +192,12 @@ it("draws the account's own avatar on its tile", () => {
   const tile = screen.getByRole("button", { name: "Marguerite" });
   expect(tile.querySelector('[data-avatar="crt-tv"]')).not.toBeNull();
 });
+
+it("offers kraziTV's source code before anyone logs on, as the AGPL asks", () => {
+  renderLogon(new BrowserApi());
+  const link = screen.getByRole("link", { name: "Source code" });
+  expect(link.getAttribute("href")).toBe(
+    "https://github.com/ridloncmr/kraziTV",
+  );
+  expect(link.getAttribute("target")).toBe("_blank");
+});

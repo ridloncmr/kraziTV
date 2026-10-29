@@ -3,6 +3,7 @@ import { fromLocalInput, toLocalInput } from "../../controls/local-instant.js";
 import { CheckboxOption } from "../../controls/checkbox-option.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
 import { WindowDialog } from "../../controls/window-dialog.js";
+import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
@@ -40,7 +41,8 @@ type PreviewedSettings = {
  * stale asks for a fresh preview instead of resending. When the start falls
  * before what airs now ends, it asks What is airing now, as the Rebuild the
  * schedule dialog does: let it finish, starting when it ends, or stop it at
- * the special's start, now or later (ADR 0015).
+ * the special's start, now or later (ADR 0015). Any edit counts as unsaved
+ * until the dialog closes, so closing the window asks first.
  */
 export function SpecialEditor({
   channelId,
@@ -48,6 +50,7 @@ export function SpecialEditor({
   collections,
   visible,
   saved,
+  onDirtyChange,
   onClose,
 }: {
   channelId: string;
@@ -55,6 +58,8 @@ export function SpecialEditor({
   collections: MediaCollection[] | undefined;
   visible: boolean;
   saved: () => void;
+  /** Reports whether the form holds edits not yet saved. */
+  onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }) {
   const path = `${resourcePath("channels", channelId)}/reservations`;
@@ -112,9 +117,13 @@ export function SpecialEditor({
     }
   }, [saving.error]);
 
+  // Whether any field changed; a save closes the dialog, which clears it.
+  const [touched, setTouched] = useState(false);
+  useUnsavedReport(touched, onDirtyChange);
   // Every edit discards the preview, so a save never outlives what it showed.
   const edit = (change: () => void) => {
     edits.current += 1;
+    setTouched(true);
     change();
     setPreviewed(undefined);
   };

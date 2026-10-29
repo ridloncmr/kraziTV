@@ -104,7 +104,12 @@ it("asks for this address as the public base URL when the server's names only it
   const screenRegion = await screen.findByRole("main", {
     name: "Open kraziTV at its address",
   });
-  expect(within(screenRegion).queryByRole("link")).toBeNull();
+  // Nothing to open: the only link is the source code, on every logon screen.
+  expect(
+    within(screenRegion)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toEqual(["Source code"]);
   expect(
     within(screenRegion).getByText(window.location.origin, {
       selector: "code",

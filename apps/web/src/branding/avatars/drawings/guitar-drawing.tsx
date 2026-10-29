@@ -1,4 +1,4 @@
-import { iconGradient } from "../../icon-gradients.js";
+import { iconGradient } from "../../icons/icon-gradients.js";
 
 /**
  * A red double-cutaway electric guitar slanted across a purple stage with

@@ -22,7 +22,7 @@ kraziTV looks up content metadata through the TMDB API. TMDB's data is
 provided under [TMDB's API terms](https://www.themoviedb.org/api-terms-of-use),
 not this project's license, and each owner supplies their own TMDB API key.
 
-`apps/web/src/branding/tmdb-logo.svg` is TMDB's logo, a TMDB trademark,
+`apps/web/src/branding/attribution/tmdb-logo.svg` is TMDB's logo, a TMDB trademark,
 included unmodified as TMDB's attribution guidelines require. It is not
 covered by this project's license. Wherever kraziTV shows TMDB facts or asks
 for a key, it shows the logo with the notice "This application uses TMDB and

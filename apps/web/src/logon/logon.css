@@ -253,8 +253,13 @@
 .logon-band-bottom {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   padding: 0 32px;
+}
+.logon-source {
+  color: inherit;
+  font-size: 12px;
 }
 .logon-hint {
   max-width: 300px;
