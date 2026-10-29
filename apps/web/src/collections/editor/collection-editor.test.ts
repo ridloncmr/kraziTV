@@ -66,7 +66,7 @@ function lastPut(api: BrowserApi) {
 
 it("adds picked catalog media in path order, moves a chosen block and saves the whole order", async () => {
   const { api, onDirtyChange } = renderEditor(["z", "a"]);
-  await screen.findByText(/Schedulable · 1 eligible/);
+  await screen.findByText("1 of 2 can air");
   fireEvent.click(await screen.findByLabelText("Select Episode 10"));
   fireEvent.click(screen.getByLabelText("Select Episode 2"));
   expect(screen.queryByLabelText("Select Alpha")).toBeNull();
@@ -83,7 +83,7 @@ it("adds picked catalog media in path order, moves a chosen block and saves the 
 
   await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
   expect(lastPut(api)).toEqual({ mediaItemIds: ["a", "e2", "z", "e10"] });
-  await screen.findByText(/eligible of 4 saved members/);
+  await screen.findByText("1 of 4 can air");
   expect(memberOrder()).toEqual(["Zulu", "Episode 2", "Alpha", "Episode 10"]);
 });
 

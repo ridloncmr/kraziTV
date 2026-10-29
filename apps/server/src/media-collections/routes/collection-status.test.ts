@@ -11,7 +11,7 @@ import {
 
 afterEach(cleanUpTestEnvironment);
 
-it("reports backend schedulability for empty, missing, short and eligible members", async () => {
+it("reports schedulability with the missing and too-short counts for empty, missing, short and eligible members", async () => {
   const { server } = await startTestServer({
     seed: async (db) => {
       await db.insertInto("media_roots").values(rootFixture).execute();
@@ -29,9 +29,33 @@ it("reports backend schedulability for empty, missing, short and eligible member
     },
   });
   for (const [ids, expected] of [
-    [[], false],
-    [["short", "missing"], false],
-    [["short", "eligible"], true],
+    [
+      [],
+      {
+        schedulable: false,
+        schedulableCount: 0,
+        missingCount: 0,
+        tooShortCount: 0,
+      },
+    ],
+    [
+      ["short", "missing"],
+      {
+        schedulable: false,
+        schedulableCount: 0,
+        missingCount: 1,
+        tooShortCount: 1,
+      },
+    ],
+    [
+      ["short", "eligible"],
+      {
+        schedulable: true,
+        schedulableCount: 1,
+        missingCount: 0,
+        tooShortCount: 1,
+      },
+    ],
   ] as const) {
     const created = await server.inject({
       method: "POST",
@@ -43,10 +67,7 @@ it("reports backend schedulability for empty, missing, short and eligible member
       url: `/media-collections/${id}/status`,
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      schedulable: expected,
-      memberCount: ids.length,
-    });
+    expect(response.json()).toEqual({ ...expected, memberCount: ids.length });
   }
   expect(
     (await server.inject({ url: "/media-collections/absent/status" }))

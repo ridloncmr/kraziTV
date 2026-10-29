@@ -84,6 +84,8 @@ export function serveCollection(
       schedulable: true,
       memberCount: saved.length,
       schedulableCount: 1,
+      missingCount: 0,
+      tooShortCount: 0,
     }),
   );
   api.handle(

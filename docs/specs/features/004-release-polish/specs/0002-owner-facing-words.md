@@ -35,8 +35,9 @@ glossary's labels (Show, Wheel, Special, Delete).
   "12 of 14 can air (1 missing, 1 too short)". The status endpoint reports the
   missing and too-short counts.
 - The scan summary uses the same words the match review uses: Files found,
-  Could not be read, Missing, Identified on TMDB, Need your choice, Not
-  identified, Lookup failed.
+  Could not be read, Missing, then the match states as
+  [spec 0001](../../002-programming/specs/0001-metadata-enrichment.md) labels
+  them: Matched, Needs your choice, Unmatched, Lookup failed.
 - The Preview tab's lines read as a listing: time, show, what plays. A skip
   names the show and the reason. "Normal rotation" appears only when a rule is
   also in play; round, cooldown, assignment, and member never appear.

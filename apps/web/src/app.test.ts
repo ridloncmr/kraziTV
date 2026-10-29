@@ -115,6 +115,9 @@ it("asks for this address as the public base URL when the server's names only it
       selector: "code",
     }),
   ).toBeTruthy();
+  expect(screenRegion.textContent).toContain(
+    "PUBLIC_BASE_URL goes in kraziTV's .env file, or in -e when it runs in Docker.",
+  );
 });
 
 it("shows the setup screen while the account is not set up and opens the desktop once it is", async () => {
