@@ -7,6 +7,7 @@ import {
   CardMaintenanceStatus,
   criterionBasis,
 } from "../automatic/automatic-status.js";
+import { missingWords } from "../collection-words.js";
 
 type MaintenanceMode = MediaCollection["maintenanceMode"];
 
@@ -98,9 +99,9 @@ export function CollectionGrid({
                   {collection.missingCount > 0 && (
                     <span
                       className="warning-label"
-                      title={missingText(collection.missingCount)}
+                      title={missingWords(collection.missingCount)}
                     >
-                      {missingText(collection.missingCount)}
+                      {missingWords(collection.missingCount)}
                     </span>
                   )}
                 </span>
@@ -111,13 +112,6 @@ export function CollectionGrid({
       )}
     </TabbedPanel>
   );
-}
-
-// Counts missing members as not airing, in words, so the warning never relies on color.
-function missingText(count: number): string {
-  return count === 1
-    ? "1 missing — won't air until its file returns"
-    : `${count} missing — won't air until their files return`;
 }
 
 // Names a card's member count so the card announces it beside its name.

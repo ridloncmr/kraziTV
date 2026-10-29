@@ -9,7 +9,7 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
-import { listNames, showLabel } from "../lineup/show-labels.js";
+import { assignmentShowLabel, listNames } from "../lineup/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
@@ -74,7 +74,7 @@ export function RulesEditor({
   const edited = ranked.find((rule) => rule.id === editing);
   // Names a show as the Lineup tab does.
   const showName = (assignment: SourceAssignment) =>
-    showLabel(assignment.name, assignment.members.map(memberName));
+    assignmentShowLabel(assignment, memberName);
   const choices: RuleSourceChoice[] = assignments.map((assignment) => ({
     assignmentId: assignment.id,
     label: showName(assignment),

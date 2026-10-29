@@ -167,8 +167,8 @@ spec 0009's and spec 0001's summary paraphrases are historical and stand.
 **Goal**: The first scan's completion reads as a result, not a pipeline.
 
 **Scope**: The eight summary labels in `scan-progress-dialog.tsx` become
-Files found, Could not be read, Missing, Identified on TMDB, Need your choice,
-Not identified, Lookup failed, drawn from `match-state-label.ts` where a state
+Files found, Could not be read, Missing, Matched, Needs your choice,
+Unmatched, Lookup failed, drawn from `match-state-label.ts` where a state
 exists.
 
 **Out of scope**: Changing the counts the server reports.

@@ -17,6 +17,7 @@ import {
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { idParams, stretchField } from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
+import type { SchedulePreview } from "../../schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import {
   channelInputChange,
@@ -128,6 +129,7 @@ export function registerAssignmentRoutes(
   assignments: AssignmentRepository,
   channels: ChannelRepository,
   schedules: ScheduleService,
+  schedulePreview: SchedulePreview,
 ): void {
   server.get(
     "/channels/:id/programming-assignments",
@@ -303,7 +305,7 @@ export function registerAssignmentRoutes(
         return sendInvalidRequest(reply, query.error);
       }
       const { mediaCollectionId } = query.data;
-      const preview = await schedules.readCollectionPreview(
+      const preview = await schedulePreview.readCollectionPreview(
         id,
         assignmentId,
         mediaCollectionId,

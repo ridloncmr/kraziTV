@@ -59,6 +59,7 @@ import { registerPlayoutRoutes } from "./playout/routes/playout-routes.js";
 import { registerPlexRoutes, type PlexSettings } from "./plex/plex-routes.js";
 import type { PlayoutService } from "./playout/playout-service.js";
 import { registerScheduleRoutes } from "./schedules/routes/schedule-routes.js";
+import type { SchedulePreview } from "./schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 import { registerWebAppRoutes } from "./web-app/web-app-routes.js";
 
@@ -109,6 +110,8 @@ export type ServerDependencies = {
   rules: RuleRepository;
   reservations: ReservationRepository;
   schedules: ScheduleService;
+  /** Reads windows and previews on the same clock and timezone as `schedules`. */
+  schedulePreview: SchedulePreview;
   playout: PlayoutService;
 };
 
@@ -246,6 +249,7 @@ function registerRoutes(
     dependencies.assignments,
     dependencies.channels,
     dependencies.schedules,
+    dependencies.schedulePreview,
   );
   registerRuleRoutes(
     server,
@@ -258,6 +262,7 @@ function registerRoutes(
     dependencies.reservations,
     dependencies.channels,
     dependencies.schedules,
+    dependencies.schedulePreview,
     dependencies.channelRuntime,
   );
   registerMarathonSettingsRoutes(
@@ -266,7 +271,7 @@ function registerRoutes(
     dependencies.channels,
     dependencies.schedules,
   );
-  registerProgrammingPreviewRoutes(server, dependencies.schedules);
+  registerProgrammingPreviewRoutes(server, dependencies.schedulePreview);
   registerProgrammingRebuildRoutes(
     server,
     dependencies.schedules,
@@ -275,6 +280,7 @@ function registerRoutes(
   registerScheduleRoutes(
     server,
     dependencies.schedules,
+    dependencies.schedulePreview,
     dependencies.mediaItems,
   );
   registerPlayoutRoutes(server, dependencies.playout, dependencies.schedules);
@@ -282,6 +288,7 @@ function registerRoutes(
     server,
     dependencies.channels,
     dependencies.schedules,
+    dependencies.schedulePreview,
     dependencies.mediaItems,
     plex,
   );

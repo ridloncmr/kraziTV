@@ -22,6 +22,7 @@ import type { AssignmentRepository } from "./programming-assignments/persistence
 import type { RuleRepository } from "./programming-rules/rule-repository.js";
 import type { ReservationRepository } from "./reservations/persistence/reservation-repository.js";
 import type { PlayoutService } from "./playout/playout-service.js";
+import type { SchedulePreview } from "./schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "./schedules/schedule-service.js";
 import type { ChannelStreams } from "./channels/contracts.js";
 import { captureLogLines } from "./testing/captured-log-lines.js";
@@ -70,6 +71,7 @@ function createDependencies(
     schedules: {
       ensureAllEnabled: async () => undefined,
     } as Partial<ScheduleService> as ScheduleService,
+    schedulePreview: {} as SchedulePreview,
     playout: {} as PlayoutService,
   };
 }
