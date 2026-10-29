@@ -9,28 +9,19 @@ import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { RowMenu } from "../controls/popups/row-menu.js";
 import { useRangeToggle } from "../controls/selection/use-range-toggle.js";
 import { resourcePath } from "../http/api-client.js";
-import type {
-  MediaFilter,
-  MediaItem,
-  MediaRoot,
-} from "../http/contracts/media.js";
-import type { ReviewStep } from "../http/contracts/metadata.js";
+import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
+import type { RetryScope, ReviewStep } from "../http/contracts/metadata.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
-import { AddMediaRootDialog } from "./add-media-root-dialog.js";
 import { AVAILABILITY_LABELS } from "../media-availability/availability-label.js";
-import {
-  CatalogFilterDialog,
-  keysInUse,
-} from "../catalog-filter/catalog-filter-dialog.js";
-import { MatchChoiceDialog } from "./content-metadata/match-choice-dialog.js";
+import { keysInUse } from "../catalog-filter/catalog-filter-dialog.js";
 import { matchStateLabel } from "./content-metadata/match-state-label.js";
-import { MediaDetailsDialog } from "./content-metadata/media-details-dialog.js";
-import { ReviewMatchesDialog } from "./content-metadata/review-matches-dialog.js";
-import { TrackMappingDialog } from "./content-metadata/track-mapping-dialog.js";
-import { RemoveMediaDialog } from "./removal/remove-media-dialog.js";
-import type { RemovalSubject } from "./removal/removal-messages.js";
+import {
+  MediaLibraryDialogs,
+  type MediaLibraryDialog,
+} from "./media-library-dialogs.js";
+import { RootMatches } from "./media-roots/root-matches.js";
 import { ScanProgressDialog } from "./scan-progress/scan-progress-dialog.js";
 import { useScanJob } from "./scan-progress/use-scan-job.js";
 
@@ -55,7 +46,6 @@ export function MediaLibraryApp({
   const [filter, setFilter] = useState<MediaFilter>({});
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
   const filtersInUse = keysInUse(filter);
-  const [filtering, setFiltering] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   // Counts the Review matches steps; a failed read only hides the button.
   const review = useResource<{ steps: ReviewStep[] }>(
@@ -72,16 +62,8 @@ export function MediaLibraryApp({
   const [lastRequest, setLastRequest] = useState<"root" | "scan" | "removal">(
     "root",
   );
-  const [adding, setAdding] = useState(false);
-  const [removing, setRemoving] = useState<RemovalSubject>();
   const [removalMessage, setRemovalMessage] = useState("");
-  // The listed item whose details are open, as the listing reported it.
-  const [detailed, setDetailed] = useState<MediaItem>();
-  // The listed item whose candidates are open, and whether Review matches is.
-  const [choosing, setChoosing] = useState<MediaItem>();
-  const [reviewing, setReviewing] = useState(false);
-  // The listed disc-track item whose folder is being mapped to episodes.
-  const [mapping, setMapping] = useState<MediaItem>();
+  const [dialog, setDialog] = useState<MediaLibraryDialog>({ kind: "none" });
   // Selection is transient desktop shell state; it survives paging and search.
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const range = useRangeToggle(
@@ -98,6 +80,18 @@ export function MediaLibraryApp({
     setLastRequest("scan");
     void scan.start(root);
   }
+  /** Looks an item, its folder, or a root's failed lookups up again, followed like a scan. */
+  function retryLookups(scope: RetryScope) {
+    setLastRequest("scan");
+    void scan.retry(scope);
+  }
+  /** Reports a finished removal and releases the selection it removed. */
+  function removed(feedback: string) {
+    setLastRequest("removal");
+    setRemovalMessage(feedback);
+    setChosen(new Set());
+    refresh();
+  }
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
     roots.refresh();
@@ -108,7 +102,9 @@ export function MediaLibraryApp({
     <div className="program-page">
       <div className="program-toolbar">
         <div className="row-actions">
-          <button onClick={() => setAdding(true)}>Add media root…</button>
+          <button onClick={() => setDialog({ kind: "add" })}>
+            Add media root…
+          </button>
           <button onClick={refreshWindow}>Refresh</button>
         </div>
       </div>
@@ -138,7 +134,9 @@ export function MediaLibraryApp({
               No media roots yet. Add a path on the kraziTV server to get
               started.
             </p>
-            <button onClick={() => setAdding(true)}>Add a media root…</button>
+            <button onClick={() => setDialog({ kind: "add" })}>
+              Add a media root…
+            </button>
           </div>
         )}
         {roots.data && roots.data.length > 0 && (
@@ -209,18 +207,19 @@ export function MediaLibraryApp({
                               disabled:
                                 !root.enabled ||
                                 root.matchCounts.failedLookups === 0,
-                              onSelect: () => {
-                                setLastRequest("scan");
-                                void scan.retry({
+                              onSelect: () =>
+                                retryLookups({
                                   scope: "failed",
                                   mediaRootId: root.id,
-                                });
-                              },
+                                }),
                             },
                             {
                               label: "Delete…",
                               onSelect: () =>
-                                setRemoving({ kind: "root", root }),
+                                setDialog({
+                                  kind: "remove",
+                                  subject: { kind: "root", root },
+                                }),
                             },
                           ]}
                         />
@@ -253,12 +252,12 @@ export function MediaLibraryApp({
             role="group"
             aria-label="Matches"
           >
-            <button onClick={() => setFiltering(true)}>
+            <button onClick={() => setDialog({ kind: "filter" })}>
               {filtersInUse > 0 ? `Filter (${filtersInUse})…` : "Filter…"}
             </button>
             <button
               disabled={reviewCount === 0}
-              onClick={() => setReviewing(true)}
+              onClick={() => setDialog({ kind: "review" })}
             >
               Review matches ({reviewCount})
             </button>
@@ -276,7 +275,10 @@ export function MediaLibraryApp({
             <button
               disabled={chosen.size === 0}
               onClick={() =>
-                setRemoving({ kind: "items", mediaItemIds: [...chosen] })
+                setDialog({
+                  kind: "remove",
+                  subject: { kind: "items", mediaItemIds: [...chosen] },
+                })
               }
             >
               Delete…
@@ -343,7 +345,7 @@ export function MediaLibraryApp({
                       <span>{matchStateLabel(item.metadata)}</span>
                       <button
                         aria-label={`Details for ${item.title}`}
-                        onClick={() => setDetailed(item)}
+                        onClick={() => setDialog({ kind: "details", item })}
                       >
                         Details…
                       </button>
@@ -355,97 +357,18 @@ export function MediaLibraryApp({
           </table>
         </div>
       )}
-      {adding && (
-        <AddMediaRootDialog
-          added={refresh}
-          onScan={(root) => {
-            setAdding(false);
-            startScan(root);
-          }}
-          onClose={() => setAdding(false)}
-        />
-      )}
-      {filtering && (
-        <CatalogFilterDialog
-          applied={filter}
-          roots={roots.data}
-          onApply={(applied) => {
-            setFiltering(false);
-            setFilter(applied);
-          }}
-          onClose={() => setFiltering(false)}
-        />
-      )}
-      {removing && (
-        <RemoveMediaDialog
-          subject={removing}
-          removed={(feedback) => {
-            setRemoving(undefined);
-            setLastRequest("removal");
-            setRemovalMessage(feedback);
-            setChosen(new Set());
-            refresh();
-          }}
-          onClose={() => setRemoving(undefined)}
-          onOpenChannels={onOpenChannels}
-        />
-      )}
-      {detailed && (
-        <MediaDetailsDialog
-          item={detailed}
-          onChooseMatch={() => {
-            setDetailed(undefined);
-            setChoosing(detailed);
-          }}
-          onMapTracks={() => {
-            setDetailed(undefined);
-            setMapping(detailed);
-          }}
-          onRetry={(scope) => {
-            setDetailed(undefined);
-            setLastRequest("scan");
-            void scan.retry({ scope, mediaItemId: detailed.id });
-          }}
-          onChanged={() => {
-            setDetailed(undefined);
-            refresh();
-          }}
-          onUpdated={(updated) => {
-            setDetailed(updated);
-            refresh();
-          }}
-          onClose={() => setDetailed(undefined)}
-        />
-      )}
-      {choosing && (
-        <MatchChoiceDialog
-          mediaItemId={choosing.id}
-          title={choosing.title}
-          onDecided={() => {
-            setChoosing(undefined);
-            refresh();
-          }}
-          onClose={() => setChoosing(undefined)}
-        />
-      )}
-      {mapping && (
-        <TrackMappingDialog
-          mediaItemId={mapping.id}
-          onApplied={() => {
-            setMapping(undefined);
-            refresh();
-          }}
-          onClose={() => setMapping(undefined)}
-        />
-      )}
-      {reviewing && (
-        <ReviewMatchesDialog
-          onClose={() => {
-            setReviewing(false);
-            refresh();
-          }}
-        />
-      )}
+      <MediaLibraryDialogs
+        dialog={dialog}
+        onDialog={setDialog}
+        filter={filter}
+        roots={roots.data}
+        onFilter={setFilter}
+        onScan={startScan}
+        onRetry={retryLookups}
+        onRemoved={removed}
+        onOpenChannels={onOpenChannels}
+        refresh={refresh}
+      />
       {scan.followed && (
         <ScanProgressDialog
           key={scan.followed.status.id}
@@ -458,42 +381,10 @@ export function MediaLibraryApp({
           onReview={() => {
             scan.acknowledge();
             refresh();
-            setReviewing(true);
+            setDialog({ kind: "review" });
           }}
         />
       )}
     </div>
-  );
-}
-
-/**
- * A root's match counts in a few words: how much of it is matched, then
- * what still needs the owner, shown only when there is some. A root with no
- * media says so instead of "0 of 0 matched".
- */
-function RootMatches({
-  counts,
-  scanned,
-}: {
-  counts: MediaRoot["matchCounts"];
-  scanned: boolean;
-}) {
-  if (counts.items === 0)
-    return <>{scanned ? "No media found" : "Scan to find media"}</>;
-  return (
-    <>
-      {displayCount(counts.matched)} of {displayCount(counts.items)} matched
-      {counts.needsChoice > 0 && (
-        <small className="secondary">
-          {displayCount(counts.needsChoice)} need your choice
-        </small>
-      )}
-      {counts.failedLookups > 0 && (
-        <small className="secondary">
-          {displayCount(counts.failedLookups)} failed{" "}
-          {counts.failedLookups === 1 ? "lookup" : "lookups"}
-        </small>
-      )}
-    </>
   );
 }
