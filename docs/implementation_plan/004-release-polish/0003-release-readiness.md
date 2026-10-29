@@ -12,7 +12,7 @@ Progress: 8 of 11 tickets complete.
 | POLISH-018 | Statuses, links, index, and vocabulary                    | Complete on 2026-10-29 |
 | POLISH-019 | Decide the count rule and bring the exceptions up to date | Complete on 2026-10-28 |
 | POLISH-020 | Regroup controls/ and channels/assignments/               | Complete on 2026-10-29 |
-| POLISH-021 | Signal session release helper and ProcessBinding          | Open                   |
+| POLISH-021 | Signal session release helper and ProcessBinding          | Complete on 2026-10-29 |
 | POLISH-022 | Schedule previews leave ScheduleService                   | Complete on 2026-10-29 |
 | POLISH-023 | Small hygiene batch                                       | Complete on 2026-10-29 |
 | POLISH-024 | Media Library dialogs as one union                        | Complete on 2026-10-29 |
@@ -256,6 +256,16 @@ finds every import. Land before POLISH-006 or after, never during.
 **Docs impact**: Spec 0008 names `channels/` folders; update its list.
 
 ### POLISH-021: Signal session release helper and ProcessBinding
+
+**Status**
+
+Complete on 2026-10-29. `ProcessBinding` in
+`packaging/session/process-binding.ts` owns each process's readiness timer,
+stall timer, and usable-output flag, and its `release(onStopFailure)` replaces
+the four stop sequences; it also reports `onExited`, so the session forgets
+ended processes. `packaging/` is grouped into `arguments/` and `session/` with
+its exceptions rewritten, and `PreparationOwner` is dropped for
+`import type { FfmpegSignalSession }`.
 
 **Goal**: `FfmpegSignalSession` reads as its transitions and the audit's
 file-size review item closes.

@@ -412,9 +412,12 @@ it("closes on success, reports finishing channels, and clears the selection", as
       .checked,
   ).toBe(false);
   expect(selectionDelete().disabled).toBe(true);
-  const refreshed = api.requests.slice(reads).map((request) => request.path);
-  expect(refreshed).toEqual(
-    expect.arrayContaining(["/media-roots", "/media-items"]),
+  // The two refetches follow the success message, so wait for them rather
+  // than read the request log at once, which lost the race under CI load.
+  await waitFor(() =>
+    expect(api.requests.slice(reads).map((request) => request.path)).toEqual(
+      expect.arrayContaining(["/media-roots", "/media-items"]),
+    ),
   );
 });
 

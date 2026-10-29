@@ -1,4 +1,4 @@
-import type { PacketSink } from "../contracts.js";
+import type { PacketSink } from "../../contracts.js";
 
 /**
  * Holds a prepared FFmpeg process's packets until its commit (ADR 0016),

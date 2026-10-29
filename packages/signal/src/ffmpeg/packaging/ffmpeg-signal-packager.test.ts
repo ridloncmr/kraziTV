@@ -1483,7 +1483,7 @@ describe("FfmpegSignalPackager", () => {
   });
 
   it("stops before readiness, settles ready, and verifies child closure", async () => {
-    const { child, packager } = createHarness();
+    const { child, packager, spawner } = createHarness();
     const session = packager.start(initialItem());
     const ready = expectSignalError(session.ready, "packaging_stopped");
 
@@ -1493,6 +1493,8 @@ describe("FfmpegSignalPackager", () => {
 
     await ready;
     await expect(stopped).resolves.toBeUndefined();
+    // An exit during stop() is not an item failure, so no stand-in starts.
+    expect(spawner.spawnCalls).toHaveLength(1);
   });
 
   it("shares cleanup across repeated stop calls", async () => {
