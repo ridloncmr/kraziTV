@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { rowClickProps, rowOpenProps } from "../../controls/row-click.js";
-import { RowMenu } from "../../controls/row-menu.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import {
+  rowClickProps,
+  rowOpenProps,
+} from "../../controls/selection/row-click.js";
+import { RowMenu } from "../../controls/popups/row-menu.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type {
   ProgrammingRule,

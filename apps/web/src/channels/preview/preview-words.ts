@@ -1,5 +1,5 @@
 import type { PreviewTurn } from "../../http/contracts/programming.js";
-import { countWords, minutesWords } from "../assignments/stretch-words.js";
+import { countWords, minutesWords } from "../stretch/stretch-words.js";
 import type { ContentKind } from "../contracts.js";
 
 // Words for the Preview tab's lines, which answer "did my channel work?"

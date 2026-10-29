@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
-import { displayCount } from "../controls/display-count.js";
-import { displayDuration } from "../controls/display-duration.js";
-import { fileName } from "../controls/file-name.js";
-import { displayTime } from "../controls/display-time.js";
-import { withIds } from "../controls/id-selection.js";
-import { Pager } from "../controls/pager.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { RowMenu } from "../controls/row-menu.js";
-import { useRangeToggle } from "../controls/use-range-toggle.js";
+import { displayCount } from "../controls/formatting/display-count.js";
+import { displayDuration } from "../controls/formatting/display-duration.js";
+import { fileName } from "../controls/formatting/file-name.js";
+import { displayTime } from "../controls/formatting/display-time.js";
+import { withIds } from "../controls/selection/id-selection.js";
+import { Pager } from "../controls/pager/pager.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
+import { RowMenu } from "../controls/popups/row-menu.js";
+import { useRangeToggle } from "../controls/selection/use-range-toggle.js";
 import { resourcePath } from "../http/api-client.js";
 import type {
   MediaFilter,

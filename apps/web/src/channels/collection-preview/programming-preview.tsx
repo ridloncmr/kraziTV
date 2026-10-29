@@ -1,4 +1,4 @@
-import { displayListTime } from "../../controls/display-time.js";
+import { displayListTime } from "../../controls/formatting/display-time.js";
 import type {
   CollectionPreview,
   PreviewMember,

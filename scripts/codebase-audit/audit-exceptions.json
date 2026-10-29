@@ -127,9 +127,9 @@
     },
     {
       "rule": "grouping",
-      "files": ["apps/web/src/controls/"],
-      "reason": "Every file is a presentation control several desktop programs share: display formatters, selection helpers, the window dialog, and request feedback. Shared UI is the folder's one capability, so it stays flat; regroup into formatting/, selection/, and dialog/ when a control needs a second home.",
-      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
+      "files": ["apps/web/src/controls/formatting/"],
+      "reason": "Every file serves one capability, turning a value into the text a screen shows or a form holds: counts, durations, times, file names, and channel numbers for display, a datetime-local value to and from an API instant, and a text field read from form data. The other shared controls already sit in selection/, dialogs/, popups/, and one folder per standalone control.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); release-readiness plan POLISH-020 (names formatting/ and its seven files)"
     },
     {
       "rule": "grouping",
@@ -251,12 +251,6 @@
       "files": ["apps/web/src/account-settings/"],
       "reason": "Every file serves one desktop program, Account Settings: its app, the task form and submit hook every task shares, and its four task views.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
-    },
-    {
-      "rule": "grouping",
-      "files": ["apps/web/src/channels/assignments/"],
-      "reason": "Every file is a control that edits one programming source assignment's settings: its member rows, per-sitting stretch fields, playback-mode choices, and the collection preview with its progress reset. The lineup's Properties dialog, the rule form, and the special editor reuse them, so they share one capability.",
-      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: regroup channels/ for the lineup capability)"
     },
     {
       "rule": "grouping",

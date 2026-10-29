@@ -2,8 +2,8 @@ import { useState } from "react";
 import {
   displayClockTime,
   displayTimeRange,
-} from "../../controls/display-time.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+} from "../../controls/formatting/display-time.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type {
   Channel,
   GuideProgram,

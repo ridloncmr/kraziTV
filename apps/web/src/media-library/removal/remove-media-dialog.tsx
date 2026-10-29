@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { BlockingSpecials } from "../../controls/blocking-specials.js";
-import { channelNumberIn } from "../../controls/channel-number.js";
-import { displayClockTime } from "../../controls/display-time.js";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { BlockingSpecials } from "../../controls/dialogs/blocking-specials.js";
+import { channelNumberIn } from "../../controls/formatting/channel-number.js";
+import { displayClockTime } from "../../controls/formatting/display-time.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { ApiError } from "../../http/api-error.js";
 import type { Channel } from "../../http/contracts/channels.js";
 import type {

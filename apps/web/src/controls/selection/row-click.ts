@@ -1,5 +1,5 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import { inRowMenu } from "./row-menu.js";
+import { inRowMenu } from "../popups/row-menu.js";
 
 const ROW_CONTROLS = "button, input, select, textarea, a, label";
 

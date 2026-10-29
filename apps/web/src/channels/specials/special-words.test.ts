@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayTime } from "../../controls/display-time.js";
+import { displayTime } from "../../controls/formatting/display-time.js";
 import { airtimeWords, specialWords } from "./special-words.js";
 
 const START = "2099-06-01T20:00:00.000Z";

@@ -2,7 +2,7 @@
 import { createElement } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { elapse } from "../testing/fake-time.js";
+import { elapse } from "../../testing/fake-time.js";
 import { Tooltip } from "./tooltip.js";
 
 beforeEach(() => vi.useFakeTimers());

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import {
   optionValue,
   type CatalogOption,

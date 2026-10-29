@@ -1,4 +1,4 @@
-import { TabbedPanel } from "../../controls/tabbed-panel.js";
+import { TabbedPanel } from "../../controls/tabbed-panel/tabbed-panel.js";
 import type {
   MediaCollection,
   MediaCollectionSummary,

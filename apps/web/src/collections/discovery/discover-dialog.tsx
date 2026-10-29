@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
-import { WindowDialog } from "../../controls/window-dialog.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type {
   MediaCollection,
   Recommendation,

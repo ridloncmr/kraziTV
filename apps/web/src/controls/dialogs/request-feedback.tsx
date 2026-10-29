@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { createPortal } from "react-dom";
-import { refusalWords } from "../http/refusal-words.js";
+import { refusalWords } from "../../http/refusal-words.js";
 import { WindowStatusSlot } from "./window-status.js";
 
 /**

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type { PropertiesWindows } from "../../desktop/windows/use-properties-windows.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";

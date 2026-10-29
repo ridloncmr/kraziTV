@@ -3,8 +3,8 @@ import {
   CatalogFilterDialog,
   keysInUse,
 } from "../catalog-filter/catalog-filter-dialog.js";
-import { Pager } from "../controls/pager.js";
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { Pager } from "../controls/pager/pager.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import type { ProgramId } from "../desktop/contracts.js";
 import type { MediaCollection } from "../http/contracts/collections.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";

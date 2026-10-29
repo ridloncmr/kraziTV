@@ -1,4 +1,4 @@
-import { RequestFeedback } from "../controls/request-feedback.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import type { FolderListing } from "../http/contracts/media.js";
 import { useResource } from "../http/resources/use-resource.js";
 

@@ -1,9 +1,9 @@
 import { useId } from "react";
-import { CheckboxOption } from "../../controls/checkbox-option.js";
+import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
 import { MediaItemPicker } from "../../media-search/media-item-picker.js";
-import { PlayOrderField } from "../assignments/play-order-field.js";
+import { PlayOrderField } from "../members/play-order-field.js";
 import type { SpecialPreviewSource } from "./contracts.js";
 
 /** What kind of programming a special airs. */

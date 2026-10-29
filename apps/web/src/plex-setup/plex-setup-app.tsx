@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { RequestFeedback } from "../controls/request-feedback.js";
-import { SettingLocation } from "../controls/setting-location.js";
+import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
+import { SettingLocation } from "../controls/setting-location/setting-location.js";
 import type { PlexSetup } from "../http/contracts/plex.js";
 import { useResource } from "../http/resources/use-resource.js";
 

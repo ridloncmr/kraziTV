@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RequestFeedback } from "../../controls/request-feedback.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { Channel } from "../../http/contracts/channels.js";
