@@ -51,7 +51,7 @@ it("hides excluded items and says how many matches the page left out", async () 
   );
 
   await screen.findByRole("option", { name: "Alpha" });
-  expect(screen.queryByRole("option", { name: "Zulu (Missing)" })).toBeNull();
+  expect(screen.queryByRole("option", { name: /^Zulu/ })).toBeNull();
   expect(screen.getByText(/28 more matches/)).toBeTruthy();
 });
 

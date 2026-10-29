@@ -11,6 +11,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { adminFixtures, UNREADABLE } from "../../testing/admin-fixtures.js";
+import type { MediaItem } from "../../http/contracts/media.js";
 import {
   catalogSeries,
   episodes,
@@ -25,15 +26,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Serves a collection, favorites by default, with the given saved order and renders its editor; `serve` replaces routes first.
+// Serves a collection, favorites by default, with the given saved order and renders its editor.
 function renderEditor(
   memberIds: string[],
   collection = adminFixtures.collections[0],
-  serve?: (api: BrowserApi) => void,
+  extraCatalog: readonly MediaItem[] = [],
 ) {
   const api = new BrowserApi();
-  serveCollection(api, collection.id, memberIds);
-  serve?.(api);
+  serveCollection(api, collection.id, memberIds, extraCatalog);
   vi.stubGlobal("fetch", api.fetch);
   const onDirtyChange = vi.fn();
   render(
@@ -355,8 +355,8 @@ it("labels a missing member as not airing until its file returns, with an icon b
   expect(within(alpha).queryByText(/Missing/)).toBeNull();
 });
 
-// One fixture item per availability: Alpha available, Zulu missing, Unreadable could not be read.
-const EVERY_AVAILABILITY = [...adminFixtures.media, UNREADABLE];
+// One catalog item per availability: Alpha available, Zulu missing, Unreadable could not be read.
+const EVERY_AVAILABILITY = ["z", "a", UNREADABLE.id];
 
 // The line under a row's title: what the row says and the full path it keeps for hovering.
 function fileLine(row: HTMLElement) {
@@ -364,22 +364,8 @@ function fileLine(row: HTMLElement) {
   return [line.textContent, line.title];
 }
 
-// The fixture items of every availability as the server's member projection.
-const EVERY_AVAILABILITY_MEMBERS = EVERY_AVAILABILITY.map(
-  ({ id, title, path, status, durationMs }, position) => ({
-    position,
-    mediaItemId: id,
-    title,
-    path,
-    status,
-    durationMs,
-  }),
-);
-
 it("names each member's availability beside its file name, keeping the full path for hovering", async () => {
-  renderEditor([], adminFixtures.collections[0], (api) =>
-    api.reply("/media-collections/favorites/items", EVERY_AVAILABILITY_MEMBERS),
-  );
+  renderEditor(EVERY_AVAILABILITY, adminFixtures.collections[0], [UNREADABLE]);
 
   const row = async (title: string) =>
     (await screen.findByLabelText(`Select member ${title}`)).closest("tr")!;
@@ -399,13 +385,7 @@ it("names each member's availability beside its file name, keeping the full path
 });
 
 it("names each catalog item's availability beside its file name in the picker", async () => {
-  renderEditor([], adminFixtures.collections[0], (api) =>
-    api.reply(
-      "/media-items/search",
-      { items: EVERY_AVAILABILITY, total: EVERY_AVAILABILITY.length },
-      "POST",
-    ),
-  );
+  renderEditor([], adminFixtures.collections[0], [UNREADABLE]);
 
   const row = async (title: string) =>
     (await screen.findByLabelText(`Select ${title}`)).closest("tr")!;
@@ -425,9 +405,7 @@ it("names each catalog item's availability beside its file name in the picker", 
 });
 
 it("names each read-only member's availability beside its file name in an automatic collection", async () => {
-  renderEditor([], officeCollection, (api) =>
-    api.reply("/media-collections/office/items", EVERY_AVAILABILITY_MEMBERS),
-  );
+  renderEditor(EVERY_AVAILABILITY, officeCollection, [UNREADABLE]);
 
   const row = async (title: string) =>
     (await screen.findByText(title)).closest("tr")!;

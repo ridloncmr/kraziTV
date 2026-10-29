@@ -25,7 +25,7 @@ export const episodes: MediaItem[] = [
   },
 ];
 
-const catalog = [...adminFixtures.media, ...episodes];
+const fixtureCatalog = [...adminFixtures.media, ...episodes];
 
 /** Cataloged series as the server lists them, by name. */
 export const catalogSeries: CatalogGroup[] = [
@@ -54,12 +54,16 @@ export const officeCollection = collectionWith("office", "The Office", {
  * persists across reads and PUT echoes it like the server, so refetches after
  * a save see the committed order. Search leaves excluded IDs out of the items
  * and the total, as the server does; it ignores the text and paging.
+ * `extraCatalog` adds items to the fixture catalog that members and search draw
+ * from, for a test that needs one the shared catalog leaves out.
  */
 export function serveCollection(
   api: BrowserApi,
   id: string,
   memberIds: readonly string[],
+  extraCatalog: readonly MediaItem[] = [],
 ): void {
+  const catalog = [...fixtureCatalog, ...extraCatalog];
   let saved = [...memberIds];
   const members = () =>
     saved.map((mediaItemId, position) => {
