@@ -28,7 +28,8 @@ const ASSIGNMENTS = "/channels/one/programming-assignments";
 const ASSIGNMENT = `${ASSIGNMENTS}/assignment`;
 
 // The Lineup tab over `assignments` and the fixture collections plus
-// `extra`; `setup` adds replies the tab reads as it opens.
+// `extra`, while the fixture program Alpha airs unless `setup` replies
+// otherwise; `setup` adds replies the tab reads as it opens.
 async function openLineup(
   assignments: SourceAssignment[],
   extra: ReturnType<typeof collectionWith>[] = [],
@@ -37,6 +38,7 @@ async function openLineup(
   const api = new BrowserApi();
   api.reply(ASSIGNMENTS, assignments);
   api.reply("/media-collections", [...adminFixtures.collections, ...extra]);
+  api.reply("/channels/one/now", adminFixtures.now);
   setup(api);
   vi.stubGlobal("fetch", api.fetch);
   const view = await openChannelTab(api, "Lineup");
@@ -75,13 +77,19 @@ function savesAs(api: BrowserApi, saved: () => SourceAssignment) {
   );
 }
 
-const REBUILD = "Rebuild the schedule";
+// The rebuild question a lineup change asks while the fixture program airs.
+const REBUILD = "What should happen to Alpha?";
 
-// Answers the rebuild choice a lineup change offers with Let it finish,
-// which the change already applied, so nothing more is sent.
+// Answers the rebuild question a lineup change asks with Let it finish, its
+// default, which the change already applied, so nothing more is sent.
 async function letItFinish(api: BrowserApi) {
   const dialog = await screen.findByRole("dialog", { name: REBUILD });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+  expect(
+    within(dialog).getByRole<HTMLInputElement>("radio", {
+      name: "Let it finish",
+    }).checked,
+  ).toBe(true);
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
   await within(dialog).findByText(/rebuilt after what is airing now/);
   fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -325,17 +333,61 @@ it("removes a show only after a confirmation that names it", async () => {
     "DELETE",
   ]);
 
-  // Removal offers the rebuild choice; stopping now rebuilds from now.
+  // Removal asks about the airing program; stopping it now rebuilds from
+  // now, and the dialog says so in the owner's words.
   api.reply("/channels/one/programming/rebuild", { stopFailed: false }, "POST");
   const rebuild = await screen.findByRole("dialog", { name: REBUILD });
   fireEvent.click(
     within(rebuild).getByRole("radio", {
-      name: "Stop it now and rebuild the schedule",
+      name: "Stop it now and start the new lineup",
     }),
   );
-  fireEvent.click(within(rebuild).getByRole("button", { name: "Rebuild" }));
+  expect(rebuild.textContent).toMatch(
+    /Alpha stops and the new lineup starts now\. Viewers watching now are disconnected and must tune in again\./,
+  );
+  expect(rebuild.textContent).not.toMatch(/round|cooldown|assignment|member/i);
+  fireEvent.click(within(rebuild).getByRole("button", { name: "OK" }));
   await within(rebuild).findByText(/rebuilt from now/);
   expect(api.requestsTo("/channels/one/programming/rebuild")).toHaveLength(1);
+});
+
+it("removes a show without asking while filler airs", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [],
+    (api) =>
+      api.reply("/channels/one/now", {
+        ...adminFixtures.now,
+        currentItem: {
+          type: "filler",
+          startsAt: "2026-10-05T14:50:00.000Z",
+          endsAt: "2026-10-05T15:10:00.000Z",
+          resumeTime: "11:10 AM",
+        },
+      }),
+  );
+  api.handle(
+    ASSIGNMENT,
+    () => {
+      api.reply(ASSIGNMENTS, []);
+      return api.response(undefined, 204);
+    },
+    "DELETE",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Favorites" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
+  fireEvent.click(
+    within(screen.getByRole("dialog", { name: "Remove show" })).getByRole(
+      "button",
+      { name: "Remove" },
+    ),
+  );
+
+  await screen.findByText(/No shows yet/);
+  expect(api.requestsTo(ASSIGNMENT).map((request) => request.method)).toEqual([
+    "DELETE",
+  ]);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("derives the marathon length from per sitting once the show can marathon", async () => {
@@ -980,6 +1032,46 @@ it("adds three picks as three shows in one request, each with its suggested per 
   expect(
     api.requestsTo(ASSIGNMENTS).filter((request) => request.method === "POST"),
   ).toEqual([]);
+});
+
+it("adds the first show without asking while nothing airs", async () => {
+  const { api } = await openLineup(
+    [],
+    [collectionWith("movies", "Movies")],
+    (api) => {
+      serveSuggestions(api);
+      api.reply("/channels/one/now", adminFixtures.offAir);
+    },
+  );
+  api.handle(
+    BATCH,
+    (request) => {
+      const { assignments } = request.body as { assignments: object[] };
+      api.reply(
+        ASSIGNMENTS,
+        assignments.map((settings, index) => ({
+          ...settings,
+          id: `show-${index}`,
+        })),
+      );
+      return api.response([], 201);
+    },
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Movies"));
+  next(dialog, 1);
+  const add = within(dialog).getByRole<HTMLButtonElement>("button", {
+    name: "Add (1)",
+  });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  fireEvent.click(add);
+
+  // The show is listed and nothing asks what should happen to the air.
+  await screen.findByRole("button", { name: "Movies" });
+  expect(api.requestsTo(BATCH)).toHaveLength(1);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("asks for per sitting before Add for a pick with no suggestion", async () => {

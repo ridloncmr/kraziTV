@@ -369,11 +369,18 @@ stretch to finish. Automatic policy changes preserve continuation and started
 marathon cooldown; they never choose a fresh slate for the user.
 
 Offer the existing administrative choice **Let it finish** or **Stop it now and
-rebuild the schedule**, defaulting to finish. Follow accepted ADR 0003 and the
-catalog-removal lifecycle: explicit interruption removes the airing entry, rebuilds
-from current time under write authority, commits, then stops the shared channel
-worker. Viewers disconnect and must tune in again; disclose that effect before
-submission.
+rebuild the schedule**, defaulting to finish, only while a program is airing. A
+write that changes what airs on a channel where nothing or filler is airing has
+nothing to interrupt, so it applies silently and no dialog opens. The web app
+decides from its polled read of the channel's now state, which can be stale at
+write time; because the write has already applied as Let it finish, a stale read
+only hides the Stop-now offer and never interrupts, and the Preview tab's explicit
+**Rebuild the schedule…** remains, opening the choice whether or not a program
+airs. Name the airing program in the dialog and word it for owners. Follow
+accepted ADR 0003 and the catalog-removal lifecycle: explicit interruption removes
+the airing entry, rebuilds from current time under write authority, commits, then
+stops the shared channel worker. Viewers disconnect and must tune in again;
+disclose that effect before submission.
 
 The explicit stop-and-rebuild choice gives the user a fresh programming slate.
 Clear the active turn, all default/featured round continuations, served/skipped

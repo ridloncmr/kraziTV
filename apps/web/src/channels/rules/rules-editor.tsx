@@ -24,8 +24,9 @@ import { behaviorWords, describeWhen } from "./rule-words.js";
  * asks first. Rules that overlap at one priority play together, and saved
  * order decides whose settings a show they share uses, so a rule moves up
  * or down only among rules of its priority. Each accepted edit has already
- * regenerated after the airing program; the rebuild choice that follows
- * can also stop it and rebuild from now.
+ * regenerated after the airing program; while one airs, the question that
+ * follows can also stop it and rebuild from now, and while nothing or
+ * filler airs the edit applies silently.
  */
 export function RulesEditor({
   channelId,
@@ -56,13 +57,15 @@ export function RulesEditor({
   // The rule open in its dialog, `new` for a new one, or nothing.
   const [editing, setEditing] = useState<string>();
   const [deleting, setDeleting] = useState<ProgrammingRule>();
-  const [rebuilding, setRebuilding] = useState(false);
-  // Closes any dialog, refreshes what the edit changed, and offers the rebuild choice.
+  // The airing program the rebuild question is open about; none while
+  // nothing or filler airs, so such an edit never asks.
+  const [rebuilding, setRebuilding] = useState<string>();
+  // Closes any dialog, refreshes what the edit changed, and asks about the airing program.
   const saved = () => {
     setEditing(undefined);
     setDeleting(undefined);
     changed();
-    setRebuilding(true);
+    setRebuilding(programming.airingProgram);
   };
   const savedOrder = rules.data ?? [];
   // Highest priority first, then saved order, as the server ranks them.
@@ -258,12 +261,12 @@ export function RulesEditor({
           </div>
         </WindowDialog>
       )}
-      {rebuilding && (
+      {rebuilding !== undefined && (
         <RebuildDialog
           channelId={channelId}
-          finishApplied
+          appliedAfter={rebuilding}
           rebuilt={changed}
-          onClose={() => setRebuilding(false)}
+          onClose={() => setRebuilding(undefined)}
         />
       )}
     </section>

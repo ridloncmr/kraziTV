@@ -31,8 +31,9 @@ import { useMemberNames } from "./use-member-names.js";
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
  * calls `changed`. A write that changes what airs has already regenerated
- * after the airing program, so the lineup then offers the rebuild choice,
- * as the Rules tab does, once the dialog that made it closes.
+ * after the airing program, so the lineup then asks what should happen to
+ * that program, as the Rules tab does, once the dialog that made it closes;
+ * while nothing or filler airs the write applies silently.
  */
 export function LineupTab({
   channelId,
@@ -68,11 +69,13 @@ export function LineupTab({
   const [editing, setEditing] = useState<string>();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<SourceAssignment>();
-  const [rebuilding, setRebuilding] = useState(false);
-  // Refreshes after a write that changed what airs, and offers the rebuild choice.
+  // The airing program the rebuild question is open about; none while
+  // nothing or filler airs, so such a write never asks.
+  const [rebuilding, setRebuilding] = useState<string>();
+  // Refreshes after a write that changed what airs, and asks about the airing program.
   const applied = () => {
     changed();
-    setRebuilding(true);
+    setRebuilding(programming.airingProgram);
   };
   const selected = listed.find((assignment) => assignment.id === selectedId);
   const edited = listed.find((assignment) => assignment.id === editing);
@@ -235,7 +238,7 @@ export function LineupTab({
           changed={changed}
           onClose={(programmingChanged) => {
             setEditing(undefined);
-            if (programmingChanged) setRebuilding(true);
+            if (programmingChanged) setRebuilding(programming.airingProgram);
           }}
           openProgram={openProgram}
         />
@@ -279,12 +282,12 @@ export function LineupTab({
           </div>
         </WindowDialog>
       )}
-      {rebuilding && (
+      {rebuilding !== undefined && (
         <RebuildDialog
           channelId={channelId}
           rebuilt={changed}
-          onClose={() => setRebuilding(false)}
-          finishApplied
+          onClose={() => setRebuilding(undefined)}
+          appliedAfter={rebuilding}
         />
       )}
     </section>
