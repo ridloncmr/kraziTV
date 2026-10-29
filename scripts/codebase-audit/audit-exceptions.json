@@ -124,6 +124,12 @@
     },
     {
       "rule": "grouping",
+      "files": ["apps/web/src/controls/dialogs/"],
+      "reason": "Every file serves one capability, the dialogs a window lends its program: the window dialog and its layer, the unsaved-changes question, the status slot and request feedback a dialog reports through, and the specials that block a delete dialog. The property-sheet footer, a standalone control, sits in its own sheet-footer/ folder.",
+      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); first-run-flow plan POLISH-006 (adds unsaved-changes-dialog.tsx beside window-dialog.tsx)"
+    },
+    {
+      "rule": "grouping",
       "files": ["apps/server/src/config/"],
       "reason": "Every file parses startup environment settings, one capability, so the folder stays flat.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"

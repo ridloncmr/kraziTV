@@ -3,6 +3,8 @@ import type { ProgramId } from "../../desktop/contracts.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { SheetFooter } from "../../controls/sheet-footer/sheet-footer.js";
+import { UnsavedChangesDialog } from "../../controls/dialogs/unsaved-changes-dialog.js";
 import { TabbedPanel } from "../../controls/tabbed-panel/tabbed-panel.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
@@ -44,7 +46,8 @@ type ShowTab = "general" | "contents" | "upNext";
  * out as an XP property sheet. **General** holds the show's name, play
  * order, how much plays at a time, marathons, and rule-only airing; **Contents** holds members;
  * **Up Next** previews a saved collection and offers a restart. Nothing
- * writes until **OK** or **Apply**, and **Cancel** discards every change.
+ * writes until **OK** or **Apply**, and **Cancel** discards every change,
+ * asking first when there is one.
  * Saving a show never changes the channel's marathon settings: while they
  * are off, checking **Allow marathons** offers to turn them on as its own
  * write.
@@ -104,12 +107,15 @@ export function ShowPropertiesDialog({
   );
   // Counts accepted saves, so the collection preview reads again.
   const [saves, setSaves] = useState(0);
-  // Whether the pressed button was OK, which closes after the save.
-  const closeAfterSave = useRef(true);
+  // Whether Cancel is asking before it discards the draft.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
   // Whether a save here changed what airs, which the lineup answers on close.
   const programmingChanged = useRef(false);
   // Closes the dialog, reporting what its saves changed.
   const close = () => onClose(programmingChanged.current);
+  // Closes the dialog, asking first when the draft holds unsaved edits.
+  const cancel = () => (dirty ? setConfirmingCancel(true) : close());
   // Refreshes after a write that changed what airs, and remembers it.
   const programmingSaved = () => {
     programmingChanged.current = true;
@@ -149,6 +155,24 @@ export function ShowPropertiesDialog({
   // Applies one edit to the draft.
   const edit = (change: Partial<ShowDraft>) =>
     setDraft((current) => ({ ...current, ...change }));
+  // Saves the draft for OK, which then closes, or Apply, which stays open.
+  const save = (closing: boolean) => {
+    if (shown !== "general" && generalIncomplete) {
+      // Shows General so the browser can point at the missing field.
+      setTab("general");
+      requestAnimationFrame(() => form.current?.reportValidity());
+      return;
+    }
+    const airs = changesProgramming(assignment, draft);
+    const sent = draft;
+    void mutation.run(assignmentPath, "PATCH", toSettings(sent), () => {
+      setSavedDraft(sent);
+      setSaves((count) => count + 1);
+      if (airs) programmingSaved();
+      else changed();
+      if (closing) close();
+    });
+  };
   // Member rows edit through a function of the current rows.
   const editMembers = (
     change: (rows: AssignmentMember[]) => AssignmentMember[],
@@ -157,34 +181,11 @@ export function ShowPropertiesDialog({
       ...current,
       members: change([...current.members]),
     }));
+  // A pending write keeps the dialog open, since closing would abandon it.
+  const busy = mutation.pending || turnOn.pending;
   return (
-    <WindowDialog
-      title={title}
-      busy={mutation.pending || turnOn.pending}
-      onClose={close}
-    >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (shown !== "general" && generalIncomplete) {
-            // Shows General so the browser can point at the missing field.
-            const form = event.currentTarget;
-            setTab("general");
-            requestAnimationFrame(() => form.reportValidity());
-            return;
-          }
-          const closing = closeAfterSave.current;
-          const airs = changesProgramming(assignment, draft);
-          const sent = draft;
-          void mutation.run(assignmentPath, "PATCH", toSettings(sent), () => {
-            setSavedDraft(sent);
-            setSaves((count) => count + 1);
-            if (airs) programmingSaved();
-            else changed();
-            if (closing) close();
-          });
-        }}
-      >
+    <WindowDialog title={title} busy={busy} onClose={cancel}>
+      <form ref={form} onSubmit={(event) => event.preventDefault()}>
         <TabbedPanel
           label="Show properties"
           idPrefix={`show-${tabsId}`}
@@ -362,29 +363,20 @@ export function ShowPropertiesDialog({
           error={mutation.error}
           message={mutation.message}
         />
-        <div className="dialog-actions">
-          <button
-            type="submit"
-            disabled={mutation.pending}
-            onClick={() => {
-              closeAfterSave.current = true;
-            }}
-          >
-            OK
-          </button>
-          <button type="button" disabled={mutation.pending} onClick={close}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={mutation.pending}
-            onClick={() => {
-              closeAfterSave.current = false;
-            }}
-          >
-            Apply
-          </button>
-        </div>
+        <SheetFooter
+          dirty={dirty}
+          busy={busy}
+          onOk={() => save(true)}
+          onCancel={cancel}
+          onApply={() => save(false)}
+        />
+        {confirmingCancel && (
+          <UnsavedChangesDialog
+            name={title}
+            onDiscard={close}
+            onKeepEditing={() => setConfirmingCancel(false)}
+          />
+        )}
       </form>
     </WindowDialog>
   );

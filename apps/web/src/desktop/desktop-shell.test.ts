@@ -641,6 +641,67 @@ it.each([
   },
 );
 
+it("closes a Channel Properties window from General's OK once it saves, and from Cancel", async () => {
+  const api = new BrowserApi();
+  const northwoods = adminFixtures.channels[0];
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/channels", [northwoods]);
+  api.reply("/channels/one", northwoods);
+  api.reply("/channels/one", { ...northwoods, number: "70" }, "PATCH");
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "My Channels",
+    }),
+  );
+  const list = await screen.findByRole("region", { name: "My Channels" });
+  // Opens the channel's window on General.
+  const openGeneral = async () => {
+    fireEvent.doubleClick(
+      await within(list).findByRole("button", { name: "Northwoods TV" }),
+    );
+    const window = await screen.findByRole("region", {
+      name: "Northwoods TV Properties",
+    });
+    fireEvent.click(
+      await within(window).findByRole("tab", { name: "General" }),
+    );
+    return window;
+  };
+
+  const window = await openGeneral();
+  fireEvent.change(within(window).getByLabelText("Number"), {
+    target: { value: "70" },
+  });
+  fireEvent.click(within(window).getByRole("button", { name: "OK" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("region", { name: "Northwoods TV Properties" }),
+    ).toBeNull(),
+  );
+  // Saving closed it without asking.
+  expect(screen.queryByRole("dialog", { name: "Unsaved changes" })).toBeNull();
+
+  fireEvent.click(
+    within(await openGeneral()).getByRole("button", { name: "Cancel" }),
+  );
+  expect(
+    screen.queryByRole("region", { name: "Northwoods TV Properties" }),
+  ).toBeNull();
+});
+
 it("opens TV on the channel Watch names, and retunes an open TV", async () => {
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
