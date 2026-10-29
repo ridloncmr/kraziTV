@@ -16,3 +16,10 @@
 .list-toolbar > .filter-actions {
   margin-left: 0;
 }
+/* A never-scanned root's raised Scan sits beside its … menu on one line. */
+.root-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
