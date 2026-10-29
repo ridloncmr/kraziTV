@@ -40,9 +40,14 @@ function assignment(
   };
 }
 
-// The editor over Favorites in rotation and rule-only Christmas Movies.
-function editorApi(rules: unknown[] = []) {
+// The rebuild question a rule edit asks while the fixture program airs.
+const REBUILD = "What should happen to Alpha?";
+
+// The editor over Favorites in rotation and rule-only Christmas Movies,
+// while the fixture program Alpha airs unless `now` says otherwise.
+function editorApi(rules: unknown[] = [], now: unknown = adminFixtures.now) {
   const api = new BrowserApi();
+  api.reply("/channels/one/now", now);
   api.reply("/channels/one/programming-assignments", [
     assignment("favorites-turns", "favorites"),
     assignment("christmas-turns", "christmas", "rule_only"),
@@ -118,9 +123,7 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
   fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
   fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
-  const dialog = await screen.findByRole("dialog", {
-    name: "Rebuild the schedule",
-  });
+  const dialog = await screen.findByRole("dialog", { name: REBUILD });
   expect(
     api.requestsTo(RULES).find((request) => request.method === "POST")?.body,
   ).toEqual({
@@ -143,10 +146,32 @@ it("shows the timezone rules follow, and saves a December join rule, letting the
       name: "Let it finish",
     }).checked,
   ).toBe(true);
-  fireEvent.click(within(dialog).getByRole("button", { name: "Rebuild" }));
+  expect(dialog.textContent).toMatch(
+    /Alpha finishes, and the new lineup starts after it\./,
+  );
+  fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
   await within(dialog).findByText(/rebuilt after what is airing now/);
   // The rule save already regenerated after the airing program.
   expect(api.requestsTo("/channels/one/schedule/generate")).toEqual([]);
+});
+
+it("saves a rule without asking while nothing airs", async () => {
+  const api = editorApi([], adminFixtures.offAir);
+  api.reply(RULES, ruleFixture("december", "December", []), "POST");
+
+  const form = await openNewRule(api);
+  fireEvent.change(within(form).getByLabelText("Name"), {
+    target: { value: "December" },
+  });
+  showTab(form, "What plays");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
+
+  await waitFor(() => expect(api.readAfterLastWrite(RULES)).toBe(true));
+  expect(
+    api.requestsTo(RULES).filter((request) => request.method === "POST"),
+  ).toHaveLength(1);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("offers priorities 1 to 5, starts a new rule at 3, and says how overlapping rules combine", async () => {
@@ -211,7 +236,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   );
   fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
-  await screen.findByRole("dialog", { name: "Rebuild the schedule" });
+  await screen.findByRole("dialog", { name: REBUILD });
   expect(
     api.requestsTo(RULES).find((request) => request.method === "POST")?.body,
   ).toMatchObject({
@@ -261,9 +286,7 @@ it("shows the server's message for an invalid size pair", async () => {
   expect(
     await within(form).findByText(/marathon must be longer than the ordinary/),
   ).toBeTruthy();
-  expect(
-    screen.queryByRole("dialog", { name: "Rebuild the schedule" }),
-  ).toBeNull();
+  expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
 });
 
 it("lists rules by priority and reorders only among equal priorities", async () => {
@@ -303,7 +326,7 @@ it("lists rules by priority and reorders only among equal priorities", async () 
   );
   chooseRowCommand("December", "Move down");
 
-  await screen.findByRole("dialog", { name: "Rebuild the schedule" });
+  await screen.findByRole("dialog", { name: REBUILD });
   expect(api.requestsTo(`${RULES}/order`)[0]?.body).toEqual({
     ruleIds: ["winter", "fridays", "december"],
   });
@@ -323,7 +346,7 @@ it("deletes a rule and offers the rebuild choice", async () => {
   expect(api.requestsTo(`${RULES}/december`)).toEqual([]);
   fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }));
 
-  await screen.findByRole("dialog", { name: "Rebuild the schedule" });
+  await screen.findByRole("dialog", { name: REBUILD });
   expect(
     api.requestsTo(`${RULES}/december`).map((request) => request.method),
   ).toEqual(["DELETE"]);
