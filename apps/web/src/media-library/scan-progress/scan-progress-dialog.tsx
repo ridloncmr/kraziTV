@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { displayCount } from "../../controls/display-count.js";
 import { fileName } from "../../controls/file-name.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
@@ -10,6 +10,10 @@ import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/resources/use-resource.js";
+import {
+  LOOKUP_FAILED_LABEL,
+  MATCH_STATE_LABELS,
+} from "../content-metadata/match-state-label.js";
 import { ScanAnimation } from "./scan-animation.js";
 import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
 
@@ -59,7 +63,8 @@ export function ScanProgressDialog({
   const running = ending === null && isScanRunning(polled);
   if (!running && !ended) setEnded(true);
   const completed = ending === null && polled.phase === "completed";
-  // Items this scan left needing the owner's choice; only a completed scan reports them.
+  // Items this scan left needing the owner's choice, which offer Review
+  // matches; only a completed scan reports them.
   const needChoice = completed ? (polled.summary?.ambiguousCount ?? 0) : 0;
   // Read once the scan completes, so its summary can say why titles come
   // from file names; a failed read says nothing rather than guess.
@@ -142,33 +147,14 @@ export function ScanProgressDialog({
       )}
       {completed && polled.summary && (
         <dl className="facts">
-          {polled.kind === "scan" && (
-            <>
-              <dt>Discovered</dt>
-              <dd>{displayCount(polled.summary.discoveredCount)}</dd>
-              <dt>Probed</dt>
-              <dd>{displayCount(polled.summary.probedCount)}</dd>
-              <dt>Probe failures</dt>
-              <dd>{displayCount(polled.summary.probeFailedCount)}</dd>
-              <dt>Missing</dt>
-              <dd>{displayCount(polled.summary.missingCount)}</dd>
-            </>
-          )}
-          {polled.lookupCount > 0 && (
-            <>
-              <dt>Matched</dt>
-              <dd>{displayCount(polled.summary.matchedCount)}</dd>
-              <dt>Ambiguous</dt>
-              <dd>{displayCount(polled.summary.ambiguousCount)}</dd>
-              <dt>Unmatched</dt>
-              <dd>{displayCount(polled.summary.unmatchedCount)}</dd>
-              <dt>Lookup errors</dt>
-              <dd>{displayCount(polled.summary.lookupErrorCount)}</dd>
-            </>
-          )}
+          {summaryFacts(polled, polled.summary).map(([label, count]) => (
+            <Fragment key={label}>
+              <dt>{label}</dt>
+              <dd>{displayCount(count)}</dd>
+            </Fragment>
+          ))}
         </dl>
       )}
-      {needChoice > 0 && <p>{displayCount(needChoice)} need your choice.</p>}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
         {running ? (
@@ -191,6 +177,38 @@ export function ScanProgressDialog({
       </div>
     </WindowDialog>
   );
+}
+
+/**
+ * A completed job's summary as the owner reads it: what the scan found and
+ * what the lookups decided, in the match review's own words so the counts
+ * name the states the item rows and Filter show. A retry never discovers or
+ * probes, so it lists lookups only; a scan that looked nothing up lists files
+ * only. Probed files are the found files that could be read, so they are not
+ * listed again.
+ */
+function summaryFacts(
+  status: ScanStatus,
+  summary: NonNullable<ScanStatus["summary"]>,
+): [label: string, count: number][] {
+  const files: [string, number][] =
+    status.kind === "scan"
+      ? [
+          ["Files found", summary.discoveredCount],
+          ["Could not be read", summary.probeFailedCount],
+          ["Missing", summary.missingCount],
+        ]
+      : [];
+  const lookups: [string, number][] =
+    status.lookupCount > 0
+      ? [
+          [MATCH_STATE_LABELS.matched, summary.matchedCount],
+          [MATCH_STATE_LABELS.ambiguous, summary.ambiguousCount],
+          [MATCH_STATE_LABELS.unmatched, summary.unmatchedCount],
+          [LOOKUP_FAILED_LABEL, summary.lookupErrorCount],
+        ]
+      : [];
+  return [...files, ...lookups];
 }
 
 /**

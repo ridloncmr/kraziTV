@@ -1,55 +1,61 @@
+import { rulesInPlay, skipWords, turnWords } from "./preview-words.js";
 import { displayListTime } from "../../controls/display-time.js";
 import { RequestFeedback } from "../../controls/request-feedback.js";
-import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
   PreviewTurn,
   ProgrammingPreview,
-  ProgrammingRule,
 } from "../../http/contracts/programming.js";
 import { useResource } from "../../http/resources/use-resource.js";
-
-// Names why kraziPlan passed over an assignment's member.
-const SKIP_REASONS: Record<string, string> = {
-  empty_collection: "its collection is empty",
-  no_schedulable_members: "nothing in its collection can air",
-  media_item_unschedulable: "its item cannot air",
-};
-
-// Names why kraziPlan passed over an applicable rule.
-const RULE_SKIP_REASONS: Record<string, string> = {
-  no_sources: "it selects no sources",
-  no_usable_source: "none of its sources can air",
-};
+import { showLabel } from "../lineup/show-labels.js";
+import { useMemberNames } from "../lineup/use-member-names.js";
+import type { ChannelProgramming } from "../use-channel-programming.js";
 
 /**
  * Shows the server's preview of the channel's next turns, as a
- * regeneration from now would air them: each turn's source, size, overrun,
- * and marathon, the rule that chose it and the rules passed over before
- * it, where its settings came from, and the assignments its rounds skip,
- * with why. It never decides anything itself and writes nothing.
+ * regeneration from now would air them, as a listing: each turn's time,
+ * show, and what plays, with the rule that chose it and anything else
+ * that needs explaining, then the shows passed over and why. It never
+ * decides anything itself and writes nothing.
  */
 export function UpcomingProgramming({
-  path,
+  programming,
   visible,
-  collections,
-  rules,
 }: {
-  path: string;
+  programming: ChannelProgramming;
   visible: boolean;
-  collections: MediaCollection[] | undefined;
-  rules: ProgrammingRule[] | undefined;
 }) {
-  const preview = useResource<ProgrammingPreview>(path, visible);
-  // Names a turn's member as the owner knows it.
-  const memberName = ({ member, programs }: PreviewTurn) =>
-    member?.kind === "collection"
-      ? (collections?.find(
-          (collection) => collection.id === member.mediaCollectionId,
-        )?.name ?? "A collection")
-      : (programs[0]?.title ?? "A single item");
+  const preview = useResource<ProgrammingPreview>(
+    `${programming.channelPath}/programming-preview`,
+    visible,
+  );
+  const assignments = programming.assignments.data ?? [];
+  const collections = programming.collections.data;
+  const rules = programming.rules.data;
+  const memberName = useMemberNames(
+    assignments.flatMap((assignment) => assignment.members),
+    collections,
+    visible,
+  );
+  const assignmentOf = (id: string | null) =>
+    assignments.find((assignment) => assignment.id === id);
+  // Names a turn's show as the owner knows it: the owner's name for the
+  // show, else the member playing, since a wheel's turn plays one member.
+  // A single item is named by its program, which the preview carries.
+  const turnShow = ({ assignmentId, member, programs }: PreviewTurn) =>
+    assignmentOf(assignmentId)?.name ??
+    (member?.kind === "collection"
+      ? memberName(member)
+      : (programs[0]?.title ?? "A single item"));
+  // What a turn's show plays, which words its programs; unknown once the
+  // show has left the lineup, as a continued turn's may have.
+  const turnKind = (turn: PreviewTurn) => {
+    const assignment = assignmentOf(turn.assignmentId);
+    return assignment ? programming.contentKind(assignment) : null;
+  };
   // Names a rule as the owner knows it.
   const ruleName = (id: string) =>
     rules?.find((rule) => rule.id === id)?.name ?? "a rule";
+  const inPlay = preview.data ? rulesInPlay(preview.data.turns) : false;
   return (
     <section aria-label="Upcoming programming">
       <h4>Upcoming programming</h4>
@@ -63,7 +69,7 @@ export function UpcomingProgramming({
       <RequestFeedback loading={preview.loading} error={preview.error} />
       {preview.data && (
         <>
-          <ol aria-label="Upcoming turns">
+          <ol aria-label="Upcoming shows">
             {preview.data.turns.map((turn, index, turns) => (
               <li
                 key={`${turn.roundNumber}:${turn.turnIndex}:${turn.startsAt}`}
@@ -71,75 +77,37 @@ export function UpcomingProgramming({
                 {turn.startsAt === null
                   ? ""
                   : `${displayListTime(turn.startsAt, turns[index - 1]?.startsAt ?? undefined)} · `}
-                {memberName(turn)} · {describeTurn(turn)} ·{" "}
-                {describeDecision(turn, ruleName)}
+                {turnWords(turn, {
+                  show: turnShow(turn),
+                  kind: turnKind(turn),
+                  rulesInPlay: inPlay,
+                  ruleName,
+                })}
               </li>
             ))}
           </ol>
           {preview.data.skips.length > 0 && (
-            <ul aria-label="Skipped assignments">
-              {preview.data.skips.map((skip) => (
-                <li key={`${skip.roundNumber}:${skip.assignmentId}`}>
-                  Round {skip.roundNumber} skips an assignment:{" "}
-                  {skip.reasons
-                    .map((reason) => SKIP_REASONS[reason] ?? reason)
-                    .join("; ")}
-                  .
-                </li>
-              ))}
+            <ul aria-label="Skipped shows">
+              {preview.data.skips.map((skip) => {
+                const assignment = assignmentOf(skip.assignmentId);
+                return (
+                  <li key={`${skip.roundNumber}:${skip.assignmentId}`}>
+                    {skipWords(
+                      assignment
+                        ? showLabel(
+                            assignment.name,
+                            assignment.members.map(memberName),
+                          )
+                        : "A show",
+                      skip.reasons,
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>
       )}
     </section>
   );
-}
-
-/**
- * Explains why a turn's source could air and where its sizes came from:
- * the first active rule naming it or normal rotation, each rule passed over first with
- * why, and any setting the rule replaced or turned off.
- */
-function describeDecision(
-  turn: PreviewTurn,
-  ruleName: (id: string) => string,
-): string {
-  const parts = [
-    turn.winningRuleId === null
-      ? "normal rotation"
-      : `chosen by ${ruleName(turn.winningRuleId)}`,
-  ];
-  for (const skip of turn.skippedRules ?? []) {
-    parts.push(
-      `passed over ${ruleName(skip.ruleId)}: ${RULE_SKIP_REASONS[skip.reason] ?? skip.reason}`,
-    );
-  }
-  if (turn.settingOrigins.ordinary === "rule") {
-    parts.push("the rule's turn length");
-  }
-  if (turn.marathon && turn.settingOrigins.marathon === "rule") {
-    parts.push("the rule's marathon length");
-  } else if (turn.settingOrigins.marathon === "disabled") {
-    parts.push("marathons off under the rule");
-  }
-  return parts.join(" · ");
-}
-
-/** Explains a turn's length, overrun, and any marathon in a line. */
-function describeTurn(turn: PreviewTurn): string {
-  const parts = [
-    `${turn.programs.length} program${turn.programs.length === 1 ? "" : "s"}, ${Math.round(turn.airtimeMinutes)} min`,
-  ];
-  if (turn.continues) parts.push("continues the turn on air");
-  if (turn.overrunMinutes !== null && turn.size !== null) {
-    parts.push(
-      `${Math.round(turn.overrunMinutes)} min over its ${turn.size.value}-minute target, since whole programs air`,
-    );
-  }
-  if (turn.marathon) {
-    parts.push(
-      `marathon, from this round's ${turn.marathonChancePercent ?? 0}% chance`,
-    );
-  }
-  return parts.join(" · ");
 }
