@@ -276,23 +276,37 @@ describe("TmdbClient.searchMovies", () => {
   });
 
   it("stops waiting out a 429 when the caller cancels", async () => {
-    const client = new TmdbClient({
-      fetch: async () =>
-        new Response(null, { status: 429, headers: { "retry-after": "5" } }),
-      timeoutMs: 1_000,
-    });
-    const controller = new AbortController();
-    const reason = new Error("scan cancelled");
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const client = new TmdbClient({
+        fetch: async () => {
+          calls += 1;
+          return new Response(null, {
+            status: 429,
+            headers: { "retry-after": "5" },
+          });
+        },
+        timeoutMs: 1_000,
+      });
+      const controller = new AbortController();
+      const reason = new Error("scan cancelled");
 
-    const search = client.searchMovies(
-      TOKEN,
-      { title: "Alien" },
-      controller.signal,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    controller.abort(reason);
+      const search = client.searchMovies(
+        TOKEN,
+        { title: "Alien" },
+        controller.signal,
+      );
+      // One second into the five-second Retry-After wait.
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(calls).toBe(1);
+      controller.abort(reason);
 
-    await expect(search).rejects.toBe(reason);
+      await expect(search).rejects.toBe(reason);
+      expect(calls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rethrows the caller's abort instead of reporting an outage", async () => {

@@ -1,4 +1,4 @@
-import { resourcePath } from "../http/api-client.js";
+import { resourcePath } from "../../http/api-client.js";
 
 /** Selects a 24-hour observation window; the server alone generates its authoritative entries. */
 export function scheduleWindowPath(

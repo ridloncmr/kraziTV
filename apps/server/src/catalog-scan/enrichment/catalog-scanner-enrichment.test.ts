@@ -7,6 +7,7 @@ import {
   setupEnrichmentScan,
   waitForScanEnd,
 } from "../../testing/enrichment-scan.js";
+import { flushMicrotasks } from "../../testing/flush-microtasks.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
@@ -288,7 +289,9 @@ describe("CatalogScanner enrichment", () => {
       phase: "enriching",
       cancelRequested: true,
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The held lookup never answers until released, so no number of turns
+    // may move the scan on.
+    await flushMicrotasks(20);
     expect(context.scanner.status(rootFixture.id)?.phase).toBe("enriching");
     held.release();
     const status = await waitForScanEnd(context);

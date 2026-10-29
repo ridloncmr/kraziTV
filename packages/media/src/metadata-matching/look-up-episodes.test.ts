@@ -337,8 +337,14 @@ describe("lookUpEpisodes", () => {
     });
 
     stop.abort(new Error("cancelled"));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(settled).toBe(false);
+    // Fake time lets every reaction to the cancel run, without a real wait.
+    vi.useFakeTimers();
+    try {
+      await vi.advanceTimersByTimeAsync(20);
+      expect(settled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
     releaseSecond();
 
     await expect(lookup).rejects.toThrow("cancelled");
@@ -479,8 +485,14 @@ describe("lookUpEpisodes", () => {
     });
 
     stop.abort(new Error("cancelled"));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(settled).toBe(false);
+    // Fake time lets every reaction to the cancel run, without a real wait.
+    vi.useFakeTimers();
+    try {
+      await vi.advanceTimersByTimeAsync(20);
+      expect(settled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
     releaseSeason2();
 
     await expect(lookup).rejects.toThrow("cancelled");

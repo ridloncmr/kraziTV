@@ -1,3 +1,8 @@
+import type {
+  AssignmentMember,
+  SourceAssignment,
+} from "../../http/contracts/programming.js";
+
 /**
  * Names a show by its members joined with `+`, naming two at most and
  * counting the rest, so a long member list keeps the lineup row short.
@@ -30,4 +35,15 @@ export function showLabel(
   memberNames: readonly string[],
 ): string {
   return name ?? joinShowNames(memberNames);
+}
+
+/**
+ * Names an assignment's show as every screen that lists it does: the
+ * owner's name for it, else its members' names as `memberName` reads them.
+ */
+export function assignmentShowLabel(
+  assignment: Pick<SourceAssignment, "name" | "members">,
+  memberName: (member: AssignmentMember) => string,
+): string {
+  return showLabel(assignment.name, assignment.members.map(memberName));
 }
