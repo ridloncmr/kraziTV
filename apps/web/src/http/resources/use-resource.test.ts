@@ -319,12 +319,13 @@ it("reloads quietly when the scope around its own scope reloads", async () => {
   }
   const view = renderHook(() => useResource<{ name: string }>("/inner"), {
     wrapper: ({ children }: { children: ReactNode }) =>
-      createElement(
-        RefreshScope,
-        { active: true },
-        createElement(OuterRefresh),
-        createElement(RefreshScope, { active: true, children }),
-      ),
+      createElement(RefreshScope, {
+        active: true,
+        children: [
+          createElement(OuterRefresh, { key: "refresh" }),
+          createElement(RefreshScope, { key: "inner", active: true, children }),
+        ],
+      }),
   });
   await waitFor(() => expect(view.result.current.data?.name).toBe("inner"));
 

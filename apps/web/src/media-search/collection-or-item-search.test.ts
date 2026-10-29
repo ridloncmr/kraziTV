@@ -6,6 +6,7 @@ import type { MediaCollection } from "../http/contracts/collections.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
+import { officeCollection } from "../testing/collection-api.js";
 import { elapse } from "../testing/fake-time.js";
 import { CollectionOrItemSearch } from "./collection-or-item-search.js";
 
@@ -16,9 +17,6 @@ afterEach(() => {
 });
 
 const FAVORITES = collectionWith("favorites", "Favorites");
-const OFFICE = collectionWith("office", "The Office", {
-  maintenanceMode: "automatic",
-});
 const [ALPHA, ZULU] = adminFixtures.media;
 
 /** `count` listed items named by number, as one page of the catalog. */
@@ -43,7 +41,7 @@ function renderSearch(api: BrowserApi, props: Partial<SearchProps> = {}) {
   const onToggle = vi.fn<SearchProps["onToggle"]>();
   const openProgram = vi.fn<SearchProps["openProgram"]>();
   const base: SearchProps = {
-    collections: [FAVORITES, OFFICE],
+    collections: [FAVORITES, officeCollection],
     checked: new Set(),
     visible: true,
     onToggle,
@@ -178,7 +176,11 @@ it("toggles one result through the caller, which holds the checks", async () => 
 
 it("selects every result that can be checked, then clears them all", () => {
   const { onToggle, rerender } = renderSearch(new BrowserApi(), {
-    collections: [FAVORITES, OFFICE, collectionWith("empty", "Empty")],
+    collections: [
+      FAVORITES,
+      officeCollection,
+      collectionWith("empty", "Empty"),
+    ],
     checked: new Set(["collection:favorites"]),
     unavailable: new Map([["collection:empty", "Has no members"]]),
   });
