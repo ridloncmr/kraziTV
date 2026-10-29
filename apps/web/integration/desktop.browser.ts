@@ -359,7 +359,7 @@ for (const viewport of [
       .click();
     await collection.getByRole("button", { name: "Save changes" }).click();
     await expect(
-      collection.getByText(/Schedulable · 1 eligible/),
+      collection.getByText("1 of 1 can air", { exact: true }),
     ).toBeVisible();
     await collection
       .getByRole("button", { name: "Close Northwoods collection Properties" })
