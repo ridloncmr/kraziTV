@@ -246,6 +246,10 @@
   padding: 0 4px;
   white-space: nowrap;
 }
+/* A cell that holds only badges, such as the Lineup tab's, starts its first badge flush with the column. */
+.badge-cell > .row-badge:first-child {
+  margin-left: 0;
+}
 /* A selected row is title-bar blue with white text, as XP list views were; everything in it, links and warnings included, turns white. */
 .program-page .selected-row {
   background: var(--xp-title-primary);
@@ -418,29 +422,28 @@
   flex: 1 1 320px;
   margin: 0;
 }
+/* One sticky bar look, so the save bar and a list's action bar never drift apart. */
+.save-bar,
+.sticky-list-actions {
+  position: sticky;
+  z-index: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
 /* Keeps Save and Discard reachable while a long member list scrolls. */
 .save-bar {
-  position: sticky;
   top: 0;
-  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin: 8px 0;
-  padding: 6px 8px;
-  border: 1px solid var(--xp-border);
-  background: var(--xp-menu-surface);
 }
 /* Keeps the buttons for a list's selected row in view while a long list scrolls, as the save bar keeps Save. */
 .sticky-list-actions {
-  position: sticky;
   bottom: 0;
-  z-index: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--xp-border);
-  background: var(--xp-menu-surface);
 }
 .bulk-actions {
   align-items: center;

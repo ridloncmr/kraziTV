@@ -324,6 +324,11 @@ test("keeps My Channels' buttons in view over nine channels and ends a long capt
     name: `${longName} Properties`,
     exact: true,
   });
+  // Narrowed to its minimum width, so the caption overflows whichever
+  // fallback font the machine has.
+  const propertiesTitle = properties.getByLabel(/ Properties window\./);
+  for (let step = 0; step < 16; step++)
+    await propertiesTitle.press("Shift+ArrowLeft");
   const caption = properties.locator(".window-title");
   expect(
     await caption.evaluate((element) => ({

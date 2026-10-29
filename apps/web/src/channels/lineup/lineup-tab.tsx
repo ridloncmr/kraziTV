@@ -150,7 +150,7 @@ export function LineupTab({
                       ? " (off)"
                       : ""}
                   </td>
-                  <td>
+                  <td className="badge-cell">
                     {assignment.members.length > 1 && (
                       <span className="row-badge">Wheel</span>
                     )}
