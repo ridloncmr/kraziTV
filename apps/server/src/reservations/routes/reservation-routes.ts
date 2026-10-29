@@ -13,6 +13,7 @@ import {
 import { idParams, isoInstantField } from "../../http/request-schemas.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { ScheduleChangeReason } from "../../schedules/contracts.js";
+import type { SchedulePreview } from "../../schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
 import type { ReservationRefusal } from "../contracts.js";
 import type { ReservationRepository } from "../persistence/reservation-repository.js";
@@ -126,6 +127,7 @@ export function registerReservationRoutes(
   reservations: ReservationRepository,
   channels: ChannelRepository,
   schedules: ScheduleService,
+  schedulePreview: SchedulePreview,
   runtime: ChannelRuntime,
 ): void {
   server.get("/channels/:id/reservations", async (request, reply) => {
@@ -186,7 +188,7 @@ export function registerReservationRoutes(
     if (!body.success) {
       return sendInvalidRequest(reply, body.error);
     }
-    const preview = await schedules.previewReservation(
+    const preview = await schedulePreview.previewReservation(
       id,
       body.data,
       request.log,

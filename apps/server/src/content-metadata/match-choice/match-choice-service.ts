@@ -128,10 +128,9 @@ export class MatchChoiceService {
   ): Promise<
     { kind: "found"; candidates: MatchCandidate[] } | MetadataRefusal
   > {
-    const apiKey = await this.#tmdbKeys.readKey();
-    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
-    const waiting = await this.#readWaiting(mediaItemId);
-    if ("kind" in waiting) return waiting;
+    const read = await this.#readKeyAndWaiting(mediaItemId);
+    if ("kind" in read) return read;
+    const { apiKey, waiting } = read;
     const found =
       seriesEpisode(waiting.hints) === undefined
         ? await this.#tmdb.searchMovies(apiKey, query)
@@ -151,10 +150,9 @@ export class MatchChoiceService {
     mediaItemId: string,
     tmdbId: number,
   ): Promise<{ kind: "runtime"; runtimeMs: number | null } | MetadataRefusal> {
-    const apiKey = await this.#tmdbKeys.readKey();
-    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
-    const waiting = await this.#readWaiting(mediaItemId);
-    if ("kind" in waiting) return waiting;
+    const read = await this.#readKeyAndWaiting(mediaItemId);
+    if ("kind" in read) return read;
+    const { apiKey, waiting } = read;
     const place = seriesEpisode(waiting.hints);
     const runtimeMs = await lookUpRuntimeMs(
       this.#tmdb,
@@ -179,10 +177,9 @@ export class MatchChoiceService {
     mediaItemId: string,
     tmdbId: number,
   ): Promise<{ kind: "chosen"; resolvedCount: number } | MetadataRefusal> {
-    const apiKey = await this.#tmdbKeys.readKey();
-    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
-    const chosen = await this.#readWaiting(mediaItemId);
-    if ("kind" in chosen) return chosen;
+    const read = await this.#readKeyAndWaiting(mediaItemId);
+    if ("kind" in read) return read;
+    const { apiKey, waiting: chosen } = read;
 
     const lookups = await this.#lookUpChoice(apiKey, chosen, tmdbId);
     const own = lookups.find(({ item }) => item.id === mediaItemId)?.lookup;
@@ -350,6 +347,20 @@ export class MatchChoiceService {
       const lookup = lookups[index];
       return lookup === undefined ? [] : [{ item, lookup }];
     });
+  }
+
+  /**
+   * Reads the TMDB key and then the item that needs a choice, or the first
+   * reason either is missing, for the requests that ask TMDB. The key comes
+   * first, so a server without one refuses before reading the catalog.
+   */
+  async #readKeyAndWaiting(
+    mediaItemId: string,
+  ): Promise<{ apiKey: string; waiting: Waiting } | MetadataRefusal> {
+    const apiKey = await this.#tmdbKeys.readKey();
+    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
+    const waiting = await this.#readWaiting(mediaItemId);
+    return "kind" in waiting ? waiting : { apiKey, waiting };
   }
 
   /** Reads an item that needs a choice, or why it does not. */

@@ -1733,65 +1733,6 @@ describe("ScheduleService.regenerate", () => {
   });
 });
 
-describe("ScheduleService.readWindow", () => {
-  it("returns every entry overlapping the window in start order, with the revision", async () => {
-    const { db, channelId, service, log } = await setup();
-    await service.ensureCoverage(channelId, log);
-    const [, second, third] = await readScheduleEntries(db, channelId);
-
-    // Episodes run 0–22, 22–45, and 45–69 minutes past the anchor.
-    const window = await service.readWindow(
-      channelId,
-      T0 + 30 * MINUTE,
-      T0 + 50 * MINUTE,
-    );
-
-    expect(window).toEqual({
-      scheduleRevision: 1,
-      fillerIntervals: [],
-      entries: [second, third].map((row) => ({
-        id: row.id,
-        channelId,
-        mediaItemId: row.media_item_id,
-        title: row.title,
-        startsAt: row.starts_at,
-        endsAt: row.ends_at,
-        durationMs: row.duration_ms,
-        sequenceNumber: row.sequence_number,
-        programmingBlockId: row.programming_block_id,
-        mediaCollectionId: row.media_collection_id,
-        playbackMode: row.playback_mode,
-        playbackIndex: row.playback_index,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      })),
-    });
-  });
-
-  it("excludes entries that only touch the window's edges", async () => {
-    const { channelId, service, log } = await setup();
-    await service.ensureCoverage(channelId, log);
-
-    const window = await service.readWindow(
-      channelId,
-      T0 + 22 * MINUTE,
-      T0 + 45 * MINUTE,
-    );
-
-    expect(window.entries.map((entry) => entry.startsAt)).toEqual([
-      T0 + 22 * MINUTE,
-    ]);
-  });
-
-  it("reads no revision and no entries before the first generation", async () => {
-    const { channelId, service } = await setup();
-
-    await expect(service.readWindow(channelId, T0, T0 + HOUR)).resolves.toEqual(
-      { scheduleRevision: null, entries: [], fillerIntervals: [] },
-    );
-  });
-});
-
 describe("ScheduleService.ensureAllEnabled", () => {
   // Adds another channel with an assignment of the scenario's collection.
   async function addChannel(

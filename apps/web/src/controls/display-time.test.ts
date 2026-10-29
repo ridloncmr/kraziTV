@@ -1,7 +1,6 @@
 import { expect, it } from "vitest";
 import {
   displayClockTime,
-  displayDay,
   displayListTime,
   displayShortDay,
   displayTime,
@@ -46,14 +45,7 @@ it("names both dates when a range crosses midnight", () => {
   );
 });
 
-it("names a day for a heading and tells one day from the next", () => {
-  expect(displayDay(instant)).toBe(
-    new Date(instant).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    }),
-  );
+it("names a day briefly and tells one day from the next", () => {
   expect(displayShortDay(instant)).toBe(
     new Date(instant).toLocaleDateString(undefined, {
       weekday: "short",

@@ -10,7 +10,7 @@ import type {
   ScheduleWindow,
 } from "../../http/contracts/channels.js";
 import { useResource } from "../../http/resources/use-resource.js";
-import { scheduleWindowPath } from "../../schedule-view/schedule-window-path.js";
+import { scheduleWindowPath } from "./schedule-window-path.js";
 import { placeBlock } from "./guide-geometry.js";
 import { ProgramCard } from "../program/program-card.js";
 import { programMark } from "../program/program-words.js";

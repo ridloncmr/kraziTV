@@ -1,6 +1,6 @@
 # Content Metadata Enrichment
 
-Status: Accepted
+Status: In Development
 
 ## Problem
 

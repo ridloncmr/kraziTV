@@ -6,7 +6,7 @@ import type {
   ProgrammingPreview,
 } from "../../http/contracts/programming.js";
 import { useResource } from "../../http/resources/use-resource.js";
-import { showLabel } from "../lineup/show-labels.js";
+import { assignmentShowLabel } from "../lineup/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
 
@@ -94,10 +94,7 @@ export function UpcomingProgramming({
                   <li key={`${skip.roundNumber}:${skip.assignmentId}`}>
                     {skipWords(
                       assignment
-                        ? showLabel(
-                            assignment.name,
-                            assignment.members.map(memberName),
-                          )
+                        ? assignmentShowLabel(assignment, memberName)
                         : "A show",
                       skip.reasons,
                     )}

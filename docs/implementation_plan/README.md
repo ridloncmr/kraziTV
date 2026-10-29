@@ -48,7 +48,7 @@ at the top of each plan are generated from ticket Status blocks by
 ### 002-programming
 
 - [Programming Spec 0001 Implementation Plan: Content Metadata Enrichment](002-programming/0001-metadata-enrichment.md) - 17 of 18 tickets complete
-- [Programming Spec 0002 Implementation Plan: Recommended And Automatic Collections](002-programming/0002-automatic-collections.md) - 11 of 12 tickets complete
+- [Programming Spec 0002 Implementation Plan: Recommended And Automatic Collections](002-programming/0002-automatic-collections.md) - 12 of 12 tickets complete
 - [Programming Spec 0003 Implementation Plan: Collection Playback Ordering](002-programming/0003-playback-ordering.md) - 6 of 6 tickets complete
 - [Programming Spec 0004 Implementation Plan: Continuous Multi-Source Programming With kraziPlan](002-programming/0004-kraziplan.md) - 9 of 9 tickets complete
 - [Programming Spec 0005 Implementation Plan: Recurring Programming Rules](002-programming/0005-recurring-programming-rules.md) - 9 of 9 tickets complete
@@ -67,7 +67,7 @@ at the top of each plan are generated from ticket Status blocks by
 
 - [Release Polish Spec 0001 Implementation Plan: First-Run Flow](004-release-polish/0001-first-run-flow.md) - 6 of 8 tickets complete
 - [Release Polish Spec 0002 Implementation Plan: Owner-Facing Words](004-release-polish/0002-owner-facing-words.md) - 5 of 6 tickets complete
-- [Release Polish Spec 0003 Implementation Plan: Release Readiness](004-release-polish/0003-release-readiness.md) - 2 of 11 tickets complete
+- [Release Polish Spec 0003 Implementation Plan: Release Readiness](004-release-polish/0003-release-readiness.md) - 6 of 11 tickets complete
 
 <!-- plan-index:end -->
 
