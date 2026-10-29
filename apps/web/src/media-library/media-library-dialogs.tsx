@@ -61,7 +61,7 @@ export function MediaLibraryDialogs({
   onRetry: (scope: RetryScope) => void;
   /** A removal finished; the page reports it and clears its selection. */
   onRemoved: (feedback: string) => void;
-  /** Opens My Channels, where a special blocking a removal is resolved. */
+  /** Opens My Channels, where a reservation blocking a removal is resolved. */
   onOpenChannels?: () => void;
   /** Reloads the page's lists after a write. */
   refresh: () => void;
