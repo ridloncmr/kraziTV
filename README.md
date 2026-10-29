@@ -27,7 +27,8 @@ and kraziTV keeps programming them for as long as it runs.
   programming wraps up cleanly before it starts.
 - **Your library, understood.** With a free TMDB key, kraziTV recognizes your
   shows, seasons, and episodes from file and folder names, and suggests a
-  collection for every series, franchise, and genre. Keep the ones you want.
+  collection for each series and franchise in your library. Keep the ones you
+  want.
 - **A full guide in Plex.** kraziTV shows up in Plex as a TV tuner with a
   program guide, so it works on every TV, phone, and tablet Plex does.
 - **One stream per channel.** Everyone watching a channel shares the same
