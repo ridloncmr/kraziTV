@@ -56,7 +56,8 @@ wording.
 
 The browser suite runs in CI too. It drives Chromium against a real server
 and SQLite, and imports the server's source, so run `npm run build:node`
-first. Install Chromium once with `npx playwright install chromium`, then run
+first. Install Chromium and the system libraries it needs once with
+`npx playwright install --with-deps chromium`, as CI does, then run
 `npm run test:browser --workspace @krazitv/web`.
 
 These suites run only on request, and fail rather than skip when what they
@@ -131,7 +132,7 @@ The server keeps one folder per domain under `apps/server/src/`:
 | `auth/`                                                           | The account, sessions, and the auth gate                                |
 | `media-roots/`, `media-items/`                                    | The catalog's roots and items                                           |
 | `catalog-scan/`, `catalog-removal/`                               | Scan jobs and lookup retries; removal and purge                         |
-| `content-metadata/`                                               | TMDB matches, corrections, refreshes, and the stored TMDB key           |
+| `content-metadata/`                                               | TMDB matches, corrections, tags, refreshes, and the stored TMDB key     |
 | `media-collections/`                                              | Collections, automatic membership, exclusions, and recommendations      |
 | `channels/`                                                       | Channels and their channel stream workers                               |
 | `programming-assignments/`, `programming-rules/`, `reservations/` | Programming source assignments, programming rules, and reservations     |
