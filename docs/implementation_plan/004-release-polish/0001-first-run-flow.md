@@ -11,7 +11,7 @@ Progress: 7 of 8 tickets complete.
 | POLISH-003 | Every empty state carries its next step                      | Complete on 2026-10-29 |
 | POLISH-004 | The TMDB task says where a token comes from                  | Complete on 2026-10-29 |
 | POLISH-005 | Ask the rebuild question only while a program is airing      | Complete on 2026-10-29 |
-| POLISH-006 | One property-sheet footer                                    | Open                   |
+| POLISH-006 | One property-sheet footer                                    | Complete on 2026-10-29 |
 | POLISH-007 | Add shows leads with search; Add all confirms                | Complete on 2026-10-29 |
 | POLISH-008 | Chrome and copy one-liners                                   | Complete on 2026-10-29 |
 
@@ -224,11 +224,21 @@ checked; Rules tab likewise. `npm run format` for the spec change.
 
 ### POLISH-006: One property-sheet footer
 
+**Status**
+
+Complete on 2026-10-29. `SheetFooter` in `controls/sheet-footer/` gives the
+General tab and Show Properties OK, Cancel, and Apply, with Apply enabled
+only while a field changed and OK closing an unchanged sheet as XP's did, a
+correction to this ticket's original Scope; Cancel with changes asks the window's
+unsaved-changes question, now the shared `UnsavedChangesDialog`, and
+General's OK and Cancel close the window through the `CloseWindow` it lends.
+
 **Goal**: The General tab and the show properties dialog save the way XP
 sheets did (decision 8).
 
 **Scope**: A `SheetFooter` in `apps/web/src/controls/` with OK, Cancel, Apply
-at the bottom right; Apply and OK enabled only when a field changed; Cancel
+at the bottom right; Apply enabled only when a field changed, and OK always
+available, closing an unchanged sheet; Cancel
 and Close discard with the existing unsaved-changes question. The General tab
 loses its inline Apply; the show dialog adopts the footer in place of its own
 buttons.

@@ -363,33 +363,114 @@ it("shows every tab once the lineup has a show, keeps each open channel on its o
   expect(api.requestsTo("/channels/two/schedule")).toEqual([]);
 });
 
-it("saves the channel's number and name from General with Apply", async () => {
+// Opens Northwoods TV's General tab over a server that saves its renames,
+// and returns the footer's buttons and the window, by its current title.
+async function openGeneral() {
   const api = new BrowserApi();
   api.reply(ASSIGNMENTS, [favoritesAssignment("chronological")]);
   api.reply("/media-collections", adminFixtures.collections);
-  api.reply(
+  api.handle(
     "/channels/one",
-    { ...adminFixtures.channels[0], name: "Lakeside TV" },
+    (request) => {
+      const saved = {
+        ...adminFixtures.channels[0],
+        ...(request.body as object),
+      };
+      api.reply("/channels/one", saved);
+      return api.response(saved);
+    },
     "PATCH",
   );
   vi.stubGlobal("fetch", api.fetch);
   await openChannelTab(api, "General");
+  const button = (name: string) =>
+    screen.getByRole<HTMLButtonElement>("button", { name });
+  const window = () => screen.queryByRole("region", { name: /Properties$/ });
+  const patches = () =>
+    api
+      .requestsTo("/channels/one")
+      .filter((request) => request.method === "PATCH");
+  return { button, window, patches };
+}
+
+it("saves General's number and name with Apply, which is enabled only while a field changed", async () => {
+  const { button, window, patches } = await openGeneral();
+  expect(button("Apply").disabled).toBe(true);
+  expect(button("OK").disabled).toBe(false);
 
   fireEvent.change(screen.getByLabelText("Name"), {
     target: { value: "Lakeside TV" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  expect(button("Apply").disabled).toBe(false);
+  expect(button("OK").disabled).toBe(false);
+  fireEvent.click(button("Apply"));
 
+  // Apply leaves the window open, retitled once the saved channel reads back.
   await waitFor(() =>
-    expect(
-      api
-        .requestsTo("/channels/one")
-        .find((request) => request.method === "PATCH")?.body,
-    ).toEqual({
-      number: "69",
-      name: "Lakeside TV",
-    }),
+    expect(window()?.getAttribute("aria-label")).toBe("Lakeside TV Properties"),
   );
+  expect(patches().map((request) => request.body)).toEqual([
+    { number: "69", name: "Lakeside TV" },
+  ]);
+  // The fields now match the saved channel, so nothing is left to save.
+  await waitFor(() => expect(button("Apply").disabled).toBe(true));
+  expect(button("OK").disabled).toBe(false);
+});
+
+it("closes an unchanged General tab with OK and saves nothing, as an XP sheet did", async () => {
+  const { button, window, patches } = await openGeneral();
+
+  fireEvent.click(button("OK"));
+
+  await waitFor(() => expect(window()).toBeNull());
+  expect(screen.queryByRole("dialog", { name: "Unsaved changes" })).toBeNull();
+  expect(patches()).toEqual([]);
+});
+
+it("saves General with OK and closes the window", async () => {
+  const { button, window, patches } = await openGeneral();
+  fireEvent.change(screen.getByLabelText("Number"), {
+    target: { value: "70" },
+  });
+
+  fireEvent.click(button("OK"));
+
+  await waitFor(() => expect(window()).toBeNull());
+  expect(patches().map((request) => request.body)).toEqual([
+    { number: "70", name: "Northwoods TV" },
+  ]);
+});
+
+it("closes the window on General's Cancel, asking first when a field changed", async () => {
+  const { button, window, patches } = await openGeneral();
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Lakeside TV" },
+  });
+  const ask = () => {
+    fireEvent.click(button("Cancel"));
+    const question = screen.getByRole("dialog", { name: "Unsaved changes" });
+    expect(question.textContent).toContain(
+      "Discard your unsaved changes to Northwoods TV?",
+    );
+    return question;
+  };
+
+  fireEvent.click(within(ask()).getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe(
+    "Lakeside TV",
+  );
+  fireEvent.click(
+    within(ask()).getByRole("button", { name: "Discard changes" }),
+  );
+  expect(window()).toBeNull();
+  expect(patches()).toEqual([]);
+
+  // With nothing changed, Cancel closes at once.
+  fireEvent.doubleClick(screen.getByRole("button", { name: "Northwoods TV" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "General" }));
+  fireEvent.click(button("Cancel"));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(window()).toBeNull();
 });
 
 it("shows what each enabled channel is airing now and next, and asks nothing of a disabled one", async () => {
