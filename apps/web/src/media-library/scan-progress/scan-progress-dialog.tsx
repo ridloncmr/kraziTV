@@ -10,6 +10,10 @@ import type { TmdbKeyStatus } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
 import { useResource } from "../../http/resources/use-resource.js";
+import {
+  LOOKUP_FAILED_LABEL,
+  MATCH_STATE_LABELS,
+} from "../content-metadata/match-state-label.js";
 import { ScanAnimation } from "./scan-animation.js";
 import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
 
@@ -59,7 +63,8 @@ export function ScanProgressDialog({
   const running = ending === null && isScanRunning(polled);
   if (!running && !ended) setEnded(true);
   const completed = ending === null && polled.phase === "completed";
-  // Items this scan left needing the owner's choice; only a completed scan reports them.
+  // Items this scan left needing the owner's choice, which offer Review
+  // matches; only a completed scan reports them.
   const needChoice = completed ? (polled.summary?.ambiguousCount ?? 0) : 0;
   // Read once the scan completes, so its summary can say why titles come
   // from file names; a failed read says nothing rather than guess.
@@ -150,7 +155,6 @@ export function ScanProgressDialog({
           ))}
         </dl>
       )}
-      {needChoice > 0 && <p>{displayCount(needChoice)} need your choice.</p>}
       <RequestFeedback error={cancelError} />
       <div className="dialog-actions">
         {running ? (
@@ -177,10 +181,11 @@ export function ScanProgressDialog({
 
 /**
  * A completed job's summary as the owner reads it: what the scan found and
- * what the lookups decided, in the words the match review uses. A retry never
- * discovers or probes, so it lists lookups only; a scan that looked nothing
- * up lists files only. Probed files are the found files that could be read,
- * so they are not listed again.
+ * what the lookups decided, in the match review's own words so the counts
+ * name the states the item rows and Filter show. A retry never discovers or
+ * probes, so it lists lookups only; a scan that looked nothing up lists files
+ * only. Probed files are the found files that could be read, so they are not
+ * listed again.
  */
 function summaryFacts(
   status: ScanStatus,
@@ -197,10 +202,10 @@ function summaryFacts(
   const lookups: [string, number][] =
     status.lookupCount > 0
       ? [
-          ["Identified on TMDB", summary.matchedCount],
-          ["Need your choice", summary.ambiguousCount],
-          ["Not identified", summary.unmatchedCount],
-          ["Lookup failed", summary.lookupErrorCount],
+          [MATCH_STATE_LABELS.matched, summary.matchedCount],
+          [MATCH_STATE_LABELS.ambiguous, summary.ambiguousCount],
+          [MATCH_STATE_LABELS.unmatched, summary.unmatchedCount],
+          [LOOKUP_FAILED_LABEL, summary.lookupErrorCount],
         ]
       : [];
   return [...files, ...lookups];

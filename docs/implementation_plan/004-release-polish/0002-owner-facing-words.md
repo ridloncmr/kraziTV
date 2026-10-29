@@ -120,10 +120,12 @@ collections) status strip line, if it quotes the old text.
 **Status**
 
 Complete on 2026-10-29. The scan dialog's completion summary lists Files
-found, Could not be read, Missing, Identified on TMDB, Need your choice, Not
-identified, and Lookup failed, dropping the Probed row; the jsdom and browser
-suites assert the new words. The per-item labels in `match-state-label.ts`
-are unchanged.
+found, Could not be read, and Missing, then the match states in the words
+`match-state-label.ts` exports: Matched, Needs your choice, Unmatched, and
+Lookup failed. The Probed row and the "n need your choice." sentence are
+dropped as repeats of rows. Spec 0002's list was amended to those words
+because spec 0001 and the glossary already own the match review's labels;
+spec 0009's and spec 0001's summary paraphrases are historical and stand.
 
 **Goal**: The first scan's completion reads as a result, not a pipeline.
 
