@@ -151,8 +151,8 @@ exempt from the count; implement that in `layout-rules.mjs`; add an
 `excludedPaths` entry for `apps/server/src/database/migrations/` to the
 duplicate-code rule and remove the eleven migration pair exceptions it covers;
 add the `apps/web/src/tv/` grouping exception; rewrite the reasons of the
-`grouping` exceptions for `packages/krazi-brain/src/schedule/` (six files, not
-five) and `packages/signal/src/ffmpeg/mpeg-ts/` (name the three files added
+`grouping` exceptions for `packages/krazi-brain/src/schedule/` (name the six
+files and cite `AGENTS.md` instead of the completed plan) and `packages/signal/src/ffmpeg/mpeg-ts/` (name the three files added
 since); drop `reservation-routes.ts` from the `duplicate-code` exception that
 names the assignment, marathon-settings, and rule routes. Exceptions are
 cited here by rule and path because the file has no IDs and positions shift

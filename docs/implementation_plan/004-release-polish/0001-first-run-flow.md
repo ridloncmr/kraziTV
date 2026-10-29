@@ -247,4 +247,6 @@ no override. The sticky bar mirrors `.save-bar`.
 **Verification**: Existing desktop and TV jsdom suites; a browser-suite
 screenshot of a long channel name and of My Channels with nine channels.
 
-**Docs impact**: None.
+**Docs impact**: Spec 0008 (web-admin) gains the motion limits the web role
+relies on: transitions under 200 ms, opacity-only under reduced motion, and
+none on keyboard-driven or high-frequency actions.
