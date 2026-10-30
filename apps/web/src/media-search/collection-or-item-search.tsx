@@ -3,6 +3,13 @@ import {
   CatalogFilterDialog,
   keysInUse,
 } from "../catalog-filter/catalog-filter-dialog.js";
+import { CollectionTypeSelect } from "../collection-types/collection-type-select.js";
+import {
+  type CollectionType,
+  collectionTypeLabel,
+  collectionTypeOf,
+  hasCollectionType,
+} from "../collection-types/collection-type.js";
 import { Pager } from "../controls/pager/pager.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import type { ProgramId } from "../desktop/contracts.js";
@@ -30,13 +37,14 @@ export interface FoundMember {
 /**
  * Searches media collections or single media items, as the owner toggles,
  * with a checkbox per result; checks survive the toggle because the caller
- * holds them. Collections are matched by name from the list the caller
- * already holds. Items come one server page at a time, narrowed by the same
- * **Filter** dialog the Media Library uses, so the results never hold the
- * whole catalog. `unavailable` results show why they cannot be checked;
- * `hidden` results are left out entirely, for a caller where they would be
- * clutter, so a page of items may show fewer than its limit. When nothing
- * exists to pick yet, the empty result opens Media Library.
+ * holds them. Collections are matched by name, and optionally narrowed to
+ * one collection type, from the list the caller already holds. Items come
+ * one server page at a time, narrowed by the same **Filter** dialog the
+ * Media Library uses, so the results never hold the whole catalog.
+ * `unavailable` results show why they cannot be checked; `hidden` results
+ * are left out entirely, for a caller where they would be clutter, so a
+ * page of items may show fewer than its limit. When nothing exists to pick
+ * yet, the empty result opens Media Library.
  */
 export function CollectionOrItemSearch({
   collections,
@@ -62,6 +70,8 @@ export function CollectionOrItemSearch({
   const kindName = useId();
   const [kind, setKind] = useState<"collections" | "items">("collections");
   const [search, setSearch] = useState("");
+  // Narrows the collections to one collection type; null shows every type.
+  const [type, setType] = useState<CollectionType | null>(null);
   const [filter, setFilter] = useState<MediaFilter>({});
   const [filtering, setFiltering] = useState(false);
   const list = useRef<HTMLUListElement>(null);
@@ -81,17 +91,19 @@ export function CollectionOrItemSearch({
   const matched: FoundMember[] =
     kind === "collections"
       ? (collections ?? [])
-          .filter((collection) => collection.name.toLowerCase().includes(words))
+          .filter(
+            (collection) =>
+              hasCollectionType(collection, type) &&
+              collection.name.toLowerCase().includes(words),
+          )
           .map((collection) => ({
             member: {
               kind: "collection" as const,
               mediaCollectionId: collection.id,
             },
             name: collection.name,
-            detail:
-              collection.maintenanceMode === "automatic"
-                ? "Automatic collection"
-                : "Manual collection",
+            // Its type tells apart collections whose names read alike.
+            detail: collectionTypeLabel(collectionTypeOf(collection)),
           }))
       : (items.data?.items ?? []).map((item) => ({
           member: { kind: "media_item" as const, mediaItemId: item.id },
@@ -108,7 +120,7 @@ export function CollectionOrItemSearch({
         : "Everything on this page is already added."
       : kind === "collections"
         ? collections && found.length === 0
-          ? words
+          ? words || type
             ? "No collection matches that search."
             : NO_COLLECTIONS_YET
           : undefined
@@ -143,17 +155,34 @@ export function CollectionOrItemSearch({
           Single items
         </label>
       </fieldset>
-      <label className="search-field">
-        {kind === "collections" ? "Find collections" : "Find media"}
-        <input
-          type="search"
-          value={search}
-          placeholder={
-            kind === "collections" ? "Collection name" : "Title or path"
-          }
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </label>
+      <div className="inline-form">
+        <label>
+          {kind === "collections" ? "Find collections" : "Find media"}
+          <input
+            type="search"
+            value={search}
+            placeholder={
+              kind === "collections" ? "Collection name" : "Title or path"
+            }
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        {kind === "collections" && collections && (
+          <CollectionTypeSelect
+            collections={collections.filter(
+              (collection) =>
+                !hidden.has(
+                  memberKey({
+                    kind: "collection",
+                    mediaCollectionId: collection.id,
+                  }),
+                ),
+            )}
+            value={type}
+            onChange={setType}
+          />
+        )}
+      </div>
       {kind === "items" && (
         <div className="list-toolbar">
           <button type="button" onClick={() => setFiltering(true)}>

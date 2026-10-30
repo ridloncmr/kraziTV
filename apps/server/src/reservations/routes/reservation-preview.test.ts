@@ -6,6 +6,7 @@ import {
   minutesAfterFixtureTime,
 } from "../../testing/catalog-fixtures.js";
 import { channelFixture } from "../../testing/channel-fixtures.js";
+import { expectRefusal } from "../../testing/refusal-details.js";
 import {
   FILM_MS,
   insertFilmSeries,
@@ -13,6 +14,7 @@ import {
   saveReservation,
 } from "../../testing/reservation-fixtures.js";
 import {
+  insertCollectionOfItems,
   readOnlyScheduleState,
   readScheduleEntries,
 } from "../../testing/schedule-fixtures.js";
@@ -150,6 +152,28 @@ describe("POST /channels/:id/reservations/preview", () => {
       ],
     });
     expect(preview.body.programs).toBeUndefined();
+  });
+
+  it("refuses to preview a reservation with nothing to air on a channel with no assignments", async () => {
+    // No assignment, and an empty collection, leave nothing to generate.
+    const { server, db } = await startScheduleScenarioServer({ source: null });
+    await insertCollectionOfItems(db, "empty", []);
+
+    const preview = await send(server, "POST", PREVIEW, {
+      startsAt: iso(at(60)),
+      endsAt: iso(at(120)),
+      source: {
+        kind: "collection",
+        mediaCollectionId: "empty",
+        playbackMode: "chronological",
+      },
+    });
+
+    expect(preview.status).toBe(409);
+    expectRefusal(preview.body, "channel_unschedulable", {
+      channelId: CHANNEL_ID,
+      reason: "no_programming_assignment",
+    });
   });
 
   it("leaves reservation programs out of the rotation turns a programming preview shows", async () => {

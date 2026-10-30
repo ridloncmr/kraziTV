@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { displayCount } from "../../controls/formatting/display-count.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { ProgramId } from "../../desktop/contracts.js";
@@ -25,12 +26,15 @@ import { PlayOrderField } from "../members/play-order-field.js";
 import {
   isStretchComplete,
   type StretchDraft,
+  type StretchProblem,
+  stretchProblem,
   toStretchDraft,
   toStretchSetting,
   UNCHOSEN_STRETCH,
 } from "../stretch/stretch-fields.js";
 import { suggestionPath } from "./show-draft.js";
-import { joinShowNames, showLabel } from "./show-labels.js";
+import { SelectedPicks } from "./selected-picks.js";
+import { joinShowNames, listNames, showLabel } from "./show-labels.js";
 
 // How Add groups the picks: each its own show, or all in one wheel.
 type Grouping = "separate" | "wheel";
@@ -57,11 +61,14 @@ type ShowChoice = { mode?: PlaybackMode; stretch?: StretchDraft };
  * counts the picks so ones in the other view stay in sight, and opens a
  * second page boxing each show to add with its play order, collection
  * order unless changed, and its per sitting, the server's suggestion
- * unless changed; a show with no suggestion asks for per sitting before
- * **Add** is enabled. The pages are separate so a long result list never
- * pushes a show's settings out of sight. Marathons stay off and every show
- * plays in normal rotation (programming spec 0004), so those are left to
- * Properties. **Add** sends
+ * unless changed. A show with no suggestion, or with an incomplete or
+ * backwards custom per sitting, keeps **Add** disabled, and the words
+ * beside it name every such show and what to fix, since its box may be
+ * scrolled out of sight. Under the search a counted
+ * list keeps every pick in sight, whatever the search shows. The pages are
+ * separate so a long result list never pushes a show's settings out of
+ * sight. Marathons stay off and every show plays in normal rotation
+ * (programming spec 0004), so those are left to Properties. **Add** sends
  * one all-or-nothing request, so a refusal adds nothing and keeps every
  * choice here, naming the show the server refused.
  */
@@ -87,6 +94,7 @@ export function AddShowsDialog({
 }) {
   const mutation = useMutation();
   const nameHintId = useId();
+  const unchosenId = useId();
   const [page, setPage] = useState<Page>("pick");
   const pageBody = useRef<HTMLDivElement>(null);
   // Moves focus to the shown page's first field, since the button that
@@ -97,6 +105,13 @@ export function AddShowsDialog({
       ?.focus();
   }, [page]);
   const [picks, setPicks] = useState<FoundMember[]>([]);
+  // Removes one pick, from its result's checkbox or the selected list.
+  const drop = (found: FoundMember) =>
+    setPicks((current) =>
+      current.filter(
+        (pick) => memberKey(pick.member) !== memberKey(found.member),
+      ),
+    );
   const [chosenGrouping, setGrouping] = useState<Grouping>("separate");
   // One pick is its own show; the wheel choice waits for a second pick.
   const grouping: Grouping = picks.length >= 2 ? chosenGrouping : "separate";
@@ -165,7 +180,28 @@ export function AddShowsDialog({
     const draft = stretchDraftOf(show);
     return isStretchComplete(draft) ? toStretchSetting(draft) : undefined;
   };
-  const ready = shows.length > 0 && shows.every((show) => perSitting(show));
+  // Whether a show's suggestion is still being read, so its per sitting
+  // field has not appeared yet.
+  const checking = shows.some(
+    (show) => hasCollection(show) && suggestionFor(show) === undefined,
+  );
+  // Shows whose per sitting the owner must still choose or fix, by what
+  // is wrong. Add stays disabled until there are none, and the words
+  // beside it name them, so a disabled Add always says why, even when the
+  // field is out of sight.
+  const unfinished = (problem: StretchProblem) =>
+    checking
+      ? []
+      : shows
+          .filter(
+            (show) =>
+              hasCollection(show) &&
+              stretchProblem(stretchDraftOf(show)) === problem,
+          )
+          .map(labelOf);
+  const unchosen = unfinished("incomplete");
+  const backwards = unfinished("backwards");
+  const blocked = unchosen.length + backwards.length > 0;
   const refused = refusedShow(mutation.error, sent);
   const failure =
     refused && mutation.error
@@ -182,6 +218,9 @@ export function AddShowsDialog({
             if (picks.length > 0) setPage("settings");
             return;
           }
+          // A disabled Add already stops a click and Enter; this refuses
+          // any other submit, so an incomplete batch is never sent.
+          if (checking || blocked) return;
           const assignments = shows.flatMap((show): AssignmentSettings[] => {
             const ordinaryStretch = perSitting(show);
             if (!ordinaryStretch) return [];
@@ -219,16 +258,12 @@ export function AddShowsDialog({
                 visible={visible}
                 openProgram={openProgram}
                 onToggle={(found, checked) =>
-                  setPicks((current) =>
-                    checked
-                      ? [...current, found]
-                      : current.filter(
-                          (pick) =>
-                            memberKey(pick.member) !== memberKey(found.member),
-                        ),
-                  )
+                  checked
+                    ? setPicks((current) => [...current, found])
+                    : drop(found)
                 }
               />
+              <SelectedPicks picks={picks} onRemove={drop} />
               {picks.length >= 2 && (
                 <>
                   <fieldset className="inline-form">
@@ -320,6 +355,18 @@ export function AddShowsDialog({
           </div>
         </fieldset>
         <RequestFeedback loading={mutation.pending} error={failure} />
+        {page === "settings" && blocked && (
+          <p id={unchosenId} className="secondary">
+            {[
+              unchosen.length > 0 &&
+                `Choose how much plays at a time for ${whichShows(unchosen)}.`,
+              backwards.length > 0 &&
+                `Make At most minutes no less than At least minutes for ${whichShows(backwards)}.`,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          </p>
+        )}
         <div className="dialog-actions">
           {page === "pick" ? (
             <button type="submit" disabled={picks.length === 0}>
@@ -334,7 +381,11 @@ export function AddShowsDialog({
               >
                 Back
               </button>
-              <button type="submit" disabled={!ready || mutation.pending}>
+              <button
+                type="submit"
+                disabled={checking || blocked || mutation.pending}
+                aria-describedby={blocked ? unchosenId : undefined}
+              >
                 {grouping === "wheel"
                   ? `Add wheel (${picks.length})`
                   : `Add (${picks.length})`}
@@ -348,6 +399,16 @@ export function AddShowsDialog({
       </form>
     </WindowDialog>
   );
+}
+
+/**
+ * Names the shows a per-sitting request is for, counting them when there
+ * are several, since a long list names only the first two.
+ */
+function whichShows(names: readonly string[]): string {
+  return names.length === 1
+    ? (names[0] ?? "")
+    : `${displayCount(names.length)} shows: ${listNames(names)}`;
 }
 
 /**

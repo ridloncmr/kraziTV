@@ -120,6 +120,8 @@ It should behave like a small broadcast automation system, not a playlist genera
     capability folder, as `migrations/migrate-database.ts` does.
   - Nest one capability level inside a domain: `src/<domain>/<capability>/`.
     Nest further only when a capability itself meets the grouping rule above.
+    A kind folder adds no level, but the folders above it do:
+    `src/<domain>/<capability>/<sub>/routes/` nests `<sub>/` one level deeper.
   - When adding a file makes a folder meet the grouping rule, regroup it in the
     same change. Do not leave the reorganization for later.
   - A capability used across domains, such as `runtime/`, `config/`, or

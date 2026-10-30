@@ -2,8 +2,7 @@ import { useRef, useState } from "react";
 import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { Pager } from "../../controls/pager/pager.js";
 import type { CollectionMember } from "../../http/contracts/collections.js";
-import { fileNote } from "../../media-availability/availability-label.js";
-import { MissingLabel } from "./missing-label.js";
+import { MissingLabel, memberFileNote } from "./missing-label.js";
 
 const PAGE_SIZE = 100;
 
@@ -58,7 +57,7 @@ export function ReadOnlyMembers({
                   {member.title}
                   {member.status === "missing" && <MissingLabel />}
                   <small className="secondary path-cell" title={member.path}>
-                    {fileNote(member)}
+                    {memberFileNote(member)}
                   </small>
                 </td>
                 <td>{displayDuration(member.durationMs)}</td>

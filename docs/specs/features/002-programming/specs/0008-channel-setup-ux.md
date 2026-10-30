@@ -111,10 +111,10 @@ The backend schedule debug line is removed.
 The lineup is a read-only list, one row per assignment in saved order:
 
 ```text
-Show                  Order      Per sitting     Marathons
+Show                  Order      Per sitting     Marathons     Rules
 Seinfeld              Episode    ~1 hr           up to 3 hrs
-The Office + Parks    Episode    3 programs      —
-Christmas Movies      Random     1 movie         —            Rules only
+The Office + Parks    Episode    3 programs      —             Weekends
+Christmas Movies      Random     1 movie         —             Christmas     Rules only
 ```
 
 - **Show** is the owner's name for the show when it has one, such as
@@ -125,6 +125,9 @@ Christmas Movies      Random     1 movie         —            Rules only
 - **Per sitting** shows a preset name or the custom value in words.
 - **Marathons** shows the marathon length, or `—`. When the channel's
   marathons are off, a marathon-capable row reads `up to 3 hrs (off)`.
+- **Rules** names the channel's programming rules that select the show,
+  two at most with the rest counted and every one in the hover title. A
+  rule-only show that no rule selects reads **No rule, so it never airs**.
 - A rule-only assignment shows a **Rules only** badge, and an assignment with
   several members, a wheel, shows a **Wheel** badge.
 - Selecting a row enables **Properties** and **Remove**; double-click or
@@ -135,7 +138,8 @@ Christmas Movies      Random     1 movie         —            Rules only
 ### Add shows
 
 **Add shows…** opens a window dialog with one search field that finds media
-collections and single media items together, each labeled by kind. The owner
+collections and single media items together, each collection labeled by
+its collection type (Manual, TV series, Movie franchise, Tag, or Genre). The owner
 checks any number of results. Collections and items the lineup already plays are left
 out of the results, since a member plays in one show at a time.
 
@@ -154,7 +158,11 @@ out of the results, since a member plays in one show at a time.
   items alone shows neither; it plays one item each time it comes up.
   **Back** returns to the same search with every pick and choice kept.
 - A show with no suggestion (mixed or unclassified media) asks for its
-  per-sitting choice before **Add** is enabled, as spec 0004 requires.
+  per-sitting choice before **Add** is enabled, as spec 0004 requires; so
+  does a custom per sitting with an empty, zero, or fractional value, or a
+  range whose **At most** is below its **At least** (equal ends are
+  allowed). Words beside the disabled **Add** name every such show and what
+  to fix, since its box may be scrolled out of sight.
 - Every added show plays in normal rotation with marathons off, as spec 0004
   requires; **Allow marathons** and **Plays in normal rotation** are set in
   **Properties**.

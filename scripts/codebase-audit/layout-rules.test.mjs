@@ -79,6 +79,14 @@ describe("checkNestingDepth", () => {
 
     expect(checkNestingDepth(files)).toEqual([]);
   });
+
+  it("still counts the capability levels above a kind folder", () => {
+    const files = [file("branding/avatars/extra/drawings/duck-drawing.tsx")];
+
+    expect(rules(checkNestingDepth(files))).toEqual([
+      "review:nesting-depth:packages/demo/src/branding/avatars/extra/",
+    ]);
+  });
 });
 
 describe("checkGrouping", () => {

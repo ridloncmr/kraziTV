@@ -20,13 +20,13 @@ import { AddShowsDialog } from "./add-shows-dialog.js";
 import { MarathonsControl } from "./marathons-control.js";
 import { marathonLabel, perSittingLabel } from "../stretch/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
-import { assignmentShowLabel } from "./show-labels.js";
+import { assignmentShowLabel, listNames } from "./show-labels.js";
 import { useMemberNames } from "./use-member-names.js";
 
 /**
  * The Lineup tab: the channel's shows, its programming source assignments,
  * as a read-only list in saved order, badging a wheel (a show of several
- * members that share its turns). **Add shows…** adds several at once, from
+ * members that share its turns) and naming the rules that select each show. **Add shows…** adds several at once, from
  * the empty state until the first show exists; a selected show opens in
  * **Properties** or is removed after a confirmation; shows keep the order
  * they were added, so there are no reorder controls. Every accepted write
@@ -79,6 +79,14 @@ export function LineupTab({
   };
   const selected = listed.find((assignment) => assignment.id === selectedId);
   const edited = listed.find((assignment) => assignment.id === editing);
+  // The names of the channel's rules that select a show, in the order the
+  // server lists them; undefined until the rules are read.
+  const rulesNaming = (assignmentId: string) =>
+    programming.rules.data
+      ?.filter((rule) =>
+        rule.sources.some((source) => source.assignmentId === assignmentId),
+      )
+      .map((rule) => rule.name);
   // Members the lineup plays outside `except`, which no other show may add.
   // Member keys of every show but `except`, since a member plays in one
   // show at a time.
@@ -110,6 +118,7 @@ export function LineupTab({
                 <th>Play order</th>
                 <th>At a time</th>
                 <th>Marathons</th>
+                <th>Rules</th>
                 <th aria-label="Rotation" />
                 <th aria-label="Actions" />
               </tr>
@@ -149,6 +158,12 @@ export function LineupTab({
                     {marathonsOff && assignment.marathonStretch !== null
                       ? " (off)"
                       : ""}
+                  </td>
+                  <td>
+                    <RulesCell
+                      ruleNames={rulesNaming(assignment.id)}
+                      ruleOnly={assignment.participation === "rule_only"}
+                    />
                   </td>
                   <td className="badge-cell">
                     {assignment.members.length > 1 && (
@@ -295,6 +310,31 @@ export function LineupTab({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * Names the rules that select a show, two at most with the rest counted
+ * and every one in the hover title. A rules-only show that no rule selects
+ * never airs, so it says so; nothing shows until the rules are read.
+ */
+function RulesCell({
+  ruleNames,
+  ruleOnly,
+}: {
+  ruleNames: readonly string[] | undefined;
+  ruleOnly: boolean;
+}) {
+  if (ruleNames === undefined) return null;
+  if (ruleNames.length === 0) {
+    return ruleOnly ? (
+      <span className="warning-label">No rule, so it never airs</span>
+    ) : null;
+  }
+  return (
+    <span title={ruleNames.length > 2 ? ruleNames.join(", ") : undefined}>
+      {listNames(ruleNames)}
+    </span>
   );
 }
 

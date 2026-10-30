@@ -7,6 +7,7 @@ import type { MediaItem } from "../http/contracts/media.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { officeCollection } from "../testing/collection-api.js";
+import { chooseOption } from "../testing/choose-option.js";
 import { elapse } from "../testing/fake-time.js";
 import { CollectionOrItemSearch } from "./collection-or-item-search.js";
 
@@ -84,17 +85,68 @@ function lastPage(api: BrowserApi) {
   };
 }
 
-it("matches collections by name as the owner types, naming each one's kind", () => {
+it("matches collections by name as the owner types, naming each one's collection type", () => {
   renderSearch(new BrowserApi());
 
   expect(resultNames()).toEqual(["Favorites", "The Office"]);
-  expect(screen.getByText("Manual collection")).toBeTruthy();
-  expect(screen.getByText("Automatic collection")).toBeTruthy();
+  expect(
+    screen.getByRole("checkbox", { name: "Favorites Manual" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("checkbox", { name: "The Office TV series" }),
+  ).toBeTruthy();
 
   fireEvent.change(screen.getByLabelText("Find collections"), {
     target: { value: "OFF" },
   });
   expect(resultNames()).toEqual(["The Office"]);
+});
+
+it("narrows collections by collection type with the search, counting only results it could show", () => {
+  const tagged = collectionWith("christmas", "Christmas Office Party", {
+    maintenanceMode: "automatic",
+    criterion: { kind: "tag", tagId: "tag-christmas" },
+    criterionLabel: "Christmas",
+  });
+  const parks = collectionWith("parks", "Parks", {
+    maintenanceMode: "automatic",
+    criterion: { kind: "series", tmdbId: 8592 },
+  });
+  renderSearch(new BrowserApi(), {
+    collections: [FAVORITES, officeCollection, tagged, parks],
+    // Parks is already added, so the series count leaves it out.
+    hidden: new Set(["collection:parks"]),
+  });
+  const type = screen.getByLabelText<HTMLSelectElement>("Collection type");
+  expect(Array.from(type.options, (option) => option.textContent)).toEqual([
+    "All types",
+    "Manual (1)",
+    "TV series (1)",
+    "Tag (1)",
+  ]);
+
+  chooseOption(type, "Tag (1)");
+  expect(resultNames()).toEqual(["Christmas Office Party"]);
+  // The name search applies within the type.
+  fireEvent.change(screen.getByLabelText("Find collections"), {
+    target: { value: "office" },
+  });
+  expect(resultNames()).toEqual(["Christmas Office Party"]);
+  chooseOption(type, "Manual (1)");
+  expect(resultNames()).toEqual([]);
+  screen.getByText("No collection matches that search.");
+  chooseOption(type, "All types");
+  expect(resultNames()).toEqual(["The Office", "Christmas Office Party"]);
+
+  // Single items have no collection type.
+  searchItems();
+  expect(screen.queryByLabelText("Collection type")).toBeNull();
+});
+
+it("offers no type filter when every collection is the same type", () => {
+  renderSearch(new BrowserApi(), { collections: [FAVORITES] });
+
+  expect(screen.queryByLabelText("Collection type")).toBeNull();
 });
 
 it("reads no media until the owner searches single items", async () => {
@@ -154,7 +206,7 @@ it("toggles one result through the caller, which holds the checks", async () => 
     {
       member: { kind: "collection", mediaCollectionId: "office" },
       name: "The Office",
-      detail: "Automatic collection",
+      detail: "TV series",
     },
     true,
   );

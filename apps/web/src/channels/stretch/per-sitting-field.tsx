@@ -1,7 +1,6 @@
 import { useId, useState } from "react";
 import type { StretchSetting } from "../../http/contracts/programming.js";
 import {
-  isStretchComplete,
   OverrunHint,
   type StretchDraft,
   StretchFields,
@@ -60,7 +59,15 @@ export function PerSittingField({
   );
   // Custom stays open once chosen, even when its values reach a preset.
   const [customChosen, setCustomChosen] = useState(false);
-  const custom = customChosen || (preset < 0 && isStretchComplete(draft));
+  // Anything the owner entered that no preset matches shows as Custom, even
+  // incomplete or backwards, so a tab switch that remounts the field keeps
+  // the values in view for the browser to point at.
+  const entered =
+    draft.kind !== "programs" ||
+    Object.values(toStretchSetting(draft)).some(
+      (value) => typeof value === "number" && !Number.isNaN(value),
+    );
+  const custom = customChosen || (preset < 0 && entered);
   const overrun = !custom && preset >= 0 && draft.kind !== "programs";
   const describedBy = [hint && fieldHintId, overrun && hintId]
     .filter(Boolean)

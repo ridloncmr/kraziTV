@@ -6,6 +6,7 @@ import type {
   MediaCollection,
   MediaCollectionSummary,
 } from "../http/contracts/collections.js";
+import type { CollectionType } from "../collection-types/collection-type.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { NewAutomaticCollectionDialog } from "./automatic/new-automatic-collection-dialog.js";
@@ -34,6 +35,8 @@ export function CollectionsApp({
   // Refresh reloads everything this window shows.
   const { refresh: refreshWindow } = useRefreshScope();
   const [tab, setTab] = useState<MediaCollection["maintenanceMode"]>("manual");
+  // The Automatic tab's type filter; null shows every type.
+  const [type, setType] = useState<CollectionType | null>(null);
   // Which kind of collection a creation dialog is open for, if any.
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
@@ -46,11 +49,15 @@ export function CollectionsApp({
     creating !== undefined,
   );
 
-  /** Closes a creation dialog and opens what it created, on the tab it belongs to. */
+  /**
+   * Closes a creation dialog and opens what it created, on the tab it
+   * belongs to with no type filter, so its card is in view.
+   */
   function opened(collection: MediaCollection) {
     openCreated(collection);
     setCreating(undefined);
     setTab(collection.maintenanceMode);
+    setType(null);
     collections.refresh();
   }
   return (
@@ -73,6 +80,8 @@ export function CollectionsApp({
           collections={collections.data}
           tab={tab}
           onTabChange={setTab}
+          type={type}
+          onTypeChange={setType}
           onOpen={windows.show}
           onCreate={setCreating}
           onDiscover={() => setDiscovering(true)}

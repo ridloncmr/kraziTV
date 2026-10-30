@@ -1061,6 +1061,23 @@
   margin: 2px 0;
 }
 /*
+ * Add shows' selected picks: each name beside its Remove, scrolling inside
+ * the dialog once the picks outgrow a few rows, as the results above do.
+ */
+.selected-picks {
+  max-height: 120px;
+  overflow: auto;
+}
+.selected-picks > li.inline-form {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+}
+.selected-picks > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/*
  * An XP tool tip: a small yellow note beside a shell control. The host is
  * the control's own box, and the note waits off to one side of it. It
  * fades in over the fast beat, except a tip opened while reading along a

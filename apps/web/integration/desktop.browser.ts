@@ -10,7 +10,7 @@ import {
   rootFixture,
   titledItemFixture,
 } from "../../server/src/testing/catalog-fixtures.js";
-import { createChannel } from "../../server/src/testing/api-requests.js";
+import { createChannel, send } from "../../server/src/testing/api-requests.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { IdleMetadataRefresh } from "../../server/src/testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
@@ -347,6 +347,58 @@ test("keeps My Channels' buttons in view over nine channels and ends a long capt
   });
 });
 
+// jsdom never turns Enter in a field into a click on the form's first
+// submit button, so only a real browser can show Enter pressing OK.
+test("presses OK with Enter in a property sheet, closing it unchanged or saving its change", async ({
+  page,
+}) => {
+  const { server } = await startTestServer();
+  await createChannel(server, { number: "69", name: "Northwoods TV" });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "My Channels", exact: true })
+    .click();
+  const channels = page.getByRole("region", {
+    name: "My Channels",
+    exact: true,
+  });
+  const anyProperties = page.getByRole("region", { name: / Properties$/ });
+  // Opens the channel's General tab and returns its Name field.
+  const openGeneral = async (channelName: string) => {
+    await channels
+      .getByRole("button", { name: channelName, exact: true })
+      .click();
+    await channels
+      .getByRole("button", { name: "Properties", exact: true })
+      .click();
+    const properties = page.getByRole("region", {
+      name: `${channelName} Properties`,
+      exact: true,
+    });
+    // A channel with no shows moves to Lineup once its lineup reads; wait
+    // for that, or the General click can land first and be undone.
+    await expect(
+      properties.getByRole("tab", { name: "Lineup" }),
+    ).toHaveAttribute("aria-selected", "true");
+    await properties.getByRole("tab", { name: "General" }).click();
+    return properties.getByLabel("Name", { exact: true });
+  };
+
+  // Unchanged, Enter closes the sheet at once, through OK's no-change path.
+  await (await openGeneral("Northwoods TV")).press("Enter");
+  await expect(anyProperties).toHaveCount(0);
+
+  // Changed, Enter saves it and closes, as OK does.
+  const name = await openGeneral("Northwoods TV");
+  await name.fill("Lakeside TV");
+  await name.press("Enter");
+  await expect(anyProperties).toHaveCount(0);
+  const listed = await send(server, "GET", "/channels");
+  expect(listed.body).toMatchObject([{ number: "69", name: "Lakeside TV" }]);
+});
+
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -477,9 +529,27 @@ for (const viewport of [
       .check();
     await addShows.getByRole("button", { name: "Next (1)" }).click();
     // One unmatched file suggests no per sitting, so the owner chooses.
+    // Until then Add is disabled and says why.
+    const perSitting = addShows.getByLabel("Plays at a time");
+    const add = addShows.getByRole("button", { name: "Add (1)" });
+    await expect(add).toBeDisabled();
+    await expect(add).toHaveAccessibleDescription(
+      "Choose how much plays at a time for Northwoods collection.",
+    );
+    // A custom range with one end missing adds nothing either, even by
+    // Enter, which a disabled Add never submits.
+    await perSitting.selectOption({ label: "Custom…" });
     await addShows
-      .getByLabel("Plays at a time")
-      .selectOption({ label: "1 program" });
+      .getByLabel("Turn length")
+      .selectOption({ label: "A time within a range" });
+    await addShows.getByLabel("At least minutes").fill("30");
+    await expect(add).toBeDisabled();
+    await addShows.getByLabel("At least minutes").press("Enter");
+    await expect(addShows).toBeVisible();
+    await expect(properties.getByRole("table", { name: "Shows" })).toHaveCount(
+      0,
+    );
+    await perSitting.selectOption({ label: "1 program" });
     await addShows.getByRole("button", { name: "Add (1)" }).click();
     await expect(addShows).toBeHidden();
     // The server already generated the schedule, and nothing was airing on

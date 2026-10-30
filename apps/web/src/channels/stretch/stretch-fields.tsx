@@ -40,11 +40,32 @@ export function toStretchSetting(draft: StretchDraft): StretchSetting {
   }
 }
 
-/** Whether every field the draft's kind needs holds a number, so it can be saved. */
-export function isStretchComplete(draft: StretchDraft): boolean {
-  return Object.values(toStretchSetting(draft)).every(
-    (value) => typeof value !== "number" || !Number.isNaN(value),
+/** Why a draft cannot be saved yet, as the words that ask for a fix name it. */
+export type StretchProblem = "incomplete" | "backwards";
+
+/**
+ * Why a draft cannot be saved, or null when it can. A field its input
+ * refuses, empty, zero, or a fraction, leaves it incomplete; a range whose
+ * most is below its least is backwards, while equal ends are a fixed
+ * target. Each matches what the browser checks on the field itself, so a
+ * check made from another tab, or before the browser's own, agrees with it.
+ */
+export function stretchProblem(draft: StretchDraft): StretchProblem | null {
+  const setting = toStretchSetting(draft);
+  const whole = Object.values(setting).every(
+    (value) =>
+      typeof value !== "number" || (Number.isSafeInteger(value) && value >= 1),
   );
+  if (!whole) return "incomplete";
+  return setting.kind === "airtime_range" &&
+    setting.maxMinutes < setting.minMinutes
+    ? "backwards"
+    : null;
+}
+
+/** Whether a draft can be saved: every field filled as its input accepts, and any range in order. */
+export function isStretchComplete(draft: StretchDraft): boolean {
+  return stretchProblem(draft) === null;
 }
 
 // Each turn length the editor offers.
@@ -86,6 +107,12 @@ export function StretchFields({
   // Names a field, as a marathon field when this edits a marathon.
   const name = (text: string) =>
     marathon ? `Marathon ${text.toLowerCase()}` : text;
+  // A range's most may not fall below its least, so the browser points at
+  // At most when it does; equal ends are allowed.
+  const leastMost =
+    Number.isSafeInteger(draft.minMinutes) && draft.minMinutes > 1
+      ? draft.minMinutes
+      : 1;
   // Edits one numeric field of the draft.
   const numberField = (
     label: string,
@@ -96,7 +123,7 @@ export function StretchFields({
       <input
         type="number"
         required
-        min={1}
+        min={field === "maxMinutes" ? leastMost : 1}
         step={1}
         value={Number.isNaN(draft[field]) ? "" : draft[field]}
         aria-describedby={draft.kind === "programs" ? undefined : hintId}

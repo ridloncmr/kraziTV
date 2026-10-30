@@ -373,10 +373,10 @@ it("names each member's availability beside its file name, keeping the full path
     "alpha.mp4",
     "/media/alpha.mp4",
   ]);
-  expect(fileLine(await row("Zulu"))).toEqual([
-    "Missing · zulu.mp4",
-    "/media/zulu.mp4",
-  ]);
+  // The missing label already says Missing, so the file line does not repeat it.
+  const zulu = await row("Zulu");
+  expect(fileLine(zulu)).toEqual(["zulu.mp4", "/media/zulu.mp4"]);
+  expect(within(zulu).getAllByText(/Missing/)).toHaveLength(1);
   expect(fileLine(await row("Unreadable"))).toEqual([
     "Could not be read · unreadable.mkv",
     "/media/shows/unreadable.mkv",
@@ -413,10 +413,9 @@ it("names each read-only member's availability beside its file name in an automa
     "alpha.mp4",
     "/media/alpha.mp4",
   ]);
-  expect(fileLine(await row("Zulu"))).toEqual([
-    "Missing · zulu.mp4",
-    "/media/zulu.mp4",
-  ]);
+  const zulu = await row("Zulu");
+  expect(fileLine(zulu)).toEqual(["zulu.mp4", "/media/zulu.mp4"]);
+  expect(within(zulu).getAllByText(/Missing/)).toHaveLength(1);
   expect(fileLine(await row("Unreadable"))).toEqual([
     "Could not be read · unreadable.mkv",
     "/media/shows/unreadable.mkv",
