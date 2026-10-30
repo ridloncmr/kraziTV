@@ -8,6 +8,11 @@ import {
   criterionBasis,
 } from "../automatic/automatic-status.js";
 import { missingWords } from "../collection-words.js";
+import { CollectionTypeSelect } from "../../collection-types/collection-type-select.js";
+import {
+  type CollectionType,
+  hasCollectionType,
+} from "../../collection-types/collection-type.js";
 
 type MaintenanceMode = MediaCollection["maintenanceMode"];
 
@@ -30,13 +35,16 @@ const EMPTY_TEXT: Record<MaintenanceMode, string> = {
 
 /**
  * The Collections landing: Manual and Automatic tabs, each a grid of created
- * collections. The parent owns the chosen tab, so a created collection's tab
- * is shown when it opens.
+ * collections. The Automatic tab narrows its grid by collection type, such
+ * as TV series or Tag. The parent owns the chosen tab and type, so a
+ * created collection's card is shown when it opens.
  */
 export function CollectionGrid({
   collections,
   tab,
   onTabChange,
+  type,
+  onTypeChange,
   onOpen,
   onCreate,
   onDiscover,
@@ -44,6 +52,9 @@ export function CollectionGrid({
   collections: readonly MediaCollectionSummary[];
   tab: MaintenanceMode;
   onTabChange: (tab: MaintenanceMode) => void;
+  /** The Automatic tab's type filter; null shows every type. */
+  type: CollectionType | null;
+  onTypeChange: (type: CollectionType | null) => void;
   /** Opens a collection in its own window. */
   onOpen: (collection: MediaCollectionSummary) => void;
   /** Opens the creation dialog for the shown tab's kind of collection. */
@@ -51,9 +62,13 @@ export function CollectionGrid({
   /** Opens the recommendations; offered on the Automatic tab. */
   onDiscover: () => void;
 }) {
-  const shown = collections.filter(
+  const inTab = collections.filter(
     (collection) => collection.maintenanceMode === tab,
   );
+  const filtered = tab === "automatic" && type !== null;
+  const shown = filtered
+    ? inTab.filter((collection) => hasCollectionType(collection, type))
+    : inTab;
 
   return (
     <TabbedPanel
@@ -69,8 +84,21 @@ export function CollectionGrid({
           <button onClick={onDiscover}>Discover collections…</button>
         )}
       </div>
+      {tab === "automatic" && (
+        <div className="inline-form">
+          <CollectionTypeSelect
+            collections={inTab}
+            value={type}
+            onChange={onTypeChange}
+          />
+        </div>
+      )}
       {shown.length === 0 ? (
-        <p className="empty-state">{EMPTY_TEXT[tab]}</p>
+        <p className="empty-state">
+          {filtered && inTab.length > 0
+            ? "No automatic collections of this type. Choose All types to see every one."
+            : EMPTY_TEXT[tab]}
+        </p>
       ) : (
         <ul className="collection-grid">
           {shown.map((collection) => (

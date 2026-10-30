@@ -9,18 +9,19 @@ import type {
   CollectionMember,
 } from "../../http/contracts/collections.js";
 import { useResource } from "../../http/resources/use-resource.js";
+import { collectionTypeLabel } from "../../collection-types/collection-type.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 type Kind = CollectionCriterion["kind"];
 
 /**
- * What each criterion kind lists, how it is labelled, how its members are
- * counted, and how a listed row's option value becomes a criterion.
+ * What each criterion kind lists, how its picker is labelled, how its
+ * members are counted, and how a listed row's option value becomes a
+ * criterion. The kind's own name is its collection type's label.
  */
 const KINDS: Record<
   Kind,
   {
-    label: string;
     /** The picker's own label, distinct from the kind's radio button. */
     pick: string;
     path: string;
@@ -32,7 +33,6 @@ const KINDS: Record<
   }
 > = {
   series: {
-    label: "TV series",
     pick: "Series",
     path: "/media-collections/series",
     criterion: (value) => ({ kind: "series", tmdbId: Number(value) }),
@@ -44,7 +44,6 @@ const KINDS: Record<
     unit: ["episode", "episodes"],
   },
   franchise: {
-    label: "Movie franchise",
     pick: "Franchise",
     path: "/media-collections/franchises",
     criterion: (value) => ({ kind: "franchise", tmdbId: Number(value) }),
@@ -56,7 +55,6 @@ const KINDS: Record<
     unit: ["movie", "movies"],
   },
   tag: {
-    label: "Tag",
     pick: "Tag name",
     path: "/media-collections/tags",
     criterion: (value) => ({ kind: "tag", tagId: value }),
@@ -68,7 +66,6 @@ const KINDS: Record<
     unit: ["item", "items"],
   },
   genre: {
-    label: "Genre",
     pick: "Genre name",
     path: "/media-collections/genres",
     criterion: (value) => ({ kind: "genre", name: value }),
@@ -80,11 +77,6 @@ const KINDS: Record<
     unit: ["item", "items"],
   },
 };
-
-/** Names a criterion kind in the words the picker and every card use. */
-export function kindLabel(kind: Kind): string {
-  return KINDS[kind].label;
-}
 
 /** A chosen criterion, the name of what it matches, and whether its preview has loaded. */
 export interface CriterionChoice {
@@ -163,7 +155,7 @@ export function CriterionPicker({
                 setValue("");
               }}
             />
-            {KINDS[option].label}
+            {collectionTypeLabel(option)}
           </label>
         ))}
       </fieldset>

@@ -529,9 +529,27 @@ for (const viewport of [
       .check();
     await addShows.getByRole("button", { name: "Next (1)" }).click();
     // One unmatched file suggests no per sitting, so the owner chooses.
+    // Until then Add is disabled and says why.
+    const perSitting = addShows.getByLabel("Plays at a time");
+    const add = addShows.getByRole("button", { name: "Add (1)" });
+    await expect(add).toBeDisabled();
+    await expect(add).toHaveAccessibleDescription(
+      "Choose how much plays at a time for Northwoods collection.",
+    );
+    // A custom range with one end missing adds nothing either, even by
+    // Enter, which a disabled Add never submits.
+    await perSitting.selectOption({ label: "Custom…" });
     await addShows
-      .getByLabel("Plays at a time")
-      .selectOption({ label: "1 program" });
+      .getByLabel("Turn length")
+      .selectOption({ label: "A time within a range" });
+    await addShows.getByLabel("At least minutes").fill("30");
+    await expect(add).toBeDisabled();
+    await addShows.getByLabel("At least minutes").press("Enter");
+    await expect(addShows).toBeVisible();
+    await expect(properties.getByRole("table", { name: "Shows" })).toHaveCount(
+      0,
+    );
+    await perSitting.selectOption({ label: "1 program" });
     await addShows.getByRole("button", { name: "Add (1)" }).click();
     await expect(addShows).toBeHidden();
     // The server already generated the schedule, and nothing was airing on

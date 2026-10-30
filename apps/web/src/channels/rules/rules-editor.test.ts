@@ -289,6 +289,41 @@ it("shows the server's message for an invalid size pair", async () => {
   expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
 });
 
+it("returns to What plays instead of saving a show's backwards range", async () => {
+  const api = editorApi();
+  const form = await openNewRule(api);
+  fireEvent.change(within(form).getByLabelText("Name"), {
+    target: { value: "Backwards" },
+  });
+  showTab(form, "What plays");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  fireEvent.click(
+    within(form).getByLabelText("Change how much plays at a time"),
+  );
+  chooseOption(within(form).getByLabelText("Plays at a time"), "Custom…");
+  chooseOption(
+    within(form).getByLabelText("Turn length"),
+    "A time within a range",
+  );
+  fireEvent.change(within(form).getByLabelText("At least minutes"), {
+    target: { value: "60" },
+  });
+  fireEvent.change(within(form).getByLabelText("At most minutes"), {
+    target: { value: "30" },
+  });
+  showTab(form, "General");
+
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
+
+  // The browser points at At most, which may not fall below At least.
+  const most =
+    await within(form).findByLabelText<HTMLInputElement>("At most minutes");
+  expect(most.validity.rangeUnderflow).toBe(true);
+  expect(
+    api.requestsTo(RULES).filter((request) => request.method === "POST"),
+  ).toEqual([]);
+});
+
 it("lists rules by priority and reorders only among equal priorities", async () => {
   const api = editorApi([
     ruleFixture("december", "December", ["christmas-turns"], { priority: 1 }),

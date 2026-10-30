@@ -9,8 +9,11 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { MediaCollectionSummary } from "../../http/contracts/collections.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
+import { chooseOption } from "../../testing/choose-option.js";
+import { officeCollection } from "../../testing/collection-api.js";
 import type { Special, SpecialPreview } from "./contracts.js";
 import { airtimeWords } from "./special-words.js";
 import { SpecialsSection } from "./specials-section.js";
@@ -62,11 +65,15 @@ const saved: Special = {
   status: "upcoming",
 };
 
-// The section over a channel with `specials`, the fixture catalog, and its one collection.
-function renderSection(specials: Special[] = []) {
+// The section over a channel with `specials`, the fixture catalog, and
+// its one collection, or `collections` instead.
+function renderSection(
+  specials: Special[] = [],
+  collections: MediaCollectionSummary[] = adminFixtures.collections,
+) {
   const api = new BrowserApi();
   api.reply(LIST, specials);
-  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/media-collections", collections);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
   render(
@@ -182,6 +189,23 @@ it("saves a collection block with its explicit end", async () => {
       },
     }),
   );
+});
+
+it("narrows the collection list by collection type, keeping the chosen collection listed", async () => {
+  renderSection([], [...adminFixtures.collections, officeCollection]);
+  await startNewSpecial();
+  fireEvent.click(screen.getByLabelText("A collection, until a set end"));
+  await screen.findByRole("option", { name: "The Office" });
+  const collection = screen.getByLabelText<HTMLSelectElement>("Collection");
+  const listed = () =>
+    Array.from(collection.options, (option) => option.textContent);
+  expect(listed()).toEqual(["Choose a collection", "Favorites", "The Office"]);
+  chooseOption(collection, "Favorites");
+
+  chooseOption(screen.getByLabelText("Collection type"), "TV series (1)");
+  expect(listed()).toEqual(["Choose a collection", "Favorites", "The Office"]);
+  chooseOption(collection, "The Office");
+  expect(listed()).toEqual(["Choose a collection", "The Office"]);
 });
 
 it("previews a collection from the beginning without random and saves the list it resolves to", async () => {

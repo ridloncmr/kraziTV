@@ -1,6 +1,6 @@
 import { displayTime } from "../../controls/formatting/display-time.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
-import { kindLabel } from "./criterion-picker.js";
+import { collectionTypeLabel } from "../../collection-types/collection-type.js";
 
 /**
  * Names what an automatic collection matches on, as its card and editor
@@ -9,7 +9,7 @@ import { kindLabel } from "./criterion-picker.js";
 export function criterionBasis(collection: MediaCollection): string | null {
   return collection.criterion === null
     ? null
-    : `${kindLabel(collection.criterion.kind)}: ${collection.criterionLabel ?? ""}`;
+    : `${collectionTypeLabel(collection.criterion.kind)}: ${collection.criterionLabel ?? ""}`;
 }
 
 /**

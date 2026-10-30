@@ -1,4 +1,9 @@
-import { useId } from "react";
+import { useId, useState } from "react";
+import { CollectionTypeSelect } from "../../collection-types/collection-type-select.js";
+import {
+  type CollectionType,
+  hasCollectionType,
+} from "../../collection-types/collection-type.js";
 import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
@@ -30,8 +35,8 @@ const KINDS: readonly { kind: SourceKind; label: string; hint: string }[] = [
 
 /**
  * The special editor's What airs fields: the kind of programming, then
- * either the programs in order, each found by search, or a collection and
- * its play order. Every change goes through its callback, which the editor
+ * either the programs in order, each found by search, or a collection,
+ * listed by collection type when there are several, and its play order. Every change goes through its callback, which the editor
  * wraps so any edit discards its preview.
  */
 export function SpecialSourceFields({
@@ -59,6 +64,9 @@ export function SpecialSourceFields({
   onMode: (mode: PlaybackMode) => void;
 }) {
   const kindsId = useId();
+  // Narrows the collection list to one collection type; the chosen
+  // collection stays listed whatever the type.
+  const [type, setType] = useState<CollectionType | null>(null);
   return (
     <>
       <div role="radiogroup" aria-labelledby={kindsId} className="field-group">
@@ -111,6 +119,13 @@ export function SpecialSourceFields({
         </ol>
       ) : (
         <>
+          {collections && (
+            <CollectionTypeSelect
+              collections={collections}
+              value={type}
+              onChange={setType}
+            />
+          )}
           <label>
             Collection
             <select
@@ -119,11 +134,17 @@ export function SpecialSourceFields({
               onChange={(event) => onCollection(event.target.value)}
             >
               <option value="">Choose a collection</option>
-              {collections?.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.name}
-                </option>
-              ))}
+              {collections
+                ?.filter(
+                  (collection) =>
+                    collection.id === collectionId ||
+                    hasCollectionType(collection, type),
+                )
+                .map((collection) => (
+                  <option key={collection.id} value={collection.id}>
+                    {collection.name}
+                  </option>
+                ))}
             </select>
           </label>
           <PlayOrderField

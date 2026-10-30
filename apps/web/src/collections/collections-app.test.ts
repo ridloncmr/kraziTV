@@ -19,6 +19,7 @@ import {
   serveCollection,
 } from "../testing/collection-api.js";
 import { CollectionWindows } from "../testing/collection-windows.js";
+import { chooseOption } from "../testing/choose-option.js";
 import { clickWhenEnabled } from "../testing/click-when-enabled.js";
 
 afterEach(() => {
@@ -117,6 +118,51 @@ it("shows an empty Automatic tab without listing manual collections there", asyn
   expect(within(grid).queryByRole("button", { name: /^Open / })).toBeNull();
   expect(within(grid).getByText(/No automatic collections yet/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "New collection…" })).toBeNull();
+});
+
+it("narrows the Automatic tab by collection type, offering only the types it holds", async () => {
+  const api = renderApp();
+  api.reply("/media-collections", [
+    ...collections,
+    officeCollection,
+    collectionWith("parks", "Parks and Recreation", {
+      maintenanceMode: "automatic",
+      criterion: { kind: "series", tmdbId: 8592 },
+      criterionLabel: "Parks and Recreation",
+    }),
+    collectionWith("christmas", "Christmas", {
+      maintenanceMode: "automatic",
+      criterion: { kind: "tag", tagId: "tag-christmas" },
+      criterionLabel: "Christmas",
+    }),
+  ]);
+  fireEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  const grid = screen.getByRole("tabpanel", { name: "Automatic" });
+  const cards = () =>
+    within(grid)
+      .queryAllByRole("button", { name: /^Open / })
+      .map((card) => card.getAttribute("aria-label"));
+  await waitFor(() => expect(cards()).toHaveLength(3));
+  const type =
+    within(grid).getByLabelText<HTMLSelectElement>("Collection type");
+  // Manual collections are on their own tab, and no genre collection exists.
+  expect(
+    within(type)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
+  ).toEqual(["All types", "TV series (2)", "Tag (1)"]);
+
+  chooseOption(type, "Tag (1)");
+  expect(cards()).toEqual(["Open Christmas"]);
+  chooseOption(type, "TV series (2)");
+  expect(cards()).toEqual(["Open The Office", "Open Parks and Recreation"]);
+  chooseOption(type, "All types");
+  expect(cards()).toHaveLength(3);
+
+  // The Manual tab holds one type, so it offers no filter.
+  fireEvent.click(screen.getByRole("tab", { name: "Manual" }));
+  expect(screen.queryByLabelText("Collection type")).toBeNull();
 });
 
 it("deletes a collection only after confirmation and closes its window", async () => {
