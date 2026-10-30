@@ -10,7 +10,7 @@ import {
   rootFixture,
   titledItemFixture,
 } from "../../server/src/testing/catalog-fixtures.js";
-import { createChannel } from "../../server/src/testing/api-requests.js";
+import { createChannel, send } from "../../server/src/testing/api-requests.js";
 import { ControlledProber } from "../../server/src/testing/controlled-prober.js";
 import { IdleMetadataRefresh } from "../../server/src/testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
@@ -345,6 +345,56 @@ test("keeps My Channels' buttons in view over nine channels and ends a long capt
   await properties.locator(".title-bar").screenshot({
     path: "../../data/web-long-caption.png",
   });
+});
+
+// jsdom never turns Enter in a field into a click on the form's first
+// submit button, so only a real browser can show Enter pressing OK.
+test("presses OK with Enter in a property sheet, closing it unchanged or saving its change", async ({
+  page,
+}) => {
+  const { server } = await startTestServer();
+  await createChannel(server, { number: "69", name: "Northwoods TV" });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "My Channels", exact: true })
+    .click();
+  const channels = page.getByRole("region", {
+    name: "My Channels",
+    exact: true,
+  });
+  const anyProperties = page.getByRole("region", { name: / Properties$/ });
+  // Opens the channel's General tab and returns its Name field.
+  const openGeneral = async (channelName: string) => {
+    await channels
+      .getByRole("button", { name: channelName, exact: true })
+      .click();
+    await channels
+      .getByRole("button", { name: "Properties", exact: true })
+      .click();
+    const properties = page.getByRole("region", {
+      name: `${channelName} Properties`,
+      exact: true,
+    });
+    await properties.getByRole("tab", { name: "General" }).click();
+    return properties.getByLabel("Name");
+  };
+
+  // Unchanged, Enter closes the sheet without asking about changes.
+  await (await openGeneral("Northwoods TV")).press("Enter");
+  await expect(anyProperties).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog", { name: "Unsaved changes" }),
+  ).toHaveCount(0);
+
+  // Changed, Enter saves it and closes, as OK does.
+  const name = await openGeneral("Northwoods TV");
+  await name.fill("Lakeside TV");
+  await name.press("Enter");
+  await expect(anyProperties).toHaveCount(0);
+  const listed = await send(server, "GET", "/channels");
+  expect(listed.body).toMatchObject([{ number: "69", name: "Lakeside TV" }]);
 });
 
 for (const viewport of [

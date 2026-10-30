@@ -390,7 +390,7 @@ async function openGeneral() {
     api
       .requestsTo("/channels/one")
       .filter((request) => request.method === "PATCH");
-  return { button, window, patches };
+  return { api, button, window, patches };
 }
 
 it("saves General's number and name with Apply, which is enabled only while a field changed", async () => {
@@ -439,6 +439,27 @@ it("saves General with OK and closes the window", async () => {
   expect(patches().map((request) => request.body)).toEqual([
     { number: "70", name: "Northwoods TV" },
   ]);
+});
+
+it("disables every footer button while General's save is pending, then closes on OK's save", async () => {
+  const { api, button, window } = await openGeneral();
+  api.hold("/channels/one", "PATCH");
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Lakeside TV" },
+  });
+
+  fireEvent.click(button("OK"));
+
+  // A second OK, Cancel, or Apply would race the save that is still pending.
+  await waitFor(() => expect(button("OK").disabled).toBe(true));
+  expect(button("Cancel").disabled).toBe(true);
+  expect(button("Apply").disabled).toBe(true);
+  api.release(
+    "/channels/one",
+    { ...adminFixtures.channels[0], name: "Lakeside TV" },
+    "PATCH",
+  );
+  await waitFor(() => expect(window()).toBeNull());
 });
 
 it("closes the window on General's Cancel, asking first when a field changed", async () => {

@@ -4,10 +4,9 @@ import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { withIds } from "../../controls/selection/id-selection.js";
 import { Pager } from "../../controls/pager/pager.js";
 import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
-import { fileNote } from "../../media-availability/availability-label.js";
 import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
-import { MissingLabel } from "./missing-label.js";
+import { MissingLabel, memberFileNote } from "./missing-label.js";
 
 const PAGE_SIZE = 100;
 
@@ -202,7 +201,7 @@ export function MemberList({
                     {item.title}
                     {item.status === "missing" && <MissingLabel />}
                     <small className="secondary path-cell" title={item.path}>
-                      {fileNote(item)}
+                      {memberFileNote(item)}
                     </small>
                   </td>
                   <td>{displayDuration(item.durationMs)}</td>

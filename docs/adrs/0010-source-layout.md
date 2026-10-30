@@ -9,6 +9,10 @@ is exempt from both grouping counts and may nest inside any capability, and
 `npm run audit:strict` enforces the thresholds rather than leaving them to
 judgment (release polish decision 5).
 
+Amended on 2026-10-29: the kind-folder exemption covers only the kind folder
+itself. The folders above it still count toward the nesting limit, so a
+folder that holds nothing but a kind folder is still a nesting level.
+
 ## Context
 
 `AGENTS.md` laid out every `src/` as one folder per domain and allowed a
@@ -48,7 +52,9 @@ and wants that shape to be the norm.
   its name already says what every file is. It is exempt from both grouping
   counts and may nest inside any capability;
   `scripts/codebase-audit/layout-rules.mjs` lists the names the audit
-  recognizes.
+  recognizes. The exemption stops at the kind folder: in
+  `src/<domain>/<capability>/<sub>/routes/`, `<sub>/` is a second capability
+  level, allowed only when `<capability>/` meets the grouping rule.
 - `apps/server/src/database/` joins `packages/signal/src` as a reference
   layout.
 

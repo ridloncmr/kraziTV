@@ -101,14 +101,16 @@ export function checkFolderNames(files) {
 
 /**
  * Nesting beyond `src/<domain>/<capability>/` needs a capability that meets
- * the grouping rule; a kind folder may sit inside any capability.
+ * the grouping rule. A kind folder may sit inside any capability, but the
+ * folders above it still count, so `src/<domain>/<capability>/<sub>/routes/`
+ * asks for review of `<sub>/` even though `<sub>/` holds no file itself.
  */
 export function checkNestingDepth(files) {
   const deep = new Set();
   for (const file of files) {
     if (isTestingFile(file)) continue;
-    const segments = folderSegments(file.srcPath);
-    if (segments.length > 2 && !isKindFolder(segments)) {
+    const segments = withoutKindFolders(folderSegments(file.srcPath));
+    if (segments.length > 2) {
       deep.add(`${file.workspace}/src/${segments.join("/")}/`);
     }
   }
@@ -179,6 +181,13 @@ export function checkGrouping(files) {
 /** Whether a folder, given as its `src/`-relative segments, is named for one kind of file. */
 function isKindFolder(segments) {
   return KIND_FOLDERS.has(segments[segments.length - 1]);
+}
+
+/** The capability folders a path nests through, once the kind folders at its end are set aside. */
+function withoutKindFolders(segments) {
+  let end = segments.length;
+  while (end > 0 && isKindFolder(segments.slice(0, end))) end--;
+  return segments.slice(0, end);
 }
 
 /** Build configs exclude tests and `src/testing/` with the same patterns everywhere. */
