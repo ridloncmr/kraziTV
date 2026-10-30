@@ -154,7 +154,7 @@ describe("POST /channels/:id/reservations/preview", () => {
     expect(preview.body.programs).toBeUndefined();
   });
 
-  it("refuses to preview a channel with no shows and a special with nothing to air", async () => {
+  it("refuses to preview a reservation with nothing to air on a channel with no assignments", async () => {
     // No assignment, and an empty collection, leave nothing to generate.
     const { server, db } = await startScheduleScenarioServer({ source: null });
     await insertCollectionOfItems(db, "empty", []);

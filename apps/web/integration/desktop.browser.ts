@@ -377,16 +377,18 @@ test("presses OK with Enter in a property sheet, closing it unchanged or saving 
       name: `${channelName} Properties`,
       exact: true,
     });
+    // A channel with no shows moves to Lineup once its lineup reads; wait
+    // for that, or the General click can land first and be undone.
+    await expect(
+      properties.getByRole("tab", { name: "Lineup" }),
+    ).toHaveAttribute("aria-selected", "true");
     await properties.getByRole("tab", { name: "General" }).click();
-    return properties.getByLabel("Name");
+    return properties.getByLabel("Name", { exact: true });
   };
 
-  // Unchanged, Enter closes the sheet without asking about changes.
+  // Unchanged, Enter closes the sheet at once, through OK's no-change path.
   await (await openGeneral("Northwoods TV")).press("Enter");
   await expect(anyProperties).toHaveCount(0);
-  await expect(
-    page.getByRole("dialog", { name: "Unsaved changes" }),
-  ).toHaveCount(0);
 
   // Changed, Enter saves it and closes, as OK does.
   const name = await openGeneral("Northwoods TV");

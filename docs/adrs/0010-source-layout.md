@@ -11,7 +11,8 @@ judgment (release polish decision 5).
 
 Amended on 2026-10-29: the kind-folder exemption covers only the kind folder
 itself. The folders above it still count toward the nesting limit, so a
-folder that holds nothing but a kind folder is still a nesting level.
+folder that holds nothing but a kind folder is still a nesting level (owner
+request, release-polish follow-ups).
 
 ## Context
 

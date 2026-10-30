@@ -4,11 +4,13 @@ import { expect } from "vitest";
 /**
  * Asserts a refusal's code, that its details carry `details`, and that its
  * message names no string among them, at any depth of arrays and objects,
- * so an ID inside a nested detail such as `member` is checked too. The
- * message is for logs; the web app words a refusal from its code and
- * details, so an ID in the message would reach the owner (release-polish
- * spec 0002, decision 1). Pass IDs and the objects that hold them here; assert a detail the
- * message may quote, such as a problem's text, separately. Takes the
+ * so an ID inside a nested detail such as `member` is checked too. Every
+ * string counts, enum values such as `kind` included, so a message must not
+ * use one as a word either. The message is for logs; the web app words a
+ * refusal from its code and details, so an ID in the message would reach
+ * the owner (release-polish spec 0002, decision 1). Pass IDs and the objects
+ * that hold them here; assert a detail the message may quote, such as a
+ * problem's text, separately. Takes the
  * response body, whose `error` is the envelope `sendApiError` sends.
  */
 export function expectRefusal(
