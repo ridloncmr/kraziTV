@@ -61,8 +61,9 @@ No tool checks these. Check each one against the changed files:
   ownership or cancellation after a wait, and identify the test that exercises
   stop, replacement, or failure while the operation is pending.
 - **Vocabulary.** Names that use a synonym `GLOSSARY.md` lists under **Avoid**.
-- **Docs.** Incorrect active documentation, or a completed plan ticket without
-  a recorded status (see **Documentation Rules** in `AGENTS.md`).
+- **Docs.** Incorrect active documentation, a completed plan ticket without
+  a recorded status, or an owner-visible change whose `wiki/` page still
+  describes the old screen (see **Documentation Rules** in `AGENTS.md`).
 
 ## 3. Spec Fit
 

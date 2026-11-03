@@ -58,7 +58,7 @@ docker run -d --name krazitv -p 3000:3000 \
   -v /path/to/your/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.1
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.2
 ```
 
 Replace `192.168.1.10` with your server's address, open it in a browser, and
@@ -73,8 +73,9 @@ That's it. Your channels are in Plex Live TV.
 
 Prefer to build kraziTV from source? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The [setup guide](docs/knowledge_base/running-krazitv.md) covers running
-without Docker, connecting Plex step by step, and every setting.
+The [wiki](https://github.com/ridloncmr/kraziTV/wiki) covers running
+without Docker, connecting Plex step by step, every setting, and every
+program, with walk-throughs for Christmas specials, movie nights, and more.
 
 ## Where It Stands
 

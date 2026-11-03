@@ -1,0 +1,52 @@
+# Publishes `wiki/` to the repository's GitHub wiki whenever it changes on
+# main, so the user wiki is reviewed in pull requests like everything else
+# and the GitHub wiki is only ever a copy. The wiki repository must exist
+# first: GitHub creates it when the first page is made in the browser.
+name: Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - wiki/**
+      - .github/workflows/wiki.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check out wiki
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki-checkout
+          token: ${{ github.token }}
+
+      - name: Replace wiki contents
+        run: |
+          rsync --archive --delete --exclude .git wiki/ wiki-checkout/
+          cd wiki-checkout
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          if git diff --cached --quiet; then
+            echo "The wiki already matches wiki/."
+            exit 0
+          fi
+          git commit --message "Publish wiki from ${GITHUB_SHA}"
+          git push

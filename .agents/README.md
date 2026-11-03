@@ -37,7 +37,7 @@ When another harness is adopted, add only the entry point and adapter files it r
 - `backend-engineer` - Fastify, SQLite, TypeScript core, and scheduling logic.
 - `media-engineer` - FFmpeg, ffprobe, streams, and media normalization.
 - `web-engineer` - The React web app: XP desktop shell, programs, windows, dialogs, TV, and owner-facing words.
-- `docs-maintainer` - README, specs, ADRs, implementation plans, and knowledge base.
+- `docs-maintainer` - README, the user wiki, specs, ADRs, implementation plans, and knowledge base.
 - `reviewer` - Diffs, risks, missing tests, and boundary violations.
 - `ai-infra-maintainer` - Shared guidance, skills, roles, adapters, and infrastructure docs.
 

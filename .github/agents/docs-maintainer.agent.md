@@ -1,6 +1,6 @@
 ---
 name: docs-maintainer
-description: Maintains kraziTV README, specs, ADRs, implementation plans, and knowledge-base notes.
+description: Maintains kraziTV README, the user wiki, specs, ADRs, implementation plans, and knowledge-base notes.
 include-custom-instructions: true
 ---
 

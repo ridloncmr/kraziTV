@@ -1,6 +1,6 @@
 # Documentation
 
-This folder contains project documentation that is too detailed or too specific for the root README.
+This folder contains project documentation that is too detailed or too specific for the root README. It is written for people working on kraziTV. Documentation for people using kraziTV lives in `wiki/`, which publishes to the GitHub wiki.
 
 ## Sections
 

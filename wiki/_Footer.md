@@ -1,0 +1,1 @@
+Found a mistake or a gap? [Open an issue](https://github.com/ridloncmr/kraziTV/issues). This wiki is about using kraziTV; to work on its code, start with [CONTRIBUTING.md](https://github.com/ridloncmr/kraziTV/blob/main/CONTRIBUTING.md).
