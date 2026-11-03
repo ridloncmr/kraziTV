@@ -41,10 +41,20 @@ It should behave like a small broadcast automation system, not a playlist genera
 - Update only documentation that still serves an active planning, user,
   operator, or architecture purpose.
 - `README.md` introduces kraziTV to people deciding whether to use it: what
-  it does, screenshots from `docs/images/`, and a quick start. Detail goes
-  elsewhere: install, Plex, and settings in
-  `docs/knowledge_base/running-krazitv.md`; development setup and the
-  architecture summary in `CONTRIBUTING.md`.
+  it does, screenshots from `docs/images/` (made by
+  `scripts/live-app/readme-screenshots.mjs` from the demo library), and a
+  quick start. Detail goes elsewhere: install, Plex, settings, and how to
+  use every program in `wiki/`; development setup and the architecture
+  summary in `CONTRIBUTING.md`.
+- `wiki/` is the user wiki, published to the GitHub wiki by
+  `.github/workflows/wiki.yml` on every push to `main`. It is written for
+  owners, not developers: it explains programs, settings, and scenarios in
+  the words the screen uses, and never code, packages, or architecture.
+  Pages link to each other by page name without `.md` (`[Rules](Rules)`),
+  screenshots live in `wiki/images/` and are refreshed by
+  `scripts/live-app/wiki-screenshots.mjs` from the demo library, never the
+  owner's (`docs/knowledge_base/live-app-access.md`), and `_Sidebar.md` is the table
+  of contents.
 - `docs/specs/` records feature intent and acceptance targets before and during
   implementation.
 - `docs/adrs/` records the reasoning behind architecture decisions.
@@ -228,8 +238,10 @@ working in. Do not report work as done until all of these hold.
    stands.
 5. Record plan-ticket status when the change completes a ticket (see
    Documentation Rules).
-6. Report any check you skipped or that failed, with its output.
-7. Complete a judgment review with the `code-review` skill. Report concrete
+6. Update the `wiki/` page for any change an owner would notice on screen
+   (see Documentation Rules).
+7. Report any check you skipped or that failed, with its output.
+8. Complete a judgment review with the `code-review` skill. Report concrete
    evidence for reuse searches, public API consumers, ownership or cancellation
    checks after asynchronous waits, and test-double contract fidelity. Mark
    categories that do not apply and explain why; passing commands alone is not
@@ -293,6 +305,10 @@ Reusable role instructions live in `.agents/roles/`. When asked to work as a nam
 - Architecture decisions belong in `docs/adrs/`.
 - Decisions about AI harnesses and agent infrastructure belong in `.agents/adr/`.
 - Build sequencing belongs in `docs/implementation_plan/`.
+- How owners install, set up, and use kraziTV belongs in `wiki/`. A change
+  an owner would notice on screen updates its wiki page in the same change;
+  a new program, tab, or setting gets a page or section there, never a
+  knowledge-base note.
 - Write each project status fact in exactly one place; everything else links to
   it or is generated from it. Hand-written indexes, summaries, gate tables, and
   the glossary never restate a status.

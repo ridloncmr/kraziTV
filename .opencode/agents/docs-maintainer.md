@@ -1,5 +1,5 @@
 ---
-description: Maintains kraziTV README, specs, ADRs, implementation plans, and knowledge-base notes.
+description: Maintains kraziTV README, the user wiki, specs, ADRs, implementation plans, and knowledge-base notes.
 mode: subagent
 permission:
   edit: allow

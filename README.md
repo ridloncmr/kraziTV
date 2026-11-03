@@ -73,8 +73,9 @@ That's it. Your channels are in Plex Live TV.
 
 Prefer to build kraziTV from source? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The [setup guide](docs/knowledge_base/running-krazitv.md) covers running
-without Docker, connecting Plex step by step, and every setting.
+The [wiki](https://github.com/ridloncmr/kraziTV/wiki) covers running
+without Docker, connecting Plex step by step, every setting, and every
+program, with walk-throughs for Christmas specials, movie nights, and more.
 
 ## Where It Stands
 

@@ -29,8 +29,8 @@ point it somewhere else, set `VITE_API_BASE_URL` in your shell or in
 app's origin to the server's `CORS_ORIGINS`.
 
 Settings come from environment variables or a repo-root `.env`; see
-[`.env.example`](.env.example) and the
-[setup guide](docs/knowledge_base/running-krazitv.md#settings).
+[`.env.example`](.env.example) and the wiki's
+[Settings](https://github.com/ridloncmr/kraziTV/wiki/Settings) page.
 
 ## Before You Open A Pull Request
 

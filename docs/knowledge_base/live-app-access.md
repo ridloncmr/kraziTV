@@ -29,6 +29,31 @@ returned Playwright `page`.
   the server rejects it, so most runs do not log in at all.
 - `KRAZITV_WEB_URL` and `KRAZITV_API_URL` override the default origins.
 
+## Wiki and README screenshots use the demo library
+
+The wiki and README never show the owner's library. Their screenshots come from a second
+kraziTV, the demo, at `http://localhost:3100` with its own database under
+`data/demo/`. Its media is placeholder title cards for public-domain shows
+and films that TMDB matches. `localhost` keeps its session cookie apart from
+the real app's on `127.0.0.1`.
+
+```sh
+npm run build                                   # the demo serves the build
+node scripts/demo-library/make-media.mjs        # once: about 650 MB of cards
+node scripts/demo-library/start.mjs             # leave running
+TMDB_API_KEY=... node scripts/demo-library/seed.mjs   # once, on an empty data/demo/db
+node scripts/live-app/wiki-screenshots.mjs     # wiki/images/
+node scripts/live-app/readme-screenshots.mjs   # docs/images/, arranged desktop scenes
+```
+
+- The seed runs once. To start over, stop the demo, delete `data/demo/db`,
+  start it, and seed again.
+- `scripts/demo-library/library.mjs` lists the titles; the names at the top
+  of both screenshot scripts are objects the seed creates. Change them together.
+- Before each shot the script swaps the demo's media folder for `/media` and
+  this computer's network addresses for `192.168.1.10`, so no machine detail
+  shows.
+
 ## Never
 
 - Never retry a failed login. Wrong passwords trip the server's login

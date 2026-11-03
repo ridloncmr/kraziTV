@@ -15,31 +15,48 @@ const passwordFile = join(repoRoot, ".env.agent");
 const stateDir = join(repoRoot, "data", "live-app");
 const storageStatePath = join(stateDir, "storage-state.json");
 
-export const WEB_URL = process.env.KRAZITV_WEB_URL ?? "http://127.0.0.1:5173";
-const API_URL = process.env.KRAZITV_API_URL ?? "http://127.0.0.1:3000";
+/**
+ * The owner's running kraziTV. Another instance, such as the demo library
+ * the wiki screenshots use, passes its own origins, password, and session
+ * file, so the two never share a cookie.
+ */
+const LIVE_APP = {
+  webUrl: process.env.KRAZITV_WEB_URL ?? "http://127.0.0.1:5173",
+  apiUrl: process.env.KRAZITV_API_URL ?? "http://127.0.0.1:3000",
+  password: readPassword,
+  storageStatePath,
+};
 
 /**
  * Launches Chromium on the live web app with a valid session. Logs in only
  * when the saved session is missing or rejected, and never retries a failed
  * login, because repeated wrong passwords trip the server's throttle.
  */
-export async function openLiveApp({ width = 1440, height = 900 } = {}) {
+export async function openLiveApp({
+  width = 1440,
+  height = 900,
+  app = LIVE_APP,
+  timezoneId,
+} = {}) {
   const browser = await chromium.launch({ headless: true });
-  const saved = existsSync(storageStatePath) ? storageStatePath : undefined;
+  const saved = existsSync(app.storageStatePath)
+    ? app.storageStatePath
+    : undefined;
   const context = await browser.newContext({
     viewport: { width, height },
     storageState: saved,
+    timezoneId,
   });
   try {
-    if (!(await isAuthenticated(context))) {
-      await logIn(context);
-      mkdirSync(stateDir, { recursive: true });
-      await context.storageState({ path: storageStatePath });
+    if (!(await isAuthenticated(context, app))) {
+      await logIn(context, app);
+      mkdirSync(dirname(app.storageStatePath), { recursive: true });
+      await context.storageState({ path: app.storageStatePath });
       // The file holds a live session cookie, so only the owner may read it.
-      chmodSync(storageStatePath, 0o600);
+      chmodSync(app.storageStatePath, 0o600);
     }
     const page = await context.newPage();
-    await page.goto(WEB_URL);
+    await page.goto(app.webUrl);
     await page
       .getByRole("button", { name: "start", exact: true })
       .waitFor({ timeout: 15_000 });
@@ -51,11 +68,11 @@ export async function openLiveApp({ width = 1440, height = 900 } = {}) {
 }
 
 /** Asks the server whether the context's cookie is still a live session. */
-async function isAuthenticated(context) {
-  const response = await context.request.get(`${API_URL}/auth/state`);
+async function isAuthenticated(context, app) {
+  const response = await context.request.get(`${app.apiUrl}/auth/state`);
   if (!response.ok()) {
     throw new Error(
-      `kraziTV server at ${API_URL} answered ${response.status()}`,
+      `kraziTV server at ${app.apiUrl} answered ${response.status()}`,
     );
   }
   const state = await response.json();
@@ -63,13 +80,13 @@ async function isAuthenticated(context) {
 }
 
 /**
- * Logs in as the owner with the password from `.env.agent`. Sends the web
+ * Logs in with the instance's password. Sends the web
  * app's origin, because the auth gate refuses writes from other origins.
  */
-async function logIn(context) {
-  const response = await context.request.post(`${API_URL}/auth/login`, {
-    headers: { origin: WEB_URL },
-    data: { password: readPassword() },
+async function logIn(context, app) {
+  const response = await context.request.post(`${app.apiUrl}/auth/login`, {
+    headers: { origin: app.webUrl },
+    data: { password: app.password() },
   });
   if (!response.ok()) {
     const body = await response.text();

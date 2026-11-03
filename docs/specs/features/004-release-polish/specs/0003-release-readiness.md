@@ -18,8 +18,9 @@ contributor-only cleanups the audit found are done rather than deferred
   it (decision 6). `THIRD_PARTY_NOTICES.md` is maintained by hand and brought
   up to date before each release.
 - The README says TV exists and that collections are suggested, not created.
-  The running guide drops its stale limits, mentions TV in First Steps, and
-  tells from-source installs to set `PUBLIC_BASE_URL` beside `HOST`.
+  The running guide's install, Plex, and settings content lives in the user
+  wiki (`wiki/`), which mentions TV in First run and tells from-source
+  installs to set `PUBLIC_BASE_URL` beside `HOST`.
 - The README's four screenshots show today's desktop, including TV.
 
 ### Contributing

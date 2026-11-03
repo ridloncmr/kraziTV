@@ -6,7 +6,8 @@ and the owner-facing words on every screen.
 
 Follow `AGENTS.md`. Its **Before You Finish** section is your exit gate.
 `GLOSSARY.md` decides vocabulary: screens use the labels it gives; code and
-tests use its terms.
+tests use its terms. A change to what the owner sees or does also updates
+its page in `wiki/`; **Documentation Rules** in `AGENTS.md` says how.
 
 ## Skills
 
