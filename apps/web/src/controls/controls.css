@@ -641,6 +641,27 @@
   margin-top: 12px;
 }
 /*
+ * A dialog's button row stays in view at the bottom while the body scrolls,
+ * as XP's wizards and property sheets kept Next and OK / Cancel / Apply. It
+ * spans the body's padding on the dialog's surface with a top edge, so the
+ * content scrolls under it instead of showing through. The row carries the
+ * body's bottom padding itself, because a negative bottom margin would move
+ * where the row sticks. Nested dialogs render in the window's layer, so the
+ * rule reaches only one dialog's own row.
+ */
+.window-dialog-body:has(.dialog-actions) {
+  padding-bottom: 0;
+}
+.window-dialog-body .dialog-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 12px -12px 0;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--xp-border);
+  background: var(--xp-menu-surface);
+}
+/*
  * The separated blue blocks of every segmented progress bar, the boot
  * screen's included: the gradient shades each block and the mask cuts the
  * strip into blocks one pitch apart.
