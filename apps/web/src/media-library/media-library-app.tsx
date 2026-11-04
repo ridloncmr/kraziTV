@@ -40,14 +40,14 @@ const PAGE_SIZE = 50;
  */
 export function MediaLibraryApp({
   visible,
-  onOpenChannels,
   openProgram,
 }: {
   visible: boolean;
-  /** Opens My Channels, where a special blocking a removal is resolved. */
-  onOpenChannels?: () => void;
-  /** Opens Account Settings on Set up TMDB; without it the intro offers no link. */
-  openProgram?: (id: ProgramId, task?: ProgramTask) => void;
+  /**
+   * Opens another program: Account Settings on Set up TMDB from the intro, or
+   * My Channels, where a special blocking a removal is resolved.
+   */
+  openProgram: (id: ProgramId, task?: ProgramTask) => void;
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   // Whether a TMDB key is set, read as the tray reminder reads it; a failed
@@ -121,7 +121,7 @@ export function MediaLibraryApp({
       </div>
       <p className="program-intro">
         Tell kraziTV where your media lives, then scan it into the catalog.
-        {openProgram && tmdbKey.data?.configured === false && (
+        {tmdbKey.data?.configured === false && (
           <>
             {" "}
             Without TMDB, titles come from file names only.{" "}
@@ -389,7 +389,7 @@ export function MediaLibraryApp({
         onScan={startScan}
         onRetry={retryLookups}
         onRemoved={removed}
-        onOpenChannels={onOpenChannels}
+        onOpenChannels={() => openProgram("channels")}
         refresh={refresh}
       />
       {scan.followed && (

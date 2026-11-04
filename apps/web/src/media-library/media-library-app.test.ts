@@ -41,7 +41,9 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   const lastQuery = () =>
     api.requests.filter((request) => request.path === "/media-items").at(-1)
       ?.query;
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
 
   await screen.findByText("1–50 of 120");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -107,7 +109,9 @@ it("keeps the current rows on screen while the next page loads", async () => {
   api.reply("/media-roots", []);
   api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   await screen.findByText("Alpha");
 
   api.hold("/media-items");
@@ -136,7 +140,9 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
     400,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -181,7 +187,9 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   );
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -231,7 +239,9 @@ it("raises Scan in the row of a never-scanned root only, starting the same scan 
   api.reply("/media-items", { items: [], total: 0 });
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
 
   const scanButton = await screen.findByRole("button", { name: "Scan /media" });
   expect(screen.queryByRole("button", { name: "Scan /old" })).toBeNull();
@@ -272,7 +282,9 @@ it("fills the path by browsing server folders from the typed path", async () => 
     api.response(listings[query.get("path") ?? ""]),
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -316,7 +328,7 @@ function renderScanLibrary(roots: MediaRoot[], first = scanStatus()) {
       createElement(
         WindowDialogFrame,
         null,
-        createElement(MediaLibraryApp, { visible }),
+        createElement(MediaLibraryApp, { visible, openProgram: () => {} }),
       ),
     );
   const view = render(tree(true));

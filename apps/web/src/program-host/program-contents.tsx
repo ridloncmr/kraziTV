@@ -97,13 +97,7 @@ export const ProgramContents = memo(function ProgramContents({
         />
       );
     case "media":
-      return (
-        <MediaLibraryApp
-          visible={visible}
-          onOpenChannels={openChannels}
-          openProgram={openProgram}
-        />
-      );
+      return <MediaLibraryApp visible={visible} openProgram={openProgram} />;
     case "collections":
       return <CollectionsApp visible={visible} windows={collectionWindows} />;
     case "guide":
