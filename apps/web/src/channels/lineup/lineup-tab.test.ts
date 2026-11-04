@@ -494,8 +494,10 @@ it("derives the marathon length from per sitting once the show can marathon", as
 });
 
 it("keeps a saved marathon length override on General, and returns to the derived length when it is cleared", async () => {
+  // An hour a sitting, with a four-hour marathon instead of the derived three.
   const { api } = await openLineup([
     favoritesAssignment("chronological", {
+      ordinaryStretch: { kind: "airtime", minutes: 60 },
       marathonStretch: { kind: "airtime", minutes: 240 },
     }),
   ]);
@@ -515,7 +517,7 @@ it("keeps a saved marathon length override on General, and returns to the derive
   await waitFor(() => expect(patches(api)).toHaveLength(1));
 
   fireEvent.click(override);
-  within(dialog).getByText(/up to 6 programs/);
+  within(dialog).getByText(/up to 3 hrs/);
   fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
 
   await waitFor(() => expect(patches(api)).toHaveLength(2));
@@ -524,9 +526,88 @@ it("keeps a saved marathon length override on General, and returns to the derive
       marathonStretch: { kind: "airtime", minutes: 240 },
     }),
     expect.objectContaining({
-      marathonStretch: { kind: "programs", count: 6 },
+      marathonStretch: { kind: "airtime", minutes: 180 },
     }),
   ]);
+});
+
+it("holds OK and Apply while a chosen marathon length could run no longer than Plays at a time", async () => {
+  const { api } = await openLineup([favoritesAssignment("chronological")]);
+  const dialog = await openProperties();
+  const button = (name: string) =>
+    within(dialog).getByRole<HTMLButtonElement>("button", { name });
+  fireEvent.click(within(dialog).getByLabelText("Allow marathons"));
+  fireEvent.click(within(dialog).getByLabelText("Choose the marathon length"));
+  const length = within(dialog).getByLabelText<HTMLInputElement>(
+    "Marathon programs per turn",
+  );
+  expect(length.value).toBe("6");
+
+  // Three programs a sitting and a three-program marathon is no marathon.
+  fireEvent.change(length, { target: { value: "3" } });
+  const words = within(dialog).getByText(
+    "Make the marathon longer than Plays at a time.",
+  );
+  expect(button("OK").disabled).toBe(true);
+  expect(button("Apply").disabled).toBe(true);
+  expect(button("Apply").getAttribute("aria-describedby")).toBe(words.id);
+  expect(button("Cancel").disabled).toBe(false);
+
+  // Another unit is held with its own words.
+  chooseOption(
+    within(dialog).getByLabelText("Marathon turn length"),
+    "About a set time",
+  );
+  fireEvent.change(within(dialog).getByLabelText("Marathon minutes per turn"), {
+    target: { value: "600" },
+  });
+  within(dialog).getByText(/same unit as Plays at a time/);
+  expect(button("Apply").disabled).toBe(true);
+
+  // A longer marathon in the same unit saves.
+  chooseOption(
+    within(dialog).getByLabelText("Marathon turn length"),
+    "A number of programs",
+  );
+  fireEvent.change(
+    within(dialog).getByLabelText("Marathon programs per turn"),
+    { target: { value: "4" } },
+  );
+  expect(within(dialog).queryByText(/longer than Plays at a time/)).toBeNull();
+  expect(button("Apply").disabled).toBe(false);
+  fireEvent.click(button("OK"));
+  await waitFor(() => expect(patches(api)).toHaveLength(1));
+  expect(patches(api)[0]?.body).toMatchObject({
+    ordinaryStretch: { kind: "programs", count: 3 },
+    marathonStretch: { kind: "programs", count: 4 },
+  });
+});
+
+it("words the server's own marathon-length refusal the same way the sheet does", async () => {
+  const { api } = await openLineup([
+    favoritesAssignment("chronological", {
+      marathonStretch: { kind: "programs", count: 10 },
+    }),
+  ]);
+  api.reply(
+    ASSIGNMENT,
+    {
+      error: {
+        code: "invalid_request",
+        message: "a marathon must be longer than the ordinary stretch",
+        fields: [{ path: "", code: "custom" }],
+      },
+    },
+    "PATCH",
+    400,
+  );
+  const dialog = await openProperties();
+  rename(dialog, "Favorites night");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Make the marathon longer than Plays at a time.",
+  );
 });
 
 it("saves a show kept out of normal rotation and lists it as Rules only", async () => {
@@ -1873,7 +1954,7 @@ it("words why a show could not be added instead of the server's message", async 
   fireEvent.click(add);
 
   expect((await within(dialog).findByRole("alert")).textContent).toBe(
-    "Movies could not be added: It is already in this channel's lineup.",
+    "Movies could not be added: Another show on this channel already plays that.",
   );
 });
 

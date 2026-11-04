@@ -46,6 +46,30 @@ export function countWords(count: number, kind: ContentKind): string {
   return count === 1 ? `1 ${unit}` : `${count} ${unit}s`;
 }
 
+/**
+ * What to change when a marathon length cannot pair with Plays at a time.
+ * The sheet holds saving with these words, and a refusal the server made
+ * on the same check says them too, so the owner reads one sentence for one
+ * problem (release-polish spec 0004).
+ */
+export const MARATHON_PROBLEM_WORDS = {
+  shorter: "Make the marathon longer than Plays at a time.",
+  unit: "Set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
+} as const;
+
+/**
+ * Words the stretch problem a rule refusal carries in `details.problem`,
+ * kraziBrain's own sentence, as what to change. The two pair checks are
+ * told apart by a word only each uses; any other problem is a value the
+ * fields refuse, so the sentence is theirs.
+ */
+export function stretchProblemWords(problem: unknown): string {
+  const text = typeof problem === "string" ? problem : "";
+  if (text.includes("unit")) return MARATHON_PROBLEM_WORDS.unit;
+  if (text.includes("longer")) return MARATHON_PROBLEM_WORDS.shorter;
+  return "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.";
+}
+
 /** Words whole minutes as hours and minutes, such as `1 hr 30 min`. */
 export function minutesWords(minutes: number): string {
   const hours = Math.floor(minutes / 60);

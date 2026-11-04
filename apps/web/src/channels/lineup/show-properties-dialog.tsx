@@ -14,6 +14,7 @@ import type {
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
+import { refusedFields } from "../../http/refusal-words.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { CollectionPreviewSection } from "../collection-preview/collection-preview-section.js";
 import { MemberRows } from "../members/member-rows.js";
@@ -21,6 +22,7 @@ import { PlayOrderField } from "../members/play-order-field.js";
 import {
   isStretchComplete,
   StretchFields,
+  stretchProblem,
   suggestMarathon,
   toStretchSetting,
 } from "../stretch/stretch-fields.js";
@@ -34,7 +36,10 @@ import {
   toShowDraft,
 } from "./show-draft.js";
 import { PerSittingField } from "../stretch/per-sitting-field.js";
-import { marathonLabel } from "../stretch/stretch-words.js";
+import {
+  MARATHON_PROBLEM_WORDS,
+  marathonLabel,
+} from "../stretch/stretch-words.js";
 import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
 import { joinShowNames } from "./show-labels.js";
 
@@ -143,6 +148,18 @@ export function ShowPropertiesDialog({
       (draft.canMarathon &&
         draft.marathonOverride !== null &&
         !isStretchComplete(draft.marathonOverride)));
+  // A chosen marathon length the server would refuse against Plays at a
+  // time, a check no single field can show, holds saving with the words
+  // that say what to change; a derived length is always longer.
+  const heldId = useId();
+  const marathonProblem =
+    hasCollection && draft.canMarathon && draft.marathonOverride !== null
+      ? stretchProblem(draft.marathonOverride, draft.stretch)
+      : null;
+  const held =
+    marathonProblem === "shorter" || marathonProblem === "unit"
+      ? MARATHON_PROBLEM_WORDS[marathonProblem]
+      : undefined;
   // The suggestion's content kind words the presets for the members shown.
   const suggestion = useResource<StretchSuggestion>(
     hasCollection ? suggestionPath(members) : null,
@@ -360,12 +377,18 @@ export function ShowPropertiesDialog({
         </TabbedPanel>
         <RequestFeedback
           loading={mutation.pending}
-          error={mutation.error}
+          error={sheetError(mutation.error)}
           message={mutation.message}
         />
+        {held && (
+          <p id={heldId} className="secondary">
+            {held}
+          </p>
+        )}
         <SheetFooter
           dirty={dirty}
           busy={busy}
+          held={held ? heldId : undefined}
           onOk={() => save(true)}
           onCancel={cancel}
           onApply={() => save(false)}
@@ -380,4 +403,18 @@ export function ShowPropertiesDialog({
       </form>
     </WindowDialog>
   );
+}
+
+/**
+ * Words the server's one check on a show's settings as a whole, its
+ * marathon against Plays at a time, which it refuses as a field with no
+ * path. The sheet holds saving on the same check, so this is the fallback
+ * for a draft that slipped past it; any other error shows as it is.
+ */
+function sheetError(error: Error | undefined): Error | undefined {
+  return refusedFields(error).some(
+    (field) => field.path === "" && field.code === "custom",
+  )
+    ? new Error(MARATHON_PROBLEM_WORDS.shorter)
+    : error;
 }

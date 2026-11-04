@@ -250,7 +250,11 @@ export function registerAssignmentRoutes(
             409,
             "programming_rule_stretch_conflict",
             `Rule "${result.ruleName}" inherits this assignment's settings, and its settings for it would become invalid: ${result.problem}. Change the rule first.`,
-            { ruleId: result.ruleId, problem: result.problem },
+            {
+              ruleId: result.ruleId,
+              ruleName: result.ruleName,
+              problem: result.problem,
+            },
           );
         default:
           return sendMemberRefused(reply, result);
