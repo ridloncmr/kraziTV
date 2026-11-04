@@ -187,7 +187,9 @@ test("removes selected media through the Media Library against real routes", asy
   expect(errors).toEqual([]);
 });
 
-test("picks a media root by browsing real server folders at narrow width", async ({
+// A narrow desktop window, not a phone: phone width is not a supported
+// layout, but an owner may drag the browser window small on a desktop.
+test("picks a media root by browsing real server folders in a narrow desktop window", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -217,7 +219,7 @@ test("picks a media root by browsing real server folders at narrow width", async
   await expect(addRoot.getByLabel("Absolute server path")).toHaveValue(
     join(directory, "Shows"),
   );
-  // The whole dialog, Add root included, stays inside the narrow window.
+  // The whole dialog, Add root included, stays inside the narrow desktop window.
   await expect(
     addRoot.getByRole("button", { name: "Add root", exact: true }),
   ).toBeInViewport();
@@ -399,298 +401,278 @@ test("presses OK with Enter in a property sheet, closing it unchanged or saving 
   expect(listed.body).toMatchObject([{ number: "69", name: "Lakeside TV" }]);
 });
 
-for (const viewport of [
-  { width: 1280, height: 800 },
-  { width: 390, height: 844 },
-]) {
-  test(`operates the real catalog-to-Plex loop at ${viewport.width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(viewport);
-    const { server, prober: controlled } = await startScanServer();
-    await injectBrowserApi(page, server);
-    const directory = await createTemporaryDirectory();
-    await writeFile(
-      join(directory, "Northwoods.mp4"),
-      "test media; probing is controlled",
-    );
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto("/");
-    await expect(
-      page.getByRole("button", { name: "start", exact: true }),
-    ).toBeVisible();
+test("operates the real catalog-to-Plex loop", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { server, prober: controlled } = await startScanServer();
+  await injectBrowserApi(page, server);
+  const directory = await createTemporaryDirectory();
+  await writeFile(
+    join(directory, "Northwoods.mp4"),
+    "test media; probing is controlled",
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "start", exact: true }),
+  ).toBeVisible();
 
-    const { media, scanning } = await scanNewRoot(page, directory);
-    await controlled.waitForStarted(1);
-    await expect(scanning.getByRole("status")).toHaveText(
-      "Reading media files…",
-    );
-    const bar = scanning.getByRole("progressbar");
-    await expect(bar).toHaveAttribute("aria-valuemax", "1");
-    await expect(bar).toHaveAttribute("aria-valuenow", "0");
-    await expect(scanning.getByText("0 of 1 files")).toBeVisible();
-    const close = scanning.getByRole("button", {
-      name: "Close Scanning media root",
-    });
-    await expect(close).toBeDisabled();
-    const busyClose = await closeButtonLook(close);
-    await expect(media.locator(".window-content")).toHaveAttribute("inert", "");
-    await expect(
-      page
-        .getByLabel("Desktop programs")
-        .getByRole("button", { name: "Collections", exact: true }),
-    ).toBeEnabled();
-    controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
-    await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
-    await expect(close).toBeEnabled();
-    // A disabled close button must not look like the one that works.
-    expect(await closeButtonLook(close)).not.toEqual(busyClose);
-    await expect(
-      scanning.locator(".facts dt", { hasText: "Files found" }).locator("+ dd"),
-    ).toHaveText("1");
-    await scanning.getByRole("button", { name: "OK", exact: true }).click();
-    await expect(scanning).toBeHidden();
-    await expect(
-      media.getByRole("cell", { name: /^Northwoods / }),
-    ).toBeVisible();
-    await media.getByRole("button", { name: "Minimize Media Library" }).click();
-
-    await page.getByRole("button", { name: "start", exact: true }).click();
-    await page
-      .getByRole("navigation", { name: "Start programs" })
-      .getByRole("button", { name: /Collections/ })
-      .click();
-    const collections = page.getByRole("region", {
-      name: "Collections",
-      exact: true,
-    });
-    await collections.getByRole("button", { name: "New collection…" }).click();
-    const newCollection = collections.getByRole("dialog", {
-      name: "New collection",
-    });
-    await newCollection
-      .getByLabel("Collection name")
-      .fill("Northwoods collection");
-    await newCollection
-      .getByRole("button", { name: "Create collection" })
-      .click();
-    await expect(newCollection).toBeHidden();
-    // The new collection opens in its own properties window.
-    const collection = page.getByRole("region", {
-      name: "Northwoods collection Properties",
-      exact: true,
-    });
-    await collection
-      .getByRole("checkbox", { name: /^Select Northwoods/ })
-      .check();
-    await collection
-      .getByRole("button", { name: "Add selected (1)", exact: true })
-      .click();
-    await collection.getByRole("button", { name: "Save changes" }).click();
-    await expect(
-      collection.getByText("1 of 1 can air", { exact: true }),
-    ).toBeVisible();
-    await collection
-      .getByRole("button", { name: "Close Northwoods collection Properties" })
-      .click();
-    await collections
-      .getByRole("button", { name: "Close Collections" })
-      .click();
-
-    await page
-      .getByLabel("Desktop programs")
-      .getByRole("button", { name: "My Channels", exact: true })
-      .click();
-    const channels = page.getByRole("region", {
-      name: "My Channels",
-      exact: true,
-    });
-    await channels.getByRole("button", { name: "New channel…" }).click();
-    const newChannel = channels.getByRole("dialog", { name: "New channel" });
-    await newChannel.getByLabel("Channel number", { exact: true }).fill("69");
-    await newChannel
-      .getByLabel("Channel name", { exact: true })
-      .fill("Northwoods TV");
-    await newChannel
-      .getByRole("button", { name: "Create channel", exact: true })
-      .click();
-    await expect(newChannel).toBeHidden();
-    // The new channel opens in its own properties window.
-    const properties = page.getByRole("region", {
-      name: "Northwoods TV Properties",
-      exact: true,
-    });
-    await properties.getByRole("tab", { name: "Lineup" }).click();
-    await properties.getByRole("button", { name: "Add shows…" }).click();
-    const addShows = properties.getByRole("dialog", { name: "Add shows" });
-    await addShows
-      .getByRole("checkbox", { name: /^Northwoods collection/ })
-      .check();
-    // The footer is on screen before anything scrolls, so a first-time owner
-    // sees how to continue.
-    await expectFooterButtonShown(addShows, "Next (1)");
-    await addShows.getByRole("button", { name: "Next (1)" }).click();
-    // One unmatched file suggests no per sitting, so the owner chooses.
-    // Until then Add is disabled and says why.
-    const perSitting = addShows.getByLabel("Plays at a time");
-    const add = addShows.getByRole("button", { name: "Add (1)" });
-    await expect(add).toBeDisabled();
-    await expect(add).toHaveAccessibleDescription(
-      "Choose how much plays at a time for Northwoods collection.",
-    );
-    // A custom range with one end missing adds nothing either, even by
-    // Enter, which a disabled Add never submits.
-    await perSitting.selectOption({ label: "Custom…" });
-    await addShows
-      .getByLabel("Turn length")
-      .selectOption({ label: "A time within a range" });
-    await addShows.getByLabel("At least minutes").fill("30");
-    await expect(add).toBeDisabled();
-    await addShows.getByLabel("At least minutes").press("Enter");
-    await expect(addShows).toBeVisible();
-    await expect(properties.getByRole("table", { name: "Shows" })).toHaveCount(
-      0,
-    );
-    await perSitting.selectOption({ label: "1 program" });
-    await addShows.getByRole("button", { name: "Add (1)" }).click();
-    await expect(addShows).toBeHidden();
-    // The server already generated the schedule, and nothing was airing on
-    // the new channel, so the first show asks no rebuild question.
-    await expect(
-      properties
-        .getByRole("table", { name: "Shows" })
-        .getByRole("button", { name: "Northwoods collection", exact: true }),
-    ).toBeVisible();
-    await expect(properties.getByRole("dialog")).toHaveCount(0);
-    // Show Properties opens on General with OK in view the same way; OK on
-    // the unchanged sheet closes it without a save.
-    await properties
-      .getByRole("button", { name: "Northwoods collection", exact: true })
-      .click();
-    await properties
-      .getByRole("button", { name: "Properties", exact: true })
-      .click();
-    const showProperties = properties.getByRole("dialog", {
-      name: "Northwoods collection",
-    });
-    await expectFooterButtonShown(showProperties, "OK");
-    await showProperties
-      .getByRole("button", { name: "OK", exact: true })
-      .click();
-    await expect(showProperties).toBeHidden();
-    await properties.getByRole("tab", { name: "Preview" }).click();
-    await expect(
-      properties.getByRole("list", { name: "Upcoming shows" }),
-    ).toContainText("Northwoods collection");
-    await properties
-      .getByRole("button", { name: "Close Northwoods TV Properties" })
-      .click();
-    await channels
-      .getByRole("button", { name: "Maximize My Channels" })
-      .click();
-    await expect(channels).toHaveClass(/maximized/);
-    await channels.getByRole("button", { name: "Restore My Channels" }).click();
-    await channels.getByRole("button", { name: "Close My Channels" }).click();
-
-    await page
-      .getByLabel("Desktop programs")
-      .getByRole("button", { name: "Program Guide", exact: true })
-      .click();
-    const guide = page.getByRole("region", {
-      name: "Program Guide",
-      exact: true,
-    });
-    const programs = guide.getByRole("list", {
-      name: "Programs on Northwoods TV",
-    });
-    await expect(
-      programs.getByRole("listitem").filter({ hasText: "Northwoods" }).first(),
-    ).toBeVisible();
-    // The channel went on air when its lineup was saved, so a block is airing.
-    await expect(programs.locator(".guide-block.airing")).toHaveCount(1);
-    await expect(
-      guide.getByRole("button", { name: "Now", exact: true }),
-    ).toBeVisible();
-    if (viewport.width > 620) {
-      const title = guide.getByLabel(/Program Guide window/);
-      const before = await guide.boundingBox();
-      await title.hover();
-      await page.mouse.down();
-      await page.mouse.move((before?.x ?? 0) + 200, (before?.y ?? 0) + 90);
-      await page.mouse.up();
-      const after = await guide.boundingBox();
-      expect(after?.x).not.toBe(before?.x);
-    }
-    await page.screenshot({
-      path: `../../data/web-guide-${viewport.width}.png`,
-    });
-    // The first run ends watching the channel in TV. The browser job has no
-    // FFmpeg, so the stream answers with the committed test pattern; this
-    // route is registered after the API route, so it answers first.
-    const pattern = await readFile(
-      new URL("fixtures/test-pattern.mpegts", import.meta.url),
-    );
-    await page.route("http://127.0.0.1:3000/channels/*/stream", (route) =>
-      route.fulfill({
-        status: 200,
-        headers: {
-          "Content-Type": "video/MP2T",
-          "Access-Control-Allow-Origin": "http://127.0.0.1:5173",
-        },
-        body: pattern,
-      }),
-    );
-    await guide
-      .getByRole("button", { name: "Watch 69 Northwoods TV on TV" })
-      .click();
-    const tv = page.getByRole("region", { name: "TV", exact: true });
-    await expect
-      .poll(() =>
-        tv
-          .getByLabel("69 Northwoods TV")
-          .evaluate((video: HTMLVideoElement) => video.currentTime),
-      )
-      .toBeGreaterThan(1);
-    await tv.getByRole("button", { name: "Close TV" }).click();
-    await guide.getByRole("button", { name: "Close Program Guide" }).click();
-
-    await page
-      .getByLabel("Desktop programs")
-      .getByRole("button", { name: "Plex Setup", exact: true })
-      .click();
-    const plex = page.getByRole("region", { name: "Plex Setup", exact: true });
-    await expect(
-      plex.getByLabel("Tuner base URL", { exact: true }),
-    ).toHaveValue("http://northwoods.lan:3000");
-    await expect(
-      plex.getByLabel("XMLTV guide URL", { exact: true }),
-    ).toHaveValue("http://northwoods.lan:3000/plex/xmltv.xml");
-    await plex.getByRole("button", { name: "Close Plex Setup" }).click();
-    await page
-      .getByLabel("Desktop programs")
-      .getByRole("button", { name: "Live Monitor", exact: true })
-      .click();
-    const monitor = page.getByRole("region", {
-      name: "Live Monitor",
-      exact: true,
-    });
-    await expect(
-      monitor.getByText("kraziTV is running", { exact: true }),
-    ).toBeVisible();
-    await monitor
-      .getByRole("combobox", { name: "Channel", exact: true })
-      .selectOption({ label: "69 · Northwoods TV" });
-    await expect(monitor.getByText("Position", { exact: true })).toBeVisible();
-    await monitor.getByRole("button", { name: "Close Live Monitor" }).click();
-    await page.screenshot({
-      path: `../../data/web-desktop-${viewport.width}.png`,
-    });
-    expect(errors).toEqual([]);
-    const tray = await page.locator(".taskbar").boundingBox();
-    expect(tray?.y).toBe(viewport.height - 32);
+  const { media, scanning } = await scanNewRoot(page, directory);
+  await controlled.waitForStarted(1);
+  await expect(scanning.getByRole("status")).toHaveText("Reading media files…");
+  const bar = scanning.getByRole("progressbar");
+  await expect(bar).toHaveAttribute("aria-valuemax", "1");
+  await expect(bar).toHaveAttribute("aria-valuenow", "0");
+  await expect(scanning.getByText("0 of 1 files")).toBeVisible();
+  const close = scanning.getByRole("button", {
+    name: "Close Scanning media root",
   });
-}
+  await expect(close).toBeDisabled();
+  const busyClose = await closeButtonLook(close);
+  await expect(media.locator(".window-content")).toHaveAttribute("inert", "");
+  await expect(
+    page
+      .getByLabel("Desktop programs")
+      .getByRole("button", { name: "Collections", exact: true }),
+  ).toBeEnabled();
+  controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
+  await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+  await expect(close).toBeEnabled();
+  // A disabled close button must not look like the one that works.
+  expect(await closeButtonLook(close)).not.toEqual(busyClose);
+  await expect(
+    scanning.locator(".facts dt", { hasText: "Files found" }).locator("+ dd"),
+  ).toHaveText("1");
+  await scanning.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(scanning).toBeHidden();
+  await expect(media.getByRole("cell", { name: /^Northwoods / })).toBeVisible();
+  await media.getByRole("button", { name: "Minimize Media Library" }).click();
+
+  await page.getByRole("button", { name: "start", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Start programs" })
+    .getByRole("button", { name: /Collections/ })
+    .click();
+  const collections = page.getByRole("region", {
+    name: "Collections",
+    exact: true,
+  });
+  await collections.getByRole("button", { name: "New collection…" }).click();
+  const newCollection = collections.getByRole("dialog", {
+    name: "New collection",
+  });
+  await newCollection
+    .getByLabel("Collection name")
+    .fill("Northwoods collection");
+  await newCollection
+    .getByRole("button", { name: "Create collection" })
+    .click();
+  await expect(newCollection).toBeHidden();
+  // The new collection opens in its own properties window.
+  const collection = page.getByRole("region", {
+    name: "Northwoods collection Properties",
+    exact: true,
+  });
+  await collection
+    .getByRole("checkbox", { name: /^Select Northwoods/ })
+    .check();
+  await collection
+    .getByRole("button", { name: "Add selected (1)", exact: true })
+    .click();
+  await collection.getByRole("button", { name: "Save changes" }).click();
+  await expect(
+    collection.getByText("1 of 1 can air", { exact: true }),
+  ).toBeVisible();
+  await collection
+    .getByRole("button", { name: "Close Northwoods collection Properties" })
+    .click();
+  await collections.getByRole("button", { name: "Close Collections" }).click();
+
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "My Channels", exact: true })
+    .click();
+  const channels = page.getByRole("region", {
+    name: "My Channels",
+    exact: true,
+  });
+  await channels.getByRole("button", { name: "New channel…" }).click();
+  const newChannel = channels.getByRole("dialog", { name: "New channel" });
+  await newChannel.getByLabel("Channel number", { exact: true }).fill("69");
+  await newChannel
+    .getByLabel("Channel name", { exact: true })
+    .fill("Northwoods TV");
+  await newChannel
+    .getByRole("button", { name: "Create channel", exact: true })
+    .click();
+  await expect(newChannel).toBeHidden();
+  // The new channel opens in its own properties window.
+  const properties = page.getByRole("region", {
+    name: "Northwoods TV Properties",
+    exact: true,
+  });
+  await properties.getByRole("tab", { name: "Lineup" }).click();
+  await properties.getByRole("button", { name: "Add shows…" }).click();
+  const addShows = properties.getByRole("dialog", { name: "Add shows" });
+  await addShows
+    .getByRole("checkbox", { name: /^Northwoods collection/ })
+    .check();
+  // The footer is on screen before anything scrolls, so a first-time owner
+  // sees how to continue.
+  await expectFooterButtonShown(addShows, "Next (1)");
+  await addShows.getByRole("button", { name: "Next (1)" }).click();
+  // One unmatched file suggests no per sitting, so the owner chooses.
+  // Until then Add is disabled and says why.
+  const perSitting = addShows.getByLabel("Plays at a time");
+  const add = addShows.getByRole("button", { name: "Add (1)" });
+  await expect(add).toBeDisabled();
+  await expect(add).toHaveAccessibleDescription(
+    "Choose how much plays at a time for Northwoods collection.",
+  );
+  // A custom range with one end missing adds nothing either, even by
+  // Enter, which a disabled Add never submits.
+  await perSitting.selectOption({ label: "Custom…" });
+  await addShows
+    .getByLabel("Turn length")
+    .selectOption({ label: "A time within a range" });
+  await addShows.getByLabel("At least minutes").fill("30");
+  await expect(add).toBeDisabled();
+  await addShows.getByLabel("At least minutes").press("Enter");
+  await expect(addShows).toBeVisible();
+  await expect(properties.getByRole("table", { name: "Shows" })).toHaveCount(0);
+  await perSitting.selectOption({ label: "1 program" });
+  await addShows.getByRole("button", { name: "Add (1)" }).click();
+  await expect(addShows).toBeHidden();
+  // The server already generated the schedule, and nothing was airing on
+  // the new channel, so the first show asks no rebuild question.
+  await expect(
+    properties
+      .getByRole("table", { name: "Shows" })
+      .getByRole("button", { name: "Northwoods collection", exact: true }),
+  ).toBeVisible();
+  await expect(properties.getByRole("dialog")).toHaveCount(0);
+  // Show Properties opens on General with OK in view the same way; OK on
+  // the unchanged sheet closes it without a save.
+  await properties
+    .getByRole("button", { name: "Northwoods collection", exact: true })
+    .click();
+  await properties
+    .getByRole("button", { name: "Properties", exact: true })
+    .click();
+  const showProperties = properties.getByRole("dialog", {
+    name: "Northwoods collection",
+  });
+  await expectFooterButtonShown(showProperties, "OK");
+  await showProperties.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(showProperties).toBeHidden();
+  await properties.getByRole("tab", { name: "Preview" }).click();
+  await expect(
+    properties.getByRole("list", { name: "Upcoming shows" }),
+  ).toContainText("Northwoods collection");
+  await properties
+    .getByRole("button", { name: "Close Northwoods TV Properties" })
+    .click();
+  await channels.getByRole("button", { name: "Maximize My Channels" }).click();
+  await expect(channels).toHaveClass(/maximized/);
+  await channels.getByRole("button", { name: "Restore My Channels" }).click();
+  await channels.getByRole("button", { name: "Close My Channels" }).click();
+
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Program Guide", exact: true })
+    .click();
+  const guide = page.getByRole("region", {
+    name: "Program Guide",
+    exact: true,
+  });
+  const programs = guide.getByRole("list", {
+    name: "Programs on Northwoods TV",
+  });
+  await expect(
+    programs.getByRole("listitem").filter({ hasText: "Northwoods" }).first(),
+  ).toBeVisible();
+  // The channel went on air when its lineup was saved, so a block is airing.
+  await expect(programs.locator(".guide-block.airing")).toHaveCount(1);
+  await expect(
+    guide.getByRole("button", { name: "Now", exact: true }),
+  ).toBeVisible();
+  const title = guide.getByLabel(/Program Guide window/);
+  const before = await guide.boundingBox();
+  await title.hover();
+  await page.mouse.down();
+  await page.mouse.move((before?.x ?? 0) + 200, (before?.y ?? 0) + 90);
+  await page.mouse.up();
+  const after = await guide.boundingBox();
+  expect(after?.x).not.toBe(before?.x);
+  await page.screenshot({
+    path: "../../data/web-guide-1280.png",
+  });
+  // The first run ends watching the channel in TV. The browser job has no
+  // FFmpeg, so the stream answers with the committed test pattern; this
+  // route is registered after the API route, so it answers first.
+  const pattern = await readFile(
+    new URL("fixtures/test-pattern.mpegts", import.meta.url),
+  );
+  await page.route("http://127.0.0.1:3000/channels/*/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": "video/MP2T",
+        "Access-Control-Allow-Origin": "http://127.0.0.1:5173",
+      },
+      body: pattern,
+    }),
+  );
+  await guide
+    .getByRole("button", { name: "Watch 69 Northwoods TV on TV" })
+    .click();
+  const tv = page.getByRole("region", { name: "TV", exact: true });
+  await expect
+    .poll(() =>
+      tv
+        .getByLabel("69 Northwoods TV")
+        .evaluate((video: HTMLVideoElement) => video.currentTime),
+    )
+    .toBeGreaterThan(1);
+  await tv.getByRole("button", { name: "Close TV" }).click();
+  await guide.getByRole("button", { name: "Close Program Guide" }).click();
+
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Plex Setup", exact: true })
+    .click();
+  const plex = page.getByRole("region", { name: "Plex Setup", exact: true });
+  await expect(plex.getByLabel("Tuner base URL", { exact: true })).toHaveValue(
+    "http://northwoods.lan:3000",
+  );
+  await expect(plex.getByLabel("XMLTV guide URL", { exact: true })).toHaveValue(
+    "http://northwoods.lan:3000/plex/xmltv.xml",
+  );
+  await plex.getByRole("button", { name: "Close Plex Setup" }).click();
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Live Monitor", exact: true })
+    .click();
+  const monitor = page.getByRole("region", {
+    name: "Live Monitor",
+    exact: true,
+  });
+  await expect(
+    monitor.getByText("kraziTV is running", { exact: true }),
+  ).toBeVisible();
+  await monitor
+    .getByRole("combobox", { name: "Channel", exact: true })
+    .selectOption({ label: "69 · Northwoods TV" });
+  await expect(monitor.getByText("Position", { exact: true })).toBeVisible();
+  await monitor.getByRole("button", { name: "Close Live Monitor" }).click();
+  await page.screenshot({
+    path: "../../data/web-desktop-1280.png",
+  });
+  expect(errors).toEqual([]);
+  // The taskbar sits on the bottom edge of the 800px-tall desktop.
+  const tray = await page.locator(".taskbar").boundingBox();
+  expect(tray?.y).toBe(800 - 32);
+});
 
 /**
  * Asserts a dialog's footer button lies inside the dialog's visible box
