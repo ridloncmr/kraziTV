@@ -5,7 +5,7 @@ Status: In Development
 This feature takes kraziTV from "works" to "a non-technical first-time user,
 with minimal prompting, builds channels and enjoys it", inside the Windows XP
 desktop look. It comes from the release-polish audit of 2026-10-28 (commit
-`d175cd2`), which walked the first-run path, read every desktop program beside
+`d175cd2`) and its second run on 2026-11-03 (commit `5d3c498`), which walked the first-run path, read every desktop program beside
 its screenshot, and checked the code and docs against `AGENTS.md`. The audit
 report itself lives outside git under `data/polish-audit/`; everything a
 contributor needs is restated in the specs and plans here.
@@ -35,16 +35,34 @@ these instead of re-deciding them.
    their save bar.
 9. Contributor-only refactors are part of this release, not deferred.
 
+Settled with the owner on 2026-11-03 after the audit ran again (commit
+`5d3c498`):
+
+10. The Rule dialog keeps OK and Cancel. Decision 8's footer stays on the
+    channel General tab and Show Properties; a rule is created or edited
+    whole.
+11. `channels/lineup/` is pre-split now: the picks files move into
+    `lineup/picks/`. The other folders at the eight-file limit split when
+    their ninth file arrives.
+12. The browser suite's first-run walk runs once, at 1280×800. The folder
+    browser's narrow-window test stays as a narrow desktop window case, not a
+    phone.
+13. The TMDB task stays in Account Settings. Its description names TMDB, and
+    Media Library offers **Set up TMDB…** while no key is set.
+14. The glossary gains **Schedule preview** for the read-only "what would
+    air" computation (code name `SchedulePreview`).
+
 ## Related Specs
 
 Specs are listed in delivery order. Each spec's status is the `Status:` line at
 the top of the spec.
 
-| Spec                                                        | Description                                                             |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer        |
-| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary   |
-| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene |
+| Spec                                                        | Description                                                                                                            |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer                                                       |
+| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary                                                  |
+| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                |
+| [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items |
 
 ## Out Of Scope
 
