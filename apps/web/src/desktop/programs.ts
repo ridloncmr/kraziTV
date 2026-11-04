@@ -59,7 +59,7 @@ export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
   {
     id: "account",
     name: "Account Settings",
-    description: "Change your name, picture, or password",
+    description: "Your name, picture, password, and TMDB",
     group: "Server",
   },
 ];

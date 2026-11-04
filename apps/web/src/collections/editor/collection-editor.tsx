@@ -6,6 +6,7 @@ import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { formText } from "../../controls/formatting/form-text.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { Channel } from "../../http/contracts/channels.js";
@@ -40,15 +41,15 @@ export function CollectionEditor({
   changed,
   deleted,
   onDirtyChange,
-  onOpenChannels,
+  openProgram,
 }: {
   collection: MediaCollection;
   visible: boolean;
   changed: () => void;
   deleted: () => void;
   onDirtyChange: (dirty: boolean) => void;
-  /** Opens My Channels, where a special blocking the delete is resolved. */
-  onOpenChannels?: () => void;
+  /** Opens Media Library to fill an empty catalog, or My Channels to resolve a special blocking the delete. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const path = resourcePath("media-collections", collection.id);
   const members = useResource<CollectionMember[]>(`${path}/items`, visible);
@@ -209,7 +210,7 @@ export function CollectionEditor({
           <BlockingSpecials
             error={deleting.attempted ? mutation.error : undefined}
             channelNumber={(id) => channelNumberIn(channels.data, id)}
-            onOpenChannels={onOpenChannels}
+            onOpenChannels={() => openProgram("channels")}
           />
           <div className="dialog-actions">
             <button
@@ -301,6 +302,7 @@ export function CollectionEditor({
               memberIds={memberIds}
               visible={visible}
               onAdd={(media) => edit((current) => appendMedia(current, media))}
+              openProgram={openProgram}
             />
             <MemberList members={draft} onChange={(next) => edit(() => next)} />
           </fieldset>

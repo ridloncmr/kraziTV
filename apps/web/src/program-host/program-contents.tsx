@@ -4,7 +4,7 @@ import { ChannelPropertiesApp } from "../channels/properties/channel-properties-
 import { ChannelsApp } from "../channels/channels-app.js";
 import { CollectionsApp } from "../collections/collections-app.js";
 import { CollectionPropertiesApp } from "../collections/properties/collection-properties-app.js";
-import type { ProgramId, WindowId } from "../desktop/contracts.js";
+import type { ProgramId, ProgramTask, WindowId } from "../desktop/contracts.js";
 import { propertiesTarget } from "../desktop/programs.js";
 import type { PropertiesWindows } from "../desktop/windows/use-properties-windows.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
@@ -20,7 +20,7 @@ import { TvApp, type WatchRequest } from "../tv/tv-app.js";
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
  * `onTmdbKeyChanged`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
- * `tmdbTaskRequest` only when the tray asks, `watchRequest` only when a channel is watched, and
+ * `tmdbTaskRequest` only when the tray or Media Library asks, `watchRequest` only when a channel is watched, and
  * each kind's properties windows only when that kind saves a change.
  */
 export const ProgramContents = memo(function ProgramContents({
@@ -45,8 +45,11 @@ export const ProgramContents = memo(function ProgramContents({
   onAccountChanged: (account: AccountProfile) => void;
   tmdbTaskRequest: number;
   onTmdbKeyChanged: () => void;
-  /** Opens another program, as a refusal's link to where it is resolved does. */
-  openProgram: (id: ProgramId) => void;
+  /**
+   * Opens another program, as a refusal's link to where it is resolved does;
+   * with a task, opens it on that task, as Media Library's Set up TMDB does.
+   */
+  openProgram: (id: ProgramId, task?: ProgramTask) => void;
   /** The latest request to watch a channel, which TV tunes to. */
   watchRequest: WatchRequest | undefined;
   /** Opens TV on a channel, as My Channels' and the guide's Watch do. */
@@ -80,7 +83,7 @@ export const ProgramContents = memo(function ProgramContents({
         visible={visible}
         windows={collectionWindows}
         onDirtyChange={onDirtyChange}
-        onOpenChannels={openChannels}
+        openProgram={openProgram}
       />
     );
   switch (id as ProgramId) {
@@ -95,7 +98,11 @@ export const ProgramContents = memo(function ProgramContents({
       );
     case "media":
       return (
-        <MediaLibraryApp visible={visible} onOpenChannels={openChannels} />
+        <MediaLibraryApp
+          visible={visible}
+          onOpenChannels={openChannels}
+          openProgram={openProgram}
+        />
       );
     case "collections":
       return <CollectionsApp visible={visible} windows={collectionWindows} />;

@@ -9,6 +9,13 @@ export type ProgramId =
   | "monitor"
   | "account";
 
+/**
+ * A task a program can be opened on, when opening it alone is not enough:
+ * Account Settings' Set up TMDB, which the tray balloon and Media Library
+ * send the owner to.
+ */
+export type ProgramTask = "set-up-tmdb";
+
 /** The properties windows, each showing one channel or one collection. */
 export type PropertiesKind = "channel-properties" | "collection-properties";
 

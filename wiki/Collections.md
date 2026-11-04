@@ -79,7 +79,9 @@ other collection.
 
 **Manual collections** have an editor with the catalog on the left and the
 members on the right. Search or filter the catalog, tick files, and click
-**Add selected**, or **Add all** to take every match. Reorder members with
+**Add selected**, or **Add all** to take every match. If nothing has been
+scanned yet, the catalog side offers **Open Media Library** so you can add a
+media root first. Reorder members with
 the up and down buttons, **Move to top**, **Move to bottom**, or **Move to
 position**,
 or **Sort all by path** for episode order. Nothing changes until you click

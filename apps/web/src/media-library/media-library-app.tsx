@@ -8,9 +8,14 @@ import { Pager } from "../controls/pager/pager.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { RowMenu } from "../controls/popups/row-menu.js";
 import { useRangeToggle } from "../controls/selection/use-range-toggle.js";
+import type { ProgramId, ProgramTask } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
-import type { RetryScope, ReviewStep } from "../http/contracts/metadata.js";
+import type {
+  RetryScope,
+  ReviewStep,
+  TmdbKeyStatus,
+} from "../http/contracts/metadata.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
@@ -36,12 +41,18 @@ const PAGE_SIZE = 50;
 export function MediaLibraryApp({
   visible,
   onOpenChannels,
+  openProgram,
 }: {
   visible: boolean;
   /** Opens My Channels, where a special blocking a removal is resolved. */
   onOpenChannels?: () => void;
+  /** Opens Account Settings on Set up TMDB; without it the intro offers no link. */
+  openProgram?: (id: ProgramId, task?: ProgramTask) => void;
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
+  // Whether a TMDB key is set, read as the tray reminder reads it; a failed
+  // read only hides the Set up TMDB link.
+  const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", visible);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
@@ -110,6 +121,18 @@ export function MediaLibraryApp({
       </div>
       <p className="program-intro">
         Tell kraziTV where your media lives, then scan it into the catalog.
+        {openProgram && tmdbKey.data?.configured === false && (
+          <>
+            {" "}
+            Without TMDB, titles come from file names only.{" "}
+            <button
+              type="button"
+              onClick={() => openProgram("account", "set-up-tmdb")}
+            >
+              Set up TMDB…
+            </button>
+          </>
+        )}
       </p>
       <RequestFeedback
         loading={roots.loading || mutation.pending || scan.starting}

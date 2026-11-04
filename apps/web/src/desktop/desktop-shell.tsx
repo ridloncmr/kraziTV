@@ -15,6 +15,7 @@ import type {
   DesktopViewport,
   DesktopWindow,
   ProgramId,
+  ProgramTask,
   WindowAction,
 } from "./contracts.js";
 import { programOf, programs } from "./programs.js";
@@ -64,11 +65,6 @@ export function DesktopShell({
   useEffect(() => {
     memory.current = rememberWindows(memory.current, windows);
   }, [windows]);
-  // Stable, so memoized program contents never re-render for it.
-  const openProgram = useCallback(
-    (id: ProgramId) => dispatch({ type: "open", id }),
-    [],
-  );
   const properties = usePropertiesWindows(dispatch);
   const [viewport, setViewport] = useState(usableViewport);
   const [loggingOff, setLoggingOff] = useState(false);
@@ -91,10 +87,14 @@ export function DesktopShell({
     !windows.some((window) => window.id === "account")
   )
     setTmdbTaskRequest(0);
-  /** Opens or focuses Account Settings and asks it for the Set up TMDB task. */
-  const openTmdbTask = useCallback(() => {
-    dispatch({ type: "open", id: "account" });
-    setTmdbTaskRequest((count) => count + 1);
+  /**
+   * Opens or focuses a program. Asked for the Set up TMDB task, it also asks
+   * Account Settings to show that task. Stable, so memoized program contents
+   * never re-render for it.
+   */
+  const openProgram = useCallback((id: ProgramId, task?: ProgramTask) => {
+    dispatch({ type: "open", id });
+    if (task === "set-up-tmdb") setTmdbTaskRequest((count) => count + 1);
   }, []);
   // The latest request to watch a channel on TV, counted like the TMDB task
   // request and cleared once TV closes, so a plain open later starts on the
@@ -215,7 +215,7 @@ export function DesktopShell({
                   ? undefined
                   : mediaRoots.data.length > 0
               }
-              onSetUp={openTmdbTask}
+              onSetUp={() => openProgram("account", "set-up-tmdb")}
             />
           }
         />

@@ -56,6 +56,40 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   expect(lastQuery()?.get("offset")).toBe("0");
 });
 
+it.each([
+  { configured: false, offered: true },
+  { configured: true, offered: false },
+])(
+  "offers Set up TMDB in the intro only while no key is set (configured: $configured)",
+  async ({ configured, offered }) => {
+    const api = new BrowserApi();
+    api.reply("/media-roots", []);
+    api.reply("/media-items", { items: [], total: 0 });
+    api.reply("/metadata/tmdb-key", { configured });
+    vi.stubGlobal("fetch", api.fetch);
+    const openProgram = vi.fn();
+    render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+    await screen.findByText(/No media roots yet/);
+    await waitFor(() =>
+      expect(api.requestsTo("/metadata/tmdb-key")).toHaveLength(1),
+    );
+    // The key's answer lands in the same pass as the roots'; flush it.
+    await act(async () => {});
+
+    const link = screen.queryByRole("button", { name: "Set up TMDB…" });
+    expect(link !== null).toBe(offered);
+    if (!link) return;
+    expect(link.closest("p")?.textContent).toMatch(
+      /scan it into the catalog\. Without TMDB, titles come from file names only\. Set up TMDB…$/,
+    );
+    fireEvent.click(link);
+    expect(openProgram).toHaveBeenCalledExactlyOnceWith(
+      "account",
+      "set-up-tmdb",
+    );
+  },
+);
+
 it("names each item's availability in the owner's words, never the status code", async () => {
   await showMediaLibrary([...adminFixtures.media, UNREADABLE]);
 
