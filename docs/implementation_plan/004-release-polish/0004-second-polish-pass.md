@@ -476,10 +476,9 @@ Complete on 2026-11-04. Spec 0003 says Implemented, `.env.example` says
 `PUBLIC_BASE_URL` also decides which browsers may make changes, the
 media-engineer role names the exit gate instead of paraphrasing it, the
 glossary defines **Schedule preview**, and spec 0001 records that the Rule
-dialog keeps OK and Cancel. Deferred: POLISH-026's sticky dialog footer
-changes captured dialogs such as `special-preview.png`, so the wiki
-screenshots need a refresh from the seeded demo library, which this change
-could not run.
+dialog keeps OK and Cancel. The wave-2 integration then refreshed the wiki
+and README screenshots from the seeded demo library, since POLISH-026's
+sticky dialog footer changed captured dialogs such as `special-preview.png`.
 
 **Goal**: Every doc the audit named is right. Closes
 DOCS-spec-0003-release-readiness-status,

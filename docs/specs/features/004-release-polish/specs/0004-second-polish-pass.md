@@ -1,6 +1,6 @@
 # Spec 0004: Second Polish Pass
 
-Status: Accepted
+Status: Implemented
 
 ## Intent
 
