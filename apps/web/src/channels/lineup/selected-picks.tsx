@@ -32,7 +32,10 @@ export function SelectedPicks({
           {picks.map((pick) => (
             <li key={memberKey(pick.member)} className="inline-form">
               <span>
-                {pick.name} <small className="secondary">{pick.detail}</small>
+                {pick.name}{" "}
+                <small className="secondary" title={pick.path}>
+                  {pick.detail}
+                </small>
               </span>
               <button
                 type="button"

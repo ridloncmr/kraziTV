@@ -140,7 +140,7 @@ export function TrackMappingDialog({
                 const name = `${candidate.title} (${candidate.releaseDate?.slice(0, 4) ?? "year unknown"})`;
                 return (
                   <li key={candidate.tmdbId}>
-                    <label>
+                    <label className="choice">
                       <input
                         type="radio"
                         name="series"

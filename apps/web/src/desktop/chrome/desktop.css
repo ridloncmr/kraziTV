@@ -244,8 +244,10 @@ button:disabled {
   text-shadow: 1px 1px var(--xp-shadow);
   transition: filter var(--xp-duration-fast) ease;
 }
+/* A press shows at once; only the release and hover ease. */
 .window-controls button:active {
   filter: brightness(0.85);
+  transition: none;
 }
 .window-controls .close-control {
   background: linear-gradient(135deg, var(--xp-accent-orange), var(--xp-error));
@@ -365,6 +367,7 @@ button:disabled {
 .start-button:active,
 .start-button[aria-expanded="true"] {
   filter: brightness(0.85);
+  transition: none;
 }
 .taskbar-programs {
   display: flex;

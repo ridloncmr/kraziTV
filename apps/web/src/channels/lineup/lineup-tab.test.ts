@@ -1348,7 +1348,7 @@ it("toggles Add shows between collections and filtered single items, keeping pic
 
   searchFor(dialog, "Single items");
   await within(dialog).findByRole("checkbox", {
-    name: "Alpha /media/alpha.mp4",
+    name: "Alpha alpha.mp4",
   });
   expect(within(dialog).queryByRole("checkbox", { name: /^Favorites / })).toBe(
     null,
