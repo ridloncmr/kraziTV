@@ -6,6 +6,7 @@ import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { Tooltip } from "../controls/popups/tooltip.js";
 import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
+import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import type { WatchRequest } from "../tv/tv-app.js";
@@ -126,7 +127,7 @@ export function DesktopShell({
   // Worded for the owner, who knows kraziTV, not its API.
   const online = !health.error && health.data?.status === "ok";
   const connection = health.error
-    ? "Can't reach kraziTV"
+    ? CANT_REACH_WORDS
     : online
       ? "kraziTV is running"
       : "Checking on kraziTV…";

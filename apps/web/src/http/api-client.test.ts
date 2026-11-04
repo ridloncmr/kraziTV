@@ -1,6 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserApi } from "../testing/browser-api.js";
-import { apiRequest, onUnauthorized } from "./api-client.js";
+import {
+  UNREACHABLE_SENTENCE,
+  apiRequest,
+  onUnauthorized,
+} from "./api-client.js";
 import { ApiError } from "./api-error.js";
 
 afterEach(() => {
@@ -63,6 +67,7 @@ it("keeps the HTTP status when the error body is not an API envelope", async () 
   await expect(apiRequest("/health")).rejects.toMatchObject({
     code: "request_failed",
     status: 502,
+    message: UNREACHABLE_SENTENCE,
   });
 });
 
@@ -129,4 +134,38 @@ it("keeps a newer listener when an older one unregisters", async () => {
   expect(older).not.toHaveBeenCalled();
   expect(newer).toHaveBeenCalledTimes(1);
   unregisterNewer();
+});
+
+it("says kraziTV can't be reached when the connection is refused or the request times out", async () => {
+  const api = new BrowserApi();
+  api.handle("/channels", () => {
+    throw new TypeError("Failed to fetch");
+  });
+  api.handle("/media-roots", () => {
+    throw new DOMException("signal timed out", "TimeoutError");
+  });
+  vi.stubGlobal("fetch", api.fetch);
+
+  for (const path of ["/channels", "/media-roots"]) {
+    await expect(apiRequest(path)).rejects.toMatchObject({
+      code: "unreachable",
+      message: UNREACHABLE_SENTENCE,
+    });
+  }
+});
+
+it("keeps the caller's own abort as thrown, so an abandoned request shows no error", async () => {
+  const api = new BrowserApi();
+  api.handle("/channels", ({ signal }) => {
+    throw signal?.reason ?? new Error("not aborted");
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  const controller = new AbortController();
+  controller.abort();
+
+  const failure = await apiRequest("/channels", {
+    signal: controller.signal,
+  }).catch((error: unknown) => error);
+
+  expect(failure).toBe(controller.signal.reason);
 });
