@@ -138,6 +138,8 @@ to these limits, and a change that needs to break one names it here first.
 - Actions driven from the keyboard or repeated quickly change at once:
   moving or resizing a window with arrow keys, channel up and down, moving
   between tabs and list rows, and typing.
+- Pressing a button shows at once, Start and the window controls included;
+  only their hover and release ease.
 
 ### Media Root UI
 

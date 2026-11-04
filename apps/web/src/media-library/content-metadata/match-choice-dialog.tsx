@@ -4,6 +4,7 @@ import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { formText } from "../../controls/formatting/form-text.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import { Poster } from "../../controls/poster/poster.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaItem } from "../../http/contracts/media.js";
@@ -209,7 +210,7 @@ function CandidateList({
         return (
           <li key={candidate.tmdbId}>
             {candidate.posterPath && (
-              <img
+              <Poster
                 src={posterUrl(candidate.posterPath, "w92")}
                 alt={`Poster for ${name}`}
               />

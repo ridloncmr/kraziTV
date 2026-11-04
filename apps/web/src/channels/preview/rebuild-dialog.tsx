@@ -113,7 +113,7 @@ export function RebuildDialog({
         <>
           <fieldset>
             <legend>What is airing now</legend>
-            <label>
+            <label className="choice">
               <input
                 type="radio"
                 name="rebuild-choice"
@@ -122,7 +122,7 @@ export function RebuildDialog({
               />
               Let it finish
             </label>
-            <label>
+            <label className="choice">
               <input
                 type="radio"
                 name="rebuild-choice"

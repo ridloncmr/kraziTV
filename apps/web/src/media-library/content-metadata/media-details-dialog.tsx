@@ -3,6 +3,7 @@ import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js"
 import { displayTime } from "../../controls/formatting/display-time.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import { Poster } from "../../controls/poster/poster.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts/media.js";
 import type { TrackFolder } from "../../http/contracts/metadata.js";
@@ -119,7 +120,7 @@ export function MediaDetailsDialog({
       </p>
       <div className="media-details">
         {metadata.posterPath && (
-          <img
+          <Poster
             className="media-poster"
             src={posterUrl(metadata.posterPath, "w342")}
             alt={`Poster for ${metadata.seriesName ?? metadata.title ?? item.title}`}

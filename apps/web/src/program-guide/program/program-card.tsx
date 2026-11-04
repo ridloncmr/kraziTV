@@ -1,6 +1,7 @@
 import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js";
 import { displayTimeRange } from "../../controls/formatting/display-time.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import { Poster } from "../../controls/poster/poster.js";
 import type { Channel, GuideProgram } from "../../http/contracts/channels.js";
 import { episodeCode } from "./program-words.js";
 
@@ -28,7 +29,7 @@ export function ProgramCard({
     <WindowDialog title={program.title} onClose={onClose}>
       <div className="media-details">
         {program.posterUrl && (
-          <img
+          <Poster
             className="media-poster"
             src={program.posterUrl}
             alt={`Poster for ${program.title}`}
