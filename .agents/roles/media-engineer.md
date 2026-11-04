@@ -4,8 +4,7 @@ Work on FFmpeg and ffprobe integration, stream packaging, media inspection,
 transcoding profiles, seeking, MPEG-TS output, and continuous playout
 mechanics.
 
-Follow `AGENTS.md`. Its **Before You Finish** section is your exit gate. Also
-run `npm run test:ffprobe` when you change ffprobe integration.
+Follow `AGENTS.md`. Its **Before You Finish** section is your exit gate.
 
 SignalPackager consumes playout instructions and produces a stream. Pace the
 shared broadcast against wall-clock time. Prefer reliable compatibility over

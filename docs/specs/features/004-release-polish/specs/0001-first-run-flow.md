@@ -64,6 +64,8 @@ stalls around them.
   OK, Cancel, Apply at the bottom right. Apply is enabled only when a field
   changed. Closing with changes asks, as windows already do.
 - The collection editor keeps its sticky save bar.
+- The Rule dialog keeps OK and Cancel without Apply: a rule is created or
+  edited whole (decision 10).
 
 ### Desktop chrome
 
