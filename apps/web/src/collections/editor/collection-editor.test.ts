@@ -468,6 +468,36 @@ it("confirms a rename in its own sentence, since saves are otherwise silent", as
   ).toEqual({ name: "Weeknights" });
 });
 
+it("retires the rename sentence once a later write starts, so its error stands alone", async () => {
+  const { api } = renderEditor(["a"]);
+  api.reply(
+    "/media-collections/favorites",
+    { ...adminFixtures.collections[0], name: "Weeknights" },
+    "PATCH",
+  );
+  api.reply(
+    "/media-collections/favorites",
+    { error: { code: "request_failed", message: "The disk is full." } },
+    "DELETE",
+    500,
+  );
+  await screen.findByText("Alpha");
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Weeknights" },
+  });
+  click("Rename");
+  await screen.findByText("Renamed to Weeknights.");
+
+  click("Delete collection");
+  click("Delete collection permanently");
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toBe("The disk is full.");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(screen.getByRole("alert").textContent).toBe("The disk is full.");
+  expect(screen.queryByText("Renamed to Weeknights.")).toBeNull();
+});
+
 it("shows an automatic collection's criterion and members read-only while allowing rename and delete", async () => {
   renderEditor(["e2", "e10"], officeCollection);
 

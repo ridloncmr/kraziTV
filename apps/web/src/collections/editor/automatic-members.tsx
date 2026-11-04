@@ -19,11 +19,14 @@ export function AutomaticMembers({
   path,
   members,
   visible,
+  writing,
   changed,
 }: {
   path: string;
   members: readonly CollectionMember[];
   visible: boolean;
+  /** An exclusion write is starting, so the editor can retire its own outcome sentence. */
+  writing: () => void;
   changed: () => void;
 }) {
   const mutation = useMutation();
@@ -35,6 +38,7 @@ export function AutomaticMembers({
 
   /** Excludes or restores one item, then refreshes the exclusions and every membership view. */
   function decide(mediaItemId: string, method: "PUT" | "DELETE") {
+    writing();
     void mutation.run(
       `${path}/exclusions/${encodeURIComponent(mediaItemId)}`,
       method,

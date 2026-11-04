@@ -120,12 +120,38 @@ it("words a failed lookup as one sentence, keeping TMDB's text as a tooltip and 
   const dialog = within(openDetails("Outage"));
 
   const why = dialog.getByText(
-    "TMDB could not be reached; the next scan will try again.",
+    "TMDB could not be reached; kraziTV will try again.",
   );
   expect(why.getAttribute("title")).toBe("TMDB answered HTTP 503");
   expect(dialog.queryByText("TMDB answered HTTP 503")).toBeNull();
   expect(dialog.queryByText(NOTICE)).toBeNull();
   expect(dialog.queryByRole("img")).toBeNull();
+});
+
+it("tells the owner to check the key when TMDB rejected it, for a lookup and for a refresh", async () => {
+  const rejected = {
+    ...OUTAGE,
+    metadata: { ...OUTAGE.metadata, lookupError: "TMDB rejected the key" },
+  };
+  const unrefreshed = {
+    ...ALIEN,
+    metadata: { ...ALIEN.metadata, refreshError: "TMDB rejected the key" },
+  };
+  await showCatalog([rejected, unrefreshed]);
+
+  const lookup = within(openDetails("Outage"));
+  expect(
+    lookup
+      .getByText("TMDB rejected the key. Check it in Account Settings.")
+      .getAttribute("title"),
+  ).toBe("TMDB rejected the key");
+  expect(lookup.queryByText(/could not be reached/)).toBeNull();
+  fireEvent.click(lookup.getByRole("button", { name: "Close" }));
+
+  const refresh = within(openDetails("Alien (1979)"));
+  expect(
+    refresh.getByText("TMDB rejected the key. Check it in Account Settings."),
+  ).toBeTruthy();
 });
 
 it("says when a matched item's TMDB data expired, and words a failed refresh as one sentence", async () => {

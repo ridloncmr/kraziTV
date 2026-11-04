@@ -69,7 +69,7 @@ The **Match** column says how each file came out:
 | **Matched; episode not listed on TMDB** | The series matched, but TMDB does not list this episode number |
 | **Needs your choice**                   | More than one title fits, so kraziTV would rather ask          |
 | **Unmatched**                           | TMDB had nothing that fits                                     |
-| **Lookup failed**                       | TMDB could not be reached; retry later                         |
+| **Lookup failed**                       | TMDB could not be reached or rejected your key; Details says   |
 | **Rejected**                            | You said the match was wrong                                   |
 | **Not looked up**                       | No TMDB key, or not searched yet                               |
 | **Extra**                               | Bonus material, such as a featurette, which is never looked up |
@@ -90,8 +90,9 @@ with their posters and lets you search TMDB for something else.
 **Details…** on any row opens everything kraziTV knows about the file: its
 match, title, series, episode, release date, genres, and TMDB's description.
 A file marked **Could not be read** says so here under **Why**, and a lookup
-that failed says TMDB could not be reached; the row itself only names the
-state.
+that failed says whether TMDB could not be reached, which kraziTV retries on
+its own, or rejected your key, which you check in Account Settings; the row
+itself only names the state.
 
 ![Media details](images/media-details.png)
 

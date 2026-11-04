@@ -68,7 +68,8 @@ export function CollectionEditor({
   const [converting, setConverting] = useState(false);
   const [changingCriterion, setChangingCriterion] = useState(false);
   // The last rename's confirmation; the title changes too, but the form
-  // keeps the typed name, so the sentence says the save landed.
+  // keeps the typed name, so the sentence says the save landed. It is the
+  // editor's only outcome sentence, so any later write retires it.
   const [renamed, setRenamed] = useState("");
   // Unsaved edits, or the order a save returned until the refetch replaces it,
   // so a save never flashes the old order back.
@@ -91,6 +92,22 @@ export function CollectionEditor({
     (sum, item) => sum + (item.durationMs ?? 0),
     0,
   );
+
+  /**
+   * Starts one of the editor's own writes. The rename sentence goes first,
+   * so at most one outcome, this write's error or a new confirmation, shows
+   * at a time; a child dialog's opening and the exclusions' writes retire
+   * it the same way.
+   */
+  function write<T>(
+    path: string,
+    method: string,
+    body?: unknown,
+    onSuccess?: (value: T) => void,
+  ) {
+    setRenamed("");
+    void mutation.run(path, method, body, onSuccess);
+  }
 
   /**
    * Every pane edit replaces the whole draft, which marks it unsaved. Edits
@@ -123,8 +140,7 @@ export function CollectionEditor({
         onSubmit={(event) => {
           event.preventDefault();
           const name = formText(new FormData(event.currentTarget), "name");
-          setRenamed("");
-          void mutation.run(path, "PATCH", { name }, () => {
+          write(path, "PATCH", { name }, () => {
             setRenamed(`Renamed to ${name}.`);
             changed();
           });
@@ -154,14 +170,20 @@ export function CollectionEditor({
             <button
               disabled={mutation.pending}
               type="button"
-              onClick={() => setChangingCriterion(true)}
+              onClick={() => {
+                setRenamed("");
+                setChangingCriterion(true);
+              }}
             >
               Change criterion…
             </button>
             <button
               disabled={mutation.pending}
               type="button"
-              onClick={() => setConverting(true)}
+              onClick={() => {
+                setRenamed("");
+                setConverting(true);
+              }}
             >
               Convert to manual…
             </button>
@@ -219,7 +241,7 @@ export function CollectionEditor({
               disabled={mutation.pending}
               onClick={() => {
                 setDeleting({ attempted: true });
-                void mutation.run(path, "DELETE", undefined, deleted);
+                write(path, "DELETE", undefined, deleted);
               }}
             >
               Delete collection permanently
@@ -253,6 +275,7 @@ export function CollectionEditor({
               path={path}
               members={members.data}
               visible={visible}
+              writing={() => setRenamed("")}
               changed={() => {
                 members.refresh();
                 status.refresh();
@@ -279,7 +302,7 @@ export function CollectionEditor({
               <button
                 disabled={!dirty || mutation.pending}
                 onClick={() => {
-                  void mutation.run<CollectionMember[]>(
+                  write<CollectionMember[]>(
                     `${path}/items`,
                     "PUT",
                     { mediaItemIds: draft.map((item) => item.mediaItemId) },
