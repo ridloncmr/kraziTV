@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { marathonLabel, perSittingLabel } from "./stretch-words.js";
+import {
+  marathonLabel,
+  perSittingLabel,
+  stretchProblemWords,
+} from "./stretch-words.js";
 
 describe("stretch words", () => {
   it.each([
@@ -45,5 +49,30 @@ describe("stretch words", () => {
     ],
   ])("words marathon length %o for %s as %s", (stretch, kind, label) => {
     expect(marathonLabel(stretch, kind)).toBe(label);
+  });
+});
+
+describe("stretch problem words", () => {
+  it("says what to change for each of kraziBrain's pair checks, and for a refused value", () => {
+    expect(
+      stretchProblemWords(
+        "a marathon must be longer than the ordinary stretch",
+      ),
+    ).toBe("Make the marathon longer than Plays at a time.");
+    expect(
+      stretchProblemWords(
+        "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
+      ),
+    ).toBe(
+      "Set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
+    );
+    expect(
+      stretchProblemWords("marathon count must be a positive integer"),
+    ).toBe(
+      "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.",
+    );
+    expect(stretchProblemWords(undefined)).toBe(
+      "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.",
+    );
   });
 });

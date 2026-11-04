@@ -203,10 +203,12 @@ export function AddShowsDialog({
   const backwards = unfinished("backwards");
   const blocked = unchosen.length + backwards.length > 0;
   const refused = refusedShow(mutation.error, sent);
+  // Names the show a refusal is about before its shared words, else the
+  // server's message, so nothing is silently lost.
   const failure =
     refused && mutation.error
       ? new Error(
-          `${refused} could not be added: ${showRefusal(mutation.error)}`,
+          `${refused} could not be added: ${refusalWords(mutation.error) ?? mutation.error.message}`,
         )
       : mutation.error;
   return (
@@ -429,15 +431,4 @@ function refusedShow(
       ? error.details.index
       : Number(cited);
   return Number.isInteger(index) ? sent[index] : undefined;
-}
-
-/**
- * Says why the named show could not be added. A member already on the
- * lineup is worded here, where the lineup is the context; any other
- * refusal takes its shared words, else the server's message.
- */
-function showRefusal(error: Error): string {
-  if (error instanceof ApiError && error.code === "programming_member_assigned")
-    return "It is already in this channel's lineup.";
-  return refusalWords(error) ?? error.message;
 }

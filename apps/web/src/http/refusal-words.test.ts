@@ -83,6 +83,62 @@ it("words a special refusal from its code and details", () => {
   ).toBe("A special must start in the future. Pick a later start.");
 });
 
+it("words the refusals one code explains in the screens' words, never the server's", () => {
+  expect(
+    refusalWords(
+      new ApiError("media_collection_in_use", "for logs", 409, {
+        mediaCollectionId: "favorites",
+        channelIds: ["one"],
+        reservations: [],
+      }),
+    ),
+  ).toBe(
+    "This collection is in a channel's lineup or a special. Remove it there first.",
+  );
+  expect(
+    refusalWords(
+      new ApiError("programming_member_assigned", "for logs", 409, {
+        member: { kind: "collection", mediaCollectionId: "favorites" },
+        assignmentId: "assignment-1",
+      }),
+    ),
+  ).toBe("Another show on this channel already plays that.");
+});
+
+it("words a rule's stretch refusals as what to change, naming the rule by name", () => {
+  expect(
+    refusalWords(
+      new ApiError("programming_rule_stretch_invalid", "for logs", 400, {
+        assignmentId: "christmas-turns",
+        problem: "a marathon must be longer than the ordinary stretch",
+      }),
+    ),
+  ).toBe("Make the marathon longer than Plays at a time.");
+  expect(
+    refusalWords(
+      new ApiError("programming_rule_stretch_conflict", "for logs", 409, {
+        ruleId: "rule-1",
+        ruleName: "Christmas",
+        problem: "a marathon must be longer than the ordinary stretch",
+      }),
+    ),
+  ).toBe(
+    'Rule "Christmas" follows this show\'s settings, and this change would break them. Change the rule first: make the marathon longer than Plays at a time.',
+  );
+  // A conflict without the rule's name still says what to change.
+  expect(
+    refusalWords(
+      new ApiError("programming_rule_stretch_conflict", "for logs", 409, {
+        ruleId: "rule-1",
+        problem:
+          "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
+      }),
+    ),
+  ).toBe(
+    "A rule on this channel follows this show's settings, and this change would break them. Change the rule first: set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
+  );
+});
+
 it("has no words for an unknown code or an error that is not a refusal", () => {
   expect(
     refusalWords(new ApiError("something_else", "for logs", 409)),

@@ -278,6 +278,12 @@ it("names the special a refused delete waits on and opens My Channels to change 
     screen.getByRole("button", { name: "Delete collection permanently" }),
   );
 
+  const confirmation = screen.getByRole("dialog", {
+    name: "Delete collection",
+  });
+  expect((await within(confirmation).findByRole("alert")).textContent).toBe(
+    "This collection is in a channel's lineup or a special. Remove it there first.",
+  );
   const blocking = await screen.findByLabelText("Blocking specials");
   await within(blocking).findByText(/Channel 69 · special at/);
   fireEvent.click(

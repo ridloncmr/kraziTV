@@ -513,6 +513,7 @@ describe("rule-specific stretch settings", () => {
         error: {
           code: "programming_rule_stretch_conflict",
           ruleId: "rule-001",
+          ruleName: "December",
           problem: "a marathon must be longer than the ordinary stretch",
         },
       },
@@ -548,6 +549,7 @@ describe("rule-specific stretch settings", () => {
         error: {
           code: "programming_rule_stretch_conflict",
           ruleId: "rule-001",
+          ruleName: "December",
           problem: "a marathon must be longer than the ordinary stretch",
         },
       },

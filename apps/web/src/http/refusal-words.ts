@@ -1,4 +1,5 @@
 import { specialWords } from "../channels/specials/special-words.js";
+import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
 import { ApiError } from "./api-error.js";
 
 // The owner's sentence for each field the server can refuse, by the Zod
@@ -89,17 +90,49 @@ function isSpecialCode(code: string): boolean {
 }
 
 /**
+ * The owner's sentence for a refusal its code alone explains: what to
+ * change, in the words the screens use (show, lineup, special, Plays at a
+ * time), naming a rule by its name and never an ID. A code not listed gets
+ * nothing (release-polish spec 0004).
+ */
+function codeWords(
+  code: string,
+  details: Record<string, unknown>,
+): string | undefined {
+  switch (code) {
+    case "media_collection_in_use":
+      return "This collection is in a channel's lineup or a special. Remove it there first.";
+    case "programming_member_assigned":
+      return "Another show on this channel already plays that.";
+    case "programming_rule_stretch_invalid":
+      return stretchProblemWords(details.problem);
+    case "programming_rule_stretch_conflict": {
+      const rule =
+        typeof details.ruleName === "string"
+          ? `Rule "${details.ruleName}"`
+          : "A rule on this channel";
+      const fix = stretchProblemWords(details.problem);
+      return `${rule} follows this show's settings, and this change would break them. Change the rule first: ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`;
+    }
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Words a refusal for the owner: what to change for each refused field the
- * web app knows, or a special refusal's sentence. Returns nothing for a
- * code or field it does not know, and for an error that is not a refusal,
- * so the caller shows the server's message instead (release-polish spec
- * 0002, decision 1).
+ * web app knows, a special refusal's sentence, or the sentence for a code
+ * that explains itself. Returns nothing for a code or field it does not
+ * know, and for an error that is not a refusal, so the caller shows the
+ * server's message instead (release-polish spec 0002, decision 1).
  */
 export function refusalWords(error: Error | undefined): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (isSpecialCode(error.code)) {
     return specialWords(error.code, error.details);
   }
+  const words = codeWords(error.code, error.details);
+  if (words !== undefined) return words;
   if (error.code !== "invalid_request") return undefined;
   const sentences = new Set(
     refusedFields(error).flatMap((field) => fieldSentence(field) ?? []),
