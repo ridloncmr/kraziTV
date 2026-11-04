@@ -48,7 +48,8 @@ it("switches columns with Left and Right, keeping the row where the other column
   press("ArrowLeft");
   expect(focusedName()).toBe("Media Library");
 
-  // The fifth row has no Server neighbour, so Right lands on the last one.
+  // Up from the second row wraps to the last Primary entry, TV, whose row
+  // has no Server neighbour, so Right lands on Server's last entry.
   press("ArrowUp");
   press("ArrowUp");
   expect(focusedName()).toBe("TV");
