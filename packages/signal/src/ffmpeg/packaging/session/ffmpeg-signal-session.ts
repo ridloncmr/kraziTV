@@ -445,22 +445,26 @@ export class FfmpegSignalSession implements SignalSession {
     }
   }
 
-  /** Converts any FFmpeg process or commit failure into the session's terminal result. */
+  /**
+   * Converts any FFmpeg process or commit failure into the session's terminal
+   * result. Every process, the prepared one included, comes off the broadcast
+   * through `release` like any other transition, so its held output is
+   * dropped now and not when it is collected. Releasing comes before the
+   * output ends, because detaching the airing process writes its finished
+   * packets. A stop that fails changes nothing: the session has already
+   * failed. `stop` keeps its own path, since it awaits every stop as one
+   * retryable unit.
+   */
   private fail(error: unknown): void {
     if (this.completionSettled || this.stopping) return;
     this.settleReadyWithError(error);
     this.completionSettled = true;
-    this.active.cancelStallWatch();
     for (const binding of this.bindings.values()) {
-      binding.cancelReadiness();
-      binding.forwarder.detach();
+      void binding.release(() => undefined);
     }
     this.sessionOutput.end();
     this.options.logger.info("signal_session_failed", this.active.context);
     this.rejectCompletion(error);
-    for (const process of this.bindings.keys()) {
-      void process.stop().catch(() => undefined);
-    }
   }
 
   /** Rejects initial readiness once; later failures leave it settled. */
