@@ -229,7 +229,7 @@ function statusLine(
     case "discovering":
       return `Looking for media files in ${rootPath}…`;
     case "probing":
-      return "Probing media files…";
+      return "Reading media files…";
     case "enriching":
       return "Looking up media on TMDB…";
     case "committing":
@@ -275,8 +275,7 @@ function progressStep(status: ScanStatus) {
       done: status.settledCount,
       total: status.discoveredCount,
       unit: "files",
-      last:
-        status.currentPath && `Last probed: ${fileName(status.currentPath)}`,
+      last: status.currentPath && `Last read: ${fileName(status.currentPath)}`,
     };
   }
   if (status.phase === "enriching") {

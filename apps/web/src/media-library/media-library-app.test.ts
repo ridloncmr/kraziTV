@@ -376,8 +376,8 @@ it("shows probing as a determinate bar and committing as indeterminate", async (
     currentPath: "/media/show/Pilot.mkv",
   });
   await advance(1_000);
-  expect(statusLine(dialog).textContent).toBe("Probing media files…");
-  expect(within(dialog).getByText("Last probed: Pilot.mkv")).toBeTruthy();
+  expect(statusLine(dialog).textContent).toBe("Reading media files…");
+  expect(within(dialog).getByText("Last read: Pilot.mkv")).toBeTruthy();
   expect(within(dialog).getByText("1,204 of 3,880 files")).toBeTruthy();
   expect(bar.getAttribute("aria-valuemin")).toBe("0");
   expect(bar.getAttribute("aria-valuemax")).toBe("3880");

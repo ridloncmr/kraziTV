@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { displayTimeRange } from "../../controls/formatting/display-time.js";
 import type { MediaCollectionSummary } from "../../http/contracts/collections.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
@@ -126,20 +127,23 @@ function lastBody(api: BrowserApi, path: string, method: string) {
     .at(-1)?.body as Record<string, unknown> | undefined;
 }
 
-it("previews media items in order and saves exactly what was previewed", async () => {
+// Previews a new media-item special whose server answer is `preview`.
+async function previewSpecial(preview: SpecialPreview) {
   const api = renderSection();
   await startNewSpecial();
   await screen.findByRole("option", { name: "Alpha" });
   fireEvent.change(screen.getByLabelText("Program 1"), {
     target: { value: "z" },
   });
-  api.reply(PREVIEW, planned(), "POST");
-
+  api.reply(PREVIEW, preview, "POST");
   fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+  const region = await screen.findByRole("region", { name: "Special preview" });
+  return { api, preview: region };
+}
 
-  const preview = await screen.findByRole("region", {
-    name: "Special preview",
-  });
+it("previews media items in order and saves exactly what was previewed", async () => {
+  const { api, preview } = await previewSpecial(planned());
+
   expect(within(preview).getByText(/Alpha/)).toBeTruthy();
   expect(within(preview).getByText(/resumes with Zulu/)).toBeTruthy();
   expect(lastBody(api, PREVIEW, "POST")).toEqual({
@@ -159,6 +163,40 @@ it("previews media items in order and saves exactly what was previewed", async (
     expectedProgrammingRevision: 7,
     requestKey: expect.any(String),
   });
+});
+
+it("words the gaps around a special as Off air, as the guide does", async () => {
+  const gapStart = new Date("2099-06-01T19:40").toISOString();
+  const gapEnd = new Date("2099-06-01T20:30").toISOString();
+  const { preview } = await previewSpecial(
+    planned({
+      fillerBefore: { startsAt: gapStart, endsAt: START },
+      fillerInside: { startsAt: gapEnd, endsAt: END },
+    }),
+  );
+
+  expect(
+    within(preview).getByText(
+      `Off air before it: ${displayTimeRange(gapStart, START)}.`,
+    ),
+  ).toBeTruthy();
+  expect(
+    within(preview).getByText(
+      `Off air inside it: ${displayTimeRange(gapEnd, END)}.`,
+    ),
+  ).toBeTruthy();
+  expect(preview.textContent).not.toMatch(/filler/i);
+});
+
+it("says the channel is off air for the whole range when no program fits", async () => {
+  const { preview } = await previewSpecial(planned({ programs: [] }));
+
+  expect(
+    within(preview).getByText(
+      "No program fits; the channel is off air for the whole range.",
+    ),
+  ).toBeTruthy();
+  expect(preview.textContent).not.toMatch(/filler/i);
 });
 
 it("saves a collection block with its explicit end", async () => {
