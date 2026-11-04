@@ -16,7 +16,8 @@ Open a show's Properties and tick **Allow marathons**. By default a
 marathon is twice the show's usual count, or three times its usual time:
 three episodes become six, about an hour becomes about three. Tick
 **Choose the marathon length** to set your own. It must be longer than the
-usual amount and measured the same way, programs or minutes.
+usual amount and measured the same way, programs or minutes. Until it is,
+OK and Apply stay off and the sheet says what to change.
 
 A marathon continues from where the show left off. It never starts the
 series over.

@@ -9,7 +9,7 @@ Progress: 1 of 13 tickets complete.
 | POLISH-026 | Dialog footers stay on screen                                 | Open                   |
 | POLISH-027 | "Can't reach kraziTV" when a request never reaches the server | Open                   |
 | POLISH-028 | Remaining developer words                                     | Open                   |
-| POLISH-029 | Four refusal codes and the marathon-length check              | Complete on 2026-11-03 |
+| POLISH-029 | Four refusal codes and the marathon-length check              | Complete on 2026-11-04 |
 | POLISH-030 | Last empty states and the TMDB pointer                        | Open                   |
 | POLISH-031 | Quiet saves and plain failure words                           | Open                   |
 | POLISH-032 | Chrome and list one-liners                                    | Open                   |
@@ -168,7 +168,7 @@ sentences.
 
 **Status**
 
-Complete on 2026-11-03. `refusalWords` words `media_collection_in_use`,
+Complete on 2026-11-04. `refusalWords` words `media_collection_in_use`,
 `programming_member_assigned` (now shared by Add shows and Show Properties),
 `programming_rule_stretch_invalid`, and `programming_rule_stretch_conflict`,
 the last naming the rule from a new `ruleName` detail; `stretchProblem` gained
