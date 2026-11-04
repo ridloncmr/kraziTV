@@ -41,7 +41,7 @@ import {
   marathonLabel,
 } from "../stretch/stretch-words.js";
 import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
-import { joinShowNames } from "./show-labels.js";
+import { joinShowNames } from "./picks/show-labels.js";
 
 // The dialog's property-sheet tabs, in the order they show.
 type ShowTab = "general" | "contents" | "upNext";

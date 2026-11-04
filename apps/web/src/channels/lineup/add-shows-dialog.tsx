@@ -33,8 +33,8 @@ import {
   UNCHOSEN_STRETCH,
 } from "../stretch/stretch-fields.js";
 import { suggestionPath } from "./show-draft.js";
-import { SelectedPicks } from "./selected-picks.js";
-import { joinShowNames, listNames, showLabel } from "./show-labels.js";
+import { SelectedPicks } from "./picks/selected-picks.js";
+import { joinShowNames, listNames, showLabel } from "./picks/show-labels.js";
 
 // How Add groups the picks: each its own show, or all in one wheel.
 type Grouping = "separate" | "wheel";

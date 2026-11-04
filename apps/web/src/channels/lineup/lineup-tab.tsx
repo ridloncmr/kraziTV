@@ -20,7 +20,7 @@ import { AddShowsDialog } from "./add-shows-dialog.js";
 import { MarathonsControl } from "./marathons-control.js";
 import { marathonLabel, perSittingLabel } from "../stretch/stretch-words.js";
 import { ShowPropertiesDialog } from "./show-properties-dialog.js";
-import { assignmentShowLabel, listNames } from "./show-labels.js";
+import { assignmentShowLabel, listNames } from "./picks/show-labels.js";
 import { useMemberNames } from "./use-member-names.js";
 
 /**
