@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { displayClockTime } from "../../controls/formatting/display-time.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type {
   CatalogRemoval,
   CatalogRemovalImpact,
@@ -89,13 +90,16 @@ async function findSelectionDelete() {
   return selectionDelete();
 }
 
-/** The Media Library over one root and the two fixture items. */
-function renderLibrary(onOpenChannels?: () => void) {
+/**
+ * The Media Library over one root and the two fixture items; `openProgram`
+ * stands for the shell opening another program.
+ */
+function renderLibrary(openProgram: (id: ProgramId) => void = () => {}) {
   const api = new BrowserApi();
   api.reply("/media-roots", [mediaRoot()]);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true, onOpenChannels }));
+  render(createElement(MediaLibraryApp, { visible: true, openProgram }));
   return api;
 }
 
@@ -270,7 +274,7 @@ it.each([
   [
     "media_item_in_use",
     { channelIds: ["two", "one"], mediaItemIds: ["z"] },
-    "Channels 70, 69 play one of these items directly from a programming assignment. Change those assignments first.",
+    "Channels 70, 69 play one of these items as a show. Change those shows first.",
   ],
 ])(
   "shows a %s refusal in place of the preview with only Close",
@@ -317,13 +321,13 @@ it("names a single channel playing an item directly", async () => {
   fireEvent.click(await rootDelete());
 
   await screen.findByText(
-    "Channel 69 plays one of these items directly from a programming assignment. Change that assignment first.",
+    "Channel 69 plays one of these items as a show. Change that show first.",
   );
 });
 
 it("names the special that plays an item and opens My Channels to change it", async () => {
-  const openChannels = vi.fn();
-  const api = renderLibrary(openChannels);
+  const openProgram = vi.fn();
+  const api = renderLibrary(openProgram);
   api.reply("/channels", adminFixtures.channels);
   api.reply(
     PREVIEW,
@@ -353,7 +357,7 @@ it("names the special that plays an item and opens My Channels to change it", as
   fireEvent.click(
     within(blocking).getByRole("button", { name: "Open My Channels" }),
   );
-  expect(openChannels).toHaveBeenCalledOnce();
+  expect(openProgram).toHaveBeenCalledExactlyOnceWith("channels");
 });
 
 it("shows a changed impact and asks again when the removal finds new channels left unschedulable", async () => {

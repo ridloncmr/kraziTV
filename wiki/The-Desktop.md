@@ -21,7 +21,7 @@ window to the front.
 | [TV](TV)                             | Watch a channel in the browser                             |
 | **Plex Setup**                       | The addresses Plex needs; see [Connect Plex](Connect-Plex) |
 | [Live Monitor](Live-Monitor)         | See what one channel is airing right now                   |
-| [Account Settings](Account-Settings) | Your name, picture, password, and TMDB key                 |
+| [Account Settings](Account-Settings) | Your name, picture, password, and TMDB                     |
 
 ## Windows
 
@@ -59,8 +59,11 @@ The system tray on the right holds:
 
 The Start menu lists every program and has two more entries: **Source
 code**, which opens kraziTV's GitHub page, and **Log Off**, which asks once
-and then ends your session in this browser. There is no Turn Off; kraziTV keeps broadcasting
-no matter what the desktop is doing.
+and then ends your session in this browser. Once Start is open, the arrow
+keys move through it as they did on XP: Up and Down along a column, Left
+and Right between the two columns, and Enter opens the highlighted program.
+There is no Turn Off; kraziTV keeps broadcasting no matter what the desktop
+is doing.
 
 ---
 

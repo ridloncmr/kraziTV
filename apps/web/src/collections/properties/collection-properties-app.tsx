@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type { PropertiesWindows } from "../../desktop/windows/use-properties-windows.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
@@ -19,15 +20,15 @@ export function CollectionPropertiesApp({
   visible,
   windows,
   onDirtyChange,
-  onOpenChannels,
+  openProgram,
 }: {
   collectionId: string;
   visible: boolean;
   /** Collection Properties windows: this one's title and the grid follow its saves. */
   windows: PropertiesWindows;
   onDirtyChange: (dirty: boolean) => void;
-  /** Opens My Channels, where a special blocking a delete is resolved. */
-  onOpenChannels?: () => void;
+  /** Opens Media Library to fill an empty catalog, or My Channels to resolve a special blocking a delete. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const collection = useResource<MediaCollection>(
     resourcePath("media-collections", collectionId),
@@ -63,7 +64,7 @@ export function CollectionPropertiesApp({
             }}
             deleted={() => deleted(collectionId)}
             onDirtyChange={onDirtyChange}
-            onOpenChannels={onOpenChannels}
+            openProgram={openProgram}
           />
         </>
       )}

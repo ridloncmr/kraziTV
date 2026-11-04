@@ -26,8 +26,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Serves a collection, favorites by default, with the given saved order and renders its editor.
-function renderEditor(
+// Serves a collection, favorites by default, with the given saved order, so a
+// test can change a route before the editor's first read.
+function serveEditor(
   memberIds: string[],
   collection = adminFixtures.collections[0],
   extraCatalog: readonly MediaItem[] = [],
@@ -35,7 +36,14 @@ function renderEditor(
   const api = new BrowserApi();
   serveCollection(api, collection.id, memberIds, extraCatalog);
   vi.stubGlobal("fetch", api.fetch);
+  return api;
+}
+
+// Renders a served collection's editor; `openProgram` stands for the shell
+// opening another program.
+function mountEditor(collection = adminFixtures.collections[0]) {
   const onDirtyChange = vi.fn();
+  const openProgram = vi.fn();
   render(
     createElement(CollectionEditor, {
       collection,
@@ -43,9 +51,20 @@ function renderEditor(
       changed: vi.fn(),
       deleted: vi.fn(),
       onDirtyChange,
+      openProgram,
     }),
   );
-  return { api, onDirtyChange };
+  return { onDirtyChange, openProgram };
+}
+
+// Serves a collection and renders its editor in one step.
+function renderEditor(
+  memberIds: string[],
+  collection = adminFixtures.collections[0],
+  extraCatalog: readonly MediaItem[] = [],
+) {
+  const api = serveEditor(memberIds, collection, extraCatalog);
+  return { api, ...mountEditor(collection) };
 }
 
 // Reads the draft order from the member checkboxes, which render in position order.
@@ -225,6 +244,29 @@ it("hides draft members from the catalog and clears an offset left past the last
       .filter((request) => request.path === "/media-items/search")
       .at(-1)?.body,
   ).toMatchObject({ excludeIds: ["a", "e10", "e2", "z"], offset: 0 });
+});
+
+it("offers Open Media Library when the catalog itself is empty, not when the owner narrowed it", async () => {
+  const api = serveEditor([]);
+  // Nothing has been scanned yet.
+  api.reply("/media-items/search", { items: [], total: 0 }, "POST");
+  const { openProgram } = mountEditor();
+
+  await screen.findByText(
+    "The catalog is empty. Scan a media root in Media Library.",
+  );
+  click("Open Media Library");
+  expect(openProgram).toHaveBeenCalledWith("media");
+
+  fireEvent.change(screen.getByLabelText("Find media"), {
+    target: { value: "pilot" },
+  });
+  await screen.findByText(
+    "No cataloged media outside this collection matches this search.",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Open Media Library" }),
+  ).toBeNull();
 });
 
 it("toggles catalog and member rows from anywhere on the row except its buttons", async () => {
@@ -435,15 +477,67 @@ it("explains incomplete maintenance in the automatic editor", async () => {
   ).toBeTruthy();
 });
 
-it("reports why an automatic collection's latest maintenance failed", async () => {
+it("reports a failed maintenance in one sentence, keeping the stored text as a tooltip", async () => {
   renderEditor(["e2", "e10"], {
     ...officeCollection,
     maintenanceError: "disk I/O error",
   });
 
-  expect((await screen.findByRole("alert")).textContent).toMatch(
-    /Updating this collection failed: disk I\/O error\. Its members are as of /,
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toMatch(
+    /^This collection could not be updated; kraziTV will try again after the next scan\. Its members are as of /,
   );
+  expect(alert.getAttribute("title")).toBe("disk I/O error");
+});
+
+it("confirms a rename in its own sentence, since saves are otherwise silent", async () => {
+  const { api } = renderEditor(["a"]);
+  api.reply(
+    "/media-collections/favorites",
+    { ...adminFixtures.collections[0], name: "Weeknights" },
+    "PATCH",
+  );
+  await screen.findByText("Alpha");
+
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Weeknights" },
+  });
+  click("Rename");
+
+  expect(await screen.findByText("Renamed to Weeknights.")).toBeTruthy();
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({ name: "Weeknights" });
+});
+
+it("retires the rename sentence once a later write starts, so its error stands alone", async () => {
+  const { api } = renderEditor(["a"]);
+  api.reply(
+    "/media-collections/favorites",
+    { ...adminFixtures.collections[0], name: "Weeknights" },
+    "PATCH",
+  );
+  api.reply(
+    "/media-collections/favorites",
+    { error: { code: "request_failed", message: "The disk is full." } },
+    "DELETE",
+    500,
+  );
+  await screen.findByText("Alpha");
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Weeknights" },
+  });
+  click("Rename");
+  await screen.findByText("Renamed to Weeknights.");
+
+  click("Delete collection");
+  click("Delete collection permanently");
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toBe("The disk is full.");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(screen.getByRole("alert").textContent).toBe("The disk is full.");
+  expect(screen.queryByText("Renamed to Weeknights.")).toBeNull();
 });
 
 it("shows an automatic collection's criterion and members read-only while allowing rename and delete", async () => {

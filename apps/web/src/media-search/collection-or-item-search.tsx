@@ -17,6 +17,7 @@ import type { MediaCollection } from "../http/contracts/collections.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
 import type { AssignmentMember } from "../http/contracts/programming.js";
 import { useResource } from "../http/resources/use-resource.js";
+import { fileNote } from "../media-availability/availability-label.js";
 import { useMediaItemPage } from "./use-media-item-page.js";
 
 const ITEM_LIMIT = 25;
@@ -32,6 +33,8 @@ export interface FoundMember {
   name: string;
   /** What tells the result apart from others of the same name. */
   detail: string;
+  /** A single item's full path, shown as a tooltip under its file name; a collection has none. */
+  path?: string;
 }
 
 /**
@@ -108,7 +111,8 @@ export function CollectionOrItemSearch({
       : (items.data?.items ?? []).map((item) => ({
           member: { kind: "media_item" as const, mediaItemId: item.id },
           name: item.title,
-          detail: item.path,
+          detail: fileNote(item),
+          path: item.path,
         }));
   const found = matched.filter(
     (result) => !hidden.has(memberKey(result.member)),
@@ -228,7 +232,7 @@ export function CollectionOrItemSearch({
                   onChange={(event) => onToggle(result, event.target.checked)}
                 />
                 {result.name}{" "}
-                <small className="secondary">
+                <small className="secondary" title={result.path}>
                   {result.detail}
                   {reason ? ` · ${reason}` : ""}
                 </small>

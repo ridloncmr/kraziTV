@@ -157,7 +157,9 @@ it("reads no media until the owner searches single items", async () => {
 
   searchItems();
 
-  expect(await screen.findByText("/media/alpha.mp4")).toBeTruthy();
+  // A row shows the file name, with the full path as its tooltip, like every list.
+  const note = await screen.findByText("alpha.mp4");
+  expect(note.title).toBe("/media/alpha.mp4");
   expect(resultNames()).toEqual(["Alpha", "Zulu"]);
   expect(lastPage(api)).toEqual({ q: "", offset: "0", limit: "25" });
   expect(screen.getByLabelText("Find media")).toBeTruthy();

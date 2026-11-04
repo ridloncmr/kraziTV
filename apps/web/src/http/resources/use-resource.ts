@@ -160,13 +160,16 @@ function withoutPath(
   return next;
 }
 
-/** A program owns its write until completion or close; concurrent submissions are blocked. */
+/**
+ * A program owns its write until completion or close; concurrent submissions
+ * are blocked. Success is silent, as an XP sheet's Apply was: a caller whose
+ * action needs a sentence keeps its own, as removal does.
+ */
 export function useMutation() {
   const owner = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error>();
-  const [message, setMessage] = useState("");
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -186,7 +189,6 @@ export function useMutation() {
     owner.current = controller;
     setPending(true);
     setError(undefined);
-    setMessage("");
     try {
       const value = await apiRequest<T>(path, {
         method,
@@ -194,7 +196,6 @@ export function useMutation() {
         signal: controller.signal,
       });
       if (!mounted.current || controller.signal.aborted) return;
-      setMessage("Operation completed successfully.");
       onSuccess?.(value);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)
@@ -204,5 +205,5 @@ export function useMutation() {
       if (mounted.current) setPending(false);
     }
   }
-  return { run, pending, error, message };
+  return { run, pending, error };
 }

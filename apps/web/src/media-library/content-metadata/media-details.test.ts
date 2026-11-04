@@ -114,17 +114,47 @@ it("says when TMDB does not list a matched episode, whose numbers are the file's
   expect(dialog.getByText("Season 1, episode 15")).toBeTruthy();
 });
 
-it("shows a failed lookup's error without TMDB's notice, since no TMDB facts appear", async () => {
+it("words a failed lookup as one sentence, keeping TMDB's text as a tooltip and showing no TMDB notice", async () => {
   await showCatalog([OUTAGE]);
 
   const dialog = within(openDetails("Outage"));
 
-  expect(dialog.getByText("TMDB answered HTTP 503")).toBeTruthy();
+  const why = dialog.getByText(
+    "TMDB could not be reached; kraziTV will try again.",
+  );
+  expect(why.getAttribute("title")).toBe("TMDB answered HTTP 503");
+  expect(dialog.queryByText("TMDB answered HTTP 503")).toBeNull();
   expect(dialog.queryByText(NOTICE)).toBeNull();
   expect(dialog.queryByRole("img")).toBeNull();
 });
 
-it("says when a matched item's TMDB data expired, and shows a failed refresh's error", async () => {
+it("tells the owner to check the key when TMDB rejected it, for a lookup and for a refresh", async () => {
+  const rejected = {
+    ...OUTAGE,
+    metadata: { ...OUTAGE.metadata, lookupError: "TMDB rejected the key" },
+  };
+  const unrefreshed = {
+    ...ALIEN,
+    metadata: { ...ALIEN.metadata, refreshError: "TMDB rejected the key" },
+  };
+  await showCatalog([rejected, unrefreshed]);
+
+  const lookup = within(openDetails("Outage"));
+  expect(
+    lookup
+      .getByText("TMDB rejected the key. Check it in Account Settings.")
+      .getAttribute("title"),
+  ).toBe("TMDB rejected the key");
+  expect(lookup.queryByText(/could not be reached/)).toBeNull();
+  fireEvent.click(lookup.getByRole("button", { name: "Close" }));
+
+  const refresh = within(openDetails("Alien (1979)"));
+  expect(
+    refresh.getByText("TMDB rejected the key. Check it in Account Settings."),
+  ).toBeTruthy();
+});
+
+it("says when a matched item's TMDB data expired, and words a failed refresh as one sentence", async () => {
   const expired = {
     ...ALIEN,
     metadata: {
@@ -139,7 +169,12 @@ it("says when a matched item's TMDB data expired, and shows a failed refresh's e
   const dialog = within(openDetails("Alien (1979)"));
 
   expect(dialog.getByText("Matched")).toBeTruthy();
-  expect(dialog.getByText("TMDB answered HTTP 404")).toBeTruthy();
+  expect(
+    dialog
+      .getByText("TMDB could not be reached; kraziTV will try again.")
+      .getAttribute("title"),
+  ).toBe("TMDB answered HTTP 404");
+  expect(dialog.queryByText("TMDB answered HTTP 404")).toBeNull();
   expect(
     dialog.getByText(
       "TMDB data expired. It will refresh when TMDB is reachable.",

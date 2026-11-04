@@ -175,8 +175,8 @@ export function ChannelsApp({
         </div>
       </div>
       <p className="program-intro">
-        Give each channel an identity and a programming source. kraziTV handles
-        what airs and when.
+        Give each channel a number and a name, then add its shows on the Lineup
+        tab. kraziTV handles what airs and when.
       </p>
       {/* An open confirmation reports its own request, and a failed runtime
           stop has its own notice below, so the page repeats neither. */}
@@ -187,7 +187,6 @@ export function ChannelsApp({
             ? undefined
             : mutation.error) ?? channels.error
         }
-        message={deleting ? undefined : mutation.message}
       />
       {cleanup.retries.map((retry) => (
         <div
@@ -230,7 +229,7 @@ export function ChannelsApp({
               );
             }}
           >
-            Retry runtime cleanup
+            Retry stopping the broadcast
           </button>
         </div>
       ))}
@@ -247,10 +246,7 @@ export function ChannelsApp({
             </>
           ) : (
             <>
-              <p>
-                No channels yet. Create a channel, then assign its programming
-                source.
-              </p>
+              <p>No channels yet. Create a channel, then add its shows.</p>
               <button onClick={() => setCreating(true)}>
                 Create a channel…
               </button>

@@ -7,11 +7,14 @@ import type { MouseEvent } from "react";
  * instead of submitting. As on XP, OK is available except during a save: on an unchanged
  * sheet it just closes, through Cancel, which closes an unchanged sheet
  * without asking. Apply stays disabled until a field changed, since there is
- * nothing to save, and every button waits out a pending save.
+ * nothing to save, and every button waits out a pending save. A sheet whose
+ * draft the server would refuse on a check no field can show holds OK and
+ * Apply too, pointing at the words that say what to change.
  */
 export function SheetFooter({
   dirty,
   busy,
+  held,
   onOk,
   onCancel,
   onApply,
@@ -19,6 +22,8 @@ export function SheetFooter({
   /** Whether a field holds a change not yet saved. */
   dirty: boolean;
   busy: boolean;
+  /** The id of the words saying why saving is held, which disables OK and Apply until the draft is fixed. */
+  held?: string;
   /** Saves, then closes the sheet. */
   onOk: () => void;
   /** Closes the sheet, asking first when a change would be lost; OK on an unchanged sheet uses it to close. */
@@ -31,7 +36,8 @@ export function SheetFooter({
     <div className="dialog-actions">
       <button
         type="submit"
-        disabled={busy}
+        disabled={busy || held !== undefined}
+        aria-describedby={held}
         onClick={dirty ? validThen(onOk) : closeUnchanged(onCancel)}
       >
         OK
@@ -41,7 +47,8 @@ export function SheetFooter({
       </button>
       <button
         type="submit"
-        disabled={nothingToSave}
+        disabled={nothingToSave || held !== undefined}
+        aria-describedby={held}
         onClick={validThen(onApply)}
       >
         Apply

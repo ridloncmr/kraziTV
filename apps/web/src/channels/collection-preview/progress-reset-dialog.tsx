@@ -67,7 +67,7 @@ export function ProgressResetDialog({
           <p>
             Restart <strong>{collectionName}</strong> in{" "}
             {modeLabel.toLowerCase()} from the beginning on this channel? What
-            is airing now finishes; every later schedule entry is regenerated.
+            is airing now finishes; the schedule after it is rebuilt.
           </p>
           <RequestFeedback loading={mutation.pending} error={mutation.error} />
           <div className="dialog-actions">

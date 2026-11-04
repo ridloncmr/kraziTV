@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { POPUP_MS } from "../desktop/chrome/xp-motion.js";
 import type { Channel } from "../http/contracts/channels.js";
+import { CANT_REACH_WORDS } from "../http/api-client.js";
 import type { BroadcastProblem } from "./broadcast-player.js";
 
 /** What the screen shows besides the picture. */
@@ -92,7 +93,7 @@ function problemWords(problem: BroadcastProblem): string {
         return "The channel couldn't start its broadcast.";
       return "kraziTV couldn't send this channel.";
     case "unreachable":
-      return "Can't reach kraziTV.";
+      return `${CANT_REACH_WORDS}.`;
     case "ended":
       return "The broadcast stopped.";
     case "unplayable":

@@ -41,7 +41,7 @@ export function toStretchSetting(draft: StretchDraft): StretchSetting {
 }
 
 /** Why a draft cannot be saved yet, as the words that ask for a fix name it. */
-export type StretchProblem = "incomplete" | "backwards";
+export type StretchProblem = "incomplete" | "backwards" | "shorter" | "unit";
 
 /**
  * Why a draft cannot be saved, or null when it can. A field its input
@@ -49,18 +49,46 @@ export type StretchProblem = "incomplete" | "backwards";
  * most is below its least is backwards, while equal ends are a fixed
  * target. Each matches what the browser checks on the field itself, so a
  * check made from another tab, or before the browser's own, agrees with it.
+ * A marathon draft is also checked against `ordinary`, the Plays at a time
+ * it extends, as the server checks the pair: one in another unit is `unit`,
+ * and one whose shortest turn could not outrun the ordinary's longest is
+ * `shorter`. An unfinished ordinary is reported by its own fields, so the
+ * pair is checked only once it is complete.
  */
-export function stretchProblem(draft: StretchDraft): StretchProblem | null {
+export function stretchProblem(
+  draft: StretchDraft,
+  ordinary?: StretchDraft,
+): StretchProblem | null {
   const setting = toStretchSetting(draft);
   const whole = Object.values(setting).every(
     (value) =>
       typeof value !== "number" || (Number.isSafeInteger(value) && value >= 1),
   );
   if (!whole) return "incomplete";
-  return setting.kind === "airtime_range" &&
+  if (
+    setting.kind === "airtime_range" &&
     setting.maxMinutes < setting.minMinutes
-    ? "backwards"
-    : null;
+  ) {
+    return "backwards";
+  }
+  if (ordinary === undefined || stretchProblem(ordinary) !== null) return null;
+  const base = toStretchSetting(ordinary);
+  if ((base.kind === "programs") !== (setting.kind === "programs")) {
+    return "unit";
+  }
+  return sizeRange(base)[1] < sizeRange(setting)[0] ? null : "shorter";
+}
+
+/** The least and most a stretch resolves to, in its own unit; a fixed size is both. */
+function sizeRange(setting: StretchSetting): [least: number, most: number] {
+  switch (setting.kind) {
+    case "programs":
+      return [setting.count, setting.count];
+    case "airtime":
+      return [setting.minutes, setting.minutes];
+    case "airtime_range":
+      return [setting.minMinutes, setting.maxMinutes];
+  }
 }
 
 /** Whether a draft can be saved: every field filled as its input accepts, and any range in order. */

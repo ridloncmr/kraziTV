@@ -181,12 +181,12 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
     "POST",
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+    screen.getByRole("button", { name: "Retry stopping the broadcast" }),
   );
 
   await waitFor(() =>
     expect(
-      screen.queryByRole("button", { name: "Retry runtime cleanup" }),
+      screen.queryByRole("button", { name: "Retry stopping the broadcast" }),
     ).toBeNull(),
   );
   const keys = api
@@ -284,4 +284,30 @@ it("explains which rule chose each turn, the rules it passed over, and where its
   expect(screen.getByText(/checked at program boundaries/).textContent).toMatch(
     /never promises a program starts exactly when a window opens/,
   );
+});
+
+it("shows the channel's off-air words when nothing would air, instead of a blank panel", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/programming-preview", {
+    configurationRevision: 1,
+    turns: [],
+    skips: [],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  await openChannelTab(api, "Preview");
+
+  const preview = await screen.findByRole("region", {
+    name: "Upcoming programming",
+  });
+  expect(
+    (await within(preview).findByText(/^Nothing is scheduled right now/))
+      .textContent,
+  ).toMatch(/its Lineup and Rules tabs\.$/);
+  expect(
+    within(preview).queryByRole("list", { name: "Upcoming shows" }),
+  ).toBeNull();
 });

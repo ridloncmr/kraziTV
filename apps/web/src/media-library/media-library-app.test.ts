@@ -19,7 +19,10 @@ import {
   scanStatus,
   scanSummary,
 } from "../testing/scan-fixtures.js";
-import { showMediaLibrary } from "../testing/media-library-actions.js";
+import {
+  openMediaDetails,
+  showMediaLibrary,
+} from "../testing/media-library-actions.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
 afterEach(() => {
@@ -41,7 +44,9 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   const lastQuery = () =>
     api.requests.filter((request) => request.path === "/media-items").at(-1)
       ?.query;
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
 
   await screen.findByText("1–50 of 120");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -56,6 +61,40 @@ it("pages the catalog on the server and restarts at the first page for a new sea
   expect(lastQuery()?.get("offset")).toBe("0");
 });
 
+it.each([
+  { configured: false, offered: true },
+  { configured: true, offered: false },
+])(
+  "offers Set up TMDB in the intro only while no key is set (configured: $configured)",
+  async ({ configured, offered }) => {
+    const api = new BrowserApi();
+    api.reply("/media-roots", []);
+    api.reply("/media-items", { items: [], total: 0 });
+    api.reply("/metadata/tmdb-key", { configured });
+    vi.stubGlobal("fetch", api.fetch);
+    const openProgram = vi.fn();
+    render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+    await screen.findByText(/No media roots yet/);
+    await waitFor(() =>
+      expect(api.requestsTo("/metadata/tmdb-key")).toHaveLength(1),
+    );
+    // The key's answer lands in the same pass as the roots'; flush it.
+    await act(async () => {});
+
+    const link = screen.queryByRole("button", { name: "Set up TMDB…" });
+    expect(link !== null).toBe(offered);
+    if (!link) return;
+    expect(link.closest("p")?.textContent).toMatch(
+      /scan it into the catalog\. Without TMDB, titles come from file names only\. Set up TMDB…$/,
+    );
+    fireEvent.click(link);
+    expect(openProgram).toHaveBeenCalledExactlyOnceWith(
+      "account",
+      "set-up-tmdb",
+    );
+  },
+);
+
 it("names each item's availability in the owner's words, never the status code", async () => {
   await showMediaLibrary([...adminFixtures.media, UNREADABLE]);
 
@@ -68,12 +107,41 @@ it("names each item's availability in the owner's words, never the status code",
   expect(screen.queryByText(/probe_failed/)).toBeNull();
 });
 
+it("keeps ffprobe's text out of the row and explains an unreadable file in Details", async () => {
+  await showMediaLibrary([UNREADABLE]);
+  expect(screen.queryByText(UNREADABLE.probeError)).toBeNull();
+
+  const dialog = within(openMediaDetails("Unreadable"));
+
+  expect(dialog.getByText("Why")).toBeTruthy();
+  const why = dialog.getByText("kraziTV could not read this file");
+  expect(why.getAttribute("title")).toBe(UNREADABLE.probeError);
+});
+
+it("says what disabling a root means, since the save is otherwise silent", async () => {
+  const { api } = renderScanLibrary([mediaRoot()]);
+  api.reply("/media-roots/root", { ...mediaRoot(), enabled: false }, "PATCH");
+  await advance();
+
+  chooseRootAction("Disable");
+  await advance();
+
+  expect(screen.getByRole("status").textContent).toBe(
+    "Disabled /media. Its files stay in the catalog; scans and refreshes skip it.",
+  );
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({ enabled: false });
+});
+
 it("keeps the current rows on screen while the next page loads", async () => {
   const api = new BrowserApi();
   api.reply("/media-roots", []);
   api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   await screen.findByText("Alpha");
 
   api.hold("/media-items");
@@ -102,7 +170,9 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
     400,
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -147,7 +217,9 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   );
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -197,7 +269,9 @@ it("raises Scan in the row of a never-scanned root only, starting the same scan 
   api.reply("/media-items", { items: [], total: 0 });
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
 
   const scanButton = await screen.findByRole("button", { name: "Scan /media" });
   expect(screen.queryByRole("button", { name: "Scan /old" })).toBeNull();
@@ -238,7 +312,9 @@ it("fills the path by browsing server folders from the typed path", async () => 
     api.response(listings[query.get("path") ?? ""]),
   );
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true }));
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
@@ -282,7 +358,7 @@ function renderScanLibrary(roots: MediaRoot[], first = scanStatus()) {
       createElement(
         WindowDialogFrame,
         null,
-        createElement(MediaLibraryApp, { visible }),
+        createElement(MediaLibraryApp, { visible, openProgram: () => {} }),
       ),
     );
   const view = render(tree(true));
@@ -354,7 +430,6 @@ it("opens the progress dialog on start and locks only the Media Library window",
   expect(screen.getByRole("dialog", { name: "Scanning media root" })).toBe(
     dialog,
   );
-  expect(screen.queryByText("Operation completed successfully.")).toBeNull();
   expect(screen.queryByText(/Scan started/)).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 });
@@ -376,8 +451,8 @@ it("shows probing as a determinate bar and committing as indeterminate", async (
     currentPath: "/media/show/Pilot.mkv",
   });
   await advance(1_000);
-  expect(statusLine(dialog).textContent).toBe("Probing media files…");
-  expect(within(dialog).getByText("Last probed: Pilot.mkv")).toBeTruthy();
+  expect(statusLine(dialog).textContent).toBe("Reading media files…");
+  expect(within(dialog).getByText("Last read: Pilot.mkv")).toBeTruthy();
   expect(within(dialog).getByText("1,204 of 3,880 files")).toBeTruthy();
   expect(bar.getAttribute("aria-valuemin")).toBe("0");
   expect(bar.getAttribute("aria-valuemax")).toBe("3880");
@@ -775,7 +850,7 @@ it("reports other start rejections in the page feedback and opens no dialog", as
     "Media root root is disabled; enable it before scanning",
   );
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(screen.queryByText("Operation completed successfully.")).toBeNull();
+  expect(screen.queryByRole("status")).toBeNull();
 });
 
 it("keeps the last known status through a failed poll and retries", async () => {

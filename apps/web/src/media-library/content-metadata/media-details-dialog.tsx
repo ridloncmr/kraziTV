@@ -3,20 +3,23 @@ import { TmdbAttribution } from "../../branding/attribution/tmdb-attribution.js"
 import { displayTime } from "../../controls/formatting/display-time.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import { Poster } from "../../controls/poster/poster.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { ContentMetadata, MediaItem } from "../../http/contracts/media.js";
 import type { TrackFolder } from "../../http/contracts/metadata.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { CorrectDetailsDialog } from "./correct-details-dialog.js";
-import { matchStateLabel } from "./match-state-label.js";
+import { matchStateLabel, tmdbFailureWords } from "./match-state-label.js";
 import { posterUrl } from "./poster-url.js";
 
 /**
  * Shows one item's match state, effective content facts, and tags, marking
  * the facts the owner corrected. Only facts the server reports appear; the
  * poster loads from TMDB, and TMDB's notice shows whenever TMDB facts do.
- * An item whose TMDB data expired says so, and a failed background refresh
- * shows its error beside the match it keeps.
+ * An item whose TMDB data expired says so. A file that could not be read, a
+ * failed lookup, and a failed background refresh each read as one owner
+ * sentence beside the match, with the stored text only as a tooltip; a
+ * TMDB failure's sentence says whether the key or TMDB's reach is at fault.
  * Offers the match decisions the item's state allows: choosing among
  * candidates, rejecting a match, or clearing a rejection. Correcting details
  * is offered in every state, and a lookup retry for any available item that
@@ -61,22 +64,37 @@ export function MediaDetailsDialog({
     unresolved ? resourcePath("metadata/track-mappings", item.id) : null,
   );
   const corrected = new Set(metadata.correctedFields);
-  // Each fact with whether the owner's correction decides it.
-  const facts: [string, string | null, boolean?][] = [
-    ["Match", matchStateLabel(metadata)],
-    ["Lookup error", metadata.lookupError],
-    ["Refresh error", metadata.refreshError],
-    ["Title", metadata.title, corrected.has("title")],
-    ["Series", metadata.seriesName, corrected.has("seriesName")],
-    [
-      "Episode",
-      episodeLine(metadata),
-      corrected.has("seasonNumber") || corrected.has("episodeNumber"),
-    ],
-    ["Released", metadata.releaseDate, corrected.has("releaseYear")],
-    ["Genres", metadata.genres.join(", ") || null],
-    ["Franchise", metadata.franchiseName],
-    ["Tags", metadata.tags.join(", ") || null],
+  // Each fact with whether the owner's correction decides it. A failure is
+  // one owner sentence saying what to do; the stored text stays as its
+  // tooltip.
+  const facts: Fact[] = [
+    { label: "Match", value: matchStateLabel(metadata) },
+    failureFact(
+      "Why",
+      item.probeError,
+      () => "kraziTV could not read this file",
+    ),
+    failureFact("Lookup error", metadata.lookupError, tmdbFailureWords),
+    failureFact("Refresh error", metadata.refreshError, tmdbFailureWords),
+    { label: "Title", value: metadata.title, byOwner: corrected.has("title") },
+    {
+      label: "Series",
+      value: metadata.seriesName,
+      byOwner: corrected.has("seriesName"),
+    },
+    {
+      label: "Episode",
+      value: episodeLine(metadata),
+      byOwner: corrected.has("seasonNumber") || corrected.has("episodeNumber"),
+    },
+    {
+      label: "Released",
+      value: metadata.releaseDate,
+      byOwner: corrected.has("releaseYear"),
+    },
+    { label: "Genres", value: metadata.genres.join(", ") || null },
+    { label: "Franchise", value: metadata.franchiseName },
+    { label: "Tags", value: metadata.tags.join(", ") || null },
   ];
   if (correcting) {
     return (
@@ -102,7 +120,7 @@ export function MediaDetailsDialog({
       </p>
       <div className="media-details">
         {metadata.posterPath && (
-          <img
+          <Poster
             className="media-poster"
             src={posterUrl(metadata.posterPath, "w342")}
             alt={`Poster for ${metadata.seriesName ?? metadata.title ?? item.title}`}
@@ -110,11 +128,11 @@ export function MediaDetailsDialog({
         )}
         <dl className="facts">
           {facts
-            .filter(([, value]) => value !== null)
-            .map(([label, value, byOwner]) => (
+            .filter((fact) => fact.value !== null)
+            .map(({ label, value, byOwner, stored }) => (
               <Fragment key={label}>
                 <dt>{label}</dt>
-                <dd>
+                <dd title={stored ?? undefined}>
                   {value}
                   {byOwner && (
                     <small className="secondary"> (your correction)</small>
@@ -205,6 +223,29 @@ export function MediaDetailsDialog({
       </div>
     </WindowDialog>
   );
+}
+
+/** One row of the facts list; a fact whose value is null is not shown. */
+interface Fact {
+  label: string;
+  value: string | null;
+  /** Whether the owner's correction decides the value. */
+  byOwner?: boolean;
+  /** The stored failure text the value stands in for, shown as a tooltip. */
+  stored?: string | null;
+}
+
+/**
+ * A failure fact reads `sentence` of the stored text only while the server
+ * stores a failure; the stored text itself names codes and HTTP answers the
+ * owner cannot act on, so it is kept only as the tooltip.
+ */
+function failureFact(
+  label: string,
+  stored: string | null,
+  sentence: (stored: string) => string,
+): Fact {
+  return { label, value: stored === null ? null : sentence(stored), stored };
 }
 
 /**

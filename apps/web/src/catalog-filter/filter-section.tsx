@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { displayCount } from "../controls/formatting/display-count.js";
 
 /** One value a filter section offers: what the server receives and what the owner reads. */
@@ -28,8 +28,8 @@ export function FilterSection({
   options: readonly FilterOption[];
   chosen: readonly string[];
   onToggle: (value: string, on: boolean) => void;
-  /** What the section says when it has no values to offer. */
-  empty: string;
+  /** What the section says when it has no values to offer, or could not load them. */
+  empty: ReactNode;
 }) {
   const [find, setFind] = useState("");
   const needle = find.trim().toLowerCase();

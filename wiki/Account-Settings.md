@@ -50,7 +50,8 @@ automatic collections for series or franchises.
    shorter API Key.
 3. In Account Settings, choose **Set up TMDB**, paste it, and click
    **Save**. The reminder balloon in the system tray has a **Set up TMDB**
-   button that takes you straight there.
+   button that takes you straight there, and so does the **Set up TMDB…**
+   button at the top of [Media Library](Media-Library) until a key is saved.
 
 ![Set up TMDB, with a key already saved](images/set-up-tmdb.png)
 

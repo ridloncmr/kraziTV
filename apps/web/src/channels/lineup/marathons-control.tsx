@@ -96,7 +96,6 @@ export function MarathonsControl({
       <RequestFeedback
         loading={marathons.loading || mutation.pending}
         error={customizing ? undefined : (mutation.error ?? marathons.error)}
-        message={mutation.message}
       />
       {customizing && saved && (
         <CustomMarathonsDialog

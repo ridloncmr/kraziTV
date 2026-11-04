@@ -56,11 +56,18 @@ export function MaintenanceReport({
     collection.maintainedAt === null
       ? "never"
       : displayTime(collection.maintainedAt);
+  // The stored failure text names the server's fault, which the owner cannot
+  // act on, so it stays as the tooltip; maintenance runs again after the
+  // next scan or metadata change.
   if (collection.maintenanceError !== null) {
     return (
-      <p role="alert" className="error-message">
-        Updating this collection failed: {collection.maintenanceError}. Its
-        members are as of {since}.
+      <p
+        role="alert"
+        className="error-message"
+        title={collection.maintenanceError}
+      >
+        This collection could not be updated; kraziTV will try again after the
+        next scan. Its members are as of {since}.
       </p>
     );
   }

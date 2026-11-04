@@ -19,6 +19,19 @@ export const MATCH_STATE_LABELS: Record<ContentMetadata["matchState"], string> =
 export const LOOKUP_FAILED_LABEL = "Lookup failed";
 
 /**
+ * The owner's sentence for a stored TMDB lookup or refresh failure. The
+ * server keeps TMDB's reason as text, with no kind beside it, so the words
+ * are chosen from that text: a rejected key is the owner's to fix, so the
+ * sentence says where; anything else, TMDB unreachable, an HTTP answer, or
+ * a reply kraziTV could not read, is kraziTV's to retry.
+ */
+export function tmdbFailureWords(stored: string): string {
+  return stored === "TMDB rejected the key"
+    ? "TMDB rejected the key. Check it in Account Settings."
+    : "TMDB could not be reached; kraziTV will try again.";
+}
+
+/**
  * Names an item's match state for the owner. A failed lookup stays
  * `unmatched` on the server, but reads as a failure, not as TMDB having no
  * answer, so the owner knows a retry may help. A match whose file changed

@@ -74,22 +74,27 @@ it("keeps a saved delete absent, closes its Properties window, and retries clean
     "The channel's broadcast did not stop cleanly. Retry to finish stopping it.",
   );
   expect(screen.queryByText(/cleanup did not finish/)).toBeNull();
-  await screen.findByText(/No channels yet/);
+  // The empty state and intro speak the screen's words: shows and the Lineup
+  // tab, never a programming source.
+  await screen.findByText(
+    "No channels yet. Create a channel, then add its shows.",
+  );
+  screen.getByText(/then add its shows on the Lineup tab/);
   // Nothing is left to edit, so its window closed with the delete.
   expect(screen.queryByRole("tab", { name: "Lineup" })).toBeNull();
   view.unmount();
   render(createElement(ChannelWindows));
   expect(
-    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+    screen.getByRole("button", { name: "Retry stopping the broadcast" }),
   ).toBeTruthy();
   api.reply("/channels/one", undefined, "DELETE", 204);
   api.reply("/channels", []);
   fireEvent.click(
-    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+    screen.getByRole("button", { name: "Retry stopping the broadcast" }),
   );
   await waitFor(() =>
     expect(
-      screen.queryByRole("button", { name: "Retry runtime cleanup" }),
+      screen.queryByRole("button", { name: "Retry stopping the broadcast" }),
     ).toBeNull(),
   );
   expect(
@@ -131,11 +136,11 @@ it("reports a rejected re-enable as still disabled, then retries its earlier sto
     "PATCH",
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+    screen.getByRole("button", { name: "Retry stopping the broadcast" }),
   );
   await waitFor(() =>
     expect(
-      screen.queryByRole("button", { name: "Retry runtime cleanup" }),
+      screen.queryByRole("button", { name: "Retry stopping the broadcast" }),
     ).toBeNull(),
   );
   expect(
@@ -415,6 +420,8 @@ it("saves General's number and name with Apply, which is enabled only while a fi
   // The fields now match the saved channel, so nothing is left to save.
   await waitFor(() => expect(button("Apply").disabled).toBe(true));
   expect(button("OK").disabled).toBe(false);
+  // The disabled Apply is the confirmation, as on an XP sheet; no sentence.
+  expect(screen.queryByRole("status")).toBeNull();
 });
 
 it("closes an unchanged General tab with OK and saves nothing, as an XP sheet did", async () => {

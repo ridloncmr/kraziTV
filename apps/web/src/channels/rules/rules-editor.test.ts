@@ -253,7 +253,7 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   });
 });
 
-it("shows the server's message for an invalid size pair", async () => {
+it("says what to change for an invalid size pair instead of the server's message", async () => {
   const api = editorApi();
   api.reply(
     RULES,
@@ -262,6 +262,8 @@ it("shows the server's message for an invalid size pair", async () => {
         code: "programming_rule_stretch_invalid",
         message:
           "Rule settings for programming assignment christmas-turns are invalid: a marathon must be longer than the ordinary stretch",
+        assignmentId: "christmas-turns",
+        problem: "a marathon must be longer than the ordinary stretch",
       },
     },
     "POST",
@@ -283,9 +285,9 @@ it("shows the server's message for an invalid size pair", async () => {
   });
   fireEvent.click(within(form).getByRole("button", { name: "OK" }));
 
-  expect(
-    await within(form).findByText(/marathon must be longer than the ordinary/),
-  ).toBeTruthy();
+  expect((await within(form).findByRole("alert")).textContent).toBe(
+    "Make the marathon longer than Plays at a time.",
+  );
   expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
 });
 

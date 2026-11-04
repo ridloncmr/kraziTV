@@ -8,9 +8,14 @@ import { Pager } from "../controls/pager/pager.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { RowMenu } from "../controls/popups/row-menu.js";
 import { useRangeToggle } from "../controls/selection/use-range-toggle.js";
+import type { ProgramId, ProgramTask } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaFilter, MediaRoot } from "../http/contracts/media.js";
-import type { RetryScope, ReviewStep } from "../http/contracts/metadata.js";
+import type {
+  RetryScope,
+  ReviewStep,
+  TmdbKeyStatus,
+} from "../http/contracts/metadata.js";
 import { useRefreshScope } from "../http/resources/refresh-scope.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { useMediaItemPage } from "../media-search/use-media-item-page.js";
@@ -35,13 +40,19 @@ const PAGE_SIZE = 50;
  */
 export function MediaLibraryApp({
   visible,
-  onOpenChannels,
+  openProgram,
 }: {
   visible: boolean;
-  /** Opens My Channels, where a special blocking a removal is resolved. */
-  onOpenChannels?: () => void;
+  /**
+   * Opens another program: Account Settings on Set up TMDB from the intro, or
+   * My Channels, where a special blocking a removal is resolved.
+   */
+  openProgram: (id: ProgramId, task?: ProgramTask) => void;
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
+  // Whether a TMDB key is set, read as the tray reminder reads it; a failed
+  // read only hides the Set up TMDB link.
+  const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", visible);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
   const media = useMediaItemPage(search, PAGE_SIZE, visible, { filter });
@@ -62,7 +73,9 @@ export function MediaLibraryApp({
   const [lastRequest, setLastRequest] = useState<"root" | "scan" | "removal">(
     "root",
   );
-  const [removalMessage, setRemovalMessage] = useState("");
+  // The sentence a finished root toggle or removal leaves; sheets apply
+  // silently, but these change what the lists below will show.
+  const [notice, setNotice] = useState("");
   const [dialog, setDialog] = useState<MediaLibraryDialog>({ kind: "none" });
   // Selection is transient desktop shell state; it survives paging and search.
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
@@ -88,9 +101,27 @@ export function MediaLibraryApp({
   /** Reports a finished removal and releases the selection it removed. */
   function removed(feedback: string) {
     setLastRequest("removal");
-    setRemovalMessage(feedback);
+    setNotice(feedback);
     setChosen(new Set());
     refresh();
+  }
+  /** Enables or disables a root, then says what that means for its files. */
+  function toggleRoot(root: MediaRoot) {
+    setLastRequest("root");
+    setNotice("");
+    void mutation.run(
+      resourcePath("media-roots", root.id),
+      "PATCH",
+      { enabled: !root.enabled },
+      () => {
+        setNotice(
+          root.enabled
+            ? `Disabled ${root.path}. Its files stay in the catalog; scans and refreshes skip it.`
+            : `Enabled ${root.path}. Scans and refreshes include it again.`,
+        );
+        refresh();
+      },
+    );
   }
   /** Refreshes projections after a write without guessing new catalog availability. */
   function refresh() {
@@ -110,6 +141,18 @@ export function MediaLibraryApp({
       </div>
       <p className="program-intro">
         Tell kraziTV where your media lives, then scan it into the catalog.
+        {tmdbKey.data?.configured === false && (
+          <>
+            {" "}
+            Without TMDB, titles come from file names only.{" "}
+            <button
+              type="button"
+              onClick={() => openProgram("account", "set-up-tmdb")}
+            >
+              Set up TMDB…
+            </button>
+          </>
+        )}
       </p>
       <RequestFeedback
         loading={roots.loading || mutation.pending || scan.starting}
@@ -118,13 +161,7 @@ export function MediaLibraryApp({
           roots.error ??
           media.error
         }
-        message={
-          lastRequest === "root"
-            ? mutation.message
-            : lastRequest === "removal"
-              ? removalMessage
-              : undefined
-        }
+        message={lastRequest === "scan" ? undefined : notice}
       />
       <fieldset disabled={mutation.pending || scan.starting}>
         <legend>Media roots</legend>
@@ -187,15 +224,7 @@ export function MediaLibraryApp({
                           items={[
                             {
                               label: root.enabled ? "Disable" : "Enable",
-                              onSelect: () => {
-                                setLastRequest("root");
-                                void mutation.run(
-                                  resourcePath("media-roots", root.id),
-                                  "PATCH",
-                                  { enabled: !root.enabled },
-                                  refresh,
-                                );
-                              },
+                              onSelect: () => toggleRoot(root),
                             },
                             {
                               label: "Scan",
@@ -330,13 +359,10 @@ export function MediaLibraryApp({
                   </td>
                   <td>
                     {item.title}
-                    {/* The file alone; Details shows the whole path. */}
+                    {/* The file alone; Details shows the whole path, and why a file could not be read. */}
                     <small className="secondary path-cell">
                       {fileName(item.path)}
                     </small>
-                    {item.probeError && (
-                      <small className="error-message">{item.probeError}</small>
-                    )}
                   </td>
                   <td>{AVAILABILITY_LABELS[item.status]}</td>
                   <td>{displayDuration(item.durationMs)}</td>
@@ -366,7 +392,7 @@ export function MediaLibraryApp({
         onScan={startScan}
         onRetry={retryLookups}
         onRemoved={removed}
-        onOpenChannels={onOpenChannels}
+        onOpenChannels={() => openProgram("channels")}
         refresh={refresh}
       />
       {scan.followed && (

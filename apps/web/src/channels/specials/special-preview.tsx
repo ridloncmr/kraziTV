@@ -57,13 +57,13 @@ export function SpecialPreview({ preview }: { preview: Preview }) {
         ))}
       </ol>
       {preview.programs?.length === 0 && (
-        <p>No program fits; the channel shows filler for the whole range.</p>
+        <p>No program fits; the channel is off air for the whole range.</p>
       )}
       {preview.fillerBefore && (
-        <p>Filler before it: {range(preview.fillerBefore)}.</p>
+        <p>Off air before it: {range(preview.fillerBefore)}.</p>
       )}
       {preview.fillerInside && (
-        <p>Filler inside it: {range(preview.fillerInside)}.</p>
+        <p>Off air inside it: {range(preview.fillerInside)}.</p>
       )}
       {preview.deferredProgram && (
         <p>

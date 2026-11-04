@@ -1,4 +1,5 @@
 import { rulesInPlay, skipWords, turnWords } from "./preview-words.js";
+import { offAirWords } from "../../channel-observation/airing-words.js";
 import { displayListTime } from "../../controls/formatting/display-time.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type {
@@ -56,6 +57,12 @@ export function UpcomingProgramming({
   const ruleName = (id: string) =>
     rules?.find((rule) => rule.id === id)?.name ?? "a rule";
   const inPlay = preview.data ? rulesInPlay(preview.data.turns) : false;
+  // No turns and no show passed over means nothing would air, so the
+  // channel's off-air words say where to look, as Live Monitor's do.
+  const nothingWouldAir =
+    preview.data !== undefined &&
+    preview.data.turns.length === 0 &&
+    preview.data.skips.length === 0;
   return (
     <section aria-label="Upcoming programming">
       <h4>Upcoming programming</h4>
@@ -67,7 +74,10 @@ export function UpcomingProgramming({
         </p>
       )}
       <RequestFeedback loading={preview.loading} error={preview.error} />
-      {preview.data && (
+      {nothingWouldAir && (
+        <p className="empty-state">{offAirWords("schedule_gap")}</p>
+      )}
+      {preview.data && !nothingWouldAir && (
         <>
           <ol aria-label="Upcoming shows">
             {preview.data.turns.map((turn, index, turns) => (
