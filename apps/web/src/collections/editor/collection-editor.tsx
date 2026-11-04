@@ -67,6 +67,9 @@ export function CollectionEditor({
   );
   const [converting, setConverting] = useState(false);
   const [changingCriterion, setChangingCriterion] = useState(false);
+  // The last rename's confirmation; the title changes too, but the form
+  // keeps the typed name, so the sentence says the save landed.
+  const [renamed, setRenamed] = useState("");
   // Unsaved edits, or the order a save returned until the refetch replaces it,
   // so a save never flashes the old order back.
   const [local, setLocal] = useState<{
@@ -113,18 +116,18 @@ export function CollectionEditor({
           members.error ??
           status.error
         }
-        message={deleting ? undefined : mutation.message}
+        message={deleting ? undefined : renamed}
       />
       <form
         className="inline-form"
         onSubmit={(event) => {
           event.preventDefault();
-          void mutation.run(
-            path,
-            "PATCH",
-            { name: formText(new FormData(event.currentTarget), "name") },
-            changed,
-          );
+          const name = formText(new FormData(event.currentTarget), "name");
+          setRenamed("");
+          void mutation.run(path, "PATCH", { name }, () => {
+            setRenamed(`Renamed to ${name}.`);
+            changed();
+          });
         }}
       >
         <label>

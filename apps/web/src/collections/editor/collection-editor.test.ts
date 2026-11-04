@@ -435,15 +435,37 @@ it("explains incomplete maintenance in the automatic editor", async () => {
   ).toBeTruthy();
 });
 
-it("reports why an automatic collection's latest maintenance failed", async () => {
+it("reports a failed maintenance in one sentence, keeping the stored text as a tooltip", async () => {
   renderEditor(["e2", "e10"], {
     ...officeCollection,
     maintenanceError: "disk I/O error",
   });
 
-  expect((await screen.findByRole("alert")).textContent).toMatch(
-    /Updating this collection failed: disk I\/O error\. Its members are as of /,
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toMatch(
+    /^This collection could not be updated; kraziTV will try again after the next scan\. Its members are as of /,
   );
+  expect(alert.getAttribute("title")).toBe("disk I/O error");
+});
+
+it("confirms a rename in its own sentence, since saves are otherwise silent", async () => {
+  const { api } = renderEditor(["a"]);
+  api.reply(
+    "/media-collections/favorites",
+    { ...adminFixtures.collections[0], name: "Weeknights" },
+    "PATCH",
+  );
+  await screen.findByText("Alpha");
+
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Weeknights" },
+  });
+  click("Rename");
+
+  expect(await screen.findByText("Renamed to Weeknights.")).toBeTruthy();
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({ name: "Weeknights" });
 });
 
 it("shows an automatic collection's criterion and members read-only while allowing rename and delete", async () => {

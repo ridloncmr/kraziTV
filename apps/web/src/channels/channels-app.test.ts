@@ -415,6 +415,8 @@ it("saves General's number and name with Apply, which is enabled only while a fi
   // The fields now match the saved channel, so nothing is left to save.
   await waitFor(() => expect(button("Apply").disabled).toBe(true));
   expect(button("OK").disabled).toBe(false);
+  // The disabled Apply is the confirmation, as on an XP sheet; no sentence.
+  expect(screen.queryByRole("status")).toBeNull();
 });
 
 it("closes an unchanged General tab with OK and saves nothing, as an XP sheet did", async () => {

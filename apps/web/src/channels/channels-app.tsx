@@ -187,7 +187,6 @@ export function ChannelsApp({
             ? undefined
             : mutation.error) ?? channels.error
         }
-        message={deleting ? undefined : mutation.message}
       />
       {cleanup.retries.map((retry) => (
         <div

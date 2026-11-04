@@ -358,11 +358,7 @@ export function ShowPropertiesDialog({
             )}
           </fieldset>
         </TabbedPanel>
-        <RequestFeedback
-          loading={mutation.pending}
-          error={mutation.error}
-          message={mutation.message}
-        />
+        <RequestFeedback loading={mutation.pending} error={mutation.error} />
         <SheetFooter
           dirty={dirty}
           busy={busy}

@@ -19,7 +19,10 @@ import {
   scanStatus,
   scanSummary,
 } from "../testing/scan-fixtures.js";
-import { showMediaLibrary } from "../testing/media-library-actions.js";
+import {
+  openMediaDetails,
+  showMediaLibrary,
+} from "../testing/media-library-actions.js";
 import { MediaLibraryApp } from "./media-library-app.js";
 
 afterEach(() => {
@@ -66,6 +69,33 @@ it("names each item's availability in the owner's words, never the status code",
   expect(availability("Zulu")).toBe("Missing");
   expect(availability("Unreadable")).toBe("Could not be read");
   expect(screen.queryByText(/probe_failed/)).toBeNull();
+});
+
+it("keeps ffprobe's text out of the row and explains an unreadable file in Details", async () => {
+  await showMediaLibrary([UNREADABLE]);
+  expect(screen.queryByText(UNREADABLE.probeError)).toBeNull();
+
+  const dialog = within(openMediaDetails("Unreadable"));
+
+  expect(dialog.getByText("Why")).toBeTruthy();
+  const why = dialog.getByText("kraziTV could not read this file");
+  expect(why.getAttribute("title")).toBe(UNREADABLE.probeError);
+});
+
+it("says what disabling a root means, since the save is otherwise silent", async () => {
+  const { api } = renderScanLibrary([mediaRoot()]);
+  api.reply("/media-roots/root", { ...mediaRoot(), enabled: false }, "PATCH");
+  await advance();
+
+  chooseRootAction("Disable");
+  await advance();
+
+  expect(screen.getByRole("status").textContent).toBe(
+    "Disabled /media. Its files stay in the catalog; scans and refreshes skip it.",
+  );
+  expect(
+    api.requests.find((request) => request.method === "PATCH")?.body,
+  ).toEqual({ enabled: false });
 });
 
 it("keeps the current rows on screen while the next page loads", async () => {
@@ -354,7 +384,6 @@ it("opens the progress dialog on start and locks only the Media Library window",
   expect(screen.getByRole("dialog", { name: "Scanning media root" })).toBe(
     dialog,
   );
-  expect(screen.queryByText("Operation completed successfully.")).toBeNull();
   expect(screen.queryByText(/Scan started/)).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 });
@@ -775,7 +804,7 @@ it("reports other start rejections in the page feedback and opens no dialog", as
     "Media root root is disabled; enable it before scanning",
   );
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(screen.queryByText("Operation completed successfully.")).toBeNull();
+  expect(screen.queryByRole("status")).toBeNull();
 });
 
 it("keeps the last known status through a failed poll and retries", async () => {

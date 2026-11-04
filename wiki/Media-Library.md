@@ -89,6 +89,9 @@ with their posters and lets you search TMDB for something else.
 
 **Details…** on any row opens everything kraziTV knows about the file: its
 match, title, series, episode, release date, genres, and TMDB's description.
+A file marked **Could not be read** says so here under **Why**, and a lookup
+that failed says TMDB could not be reached; the row itself only names the
+state.
 
 ![Media details](images/media-details.png)
 

@@ -258,11 +258,16 @@ function CatalogFilterSection({
       chosen={chosen}
       onToggle={onToggle}
       empty={
-        rows.error
-          ? `Could not load: ${rows.error.message}`
-          : rows.data
-            ? empty
-            : "Loading…"
+        rows.error ? (
+          // The request's text is for the tooltip; the owner reads one sentence.
+          <span title={rows.error.message}>
+            These could not be loaded. Close the filter and open it again.
+          </span>
+        ) : rows.data ? (
+          empty
+        ) : (
+          "Loading…"
+        )
       }
     />
   );

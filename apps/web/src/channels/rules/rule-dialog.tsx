@@ -114,11 +114,7 @@ export function RuleDialog({
             )}
           </fieldset>
         </TabbedPanel>
-        <RequestFeedback
-          loading={mutation.pending}
-          error={mutation.error}
-          message={mutation.message}
-        />
+        <RequestFeedback loading={mutation.pending} error={mutation.error} />
         <div className="dialog-actions">
           <button type="submit" disabled={mutation.pending}>
             OK
