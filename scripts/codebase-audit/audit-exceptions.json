@@ -65,13 +65,13 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/channels/specials/"],
-      "reason": "specials/ is already the specials capability inside channels/: its section, editor, preview, source fields, and end-early dialog all serve that one section.",
+      "reason": "specials/ is already the specials capability inside channels/: its section, editor, preview, source fields, end-early dialog, the special words they phrase refusals and airtimes with, and the API shapes in contracts.ts all serve that one section.",
       "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
     },
     {
       "rule": "grouping",
       "files": ["apps/web/src/desktop/windows/"],
-      "reason": "windows/ is already the desktop-window capability inside desktop/: the window frame, its placement reducer and memory, and the properties-window bookkeeping all serve desktop windows.",
+      "reason": "windows/ is already the desktop-window capability inside desktop/: the window frame (app-window.tsx), its placement reducer and memory (window-state.ts, window-memory.ts), the properties-window bookkeeping (use-properties-windows.ts, use-properties-list.ts), and the close a window lends its program with the unsaved-edits report that guards it (close-window.ts, use-unsaved-report.ts) all serve desktop windows.",
       "source": "AGENTS.md (source layout: \"Leave a domain flat when its files all serve one capability\")"
     },
     {
@@ -152,7 +152,7 @@
     {
       "rule": "grouping",
       "files": ["apps/server/src/channels/runtime/"],
-      "reason": "Every file connects the server to the signal runtime (stream manager setup, playout adapter, mapping, transition coordinator, log adapter), one capability, so the folder stays flat.",
+      "reason": "Every file connects the server to the signal runtime (stream manager setup, playout adapter, mapping, transition coordinator, log adapter, the per-channel lifecycle lock, and the bounded wait for an administrative runtime stop), one capability, so the folder stays flat.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
@@ -297,8 +297,14 @@
     {
       "rule": "grouping",
       "files": ["apps/web/src/channels/lineup/"],
-      "reason": "Every file serves one capability, the Lineup tab: its read-only show list, the Add shows dialog, the Properties dialog that edits one show, the member names, show labels, and draft those share, and the channel's Marathons control with its Custom dialog.",
-      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\"); programming spec 0008 (Technical Behavior: \"a lineup/ capability for the list, add dialog, and properties dialog\")"
+      "reason": "lineup/ is the Lineup tab capability and its root holds the tab's own surfaces: the read-only show list (lineup-tab.tsx), the Add shows dialog, the Properties dialog that edits one show, the channel's Marathons control with its Custom dialog, and the show draft and member names those dialogs share. picks/ holds what the Add shows dialog picks with and what every channels/ tab names shows with, split out before the folder's ninth file instead of after it.",
+      "source": "docs/specs/features/004-release-polish/README.md (decision 11: \"channels/lineup/ is pre-split now: the picks files move into lineup/picks/\")"
+    },
+    {
+      "rule": "nesting-depth",
+      "files": ["apps/web/src/channels/lineup/picks/"],
+      "reason": "lineup/ has eight source files, so the next one makes it meet the grouping rule; picks/ (the selected-picks list and show labels) is that grouping made one file early, so new picking code lands in a capability rather than a flat folder past its limit.",
+      "source": "docs/specs/features/004-release-polish/README.md (decision 11: \"channels/lineup/ is pre-split now: the picks files move into lineup/picks/\"); AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
     },
     {
       "rule": "grouping",
