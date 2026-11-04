@@ -83,7 +83,9 @@ facts, POLISH-032 the poster); `apps/web/integration/desktop.browser.ts`
 Complete on 2026-11-04. Every window dialog's action row, the sheet footer
 included, sticks to the bottom of the scrolling body as an XP button row,
 Channel Properties opens 640px tall, and the browser walk asserts Next in Add
-shows and OK in Show Properties lie inside the dialog before any scroll.
+shows and OK in Show Properties lie inside the dialog before any scroll. The
+body scroll-pads past the row, so a field tabbed to near its end stays clear
+of it.
 
 **Goal**: At the size Channel Properties opens at, Add shows shows **Next**
 and Show Properties shows OK / Cancel / Apply without scrolling. Closes
@@ -198,7 +200,10 @@ Complete on 2026-11-04. `refusalWords` words `media_collection_in_use`,
 the last naming the rule from a new `ruleName` detail; `stretchProblem` gained
 `shorter` and `unit` checks against Plays at a time, so Show Properties holds
 OK and Apply with "Make the marathon longer than Plays at a time" and maps the
-server's empty-path stretch issue to the same sentence.
+server's empty-path stretch issue to the same sentence. Deferred: the web
+tells the two pair problems apart by kraziBrain's sentence text; a later
+server change can carry a problem kind in `details` so the words stop
+depending on it.
 
 **Goal**: The owner never reads "assignment", "reservation", or "stretch" in
 a refusal. Closes UI-developer-words-remain (server codes) and

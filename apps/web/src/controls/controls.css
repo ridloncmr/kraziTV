@@ -651,6 +651,8 @@
  */
 .window-dialog-body:has(.dialog-actions) {
   padding-bottom: 0;
+  /* A field tabbed to near the end scrolls clear of the sticky row. */
+  scroll-padding-bottom: 48px;
 }
 .window-dialog-body .dialog-actions {
   position: sticky;
