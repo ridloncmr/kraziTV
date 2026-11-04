@@ -527,6 +527,9 @@ for (const viewport of [
     await addShows
       .getByRole("checkbox", { name: /^Northwoods collection/ })
       .check();
+    // The footer is on screen before anything scrolls, so a first-time owner
+    // sees how to continue.
+    await expectFooterButtonShown(addShows, "Next (1)");
     await addShows.getByRole("button", { name: "Next (1)" }).click();
     // One unmatched file suggests no per sitting, so the owner chooses.
     // Until then Add is disabled and says why.
@@ -560,6 +563,22 @@ for (const viewport of [
         .getByRole("button", { name: "Northwoods collection", exact: true }),
     ).toBeVisible();
     await expect(properties.getByRole("dialog")).toHaveCount(0);
+    // Show Properties opens on General with OK in view the same way; OK on
+    // the unchanged sheet closes it without a save.
+    await properties
+      .getByRole("button", { name: "Northwoods collection", exact: true })
+      .click();
+    await properties
+      .getByRole("button", { name: "Properties", exact: true })
+      .click();
+    const showProperties = properties.getByRole("dialog", {
+      name: "Northwoods collection",
+    });
+    await expectFooterButtonShown(showProperties, "OK");
+    await showProperties
+      .getByRole("button", { name: "OK", exact: true })
+      .click();
+    await expect(showProperties).toBeHidden();
     await properties.getByRole("tab", { name: "Preview" }).click();
     await expect(
       properties.getByRole("list", { name: "Upcoming shows" }),
@@ -671,6 +690,25 @@ for (const viewport of [
     const tray = await page.locator(".taskbar").boundingBox();
     expect(tray?.y).toBe(viewport.height - 32);
   });
+}
+
+/**
+ * Asserts a dialog's footer button lies inside the dialog's visible box
+ * while the body is still unscrolled, so the owner sees it without being
+ * told to scroll. Playwright would scroll it into view before a click, so
+ * the click alone proves nothing.
+ */
+async function expectFooterButtonShown(dialog: Locator, name: string) {
+  const body = dialog.locator(".window-dialog-body");
+  expect(await body.evaluate((element) => element.scrollTop)).toBe(0);
+  const frame = await dialog.boundingBox();
+  const button = await dialog
+    .getByRole("button", { name, exact: true })
+    .boundingBox();
+  expect(button!.y).toBeGreaterThanOrEqual(frame!.y);
+  expect(button!.y + button!.height).toBeLessThanOrEqual(
+    frame!.y + frame!.height,
+  );
 }
 
 /** The computed styles that tell a disabled title-bar button from an enabled one. */

@@ -75,7 +75,8 @@ const propertiesPrograms: Record<PropertiesKind, ProgramDefinition> = {
     name: "Channel Properties",
     description: "Set up one channel's identity and programming",
     group: "Primary",
-    placement: { x: 620, y: 40, width: 640, height: 600 },
+    // Tall enough that Show Properties' footer shows without scrolling.
+    placement: { x: 620, y: 40, width: 640, height: 640 },
   },
   "collection-properties": {
     id: "collection-properties",
