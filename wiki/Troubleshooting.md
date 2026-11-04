@@ -11,8 +11,9 @@ want to use and restart. See [Settings](Settings#the-address).
 A window reads "Can't reach kraziTV. Check that it is running, then press
 Refresh." when kraziTV did not answer the browser: it is stopped, still
 starting, or taking too long. The dot in the system tray turns amber at the
-same time. Wait a moment for kraziTV to finish starting, then press Refresh
-in your browser. If it keeps saying so, start kraziTV again on its computer
+same time. Wait a moment for kraziTV to finish starting, then press the
+window's **Refresh** button or refresh the page in your browser. If it keeps
+saying so, start kraziTV again on its computer
 or in Docker (see [Install](Install)) and make sure the address in your
 browser is the one in [Settings](Settings#the-address).
 

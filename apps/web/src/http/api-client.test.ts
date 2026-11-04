@@ -67,6 +67,7 @@ it("keeps the HTTP status when the error body is not an API envelope", async () 
   await expect(apiRequest("/health")).rejects.toMatchObject({
     code: "request_failed",
     status: 502,
+    message: UNREACHABLE_SENTENCE,
   });
 });
 
@@ -167,17 +168,4 @@ it("keeps the caller's own abort as thrown, so an abandoned request shows no err
   }).catch((error: unknown) => error);
 
   expect(failure).toBe(controller.signal.reason);
-});
-
-it("says kraziTV can't be reached when a gateway answers without an envelope", async () => {
-  const api = new BrowserApi();
-  api.handle(
-    "/health",
-    () => new Response("<html>Bad gateway</html>", { status: 502 }),
-  );
-  vi.stubGlobal("fetch", api.fetch);
-
-  await expect(apiRequest("/health")).rejects.toMatchObject({
-    message: UNREACHABLE_SENTENCE,
-  });
 });
