@@ -378,7 +378,6 @@ export function ShowPropertiesDialog({
         <RequestFeedback
           loading={mutation.pending}
           error={sheetError(mutation.error)}
-          message={mutation.message}
         />
         {held && (
           <p id={heldId} className="secondary">

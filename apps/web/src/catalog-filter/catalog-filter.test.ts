@@ -98,6 +98,25 @@ it("labels availability with the library's words and filters by the status they 
   );
 });
 
+it("words a section that could not load in one sentence, with the request's text as a tooltip", async () => {
+  const api = await showFilterableLibrary();
+  api.reply(
+    "/media-collections/genres",
+    { error: { code: "internal_error", message: "Server unavailable" } },
+    "GET",
+    500,
+  );
+  const dialog = openFilter();
+
+  const failed = await dialog.findByText(
+    "These could not be loaded. Close the filter and open it again.",
+  );
+
+  expect(failed.getAttribute("title")).toBe("Server unavailable");
+  expect(dialog.queryByText(/Server unavailable/)).toBeNull();
+  expect(await dialog.findByRole("checkbox", { name: /Firefly/ })).toBeTruthy();
+});
+
 it("narrows a long section by typing without unchecking what it hides", async () => {
   await showFilterableLibrary();
   const dialog = openFilter();

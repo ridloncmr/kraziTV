@@ -72,11 +72,7 @@ export function GeneralTab({
           </label>
         </div>
       </fieldset>
-      <RequestFeedback
-        loading={mutation.pending}
-        error={mutation.error}
-        message={mutation.message}
-      />
+      <RequestFeedback loading={mutation.pending} error={mutation.error} />
       <SheetFooter
         dirty={dirty}
         busy={mutation.pending}
