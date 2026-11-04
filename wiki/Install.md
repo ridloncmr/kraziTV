@@ -23,7 +23,7 @@ docker run -d --name krazitv -p 3000:3000 \
   -v /path/to/your/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.2
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.3
 ```
 
 Three things to change:
@@ -83,7 +83,7 @@ same `docker run` command again with the new tag. Your data is in the
 volume, so nothing is lost:
 
 ```bash
-docker pull ghcr.io/ridloncmr/krazitv:v0.9.0-rc.2
+docker pull ghcr.io/ridloncmr/krazitv:v0.9.0-rc.3
 docker rm -f krazitv
 docker run ...   # the same command as before
 ```
