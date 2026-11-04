@@ -26,8 +26,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Serves a collection, favorites by default, with the given saved order and renders its editor.
-function renderEditor(
+// Serves a collection, favorites by default, with the given saved order, so a
+// test can change a route before the editor's first read.
+function serveEditor(
   memberIds: string[],
   collection = adminFixtures.collections[0],
   extraCatalog: readonly MediaItem[] = [],
@@ -35,7 +36,14 @@ function renderEditor(
   const api = new BrowserApi();
   serveCollection(api, collection.id, memberIds, extraCatalog);
   vi.stubGlobal("fetch", api.fetch);
+  return api;
+}
+
+// Renders a served collection's editor; `openProgram` stands for the shell
+// opening another program.
+function mountEditor(collection = adminFixtures.collections[0]) {
   const onDirtyChange = vi.fn();
+  const openProgram = vi.fn();
   render(
     createElement(CollectionEditor, {
       collection,
@@ -43,9 +51,20 @@ function renderEditor(
       changed: vi.fn(),
       deleted: vi.fn(),
       onDirtyChange,
+      openProgram,
     }),
   );
-  return { api, onDirtyChange };
+  return { onDirtyChange, openProgram };
+}
+
+// Serves a collection and renders its editor in one step.
+function renderEditor(
+  memberIds: string[],
+  collection = adminFixtures.collections[0],
+  extraCatalog: readonly MediaItem[] = [],
+) {
+  const api = serveEditor(memberIds, collection, extraCatalog);
+  return { api, ...mountEditor(collection) };
 }
 
 // Reads the draft order from the member checkboxes, which render in position order.
@@ -225,6 +244,29 @@ it("hides draft members from the catalog and clears an offset left past the last
       .filter((request) => request.path === "/media-items/search")
       .at(-1)?.body,
   ).toMatchObject({ excludeIds: ["a", "e10", "e2", "z"], offset: 0 });
+});
+
+it("offers Open Media Library when the catalog itself is empty, not when the owner narrowed it", async () => {
+  const api = serveEditor([]);
+  // Nothing has been scanned yet.
+  api.reply("/media-items/search", { items: [], total: 0 }, "POST");
+  const { openProgram } = mountEditor();
+
+  await screen.findByText(
+    "The catalog is empty. Scan a media root in Media Library.",
+  );
+  click("Open Media Library");
+  expect(openProgram).toHaveBeenCalledWith("media");
+
+  fireEvent.change(screen.getByLabelText("Find media"), {
+    target: { value: "pilot" },
+  });
+  await screen.findByText(
+    "No cataloged media outside this collection matches this search.",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Open Media Library" }),
+  ).toBeNull();
 });
 
 it("toggles catalog and member rows from anywhere on the row except its buttons", async () => {

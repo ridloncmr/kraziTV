@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import type { ProgramId } from "../desktop/contracts.js";
 import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { adminFixtures, collectionWith } from "../testing/admin-fixtures.js";
@@ -34,7 +35,7 @@ const collections = [
 
 // Serves two collections, favorites holding both fixture media, and renders
 // Collections with a Collection Properties window per opened collection.
-function renderApp(onOpenChannels?: () => void) {
+function renderApp(openProgram?: (id: ProgramId) => void) {
   const api = new BrowserApi();
   api.reply("/media-collections", collections);
   for (const collection of collections)
@@ -44,7 +45,7 @@ function renderApp(onOpenChannels?: () => void) {
   render(
     createElement(RefreshScope, {
       active: true,
-      children: createElement(CollectionWindows, { onOpenChannels }),
+      children: createElement(CollectionWindows, { openProgram }),
     }),
   );
   return api;
@@ -248,8 +249,8 @@ it("reports a rejected delete inside its confirmation", async () => {
 });
 
 it("names the special a refused delete waits on and opens My Channels to change it", async () => {
-  const openChannels = vi.fn();
-  const api = renderApp(openChannels);
+  const openProgram = vi.fn();
+  const api = renderApp(openProgram);
   api.reply("/channels", adminFixtures.channels);
   api.reply(
     "/media-collections/favorites",
@@ -289,7 +290,7 @@ it("names the special a refused delete waits on and opens My Channels to change 
   fireEvent.click(
     within(blocking).getByRole("button", { name: "Open My Channels" }),
   );
-  expect(openChannels).toHaveBeenCalledOnce();
+  expect(openProgram).toHaveBeenCalledExactlyOnceWith("channels");
 });
 
 it("marks an automatic card kept incomplete by expired TMDB data", async () => {

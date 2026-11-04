@@ -702,6 +702,41 @@ it("closes a Channel Properties window from General's OK once it saves, and from
   ).toBeNull();
 });
 
+it("opens Account Settings on Set up TMDB from Media Library's intro while no key is set", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply("/metadata/tmdb-key", { configured: false });
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  const shortcuts = screen.getByLabelText("Desktop programs");
+  // The program that holds the task says so, on the desktop as in Start.
+  expect(
+    within(shortcuts).getByText("Your name, picture, password, and TMDB"),
+  ).toBeTruthy();
+  fireEvent.click(
+    within(shortcuts).getByRole("button", { name: "Media Library" }),
+  );
+  const media = await screen.findByRole("region", { name: "Media Library" });
+  fireEvent.click(
+    await within(media).findByRole("button", { name: "Set up TMDB…" }),
+  );
+
+  const settings = await screen.findByRole("region", {
+    name: "Account Settings",
+  });
+  expect(
+    await within(settings).findByLabelText("API Read Access Token"),
+  ).toBeTruthy();
+});
+
 it("opens TV on the channel Watch names, and retunes an open TV", async () => {
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });

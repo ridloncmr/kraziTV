@@ -1,6 +1,7 @@
 import { createElement, Fragment } from "react";
 import { CollectionsApp } from "../collections/collections-app.js";
 import { CollectionPropertiesApp } from "../collections/properties/collection-properties-app.js";
+import type { ProgramId } from "../desktop/contracts.js";
 import { propertiesTarget } from "../desktop/programs.js";
 import {
   PropertiesTestWindow,
@@ -11,14 +12,15 @@ import {
  * Collections beside a Collection Properties window per opened collection,
  * wired through the shell's own bookkeeping, so a test can open collections
  * and edit them without the whole desktop. Each window is a region named
- * for its title, as on the desktop.
+ * for its title, as on the desktop, and `openProgram` stands for the shell
+ * opening another program.
  */
 export function CollectionWindows({
   visible = true,
-  onOpenChannels,
+  openProgram = () => {},
 }: {
   visible?: boolean;
-  onOpenChannels?: () => void;
+  openProgram?: (id: ProgramId) => void;
 }) {
   const windows = usePropertiesTestWindows();
   return createElement(
@@ -36,7 +38,7 @@ export function CollectionWindows({
             visible,
             windows: windows.collections,
             onDirtyChange,
-            onOpenChannels,
+            openProgram,
           }),
       }),
     ),

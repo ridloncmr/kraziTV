@@ -9,6 +9,7 @@ import { Pager } from "../../controls/pager/pager.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
+import type { ProgramId } from "../../desktop/contracts.js";
 import type {
   MediaFilter,
   MediaItem,
@@ -35,12 +36,15 @@ export function CatalogPicker({
   memberIds,
   visible,
   onAdd,
+  openProgram,
 }: {
   /** Names the collection in the Add all confirmation. */
   collectionName: string;
   memberIds: ReadonlySet<string>;
   visible: boolean;
   onAdd: (media: MediaItem[]) => void;
+  /** Opens Media Library, where an empty catalog is filled. */
+  openProgram: (id: ProgramId) => void;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
@@ -77,6 +81,15 @@ export function CatalogPicker({
   }, [results.data, offset, total, setOffset]);
   const pagePicked =
     items.length > 0 && items.every((item) => picked.has(item.id));
+  // Why the picker shows nothing when the owner narrowed it; undefined when
+  // the catalog itself is empty, which has a next step instead of a reason.
+  const narrowed = results.search
+    ? "No cataloged media outside this collection matches this search."
+    : filtersInUse > 0
+      ? "No cataloged media outside this collection matches these filters."
+      : memberIds.size > 0
+        ? "Every cataloged item is already in this collection."
+        : undefined;
   // Results arrive a page at a time, so Shift ranges stay within this page.
   const range = useRangeToggle(
     items.map((item) => item.id),
@@ -176,17 +189,18 @@ export function CatalogPicker({
           onChange={results.setOffset}
         />
       )}
-      {results.data && total === 0 && (
-        <p className="empty-state">
-          {results.search
-            ? "No cataloged media outside this collection matches this search."
-            : filtersInUse > 0
-              ? "No cataloged media outside this collection matches these filters."
-              : memberIds.size > 0
-                ? "Every cataloged item is already in this collection."
-                : "The catalog is empty. Scan a media root in Media Library."}
-        </p>
-      )}
+      {results.data &&
+        total === 0 &&
+        (narrowed ? (
+          <p className="empty-state">{narrowed}</p>
+        ) : (
+          <div className="empty-state">
+            <p>The catalog is empty. Scan a media root in Media Library.</p>
+            <button type="button" onClick={() => openProgram("media")}>
+              Open Media Library
+            </button>
+          </div>
+        ))}
       {items.length > 0 && (
         <div ref={list} className="table-scroll" aria-busy={results.loading}>
           <table>

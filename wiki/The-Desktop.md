@@ -21,7 +21,7 @@ window to the front.
 | [TV](TV)                             | Watch a channel in the browser                             |
 | **Plex Setup**                       | The addresses Plex needs; see [Connect Plex](Connect-Plex) |
 | [Live Monitor](Live-Monitor)         | See what one channel is airing right now                   |
-| [Account Settings](Account-Settings) | Your name, picture, password, and TMDB key                 |
+| [Account Settings](Account-Settings) | Your name, picture, password, and TMDB                     |
 
 ## Windows
 

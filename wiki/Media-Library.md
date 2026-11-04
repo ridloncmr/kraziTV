@@ -59,7 +59,9 @@ file.
 
 With a TMDB key set up, kraziTV works out what each file is from its name
 and the folders around it, then confirms it on TMDB. [Naming your
-files](Naming-Your-Files) shows the layout that matches best.
+files](Naming-Your-Files) shows the layout that matches best. Until a key
+is saved, the line at the top of Media Library ends with **Set up TMDB…**,
+which opens [Account Settings](Account-Settings) on that task.
 
 The **Match** column says how each file came out:
 

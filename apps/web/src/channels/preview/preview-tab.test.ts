@@ -285,3 +285,29 @@ it("explains which rule chose each turn, the rules it passed over, and where its
     /never promises a program starts exactly when a window opens/,
   );
 });
+
+it("shows the channel's off-air words when nothing would air, instead of a blank panel", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels/one/programming-assignments", [
+    favoritesAssignment("chronological"),
+  ]);
+  api.reply("/media-collections", adminFixtures.collections);
+  api.reply("/channels/one/programming-preview", {
+    configurationRevision: 1,
+    turns: [],
+    skips: [],
+  });
+  vi.stubGlobal("fetch", api.fetch);
+  await openChannelTab(api, "Preview");
+
+  const preview = await screen.findByRole("region", {
+    name: "Upcoming programming",
+  });
+  expect(
+    (await within(preview).findByText(/^Nothing is scheduled right now/))
+      .textContent,
+  ).toMatch(/its Lineup and Rules tabs\.$/);
+  expect(
+    within(preview).queryByRole("list", { name: "Upcoming shows" }),
+  ).toBeNull();
+});
