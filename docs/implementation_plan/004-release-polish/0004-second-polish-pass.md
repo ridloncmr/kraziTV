@@ -6,7 +6,7 @@ Progress: 1 of 13 tickets complete.
 
 | Ticket     | Title                                                         | Status                 |
 | ---------- | ------------------------------------------------------------- | ---------------------- |
-| POLISH-026 | Dialog footers stay on screen                                 | Complete on 2026-11-03 |
+| POLISH-026 | Dialog footers stay on screen                                 | Complete on 2026-11-04 |
 | POLISH-027 | "Can't reach kraziTV" when a request never reaches the server | Open                   |
 | POLISH-028 | Remaining developer words                                     | Open                   |
 | POLISH-029 | Four refusal codes and the marathon-length check              | Open                   |
@@ -80,7 +80,7 @@ facts, POLISH-032 the poster); `apps/web/integration/desktop.browser.ts`
 
 **Status**
 
-Complete on 2026-11-03. Every window dialog's action row, the sheet footer
+Complete on 2026-11-04. Every window dialog's action row, the sheet footer
 included, sticks to the bottom of the scrolling body as an XP button row,
 Channel Properties opens 640px tall, and the browser walk asserts Next in Add
 shows and OK in Show Properties lie inside the dialog before any scroll.

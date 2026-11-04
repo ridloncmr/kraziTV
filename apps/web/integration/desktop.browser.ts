@@ -563,7 +563,8 @@ for (const viewport of [
         .getByRole("button", { name: "Northwoods collection", exact: true }),
     ).toBeVisible();
     await expect(properties.getByRole("dialog")).toHaveCount(0);
-    // Show Properties opens on General with OK in view the same way.
+    // Show Properties opens on General with OK in view the same way; OK on
+    // the unchanged sheet closes it without a save.
     await properties
       .getByRole("button", { name: "Northwoods collection", exact: true })
       .click();
@@ -575,7 +576,7 @@ for (const viewport of [
     });
     await expectFooterButtonShown(showProperties, "OK");
     await showProperties
-      .getByRole("button", { name: "Cancel", exact: true })
+      .getByRole("button", { name: "OK", exact: true })
       .click();
     await expect(showProperties).toBeHidden();
     await properties.getByRole("tab", { name: "Preview" }).click();
