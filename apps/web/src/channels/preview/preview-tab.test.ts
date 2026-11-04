@@ -181,12 +181,12 @@ it("stops the airing program on request, disclosing the disconnect, and keeps a 
     "POST",
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Retry runtime cleanup" }),
+    screen.getByRole("button", { name: "Retry stopping the broadcast" }),
   );
 
   await waitFor(() =>
     expect(
-      screen.queryByRole("button", { name: "Retry runtime cleanup" }),
+      screen.queryByRole("button", { name: "Retry stopping the broadcast" }),
     ).toBeNull(),
   );
   const keys = api

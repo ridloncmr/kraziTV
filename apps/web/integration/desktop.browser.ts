@@ -424,7 +424,7 @@ for (const viewport of [
     const { media, scanning } = await scanNewRoot(page, directory);
     await controlled.waitForStarted(1);
     await expect(scanning.getByRole("status")).toHaveText(
-      "Probing media files…",
+      "Reading media files…",
     );
     const bar = scanning.getByRole("progressbar");
     await expect(bar).toHaveAttribute("aria-valuemax", "1");

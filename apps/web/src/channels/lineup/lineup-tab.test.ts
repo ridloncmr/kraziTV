@@ -678,9 +678,7 @@ it("confirms restarting from the beginning in its own dialog; cancel sends nothi
     screen.getByRole("dialog", { name: "Restart from the beginning" });
 
   fireEvent.click(restart);
-  expect(resetDialog().textContent).toMatch(
-    /every later schedule entry is regenerated/,
-  );
+  expect(resetDialog().textContent).toMatch(/the schedule after it is rebuilt/);
   fireEvent.click(
     within(resetDialog()).getByRole("button", { name: "Cancel" }),
   );

@@ -35,9 +35,8 @@ new preview.
 
 Regular programming stops whole before a special. A program that would not
 finish in time is never cut; it stays next in line for its show and airs
-the next time that show comes up. The gap before the special is what the
-preview calls filler and the guide calls **Off air**. See [Off air and
-other screens](Off-Air).
+the next time that show comes up. The gap before the special is **Off air**,
+in the preview as in the guide. See [Off air and other screens](Off-Air).
 
 After the special, the rotation moves on to the next show. A special never
 changes the lineup, the rules, or where any show is up to, except that
