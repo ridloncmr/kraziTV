@@ -303,7 +303,7 @@
     {
       "rule": "nesting-depth",
       "files": ["apps/web/src/channels/lineup/picks/"],
-      "reason": "lineup/ has eight source files, so the next one makes it meet the grouping rule; picks/ (the selected-picks list and show labels) is that grouping made one file early, so new picking code lands in a capability rather than a flat folder past its limit.",
+      "reason": "lineup/ has eight source files, so the next one makes it meet the grouping rule; picks/ (the selected-picks list, show labels, and the shows the Add shows dialog makes from its picks) is that grouping made one file early, so new picking code lands in a capability rather than a flat folder past its limit.",
       "source": "docs/specs/features/004-release-polish/README.md (decision 11: \"channels/lineup/ is pre-split now: the picks files move into lineup/picks/\"); AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
     },
     {

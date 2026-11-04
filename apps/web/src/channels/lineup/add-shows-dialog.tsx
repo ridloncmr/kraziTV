@@ -1,13 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { displayCount } from "../../controls/formatting/display-count.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import type { ProgramId } from "../../desktop/contracts.js";
 import { ApiError } from "../../http/api-error.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import type {
-  AssignmentSettings,
-  PlaybackMode,
   SourceAssignment,
   StretchSuggestion,
 } from "../../http/contracts/programming.js";
@@ -24,30 +21,19 @@ import {
 import { PerSittingField } from "../stretch/per-sitting-field.js";
 import { PlayOrderField } from "../members/play-order-field.js";
 import {
-  isStretchComplete,
-  type StretchDraft,
-  type StretchProblem,
-  stretchProblem,
-  toStretchDraft,
-  toStretchSetting,
-  UNCHOSEN_STRETCH,
-} from "../stretch/stretch-fields.js";
-import { suggestionPath } from "./show-draft.js";
+  type Grouping,
+  type PickedShow,
+  pickedShows,
+  type ShowChoice,
+  suggestionPaths,
+  toAssignments,
+  unfinishedWords,
+} from "./picks/picked-shows.js";
 import { SelectedPicks } from "./picks/selected-picks.js";
-import { joinShowNames, listNames, showLabel } from "./picks/show-labels.js";
-
-// How Add groups the picks: each its own show, or all in one wheel.
-type Grouping = "separate" | "wheel";
+import { joinShowNames } from "./picks/show-labels.js";
 
 // The dialog's two pages: choosing what to add, then how each show plays.
 type Page = "pick" | "settings";
-
-// The `chosen` key for the one wheel that holds every pick.
-const WHEEL = "wheel";
-
-// What the owner changed for one show before adding it; an unset field
-// keeps collection order or the server's suggested per sitting.
-type ShowChoice = { mode?: PlaybackMode; stretch?: StretchDraft };
 
 /**
  * Adds shows to a channel from one picker that toggles between collections
@@ -123,85 +109,20 @@ export function AddShowsDialog({
   const [chosen, setChosen] = useState<ReadonlyMap<string, ShowChoice>>(
     new Map(),
   );
-  // The shows Add creates, each as the picks it plays.
-  const shows =
-    grouping === "wheel"
-      ? picks.length > 0
-        ? [picks]
-        : []
-      : picks.map((pick) => [pick]);
-  const keyOf = (show: FoundMember[]) =>
-    grouping === "wheel"
-      ? WHEEL
-      : show.map((pick) => memberKey(pick.member)).join();
-  const membersOf = (show: FoundMember[]) => show.map((pick) => pick.member);
-  const hasCollection = (show: FoundMember[]) =>
-    show.some((pick) => pick.member.kind === "collection");
-  const labelOf = (show: FoundMember[]) =>
-    showLabel(
-      grouping === "wheel" ? name.trim() || null : null,
-      show.map((pick) => pick.name),
-    );
-  const pathOf = (show: FoundMember[]) => suggestionPath(membersOf(show));
   const suggestions = useResourceMap<StretchSuggestion>(
-    shows.filter(hasCollection).map(pathOf),
+    suggestionPaths(picks, grouping),
     visible,
   );
-  // A show's suggestion; a failed read counts as none, so the owner
-  // chooses instead of waiting. Undefined while it is still being read.
-  const suggestionFor = (show: FoundMember[]): StretchSuggestion | undefined =>
-    suggestions.failed(pathOf(show))
-      ? { ordinaryStretch: null, contentKind: null }
-      : suggestions.get(pathOf(show));
+  const shows = pickedShows(picks, { grouping, name, chosen, suggestions });
   // Merges one change into what the owner chose for `show`.
-  const choose = (show: FoundMember[], choice: ShowChoice) =>
+  const choose = (show: PickedShow, choice: ShowChoice) =>
     setChosen((current) =>
-      new Map(current).set(keyOf(show), {
-        ...current.get(keyOf(show)),
-        ...choice,
-      }),
+      new Map(current).set(show.key, { ...current.get(show.key), ...choice }),
     );
-  const modeOf = (show: FoundMember[]) =>
-    chosen.get(keyOf(show))?.mode ?? "chronological";
-  // The per sitting a show's field shows: the owner's choice, else the
-  // suggestion, else unchosen so the field asks for one.
-  const stretchDraftOf = (show: FoundMember[]) => {
-    const own = chosen.get(keyOf(show))?.stretch;
-    if (own) return own;
-    const suggested = suggestionFor(show)?.ordinaryStretch;
-    return suggested ? toStretchDraft(suggested) : UNCHOSEN_STRETCH;
-  };
-  // A show's per sitting: one program for items alone, else its field's
-  // draft once complete; undefined until it can be sent, including while
-  // the suggestion is still being read.
-  const perSitting = (show: FoundMember[]) => {
-    if (!hasCollection(show)) return { kind: "programs", count: 1 } as const;
-    if (suggestionFor(show) === undefined) return undefined;
-    const draft = stretchDraftOf(show);
-    return isStretchComplete(draft) ? toStretchSetting(draft) : undefined;
-  };
-  // Whether a show's suggestion is still being read, so its per sitting
-  // field has not appeared yet.
-  const checking = shows.some(
-    (show) => hasCollection(show) && suggestionFor(show) === undefined,
-  );
-  // Shows whose per sitting the owner must still choose or fix, by what
-  // is wrong. Add stays disabled until there are none, and the words
-  // beside it name them, so a disabled Add always says why, even when the
-  // field is out of sight.
-  const unfinished = (problem: StretchProblem) =>
-    checking
-      ? []
-      : shows
-          .filter(
-            (show) =>
-              hasCollection(show) &&
-              stretchProblem(stretchDraftOf(show)) === problem,
-          )
-          .map(labelOf);
-  const unchosen = unfinished("incomplete");
-  const backwards = unfinished("backwards");
-  const blocked = unchosen.length + backwards.length > 0;
+  // Add stays disabled until every show can be sent, including while a
+  // suggestion is still being read.
+  const ready = shows.every((show) => show.problem === null);
+  const toFix = unfinishedWords(shows);
   const refused = refusedShow(mutation.error, sent);
   // Names the show a refusal is about before its shared words, else the
   // server's message, so nothing is silently lost.
@@ -222,22 +143,9 @@ export function AddShowsDialog({
           }
           // A disabled Add already stops a click and Enter; this refuses
           // any other submit, so an incomplete batch is never sent.
-          if (checking || blocked) return;
-          const assignments = shows.flatMap((show): AssignmentSettings[] => {
-            const ordinaryStretch = perSitting(show);
-            if (!ordinaryStretch) return [];
-            return [
-              {
-                name: grouping === "wheel" ? name.trim() || null : null,
-                participation: "default",
-                playbackMode: hasCollection(show) ? modeOf(show) : null,
-                ordinaryStretch,
-                marathonStretch: null,
-                members: membersOf(show),
-              },
-            ];
-          });
-          setSent(shows.map(labelOf));
+          if (!ready) return;
+          const assignments = toAssignments(shows);
+          setSent(shows.map((show) => show.label));
           void mutation.run<SourceAssignment[]>(
             `${assignmentsPath}/batch`,
             "POST",
@@ -323,50 +231,40 @@ export function AddShowsDialog({
                   Choose how each show plays. Marathons and rules are in each
                   show&apos;s Properties once it is added.
                 </p>
-                {shows.map((show) => {
-                  const suggestion = suggestionFor(show);
-                  return (
-                    <fieldset key={keyOf(show)} className="show-settings">
-                      <legend>{labelOf(show)}</legend>
-                      {!hasCollection(show) ? (
-                        <p className="secondary">
-                          Plays one item each time it comes up.
-                        </p>
-                      ) : (
-                        <>
-                          <PlayOrderField
-                            mode={modeOf(show)}
-                            onChange={(mode) => choose(show, { mode })}
+                {shows.map((show) => (
+                  <fieldset key={show.key} className="show-settings">
+                    <legend>{show.label}</legend>
+                    {!show.hasCollection ? (
+                      <p className="secondary">
+                        Plays one item each time it comes up.
+                      </p>
+                    ) : (
+                      <>
+                        <PlayOrderField
+                          mode={show.mode}
+                          onChange={(mode) => choose(show, { mode })}
+                        />
+                        {show.suggestion === undefined ? (
+                          <p className="secondary">Checking what it plays…</p>
+                        ) : (
+                          <PerSittingField
+                            draft={show.draft}
+                            contentKind={show.suggestion.contentKind}
+                            onChange={(stretch) => choose(show, { stretch })}
                           />
-                          {suggestion === undefined ? (
-                            <p className="secondary">Checking what it plays…</p>
-                          ) : (
-                            <PerSittingField
-                              draft={stretchDraftOf(show)}
-                              contentKind={suggestion.contentKind}
-                              onChange={(stretch) => choose(show, { stretch })}
-                            />
-                          )}
-                        </>
-                      )}
-                    </fieldset>
-                  );
-                })}
+                        )}
+                      </>
+                    )}
+                  </fieldset>
+                ))}
               </>
             )}
           </div>
         </fieldset>
         <RequestFeedback loading={mutation.pending} error={failure} />
-        {page === "settings" && blocked && (
+        {page === "settings" && toFix !== undefined && (
           <p id={unchosenId} className="secondary">
-            {[
-              unchosen.length > 0 &&
-                `Choose how much plays at a time for ${whichShows(unchosen)}.`,
-              backwards.length > 0 &&
-                `Make At most minutes no less than At least minutes for ${whichShows(backwards)}.`,
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            {toFix}
           </p>
         )}
         <div className="dialog-actions">
@@ -385,8 +283,8 @@ export function AddShowsDialog({
               </button>
               <button
                 type="submit"
-                disabled={checking || blocked || mutation.pending}
-                aria-describedby={blocked ? unchosenId : undefined}
+                disabled={!ready || mutation.pending}
+                aria-describedby={toFix !== undefined ? unchosenId : undefined}
               >
                 {grouping === "wheel"
                   ? `Add wheel (${picks.length})`
@@ -401,16 +299,6 @@ export function AddShowsDialog({
       </form>
     </WindowDialog>
   );
-}
-
-/**
- * Names the shows a per-sitting request is for, counting them when there
- * are several, since a long list names only the first two.
- */
-function whichShows(names: readonly string[]): string {
-  return names.length === 1
-    ? (names[0] ?? "")
-    : `${displayCount(names.length)} shows: ${listNames(names)}`;
 }
 
 /**
