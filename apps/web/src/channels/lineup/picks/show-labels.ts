@@ -1,7 +1,7 @@
 import type {
   AssignmentMember,
   SourceAssignment,
-} from "../../http/contracts/programming.js";
+} from "../../../http/contracts/programming.js";
 
 /**
  * Names a show by its members joined with `+`, naming two at most and

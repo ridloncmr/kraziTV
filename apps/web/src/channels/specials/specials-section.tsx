@@ -10,7 +10,7 @@ import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
-import { listNames } from "../lineup/show-labels.js";
+import { listNames } from "../lineup/picks/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import type { Special } from "./contracts.js";
 import { EndEarlyDialog } from "./end-early-dialog.js";

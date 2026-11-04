@@ -2,7 +2,7 @@ import { useId } from "react";
 import {
   type FoundMember,
   memberKey,
-} from "../../media-search/collection-or-item-search.js";
+} from "../../../media-search/collection-or-item-search.js";
 
 /**
  * The picks Add shows holds, counted in the caption and listed in the
