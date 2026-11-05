@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { WindowDialogFrame } from "../controls/dialogs/window-dialog.js";
+import { displayTime } from "../controls/formatting/display-time.js";
 import type { FolderListing, MediaRoot } from "../http/contracts/media.js";
 import { adminFixtures, UNREADABLE } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -177,7 +178,7 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
   const dialog = screen.getByRole("dialog", { name: "Add media root" });
-  fireEvent.change(screen.getByLabelText("Absolute server path"), {
+  fireEvent.change(screen.getByLabelText("Folder on the kraziTV server"), {
     target: { value: "/media" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Add root" }));
@@ -206,6 +207,66 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   expect(api.requestsTo("/media-roots/root/scan")).toEqual([]);
 });
 
+it("words a relative path in Browse and a root still airing after its delete, never the server's words", async () => {
+  const api = new BrowserApi();
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply(
+    "/media-roots/folders",
+    {
+      error: {
+        code: "invalid_request",
+        message: "path must be a fully qualified absolute path",
+        fields: [{ path: "path", code: "custom" }],
+      },
+    },
+    "GET",
+    400,
+  );
+  const airingUntil = "2026-11-05T21:00:00.000Z";
+  api.reply(
+    "/media-roots",
+    {
+      error: {
+        code: "media_root_removal_pending",
+        message: `A removed media root at /media still airs until ${airingUntil}; add it again after that`,
+        airingUntil,
+      },
+    },
+    "POST",
+    409,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a media root…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add media root" });
+  fireEvent.change(
+    within(dialog).getByLabelText("Folder on the kraziTV server"),
+    {
+      target: { value: "media" },
+    },
+  );
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Browse…" }));
+  const browser = within(dialog).getByRole("group", { name: "Server folders" });
+  expect((await within(browser).findByRole("alert")).textContent).toBe(
+    "Type the full path of a folder on the server, starting from its root.",
+  );
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Add root" }));
+  // The time reads as the owner's clock, never the API's ISO timestamp.
+  expect(
+    await within(dialog).findByText(
+      `This folder was deleted while a channel was still airing from it. Add it again after ${displayTime(airingUntil)}.`,
+    ),
+  ).toBeTruthy();
+  expect(dialog.textContent).not.toContain(airingUntil);
+});
+
 it("offers to scan an added root, with Scan focused, and opens the progress dialog on Scan", async () => {
   const api = new BrowserApi();
   api.reply("/media-roots", []);
@@ -223,7 +284,7 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
-  fireEvent.change(screen.getByLabelText("Absolute server path"), {
+  fireEvent.change(screen.getByLabelText("Folder on the kraziTV server"), {
     target: { value: "/media" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Add root" }));
@@ -318,7 +379,9 @@ it("fills the path by browsing server folders from the typed path", async () => 
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
   );
-  const field = screen.getByLabelText<HTMLInputElement>("Absolute server path");
+  const field = screen.getByLabelText<HTMLInputElement>(
+    "Folder on the kraziTV server",
+  );
   fireEvent.change(field, { target: { value: "D:\\" } });
 
   fireEvent.click(screen.getByRole("button", { name: "Browse…" }));

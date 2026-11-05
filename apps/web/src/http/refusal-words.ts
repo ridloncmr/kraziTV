@@ -1,5 +1,7 @@
+import { offAirWords } from "../channel-observation/airing-words.js";
 import { specialWords } from "../channels/specials/special-words.js";
 import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
+import { displayTime } from "../controls/formatting/display-time.js";
 import { ApiError } from "./api-error.js";
 
 // The owner's sentence for each field the server can refuse, by the Zod
@@ -15,7 +17,8 @@ const FIELD_WORDS: Record<string, Partial<Record<string, string>>> = {
   },
   name: {
     too_small: "Type a name.",
-    too_big: "Use a shorter name.",
+    too_big:
+      "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
   },
   displayName: {
     too_small: "Type a name of 1 to 40 characters.",
@@ -104,6 +107,14 @@ function codeWords(
       return "This collection is in a channel's lineup or a special. Remove it there first.";
     case "programming_member_assigned":
       return "Another show on this channel already plays that.";
+    case "internal_error":
+      return "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.";
+    case "schedule_busy":
+      return "kraziTV is busy updating this channel's schedule. Try again in a moment.";
+    case "programming_assignment_not_found":
+      return "That show is no longer in the lineup. Refresh and pick again.";
+    case "media_root_removal_pending":
+      return `This folder was deleted while a channel was still airing from it. Add it again ${typeof details.airingUntil === "string" ? `after ${displayTime(details.airingUntil)}` : "once that program ends"}.`;
     case "programming_rule_stretch_invalid":
       return stretchProblemWords(details.problem);
     case "programming_rule_stretch_conflict": {
@@ -114,6 +125,13 @@ function codeWords(
       const fix = stretchProblemWords(details.problem);
       return `${rule} follows this show's settings, and this change would break them. Change the rule first: ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`;
     }
+    // A channel with no shows is sent to the Lineup tab. Shows that cannot
+    // air, or a reason added later, get the off-air words, which already
+    // name every place to look; the server's sentence never shows.
+    case "channel_unschedulable":
+      return details.reason === "no_programming_assignment"
+        ? "This channel has no shows yet. Add shows on the Lineup tab."
+        : offAirWords("schedule_gap");
     default:
       return undefined;
   }

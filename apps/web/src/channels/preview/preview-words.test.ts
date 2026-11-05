@@ -41,6 +41,7 @@ const turn: PreviewTurn = {
 const context: TurnContext = {
   show: "Bluey",
   kind: "episodes",
+  time: null,
   rulesInPlay: false,
   ruleName: (id) => (id === "fridays" ? "Friday movies" : "a rule"),
 };
@@ -63,9 +64,27 @@ describe("turn words", () => {
     );
   });
 
-  it("says a continued turn is already airing", () => {
+  it("leads with the time a turn starts", () => {
+    expect(turnWords(turn, { ...context, time: "7:35 AM" })).toBe(
+      "7:35 AM · Bluey · 1 episode (7 min)",
+    );
+  });
+
+  it("leads a continued turn with when it continues and counts what is left as more", () => {
+    expect(
+      turnWords(
+        { ...turn, continues: true, programs: [program("A"), program("B")] },
+        { ...context, time: "7:35 AM" },
+      ),
+    ).toBe("continues at 7:35 AM · Bluey · 2 more episodes (7 min)");
+    expect(
+      turnWords(
+        { ...turn, continues: true, marathon: true },
+        { ...context, time: "7:35 AM", kind: null },
+      ),
+    ).toBe("continues at 7:35 AM · Bluey · marathon, 1 more program (7 min)");
     expect(turnWords({ ...turn, continues: true }, context)).toBe(
-      "Bluey · 1 episode (7 min) · already airing",
+      "continues · Bluey · 1 more episode (7 min)",
     );
   });
 

@@ -109,8 +109,10 @@ when you want a fresh start without changing anything.
 ## The Preview tab
 
 Preview lists the next ten or so turns in order, with each show, how much
-it plays, and how long that takes. When rules are involved it says which
-rule chose each turn. A show that cannot air, because its collection is
+it plays, and how long that takes. A turn already on the air reads
+**continues at** the time its next program starts, with what it has left,
+such as "1 more episode". When rules are involved it says which rule chose
+each turn. A show that cannot air, because its collection is
 empty or its files are missing, is listed as skipped with the reason. When
 nothing at all would air, as on a channel whose only shows wait for a rule,
 Preview says so and points at the Lineup and Rules tabs instead of showing

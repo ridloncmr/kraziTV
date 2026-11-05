@@ -138,6 +138,33 @@ describe("POST /media-collections", () => {
     expect(response.json().error.code).toBe("invalid_request");
   });
 
+  it("refuses a name longer than 120 characters as too_big", async () => {
+    const server = await startServer();
+
+    const response = await create(server, { name: "n".repeat(121) });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: "invalid_request",
+      fields: [{ path: "name", code: "too_big" }],
+    });
+    expect(
+      (
+        await server.inject({ method: "GET", url: "/media-collections" })
+      ).json(),
+    ).toEqual([]);
+  });
+
+  it("accepts a 120-character name, counted after trimming", async () => {
+    const server = await startServer();
+    const name = "n".repeat(120);
+
+    const response = await create(server, { name: `  ${name}  ` });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ name });
+  });
+
   it("rejects duplicate member IDs before anything is stored", async () => {
     const server = await startServer();
 
@@ -288,6 +315,23 @@ describe("PATCH /media-collections/:id", () => {
       ...createdCollection,
       name: "The Office (US)",
       updatedAt: new Date(LATER).toISOString(),
+    });
+  });
+
+  it("refuses a rename longer than 120 characters as too_big", async () => {
+    const server = await startServer();
+    await create(server, { name: "The Office" });
+
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/media-collections/collection-001",
+      payload: { name: "n".repeat(121) },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: "invalid_request",
+      fields: [{ path: "name", code: "too_big" }],
     });
   });
 

@@ -85,7 +85,7 @@ async function scanNewRoot(page: Page, directory: string) {
   });
   await media.getByRole("button", { name: "Add a media root…" }).click();
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
-  await addRoot.getByLabel("Absolute server path").fill(directory);
+  await addRoot.getByLabel("Folder on the kraziTV server").fill(directory);
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
   await addRoot.getByRole("button", { name: "Scan", exact: true }).click();
   await expect(addRoot).toBeHidden();
@@ -210,13 +210,13 @@ test("picks a media root by browsing real server folders in a narrow desktop win
   });
   await media.getByRole("button", { name: "Add a media root…" }).click();
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
-  await addRoot.getByLabel("Absolute server path").fill(directory);
+  await addRoot.getByLabel("Folder on the kraziTV server").fill(directory);
 
   await addRoot.getByRole("button", { name: "Browse…" }).click();
   const browser = addRoot.getByRole("group", { name: "Server folders" });
   await browser.getByRole("button", { name: "Shows", exact: true }).click();
   await expect(browser.getByText("No folders here.")).toBeVisible();
-  await expect(addRoot.getByLabel("Absolute server path")).toHaveValue(
+  await expect(addRoot.getByLabel("Folder on the kraziTV server")).toHaveValue(
     join(directory, "Shows"),
   );
   // The whole dialog, Add root included, stays inside the narrow desktop window.
@@ -551,6 +551,37 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
       .getByRole("button", { name: "Northwoods collection", exact: true }),
   ).toBeVisible();
   await expect(properties.getByRole("dialog")).toHaveCount(0);
+  // At the size Channel Properties opens at, Play order and At a time stay
+  // on one line and the Show column gives, so no show's row runs to more
+  // than two lines of text in any cell.
+  const rowLines = await properties
+    .getByRole("table", { name: "Shows" })
+    .locator("tbody tr")
+    .evaluateAll((rows: HTMLTableRowElement[]) =>
+      rows.map((row) =>
+        Math.max(
+          ...[...row.cells].map((cell) => {
+            const tops: number[] = [];
+            const walker = document.createTreeWalker(
+              cell,
+              NodeFilter.SHOW_TEXT,
+            );
+            for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              for (const box of range.getClientRects())
+                if (box.width > 0) tops.push(box.top);
+            }
+            tops.sort((a, b) => a - b);
+            return tops.filter(
+              (top, index) => index === 0 || top - tops[index - 1] > 2,
+            ).length;
+          }),
+        ),
+      ),
+    );
+  expect(rowLines.length).toBeGreaterThan(0);
+  for (const lines of rowLines) expect(lines).toBeLessThanOrEqual(2);
   // Show Properties opens on General with OK in view the same way; OK on
   // the unchanged sheet closes it without a save.
   await properties

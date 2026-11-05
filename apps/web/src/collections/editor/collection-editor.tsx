@@ -22,7 +22,7 @@ import {
 } from "../automatic/automatic-status.js";
 import { ChangeCriterionDialog } from "../automatic/change-criterion-dialog.js";
 import type { DraftMember } from "../contracts.js";
-import { canAirWords } from "../collection-words.js";
+import { canAirWords, itemCountWords } from "../collection-words.js";
 import { AutomaticMembers } from "./automatic-members.js";
 import { CatalogPicker } from "./catalog-picker.js";
 import { ConvertToManualDialog } from "./convert-to-manual-dialog.js";
@@ -289,8 +289,8 @@ export function CollectionEditor({
         <>
           <div className="save-bar">
             <span>
-              {draft.length} {draft.length === 1 ? "item" : "items"} ·{" "}
-              {displayDuration(runtimeMs)} total
+              {itemCountWords(draft.length)} · {displayDuration(runtimeMs)}{" "}
+              total
               {dirty && <strong> · Unsaved changes</strong>}
             </span>
             <div className="row-actions">

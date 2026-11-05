@@ -25,22 +25,37 @@ export interface TurnContext {
   show: string;
   /** What the show plays, which words its programs as episodes or movies. */
   kind: ContentKind;
+  /** When the turn's next program starts, formatted for the list; null when the preview gives no time. */
+  time: string | null;
   /** Whether any rule shapes the preview, so a default turn says it is normal rotation. */
   rulesInPlay: boolean;
   ruleName: (id: string) => string;
 }
 
 /**
- * Words one upcoming turn as a listing line after its time: the show, then
- * what plays, then only what needs explaining: that it is already airing,
- * an overrun past its target, the rule that chose it or normal rotation
- * while a rule is in play, the rules passed over, and the settings a rule
- * set. A marathon says so with its stretch and never its chance.
+ * Words one upcoming turn as a listing line: its time, the show, then what
+ * plays, then only what needs explaining: an overrun past its target, the
+ * rule that chose it or normal rotation while a rule is in play, the rules
+ * passed over, and the settings a rule set. A turn already on the air
+ * leads with "continues at" and counts what is left as more, because its
+ * time is when its next program starts, not when the turn began. A
+ * marathon says so with its stretch and never its chance.
  */
 export function turnWords(turn: PreviewTurn, context: TurnContext): string {
-  const plays = `${countWords(turn.programs.length, context.kind)} (${minutesWords(Math.round(turn.airtimeMinutes))})`;
+  const count = countWords(
+    turn.programs.length,
+    context.kind,
+    turn.continues ? "more" : undefined,
+  );
+  const plays = `${count} (${minutesWords(Math.round(turn.airtimeMinutes))})`;
   const parts = [context.show, turn.marathon ? `marathon, ${plays}` : plays];
-  if (turn.continues) parts.push("already airing");
+  if (turn.continues) {
+    parts.unshift(
+      context.time === null ? "continues" : `continues at ${context.time}`,
+    );
+  } else if (context.time !== null) {
+    parts.unshift(context.time);
+  }
   if (turn.overrunMinutes !== null && turn.size !== null) {
     parts.push(
       `${Math.round(turn.overrunMinutes)} min over its ${minutesWords(turn.size.value)} target, since whole programs air`,

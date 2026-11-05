@@ -11,6 +11,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import {
   adminFixtures,
+  channelUnschedulable,
   favoritesAssignment,
 } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
@@ -22,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("lists upcoming turns in owner words: the show, what plays, already airing, overrun, marathons, and skips", async () => {
+it("lists upcoming turns in owner words: the time or when a turn continues, the show, what plays, overrun, marathons, and skips", async () => {
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", [
     favoritesAssignment("chronological", { name: "Evening Favorites" }),
@@ -96,12 +97,14 @@ it("lists upcoming turns in owner words: the show, what plays, already airing, o
   // has named the content kind.
   await waitFor(() =>
     expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
-      /Evening Favorites · 1 episode \(22 min\) · already airing$/,
+      /^continues at [^·]*\d:\d\d[^·]* · Evening Favorites · 1 more episode \(22 min\)$/,
     ),
   );
   const lines = within(turns)
     .getAllByRole("listitem")
     .map((item) => item.textContent);
+  // A turn yet to start leads with its time alone.
+  expect(lines[1]).not.toMatch(/continues|more/);
   expect(lines[1]).toMatch(
     /3 episodes \(1 hr 6 min\) · 6 min over its 1 hr target, since whole programs air$/,
   );
@@ -311,3 +314,44 @@ it("shows the channel's off-air words when nothing would air, instead of a blank
     within(preview).queryByRole("list", { name: "Upcoming shows" }),
   ).toBeNull();
 });
+
+it.each([
+  [
+    "no_programming_assignment",
+    /^This channel has no shows yet\. Add shows on the Lineup tab\.$/,
+  ],
+  [
+    "no_schedulable_media",
+    /^Nothing is scheduled right now\. .*its Lineup and Rules tabs\.$/,
+  ],
+  // A reason this browser does not know yet still says where to look.
+  [
+    "reason_added_later",
+    /^Nothing is scheduled right now\. .*its Lineup and Rules tabs\.$/,
+  ],
+])(
+  "says what to change when the channel cannot air (%s), never the server's sentence",
+  async (reason, words) => {
+    const api = new BrowserApi();
+    api.reply("/channels/one/programming-assignments", [
+      favoritesAssignment("chronological"),
+    ]);
+    api.reply("/media-collections", adminFixtures.collections);
+    api.reply(
+      "/channels/one/programming-preview",
+      channelUnschedulable(reason),
+      "GET",
+      409,
+    );
+    vi.stubGlobal("fetch", api.fetch);
+    await openChannelTab(api, "Preview");
+
+    const preview = await screen.findByRole("region", {
+      name: "Upcoming programming",
+    });
+    expect((await within(preview).findByRole("alert")).textContent).toMatch(
+      words,
+    );
+    expect(preview.textContent).not.toMatch(/cannot generate|_/);
+  },
+);

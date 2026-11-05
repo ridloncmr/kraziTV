@@ -9,7 +9,7 @@ import {
 } from "../../http/api-error.js";
 import {
   idParams,
-  nameField,
+  longNameField,
   uniqueMediaItemIds as mediaItemIds,
 } from "../../http/request-schemas.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
@@ -31,7 +31,7 @@ import {
 // A collection starts from explicit members or from a criterion, never both.
 const createBody = z
   .strictObject({
-    name: nameField,
+    name: longNameField,
     mediaItemIds: mediaItemIds.optional(),
     criterion: collectionCriterionSchema.optional(),
   })
@@ -49,7 +49,7 @@ const previewBody = z.strictObject({
 // A rename, a criterion change, or both; renaming never changes the criterion.
 const patchBody = z
   .strictObject({
-    name: nameField.optional(),
+    name: longNameField.optional(),
     criterion: collectionCriterionSchema.optional(),
   })
   .refine((body) => body.name !== undefined || body.criterion !== undefined, {

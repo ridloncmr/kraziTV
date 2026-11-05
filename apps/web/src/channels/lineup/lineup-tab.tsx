@@ -33,7 +33,10 @@ import { useMemberNames } from "./use-member-names.js";
  * calls `changed`. A write that changes what airs has already regenerated
  * after the airing program, so the lineup then asks what should happen to
  * that program, as the Rules tab does, once the dialog that made it closes;
- * while nothing or filler airs the write applies silently.
+ * while nothing or filler airs the write applies silently. Play order, At
+ * a time, and Marathons hold short words of the app's choosing, so they
+ * stay on one line at their own width; the Show column and the owner-named
+ * Rules wrap instead, keeping each show on one row at the window's size.
  */
 export function LineupTab({
   channelId,
@@ -115,9 +118,9 @@ export function LineupTab({
             <thead>
               <tr>
                 <th>Show</th>
-                <th>Play order</th>
-                <th>At a time</th>
-                <th>Marathons</th>
+                <th className="narrow-column">Play order</th>
+                <th className="narrow-column">At a time</th>
+                <th className="narrow-column">Marathons</th>
                 <th>Rules</th>
                 <th aria-label="Rotation" />
                 <th aria-label="Actions" />
@@ -143,14 +146,14 @@ export function LineupTab({
                       {showName(assignment)}
                     </button>
                   </td>
-                  <td>{orderLabel(assignment)}</td>
-                  <td>
+                  <td className="narrow-column">{orderLabel(assignment)}</td>
+                  <td className="narrow-column">
                     {perSittingLabel(
                       assignment.ordinaryStretch,
                       programming.contentKind(assignment),
                     )}
                   </td>
-                  <td>
+                  <td className="narrow-column">
                     {marathonLabel(
                       assignment.marathonStretch,
                       programming.contentKind(assignment),

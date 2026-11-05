@@ -8,7 +8,7 @@ import {
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
 import { parseChannelNumber, type ChannelNumber } from "../channel-number.js";
-import { idParams, nameField } from "../../http/request-schemas.js";
+import { idParams, longNameField } from "../../http/request-schemas.js";
 import type { ChannelLifecycleLock } from "../runtime/channel-lifecycle-lock.js";
 import type { ChannelRepository } from "../repository/channel-repository.js";
 import { stopRuntime } from "./channel-runtime-stop.js";
@@ -30,14 +30,14 @@ const channelNumber = z.string().transform((input, context) => {
 
 const createBody = z.strictObject({
   number: channelNumber,
-  name: nameField,
+  name: longNameField,
   enabled: z.boolean().optional(),
 });
 
 const updateBody = z
   .strictObject({
     number: channelNumber.optional(),
-    name: nameField.optional(),
+    name: longNameField.optional(),
     enabled: z.boolean().optional(),
   })
   .refine((changes) => Object.keys(changes).length > 0, {

@@ -19,6 +19,7 @@ import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelWindows } from "../../testing/channel-windows.js";
+import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
 
 afterEach(() => {
   cleanup();
@@ -160,6 +161,51 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
   expect(screen.queryByRole("button", { name: /Move/ })).toBeNull();
   expect(screen.queryByRole("group", { name: /Assignment/ })).toBeNull();
   expect(api.requestsTo(`${ASSIGNMENTS}/order`)).toEqual([]);
+});
+
+it("keeps Play order, At a time, and Marathons on one line at their words' width, so the Show column gives", async () => {
+  applyControlsStylesheet();
+  await openLineup([
+    favoritesAssignment("release", {
+      ordinaryStretch: { kind: "programs", count: 2 },
+      marathonStretch: { kind: "programs", count: 6 },
+    }),
+  ]);
+  const table = await screen.findByRole("table", { name: "Shows" });
+  const headers = within(table)
+    .getAllByRole("columnheader")
+    .map((header) => header.textContent);
+  const [row] = within(table).getAllByRole("row").slice(1);
+  // The row's cell under the named column, with its computed sizing.
+  const column = (name: string) => {
+    const cell = (row as HTMLTableRowElement).cells[headers.indexOf(name)];
+    const style = getComputedStyle(cell);
+    return {
+      text: cell.textContent,
+      whiteSpace: style.whiteSpace,
+      width: style.width,
+    };
+  };
+
+  expect(column("Play order")).toEqual({
+    text: "Release order",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  expect(column("At a time")).toEqual({
+    text: "2 programs",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  expect(column("Marathons")).toEqual({
+    text: "up to 6 programs",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  // The show's name and the owner-named rules wrap, so neither pushes the
+  // row's actions out of the window.
+  expect(column("Show").whiteSpace).not.toBe("nowrap");
+  expect(column("Rules").whiteSpace).not.toBe("nowrap");
 });
 
 it("names the rules that select each show, and says when a rules-only show has none", async () => {
@@ -786,6 +832,63 @@ it("confirms restarting from the beginning in its own dialog; cancel sends nothi
     { mediaCollectionId: "favorites" },
   ]);
   expect(patches(api)).toEqual([]);
+});
+
+it("offers a Random show's reset as a reshuffle that says what it does", async () => {
+  const { api } = await openLineup([favoritesAssignment("random")]);
+  const upcoming = (title: string) => ({
+    playbackMode: "random",
+    ordered: null,
+    upcoming: [
+      {
+        id: `entry-${title}`,
+        mediaItemId: title,
+        title,
+        startsAt: "2026-10-14T20:00:00.000Z",
+        endsAt: "2026-10-14T20:22:00.000Z",
+      },
+    ],
+  });
+  const RESET = `${ASSIGNMENT}/progress-reset`;
+  api.reply(`${ASSIGNMENT}/preview`, upcoming("Old pick"));
+  api.handle(
+    RESET,
+    () => {
+      api.reply(`${ASSIGNMENT}/preview`, upcoming("New pick"));
+      return api.response(undefined, 204);
+    },
+    "POST",
+  );
+  const properties = await openProperties();
+  openTab(properties, "Up Next");
+
+  fireEvent.click(
+    await within(properties).findByRole("button", { name: "Reshuffle…" }),
+  );
+  expect(
+    within(properties).queryByRole("button", {
+      name: "Restart from the beginning…",
+    }),
+  ).toBeNull();
+  const dialog = screen.getByRole("dialog", { name: "Reshuffle" });
+  expect(dialog.textContent).toContain(
+    "Start Favorites's random picks over on this channel? What is airing now finishes; the schedule after it is rebuilt.",
+  );
+  expect(dialog.textContent).not.toMatch(/beginning|in random/i);
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Reshuffle" }));
+  await within(dialog).findByText(
+    /Favorites's random picks start over after what is airing now/,
+  );
+  await waitFor(() =>
+    expect(
+      within(dialog).getByRole("list", { name: "Upcoming selections" })
+        .textContent,
+    ).toContain("New pick"),
+  );
+  expect(api.requestsTo(RESET).map((request) => request.body)).toEqual([
+    { mediaCollectionId: "favorites" },
+  ]);
 });
 
 it("words per-sitting presets in movies for a movie show and in episodes for an episode show, in Properties and the lineup", async () => {

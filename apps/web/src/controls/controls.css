@@ -546,8 +546,10 @@
   filter: grayscale(1);
   opacity: 0.55;
 }
+/* A path or name in a dialog's sentence breaks anywhere, since browsers never break at "/", so it never scrolls the dialog sideways. */
 .window-dialog-body.program-page {
   overflow: auto;
+  overflow-wrap: anywhere;
   padding: 12px;
 }
 .window-dialog-body p:first-child {

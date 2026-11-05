@@ -12,8 +12,9 @@ A media root is a folder kraziTV scans for video files. You can add as many
 as you like: one for everything, or one each for movies, TV, and cartoons.
 Overlapping roots catalog the same files twice, so keep them separate.
 
-Click **Add media root…**, type the folder's path as the kraziTV computer
-sees it, or use **Browse…** to find it. In Docker your media is under `/media`, as you set up in
+Click **Add media root…** and, in **Folder on the kraziTV server**, type the
+folder's path as the kraziTV computer sees it, starting from its root, or use
+**Browse…** to find it. In Docker your media is under `/media`, as you set up in
 [Install](Install#your-media-folders).
 After you click **Add root**, kraziTV offers to scan the folder straight
 away. A root you choose not to scan keeps a **Scan** button in its row until
@@ -32,6 +33,8 @@ were matched on TMDB. The row menu holds the rest:
   files on disk are untouched.
 
 A root's path cannot be edited. To move one, delete it and add the new path.
+A folder deleted while a channel was still airing from it can be added again
+once that program ends; until then the dialog says when.
 
 ## Scanning
 

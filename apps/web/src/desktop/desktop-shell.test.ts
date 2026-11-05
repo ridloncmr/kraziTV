@@ -56,6 +56,10 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
       .getByRole("link", { name: "Source code" })
       .getAttribute("href"),
   ).toBe("https://github.com/ridloncmr/kraziTV");
+  // Each program says what it is for in the owner's words.
+  expect(
+    within(menu).getByText("See what each channel is airing right now"),
+  ).toBeTruthy();
   fireEvent.click(within(menu).getByRole("button", { name: /Media Library/ }));
   const window = await screen.findByRole("region", { name: "Media Library" });
   fireEvent.click(
@@ -122,6 +126,42 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
   expect(
     await screen.findByRole("button", { name: "Can't reach kraziTV" }),
   ).toBeTruthy();
+});
+
+it("moves through the desktop icons with Up, Down, Home, and End, as Start does", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  const icons = within(screen.getByLabelText("Desktop programs"));
+  const press = (key: string) =>
+    fireEvent.keyDown(document.activeElement ?? document.body, { key });
+  const focused = () => document.activeElement?.textContent;
+  icons.getByRole("button", { name: "My Channels" }).focus();
+
+  press("ArrowDown");
+  expect(focused()).toBe("Media Library");
+  press("End");
+  expect(focused()).toBe("Account Settings");
+  // The column wraps, as Start's do.
+  press("ArrowDown");
+  expect(focused()).toBe("My Channels");
+  press("ArrowUp");
+  expect(focused()).toBe("Account Settings");
+  press("Home");
+  expect(focused()).toBe("My Channels");
+  // One column, so Left and Right stay put.
+  press("ArrowRight");
+  expect(focused()).toBe("My Channels");
+  // The keys move focus only; nothing opens until Enter or a click.
+  expect(screen.queryByRole("region")).toBeNull();
+  await screen.findByRole("button", { name: "kraziTV is running" });
 });
 
 it("keeps windows on screen while the browser shrinks and restores their places when it grows", async () => {

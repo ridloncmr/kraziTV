@@ -301,3 +301,23 @@ export function favoritesAssignment(
     ...overrides,
   };
 }
+
+/**
+ * The server's `409 channel_unschedulable` body for channel `one`, with its
+ * details beside the code and message as the server spreads them, and the
+ * server's sentence, so a test can prove the owner never reads it.
+ */
+export function channelUnschedulable(
+  reason: string,
+  details: Record<string, unknown> = {},
+) {
+  return {
+    error: {
+      channelId: "one",
+      reason,
+      ...details,
+      code: "channel_unschedulable",
+      message: "The channel cannot generate a schedule",
+    },
+  };
+}

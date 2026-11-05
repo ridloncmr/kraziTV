@@ -1,7 +1,8 @@
 # Live Monitor
 
-Live Monitor answers one question: what is this channel doing right now?
-Pick a channel to see what is on the air, how far into it the channel is,
+Live Monitor, which the desktop and Start describe as **See what each
+channel is airing right now**, answers one question: what is this channel
+doing right now? Pick a channel to see what is on the air, how far into it the channel is,
 when it ends, and what follows. It refreshes every ten seconds.
 
 ![Live Monitor](images/live-monitor.png)

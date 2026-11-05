@@ -108,6 +108,35 @@ describe("POST /channels", () => {
     expect((await get(server, "/channels")).json()).toEqual([]);
   });
 
+  it("refuses a name longer than 120 characters as too_big", async () => {
+    const server = await startServer();
+
+    const response = await createChannel(server, {
+      number: "69",
+      name: "n".repeat(121),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: "invalid_request",
+      fields: [{ path: "name", code: "too_big" }],
+    });
+    expect((await get(server, "/channels")).json()).toEqual([]);
+  });
+
+  it("accepts a 120-character name, counted after trimming", async () => {
+    const server = await startServer();
+    const name = "n".repeat(120);
+
+    const response = await createChannel(server, {
+      number: "69",
+      name: `  ${name}  `,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ name });
+  });
+
   it("rejects a number held by a disabled channel", async () => {
     const server = await startServer();
     await createChannel(server, { number: "69", name: "Old", enabled: false });
@@ -218,6 +247,24 @@ describe("PATCH /channels/:id", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("invalid_request");
+    expect((await get(server, "/channels/channel-001")).json()).toEqual(
+      createdChannel,
+    );
+  });
+
+  it("refuses a rename longer than 120 characters as too_big", async () => {
+    const server = await startServer();
+    await createChannel(server, { number: "69", name: "Krazi Comedy" });
+
+    const response = await updateChannel(server, "channel-001", {
+      name: "n".repeat(121),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: "invalid_request",
+      fields: [{ path: "name", code: "too_big" }],
+    });
     expect((await get(server, "/channels/channel-001")).json()).toEqual(
       createdChannel,
     );

@@ -64,7 +64,7 @@ export function AddMediaRootDialog({
         >
           <div className="inline-form">
             <label>
-              Absolute server path
+              Folder on the kraziTV server
               <input
                 name="path"
                 required

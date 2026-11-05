@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,10 +12,14 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { displayTimeRange } from "../../controls/formatting/display-time.js";
 import type { MediaCollectionSummary } from "../../http/contracts/collections.js";
-import { adminFixtures } from "../../testing/admin-fixtures.js";
+import {
+  adminFixtures,
+  channelUnschedulable,
+} from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { chooseOption } from "../../testing/choose-option.js";
 import { officeCollection } from "../../testing/collection-api.js";
+import { pressEnter } from "../../testing/press-enter.js";
 import type { Special, SpecialPreview } from "./contracts.js";
 import { airtimeWords } from "./special-words.js";
 import { SpecialsSection } from "./specials-section.js";
@@ -165,6 +170,48 @@ it("previews media items in order and saves exactly what was previewed", async (
   });
 });
 
+it("presses Preview with Enter in Starts, then Save special once a preview is current", async () => {
+  const api = renderSection();
+  await startNewSpecial();
+  await screen.findByRole("option", { name: "Alpha" });
+  fireEvent.change(screen.getByLabelText("Program 1"), {
+    target: { value: "z" },
+  });
+  api.reply(PREVIEW, planned(), "POST");
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Starts"));
+  await screen.findByRole("region", { name: "Special preview" });
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+
+  api.reply(LIST, saved, "POST", 201);
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Starts"));
+  await waitFor(() => expect(lastBody(api, LIST, "POST")).toBeDefined());
+  expect(lastBody(api, LIST, "POST")).toMatchObject({
+    startsAt: START,
+    expectedProgrammingRevision: 7,
+  });
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+});
+
+it("searches with Enter in Find media, never saving or previewing again", async () => {
+  const { api } = await previewSpecial(planned());
+  api.reply(LIST, saved, "POST", 201);
+
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Find media"));
+  await act(async () => {});
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+  expect(screen.getByRole("region", { name: "Special preview" })).toBeTruthy();
+});
+
+it("previews again from Preview while a preview is current, never saving", async () => {
+  const { api } = await previewSpecial(planned());
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+  await waitFor(() => expect(api.requestsTo(PREVIEW)).toHaveLength(2));
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+});
+
 it("words the gaps around a special as Off air, as the guide does", async () => {
   const gapStart = new Date("2099-06-01T19:40").toISOString();
   const gapEnd = new Date("2099-06-01T20:30").toISOString();
@@ -197,6 +244,31 @@ it("says the channel is off air for the whole range when no program fits", async
     ),
   ).toBeTruthy();
   expect(preview.textContent).not.toMatch(/filler/i);
+});
+
+it("says to add shows when the channel cannot air for want of any, never the server's sentence", async () => {
+  const api = renderSection();
+  await startNewSpecial();
+  await screen.findByRole("option", { name: "Alpha" });
+  fireEvent.change(screen.getByLabelText("Program 1"), {
+    target: { value: "z" },
+  });
+  api.reply(
+    PREVIEW,
+    channelUnschedulable("no_programming_assignment", {
+      programmingRevision: 7,
+    }),
+    "POST",
+    409,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "This channel has no shows yet. Add shows on the Lineup tab.",
+  );
+  expect(screen.queryByText(/cannot generate/)).toBeNull();
+  expect(screen.queryByRole("region", { name: "Special preview" })).toBeNull();
 });
 
 it("saves a collection block with its explicit end", async () => {
