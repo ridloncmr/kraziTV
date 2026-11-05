@@ -39,11 +39,21 @@ export function marathonLabel(
   }
 }
 
-/** Counts programs in the content's unit, such as `1 episode` or `3 movies`; `program` when the kind is unknown. */
-export function countWords(count: number, kind: ContentKind): string {
+/**
+ * Counts programs in the content's unit, such as `1 episode` or `3 movies`;
+ * `program` when the kind is unknown. A `qualifier` sits between the count
+ * and the unit, as in `1 more episode`, so the unit keeps one spelling.
+ */
+export function countWords(
+  count: number,
+  kind: ContentKind,
+  qualifier?: string,
+): string {
   const unit =
     kind === "movies" ? "movie" : kind === "episodes" ? "episode" : "program";
-  return count === 1 ? `1 ${unit}` : `${count} ${unit}s`;
+  const counted =
+    qualifier === undefined ? `${count}` : `${count} ${qualifier}`;
+  return count === 1 ? `${counted} ${unit}` : `${counted} ${unit}s`;
 }
 
 /**

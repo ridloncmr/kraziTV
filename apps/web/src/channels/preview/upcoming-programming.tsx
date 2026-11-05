@@ -84,12 +84,16 @@ export function UpcomingProgramming({
               <li
                 key={`${turn.roundNumber}:${turn.turnIndex}:${turn.startsAt}`}
               >
-                {turn.startsAt === null
-                  ? ""
-                  : `${displayListTime(turn.startsAt, turns[index - 1]?.startsAt ?? undefined)} · `}
                 {turnWords(turn, {
                   show: turnShow(turn),
                   kind: turnKind(turn),
+                  time:
+                    turn.startsAt === null
+                      ? null
+                      : displayListTime(
+                          turn.startsAt,
+                          turns[index - 1]?.startsAt ?? undefined,
+                        ),
                   rulesInPlay: inPlay,
                   ruleName,
                 })}

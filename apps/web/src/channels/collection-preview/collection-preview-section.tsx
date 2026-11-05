@@ -7,14 +7,13 @@ import type {
   SourceAssignment,
 } from "../../http/contracts/programming.js";
 import { useResource } from "../../http/resources/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
 import { ProgrammingPreview } from "./programming-preview.js";
 import { ProgressResetDialog } from "./progress-reset-dialog.js";
 
 /**
  * Previews one of a saved assignment's collections in the mode being
  * edited, and offers **Restart from the beginning…** for it in the saved
- * mode. The server previews saved collections only, so a collection the
+ * mode, or **Reshuffle…** when that mode is random. The server previews saved collections only, so a collection the
  * draft no longer holds has no preview until the draft is saved.
  */
 export function CollectionPreviewSection({
@@ -84,7 +83,9 @@ export function CollectionPreviewSection({
       )}
       {resettable && (
         <button type="button" onClick={() => setResetting(true)}>
-          Restart from the beginning…
+          {savedMode === "random"
+            ? "Reshuffle…"
+            : "Restart from the beginning…"}
         </button>
       )}
       {resetting && previewedId !== undefined && savedMode && (
@@ -95,10 +96,7 @@ export function CollectionPreviewSection({
             collections?.find((collection) => collection.id === previewedId)
               ?.name ?? "This collection"
           }
-          modeLabel={
-            PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === savedMode)
-              ?.label ?? savedMode
-          }
+          mode={savedMode}
           upcoming={preview.data?.upcoming ?? null}
           upcomingError={preview.error}
           reset={() => {

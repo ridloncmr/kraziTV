@@ -1,21 +1,26 @@
 import { useState } from "react";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
-import type { UpcomingSelection } from "../../http/contracts/programming.js";
+import type {
+  PlaybackMode,
+  UpcomingSelection,
+} from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/resources/use-resource.js";
+import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
 import { UpcomingSelections } from "./programming-preview.js";
 
 /**
  * Confirms restarting a channel's progress through one assigned collection
  * in its playback mode, then shows the selections the regenerated schedule
- * airs next. The dialog owns its request, so a refusal stays beside the
- * confirmation.
+ * airs next. A random order has no beginning to go back to, so there the
+ * reset is worded as a reshuffle: its picks start over. The dialog owns its
+ * request, so a refusal stays beside the confirmation.
  */
 export function ProgressResetDialog({
   path,
   mediaCollectionId,
   collectionName,
-  modeLabel,
+  mode,
   upcoming,
   upcomingError,
   reset,
@@ -25,7 +30,8 @@ export function ProgressResetDialog({
   /** The assigned collection whose progress restarts. */
   mediaCollectionId: string;
   collectionName: string;
-  modeLabel: string;
+  /** The saved playback mode whose progress restarts. */
+  mode: PlaybackMode;
   /** The collection's upcoming selections, refreshed by the owner after `reset`. */
   upcoming: UpcomingSelection[] | null;
   /** Why refreshing the upcoming selections failed, if it did. */
@@ -39,17 +45,23 @@ export function ProgressResetDialog({
   const [before, setBefore] = useState<UpcomingSelection[] | null>();
   const done = before !== undefined;
   const refreshed = done && upcoming !== before ? upcoming : null;
+  const random = mode === "random";
+  const modeWords = (
+    PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)?.label ?? mode
+  ).toLowerCase();
   return (
     <WindowDialog
-      title="Restart from the beginning"
+      title={random ? "Reshuffle" : "Restart from the beginning"}
       busy={mutation.pending}
       onClose={onClose}
     >
       {done ? (
         <>
           <p>
-            {collectionName} restarts in {modeLabel.toLowerCase()} after what is
-            airing now. Upcoming selections:
+            {random
+              ? `${collectionName}'s random picks start over after what is airing now.`
+              : `${collectionName} restarts in ${modeWords} after what is airing now.`}{" "}
+            Upcoming selections:
           </p>
           <RequestFeedback
             loading={refreshed === null && upcomingError === undefined}
@@ -64,11 +76,19 @@ export function ProgressResetDialog({
         </>
       ) : (
         <>
-          <p>
-            Restart <strong>{collectionName}</strong> in{" "}
-            {modeLabel.toLowerCase()} from the beginning on this channel? What
-            is airing now finishes; the schedule after it is rebuilt.
-          </p>
+          {random ? (
+            <p>
+              Start <strong>{collectionName}</strong>&apos;s random picks over
+              on this channel? What is airing now finishes; the schedule after
+              it is rebuilt.
+            </p>
+          ) : (
+            <p>
+              Restart <strong>{collectionName}</strong> in {modeWords} from the
+              beginning on this channel? What is airing now finishes; the
+              schedule after it is rebuilt.
+            </p>
+          )}
           <RequestFeedback loading={mutation.pending} error={mutation.error} />
           <div className="dialog-actions">
             <button
@@ -81,7 +101,7 @@ export function ProgressResetDialog({
                 })
               }
             >
-              Restart progress
+              {random ? "Reshuffle" : "Restart progress"}
             </button>
             <button type="button" disabled={mutation.pending} onClick={onClose}>
               Cancel
