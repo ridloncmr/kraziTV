@@ -13,8 +13,9 @@ import { ProgressResetDialog } from "./progress-reset-dialog.js";
 /**
  * Previews one of a saved assignment's collections in the mode being
  * edited, and offers **Restart from the beginning…** for it in the saved
- * mode, or **Reshuffle…** when that mode is random. The server previews saved collections only, so a collection the
- * draft no longer holds has no preview until the draft is saved.
+ * mode, or **Reshuffle…** when that mode is random. The server previews
+ * saved collections only, so a collection the draft no longer holds has no
+ * preview until the draft is saved.
  */
 export function CollectionPreviewSection({
   assignmentPath,
