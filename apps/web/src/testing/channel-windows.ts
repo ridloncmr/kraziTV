@@ -47,6 +47,7 @@ export function ChannelWindows({
             windows: windows.channels,
             onDirtyChange,
             openProgram,
+            onWatch,
           }),
       }),
     ),

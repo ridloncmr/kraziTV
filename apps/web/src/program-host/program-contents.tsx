@@ -52,7 +52,7 @@ export const ProgramContents = memo(function ProgramContents({
   openProgram: (id: ProgramId, task?: ProgramTask) => void;
   /** The latest request to watch a channel, which TV tunes to. */
   watchRequest: WatchRequest | undefined;
-  /** Opens TV on a channel, as My Channels' and the guide's Watch do. */
+  /** Opens TV on a channel, as the Watch in My Channels, Channel Properties, and the guide does. */
   watchChannel: (channelId: string) => void;
   channelWindows: PropertiesWindows;
   collectionWindows: PropertiesWindows;
@@ -74,6 +74,7 @@ export const ProgramContents = memo(function ProgramContents({
         windows={channelWindows}
         onDirtyChange={onDirtyChange}
         openProgram={openProgram}
+        onWatch={watchChannel}
       />
     );
   if (target?.kind === "collection-properties")

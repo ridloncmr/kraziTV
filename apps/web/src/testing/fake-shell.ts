@@ -13,8 +13,9 @@ import { account } from "./auth-fixtures.js";
  * Stands for the desktop shell behind the program host. Its `openProgram`
  * applies the shell's own open action to the real window reducer, so a test
  * reads which windows a program opened and which one is in front without
- * rendering the whole desktop. `open` lists the windows already open, back to
- * front. Every other host prop is an inert stand-in.
+ * rendering the whole desktop; `watchChannel` opens TV the same way, and the
+ * channel it tunes is the call's argument. `open` lists the windows already
+ * open, back to front. Every other host prop is an inert stand-in.
  */
 export function fakeShell(...open: WindowId[]) {
   let windows = open.reduce<DesktopWindow[]>(
@@ -26,6 +27,9 @@ export function fakeShell(...open: WindowId[]) {
       windows = windowReducer(windows, { type: "open", id });
     },
   );
+  const watchChannel = vi.fn<(channelId: string) => void>(() => {
+    windows = windowReducer(windows, { type: "open", id: "tv" });
+  });
   const properties: PropertiesWindows = {
     revision: 0,
     show: vi.fn(),
@@ -44,7 +48,7 @@ export function fakeShell(...open: WindowId[]) {
       onTmdbKeyChanged: vi.fn(),
       openProgram,
       watchRequest: undefined,
-      watchChannel: vi.fn(),
+      watchChannel,
       channelWindows: properties,
       collectionWindows: properties,
       markUnsaved: vi.fn(),

@@ -25,7 +25,9 @@ for shows.
 
 ## Channel Properties
 
-Each channel has its own window with five tabs.
+Each channel has its own window with five tabs. **Watch**, beside the
+channel's name at the top, opens it in [TV](TV) so you can see what you
+just built. It is greyed out while the channel is disabled.
 
 | Tab          | What it holds                                                              |
 | ------------ | -------------------------------------------------------------------------- |

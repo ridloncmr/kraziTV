@@ -24,6 +24,7 @@ export function ChannelPropertiesApp({
   windows,
   onDirtyChange,
   openProgram,
+  onWatch,
 }: {
   channelId: string;
   visible: boolean;
@@ -32,6 +33,8 @@ export function ChannelPropertiesApp({
   onDirtyChange: (dirty: boolean) => void;
   /** Opens another program, which the lineup's show picker needs for Media Library. */
   openProgram: (id: ProgramId) => void;
+  /** Opens TV on a channel, which the sheet's Watch asks for. */
+  onWatch: (channelId: string) => void;
 }) {
   const channel = useResource<Channel>(
     resourcePath("channels", channelId),
@@ -64,6 +67,7 @@ export function ChannelPropertiesApp({
           onTabChange={setTab}
           onDirtyChange={onDirtyChange}
           openProgram={openProgram}
+          onWatch={onWatch}
           changed={() => {
             channel.refresh();
             changed();

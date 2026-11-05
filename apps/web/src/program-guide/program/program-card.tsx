@@ -10,19 +10,23 @@ import { episodeCode } from "./program-words.js";
  * server worded beside when and where it airs. It shows what the schedule
  * reports and offers nothing to change; programming is set in My Channels.
  * Facts come from TMDB, whose terms want its logo and notice wherever they
- * show, so a card with facts carries the attribution.
+ * show, so a card with facts carries the attribution. While the program is
+ * airing, **Watch** opens TV on its channel; the row decides when that is.
  */
 export function ProgramCard({
   program,
   channel,
   startsAt,
   endsAt,
+  onWatch,
   onClose,
 }: {
   program: GuideProgram;
   channel: Channel;
   startsAt: string;
   endsAt: string;
+  /** Present only while the program airs on an enabled channel. */
+  onWatch?: () => void;
   onClose: () => void;
 }) {
   return (
@@ -75,6 +79,11 @@ export function ProgramCard({
       )}
       {program.kind !== null && <TmdbAttribution />}
       <div className="dialog-actions">
+        {onWatch && (
+          <button type="button" onClick={onWatch}>
+            Watch
+          </button>
+        )}
         <button type="button" onClick={onClose}>
           Close
         </button>

@@ -13,6 +13,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { RefreshScope } from "../../http/resources/refresh-scope.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
+import { fakeShell } from "../../testing/fake-shell.js";
 import { guideStart } from "./guide-geometry.js";
 import { GuideGrid } from "./guide-grid.js";
 
@@ -300,6 +301,40 @@ it("opens TV from an enabled channel's name, and offers nothing for a disabled o
   );
   expect(onWatch).toHaveBeenCalledWith("one");
   expect(screen.queryByRole("button", { name: /Second channel/ })).toBeNull();
+});
+
+it("opens TV on the channel from the airing program's card, and offers no Watch on a later one", async () => {
+  guideApi();
+  const shell = fakeShell("guide");
+  render(
+    createElement(GuideGrid, {
+      visible: true,
+      onWatch: shell.hostProps.watchChannel,
+      openProgram: shell.hostProps.openProgram,
+    }),
+  );
+  const programs = await screen.findByRole("list", {
+    name: "Programs on Northwoods TV",
+  });
+
+  // Reserved Movie starts at 20:00, after now: nothing to watch yet.
+  fireEvent.click(
+    within(programs).getByRole("button", { name: /Reserved Movie/ }),
+  );
+  const later = screen.getByRole("dialog", { name: "Reserved Movie" });
+  expect(within(later).queryByRole("button", { name: "Watch" })).toBeNull();
+  fireEvent.click(within(later).getByRole("button", { name: "Close" }));
+
+  fireEvent.click(
+    within(programs).getByRole("button", { name: /Northwoods Nights/ }),
+  );
+  const airing = screen.getByRole("dialog", { name: "Northwoods Nights" });
+  fireEvent.click(within(airing).getByRole("button", { name: "Watch" }));
+
+  expect(shell.hostProps.watchChannel).toHaveBeenCalledExactlyOnceWith("one");
+  expect(shell.windowIds()).toEqual(["guide", "tv"]);
+  // The card's work is done; the guide is left as it was.
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("opens My Channels from the empty state when there are no channels", async () => {
