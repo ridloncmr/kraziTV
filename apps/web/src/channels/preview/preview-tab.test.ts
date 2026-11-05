@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("lists upcoming turns in owner words: the show, what plays, already airing, overrun, marathons, and skips", async () => {
+it("lists upcoming turns in owner words: the time or when a turn continues, the show, what plays, overrun, marathons, and skips", async () => {
   const api = new BrowserApi();
   api.reply("/channels/one/programming-assignments", [
     favoritesAssignment("chronological", { name: "Evening Favorites" }),
@@ -97,12 +97,14 @@ it("lists upcoming turns in owner words: the show, what plays, already airing, o
   // has named the content kind.
   await waitFor(() =>
     expect(within(turns).getAllByRole("listitem")[0]?.textContent).toMatch(
-      /Evening Favorites · 1 episode \(22 min\) · already airing$/,
+      /^continues at [^·]*\d:\d\d[^·]* · Evening Favorites · 1 more episode \(22 min\)$/,
     ),
   );
   const lines = within(turns)
     .getAllByRole("listitem")
     .map((item) => item.textContent);
+  // A turn yet to start leads with its time alone.
+  expect(lines[1]).not.toMatch(/continues|more/);
   expect(lines[1]).toMatch(
     /3 episodes \(1 hr 6 min\) · 6 min over its 1 hr target, since whole programs air$/,
   );
