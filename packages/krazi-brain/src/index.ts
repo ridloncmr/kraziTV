@@ -57,6 +57,7 @@ export type {
   RuleSource,
   SettingOrigins,
   RotationCheckpoint,
+  StretchProblem,
   StretchSetting,
 } from "./krazi-plan/contracts.js";
 

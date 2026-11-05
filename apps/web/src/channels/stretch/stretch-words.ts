@@ -68,16 +68,21 @@ export const MARATHON_PROBLEM_WORDS = {
 } as const;
 
 /**
- * Words the stretch problem a rule refusal carries in `details.problem`,
- * kraziBrain's own sentence, as what to change. The two pair checks are
- * told apart by a word only each uses; any other problem is a value the
- * fields refuse, so the sentence is theirs.
+ * Words the stretch problem a rule refusal carries as what to change, by
+ * the kind the server sends in `details.problemKind`, never by kraziBrain's
+ * reason beside it, which is free to change. The two pair checks share the
+ * held check's names; any other kind is a value the fields refuse, so the
+ * sentence is theirs.
  */
-export function stretchProblemWords(problem: unknown): string {
-  const text = typeof problem === "string" ? problem : "";
-  if (text.includes("unit")) return MARATHON_PROBLEM_WORDS.unit;
-  if (text.includes("longer")) return MARATHON_PROBLEM_WORDS.shorter;
-  return "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.";
+export function stretchProblemWords(problemKind: unknown): string {
+  switch (problemKind) {
+    case "unit":
+      return MARATHON_PROBLEM_WORDS.unit;
+    case "shorter":
+      return MARATHON_PROBLEM_WORDS.shorter;
+    default:
+      return "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.";
+  }
 }
 
 /** Words whole minutes as hours and minutes, such as `1 hr 30 min`. */
