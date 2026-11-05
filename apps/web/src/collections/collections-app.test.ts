@@ -813,3 +813,28 @@ it("lists dismissed recommendations under Show dismissed and restores one", asyn
     }),
   );
 });
+
+it("offers Discover collections on the Manual tab it opens on, and its intro says what Discover suggests", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/recommendations", [officeRecommendation]);
+
+  const manual = await screen.findByRole("tab", { name: "Manual" });
+  expect(manual.getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByText(/^Build ordered sets of media/).textContent).toMatch(
+    /Discover collections… suggests one per series and franchise\.$/,
+  );
+
+  fireEvent.click(
+    within(screen.getByRole("tabpanel", { name: "Manual" })).getByRole(
+      "button",
+      { name: "Discover collections…" },
+    ),
+  );
+
+  // The dialog opens over the Manual tab without switching to Automatic.
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+  expect(await within(dialog).findByText("The Office")).toBeTruthy();
+  expect(manual.getAttribute("aria-selected")).toBe("true");
+});
