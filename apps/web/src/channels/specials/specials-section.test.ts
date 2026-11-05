@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -187,6 +188,17 @@ it("presses Preview with Enter in Starts, then Save special once a preview is cu
     expectedProgrammingRevision: 7,
   });
   expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+});
+
+it("searches with Enter in Find media, never saving or previewing again", async () => {
+  const { api } = await previewSpecial(planned());
+  api.reply(LIST, saved, "POST", 201);
+
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Find media"));
+  await act(async () => {});
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+  expect(screen.getByRole("region", { name: "Special preview" })).toBeTruthy();
 });
 
 it("previews again from Preview while a preview is current, never saving", async () => {

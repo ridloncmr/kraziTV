@@ -50,6 +50,11 @@ export function MediaItemPicker({
           value={search}
           placeholder="Title or path"
           onChange={(event) => setSearch(event.target.value)}
+          // The search runs as the owner types, so Enter has nothing left to
+          // do here; it must never submit the form that holds the picker.
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.preventDefault();
+          }}
         />
       </label>
       <label>
