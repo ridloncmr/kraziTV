@@ -21,9 +21,14 @@ it("words a field by its own name wherever it sits in the body", () => {
 });
 
 it("words a field by the check it failed, so no sentence is wrong", () => {
-  // A long name is not a missing one.
+  // A long name is not a missing one. One sentence serves every name the
+  // server caps, so it names each cap: 120 for a channel or collection, 80
+  // for a show.
   expect(refusalWords(invalid(["name", "too_big"]))).toBe(
-    "Use a shorter name.",
+    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+  );
+  expect(refusalWords(invalid(["assignments[0].name", "too_big"]))).toBe(
+    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
   );
   // A login refuses only the cap; the setup minimum belongs to setup.
   expect(refusalWords(invalid(["password", "too_big"]))).toBe(

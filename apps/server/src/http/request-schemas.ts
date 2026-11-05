@@ -43,6 +43,18 @@ export const uniqueMediaItemIds = z
 export const nameField = z.string().trim().min(1, "name must not be empty");
 
 /**
+ * A channel or collection name: a display name of at most 120 characters,
+ * so a pasted paragraph is refused instead of stored (release-polish
+ * decision 18). The cap is not on `nameField` itself: its other callers
+ * carry titles, tags, search text, and rule names, which that decision
+ * does not cap.
+ */
+export const longNameField = nameField.max(
+  120,
+  "name must be at most 120 characters",
+);
+
+/**
  * The three stretch shapes an assignment or rule source sets; kraziBrain's
  * stretch rule decides which values are valid.
  */

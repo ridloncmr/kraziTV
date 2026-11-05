@@ -17,7 +17,8 @@ const FIELD_WORDS: Record<string, Partial<Record<string, string>>> = {
   },
   name: {
     too_small: "Type a name.",
-    too_big: "Use a shorter name.",
+    too_big:
+      "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
   },
   displayName: {
     too_small: "Type a name of 1 to 40 characters.",

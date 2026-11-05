@@ -209,6 +209,40 @@ it("keeps a rejected create in its dialog, then selects and opens the created ch
   ).toEqual({ number: "69", name: "Northwoods TV" });
 });
 
+it("refuses a channel name longer than 120 characters in the dialog, naming the limit", async () => {
+  const api = new BrowserApi();
+  api.reply("/channels", []);
+  api.reply(
+    "/channels",
+    {
+      error: {
+        code: "invalid_request",
+        message: "name: name must be at most 120 characters",
+        fields: [{ path: "name", code: "too_big" }],
+      },
+    },
+    "POST",
+    400,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(createElement(ChannelWindows));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Create a channel…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "New channel" });
+  fireEvent.change(screen.getByLabelText("Channel number"), {
+    target: { value: "69" },
+  });
+  fireEvent.change(screen.getByLabelText("Channel name"), {
+    target: { value: "n".repeat(121) },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+  );
+});
+
 it("opens a delete confirmation without an earlier action's error", async () => {
   const api = new BrowserApi();
   api.reply("/channels", [adminFixtures.channels[0]]);
