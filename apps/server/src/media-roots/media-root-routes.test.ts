@@ -227,7 +227,11 @@ describe("GET /media-roots/folders", () => {
     const response = await listFolders(server, join("media", "TV"));
 
     expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe("invalid_request");
+    // The field lets the web app say what a good path looks like.
+    expect(response.json().error).toMatchObject({
+      code: "invalid_request",
+      fields: [{ path: "path", code: "custom" }],
+    });
   });
 
   it("reports a missing folder", async () => {

@@ -20,7 +20,7 @@ window to the front.
 | [Program Guide](Program-Guide)       | See what every channel airs                                |
 | [TV](TV)                             | Watch a channel in the browser                             |
 | **Plex Setup**                       | The addresses Plex needs; see [Connect Plex](Connect-Plex) |
-| [Live Monitor](Live-Monitor)         | See what one channel is airing right now                   |
+| [Live Monitor](Live-Monitor)         | See what each channel is airing right now                  |
 | [Account Settings](Account-Settings) | Your name, picture, password, and TMDB                     |
 
 ## Windows

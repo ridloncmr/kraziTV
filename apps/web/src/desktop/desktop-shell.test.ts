@@ -56,6 +56,10 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
       .getByRole("link", { name: "Source code" })
       .getAttribute("href"),
   ).toBe("https://github.com/ridloncmr/kraziTV");
+  // Each program says what it is for in the owner's words.
+  expect(
+    within(menu).getByText("See what each channel is airing right now"),
+  ).toBeTruthy();
   fireEvent.click(within(menu).getByRole("button", { name: /Media Library/ }));
   const window = await screen.findByRole("region", { name: "Media Library" });
   fireEvent.click(

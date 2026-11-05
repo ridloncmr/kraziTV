@@ -91,6 +91,7 @@ export function registerMediaRootRoutes(
           400,
           "invalid_request",
           "path must be a fully qualified absolute path",
+          { fields: [{ path: "path", code: "custom" }] },
         );
       }
       if (error.code === "traversal_failed") {
