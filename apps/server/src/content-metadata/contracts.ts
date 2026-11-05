@@ -74,7 +74,7 @@ export type MetadataRefusal =
   /** The item's decision is not the ambiguous one read, so a choice would overwrite a newer one. */
   | { kind: "not_ambiguous" }
   | { kind: "tmdb_key_missing" }
-  | { kind: "lookup_failed"; reason: string }
+  | { kind: "lookup_failed"; message: string }
   /** A track was mapped to an episode number the series' season does not list. */
   | { kind: "episode_not_in_series" }
   | { kind: "not_rejectable" }

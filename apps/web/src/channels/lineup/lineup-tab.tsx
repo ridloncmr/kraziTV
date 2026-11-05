@@ -13,7 +13,7 @@ import type {
 } from "../../http/contracts/programming.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
 import { memberKey } from "../../media-search/collection-or-item-search.js";
-import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
+import { playbackModeLabel } from "../members/playback-mode-choices.js";
 import type { ChannelProgramming } from "../use-channel-programming.js";
 import { RebuildDialog } from "../preview/rebuild-dialog.js";
 import { AddShowsDialog } from "./add-shows-dialog.js";
@@ -345,7 +345,5 @@ function RulesCell({
 function orderLabel(assignment: SourceAssignment): string {
   const mode = assignment.playbackMode;
   if (mode === null) return "—";
-  return (
-    PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)?.label ?? mode
-  );
+  return playbackModeLabel(mode);
 }

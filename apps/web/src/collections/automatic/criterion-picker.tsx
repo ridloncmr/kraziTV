@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
+import { displayCount } from "../../controls/formatting/display-count.js";
 import {
   optionValue,
   type CatalogOption,
@@ -136,7 +137,7 @@ export function CriterionPicker({
 
   /** Counts items in the unit the chosen kind holds, such as "2 episodes". */
   function count(n: number) {
-    return `${n} ${n === 1 ? unit[0] : unit[1]}`;
+    return `${displayCount(n)} ${n === 1 ? unit[0] : unit[1]}`;
   }
 
   return (

@@ -6,7 +6,7 @@ import type {
   UpcomingSelection,
 } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/resources/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
+import { playbackModeLabel } from "../members/playback-mode-choices.js";
 import { UpcomingSelections } from "./programming-preview.js";
 
 /**
@@ -46,9 +46,7 @@ export function ProgressResetDialog({
   const done = before !== undefined;
   const refreshed = done && upcoming !== before ? upcoming : null;
   const random = mode === "random";
-  const modeWords = (
-    PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)?.label ?? mode
-  ).toLowerCase();
+  const modeWords = playbackModeLabel(mode).toLowerCase();
   return (
     <WindowDialog
       title={random ? "Reshuffle" : "Restart from the beginning"}

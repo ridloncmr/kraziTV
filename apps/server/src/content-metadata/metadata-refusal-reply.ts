@@ -4,7 +4,7 @@ import { sendApiError, sendMediaItemNotFound } from "../http/api-error.js";
 import type { MetadataRefusal } from "./contracts.js";
 
 /**
- * Maps why a decision changed nothing to its answer. A TMDB failure's reason
+ * Maps why a decision changed nothing to its answer. A TMDB failure's message
  * is logged, not sent: it names the outage, which the owner cannot act on.
  */
 export function sendMetadataRefusal(
@@ -39,7 +39,7 @@ export function sendMetadataRefusal(
       );
     case "lookup_failed":
       request.log.warn(
-        { reason: refusal.reason },
+        { reason: refusal.message },
         "Could not read TMDB for a match decision",
       );
       return sendApiError(

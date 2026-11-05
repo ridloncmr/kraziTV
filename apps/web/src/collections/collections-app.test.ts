@@ -650,6 +650,53 @@ it("creates an automatic collection from a standard genre", async () => {
   );
 });
 
+it("counts a large genre and its preview with thousands separators", async () => {
+  const api = renderApp();
+  api.reply("/media-collections/series", catalogSeries);
+  api.reply("/media-collections/genres", [{ name: "Drama", itemCount: 7225 }]);
+  api.reply(
+    "/media-collections/previews",
+    Array.from({ length: 1234 }, (_, position) => ({
+      position,
+      mediaItemId: `m${position}`,
+      title: `Drama ${position}`,
+      path: `/media/drama-${position}.mp4`,
+      status: "available",
+      durationMs: 1_200_000,
+    })),
+    "POST",
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+
+  fireEvent.click(within(dialog).getByRole("radio", { name: "Genre" }));
+  await within(dialog).findByRole("option", { name: "Drama (7,225 items)" });
+  fireEvent.change(within(dialog).getByLabelText("Genre name"), {
+    target: { value: "Drama" },
+  });
+  await within(dialog).findByText("1,234 items in this order");
+});
+
+it("counts a collection's missing members with thousands separators on its card", async () => {
+  renderApp(undefined, [
+    collectionWith("archive", "Archive", {
+      memberCount: 5000,
+      missingCount: 1234,
+    }),
+  ]);
+
+  expect(
+    (await screen.findByRole("button", { name: "Open Archive" })).textContent,
+  ).toBe(
+    "Archive5,000 items1,234 missing — won't air until their files return",
+  );
+});
+
 const officeRecommendation = {
   criterion: { kind: "series", tmdbId: 2316 },
   name: "The Office",

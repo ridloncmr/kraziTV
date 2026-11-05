@@ -9,7 +9,7 @@ import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { resourcePath } from "../../http/api-client.js";
 import type { MediaCollection } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
-import { PLAYBACK_MODE_CHOICES } from "../members/playback-mode-choices.js";
+import { playbackModeLabel } from "../members/playback-mode-choices.js";
 import { listNames } from "../lineup/picks/show-labels.js";
 import { useMemberNames } from "../lineup/use-member-names.js";
 import type { Special } from "./contracts.js";
@@ -90,11 +90,7 @@ export function SpecialsSection({
       kind: "collection",
       mediaCollectionId: source.mediaCollectionId,
     });
-    const mode =
-      PLAYBACK_MODE_CHOICES.find(
-        (choice) => choice.mode === source.playbackMode,
-      )?.label ?? source.playbackMode;
-    return `${name} · ${mode}`;
+    return `${name} · ${playbackModeLabel(source.playbackMode)}`;
   };
   // The changes a special takes where it stands, for its row menu and the toolbar.
   const actions = (special: Special | undefined) => [

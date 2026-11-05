@@ -213,6 +213,11 @@ it("breaks a scene-named root path inside its sentence rather than scrolling the
   // stylesheet letting the browser break the path anywhere, read here from
   // the real rules.
   expect(getComputedStyle(sentence).overflowWrap).toBe("anywhere");
+  // The rule covers sentences only: a button label still breaks between words.
+  expect(
+    getComputedStyle(within(dialog).getByRole("button", { name: "Delete" }))
+      .overflowWrap,
+  ).not.toBe("anywhere");
 });
 
 it("offers the airing choice, letting the program finish by default", async () => {
