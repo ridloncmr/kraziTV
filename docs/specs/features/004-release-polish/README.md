@@ -1,12 +1,14 @@
 # Release Polish Feature
 
-Status: Implemented
+Status: In Development
 
 This feature takes kraziTV from "works" to "a non-technical first-time user,
 with minimal prompting, builds channels and enjoys it", inside the Windows XP
 desktop look. It comes from the release-polish audit of 2026-10-28 (commit
-`d175cd2`) and its second run on 2026-11-03 (commit `5d3c498`), which walked the first-run path, read every desktop program beside
-its screenshot, and checked the code and docs against `AGENTS.md`. The audit
+`d175cd2`), its second run on 2026-11-03 (commit `5d3c498`), and its third
+run on 2026-11-05 (commit `555d895`), which walked the first-run path, read
+every desktop program beside its screenshot, and checked the code and docs
+against `AGENTS.md`. The audit
 report itself lives outside git under `data/polish-audit/`; everything a
 contributor needs is restated in the specs and plans here.
 
@@ -52,17 +54,33 @@ Settled with the owner on 2026-11-03 after the audit ran again (commit
 14. The glossary gains **Schedule preview** for the read-only "what would
     air" computation (code name `SchedulePreview`).
 
+Settled with the owner on 2026-11-05 after the third run (commit `555d895`):
+
+15. The owner's sentence for a bad marathon length and for a rejected TMDB
+    key is chosen by a kind the server sends beside its message, never by
+    matching another package's prose.
+16. All seven first-run shortcuts in spec 0005 are in scope: Discover on both
+    Collections tabs, the empty-scan sentence, Watch from Channel Properties
+    and the guide card, TV keys, Live Monitor's remembered channel, the
+    account in the Start header, and a confirmation before removing the TMDB
+    key.
+17. The browser suite's scan-progress scenario drops its 390-wide pass; the
+    wide and reduced-motion passes stay.
+18. Channel and collection names are capped at 120 characters on the server,
+    refused with the existing too-long words.
+
 ## Related Specs
 
 Specs are listed in delivery order. Each spec's status is the `Status:` line at
 the top of the spec.
 
-| Spec                                                        | Description                                                                                                            |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer                                                       |
-| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary                                                  |
-| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                |
-| [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items |
+| Spec                                                        | Description                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer                                                               |
+| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary                                                          |
+| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                        |
+| [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items         |
+| [0005-third-polish-pass](specs/0005-third-polish-pass.md)   | What the third audit found: a Preview tab that always answers, the last owner words, first-run shortcuts, and kinds over prose |
 
 ## Out Of Scope
 
