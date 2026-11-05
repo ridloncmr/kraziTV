@@ -33,12 +33,16 @@ const collections = [
   collectionWith("cartoons", "Cartoons", { memberCount: 1 }),
 ];
 
-// Serves two collections, favorites holding both fixture media, and renders
-// Collections with a Collection Properties window per opened collection.
-function renderApp(openProgram?: (id: ProgramId) => void) {
+// Serves `listed`, by default two collections, favorites holding both
+// fixture media, and renders Collections with a Collection Properties
+// window per opened collection.
+function renderApp(
+  openProgram?: (id: ProgramId) => void,
+  listed = collections,
+) {
   const api = new BrowserApi();
-  api.reply("/media-collections", collections);
-  for (const collection of collections)
+  api.reply("/media-collections", listed);
+  for (const collection of listed)
     api.reply(`/media-collections/${collection.id}`, collection);
   serveCollection(api, "favorites", ["z", "a"]);
   vi.stubGlobal("fetch", api.fetch);
@@ -96,6 +100,33 @@ it("lists manual collections as cards with their member counts and opens one in 
       .getAllByRole("region")
       .map((region) => region.getAttribute("aria-label")),
   ).toEqual(["Favorites Properties", "Cartoons Properties"]);
+});
+
+it("counts a large collection's members with thousands separators on its card and in Discover collections", async () => {
+  const api = renderApp(undefined, [
+    collectionWith("westerns", "Westerns", { memberCount: 1284 }),
+  ]);
+  api.reply("/media-collections/recommendations", [
+    { ...officeRecommendation, memberCount: 1284, seasonCount: 9 },
+  ]);
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Open Westerns",
+      description: "1,284 items",
+    }),
+  ).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discover collections…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+  expect(
+    await within(dialog).findByText("1,284 items, 9 seasons"),
+  ).toBeTruthy();
 });
 
 it("Refresh reloads the grid", async () => {

@@ -7,7 +7,7 @@ import {
   CardMaintenanceStatus,
   criterionBasis,
 } from "../automatic/automatic-status.js";
-import { missingWords } from "../collection-words.js";
+import { itemCountWords, missingWords } from "../collection-words.js";
 import { CollectionTypeSelect } from "../../collection-types/collection-type-select.js";
 import {
   type CollectionType,
@@ -116,10 +116,7 @@ export function CollectionGrid({
                   )}
                   {/* Count and status share a line, keeping every card short. */}
                   <span className="card-line">
-                    <span>
-                      {collection.memberCount}{" "}
-                      {collection.memberCount === 1 ? "item" : "items"}
-                    </span>
+                    <span>{itemCountWords(collection.memberCount)}</span>
                     {collection.maintenanceMode === "automatic" && (
                       <CardMaintenanceStatus collection={collection} />
                     )}

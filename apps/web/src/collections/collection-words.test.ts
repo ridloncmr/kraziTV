@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { CollectionStatus } from "../http/contracts/collections.js";
-import { canAirWords } from "./collection-words.js";
+import { canAirWords, itemCountWords } from "./collection-words.js";
 
 const counts = (
   memberCount: number,
@@ -44,4 +44,9 @@ it("names only the causes present after the airable count", () => {
   expect(canAirWords(counts(1200, 1200), "manual")).toBe(
     "1,200 of 1,200 can air",
   );
+});
+
+it("counts members with thousands separators, singular for one", () => {
+  expect(itemCountWords(1)).toBe("1 item");
+  expect(itemCountWords(1284)).toBe("1,284 items");
 });
