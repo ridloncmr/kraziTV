@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { CloseWindow } from "../desktop/windows/close-window.js";
+import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { fakeShell } from "../testing/fake-shell.js";
 import { ProgramContents } from "./program-contents.js";
@@ -62,3 +70,41 @@ it("brings an open program forward instead of opening it twice", async () => {
   expect(shell.windowIds()).toEqual(["guide", "channels"]);
   expect(shell.hostProps.openProgram).toHaveBeenCalledTimes(2);
 });
+
+it.each([
+  { enabled: true, opens: ["channels", "channel-properties:two", "tv"] },
+  // A disabled channel broadcasts nothing to watch.
+  { enabled: false, opens: ["channels", "channel-properties:two"] },
+])(
+  "opens TV on the channel from its Properties' Watch only while it is enabled ($enabled)",
+  async ({ enabled, opens }) => {
+    const api = new BrowserApi();
+    api.reply("/channels/two", { ...adminFixtures.channels[1], enabled });
+    vi.stubGlobal("fetch", api.fetch);
+    const shell = fakeShell("channels", "channel-properties:two");
+    // The sheet sits in a window it can close, as on the desktop.
+    render(
+      <CloseWindow.Provider value={() => {}}>
+        <ProgramContents
+          id="channel-properties:two"
+          visible
+          {...shell.hostProps}
+        />
+      </CloseWindow.Provider>,
+    );
+    const sheet = await screen.findByRole("region", {
+      name: "70 · Second channel properties",
+    });
+    const watch = within(sheet).getByRole("button", { name: "Watch" });
+
+    expect(watch).toHaveProperty("disabled", !enabled);
+    fireEvent.click(watch);
+
+    if (enabled)
+      expect(shell.hostProps.watchChannel).toHaveBeenCalledExactlyOnceWith(
+        "two",
+      );
+    else expect(shell.hostProps.watchChannel).not.toHaveBeenCalled();
+    expect(shell.windowIds()).toEqual(opens);
+  },
+);

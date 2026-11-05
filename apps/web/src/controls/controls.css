@@ -927,6 +927,22 @@
   color: var(--xp-muted);
   opacity: 0.6;
 }
+/*
+ * A property sheet's heading with the one action on what it names beside
+ * it, such as Channel Properties' Watch; a long name wraps, never the button.
+ */
+.sheet-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-heading h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sheet-heading button {
+  flex: none;
+}
 /* XP property-sheet tabs: the chosen tab joins the panel below it. */
 .tab-strip {
   display: flex;
