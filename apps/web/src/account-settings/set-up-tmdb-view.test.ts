@@ -137,16 +137,69 @@ it("shows the server's invalid_tmdb_key message and stays on the task", async ()
   expect(within(window).getByLabelText("API Read Access Token")).toBeTruthy();
 });
 
-it("removes the saved key, then returns home", async () => {
+/** Presses the task's **Remove** and returns the question it opens. */
+function pressRemove(window: HTMLElement) {
+  fireEvent.click(within(window).getByRole("button", { name: "Remove" }));
+  return within(window).getByRole("dialog", { name: "Remove TMDB key" });
+}
+
+it("asks before removing the key, then removes it and returns home", async () => {
   const { api, window } = await openTmdbTask(true);
   api.reply(KEY_PATH, { configured: false }, "DELETE");
 
-  fireEvent.click(within(window).getByRole("button", { name: "Remove" }));
+  const question = pressRemove(window);
+
+  expect(question.querySelector("p")?.textContent).toBe(
+    "Remove the TMDB key? Matches already made stay; new lookups stop until a key is set.",
+  );
+  expect(
+    api.requestsTo(KEY_PATH).filter((request) => request.method !== "GET"),
+  ).toEqual([]);
+
+  fireEvent.click(within(question).getByRole("button", { name: "Remove" }));
 
   await expectHome(window);
   expect(
-    api.requestsTo(KEY_PATH).filter((request) => request.method === "DELETE"),
-  ).toHaveLength(1);
+    api.requestsTo(KEY_PATH).filter((request) => request.method !== "GET"),
+  ).toMatchObject([{ method: "DELETE" }]);
+});
+
+it("keeps the key when the question is cancelled", async () => {
+  const { api, window } = await openTmdbTask(true);
+
+  const question = pressRemove(window);
+  fireEvent.click(within(question).getByRole("button", { name: "Cancel" }));
+
+  expect(within(window).queryByRole("dialog")).toBeNull();
+  expect(within(window).getByText("A TMDB key is set.")).toBeTruthy();
+  expect(
+    api.requestsTo(KEY_PATH).filter((request) => request.method !== "GET"),
+  ).toEqual([]);
+});
+
+it("shows a refused removal in the question, which stays open", async () => {
+  const { api, window } = await openTmdbTask(true);
+  api.reply(
+    KEY_PATH,
+    {
+      error: {
+        code: "internal_error",
+        message: "Internal server error",
+      },
+    },
+    "DELETE",
+    500,
+  );
+
+  const question = pressRemove(window);
+  fireEvent.click(within(question).getByRole("button", { name: "Remove" }));
+
+  expect((await within(question).findByRole("alert")).textContent).toBe(
+    "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.",
+  );
+  expect(within(window).getByRole("dialog", { name: "Remove TMDB key" })).toBe(
+    question,
+  );
 });
 
 it("sends nothing on Cancel and returns home", async () => {

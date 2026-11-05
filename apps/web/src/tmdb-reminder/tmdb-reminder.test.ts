@@ -237,6 +237,11 @@ it("keeps the balloon closed when a removed key brings the icon back after Don't
   fireEvent.click(
     await within(window).findByRole("button", { name: "Remove" }),
   );
+  fireEvent.click(
+    within(
+      within(window).getByRole("dialog", { name: "Remove TMDB key" }),
+    ).getByRole("button", { name: "Remove" }),
+  );
 
   await vi.waitFor(() => expect(trayIcon()).toBeTruthy());
   expect(balloon()).toBeNull();

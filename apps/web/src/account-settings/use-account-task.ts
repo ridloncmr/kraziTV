@@ -1,11 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useMutation } from "../http/resources/use-resource.js";
 
-/**
- * What a task's fields ask the server to apply, or why nothing is sent. A
- * request may name its own method, for a task with a second submit button.
- */
-type TaskRequest = { body: unknown; method?: string } | { refusal: string };
+/** What a task's fields ask the server to apply, or why nothing is sent. */
+type TaskRequest = { body: unknown } | { refusal: string };
 
 /** One Account Settings task's submit handler and the state its page shows. */
 export interface AccountTask {
@@ -19,15 +16,14 @@ export interface AccountTask {
 
 /**
  * The submit sequence every Account Settings task shares: the task prepares a
- * request from its fields and the `value` of the submit button pressed ("" for
- * the main one), a client refusal never reaches the server, and the
+ * request from its fields, a client refusal never reaches the server, and the
  * server's answer goes to `onDone`. A server refusal stays in `error`, not
  * thrown, so the task's page can show it and the owner can correct and resend.
  */
 export function useAccountTask<T>(
   path: string,
   method: string,
-  prepare: (form: FormData, action: string) => TaskRequest,
+  prepare: (form: FormData) => TaskRequest,
   onDone: (answer: T) => void,
 ): AccountTask {
   const [refusal, setRefusal] = useState<string>();
@@ -36,16 +32,13 @@ export function useAccountTask<T>(
   /** Sends what the task prepared from its fields, unless the task refused them. */
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const { submitter } = event.nativeEvent as SubmitEvent;
-    const action =
-      submitter instanceof HTMLButtonElement ? submitter.value : "";
-    const prepared = prepare(new FormData(event.currentTarget), action);
+    const prepared = prepare(new FormData(event.currentTarget));
     if ("refusal" in prepared) {
       setRefusal(prepared.refusal);
       return;
     }
     setRefusal(undefined);
-    void request.run<T>(path, prepared.method ?? method, prepared.body, onDone);
+    void request.run<T>(path, method, prepared.body, onDone);
   }
 
   return {
