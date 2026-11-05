@@ -71,8 +71,9 @@ That is it. The channel is on the air, taking turns between its shows.
 
 ## 6. Watch it
 
-Open **Program Guide** to see what the channel will air today. Click the
-channel's name to open **TV** and watch it in the browser.
+Click **Watch** at the top of the channel's Properties window to see it in
+**TV**, right in the browser. Or open **Program Guide** to see what the
+channel will air today, and click the channel's name there.
 
 ---
 

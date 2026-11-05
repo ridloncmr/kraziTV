@@ -114,11 +114,13 @@ Preview lists the next ten or so turns in order, with each show, how much
 it plays, and how long that takes. A turn already on the air reads
 **continues at** the time its next program starts, with what it has left,
 such as "1 more episode". When rules are involved it says which rule chose
-each turn. A show that cannot air, because its collection is
-empty or its files are missing, is listed as skipped with the reason. When
-nothing at all would air, as on a channel whose only shows wait for a rule,
-Preview says so and points at the Lineup and Rules tabs instead of showing
-an empty list.
+each turn. A show that cannot air, because its collection is empty or its
+files are missing, is listed as skipped with the reason. When nothing at
+all would air, Preview says why instead of showing an empty list. A channel
+with no shows yet is told to add shows on the Lineup tab. A channel whose
+shows have no media that can air (missing or too short), or whose only
+shows wait for a rule, is pointed at its shows' media and its Lineup and
+Rules tabs.
 
 ![The Preview tab](images/channel-preview.png)
 
