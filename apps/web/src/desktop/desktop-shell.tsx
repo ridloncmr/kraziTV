@@ -10,6 +10,7 @@ import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import type { WatchRequest } from "../tv/tv-app.js";
+import { navigateWithArrows } from "./arrow-navigation.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import type {
@@ -135,7 +136,14 @@ export function DesktopShell({
   return (
     <>
       <main className="desktop-shell" inert={loggingOff}>
-        <div className="desktop-shortcuts" aria-label="Desktop programs">
+        {/* One column of icons, which the arrow keys move through as Start's. */}
+        <div
+          className="desktop-shortcuts"
+          aria-label="Desktop programs"
+          onKeyDown={(event) =>
+            navigateWithArrows(event, [event.currentTarget])
+          }
+        >
           {programs.map((program) => (
             <Tooltip
               key={program.id}

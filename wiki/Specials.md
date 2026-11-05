@@ -25,11 +25,12 @@ Click **New special…** and fill in:
 - **Ends**: optional for the first two, which otherwise end with their last
   program. Required for the third.
 
-Then click **Preview**. kraziTV shows exactly what the special will air,
-minute by minute, and what it moves out of the way. If something stops the
-special from being saved, the preview says what. Only when the preview is
-clean does **Save special** become available. Any edit after that needs a
-new preview.
+Then click **Preview**, or press Enter in a field. kraziTV shows exactly
+what the special will air, minute by minute, and what it moves out of the
+way. If something stops the special from being saved, the preview says
+what. Only when the preview is clean does **Save special** become
+available, and then Enter saves it. Any edit after that needs a new
+preview.
 
 ## What happens around it
 

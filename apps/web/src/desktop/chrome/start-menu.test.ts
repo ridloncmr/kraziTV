@@ -40,6 +40,15 @@ it("moves through a column with Up and Down, wrapping at its ends", () => {
   expect(focusedName()).toBe("My Channels");
 });
 
+it("jumps to a column's first and last entries with Home and End", () => {
+  renderStart();
+  press("End");
+  expect(focusedName()).toBe("TV");
+  press("ArrowRight");
+  press("Home");
+  expect(focusedName()).toBe("Plex Setup");
+});
+
 it("switches columns with Left and Right, keeping the row where the other column has one", () => {
   renderStart();
   press("ArrowDown");

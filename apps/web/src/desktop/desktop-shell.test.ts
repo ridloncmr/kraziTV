@@ -124,6 +124,42 @@ it("reaches an offline desktop and dismisses Start with keyboard focus restored"
   ).toBeTruthy();
 });
 
+it("moves through the desktop icons with Up, Down, Home, and End, as Start does", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  const icons = within(screen.getByLabelText("Desktop programs"));
+  const press = (key: string) =>
+    fireEvent.keyDown(document.activeElement ?? document.body, { key });
+  const focused = () => document.activeElement?.textContent;
+  icons.getByRole("button", { name: "My Channels" }).focus();
+
+  press("ArrowDown");
+  expect(focused()).toBe("Media Library");
+  press("End");
+  expect(focused()).toBe("Account Settings");
+  // The column wraps, as Start's do.
+  press("ArrowDown");
+  expect(focused()).toBe("My Channels");
+  press("ArrowUp");
+  expect(focused()).toBe("Account Settings");
+  press("Home");
+  expect(focused()).toBe("My Channels");
+  // One column, so Left and Right stay put.
+  press("ArrowRight");
+  expect(focused()).toBe("My Channels");
+  // The keys move focus only; nothing opens until Enter or a click.
+  expect(screen.queryByRole("region")).toBeNull();
+  await screen.findByRole("button", { name: "kraziTV is running" });
+});
+
 it("keeps windows on screen while the browser shrinks and restores their places when it grows", async () => {
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });

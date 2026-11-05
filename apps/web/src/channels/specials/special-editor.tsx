@@ -218,150 +218,162 @@ export function SpecialEditor({
       busy={saving.pending}
       onClose={onClose}
     >
-      <fieldset disabled={saving.pending} className="form-stack">
-        <div className="field-pair">
-          <label>
-            Starts
-            <input
-              type="datetime-local"
-              required
-              value={startsAt}
-              onChange={(event) =>
-                edit(() => {
-                  setStartsAt(event.target.value);
-                  setStartTouched(true);
-                  // A new start asks the What is airing now question afresh.
-                  setExactStart(undefined);
-                  setInterrupts(false);
-                  setAiringEndsAt(undefined);
-                })
-              }
-            />
-          </label>
-          <label>
-            {kind === "collection" ? "Ends" : "Ends (optional)"}
-            <input
-              type="datetime-local"
-              required={kind === "collection"}
-              value={endsAt}
-              onChange={(event) =>
-                edit(() => {
-                  setEndsAt(event.target.value);
-                  setEndTouched(true);
-                })
-              }
-            />
-          </label>
-        </div>
-        <SpecialSourceFields
-          kind={kind}
-          items={items}
-          collectionId={collectionId}
-          mode={mode}
-          collections={collections}
-          visible={visible}
-          onKind={(next) =>
-            edit(() => {
-              setKind(next);
-              // A collection from the start plays once, so never at random.
-              if (next === "collection_from_beginning" && mode === "random") {
-                setMode("chronological");
-              }
-            })
-          }
-          onItems={(next) => edit(() => setItems(next))}
-          onCollection={(next) => edit(() => setCollectionId(next))}
-          onMode={(next) => edit(() => setMode(next))}
-        />
-        {airingEndsAt && (
-          <div
-            role="radiogroup"
-            aria-labelledby={airingId}
-            className="field-group inline-notice"
-          >
-            <strong id={airingId}>What is airing now</strong>
-            <span className="secondary">
-              This special starts before what is airing ends.
-            </span>
-            <CheckboxOption
-              radio={`${airingId}-choice`}
-              label="Let it finish"
-              description="The special starts when it ends."
-              checked={!interrupts && exactStart === airingEndsAt}
-              onChange={() => {
-                setInterrupts(false);
-                setExactStart(airingEndsAt);
-                setStartsAt(toLocalInput(airingEndsAt));
-                requestPreview({
-                  exactStart: airingEndsAt,
-                  interrupts: false,
-                });
-              }}
-            />
-            <CheckboxOption
-              radio={`${airingId}-choice`}
-              label="Stop it at the special's start"
-              description="Viewers stay tuned and see it cut straight into the special."
-              checked={interrupts && exactStart !== "now"}
-              onChange={() => {
-                setInterrupts(true);
-                requestPreview({ interrupts: true });
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setInterrupts(true);
-                setExactStart("now");
-                requestPreview({ exactStart: "now", interrupts: true });
-              }}
-            >
-              Start now
-            </button>
+      {/* Enter in a field presses the default button, the first submit
+          button: Preview while no preview is current, which then turns plain
+          so Save special is next. Either way the submit takes the next step. */}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (previewed) save();
+          else requestPreview();
+        }}
+      >
+        <fieldset disabled={saving.pending} className="form-stack">
+          <div className="field-pair">
+            <label>
+              Starts
+              <input
+                type="datetime-local"
+                required
+                value={startsAt}
+                onChange={(event) =>
+                  edit(() => {
+                    setStartsAt(event.target.value);
+                    setStartTouched(true);
+                    // A new start asks the What is airing now question afresh.
+                    setExactStart(undefined);
+                    setInterrupts(false);
+                    setAiringEndsAt(undefined);
+                  })
+                }
+              />
+            </label>
+            <label>
+              {kind === "collection" ? "Ends" : "Ends (optional)"}
+              <input
+                type="datetime-local"
+                required={kind === "collection"}
+                value={endsAt}
+                onChange={(event) =>
+                  edit(() => {
+                    setEndsAt(event.target.value);
+                    setEndTouched(true);
+                  })
+                }
+              />
+            </label>
           </div>
+          <SpecialSourceFields
+            kind={kind}
+            items={items}
+            collectionId={collectionId}
+            mode={mode}
+            collections={collections}
+            visible={visible}
+            onKind={(next) =>
+              edit(() => {
+                setKind(next);
+                // A collection from the start plays once, so never at random.
+                if (next === "collection_from_beginning" && mode === "random") {
+                  setMode("chronological");
+                }
+              })
+            }
+            onItems={(next) => edit(() => setItems(next))}
+            onCollection={(next) => edit(() => setCollectionId(next))}
+            onMode={(next) => edit(() => setMode(next))}
+          />
+          {airingEndsAt && (
+            <div
+              role="radiogroup"
+              aria-labelledby={airingId}
+              className="field-group inline-notice"
+            >
+              <strong id={airingId}>What is airing now</strong>
+              <span className="secondary">
+                This special starts before what is airing ends.
+              </span>
+              <CheckboxOption
+                radio={`${airingId}-choice`}
+                label="Let it finish"
+                description="The special starts when it ends."
+                checked={!interrupts && exactStart === airingEndsAt}
+                onChange={() => {
+                  setInterrupts(false);
+                  setExactStart(airingEndsAt);
+                  setStartsAt(toLocalInput(airingEndsAt));
+                  requestPreview({
+                    exactStart: airingEndsAt,
+                    interrupts: false,
+                  });
+                }}
+              />
+              <CheckboxOption
+                radio={`${airingId}-choice`}
+                label="Stop it at the special's start"
+                description="Viewers stay tuned and see it cut straight into the special."
+                checked={interrupts && exactStart !== "now"}
+                onChange={() => {
+                  setInterrupts(true);
+                  requestPreview({ interrupts: true });
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setInterrupts(true);
+                  setExactStart("now");
+                  requestPreview({ exactStart: "now", interrupts: true });
+                }}
+              >
+                Start now
+              </button>
+            </div>
+          )}
+        </fieldset>
+        {stale && (
+          <p role="alert">
+            The schedule changed since this preview. Preview again before
+            saving.
+          </p>
         )}
-      </fieldset>
-      {stale && (
-        <p role="alert">
-          The schedule changed since this preview. Preview again before saving.
-        </p>
-      )}
-      {previewed && <SpecialPreview preview={previewed.result} />}
-      <RequestFeedback
-        loading={previewing.pending || saving.pending}
-        error={
-          previewing.error ?? (saveFailed && !stale ? saving.error : undefined)
-        }
-      />
-      {!previewed && (
-        <p className="secondary">
-          Preview the special to see what it airs and what it moves, then save
-          it.
-        </p>
-      )}
-      <div className="dialog-actions">
-        <button
-          type="button"
-          disabled={previewing.pending || incomplete}
-          onClick={() => requestPreview()}
-        >
-          Preview
-        </button>
-        <button
-          type="button"
-          disabled={
-            previewed === undefined ||
-            previewed.result.conflicts.length > 0 ||
-            saving.pending
+        {previewed && <SpecialPreview preview={previewed.result} />}
+        <RequestFeedback
+          loading={previewing.pending || saving.pending}
+          error={
+            previewing.error ??
+            (saveFailed && !stale ? saving.error : undefined)
           }
-          onClick={save}
-        >
-          Save special
-        </button>
-        <button type="button" disabled={saving.pending} onClick={onClose}>
-          Cancel
-        </button>
-      </div>
+        />
+        {!previewed && (
+          <p className="secondary">
+            Preview the special to see what it airs and what it moves, then save
+            it.
+          </p>
+        )}
+        <div className="dialog-actions">
+          <button
+            type={previewed ? "button" : "submit"}
+            disabled={previewing.pending || incomplete}
+            onClick={previewed ? () => requestPreview() : undefined}
+          >
+            Preview
+          </button>
+          <button
+            type="submit"
+            disabled={
+              previewed === undefined ||
+              previewed.result.conflicts.length > 0 ||
+              saving.pending
+            }
+          >
+            Save special
+          </button>
+          <button type="button" disabled={saving.pending} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </form>
     </WindowDialog>
   );
 }
