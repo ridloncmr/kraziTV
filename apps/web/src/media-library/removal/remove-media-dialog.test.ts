@@ -18,6 +18,7 @@ import type {
 } from "../../http/contracts/media.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
+import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
 import { mediaRoot } from "../../testing/scan-fixtures.js";
 import { MediaLibraryApp } from "../media-library-app.js";
 
@@ -91,12 +92,15 @@ async function findSelectionDelete() {
 }
 
 /**
- * The Media Library over one root and the two fixture items; `openProgram`
+ * The Media Library over `root` and the two fixture items; `openProgram`
  * stands for the shell opening another program.
  */
-function renderLibrary(openProgram: (id: ProgramId) => void = () => {}) {
+function renderLibrary(
+  openProgram: (id: ProgramId) => void = () => {},
+  root = mediaRoot(),
+) {
   const api = new BrowserApi();
-  api.reply("/media-roots", [mediaRoot()]);
+  api.reply("/media-roots", [root]);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
   render(createElement(MediaLibraryApp, { visible: true, openProgram }));
@@ -186,6 +190,29 @@ it("previews a root removal with its path and item count", async () => {
   expect(
     api.requests.find((request) => request.path === PREVIEW)?.body,
   ).toEqual({ target: { mediaRootId: "root" } });
+});
+
+it("breaks a scene-named root path inside its sentence rather than scrolling the dialog sideways", async () => {
+  applyControlsStylesheet();
+  const path =
+    "/volume1/Media/TV/Star.Trek.Deep.Space.Nine.S01-S07.1080p.BluRay.x265/Disc1";
+  expect(path).toHaveLength(75);
+  const api = renderLibrary(undefined, mediaRoot({ path }));
+  api.reply(PREVIEW, impact({ itemCount: 26 }), "POST");
+
+  fireEvent.click(await rootDelete());
+  const dialog = screen.getByRole("dialog", { name: "Delete media root" });
+  const sentence = await within(dialog).findByText(
+    `${path} and its 26 media items will be deleted from the catalog.`,
+  );
+  const body = sentence.closest<HTMLElement>(".window-dialog-body")!;
+  body.style.width = "396px";
+
+  // jsdom lays nothing out, so the body's scroll width reads 0 whatever
+  // the path; what keeps the 396px body from scrolling sideways is the
+  // stylesheet letting the browser break the path anywhere, read here from
+  // the real rules.
+  expect(getComputedStyle(sentence).overflowWrap).toBe("anywhere");
 });
 
 it("offers the airing choice, letting the program finish by default", async () => {

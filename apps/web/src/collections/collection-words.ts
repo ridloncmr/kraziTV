@@ -47,3 +47,12 @@ export function missingWords(count: number): string {
     ? "1 missing — won't air until its file returns"
     : `${count} missing — won't air until their files return`;
 }
+
+/**
+ * Counts a collection's members as its card, the editor's save bar, and
+ * Discover collections say it, "1 item" or "1,284 items", with the same
+ * thousands separators as the member list's "Members (1,284)".
+ */
+export function itemCountWords(count: number): string {
+  return `${displayCount(count)} ${count === 1 ? "item" : "items"}`;
+}

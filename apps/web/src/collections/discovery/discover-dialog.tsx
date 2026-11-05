@@ -6,6 +6,7 @@ import type {
   Recommendation,
 } from "../../http/contracts/collections.js";
 import { useMutation, useResource } from "../../http/resources/use-resource.js";
+import { itemCountWords } from "../collection-words.js";
 import { ReadOnlyMembers } from "../editor/read-only-members.js";
 
 const RECOMMENDATIONS = "/media-collections/recommendations";
@@ -123,8 +124,7 @@ export function DiscoverDialog({
             <strong>{recommendation.name}</strong>
             <span className="secondary">{recommendation.reason}</span>
             <span className="secondary">
-              {recommendation.memberCount}{" "}
-              {recommendation.memberCount === 1 ? "item" : "items"}
+              {itemCountWords(recommendation.memberCount)}
               {recommendation.seasonCount !== null &&
                 `, ${recommendation.seasonCount} ${recommendation.seasonCount === 1 ? "season" : "seasons"}`}
             </span>

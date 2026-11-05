@@ -19,6 +19,7 @@ import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelWindows } from "../../testing/channel-windows.js";
+import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
 
 afterEach(() => {
   cleanup();
@@ -160,6 +161,51 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
   expect(screen.queryByRole("button", { name: /Move/ })).toBeNull();
   expect(screen.queryByRole("group", { name: /Assignment/ })).toBeNull();
   expect(api.requestsTo(`${ASSIGNMENTS}/order`)).toEqual([]);
+});
+
+it("keeps Play order, At a time, and Marathons on one line at their words' width, so the Show column gives", async () => {
+  applyControlsStylesheet();
+  await openLineup([
+    favoritesAssignment("release", {
+      ordinaryStretch: { kind: "programs", count: 2 },
+      marathonStretch: { kind: "programs", count: 6 },
+    }),
+  ]);
+  const table = await screen.findByRole("table", { name: "Shows" });
+  const headers = within(table)
+    .getAllByRole("columnheader")
+    .map((header) => header.textContent);
+  const [row] = within(table).getAllByRole("row").slice(1);
+  // The row's cell under the named column, with its computed sizing.
+  const column = (name: string) => {
+    const cell = (row as HTMLTableRowElement).cells[headers.indexOf(name)];
+    const style = getComputedStyle(cell);
+    return {
+      text: cell.textContent,
+      whiteSpace: style.whiteSpace,
+      width: style.width,
+    };
+  };
+
+  expect(column("Play order")).toEqual({
+    text: "Release order",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  expect(column("At a time")).toEqual({
+    text: "2 programs",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  expect(column("Marathons")).toEqual({
+    text: "up to 6 programs",
+    whiteSpace: "nowrap",
+    width: "1%",
+  });
+  // The show's name and the owner-named rules wrap, so neither pushes the
+  // row's actions out of the window.
+  expect(column("Show").whiteSpace).not.toBe("nowrap");
+  expect(column("Rules").whiteSpace).not.toBe("nowrap");
 });
 
 it("names the rules that select each show, and says when a rules-only show has none", async () => {
