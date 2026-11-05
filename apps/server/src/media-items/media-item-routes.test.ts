@@ -737,6 +737,7 @@ describe("content metadata", () => {
         ...NO_CONTENT_METADATA,
         matchState: "unmatched",
         lookupError: "TMDB answered HTTP 503",
+        lookupErrorKind: "http",
       },
       [PATHS.extra]: { ...NO_CONTENT_METADATA, matchState: "extra" },
       [PATHS.rejected]: { ...NO_CONTENT_METADATA, matchState: "rejected" },

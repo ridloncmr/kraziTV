@@ -82,6 +82,7 @@ export const FIREFLY_EPISODE: EpisodeLookup = {
 export const NO_CONTENT_METADATA: ContentMetadata = {
   matchState: "not_looked_up",
   lookupError: null,
+  lookupErrorKind: null,
   fileChanged: false,
   title: null,
   seriesName: null,

@@ -124,7 +124,7 @@ describe("CatalogScanner lookup retry", () => {
     await held.reached;
     await context.db
       .updateTable("metadata_matches")
-      .set({ state: "rejected", lookup_error: null })
+      .set({ state: "rejected", lookup_error: null, lookup_error_kind: null })
       .execute();
     held.release();
     await waitForScanEnd(context);
