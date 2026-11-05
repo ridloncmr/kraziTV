@@ -11,7 +11,10 @@ import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { startingChannel } from "../tv/channel-dial.js";
 import { readTvMemory, rememberTv } from "../tv/tv-memory.js";
-import { airingLabel, offAirWords } from "./airing-words.js";
+import {
+  airingLabel,
+  offAirWords,
+} from "../channel-observation/airing-words.js";
 
 /**
  * Live Monitor's view of one channel's current state; offsets are never

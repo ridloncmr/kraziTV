@@ -31,7 +31,6 @@ export function SetUpTmdbView({
 }) {
   const status = useResource<TmdbKeyStatus>(KEY_PATH);
   const [removing, setRemoving] = useState(false);
-  const removal = useMutation();
 
   /** **Save** sends the trimmed token, never a blank one. */
   function prepare(form: FormData) {
@@ -86,36 +85,52 @@ export function SetUpTmdbView({
       </label>
       <TmdbAttribution />
       {removing && (
-        <WindowDialog
-          title="Remove TMDB key"
-          busy={removal.pending}
+        <RemoveKeyQuestion
+          onRemoved={onDone}
           onClose={() => setRemoving(false)}
-        >
-          <p>
-            Remove the TMDB key? Matches already made stay; new lookups stop
-            until a key is set.
-          </p>
-          <RequestFeedback loading={removal.pending} error={removal.error} />
-          <div className="dialog-actions">
-            <button
-              type="button"
-              disabled={removal.pending}
-              onClick={() =>
-                void removal.run(KEY_PATH, "DELETE", undefined, onDone)
-              }
-            >
-              Remove
-            </button>
-            <button
-              type="button"
-              disabled={removal.pending}
-              onClick={() => setRemoving(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </WindowDialog>
+        />
       )}
     </AccountTaskForm>
+  );
+}
+
+/**
+ * The question **Remove** asks. It owns its removal request, so a refusal
+ * shown here closes with it and a reopened question starts clean.
+ */
+function RemoveKeyQuestion({
+  onRemoved,
+  onClose,
+}: {
+  onRemoved: () => void;
+  onClose: () => void;
+}) {
+  const removal = useMutation();
+  return (
+    <WindowDialog
+      title="Remove TMDB key"
+      busy={removal.pending}
+      onClose={onClose}
+    >
+      <p>
+        Remove the TMDB key? Matches already made stay; new lookups stop until a
+        key is set.
+      </p>
+      <RequestFeedback loading={removal.pending} error={removal.error} />
+      <div className="dialog-actions">
+        <button
+          type="button"
+          disabled={removal.pending}
+          onClick={() =>
+            void removal.run(KEY_PATH, "DELETE", undefined, onRemoved)
+          }
+        >
+          Remove
+        </button>
+        <button type="button" disabled={removal.pending} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </WindowDialog>
   );
 }

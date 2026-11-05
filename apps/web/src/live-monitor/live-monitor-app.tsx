@@ -1,4 +1,4 @@
-import { ChannelObservation } from "../channel-observation/channel-observation.js";
+import { ChannelObservation } from "./channel-observation.js";
 import type { ProgramId } from "../desktop/contracts.js";
 
 /** Reports only health and current-state capabilities the backend actually exposes. */

@@ -202,6 +202,32 @@ it("shows a refused removal in the question, which stays open", async () => {
   );
 });
 
+it("reopens the question clean after a refused removal is cancelled", async () => {
+  const { api, window } = await openTmdbTask(true);
+  api.reply(
+    KEY_PATH,
+    {
+      error: {
+        code: "internal_error",
+        message: "Internal server error",
+      },
+    },
+    "DELETE",
+    500,
+  );
+  const refused = pressRemove(window);
+  fireEvent.click(within(refused).getByRole("button", { name: "Remove" }));
+  await within(refused).findByRole("alert");
+  fireEvent.click(within(refused).getByRole("button", { name: "Cancel" }));
+
+  const reopened = pressRemove(window);
+
+  expect(within(reopened).queryByRole("alert")).toBeNull();
+  expect(
+    api.requestsTo(KEY_PATH).filter((request) => request.method === "DELETE"),
+  ).toHaveLength(1);
+});
+
 it("sends nothing on Cancel and returns home", async () => {
   const { api, window } = await openTmdbTask(true);
 

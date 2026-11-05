@@ -30,3 +30,13 @@ export const PLAYBACK_MODE_CHOICES: readonly {
     hint: "Picks at random each time, so things can repeat.",
   },
 ];
+
+/**
+ * The words My Channels shows for a playback mode, so every screen that names
+ * one reads it from the same list; a mode the list lacks shows as sent.
+ */
+export function playbackModeLabel(mode: PlaybackMode): string {
+  return (
+    PLAYBACK_MODE_CHOICES.find((choice) => choice.mode === mode)?.label ?? mode
+  );
+}
