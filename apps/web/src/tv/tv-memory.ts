@@ -1,10 +1,12 @@
-// Desktop shell state only: what this browser's TV was last left on. It
-// never reaches the server and never decides what airs.
+// Desktop shell state only: what this browser's TV and Live Monitor were last
+// left on. It never reaches the server and never decides what airs.
 const STORAGE_KEY = "krazitv.tv";
 
-/** The TV's settings as this browser last left them. */
+/** The TV's settings, and Live Monitor's channel, as this browser last left them. */
 interface TvMemory {
   channelId?: string;
+  /** Live Monitor's own last channel, so watching one channel and checking another never move each other. */
+  monitorChannelId?: string;
   /** From 0 to 1, as a video element's volume is. */
   volume: number;
   muted: boolean;
@@ -24,6 +26,9 @@ export function readTvMemory(): TvMemory {
       ...(typeof record.channelId === "string"
         ? { channelId: record.channelId }
         : {}),
+      ...(typeof record.monitorChannelId === "string"
+        ? { monitorChannelId: record.monitorChannelId }
+        : {}),
       volume:
         typeof record.volume === "number" &&
         record.volume >= 0 &&
@@ -38,10 +43,17 @@ export function readTvMemory(): TvMemory {
   }
 }
 
-/** Stores the TV's settings; blocked storage only means the next visit starts from the defaults. */
-export function rememberTv(memory: TvMemory): void {
+/**
+ * Stores the settings given over what is already remembered, so TV and Live
+ * Monitor each keep the other's; blocked storage only means the next visit
+ * starts from the defaults.
+ */
+export function rememberTv(change: Partial<TvMemory>): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...readTvMemory(), ...change }),
+    );
   } catch {
     /* Private windows may refuse storage; starting over is harmless. */
   }

@@ -110,6 +110,65 @@ it("steps up and down the lineup past disabled channels, ending the last channel
   expect(tunedPaths().at(-1)).toBe("/channels/two/stream");
 });
 
+/** Gives the picture a full-screen request that records each call, which jsdom lacks. */
+function stubFullScreen() {
+  const requestFullscreen = vi.fn(() => Promise.resolve());
+  const picture = screen.getByLabelText("69 Northwoods TV").parentElement!;
+  Object.assign(picture, { requestFullscreen });
+  return requestFullscreen;
+}
+
+it("answers Up, Down, M, and F pressed in the window as a set's remote does", async () => {
+  tvApi();
+  renderTv();
+  await screen.findByText("Alpha");
+  const requestFullscreen = stubFullScreen();
+  const picture = screen.getByLabelText("69 Northwoods TV");
+
+  fireEvent.keyDown(picture, { key: "ArrowUp" });
+  expect(tunedPaths()).toEqual([
+    "/channels/one/stream",
+    "/channels/two/stream",
+  ]);
+  fireEvent.keyDown(screen.getByLabelText("70 Second channel"), {
+    key: "ArrowDown",
+  });
+  expect(tunedPaths().at(-1)).toBe("/channels/one/stream");
+  fireEvent.keyDown(screen.getByRole("button", { name: "Channel up" }), {
+    key: "m",
+  });
+  expect(fakeBroadcasts.latest!.video.muted).toBe(true);
+  expect(screen.getByRole("button", { name: "Unmute" })).toBeTruthy();
+  fireEvent.keyDown(screen.getByLabelText("69 Northwoods TV"), { key: "F" });
+  expect(requestFullscreen).toHaveBeenCalledTimes(1);
+});
+
+it("leaves the keys to the channel list, the volume slider, the browser, and a window under a dialog", async () => {
+  tvApi();
+  const view = renderTv();
+  await screen.findByText("Alpha");
+  const requestFullscreen = stubFullScreen();
+  const pressAll = (target: Element | Document, init = {}) => {
+    for (const key of ["ArrowUp", "ArrowDown", "m", "f"])
+      fireEvent.keyDown(target, { key, ...init });
+  };
+
+  const channelSelect = screen.getByRole("combobox", { name: "Channel" });
+  channelSelect.focus();
+  expect(document.activeElement).toBe(channelSelect);
+  pressAll(channelSelect);
+  pressAll(screen.getByRole("slider", { name: "Volume" }));
+  pressAll(document.body);
+  pressAll(screen.getByLabelText("69 Northwoods TV"), { ctrlKey: true });
+  view.container.setAttribute("inert", "");
+  pressAll(screen.getByLabelText("69 Northwoods TV"));
+
+  expect(tunedPaths()).toEqual(["/channels/one/stream"]);
+  expect(fakeBroadcasts.latest!.video.muted).toBe(false);
+  expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy();
+  expect(requestFullscreen).not.toHaveBeenCalled();
+});
+
 it("tunes the channel each Watch asks for, even one already asked for before", async () => {
   tvApi();
   const view = renderTv({ channelId: "two", count: 1 });
