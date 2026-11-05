@@ -243,7 +243,7 @@
     {
       "rule": "grouping",
       "files": ["apps/server/src/content-metadata/match-choice/"],
-      "reason": "Every file serves one capability, the owner's match decisions: the routes, the service, the decision and evidence reads it changes, and the review steps it groups items into.",
+      "reason": "Every file serves one capability, the owner's match decisions: the routes, the service, the decision and evidence reads it changes, the candidate shape it searches by, and the review steps it groups items into.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
@@ -279,7 +279,7 @@
     {
       "rule": "grouping",
       "files": ["packages/media/src/metadata-matching/"],
-      "reason": "Every file serves one capability, the TMDB matching rules: title, movie, episode, and runtime lookups and the title normalization they compare by.",
+      "reason": "Every file serves one capability, the TMDB matching rules: title, movie, episode, and runtime lookups, the placement an episode takes in its series, and the title normalization they compare by.",
       "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     },
     {
