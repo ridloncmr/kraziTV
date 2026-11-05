@@ -37,6 +37,7 @@ export function scanSummary(
     ambiguousCount: 0,
     unmatchedCount: 0,
     lookupErrorCount: 0,
+    supportedExtensions: [".mkv"],
     ...overrides,
   };
 }

@@ -100,6 +100,8 @@ export interface ApiScanStatus extends Omit<
     | (Omit<ScanSummary, "startedAt" | "completedAt"> & {
         startedAt: string;
         completedAt: string;
+        /** The file extensions discovery accepts, as the media package lists them. */
+        supportedExtensions: string[];
       })
     | null;
 }

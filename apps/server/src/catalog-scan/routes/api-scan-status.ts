@@ -1,3 +1,5 @@
+import { SUPPORTED_MEDIA_EXTENSIONS } from "@krazitv/media";
+
 import {
   toApiTimestamp,
   toApiTimestampOrNull,
@@ -18,7 +20,11 @@ export function toApiScanStatus(status: ScanStatus): ApiScanStatus {
   };
 }
 
-// Keeps today's completed-scan facts in the same shape the synchronous scan returned.
+/**
+ * Keeps today's completed-scan facts in the same shape the synchronous scan
+ * returned, plus the extensions discovery accepts, so a scan that found
+ * nothing can say what kraziTV looks for without the web app keeping a copy.
+ */
 function toApiScanSummary(summary: ScanSummary): ApiScanStatus["summary"] {
   return {
     rootId: summary.rootId,
@@ -32,5 +38,6 @@ function toApiScanSummary(summary: ScanSummary): ApiScanStatus["summary"] {
     ambiguousCount: summary.ambiguousCount,
     unmatchedCount: summary.unmatchedCount,
     lookupErrorCount: summary.lookupErrorCount,
+    supportedExtensions: [...SUPPORTED_MEDIA_EXTENSIONS],
   };
 }

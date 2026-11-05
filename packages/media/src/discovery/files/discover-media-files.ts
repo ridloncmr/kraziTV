@@ -11,7 +11,12 @@ import {
 import { compareOrdinal, isSkippedEntry } from "../directory-entries.js";
 import { MediaDiscoveryError } from "../media-discovery-error.js";
 
-const SUPPORTED_EXTENSIONS = new Set([
+/**
+ * The lowercase file extensions discovery accepts, in the order the owner
+ * reads them. The one list: the server carries it to the web app so a scan
+ * that finds nothing can say what kraziTV looks for.
+ */
+export const SUPPORTED_MEDIA_EXTENSIONS: readonly string[] = [
   ".mkv",
   ".mp4",
   ".m4v",
@@ -19,7 +24,9 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".mov",
   ".ts",
   ".webm",
-]);
+];
+
+const SUPPORTED_EXTENSIONS = new Set(SUPPORTED_MEDIA_EXTENSIONS);
 
 export interface DiscoveredMediaFile extends NormalizedMediaPath {
   /**

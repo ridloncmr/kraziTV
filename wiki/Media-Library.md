@@ -46,6 +46,9 @@ Media Library reattaches to it when you come back.
 
 kraziTV recognizes `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.ts`, and
 `.webm` files. It skips hidden folders and does not follow folder links.
+When a scan finds none, the progress dialog says "No video files found."
+and names the extensions kraziTV looks for in the folder and its
+subfolders. See [Troubleshooting](Troubleshooting#a-scan-finds-no-video-files).
 
 A scan is all or nothing. If it fails or you cancel it, the catalog stays
 exactly as it was.
