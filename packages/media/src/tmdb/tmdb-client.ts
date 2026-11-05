@@ -38,9 +38,9 @@ const MAX_RETRY_MS = 10_000;
 
 /**
  * Names why fetch threw by its network error code alone. fetch's own message
- * can quote request headers, so it never becomes a reason.
+ * can quote request headers, so it never becomes the failure's message.
  */
-function fetchFailureReason(error: unknown): string {
+function fetchFailureMessage(error: unknown): string {
   const cause = error instanceof Error ? error.cause : undefined;
   const code =
     typeof cause === "object" && cause !== null && "code" in cause
@@ -53,12 +53,12 @@ function fetchFailureReason(error: unknown): string {
 
 /**
  * What TMDB said about a token. An outage is a result, not a throw, so a
- * caller never mistakes it for a rejected key. `reason` never holds the token.
+ * caller never mistakes it for a rejected key. `message` never holds the token.
  */
 export type TmdbKeyCheck =
   | { kind: "valid" }
   | { kind: "rejected" }
-  | { kind: "unreachable"; reason: string };
+  | { kind: "unreachable"; message: string };
 
 /**
  * Why TMDB gave a lookup no value. `reason` is the kind a caller branches on,
@@ -70,6 +70,16 @@ export interface TmdbLookupFailure {
   reason: "key_rejected" | "unreachable" | "http" | "unreadable";
   message: string;
 }
+
+/**
+ * The one failure for a key TMDB cannot accept, so the client and a scan
+ * that learned the key is bad record the same kind and words.
+ */
+export const KEY_REJECTED_FAILURE: Readonly<TmdbLookupFailure> = Object.freeze({
+  kind: "failed",
+  reason: "key_rejected",
+  message: "TMDB rejected the key",
+});
 
 /**
  * A lookup's value, or why TMDB gave none. A failure is a result, not a
@@ -86,7 +96,7 @@ export interface TmdbTitleQuery {
 /** What a TMDB request produced: an answer, or why there was none. */
 type TmdbAnswer =
   | { kind: "answered"; response: Response }
-  | { kind: "unreachable"; reason: string };
+  | { kind: "unreachable"; message: string };
 
 interface TmdbClientOptions {
   /** Replaces Node's fetch in tests; production omits it. */
@@ -137,7 +147,7 @@ export class TmdbClient {
     const { status } = answer.response;
     if (status === 401) return { kind: "rejected" };
     if (answer.response.ok) return { kind: "valid" };
-    return { kind: "unreachable", reason: `TMDB answered HTTP ${status}` };
+    return { kind: "unreachable", message: `TMDB answered HTTP ${status}` };
   }
 
   /**
@@ -221,11 +231,7 @@ export class TmdbClient {
     signal: AbortSignal | undefined,
   ): Promise<TmdbLookup<T>> {
     if (!HEADER_SAFE_TOKEN.test(apiKey)) {
-      return {
-        kind: "failed",
-        reason: "key_rejected",
-        message: "TMDB rejected the key",
-      };
+      return KEY_REJECTED_FAILURE;
     }
     for (let retries = 0; ; retries += 1) {
       const answer = await this.#request(
@@ -245,7 +251,7 @@ export class TmdbClient {
         return {
           kind: "failed",
           reason: "unreachable",
-          message: answer.reason,
+          message: answer.message,
         };
       }
       const { response } = answer;
@@ -299,7 +305,7 @@ export class TmdbClient {
 
   /**
    * Sends one GET with the token as a Bearer header, bounded by the timeout,
-   * which starts only once the queue lets the request go. Failure reasons
+   * which starts only once the queue lets the request go. Failure messages
    * come from the status, the timeout, or a network error code, never from
    * fetch's message, so the token cannot leak into them.
    */
@@ -325,10 +331,10 @@ export class TmdbClient {
       if (timeout.aborted) {
         return {
           kind: "unreachable",
-          reason: `TMDB did not answer within ${this.#timeoutMs} ms`,
+          message: `TMDB did not answer within ${this.#timeoutMs} ms`,
         };
       }
-      return { kind: "unreachable", reason: fetchFailureReason(error) };
+      return { kind: "unreachable", message: fetchFailureMessage(error) };
     }
   }
 }

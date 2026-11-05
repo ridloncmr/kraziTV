@@ -304,5 +304,5 @@ function correctionOf(record: MetadataMatchRecord) {
 
 // A TMDB read that failed, as the refusal the routes answer for it.
 function lookupFailed({ message }: { message: string }): MetadataRefusal {
-  return { kind: "lookup_failed", reason: message };
+  return { kind: "lookup_failed", message };
 }

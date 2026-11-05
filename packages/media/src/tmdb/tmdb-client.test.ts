@@ -46,7 +46,7 @@ describe("TmdbClient.checkKey", () => {
 
       await expect(client.checkKey(TOKEN)).resolves.toEqual({
         kind: "unreachable",
-        reason: `TMDB answered HTTP ${status}`,
+        message: `TMDB answered HTTP ${status}`,
       });
     },
   );
@@ -64,7 +64,7 @@ describe("TmdbClient.checkKey", () => {
 
     await expect(client.checkKey(TOKEN)).resolves.toEqual({
       kind: "unreachable",
-      reason: "TMDB request failed (ENOTFOUND)",
+      message: "TMDB request failed (ENOTFOUND)",
     });
   });
 
@@ -90,7 +90,7 @@ describe("TmdbClient.checkKey", () => {
 
     await expect(client.checkKey(TOKEN)).resolves.toEqual({
       kind: "unreachable",
-      reason: "TMDB did not answer within 5 ms",
+      message: "TMDB did not answer within 5 ms",
     });
   });
 

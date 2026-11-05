@@ -1,6 +1,7 @@
 import { setMaxListeners } from "node:events";
 
 import {
+  KEY_REJECTED_FAILURE,
   lookUpEpisodes,
   lookUpMovie,
   type EpisodeLookup,
@@ -124,12 +125,7 @@ function recordRejectedKey(
         hints,
         durationMs,
         lookedUpAt,
-        lookup: {
-          kind: "failed",
-          query,
-          reason: "key_rejected",
-          message: "TMDB rejected the key",
-        },
+        lookup: { ...KEY_REJECTED_FAILURE, query },
       });
     }
   }

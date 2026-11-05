@@ -136,7 +136,7 @@ export class MatchChoiceService {
         ? await this.#tmdb.searchMovies(apiKey, query)
         : await this.#tmdb.searchSeries(apiKey, query);
     if (found.kind === "failed") {
-      return { kind: "lookup_failed", reason: found.message };
+      return { kind: "lookup_failed", message: found.message };
     }
     return { kind: "found", candidates: found.value.map(matchCandidateOf) };
   }
@@ -186,7 +186,7 @@ export class MatchChoiceService {
     if (own?.kind !== "matched") {
       return {
         kind: "lookup_failed",
-        reason: own?.kind === "failed" ? own.message : "TMDB gave no answer",
+        message: own?.kind === "failed" ? own.message : "TMDB gave no answer",
       };
     }
 

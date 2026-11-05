@@ -49,7 +49,7 @@ export function registerTmdbKeyRoutes(
     }
     if (check.kind === "unreachable") {
       request.log.warn(
-        { reason: check.reason },
+        { reason: check.message },
         "Could not reach TMDB to check a key",
       );
       return sendApiError(
