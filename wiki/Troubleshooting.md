@@ -58,6 +58,21 @@ A first scan reads every file, which takes a while on a large library or a
 slow network share. The progress dialog shows the last file it read. You
 can close the window; the scan keeps going.
 
+## A scan finds no video files
+
+When nothing was found, the scan's dialog reads "No video files found."
+and lists the extensions kraziTV looks for, such as `.mkv` and `.mp4`, in
+the folder and its subfolders.
+
+- Check that the media root is the folder holding your movies or shows, not
+  an empty or unrelated one.
+- Disc images such as `.iso` and disc folders are not read. Rip them to
+  `.mkv` first; [Naming your files](Naming-Your-Files) shows how to name
+  the rips.
+- With Docker, kraziTV sees only the folders you hand it with `-v`, under
+  `/media`. Choose the root there with **Add media root…**, such as
+  `/media/movies`. See [Your media folders](Install#your-media-folders).
+
 ## TV says "No signal"
 
 Either the channel is off the air, as above, or the browser cannot play

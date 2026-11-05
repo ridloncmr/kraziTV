@@ -9,6 +9,8 @@ interface ScanSummary {
   ambiguousCount: number;
   unmatchedCount: number;
   lookupErrorCount: number;
+  /** The file extensions the server's discovery accepts, such as `.mkv`. */
+  supportedExtensions: string[];
 }
 /** One scan job's status; every scan dialog state derives from it. */
 export interface ScanStatus {

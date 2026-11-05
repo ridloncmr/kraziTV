@@ -9,7 +9,10 @@ import {
   currentPathPlatform,
   normalizeMediaPath,
 } from "../../paths/media-path.js";
-import { discoverMediaFiles } from "./discover-media-files.js";
+import {
+  discoverMediaFiles,
+  SUPPORTED_MEDIA_EXTENSIONS,
+} from "./discover-media-files.js";
 
 const isWindows = process.platform === "win32";
 
@@ -101,6 +104,18 @@ describe("discoverMediaFiles", () => {
     const titles = (await discoverMediaFiles(sandbox)).map((f) => f.title);
 
     expect(titles).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
+  });
+
+  it("finds a file of every extension it lists as supported", async () => {
+    const names = SUPPORTED_MEDIA_EXTENSIONS.map((extension, index) => {
+      return `${index}${extension}`;
+    });
+    await createFiles(sandbox, ...names, "notes.txt");
+
+    const titles = (await discoverMediaFiles(sandbox)).map((f) => f.title);
+
+    expect(SUPPORTED_MEDIA_EXTENSIONS.length).toBeGreaterThan(0);
+    expect(titles).toEqual(names.map((_, index) => String(index)));
   });
 
   it("orders results by ordinal identity key comparison", async () => {

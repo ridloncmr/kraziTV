@@ -771,6 +771,43 @@ it.each([
   },
 );
 
+it("says what kraziTV looks for, in the server's words, when a scan finds no files", async () => {
+  const { scan } = renderScanLibrary([mediaRoot()]);
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    phase: "completed",
+    summary: scanSummary({
+      discoveredCount: 0,
+      supportedExtensions: [".mkv", ".ogv", ".avi"],
+    }),
+  });
+  await advance(1_000);
+
+  expect(within(dialog).getByText(/^No video files found\./).textContent).toBe(
+    "No video files found. kraziTV looks for .mkv, .ogv, and .avi in this folder and its subfolders.",
+  );
+});
+
+it.each([
+  { kind: "scan" as const, discoveredCount: 1 },
+  { kind: "retry" as const, discoveredCount: 0 },
+])(
+  "never says no video files were found after a $kind that discovered $discoveredCount",
+  async ({ kind, discoveredCount }) => {
+    const { scan } = renderScanLibrary([mediaRoot()]);
+    const dialog = await startScan();
+    scan.status = scanStatus({
+      kind,
+      phase: "completed",
+      summary: scanSummary({ discoveredCount, supportedExtensions: [".mkv"] }),
+    });
+    await advance(1_000);
+
+    expect(statusLine(dialog).textContent).toMatch(/completed\.$/);
+    expect(within(dialog).queryByText(/No video files found/)).toBeNull();
+  },
+);
+
 it("shows lookup progress while the scan looks media up on TMDB", async () => {
   const { scan } = renderScanLibrary([mediaRoot()]);
   const dialog = await startScan();
