@@ -227,15 +227,20 @@ function sendRuleNotFound(
 }
 
 // A body's unknown reference is a 400, not a 404: the rule itself exists.
-// An invalid effective stretch pair names the source and kraziBrain's reason.
+// An invalid effective stretch pair names the source and kraziBrain's reason,
+// with its kind, so the web chooses its words without reading the reason.
 function sendSourceRefusal(reply: FastifyReply, result: RuleSourceRefusal) {
   if (result.kind === "invalid_stretch") {
     return sendApiError(
       reply,
       400,
       "programming_rule_stretch_invalid",
-      `Rule settings for the programming assignment are invalid: ${result.problem}`,
-      { assignmentId: result.assignmentId, problem: result.problem },
+      `Rule settings for the programming assignment are invalid: ${result.problem.message}`,
+      {
+        assignmentId: result.assignmentId,
+        problem: result.problem.message,
+        problemKind: result.problem.kind,
+      },
     );
   }
   return sendApiError(

@@ -24,6 +24,7 @@ export function Taskbar({
   connection,
   online,
   avatarId,
+  displayName,
   logOff,
   tray,
 }: {
@@ -36,8 +37,10 @@ export function Taskbar({
   connection: string;
   /** Whether kraziTV answered its last health check, which colors the dot. */
   online: boolean;
-  /** The account's picture, which Account Settings' button and Start entry draw. */
+  /** The account's picture, which Account Settings' button and Start draw. */
   avatarId: string;
+  /** The account's name, which Start's header shows. */
+  displayName: string;
   /** Opens the Log Off confirmation, which returns focus to Start when it closes. */
   logOff: () => void;
   /** Tray items the shell adds before the connection indicator, such as the TMDB reminder. */
@@ -70,6 +73,7 @@ export function Taskbar({
         {startOpen && (
           <StartMenu
             avatarId={avatarId}
+            displayName={displayName}
             openProgram={(id) => {
               dispatch({ type: "open", id });
               setStartOpen(false);

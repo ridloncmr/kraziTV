@@ -3,6 +3,7 @@ import type {
   ProgrammingRule,
   RuleSource,
   SettingOrigins,
+  StretchProblem,
   StretchSetting,
 } from "../contracts.js";
 import { findStretchProblem } from "../stretches/stretch-settings.js";
@@ -48,14 +49,14 @@ export function settingOrigins(
 
 /**
  * Returns why a rule source's effective ordinary and marathon pair is
- * invalid, or null when spec 0004's stretch rule accepts it. Checked when a
+ * invalid, with its kind, or null when spec 0004's stretch rule accepts it. Checked when a
  * rule is saved and when an assignment it inherits from changes, so values
  * are never coerced.
  */
 export function findRuleSourceProblem(
   source: RuleSource,
   assignment: Pick<ProgrammingAssignment, "ordinary" | "marathon">,
-): string | null {
+): StretchProblem | null {
   const { ordinary, marathon } = effectiveStretches(source, assignment);
   return findStretchProblem(ordinary, marathon);
 }

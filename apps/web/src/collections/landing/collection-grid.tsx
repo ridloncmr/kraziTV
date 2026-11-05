@@ -59,7 +59,11 @@ export function CollectionGrid({
   onOpen: (collection: MediaCollectionSummary) => void;
   /** Opens the creation dialog for the shown tab's kind of collection. */
   onCreate: (mode: MaintenanceMode) => void;
-  /** Opens the recommendations; offered on the Automatic tab. */
+  /**
+   * Opens the recommendations. Offered on both tabs, since suggestions are
+   * the fastest route from a scanned catalog to a channel and either kind
+   * of collection can be created from them.
+   */
   onDiscover: () => void;
 }) {
   const inTab = collections.filter(
@@ -80,9 +84,7 @@ export function CollectionGrid({
     >
       <div className="row-actions">
         <button onClick={() => onCreate(tab)}>{CREATE_LABEL[tab]}</button>
-        {tab === "automatic" && (
-          <button onClick={onDiscover}>Discover collections…</button>
-        )}
+        <button onClick={onDiscover}>Discover collections…</button>
       </div>
       {tab === "automatic" && (
         <div className="inline-form">

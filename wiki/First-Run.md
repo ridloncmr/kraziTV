@@ -45,10 +45,10 @@ matched, so it is quick. [Media Library](Media-Library) explains what the lookup
 
 ## 4. Keep some collections
 
-Open **Collections** and click the **Automatic** tab, then **Discover
-collections…**. kraziTV suggests one collection per series and movie
-franchise it recognized. Click **Create automatic collection** on the ones
-you want. An automatic collection keeps itself up to date as you add files.
+Open **Collections** and click **Discover collections…**. kraziTV
+suggests one collection per series and movie franchise it recognized.
+Click **Create automatic collection** on the ones you want. An automatic
+collection keeps itself up to date as you add files.
 
 You can skip this step: a channel can also play a single series or movie
 you pick directly. But collections are what make channels easy to build.

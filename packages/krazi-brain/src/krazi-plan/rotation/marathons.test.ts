@@ -443,27 +443,34 @@ describe("findStretchProblem: marathon settings", () => {
     [
       { kind: "programs", count: 3 },
       { kind: "airtime", minutes: 180 },
+      "unit",
       "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
     ],
     [
       { kind: "programs", count: 3 },
       { kind: "programs", count: 3 },
+      "shorter",
       "a marathon must be longer than the ordinary stretch",
     ],
     [
       { kind: "airtime_range", minMinutes: 60, maxMinutes: 120 },
       { kind: "airtime_range", minMinutes: 120, maxMinutes: 200 },
+      "shorter",
       "a marathon must be longer than the ordinary stretch",
     ],
     [
       { kind: "programs", count: 3 },
       { kind: "programs", count: 0 },
+      "shape",
       "marathon count must be a positive integer",
     ],
   ] as const)(
-    "refuses ordinary %o with marathon %o",
-    (ordinary, marathon, problem) => {
-      expect(findStretchProblem(ordinary, marathon)).toBe(problem);
+    "refuses ordinary %o with marathon %o as a %s problem",
+    (ordinary, marathon, kind, message) => {
+      expect(findStretchProblem(ordinary, marathon)).toEqual({
+        kind,
+        message,
+      });
     },
   );
 });

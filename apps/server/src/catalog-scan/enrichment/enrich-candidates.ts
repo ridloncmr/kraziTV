@@ -124,7 +124,12 @@ function recordRejectedKey(
         hints,
         durationMs,
         lookedUpAt,
-        lookup: { kind: "failed", query, reason: "TMDB rejected the key" },
+        lookup: {
+          kind: "failed",
+          query,
+          reason: "key_rejected",
+          message: "TMDB rejected the key",
+        },
       });
     }
   }

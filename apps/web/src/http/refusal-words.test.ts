@@ -110,12 +110,15 @@ it("words the refusals one code explains in the screens' words, never the server
   ).toBe("Another show on this channel already plays that.");
 });
 
-it("words a rule's stretch refusals as what to change, naming the rule by name", () => {
+it("words a rule's stretch refusals by the problem's kind, naming the rule by name", () => {
+  // The problem text is kraziBrain's to reword, so the words never depend on it.
+  const problem = "reworded by kraziBrain";
   expect(
     refusalWords(
       new ApiError("programming_rule_stretch_invalid", "for logs", 400, {
         assignmentId: "christmas-turns",
-        problem: "a marathon must be longer than the ordinary stretch",
+        problem,
+        problemKind: "shorter",
       }),
     ),
   ).toBe("Make the marathon longer than Plays at a time.");
@@ -124,7 +127,8 @@ it("words a rule's stretch refusals as what to change, naming the rule by name",
       new ApiError("programming_rule_stretch_conflict", "for logs", 409, {
         ruleId: "rule-1",
         ruleName: "Christmas",
-        problem: "a marathon must be longer than the ordinary stretch",
+        problem,
+        problemKind: "shorter",
       }),
     ),
   ).toBe(
@@ -135,8 +139,8 @@ it("words a rule's stretch refusals as what to change, naming the rule by name",
     refusalWords(
       new ApiError("programming_rule_stretch_conflict", "for logs", 409, {
         ruleId: "rule-1",
-        problem:
-          "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
+        problem,
+        problemKind: "unit",
       }),
     ),
   ).toBe(

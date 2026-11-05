@@ -1,4 +1,5 @@
 import type { MediaItemStatus } from "../database/schema/media-item-table.js";
+import type { LookupErrorKind } from "../database/schema/metadata-match-table.js";
 
 export interface MediaItem {
   id: string;
@@ -35,6 +36,11 @@ export interface ContentMetadata {
   matchState: MatchState;
   /** Why the last lookup failed; the item stays `unmatched`. */
   lookupError: string | null;
+  /**
+   * Which way the last lookup failed, which the owner's sentence is chosen
+   * by; null without a failure and for failures stored before migration 035.
+   */
+  lookupErrorKind: LookupErrorKind | null;
   /**
    * True for a matched item whose probed duration moved more than 2 seconds
    * from its match-time duration; the match and corrections stay.

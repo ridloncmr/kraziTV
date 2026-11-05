@@ -17,6 +17,7 @@ import type {
 export const noMetadata: ContentMetadata = {
   matchState: "not_looked_up",
   lookupError: null,
+  lookupErrorKind: null,
   fileChanged: false,
   title: null,
   seriesName: null,
@@ -167,6 +168,7 @@ export const FIREFLY = itemWith("Firefly – S01E05–E06", {
 export const OUTAGE = itemWith("Outage", {
   matchState: "unmatched",
   lookupError: "TMDB answered HTTP 503",
+  lookupErrorKind: "http",
 });
 
 export const THING = itemWith("The Thing", { matchState: "ambiguous" });

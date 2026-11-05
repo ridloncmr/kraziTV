@@ -32,7 +32,8 @@ interface GuideBlock {
  * reads its own schedule window, so rows arrive independently and a failed
  * read shows here without hiding the others. A program block opens its
  * card; Off air is only a label. An enabled channel's name opens it on TV,
- * as choosing a channel in a TV guide tunes it.
+ * as choosing a channel in a TV guide tunes it, and so does the card of the
+ * program it is airing.
  */
 export function GuideRow({
   channel,
@@ -86,10 +87,7 @@ export function GuideRow({
               <li
                 key={block.key}
                 className={`guide-block${block.program ? "" : " off-air"}${
-                  Date.parse(block.startsAt) <= now &&
-                  now < Date.parse(block.endsAt)
-                    ? " airing"
-                    : ""
+                  airingAt(block, now) ? " airing" : ""
                 }`}
                 style={{ left: block.left, width: block.width }}
               >
@@ -123,11 +121,24 @@ export function GuideRow({
           channel={channel}
           startsAt={opened.startsAt}
           endsAt={opened.endsAt}
+          onWatch={
+            channel.enabled && airingAt(opened, now)
+              ? () => {
+                  setOpened(undefined);
+                  onWatch(channel.id);
+                }
+              : undefined
+          }
           onClose={() => setOpened(undefined)}
         />
       )}
     </li>
   );
+}
+
+// Whether the block encloses the now line, so it is what the channel airs.
+function airingAt(block: GuideBlock, now: number): boolean {
+  return Date.parse(block.startsAt) <= now && now < Date.parse(block.endsAt);
 }
 
 // A block's last line: the episode's code or the movie's year, then its start time.

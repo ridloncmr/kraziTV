@@ -80,7 +80,7 @@ const settingsBody = z
       body.marathonStretch,
     );
     if (problem !== null) {
-      context.addIssue({ code: "custom", message: problem });
+      context.addIssue({ code: "custom", message: problem.message });
     }
   })
   .refine(
@@ -249,11 +249,12 @@ export function registerAssignmentRoutes(
             reply,
             409,
             "programming_rule_stretch_conflict",
-            `Rule "${result.ruleName}" inherits this assignment's settings, and its settings for it would become invalid: ${result.problem}. Change the rule first.`,
+            `Rule "${result.ruleName}" inherits this assignment's settings, and its settings for it would become invalid: ${result.problem.message}. Change the rule first.`,
             {
               ruleId: result.ruleId,
               ruleName: result.ruleName,
-              problem: result.problem,
+              problem: result.problem.message,
+              problemKind: result.problem.kind,
             },
           );
         default:

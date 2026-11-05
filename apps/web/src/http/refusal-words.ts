@@ -116,13 +116,13 @@ function codeWords(
     case "media_root_removal_pending":
       return `This folder was deleted while a channel was still airing from it. Add it again ${typeof details.airingUntil === "string" ? `after ${displayTime(details.airingUntil)}` : "once that program ends"}.`;
     case "programming_rule_stretch_invalid":
-      return stretchProblemWords(details.problem);
+      return stretchProblemWords(details.problemKind);
     case "programming_rule_stretch_conflict": {
       const rule =
         typeof details.ruleName === "string"
           ? `Rule "${details.ruleName}"`
           : "A rule on this channel";
-      const fix = stretchProblemWords(details.problem);
+      const fix = stretchProblemWords(details.problemKind);
       return `${rule} follows this show's settings, and this change would break them. Change the rule first: ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`;
     }
     // A channel with no shows is sent to the Lineup tab. Shows that cannot

@@ -27,9 +27,11 @@ const NEEDS_A_SHOW: ReadonlySet<ChannelTab> = new Set(["rules", "preview"]);
 
 /**
  * The selected channel as an XP property sheet: General, Lineup, Rules,
- * Specials, and Preview tabs. The window owns the chosen tab, so it stays
- * while the program is open; a channel whose lineup is empty opens on
- * Lineup. Tab state is desktop shell state and never affects broadcast.
+ * Specials, and Preview tabs, under a heading whose **Watch** opens TV on
+ * the channel, as My Channels' Watch does, so the owner can see what they
+ * just built. The window owns the chosen tab, so it stays while the program
+ * is open; a channel whose lineup is empty opens on Lineup. Tab state is
+ * desktop shell state and never affects broadcast.
  */
 export function ChannelPropertySheet({
   channel,
@@ -39,6 +41,7 @@ export function ChannelPropertySheet({
   changed,
   onDirtyChange,
   openProgram,
+  onWatch,
 }: {
   channel: Channel;
   visible: boolean;
@@ -50,6 +53,8 @@ export function ChannelPropertySheet({
   onDirtyChange: (dirty: boolean) => void;
   /** Opens another program, which the lineup's show picker needs for Media Library. */
   openProgram: (id: ProgramId) => void;
+  /** Opens TV on a channel, as My Channels' Watch does. */
+  onWatch: (channelId: string) => void;
 }) {
   const programming = useChannelProgramming(channel.id, visible);
   const lineup = programming.assignments.data;
@@ -68,9 +73,19 @@ export function ChannelPropertySheet({
   }, [empty, onTabChange]);
   return (
     <section aria-label={`${channel.number} · ${channel.name} properties`}>
-      <h3>
-        {channel.number} · {channel.name}
-      </h3>
+      <div className="sheet-heading">
+        <h3>
+          {channel.number} · {channel.name}
+        </h3>
+        <button
+          type="button"
+          // A disabled channel broadcasts nothing to watch.
+          disabled={!channel.enabled}
+          onClick={() => onWatch(channel.id)}
+        >
+          Watch
+        </button>
+      </div>
       <TabbedPanel
         label="Channel properties"
         idPrefix={`channel-${channel.id}`}

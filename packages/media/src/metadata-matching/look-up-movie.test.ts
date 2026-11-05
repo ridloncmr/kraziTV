@@ -129,7 +129,8 @@ describe("lookUpMovie", () => {
     ).resolves.toEqual({
       kind: "failed",
       query: { title: "Alien" },
-      reason: "TMDB answered HTTP 503",
+      reason: "http",
+      message: "TMDB answered HTTP 503",
     });
   });
 });

@@ -13,6 +13,7 @@ const MATCH = {
   state: "matched",
   extra: 0,
   lookup_error: null,
+  lookup_error_kind: null,
   looked_up_at: FIXTURE_TIME,
   evidence: '{"title":"Alien","year":1979}',
   matched_duration_ms: 6_000_000,

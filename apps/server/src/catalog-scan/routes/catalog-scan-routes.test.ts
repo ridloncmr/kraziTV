@@ -1,7 +1,11 @@
 import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { MediaDiscoveryError, MediaProbeError } from "@krazitv/media";
+import {
+  MediaDiscoveryError,
+  MediaProbeError,
+  SUPPORTED_MEDIA_EXTENSIONS,
+} from "@krazitv/media";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -243,6 +247,7 @@ describe("POST /media-roots/:id/scan", () => {
         ambiguousCount: 0,
         unmatchedCount: 0,
         lookupErrorCount: 0,
+        supportedExtensions: [...SUPPORTED_MEDIA_EXTENSIONS],
       },
     });
   });

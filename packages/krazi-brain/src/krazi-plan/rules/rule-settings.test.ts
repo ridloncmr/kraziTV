@@ -133,7 +133,10 @@ describe("findRuleSourceProblem", () => {
         source({ ordinary: { kind: "programs", count: 3 } }),
         MOVIES,
       ),
-    ).toBe("a marathon must be longer than the ordinary stretch");
+    ).toEqual({
+      kind: "shorter",
+      message: "a marathon must be longer than the ordinary stretch",
+    });
   });
 
   it("refuses an assignment change that leaves a rule's inherited pair invalid", () => {
@@ -142,9 +145,11 @@ describe("findRuleSourceProblem", () => {
         ...MOVIES,
         ordinary: { kind: "airtime", minutes: 120 },
       }),
-    ).toBe(
-      "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
-    );
+    ).toEqual({
+      kind: "unit",
+      message:
+        "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
+    });
   });
 
   it("checks a replacement's own shape", () => {
@@ -153,6 +158,6 @@ describe("findRuleSourceProblem", () => {
         source({ ordinary: { kind: "programs", count: 0 } }),
         MOVIES,
       ),
-    ).toBe("count must be a positive integer");
+    ).toEqual({ kind: "shape", message: "count must be a positive integer" });
   });
 });

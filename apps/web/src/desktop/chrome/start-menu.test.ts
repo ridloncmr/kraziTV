@@ -11,6 +11,7 @@ function renderStart() {
   render(
     createElement(StartMenu, {
       avatarId: "astro",
+      displayName: "Marguerite",
       openProgram: vi.fn(),
       logOff: vi.fn(),
     }),

@@ -128,31 +128,40 @@ it("words a failed lookup as one sentence, keeping TMDB's text as a tooltip and 
   expect(dialog.queryByRole("img")).toBeNull();
 });
 
-it("tells the owner to check the key when TMDB rejected it, for a lookup and for a refresh", async () => {
+it("tells the owner to check the key by the failure's kind, whatever its stored text says", async () => {
   const rejected = {
     ...OUTAGE,
-    metadata: { ...OUTAGE.metadata, lookupError: "TMDB rejected the key" },
+    metadata: {
+      ...OUTAGE.metadata,
+      lookupError: "TMDB answered HTTP 401",
+      lookupErrorKind: "key_rejected" as const,
+    },
   };
-  const unrefreshed = {
-    ...ALIEN,
-    metadata: { ...ALIEN.metadata, refreshError: "TMDB rejected the key" },
-  };
-  await showCatalog([rejected, unrefreshed]);
+  await showCatalog([rejected]);
 
-  const lookup = within(openDetails("Outage"));
-  expect(
-    lookup
-      .getByText("TMDB rejected the key. Check it in Account Settings.")
-      .getAttribute("title"),
-  ).toBe("TMDB rejected the key");
-  expect(lookup.queryByText(/could not be reached/)).toBeNull();
-  fireEvent.click(lookup.getByRole("button", { name: "Close" }));
+  const dialog = within(openDetails("Outage"));
 
-  const refresh = within(openDetails("Alien (1979)"));
   expect(
-    refresh.getByText("TMDB rejected the key. Check it in Account Settings."),
-  ).toBeTruthy();
+    dialog.getByText(/Check it in Account Settings\.$/).getAttribute("title"),
+  ).toBe("TMDB answered HTTP 401");
+  expect(dialog.queryByText(/could not be reached/)).toBeNull();
 });
+
+it.each(["unreachable", "http", "unreadable", null] as const)(
+  "words a lookup failure of kind %s as kraziTV's to retry",
+  async (lookupErrorKind) => {
+    await showCatalog([
+      { ...OUTAGE, metadata: { ...OUTAGE.metadata, lookupErrorKind } },
+    ]);
+
+    const dialog = within(openDetails("Outage"));
+
+    expect(
+      dialog.getByText("TMDB could not be reached; kraziTV will try again."),
+    ).toBeTruthy();
+    expect(dialog.queryByText(/Account Settings/)).toBeNull();
+  },
+);
 
 it("says when a matched item's TMDB data expired, and words a failed refresh as one sentence", async () => {
   const expired = {

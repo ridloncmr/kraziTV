@@ -260,10 +260,10 @@ it("says what to change for an invalid size pair instead of the server's message
     {
       error: {
         code: "programming_rule_stretch_invalid",
-        message:
-          "Rule settings for programming assignment christmas-turns are invalid: a marathon must be longer than the ordinary stretch",
+        message: "for logs",
         assignmentId: "christmas-turns",
-        problem: "a marathon must be longer than the ordinary stretch",
+        problem: "reworded by kraziBrain",
+        problemKind: "shorter",
       },
     },
     "POST",

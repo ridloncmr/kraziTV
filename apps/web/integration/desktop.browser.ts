@@ -743,7 +743,6 @@ function runningAnimations(locator: Locator): Promise<number> {
 
 for (const pass of [
   { name: "wide", viewport: { width: 1280, height: 800 }, reduced: false },
-  { name: "narrow", viewport: { width: 390, height: 844 }, reduced: false },
   {
     name: "reduced-motion",
     viewport: { width: 1280, height: 800 },

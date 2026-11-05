@@ -53,26 +53,26 @@ describe("stretch words", () => {
 });
 
 describe("stretch problem words", () => {
-  it("says what to change for each of kraziBrain's pair checks, and for a refused value", () => {
-    expect(
-      stretchProblemWords(
-        "a marathon must be longer than the ordinary stretch",
-      ),
-    ).toBe("Make the marathon longer than Plays at a time.");
-    expect(
-      stretchProblemWords(
-        "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
-      ),
-    ).toBe(
+  it.each([
+    ["shorter", "Make the marathon longer than Plays at a time."],
+    [
+      "unit",
       "Set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
-    );
-    expect(
-      stretchProblemWords("marathon count must be a positive integer"),
-    ).toBe(
+    ],
+    [
+      "shape",
       "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.",
-    );
-    expect(stretchProblemWords(undefined)).toBe(
+    ],
+    // A kind added later, or none, is a value the fields refuse.
+    [
+      "longer",
       "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.",
-    );
+    ],
+    [
+      undefined,
+      "Use whole numbers of 1 or more, and make At most minutes no less than At least minutes.",
+    ],
+  ])("says what to change for a %s problem", (kind, words) => {
+    expect(stretchProblemWords(kind)).toBe(words);
   });
 });

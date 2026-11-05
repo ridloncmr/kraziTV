@@ -146,6 +146,11 @@ export function ScanProgressDialog({
       {completed && polled.kind === "retry" && polled.lookupCount === 0 && (
         <p>Nothing here needed a lookup.</p>
       )}
+      {completed &&
+        polled.kind === "scan" &&
+        polled.summary?.discoveredCount === 0 && (
+          <p>{noFilesFoundLine(polled.summary.supportedExtensions)}</p>
+        )}
       {completed && polled.summary && (
         <dl className="facts">
           {summaryFacts(polled, polled.summary).map(([label, count]) => (
@@ -210,6 +215,18 @@ function summaryFacts(
         ]
       : [];
   return [...files, ...lookups];
+}
+
+// Fixed locale, so the extension list reads like the rest of the dialog.
+const EXTENSION_LIST = new Intl.ListFormat("en-US", { type: "conjunction" });
+
+/**
+ * What a scan that found no files tells an owner who may have pointed at the
+ * wrong folder: the extensions the server's discovery accepts, never a copy
+ * kept here.
+ */
+function noFilesFoundLine(extensions: readonly string[]): string {
+  return `No video files found. kraziTV looks for ${EXTENSION_LIST.format(extensions)} in this folder and its subfolders.`;
 }
 
 /**

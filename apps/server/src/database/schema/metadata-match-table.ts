@@ -3,6 +3,13 @@ import type { SqliteBoolean } from "../columns/sqlite-boolean.js";
 /** Where an item's content identification stands; a lookup error keeps `unmatched`. */
 type MetadataMatchState = "unmatched" | "ambiguous" | "matched" | "rejected";
 
+/**
+ * Which way a lookup failed, so the owner's sentence is chosen by kind and
+ * never by the stored text: only `key_rejected` is the owner's to fix.
+ */
+export type LookupErrorKind =
+  "key_rejected" | "unreachable" | "http" | "unreadable";
+
 /** One media item's match decision and the evidence behind it. */
 export interface MetadataMatchTable {
   media_item_id: string;
@@ -11,6 +18,8 @@ export interface MetadataMatchTable {
   extra: SqliteBoolean;
   /** Why the last lookup failed; null after a lookup that answered. */
   lookup_error: string | null;
+  /** The failure's kind; null without a failure and for failures stored before migration 035. */
+  lookup_error_kind: LookupErrorKind | null;
   /** When TMDB was last asked about this item; null for an extra. */
   looked_up_at: number | null;
   /** JSON: the path hints and the TMDB query the decision rests on. */
