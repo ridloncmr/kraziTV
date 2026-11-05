@@ -31,7 +31,7 @@ export interface RefreshAnswer {
   lookup: Extract<MovieLookup | EpisodeLookup, { kind: "matched" }> | Failure;
 }
 
-type Failure = { kind: "failed"; reason: string };
+type Failure = { kind: "failed"; message: string };
 
 /**
  * Reads every matched, cataloged item under an enabled root whose TMDB facts
@@ -156,7 +156,7 @@ export async function lookUpDue(
 // Why an episode with no stored season or episode cannot be refreshed.
 const NO_PLACE: Failure = {
   kind: "failed",
-  reason: "kraziTV has no season and episode to look up",
+  message: "kraziTV has no season and episode to look up",
 };
 
 /**
@@ -168,5 +168,5 @@ const NO_PLACE: Failure = {
  */
 function settled(lookup: MovieLookup | EpisodeLookup): RefreshAnswer["lookup"] {
   if (lookup.kind === "matched" || lookup.kind === "failed") return lookup;
-  return { kind: "failed", reason: "TMDB no longer lists this title" };
+  return { kind: "failed", message: "TMDB no longer lists this title" };
 }

@@ -154,7 +154,7 @@ export async function commitRefreshes(
       if (lookup.kind === "failed") {
         await pinned
           .updateTable("metadata_provider_refs")
-          .set({ refresh_error: lookup.reason })
+          .set({ refresh_error: lookup.message })
           .where("media_item_id", "=", due.id)
           .execute();
         continue;

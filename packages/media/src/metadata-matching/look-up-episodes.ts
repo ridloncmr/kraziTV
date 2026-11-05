@@ -1,4 +1,8 @@
-import type { TmdbClient, TmdbTitleQuery } from "../tmdb/tmdb-client.js";
+import type {
+  TmdbClient,
+  TmdbLookupFailure,
+  TmdbTitleQuery,
+} from "../tmdb/tmdb-client.js";
 import type { TmdbEpisode, TmdbSeries } from "../tmdb/tmdb-series.js";
 import type { TmdbTitleSummary } from "../tmdb/tmdb-title.js";
 import {
@@ -32,7 +36,7 @@ export type EpisodeLookup = { query: TmdbTitleQuery } & (
     }
   | { kind: "ambiguous"; candidates: TmdbTitleSummary[] }
   | { kind: "unmatched" }
-  | { kind: "failed"; reason: string }
+  | TmdbLookupFailure
 );
 
 /** How a series folder's series resolved before any episode is read. */
@@ -284,7 +288,7 @@ async function decideByFolder(
 ): Promise<
   | { kind: "series"; series: TmdbSeries }
   | { kind: "undecided"; candidates: TmdbTitleSummary[]; read: ReadCandidate[] }
-  | { kind: "failed"; reason: string }
+  | TmdbLookupFailure
 > {
   if (summaries.length > MAX_CANDIDATES_READ) {
     return { kind: "undecided", candidates: [...summaries], read: [] };
@@ -298,7 +302,13 @@ async function decideByFolder(
   for (const [index, summary] of summaries.entries()) {
     const detail = details[index];
     if (detail === undefined || detail.kind === "failed") {
-      return detail ?? { kind: "failed", reason: "TMDB gave no answer" };
+      return (
+        detail ?? {
+          kind: "failed",
+          reason: "unreachable",
+          message: "TMDB gave no answer",
+        }
+      );
     }
     read.push({ summary, series: detail.value });
   }

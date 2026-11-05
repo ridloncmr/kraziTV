@@ -165,7 +165,8 @@ describe("TmdbClient.searchMovies", () => {
       client.searchMovies(TOKEN, { title: "Alien" }),
     ).resolves.toEqual({
       kind: "failed",
-      reason: "TMDB sent a response kraziTV could not read",
+      reason: "unreadable",
+      message: "TMDB sent a response kraziTV could not read",
     });
   });
 
@@ -181,10 +182,57 @@ describe("TmdbClient.searchMovies", () => {
         client.searchMovies(TOKEN, { title: "Alien" }),
       ).resolves.toEqual({
         kind: "failed",
-        reason: `TMDB answered HTTP ${status}`,
+        reason: "http",
+        message: `TMDB answered HTTP ${status}`,
       });
     },
   );
+
+  it("reports a token that cannot be a header as a rejected key without calling TMDB", async () => {
+    const { fetch, calls } = answering(200);
+    const client = new TmdbClient({ fetch, timeoutMs: 1_000 });
+
+    await expect(
+      client.searchMovies("eyJ.token\nsig", { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "key_rejected",
+      message: "TMDB rejected the key",
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports a network failure as unreachable, by its code alone", async () => {
+    const client = new TmdbClient({
+      fetch: () =>
+        Promise.reject(
+          new TypeError(`Bearer ${TOKEN} failed`, {
+            cause: Object.assign(new Error("lookup"), { code: "ENOTFOUND" }),
+          }),
+        ),
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "unreachable",
+      message: "TMDB request failed (ENOTFOUND)",
+    });
+  });
+
+  it("reports a search that outlasts the timeout as unreachable", async () => {
+    const client = new TmdbClient({ fetch: hanging, timeoutMs: 5 });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "unreachable",
+      message: "TMDB did not answer within 5 ms",
+    });
+  });
 
   it("waits for TMDB's Retry-After and tries again after a 429", async () => {
     vi.useFakeTimers();
@@ -232,7 +280,8 @@ describe("TmdbClient.searchMovies", () => {
       client.searchMovies(TOKEN, { title: "Alien" }),
     ).resolves.toEqual({
       kind: "failed",
-      reason: "TMDB answered HTTP 429",
+      reason: "http",
+      message: "TMDB answered HTTP 429",
     });
     expect(calls).toBe(4);
   });
@@ -252,7 +301,11 @@ describe("TmdbClient.searchMovies", () => {
 
     await expect(
       client.searchMovies(TOKEN, { title: "Alien" }),
-    ).resolves.toEqual({ kind: "failed", reason: "TMDB answered HTTP 429" });
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "http",
+      message: "TMDB answered HTTP 429",
+    });
     expect(calls).toBe(1);
   });
 
@@ -272,7 +325,11 @@ describe("TmdbClient.searchMovies", () => {
 
     await expect(
       client.searchMovies(TOKEN, { title: "Alien" }),
-    ).resolves.toEqual({ kind: "failed", reason: "TMDB answered HTTP 503" });
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "http",
+      message: "TMDB answered HTTP 503",
+    });
   });
 
   it("stops waiting out a 429 when the caller cancels", async () => {

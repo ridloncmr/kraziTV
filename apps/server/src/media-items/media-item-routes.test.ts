@@ -413,7 +413,8 @@ describe("content metadata", () => {
             lookedUp(PATHS.failed, {
               kind: "failed",
               query,
-              reason: "TMDB answered HTTP 503",
+              reason: "http",
+              message: "TMDB answered HTTP 503",
             }),
             {
               kind: "extra",

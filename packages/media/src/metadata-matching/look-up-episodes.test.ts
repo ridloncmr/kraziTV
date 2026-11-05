@@ -624,7 +624,8 @@ describe("lookUpEpisodes", () => {
       {
         kind: "failed",
         query: { title: "Firefly" },
-        reason: "TMDB answered HTTP 503",
+        reason: "http",
+        message: "TMDB answered HTTP 503",
       },
     ]);
   });
@@ -659,7 +660,7 @@ describe("lookUpEpisodes", () => {
 
     expect(lookups).toMatchObject([
       { kind: "matched" },
-      { kind: "failed", reason: "TMDB answered HTTP 500" },
+      { kind: "failed", reason: "http", message: "TMDB answered HTTP 500" },
     ]);
   });
 

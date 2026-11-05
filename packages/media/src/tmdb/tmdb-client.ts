@@ -61,12 +61,21 @@ export type TmdbKeyCheck =
   | { kind: "unreachable"; reason: string };
 
 /**
- * A lookup's value, or why TMDB gave none. A failure is a result, not a
- * throw, so one item's lookup error never fails a scan. `reason` never holds
- * the token.
+ * Why TMDB gave a lookup no value. `reason` is the kind a caller branches on,
+ * so rewording `message` never changes what the owner is told to do; the
+ * message is for logs and stored errors and never holds the token.
  */
-type TmdbLookup<T> =
-  { kind: "ok"; value: T } | { kind: "failed"; reason: string };
+export interface TmdbLookupFailure {
+  kind: "failed";
+  reason: "key_rejected" | "unreachable" | "http" | "unreadable";
+  message: string;
+}
+
+/**
+ * A lookup's value, or why TMDB gave none. A failure is a result, not a
+ * throw, so one item's lookup error never fails a scan.
+ */
+type TmdbLookup<T> = { kind: "ok"; value: T } | TmdbLookupFailure;
 
 /** What a movie or series search sends: path-hint terms only, never a file path (ADR 0013). */
 export interface TmdbTitleQuery {
@@ -212,7 +221,11 @@ export class TmdbClient {
     signal: AbortSignal | undefined,
   ): Promise<TmdbLookup<T>> {
     if (!HEADER_SAFE_TOKEN.test(apiKey)) {
-      return { kind: "failed", reason: "TMDB rejected the key" };
+      return {
+        kind: "failed",
+        reason: "key_rejected",
+        message: "TMDB rejected the key",
+      };
     }
     for (let retries = 0; ; retries += 1) {
       const answer = await this.#request(
@@ -229,7 +242,11 @@ export class TmdbClient {
         },
       );
       if (answer.kind === "unreachable") {
-        return { kind: "failed", reason: answer.reason };
+        return {
+          kind: "failed",
+          reason: "unreachable",
+          message: answer.reason,
+        };
       }
       const { response } = answer;
       if (response.ok) {
@@ -237,7 +254,8 @@ export class TmdbClient {
         return value === undefined
           ? {
               kind: "failed",
-              reason: "TMDB sent a response kraziTV could not read",
+              reason: "unreadable",
+              message: "TMDB sent a response kraziTV could not read",
             }
           : { kind: "ok", value };
       }
@@ -249,7 +267,8 @@ export class TmdbClient {
       ) {
         return {
           kind: "failed",
-          reason: `TMDB answered HTTP ${response.status}`,
+          reason: "http",
+          message: `TMDB answered HTTP ${response.status}`,
         };
       }
       await waitFor(delayMs, signal);
