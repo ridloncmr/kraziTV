@@ -15,8 +15,8 @@ import { airingLabel, offAirWords } from "./airing-words.js";
 
 /**
  * Live Monitor's view of one channel's current state; offsets are never
- * advanced by browser time. It opens on the channel last chosen here, else
- * the first enabled one, because it is opened for an answer at once. With no
+ * advanced by browser time. It opens on the channel last chosen here, even a
+ * disabled one, else the first enabled one, because it is opened for an answer at once. With no
  * channels, the empty state opens My Channels.
  */
 export function ChannelObservation({
@@ -30,12 +30,17 @@ export function ChannelObservation({
   const channels = useResource<Channel[]>("/channels", visible);
   const [memory] = useState(readTvMemory);
   // The owner's choice in this window; until there is one, the monitor shows
-  // the channel this browser last chose here, else the first enabled one.
+  // the channel this browser last chose here, enabled or not, since it reports
+  // a disabled channel's state too, else the first enabled one.
   const [chosen, setChosen] = useState<string>();
   const selected =
     chosen ??
     (channels.data &&
-      startingChannel(channels.data, [memory.monitorChannelId])?.id) ??
+      (
+        channels.data.find(
+          (channel) => channel.id === memory.monitorChannelId,
+        ) ?? startingChannel(channels.data, [])
+      )?.id) ??
     "";
   const path = selected ? resourcePath("channels", selected) : null;
   const now = useResource<ChannelState>(

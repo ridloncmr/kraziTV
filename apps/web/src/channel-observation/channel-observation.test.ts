@@ -10,6 +10,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
+import { rememberTv } from "../tv/tv-memory.js";
 import { ChannelObservation } from "./channel-observation.js";
 
 afterEach(() => {
@@ -151,4 +152,24 @@ it("opens on the first enabled channel, then on the channel chosen when it last 
     ),
   );
   expect(await screen.findByText("Alpha")).toBeTruthy();
+});
+
+it("reopens on a remembered channel even when it is disabled, since the monitor shows a disabled channel's state", async () => {
+  const api = monitorApi();
+  api.reply("/channels", [
+    { id: "resting", number: "68", name: "Resting TV", enabled: false },
+    ...adminFixtures.channels,
+  ]);
+  api.reply("/channels/resting/now", adminFixtures.now);
+  rememberTv({ monitorChannelId: "resting" });
+
+  render(
+    createElement(ChannelObservation, { visible: true, openProgram: () => {} }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByLabelText<HTMLSelectElement>("Channel").value).toBe(
+      "resting",
+    ),
+  );
 });

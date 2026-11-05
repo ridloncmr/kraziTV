@@ -153,7 +153,10 @@ it("leaves the keys to the channel list, the volume slider, the browser, and a w
       fireEvent.keyDown(target, { key, ...init });
   };
 
-  pressAll(screen.getByRole("combobox", { name: "Channel" }));
+  const channelSelect = screen.getByRole("combobox", { name: "Channel" });
+  channelSelect.focus();
+  expect(document.activeElement).toBe(channelSelect);
+  pressAll(channelSelect);
   pressAll(screen.getByRole("slider", { name: "Volume" }));
   pressAll(document.body);
   pressAll(screen.getByLabelText("69 Northwoods TV"), { ctrlKey: true });
