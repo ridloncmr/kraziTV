@@ -84,7 +84,9 @@ up.
 
 Open [Account Settings](Account-Settings) and choose **Set up TMDB** again.
 Paste a new token and click **Save** to replace the old one, or click
-**Remove** to delete it. Matches already made stay as they are.
+**Remove** to delete it. kraziTV asks first: "Remove the TMDB key? Matches
+already made stay; new lookups stop until a key is set." Click **Remove**
+again to delete the key, or **Cancel** to keep it.
 
 ---
 

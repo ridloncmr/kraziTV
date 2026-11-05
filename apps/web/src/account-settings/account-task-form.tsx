@@ -10,7 +10,7 @@ import type { AccountTask } from "./use-account-task.js";
  * words for the refused field, else its message), and may say nothing.
  * `submitDisabled` holds back only the submit button, so the owner can still
  * type or cancel. `otherAction` sits between submit and **Cancel**, for a
- * task with a second submit button.
+ * task with a second button.
  */
 export function AccountTaskForm({
   title,

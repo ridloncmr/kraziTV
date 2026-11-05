@@ -97,6 +97,30 @@ it("navigates Start, restores one singleton and synchronizes the taskbar through
   expect(within(taskbar).queryAllByRole("button")).toHaveLength(0);
 });
 
+it("opens Start on the account's own picture and name, as XP's did", async () => {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  vi.stubGlobal("fetch", api.fetch);
+  // Not the default picture, which an unknown ID would also draw.
+  render(
+    createElement(DesktopShell, {
+      account: { ...account, avatarId: "guitar" },
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "start" }));
+  const menu = screen.getByRole("navigation", { name: "Start programs" });
+
+  // The Account Settings entry draws the picture too, so read the header alone.
+  const header = menu.querySelector<HTMLElement>(".start-menu-header");
+  expect(within(header!).getByText("Marguerite")).toBeTruthy();
+  expect(header?.textContent).toBe("MargueriteBroadcast administration");
+  expect(
+    header?.querySelector(".account-picture [data-avatar='guitar']"),
+  ).not.toBeNull();
+});
+
 it("reaches an offline desktop and dismisses Start with keyboard focus restored", async () => {
   const api = new BrowserApi();
   api.reply(

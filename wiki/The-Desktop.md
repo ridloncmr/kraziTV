@@ -59,7 +59,9 @@ The system tray on the right holds:
 
 ## Start
 
-The Start menu lists every program and has two more entries: **Source
+Start opens on your account's picture and name, as XP's did. Change
+either in [Account Settings](Account-Settings). Below them, the Start menu
+lists every program and has two more entries: **Source
 code**, which opens kraziTV's GitHub page, and **Log Off**, which asks once
 and then ends your session in this browser. Once Start is open, the arrow
 keys move through it as they did on XP: Up and Down along a column, Home

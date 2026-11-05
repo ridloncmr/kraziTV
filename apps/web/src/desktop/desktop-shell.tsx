@@ -215,6 +215,7 @@ export function DesktopShell({
           connection={connection}
           online={online}
           avatarId={account.avatarId}
+          displayName={account.displayName}
           logOff={() => setLoggingOff(true)}
           tray={
             <TmdbTrayReminder

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
+import { AccountPicture } from "../../branding/avatars/account-picture.js";
 import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
-import { ProgramIcon } from "../../branding/icons/program-icon.js";
 import { SourceCodeLink } from "../../branding/attribution/source-code-link.js";
 import { navigateWithArrows } from "../arrow-navigation.js";
 import type { ProgramId } from "../contracts.js";
@@ -8,18 +8,21 @@ import { programs } from "../programs.js";
 
 /**
  * Start is complete navigation to real programs, plus Log Off, which ends
- * this browser's session, and a link to kraziTV's source code. It has no
- * pretend OS actions such as Turn Off. The arrow keys move through the
- * programs as XP's did: Up, Down, Home, and End along a column, Left and
- * Right across.
+ * this browser's session, and a link to kraziTV's source code. It opens on
+ * the account's picture and name, as XP's did. It has no pretend OS actions
+ * such as Turn Off. The arrow keys move through the programs as XP's did: Up,
+ * Down, Home, and End along a column, Left and Right across.
  */
 export function StartMenu({
   avatarId,
+  displayName,
   openProgram,
   logOff,
 }: {
-  /** The account's picture, which the Account Settings entry draws. */
+  /** The account's picture, which the header and the Account Settings entry draw. */
   avatarId: string;
+  /** The account's name, which the header shows beside its picture. */
+  displayName: string;
   openProgram: (id: ProgramId) => void;
   logOff: () => void;
 }) {
@@ -30,9 +33,9 @@ export function StartMenu({
   return (
     <nav className="start-menu" id="start-menu" aria-label="Start programs">
       <div className="start-menu-header">
-        <ProgramIcon program="logo" size={40} />
+        <AccountPicture avatarId={avatarId} size={40} />
         <div>
-          <strong>kraziTV</strong>
+          <strong>{displayName}</strong>
           <span>Broadcast administration</span>
         </div>
       </div>
