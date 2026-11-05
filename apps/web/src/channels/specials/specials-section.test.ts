@@ -11,7 +11,10 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { displayTimeRange } from "../../controls/formatting/display-time.js";
 import type { MediaCollectionSummary } from "../../http/contracts/collections.js";
-import { adminFixtures } from "../../testing/admin-fixtures.js";
+import {
+  adminFixtures,
+  channelUnschedulable,
+} from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { chooseOption } from "../../testing/choose-option.js";
 import { officeCollection } from "../../testing/collection-api.js";
@@ -197,6 +200,31 @@ it("says the channel is off air for the whole range when no program fits", async
     ),
   ).toBeTruthy();
   expect(preview.textContent).not.toMatch(/filler/i);
+});
+
+it("says to add shows when the channel cannot air for want of any, never the server's sentence", async () => {
+  const api = renderSection();
+  await startNewSpecial();
+  await screen.findByRole("option", { name: "Alpha" });
+  fireEvent.change(screen.getByLabelText("Program 1"), {
+    target: { value: "z" },
+  });
+  api.reply(
+    PREVIEW,
+    channelUnschedulable("no_programming_assignment", {
+      programmingRevision: 7,
+    }),
+    "POST",
+    409,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "This channel has no shows yet. Add shows on the Lineup tab.",
+  );
+  expect(screen.queryByText(/cannot generate/)).toBeNull();
+  expect(screen.queryByRole("region", { name: "Special preview" })).toBeNull();
 });
 
 it("saves a collection block with its explicit end", async () => {

@@ -1,3 +1,4 @@
+import { offAirWords } from "../channel-observation/airing-words.js";
 import { specialWords } from "../channels/specials/special-words.js";
 import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
 import { ApiError } from "./api-error.js";
@@ -114,6 +115,13 @@ function codeWords(
       const fix = stretchProblemWords(details.problem);
       return `${rule} follows this show's settings, and this change would break them. Change the rule first: ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`;
     }
+    // A channel with no shows is sent to the Lineup tab. Shows that cannot
+    // air, or a reason added later, get the off-air words, which already
+    // name every place to look; the server's sentence never shows.
+    case "channel_unschedulable":
+      return details.reason === "no_programming_assignment"
+        ? "This channel has no shows yet. Add shows on the Lineup tab."
+        : offAirWords("schedule_gap");
     default:
       return undefined;
   }

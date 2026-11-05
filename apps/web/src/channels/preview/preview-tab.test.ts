@@ -11,6 +11,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import {
   adminFixtures,
+  channelUnschedulable,
   favoritesAssignment,
 } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
@@ -311,3 +312,44 @@ it("shows the channel's off-air words when nothing would air, instead of a blank
     within(preview).queryByRole("list", { name: "Upcoming shows" }),
   ).toBeNull();
 });
+
+it.each([
+  [
+    "no_programming_assignment",
+    /^This channel has no shows yet\. Add shows on the Lineup tab\.$/,
+  ],
+  [
+    "no_schedulable_media",
+    /^Nothing is scheduled right now\. .*its Lineup and Rules tabs\.$/,
+  ],
+  // A reason this browser does not know yet still says where to look.
+  [
+    "reason_added_later",
+    /^Nothing is scheduled right now\. .*its Lineup and Rules tabs\.$/,
+  ],
+])(
+  "says what to change when the channel cannot air (%s), never the server's sentence",
+  async (reason, words) => {
+    const api = new BrowserApi();
+    api.reply("/channels/one/programming-assignments", [
+      favoritesAssignment("chronological"),
+    ]);
+    api.reply("/media-collections", adminFixtures.collections);
+    api.reply(
+      "/channels/one/programming-preview",
+      channelUnschedulable(reason),
+      "GET",
+      409,
+    );
+    vi.stubGlobal("fetch", api.fetch);
+    await openChannelTab(api, "Preview");
+
+    const preview = await screen.findByRole("region", {
+      name: "Upcoming programming",
+    });
+    expect((await within(preview).findByRole("alert")).textContent).toMatch(
+      words,
+    );
+    expect(preview.textContent).not.toMatch(/cannot generate|_/);
+  },
+);
