@@ -7,8 +7,8 @@ line marks now.
 ![The Program Guide](images/program-guide.png)
 
 - **Click a program** to see its details: episode, air time, genres, poster,
-  and description. While the program is on the air, its card also offers
-  **Watch**, which opens the channel in [TV](TV).
+  and description. While the program is on the air on an enabled channel,
+  its card also offers **Watch**, which opens the channel in [TV](TV).
 
   ![A program's card](images/program-card.png)
 

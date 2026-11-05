@@ -1,6 +1,6 @@
 # Spec 0005: Third Polish Pass
 
-Status: In Development
+Status: Implemented
 
 ## Intent
 
@@ -48,15 +48,16 @@ programming behavior.
   Try again in a moment."), `programming_assignment_not_found` ("That show is
   no longer in the lineup. Refresh and pick again."), and
   `media_root_removal_pending` ("This folder was deleted while a channel was
-  still airing from it. Add it again after 9:00 PM.", with the time in the
-  programming timezone, never an ISO timestamp). The folder browser's path
-  refusal carries a field so the existing path sentence applies.
+  still airing from it. Add it again after 11/5/2026, 9:00 PM.", with the
+  date and time in the browser's local time like every other time on screen,
+  never an ISO timestamp). The folder browser's path refusal carries a field
+  so the existing path sentence applies.
 
 ### Lineup and dialogs
 
-- In the Lineup table, Play order and At a time stay on one line at the size
-  Channel Properties opens at; the Show column gives instead. Marathons and
-  Rules take no more room than their content needs.
+- In the Lineup table, Play order, At a time, and Marathons stay on one line
+  at the size Channel Properties opens at; the Show and Rules columns wrap
+  instead.
 - A dialog paragraph that prints a path or a name breaks it rather than
   scrolling the dialog sideways; the Delete media root and "Scan it now?"
   sentences stay readable for a scene-named folder.
@@ -69,8 +70,8 @@ programming behavior.
 - The desktop icons move with the arrow keys as Start's items do (Up and
   Down, Home and End).
 - A channel or collection name longer than 120 characters is refused by the
-  server with the too-long words the web already has, as show and rule names
-  are refused at 80 (decision 18).
+  server, and the web's too-long sentence names each cap: 120 for a channel
+  or collection, 80 for a show (decision 18).
 
 ### First-run shortcuts
 
@@ -91,8 +92,8 @@ minutes and a contributor can ship in a day. All seven are in scope
   channel select or the volume slider. Keyboard-driven, so nothing animates
   (spec 0008).
 - Live Monitor opens on the channel it last showed, or the first enabled
-  channel, instead of "Choose a channel", using the same browser memory TV
-  uses for its last channel.
+  channel, instead of "Choose a channel", remembering its own channel
+  beside TV's last channel in the browser's memory.
 - The Start menu header shows the account's picture and name, as XP's did.
 - Removing the TMDB key asks first, as every other removal does: "Remove the
   TMDB key? Matches already made stay; new lookups stop until a key is set."
@@ -119,10 +120,10 @@ minutes and a contributor can ship in a day. All seven are in scope
 
 ### Docs
 
-- The wiki pages for Collections (Discover on both tabs), Channel Properties
-  and the Program Guide (Watch), TV (keys), Live Monitor (remembered
-  channel), Account Settings (removal confirmation), and Media Library (the
-  field label and the empty-scan sentence) change with their screens.
+- The wiki pages for Collections (Discover on both tabs), My Channels,
+  First-Run, and the Program Guide (Watch), TV (keys), Live Monitor
+  (remembered channel), Set up TMDB (removal confirmation), and Media Library
+  (the field label and the empty-scan sentence) change with their screens.
 - This spec and the feature README say Implemented once the targets hold.
 
 ## kraziTV Check
@@ -152,7 +153,7 @@ instead of re-deciding them.
   renders the Up Next tab for a random show and reads **Reshuffle…** and its
   question.
 - A jsdom test for each of the five refusal codes reads its owner sentence,
-  with the removal-pending time in the programming timezone.
+  with the removal-pending time in the browser's local time.
 - Grepping `apps/web/src` for "Absolute" and "channel state" in user-visible
   strings finds nothing; spec 0002's grep target still holds.
 - A jsdom test renders a Lineup row and asserts Play order and At a time have

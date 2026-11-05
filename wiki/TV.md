@@ -16,8 +16,10 @@ or **↓** to change channel, **M** to mute or unmute, and **F** to go full
 screen or come back. They leave the channel dropdown and the volume slider
 alone, so those keep working as usual.
 
-TV opens on the channel you watched last. **Watch** in My Channels and a
-channel's name in the Program Guide open TV on that channel.
+TV opens on the channel you watched last. **Watch** in My Channels or at
+the top of a channel's Properties, **Watch** on the card of a program on the
+air in the Program Guide, and a channel's name in the guide all open TV on
+that channel.
 
 Like every viewer, TV joins about ten seconds behind the schedule; see
 [Connect Plex](Connect-Plex#watch). There is no pause or rewind. This is

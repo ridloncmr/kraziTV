@@ -25,6 +25,7 @@ const names = {
   channelWithWheel: "Classic TV",
   wheel: "The Beverly Hillbillies + The Andy Griffith Show",
   channelWithRules: "Movie Night",
+  randomShow: "Comedy Classics",
   channelWithMarathons: "Classic TV",
   rule: "Halloween",
   mediaItem: "The Lone Ranger – S01E01",
@@ -192,8 +193,6 @@ try {
   await shot("show-properties-general", lineup);
   await tab(lastDialog(), "Contents");
   await shot("show-properties-contents", lineup);
-  await tab(lastDialog(), "Up Next");
-  await shot("show-properties-up-next", lineup);
   await cancelDialog();
   await lineup.getByRole("button", { name: "Add shows…" }).click();
   await settle();
@@ -224,6 +223,12 @@ try {
 
   await menuItem(`Actions for ${names.channelWithRules}`, "Properties");
   const rules = win(`${names.channelWithRules} Properties`);
+  // Up Next comes from a random show, so the shot shows Reshuffle….
+  await tab(rules, "Lineup");
+  await menuItem(`Actions for ${names.randomShow}`, "Properties");
+  await tab(lastDialog(), "Up Next");
+  await shot("show-properties-up-next", rules);
+  await cancelDialog();
   await tab(rules, "Rules");
   await shot("channel-rules", rules);
   await menuItem(`Actions for ${names.rule}`, "Properties");
@@ -266,10 +271,10 @@ try {
   await openProgram("Program Guide");
   await maximize("Program Guide");
   await shot("program-guide", win("Program Guide"));
+  // The airing program, so its card offers Watch.
   await page
     .getByRole("list", { name: `Programs on ${names.guideChannel}` })
-    .getByRole("button")
-    .nth(2)
+    .locator("li.airing button")
     .click();
   await settle();
   await shot("program-card", win("Program Guide"));
