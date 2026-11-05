@@ -16,6 +16,17 @@ export type StretchSetting =
   | { kind: "airtime"; minutes: number }
   | { kind: "airtime_range"; minMinutes: number; maxMinutes: number };
 
+/**
+ * Why a stretch pair is invalid: `shape` when one stretch's own values are,
+ * `unit` when a marathon counts in another unit than the ordinary stretch,
+ * `shorter` when a marathon is not always the longer turn. Callers choose
+ * what to tell the owner by `kind`; `message` is for logs and API messages.
+ */
+export interface StretchProblem {
+  kind: "shape" | "unit" | "shorter";
+  message: string;
+}
+
 /** A channel's marathon controls, shared by every rotation context. */
 export interface MarathonSettings {
   /** The chance, 0 to 100, that an eligible round gets a marathon. */

@@ -1,6 +1,7 @@
 import type {
   AssignmentMember,
   ResolvedSize,
+  StretchProblem,
   StretchSetting,
 } from "../contracts.js";
 import {
@@ -15,22 +16,33 @@ import {
  * range's maximum at least its minimum, and a marathon in the ordinary
  * stretch's unit whose fixed size or range minimum exceeds the ordinary
  * fixed size or range maximum, so it is always a longer turn. The one
- * stretch rule, so the API asks it rather than restating it.
+ * stretch rule, so the API asks it rather than restating it. The problem
+ * carries a kind, so a caller never tells problems apart by their prose.
  */
 export function findStretchProblem(
   ordinary: StretchSetting,
   marathon: StretchSetting | null = null,
-): string | null {
+): StretchProblem | null {
   const problem = findShapeProblem(ordinary);
-  if (problem !== null || marathon === null) return problem;
+  if (problem !== null) return { kind: "shape", message: problem };
+  if (marathon === null) return null;
   const marathonProblem = findShapeProblem(marathon);
-  if (marathonProblem !== null) return `marathon ${marathonProblem}`;
+  if (marathonProblem !== null) {
+    return { kind: "shape", message: `marathon ${marathonProblem}` };
+  }
   if ((ordinary.kind === "programs") !== (marathon.kind === "programs")) {
-    return "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime";
+    return {
+      kind: "unit",
+      message:
+        "a marathon must use the ordinary stretch's unit: programs extend programs, airtime extends airtime",
+    };
   }
   return longest(ordinary) < shortest(marathon)
     ? null
-    : "a marathon must be longer than the ordinary stretch";
+    : {
+        kind: "shorter",
+        message: "a marathon must be longer than the ordinary stretch",
+      };
 }
 
 /** The smallest size a stretch can resolve to. */

@@ -478,10 +478,12 @@ describe("rule-specific stretch settings", () => {
     expectRefusal(response.body, "programming_rule_stretch_invalid", {
       assignmentId: "assignment-002",
     });
-    // The problem is plain text, so the message may quote it.
-    expect(response.body.error.problem).toBe(
-      "a marathon must be longer than the ordinary stretch",
-    );
+    // The problem is plain text, so the message may quote it; the web
+    // chooses its words by the kind beside it.
+    expect(response.body.error).toMatchObject({
+      problem: "a marathon must be longer than the ordinary stretch",
+      problemKind: "shorter",
+    });
   });
 
   it("refuses an assignment edit that breaks a pair whose marathon the rule inherits", async () => {
@@ -515,6 +517,39 @@ describe("rule-specific stretch settings", () => {
           ruleId: "rule-001",
           ruleName: "December",
           problem: "a marathon must be longer than the ordinary stretch",
+          problemKind: "shorter",
+        },
+      },
+    });
+  });
+
+  it("forwards the problem's kind when an assignment edit leaves a rule's inherited marathon in another unit", async () => {
+    const { server } = await startServer();
+    // The rule airs two films a turn and inherits the assignment's marathon.
+    await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      sources: [
+        {
+          assignmentId: "assignment-002",
+          ordinaryStretch: { kind: "programs", count: 2 },
+          marathon: { mode: "inherit" },
+        },
+      ],
+    });
+
+    await expect(
+      send(server, "PATCH", christmasUrl, {
+        ...christmasBody,
+        ordinaryStretch: { kind: "airtime", minutes: 60 },
+        marathonStretch: { kind: "airtime", minutes: 180 },
+      }),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "programming_rule_stretch_conflict",
+          ruleName: "December",
+          problemKind: "unit",
         },
       },
     });
@@ -551,6 +586,7 @@ describe("rule-specific stretch settings", () => {
           ruleId: "rule-001",
           ruleName: "December",
           problem: "a marathon must be longer than the ordinary stretch",
+          problemKind: "shorter",
         },
       },
     });

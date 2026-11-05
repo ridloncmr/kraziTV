@@ -220,7 +220,7 @@ describe("findStretchProblem", () => {
       { kind: "airtime_range", minMinutes: 90, maxMinutes: 60 },
       "maxMinutes must be at least minMinutes",
     ],
-  ] as const)("refuses %o", (stretch, problem) => {
-    expect(findStretchProblem(stretch)).toBe(problem);
+  ] as const)("refuses %o as a shape problem", (stretch, message) => {
+    expect(findStretchProblem(stretch)).toEqual({ kind: "shape", message });
   });
 });

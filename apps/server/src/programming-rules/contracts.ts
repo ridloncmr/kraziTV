@@ -2,6 +2,7 @@ import type {
   CalendarConditions,
   ProgrammingRule,
   RuleMarathon,
+  StretchProblem,
   StretchSetting,
 } from "@krazitv/krazi-brain";
 
@@ -38,14 +39,14 @@ export interface SavedRule extends RuleSettings {
 /** A source naming an assignment the channel does not have, or whose effective stretch pair is invalid. */
 export type RuleSourceRefusal =
   | { kind: "unknown_assignment"; assignmentId: string }
-  | { kind: "invalid_stretch"; assignmentId: string; problem: string };
+  | { kind: "invalid_stretch"; assignmentId: string; problem: StretchProblem };
 
 /** A rule whose inherited stretch pair an assignment edit would make invalid. */
 export interface RuleStretchConflict {
   kind: "rule_stretch_conflict";
   ruleId: string;
   ruleName: string;
-  problem: string;
+  problem: StretchProblem;
 }
 
 export type CreateRuleResult =
