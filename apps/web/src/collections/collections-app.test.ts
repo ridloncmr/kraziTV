@@ -220,6 +220,34 @@ it("creates a collection in a dialog and opens it for editing", async () => {
   ).toEqual({ name: "News" });
 });
 
+it("refuses a collection name longer than 120 characters in the dialog, naming the limit", async () => {
+  const api = renderApp();
+  api.reply(
+    "/media-collections",
+    {
+      error: {
+        code: "invalid_request",
+        message: "name: name must be at most 120 characters",
+        fields: [{ path: "name", code: "too_big" }],
+      },
+    },
+    "POST",
+    400,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "New collection…" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "New collection" });
+  fireEvent.change(screen.getByLabelText("Collection name"), {
+    target: { value: "n".repeat(121) },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+  );
+});
+
 it("reports a rejected delete inside its confirmation", async () => {
   const api = renderApp();
   api.reply(
