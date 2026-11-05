@@ -2,9 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { rootFixture } from "../../testing/catalog-fixtures.js";
 import {
+  ALIEN_PATH,
+  idOf,
   matchDecisions,
+  metadataOf,
+  scanThroughRoutes,
   scanToEnd,
   setupEnrichmentScan,
+  startEnrichmentServer,
   waitForScanEnd,
 } from "../../testing/enrichment-scan.js";
 import { flushMicrotasks } from "../../testing/flush-microtasks.js";
@@ -187,6 +192,39 @@ describe("CatalogScanner enrichment", () => {
       { state: "unmatched", lookupError: "TMDB rejected the key" },
       { state: "unmatched", lookupError: "TMDB rejected the key" },
     ]);
+  });
+
+  it("stores a rejected key as the key_rejected kind beside its text, which the item route exposes", async () => {
+    const { server, tmdb } = await startEnrichmentServer({
+      files: [ALIEN_PATH],
+    });
+    tmdb.validKeys.clear();
+
+    await scanThroughRoutes(server);
+
+    await expect(
+      metadataOf(server, await idOf(server, ALIEN_PATH)),
+    ).resolves.toMatchObject({
+      matchState: "unmatched",
+      lookupError: "TMDB rejected the key",
+      lookupErrorKind: "key_rejected",
+    });
+  });
+
+  it("stores an unreachable TMDB as the unreachable kind, never as a rejected key", async () => {
+    const { server, tmdb } = await startEnrichmentServer({
+      files: [ALIEN_PATH],
+    });
+    tmdb.unreachable = true;
+
+    await scanThroughRoutes(server);
+
+    await expect(
+      metadataOf(server, await idOf(server, ALIEN_PATH)),
+    ).resolves.toMatchObject({
+      lookupError: "TMDB request failed",
+      lookupErrorKind: "unreachable",
+    });
   });
 
   it("fails the scan on an unexpected lookup error only after every lookup settles, committing nothing", async () => {

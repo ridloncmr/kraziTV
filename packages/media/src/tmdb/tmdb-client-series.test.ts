@@ -65,7 +65,8 @@ describe("TmdbClient.searchSeries", () => {
       client.searchSeries(TOKEN, { title: "Firefly" }),
     ).resolves.toEqual({
       kind: "failed",
-      reason: "TMDB sent a response kraziTV could not read",
+      reason: "unreadable",
+      message: "TMDB sent a response kraziTV could not read",
     });
   });
 });
@@ -106,6 +107,7 @@ describe("TmdbClient.seriesDetails", () => {
 
     await expect(client.seriesDetails(TOKEN, 1437)).resolves.toMatchObject({
       kind: "failed",
+      reason: "unreadable",
     });
   });
 });

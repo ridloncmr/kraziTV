@@ -1,4 +1,8 @@
-import type { TmdbClient, TmdbTitleQuery } from "../tmdb/tmdb-client.js";
+import type {
+  TmdbClient,
+  TmdbLookupFailure,
+  TmdbTitleQuery,
+} from "../tmdb/tmdb-client.js";
 import type { TmdbMovie } from "../tmdb/tmdb-movie.js";
 import type { TmdbTitleSummary } from "../tmdb/tmdb-title.js";
 import { matchTitle, titleQuery, type TitleHints } from "./match-title.js";
@@ -11,7 +15,7 @@ export type MovieLookup = { query: TmdbTitleQuery } & (
   | { kind: "matched"; movie: TmdbMovie }
   | { kind: "ambiguous"; candidates: TmdbTitleSummary[] }
   | { kind: "unmatched" }
-  | { kind: "failed"; reason: string }
+  | TmdbLookupFailure
 );
 
 // A year ending a title, as `Gladiator.2000.mkv` leaves it when no release

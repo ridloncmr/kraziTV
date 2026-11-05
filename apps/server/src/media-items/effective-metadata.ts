@@ -20,6 +20,7 @@ export const METADATA_COLUMNS = [
   "metadata_matches.state as match_state",
   "metadata_matches.extra",
   "metadata_matches.lookup_error",
+  "metadata_matches.lookup_error_kind",
   "metadata_matches.matched_duration_ms",
   "content_facts.title as fact_title",
   "content_facts.series_name",
@@ -51,6 +52,7 @@ export interface MetadataColumns {
   match_state: MetadataMatchTable["state"] | null;
   extra: number | null;
   lookup_error: string | null;
+  lookup_error_kind: MetadataMatchTable["lookup_error_kind"];
   matched_duration_ms: number | null;
   fact_title: string | null;
   series_name: string | null;
@@ -105,6 +107,7 @@ export function effectiveMetadata(
           ? "extra"
           : row.match_state,
     lookupError: row.lookup_error,
+    lookupErrorKind: row.lookup_error_kind,
     fileChanged:
       row.match_state === "matched" &&
       row.duration_ms !== null &&

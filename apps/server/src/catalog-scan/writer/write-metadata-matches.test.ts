@@ -85,6 +85,7 @@ describe("CatalogScanWriter metadata matches", () => {
           state: "matched",
           extra: 0,
           lookup_error: null,
+          lookup_error_kind: null,
           looked_up_at: LOOKED_UP_AT,
           evidence: JSON.stringify({
             hints: HINTS,
@@ -244,12 +245,19 @@ describe("CatalogScanWriter metadata matches", () => {
       lookedUp(itemFixture.path_key, {
         kind: "failed",
         query: { title: "Alien" },
-        reason: "TMDB answered HTTP 503",
+        reason: "http",
+        message: "TMDB answered HTTP 503",
       }),
     ]);
 
     await expect(metadata(db)).resolves.toMatchObject({
-      matches: [{ state: "unmatched", lookup_error: "TMDB answered HTTP 503" }],
+      matches: [
+        {
+          state: "unmatched",
+          lookup_error: "TMDB answered HTTP 503",
+          lookup_error_kind: "http",
+        },
+      ],
       facts: [],
     });
   });
@@ -404,12 +412,19 @@ describe("CatalogScanWriter metadata matches", () => {
       lookedUp(itemFixture.path_key, {
         kind: "failed",
         query: { title: "Alien" },
-        reason: "TMDB answered HTTP 503",
+        reason: "http",
+        message: "TMDB answered HTTP 503",
       }),
     ]);
 
     await expect(metadata(db)).resolves.toMatchObject({
-      matches: [{ state: "unmatched", lookup_error: "TMDB answered HTTP 503" }],
+      matches: [
+        {
+          state: "unmatched",
+          lookup_error: "TMDB answered HTTP 503",
+          lookup_error_kind: "http",
+        },
+      ],
       facts: [],
       refs: [],
     });

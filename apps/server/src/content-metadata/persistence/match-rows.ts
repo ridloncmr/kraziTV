@@ -116,6 +116,7 @@ function toRows(id: string, record: MetadataMatchRecord): MatchRows {
         state: "unmatched",
         extra: 1,
         lookup_error: null,
+        lookup_error_kind: null,
         looked_up_at: null,
         evidence: JSON.stringify({ hints: record.hints }),
         matched_duration_ms: null,
@@ -128,7 +129,8 @@ function toRows(id: string, record: MetadataMatchRecord): MatchRows {
     media_item_id: id,
     state: lookup.kind === "failed" ? "unmatched" : lookup.kind,
     extra: 0,
-    lookup_error: lookup.kind === "failed" ? lookup.reason : null,
+    lookup_error: lookup.kind === "failed" ? lookup.message : null,
+    lookup_error_kind: lookup.kind === "failed" ? lookup.reason : null,
     looked_up_at: lookedUpAt,
     evidence: JSON.stringify({
       hints: record.hints,

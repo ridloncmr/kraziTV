@@ -67,6 +67,9 @@ export interface ContentMetadata {
     | "rejected"
     | "extra";
   lookupError: string | null;
+  /** Which way the last lookup failed; null without a failure and for failures stored before migration 035. */
+  lookupErrorKind:
+    "key_rejected" | "unreachable" | "http" | "unreadable" | null;
   /** The file's duration changed since it was matched; the match stays. */
   fileChanged: boolean;
   title: string | null;
