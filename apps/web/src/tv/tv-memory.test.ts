@@ -23,3 +23,16 @@ it("starts at full volume with sound on when nothing or something unreadable is 
   );
   expect(readTvMemory()).toEqual({ volume: 1, muted: false });
 });
+
+it("keeps Live Monitor's channel when TV stores its own, and TV's when Live Monitor does", () => {
+  rememberTv({ channelId: "one", volume: 0.4, muted: true });
+  rememberTv({ monitorChannelId: "two" });
+  rememberTv({ channelId: "three", volume: 0.5, muted: false });
+
+  expect(readTvMemory()).toEqual({
+    channelId: "three",
+    monitorChannelId: "two",
+    volume: 0.5,
+    muted: false,
+  });
+});

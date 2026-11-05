@@ -9,12 +9,15 @@ import type { ProgramId } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
+import { startingChannel } from "../tv/channel-dial.js";
+import { readTvMemory, rememberTv } from "../tv/tv-memory.js";
 import { airingLabel, offAirWords } from "./airing-words.js";
 
 /**
  * Live Monitor's view of one channel's current state; offsets are never
- * advanced by browser time. With no channels, the empty state opens My
- * Channels.
+ * advanced by browser time. It opens on the channel last chosen here, else
+ * the first enabled one, because it is opened for an answer at once. With no
+ * channels, the empty state opens My Channels.
  */
 export function ChannelObservation({
   visible,
@@ -25,7 +28,15 @@ export function ChannelObservation({
   openProgram: (id: ProgramId) => void;
 }) {
   const channels = useResource<Channel[]>("/channels", visible);
-  const [selected, setSelected] = useState("");
+  const [memory] = useState(readTvMemory);
+  // The owner's choice in this window; until there is one, the monitor shows
+  // the channel this browser last chose here, else the first enabled one.
+  const [chosen, setChosen] = useState<string>();
+  const selected =
+    chosen ??
+    (channels.data &&
+      startingChannel(channels.data, [memory.monitorChannelId])?.id) ??
+    "";
   const path = selected ? resourcePath("channels", selected) : null;
   const now = useResource<ChannelState>(
     path ? `${path}/now` : null,
@@ -39,9 +50,12 @@ export function ChannelObservation({
           Channel
           <select
             value={selected}
-            onChange={(event) => setSelected(event.target.value)}
+            onChange={(event) => {
+              setChosen(event.target.value);
+              rememberTv({ monitorChannelId: event.target.value });
+            }}
           >
-            <option value="">Choose a channel</option>
+            {!selected && <option value="">Choose a channel</option>}
             {channels.data?.map((channel) => (
               <option value={channel.id} key={channel.id}>
                 {channel.number} · {channel.name}

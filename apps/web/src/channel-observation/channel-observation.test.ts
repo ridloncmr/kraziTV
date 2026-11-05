@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
@@ -9,6 +15,7 @@ import { ChannelObservation } from "./channel-observation.js";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 const at = (time: string) => `2026-10-05T${time}:00.000Z`;
@@ -110,4 +117,38 @@ it("opens My Channels from the empty state when there are no channels", async ()
 
   expect(openProgram).toHaveBeenCalledWith("channels");
   expect(screen.getByText(/No channels yet/).className).toBe("empty-state");
+});
+
+it("opens on the first enabled channel, then on the channel chosen when it last closed", async () => {
+  const api = monitorApi();
+  api.reply("/channels", [
+    { id: "resting", number: "68", name: "Resting TV", enabled: false },
+    ...adminFixtures.channels,
+  ]);
+  api.reply("/channels/two/now", adminFixtures.now);
+  const open = () =>
+    render(
+      createElement(ChannelObservation, {
+        visible: true,
+        openProgram: () => {},
+      }),
+    );
+
+  const first = open();
+  expect(
+    await screen.findByText("Off air — programming resumes at 8:00 PM"),
+  ).toBeTruthy();
+  expect(screen.queryByText("Choose a channel")).toBeNull();
+  fireEvent.change(screen.getByLabelText("Channel"), {
+    target: { value: "two" },
+  });
+  first.unmount();
+  open();
+
+  await waitFor(() =>
+    expect(screen.getByLabelText<HTMLSelectElement>("Channel").value).toBe(
+      "two",
+    ),
+  );
+  expect(await screen.findByText("Alpha")).toBeTruthy();
 });

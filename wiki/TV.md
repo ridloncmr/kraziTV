@@ -11,6 +11,11 @@ broadcast Plex gets, so what you see is exactly what Plex viewers see.
   Double-clicking the picture also goes full screen.
 - The strip under the picture names what is on and what is next.
 
+The keys a TV remote taught work too. Click the picture, then press **↑**
+or **↓** to change channel, **M** to mute or unmute, and **F** to go full
+screen or come back. They leave the channel dropdown and the volume slider
+alone, so those keep working as usual.
+
 TV opens on the channel you watched last. **Watch** in My Channels and a
 channel's name in the Program Guide open TV on that channel.
 

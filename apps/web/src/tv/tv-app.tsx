@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ChannelNowNext } from "../channel-observation/channel-now-next.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { apiUrl, resourcePath } from "../http/api-client.js";
@@ -144,11 +144,41 @@ export function TvApp({
       channels.data && stepChannel(channels.data, tunedId, direction);
     if (next) setChosenId(next.id);
   };
+  /**
+   * Answers the keys a set's remote taught: Up and Down change channel, M
+   * mutes, F toggles full screen. Fields keep their own keys, the browser
+   * keeps its shortcuts, and a window under a dialog answers nothing.
+   */
+  const answerKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      event.ctrlKey ||
+      event.altKey ||
+      event.metaKey ||
+      isField(event.target) ||
+      event.currentTarget.closest("[inert]")
+    )
+      return;
+    const actions: Record<string, () => void> = {
+      arrowup: () => step(1),
+      arrowdown: () => step(-1),
+      m: () => setMuted((value) => !value),
+      f: toggleFullScreen,
+    };
+    const action = actions[event.key.toLowerCase()];
+    if (!action) return;
+    event.preventDefault();
+    action();
+  };
   const enabledCount =
     channels.data?.filter((channel) => channel.enabled).length ?? 0;
 
   return (
-    <div className="program-page tv-page">
+    <div
+      className="program-page tv-page"
+      // Focusable, so a click on the picture puts the keys in TV's hands.
+      tabIndex={-1}
+      onKeyDown={answerKey}
+    >
       <div
         ref={picture}
         className="tv-picture"
@@ -255,6 +285,14 @@ export function TvApp({
       </div>
       <RequestFeedback loading={channels.loading} error={channels.error} />
     </div>
+  );
+}
+
+/** Whether a key went to a field, such as the channel list or the volume slider, whose own keys come first. */
+function isField(target: EventTarget): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("input, select, textarea") !== null
   );
 }
 
