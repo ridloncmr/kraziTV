@@ -4,6 +4,11 @@ import { SettingLocation } from "../controls/setting-location/setting-location.j
 import type { PlexSetup } from "../http/contracts/plex.js";
 import { useResource } from "../http/resources/use-resource.js";
 
+// The wiki section that shows how to find the address kraziTV cannot see
+// for itself, such as when it runs in Docker.
+const FIND_ADDRESS_URL =
+  "https://github.com/ridloncmr/kraziTV/wiki/Install#your-address";
+
 /**
  * Uses backend-configured public URLs so Plex reaches the server even from a
  * different host. When the server names this computer only, it says so first
@@ -81,7 +86,10 @@ export function PlexSetupApp({ visible }: { visible: boolean }) {
                 <code>
                   PUBLIC_BASE_URL=http://&lt;this computer&apos;s network
                   address&gt;{portSuffix(setup.data.tunerBaseUrl)}
-                </code>
+                </code>{" "}
+                <a href={FIND_ADDRESS_URL} target="_blank" rel="noreferrer">
+                  How to find this computer&apos;s address
+                </a>
               </p>
             ))}
           {localOnly.includes("HOST") &&
