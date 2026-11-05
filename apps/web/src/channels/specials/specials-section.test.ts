@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -18,6 +19,7 @@ import {
 import { BrowserApi } from "../../testing/browser-api.js";
 import { chooseOption } from "../../testing/choose-option.js";
 import { officeCollection } from "../../testing/collection-api.js";
+import { pressEnter } from "../../testing/press-enter.js";
 import type { Special, SpecialPreview } from "./contracts.js";
 import { airtimeWords } from "./special-words.js";
 import { SpecialsSection } from "./specials-section.js";
@@ -166,6 +168,48 @@ it("previews media items in order and saves exactly what was previewed", async (
     expectedProgrammingRevision: 7,
     requestKey: expect.any(String),
   });
+});
+
+it("presses Preview with Enter in Starts, then Save special once a preview is current", async () => {
+  const api = renderSection();
+  await startNewSpecial();
+  await screen.findByRole("option", { name: "Alpha" });
+  fireEvent.change(screen.getByLabelText("Program 1"), {
+    target: { value: "z" },
+  });
+  api.reply(PREVIEW, planned(), "POST");
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Starts"));
+  await screen.findByRole("region", { name: "Special preview" });
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+
+  api.reply(LIST, saved, "POST", 201);
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Starts"));
+  await waitFor(() => expect(lastBody(api, LIST, "POST")).toBeDefined());
+  expect(lastBody(api, LIST, "POST")).toMatchObject({
+    startsAt: START,
+    expectedProgrammingRevision: 7,
+  });
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+});
+
+it("searches with Enter in Find media, never saving or previewing again", async () => {
+  const { api } = await previewSpecial(planned());
+  api.reply(LIST, saved, "POST", 201);
+
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Find media"));
+  await act(async () => {});
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+  expect(api.requestsTo(PREVIEW)).toHaveLength(1);
+  expect(screen.getByRole("region", { name: "Special preview" })).toBeTruthy();
+});
+
+it("previews again from Preview while a preview is current, never saving", async () => {
+  const { api } = await previewSpecial(planned());
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+  await waitFor(() => expect(api.requestsTo(PREVIEW)).toHaveLength(2));
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
 });
 
 it("words the gaps around a special as Off air, as the guide does", async () => {

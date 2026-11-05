@@ -10,7 +10,9 @@ the desktop is just how you reach the programs.
 
 Every program has a shortcut on the desktop and an entry in the Start menu.
 One click opens it. Each program opens once; opening it again brings its
-window to the front.
+window to the front. From the keyboard, Tab to the desktop shortcuts, move
+between them with Up and Down (Home and End jump to the first and last),
+and press Enter to open the highlighted one.
 
 | Program                              | What it is for                                             |
 | ------------------------------------ | ---------------------------------------------------------- |
@@ -60,8 +62,9 @@ The system tray on the right holds:
 The Start menu lists every program and has two more entries: **Source
 code**, which opens kraziTV's GitHub page, and **Log Off**, which asks once
 and then ends your session in this browser. Once Start is open, the arrow
-keys move through it as they did on XP: Up and Down along a column, Left
-and Right between the two columns, and Enter opens the highlighted program.
+keys move through it as they did on XP: Up and Down along a column, Home
+and End to its first and last program, Left and Right between the two
+columns, and Enter opens the highlighted program.
 There is no Turn Off; kraziTV keeps broadcasting no matter what the desktop
 is doing.
 
