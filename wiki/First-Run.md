@@ -18,7 +18,8 @@ type your password.
 
 Open **Media Library** from the desktop. Click **Add media root…** and type
 the folder that holds your media, as the kraziTV computer sees it. In Docker
-that is `/media`. **Browse…** lets you pick the folder instead of typing it.
+that is `/media`, or the folder under it you gave each drive in
+[Install](Install#your-media-folders). **Browse…** lets you pick the folder instead of typing it.
 
 When you click **Add root**, kraziTV offers to scan the folder right away.
 Click **Scan**. A scan reads every video file under the folder and adds it to the
@@ -38,7 +39,7 @@ a free TMDB key, kraziTV recognizes your series, seasons, episodes, and
 movies, and can build collections for you. Without it, kraziTV only knows
 what your file names say.
 
-[Set it up](Account-Settings#set-up-tmdb) now, then scan each media root
+[Set it up](Set-Up-TMDB) now, then scan each media root
 again from its row menu. The rescan only looks up files that were never
 matched, so it is quick. [Media Library](Media-Library) explains what the lookups find.
 

@@ -13,7 +13,8 @@ as you like: one for everything, or one each for movies, TV, and cartoons.
 Overlapping roots catalog the same files twice, so keep them separate.
 
 Click **Add media root…**, type the folder's path as the kraziTV computer
-sees it, or use **Browse…** to find it. In Docker your media is at `/media`.
+sees it, or use **Browse…** to find it. In Docker your media is under `/media`, as you set up in
+[Install](Install#your-media-folders).
 After you click **Add root**, kraziTV offers to scan the folder straight
 away. A root you choose not to scan keeps a **Scan** button in its row until
 you do.

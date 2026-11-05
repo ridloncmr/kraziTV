@@ -3,6 +3,7 @@
 - [Home](Home)
 - [Install](Install)
 - [First run](First-Run)
+- [Set up TMDB](Set-Up-TMDB)
 - [Connect Plex](Connect-Plex)
 - [The desktop](The-Desktop)
 

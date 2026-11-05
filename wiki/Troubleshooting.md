@@ -78,8 +78,7 @@ to shrink the gap.
 
 ## My shows are not matched
 
-- No TMDB key: set one up in [Account Settings](Account-Settings#set-up-tmdb),
-  then scan again.
+- No TMDB key: follow [Set up TMDB](Set-Up-TMDB), then scan again.
 - **Needs your choice**: click **Review matches** in Media Library and
   answer the questions.
 - **Unmatched** or wrong: check the folder names against [Naming your
