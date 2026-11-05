@@ -30,7 +30,7 @@ a collection's own order only matters when the channel plays it in
 
 ## Let kraziTV suggest them
 
-On the **Automatic** tab, click **Discover collections…**. kraziTV lists
+On either tab, click **Discover collections…**. kraziTV lists
 every TV series and movie franchise with at least two cataloged files, with
 a reason and a member list. For each one:
 

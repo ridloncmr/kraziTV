@@ -69,7 +69,8 @@ export function CollectionsApp({
       </div>
       <p className="program-intro">
         Build ordered sets of media for your channels. Chronological playback
-        follows this order.
+        follows this order. Discover collections… suggests one per series and
+        franchise.
       </p>
       <RequestFeedback
         loading={collections.loading}
