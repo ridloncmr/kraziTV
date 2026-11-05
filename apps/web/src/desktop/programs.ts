@@ -53,7 +53,7 @@ export const programs: readonly (ProgramDefinition & { id: ProgramId })[] = [
   {
     id: "monitor",
     name: "Live Monitor",
-    description: "Inspect current channel state",
+    description: "See what each channel is airing right now",
     group: "Server",
   },
   {

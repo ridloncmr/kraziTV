@@ -1,5 +1,6 @@
 import { specialWords } from "../channels/specials/special-words.js";
 import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
+import { displayTime } from "../controls/formatting/display-time.js";
 import { ApiError } from "./api-error.js";
 
 // The owner's sentence for each field the server can refuse, by the Zod
@@ -104,6 +105,14 @@ function codeWords(
       return "This collection is in a channel's lineup or a special. Remove it there first.";
     case "programming_member_assigned":
       return "Another show on this channel already plays that.";
+    case "internal_error":
+      return "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.";
+    case "schedule_busy":
+      return "kraziTV is busy updating this channel's schedule. Try again in a moment.";
+    case "programming_assignment_not_found":
+      return "That show is no longer in the lineup. Refresh and pick again.";
+    case "media_root_removal_pending":
+      return `This folder was deleted while a channel was still airing from it. Add it again ${typeof details.airingUntil === "string" ? `after ${displayTime(details.airingUntil)}` : "once that program ends"}.`;
     case "programming_rule_stretch_invalid":
       return stretchProblemWords(details.problem);
     case "programming_rule_stretch_conflict": {

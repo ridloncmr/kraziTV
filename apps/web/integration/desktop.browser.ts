@@ -85,7 +85,7 @@ async function scanNewRoot(page: Page, directory: string) {
   });
   await media.getByRole("button", { name: "Add a media root…" }).click();
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
-  await addRoot.getByLabel("Absolute server path").fill(directory);
+  await addRoot.getByLabel("Folder on the kraziTV server").fill(directory);
   await addRoot.getByRole("button", { name: "Add root", exact: true }).click();
   await addRoot.getByRole("button", { name: "Scan", exact: true }).click();
   await expect(addRoot).toBeHidden();
@@ -210,13 +210,13 @@ test("picks a media root by browsing real server folders in a narrow desktop win
   });
   await media.getByRole("button", { name: "Add a media root…" }).click();
   const addRoot = media.getByRole("dialog", { name: "Add media root" });
-  await addRoot.getByLabel("Absolute server path").fill(directory);
+  await addRoot.getByLabel("Folder on the kraziTV server").fill(directory);
 
   await addRoot.getByRole("button", { name: "Browse…" }).click();
   const browser = addRoot.getByRole("group", { name: "Server folders" });
   await browser.getByRole("button", { name: "Shows", exact: true }).click();
   await expect(browser.getByText("No folders here.")).toBeVisible();
-  await expect(addRoot.getByLabel("Absolute server path")).toHaveValue(
+  await expect(addRoot.getByLabel("Folder on the kraziTV server")).toHaveValue(
     join(directory, "Shows"),
   );
   // The whole dialog, Add root included, stays inside the narrow desktop window.
