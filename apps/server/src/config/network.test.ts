@@ -132,28 +132,53 @@ describe("networkBaseUrl", () => {
     family: "IPv4" | "IPv6" = "IPv4",
     internal = false,
   ) => ({ address: value, family, internal }) as NetworkInterfaceInfo;
+  /** A host with no container marker files, so tests pass inside Docker too. */
+  const noContainer = () => false;
 
   it("prefers a home network's address over a container bridge's", () => {
     expect(
-      networkBaseUrl(3000, {
-        lo: [address("127.0.0.1", "IPv4", true)],
-        docker0: [address("172.17.0.1")],
-        eth0: [address("fe80::1", "IPv6"), address("192.168.1.10")],
-      }),
+      networkBaseUrl(
+        3000,
+        {
+          lo: [address("127.0.0.1", "IPv4", true)],
+          docker0: [address("172.17.0.1")],
+          eth0: [address("fe80::1", "IPv6"), address("192.168.1.10")],
+        },
+        noContainer,
+      ),
     ).toBe("http://192.168.1.10:3000");
   });
 
   it("falls back to any other network address, skipping link-local ones", () => {
     expect(
-      networkBaseUrl(8080, {
-        eth0: [address("169.254.3.4"), address("10.0.0.5")],
-      }),
+      networkBaseUrl(
+        8080,
+        { eth0: [address("169.254.3.4"), address("10.0.0.5")] },
+        noContainer,
+      ),
     ).toBe("http://10.0.0.5:8080");
   });
 
   it("returns null with no network address", () => {
     expect(
-      networkBaseUrl(3000, { lo: [address("127.0.0.1", "IPv4", true)] }),
+      networkBaseUrl(
+        3000,
+        { lo: [address("127.0.0.1", "IPv4", true)] },
+        noContainer,
+      ),
     ).toBeNull();
   });
+
+  it.each(["/.dockerenv", "/run/.containerenv"])(
+    "suggests nothing inside a container marked by %s, whose addresses are never the host's",
+    (marker) => {
+      expect(
+        networkBaseUrl(
+          3000,
+          { eth0: [address("172.17.0.2")] },
+          (path) => path === marker,
+        ),
+      ).toBeNull();
+    },
+  );
 });

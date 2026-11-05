@@ -8,6 +8,12 @@
 //
 // The names below are objects the demo seed creates. Change them with the
 // seed; the script fails loudly when one is missing.
+//
+// The `tmdb-*.png` and `plex-tuner-*.png` images, and `plex-live-tv-dvr.png`,
+// are not made here: they show TMDB's site and Plex's tuner setup, captured
+// by hand with keys, contact details, and the owner's server and account
+// names hidden, and Plex pointed at the demo. Retake them by hand if those
+// screens change.
 
 import { chromium } from "playwright";
 import { hideMachineValues, openDemoApp } from "../demo-library/demo-app.mjs";
@@ -47,10 +53,53 @@ await shootLogon();
 const { browser, page } = await openDemoApp({ width: 1600, height: 1000 });
 const { settle, win, openProgram, closeWindow, maximize, menuItem, tab } =
   desktopActions(page);
-const shot = async (file, locator = page) => {
+/**
+ * Captures one wiki image. `clicks` are the controls the wiki step tells the
+ * reader to use; each gets the red outline the hand-made TMDB and Plex
+ * images use, drawn here so a refresh keeps it.
+ */
+const shot = async (file, locator = page, clicks = []) => {
   await page.waitForTimeout(400);
   await hideMachineValues(page);
+  await outline(clicks);
   await locator.screenshot({ path: `${out}${file}.png` });
+  await page.evaluate(() => {
+    const { document } = globalThis;
+    document.querySelectorAll("[data-wiki-outline]").forEach((e) => e.remove());
+  });
+};
+/**
+ * Draws a red ring around each control on top of the page. Fails when a
+ * control is missing, so a renamed button never yields an image without
+ * its outline.
+ */
+const outline = async (clicks) => {
+  const boxes = [];
+  for (const control of clicks) {
+    const box = await control.boundingBox();
+    if (!box) throw new Error(`Nothing to outline: ${control}`);
+    boxes.push(box);
+  }
+  await page.evaluate((rings) => {
+    const { document } = globalThis;
+    for (const { x, y, width, height } of rings) {
+      const ring = document.createElement("div");
+      ring.dataset.wikiOutline = "";
+      Object.assign(ring.style, {
+        position: "fixed",
+        left: `${x - 6}px`,
+        top: `${y - 6}px`,
+        width: `${width + 12}px`,
+        height: `${height + 12}px`,
+        border: "4px solid #dc2626",
+        borderRadius: "6px",
+        boxSizing: "border-box",
+        pointerEvents: "none",
+        zIndex: "2147483647",
+      });
+      document.body.append(ring);
+    }
+  }, boxes);
 };
 const lastDialog = () => page.getByRole("dialog").last();
 const cancelDialog = () =>
@@ -64,7 +113,9 @@ try {
 
   await openProgram("Media Library");
   await maximize("Media Library");
-  await shot("media-library", win("Media Library"));
+  await shot("media-library", win("Media Library"), [
+    page.getByRole("button", { name: "Add media root…" }),
+  ]);
   await page
     .getByRole("button", { name: `Details for ${names.mediaItem}` })
     .click();
@@ -83,7 +134,10 @@ try {
   await openProgram("Collections");
   await maximize("Collections");
   await tab(page, "Automatic");
-  await shot("collections", win("Collections"));
+  await shot("collections", win("Collections"), [
+    page.getByRole("button", { name: "Discover collections…" }),
+    page.getByRole("button", { name: "New automatic collection…" }),
+  ]);
   await page.getByRole("button", { name: "Discover collections…" }).click();
   await settle();
   await shot(
@@ -123,13 +177,17 @@ try {
     .first()
     .waitFor({ state: "detached", timeout: 20_000 })
     .catch(() => {});
-  await shot("my-channels", win("My Channels"));
+  await shot("my-channels", win("My Channels"), [
+    page.getByRole("button", { name: "New channel…" }),
+  ]);
   await maximize("My Channels");
 
   await menuItem(`Actions for ${names.channelWithWheel}`, "Properties");
   const lineup = win(`${names.channelWithWheel} Properties`);
   await tab(lineup, "Lineup");
-  await shot("channel-lineup", lineup);
+  await shot("channel-lineup", lineup, [
+    lineup.getByRole("button", { name: "Add shows…" }),
+  ]);
   await menuItem(`Actions for ${names.wheel}`, "Properties");
   await shot("show-properties-general", lineup);
   await tab(lastDialog(), "Contents");
@@ -139,21 +197,20 @@ try {
   await cancelDialog();
   await lineup.getByRole("button", { name: "Add shows…" }).click();
   await settle();
-  await shot("add-shows", lineup);
-  await lastDialog()
+  const picks = lastDialog()
     .getByRole("list", { name: "Search results" })
-    .getByRole("checkbox")
-    .nth(0)
-    .check();
-  await lastDialog()
-    .getByRole("list", { name: "Search results" })
-    .getByRole("checkbox")
-    .nth(1)
-    .check();
-  await lastDialog().getByRole("button", { name: /^Next/ }).click();
+    .getByRole("checkbox");
+  await picks.nth(0).check();
+  await picks.nth(1).check();
+  const next = lastDialog().getByRole("button", { name: /^Next/ });
+  await shot("add-shows", lineup, [picks.nth(0), picks.nth(1), next]);
+  await next.click();
   await settle();
   await page.waitForTimeout(1500);
-  await shot("add-shows-settings", lineup);
+  await shot("add-shows-settings", lineup, [
+    lastDialog().getByRole("group").first(),
+    lastDialog().getByRole("button", { name: /^Add/ }),
+  ]);
   await cancelDialog();
   await tab(lineup, "Preview");
   await shot("channel-preview", lineup);
@@ -226,7 +283,10 @@ try {
   await closeWindow("TV");
 
   await openProgram("Plex Setup");
-  await shot("plex-setup", win("Plex Setup"));
+  await shot("plex-setup", win("Plex Setup"), [
+    page.getByRole("button", { name: "Copy Tuner base URL" }),
+    page.getByRole("button", { name: "Copy XMLTV guide URL" }),
+  ]);
   await closeWindow("Plex Setup");
 
   await openProgram("Live Monitor");
@@ -241,7 +301,10 @@ try {
   await shot("account-settings", win("Account Settings"));
   await page.getByRole("button", { name: "Set up TMDB" }).click();
   await settle();
-  await shot("set-up-tmdb", win("Account Settings"));
+  await shot("set-up-tmdb", win("Account Settings"), [
+    page.getByLabel("API Read Access Token"),
+    page.getByRole("button", { name: "Save", exact: true }),
+  ]);
   await closeWindow("Account Settings");
   console.log(`Saved the wiki screenshots to ${out}`);
 } finally {

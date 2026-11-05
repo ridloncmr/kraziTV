@@ -61,8 +61,9 @@ docker run -d --name krazitv -p 3000:3000 \
   ghcr.io/ridloncmr/krazitv:v0.9.0-rc.3
 ```
 
-Replace `192.168.1.10` with your server's address, open it in a browser, and
-create your account. Then:
+Replace `192.168.1.10` with your server's address
+([how to find it](https://github.com/ridloncmr/kraziTV/wiki/Install#your-address)),
+open it in a browser, and create your account. Then:
 
 1. **Media Library:** add `/media`, and scan it when kraziTV offers.
 2. **My Channels:** create a channel and add shows to its lineup.

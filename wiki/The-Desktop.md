@@ -50,7 +50,7 @@ window to the front or restore it from being minimized.
 The system tray on the right holds:
 
 - **A yellow warning icon** while TMDB is not set up. Click it to see why
-  and to set it up. See [Account Settings](Account-Settings#set-up-tmdb).
+  and to set it up. See [Set up TMDB](Set-Up-TMDB).
 - **A dot** that is green while the browser can reach kraziTV and amber
   when it cannot; hover it to read why. Clicking it opens Live Monitor.
 - **The clock.**

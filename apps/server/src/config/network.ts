@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { BlockList, isIP } from "node:net";
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { parseIntegerSetting } from "./integer-setting.js";
@@ -86,16 +87,24 @@ export function isLoopbackHost(host: string): boolean {
   return LOOPBACK.check(bare, family === 6 ? "ipv6" : "ipv4");
 }
 
+// Files Docker and Podman create inside every container they run.
+const CONTAINER_MARKERS = ["/.dockerenv", "/run/.containerenv"];
+
 /**
  * This computer's address on its local network as an origin on `port`, to
  * suggest as PUBLIC_BASE_URL, or null when it has none. Prefers a home
  * network's 192.168 address over others, such as a container bridge's, and
- * skips link-local addresses, which no router hands out.
+ * skips link-local addresses, which no router hands out. Inside a container
+ * it suggests nothing: the addresses it can see are the container's or its
+ * VM's, never the host's address Plex reaches, and a wrong suggestion is
+ * worse than asking the owner for theirs.
  */
 export function networkBaseUrl(
   port: number,
   interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
+  pathExists: (path: string) => boolean = existsSync,
 ): string | null {
+  if (CONTAINER_MARKERS.some(pathExists)) return null;
   const addresses = Object.values(interfaces)
     .flatMap((entries) => entries ?? [])
     .filter(

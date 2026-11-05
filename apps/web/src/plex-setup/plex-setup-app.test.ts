@@ -80,6 +80,11 @@ it("asks for this computer's address when it has none to suggest", async () => {
   expect(warning.textContent).toMatch(
     /PUBLIC_BASE_URL=http:\/\/<this computer's network\s+address>:3000/,
   );
+  expect(
+    screen
+      .getByRole("link", { name: "How to find this computer's address" })
+      .getAttribute("href"),
+  ).toBe("https://github.com/ridloncmr/kraziTV/wiki/Install#your-address");
   expect(screen.queryByLabelText("Listen setting")).toBeNull();
 });
 

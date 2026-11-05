@@ -38,31 +38,12 @@ browser out. It needs a real terminal, which is why the Docker command has
 `-it`, and if kraziTV happens to be writing at that moment it asks you to
 try again.
 
-## Set up TMDB
+## TMDB
 
-TMDB is the free database kraziTV uses to recognize your shows and movies.
-Without a key, it only knows what your file names say, and cannot build
-automatic collections for series or franchises.
-
-1. Create a free account at [themoviedb.org](https://www.themoviedb.org/)
-   and open **Settings**, then **API**.
-2. Copy the long **API Read Access Token**. That is your key; not the
-   shorter API Key.
-3. In Account Settings, choose **Set up TMDB**, paste it, and click
-   **Save**. The reminder balloon in the system tray has a **Set up TMDB**
-   button that takes you straight there, and so does the **Set up TMDB…**
-   button at the top of [Media Library](Media-Library) until a key is saved.
-
-![Set up TMDB, with a key already saved](images/set-up-tmdb.png)
-
-kraziTV checks the key with TMDB before saving it. The yellow tray icon
-goes away once a key is set. If you added the key after scanning, scan
-each root again in [Media Library](Media-Library) so your files get looked
-up.
-
-**Remove** deletes the key. Matches already made stay as they are.
+The TMDB key that lets kraziTV recognize your shows and movies lives here,
+under **Set up TMDB**. [Set up TMDB](Set-Up-TMDB) walks you through getting
+a free key from TMDB and adding it.
 
 ---
 
-**Next:** [How programming works](How-Programming-Works), or back to
-[First run](First-Run#4-keep-some-collections) if you came from there.
+**Next:** [How programming works](How-Programming-Works).
