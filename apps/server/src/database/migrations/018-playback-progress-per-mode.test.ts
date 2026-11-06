@@ -170,6 +170,7 @@ describe("018_playback_progress_per_mode", () => {
           lastMediaItemId: row.last_media_item_id,
           lastPosition: row.last_position,
           nextSelectionIndex: row.next_selection_index,
+          resetCount: 0,
         }),
         id,
       ).toBe(MEMBERS[nextPosition % MEMBERS.length]?.id);

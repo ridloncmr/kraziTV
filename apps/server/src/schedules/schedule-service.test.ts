@@ -153,6 +153,7 @@ describe("ScheduleService.ensureCoverage", () => {
         last_position: last.playback_index,
         next_selection_index: 0,
         reset_sequence_number: null,
+        reset_count: 0,
         order_fingerprint: null,
         updated_at: T0,
       },

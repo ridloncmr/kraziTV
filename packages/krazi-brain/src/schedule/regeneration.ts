@@ -31,24 +31,25 @@ export function findRegenerationBoundary(
  * restore. An entry generated before its collection and mode were last
  * reset is ignored, so restoration never returns to pre-reset progress; a
  * collection and mode none of whose deleted entries follow its reset keeps
- * the reset progress.
+ * the reset progress. Restored progress carries the current reset count, so
+ * random never returns to an order from before the latest reshuffle.
  */
 export function restorePlaybackProgress(
   deletedEntries: readonly RestorableEntry[],
   keptEntries: readonly RestorableEntry[],
   resets: readonly ProgressReset[] = [],
 ): CollectionProgress[] {
-  const resetAt = new Map(
+  const resetOf = new Map(
     resets.map((reset) => [
       progressKey(reset.mediaCollectionId, reset.playbackMode),
-      reset.resetSequenceNumber,
+      reset,
     ]),
   );
   // Entries without a collection or mode never match a reset.
   const followsReset = (entry: RestorableEntry) =>
     entry.sequenceNumber >=
-    (resetAt.get(progressKey(entry.mediaCollectionId, entry.playbackMode)) ??
-      0);
+    (resetOf.get(progressKey(entry.mediaCollectionId, entry.playbackMode))
+      ?.resetSequenceNumber ?? 0);
   const kept = keptEntries.filter(followsReset);
   const earliestFirst = deletedEntries
     .filter(followsReset)
@@ -65,13 +66,14 @@ export function restorePlaybackProgress(
     }
     const key = progressKey(mediaCollectionId, playbackMode);
     if (restored.has(key)) continue;
+    const progress =
+      playbackMode === "random"
+        ? { ...NO_PROGRESS, nextSelectionIndex: playbackIndex }
+        : progressAfter(latestEntry(kept, mediaCollectionId, playbackMode));
     restored.set(key, {
       mediaCollectionId,
       playbackMode,
-      progress:
-        playbackMode === "random"
-          ? { ...NO_PROGRESS, nextSelectionIndex: playbackIndex }
-          : progressAfter(latestEntry(kept, mediaCollectionId, playbackMode)),
+      progress: { ...progress, resetCount: resetOf.get(key)?.resetCount ?? 0 },
     });
   }
   return [...restored.values()];

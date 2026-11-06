@@ -72,9 +72,9 @@ export type ScheduleSource =
 
 /**
  * How far a channel has advanced through one media collection in one
- * playback mode. Ordered modes use only the last selection; random uses only
- * the selection index. A field the mode does not use stays at its
- * `NO_PROGRESS` value.
+ * playback mode. Ordered modes use only the last selection; random uses
+ * the selection index and the reset count. A selection field the mode does
+ * not use stays at its `NO_PROGRESS` value.
  */
 export interface PlaybackProgress {
   /** Ordered modes: the last media item selected, or null before the first. */
@@ -83,6 +83,11 @@ export interface PlaybackProgress {
   lastPosition: number | null;
   /** Random: the selection index the next pick consumes. */
   nextSelectionIndex: number;
+  /**
+   * How many times the owner has reset this progress. Random's seed counts
+   * it, so each reshuffle starts a new order; ordered modes ignore it.
+   */
+  resetCount: number;
 }
 
 /** Progress through a collection a channel has never played in a mode. */
@@ -90,6 +95,7 @@ export const NO_PROGRESS: PlaybackProgress = Object.freeze({
   lastMediaItemId: null,
   lastPosition: null,
   nextSelectionIndex: 0,
+  resetCount: 0,
 });
 
 /** Why a source cannot produce any schedule entry. */
@@ -129,6 +135,8 @@ export interface ProgressReset {
   playbackMode: PlaybackMode;
   /** The first entry generated after the reset; earlier entries hold pre-reset progress. */
   resetSequenceNumber: number;
+  /** How many resets there have been, which restored progress carries. */
+  resetCount: number;
 }
 
 /** One collection's progress in one playback mode, as generation and regeneration write it. */
