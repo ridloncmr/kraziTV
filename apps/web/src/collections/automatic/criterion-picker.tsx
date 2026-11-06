@@ -134,6 +134,9 @@ export function CriterionPicker({
     );
   }, [criterion, groupName, previewed, onChoice]);
   const { pick, choose, explain, empty, unit } = KINDS[kind];
+  // A list that could not be read has nothing to choose from, so only the
+  // problem shows.
+  const unlisted = groups.error !== undefined && !groups.data;
 
   /** Counts items in the unit the chosen kind holds, such as "2 episodes". */
   function count(n: number) {
@@ -161,26 +164,27 @@ export function CriterionPicker({
         ))}
       </fieldset>
       <p>{explain}</p>
-      {groups.data?.length === 0 ? (
-        <p className="empty-state">{empty}</p>
-      ) : (
-        <label>
-          {pick}
-          <select
-            value={value}
-            required
-            disabled={disabled}
-            onChange={(event) => setValue(event.target.value)}
-          >
-            <option value="">{choose}</option>
-            {groups.data?.map((item) => (
-              <option key={optionValue(item)} value={optionValue(item)}>
-                {item.name} ({count(item.itemCount)})
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {!unlisted &&
+        (groups.data?.length === 0 ? (
+          <p className="empty-state">{empty}</p>
+        ) : (
+          <label>
+            {pick}
+            <select
+              value={value}
+              required
+              disabled={disabled}
+              onChange={(event) => setValue(event.target.value)}
+            >
+              <option value="">{choose}</option>
+              {groups.data?.map((item) => (
+                <option key={optionValue(item)} value={optionValue(item)}>
+                  {item.name} ({count(item.itemCount)})
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
       <RequestFeedback
         loading={groups.loading || preview.loading}
         error={preview.error ?? groups.error}

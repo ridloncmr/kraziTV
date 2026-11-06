@@ -7,8 +7,8 @@ import type { KeyboardEvent } from "react";
  * Left and Right keep the row in the next column, or its last entry when
  * that column is shorter. A disabled button cannot take focus, so it is
  * never an entry. Focus outside every column, and every other key, keep
- * their meaning. Start passes its two columns; the desktop and a row menu
- * are one.
+ * their meaning. `columns` holds one column per group of buttons the caller
+ * passes, in left-to-right order.
  */
 export function navigateWithArrows(
   event: KeyboardEvent<HTMLElement>,

@@ -16,7 +16,8 @@ import { posterUrl } from "./poster-url.js";
  * Shows one item's match state, effective content facts, and tags, marking
  * the facts the owner corrected. Only facts the server reports appear; the
  * poster loads from TMDB, and TMDB's notice shows whenever TMDB facts do.
- * An item whose TMDB data expired says so. A file that could not be read, a
+ * An item whose TMDB data expired says so, and says the key must be accepted
+ * first when its refresh failed on a rejected key. A file that could not be read, a
  * failed lookup, and a failed background refresh each read as one owner
  * sentence beside the match, with the stored text only as a tooltip; a
  * TMDB failure's sentence says whether the key or TMDB's reach is at fault.
@@ -154,7 +155,14 @@ export function MediaDetailsDialog({
         <>
           <p className="secondary">
             {metadata.tmdbDataExpired ? (
-              <>TMDB data expired. It will refresh when TMDB is reachable.</>
+              metadata.refreshErrorKind === "key_rejected" ? (
+                <>
+                  TMDB data expired. It will refresh once TMDB accepts the key
+                  in Account Settings.
+                </>
+              ) : (
+                <>TMDB data expired. It will refresh when TMDB is reachable.</>
+              )
             ) : (
               <>TMDB data refreshed {displayTime(metadata.refreshedAt)}</>
             )}

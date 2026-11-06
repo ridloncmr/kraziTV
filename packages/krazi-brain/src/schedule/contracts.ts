@@ -85,7 +85,8 @@ export interface PlaybackProgress {
   nextSelectionIndex: number;
   /**
    * How many times the owner has reset this progress. Random's seed counts
-   * it, so each reshuffle starts a new order; ordered modes ignore it.
+   * it, so each random progress reset starts a new order; ordered modes
+   * ignore it.
    */
   resetCount: number;
 }
