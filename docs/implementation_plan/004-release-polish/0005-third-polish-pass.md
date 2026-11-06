@@ -21,7 +21,7 @@ Progress: 16 of 24 tickets complete.
 | POLISH-051 | A failed TMDB lookup carries a reason kind                              | Complete on 2026-11-05 |
 | POLISH-052 | Drop the scan scenario's narrow pass; name every file in E33 and E39    | Complete on 2026-11-05 |
 | POLISH-053 | CONTRIBUTING, statuses, and the wiki refresh                            | Complete on 2026-11-05 |
-| POLISH-054 | Reshuffle starts a new order                                            | Complete on 2026-11-05 |
+| POLISH-054 | Reshuffle starts a new order                                            | Complete on 2026-11-06 |
 | POLISH-055 | A rejected TMDB key is called that                                      | Open                   |
 | POLISH-056 | Refusals carry what the web words                                       | Open                   |
 | POLISH-057 | Enter never submits from a search box                                   | Open                   |
@@ -665,7 +665,7 @@ references exists after the refresh.
 
 **Status**
 
-Complete on 2026-11-05. A random show's progress reset now counts into its
+Complete on 2026-11-06. A random show's progress reset now counts into its
 collection's seed (migration 036), so **Reshuffle…** gives a new order that
 still repeats for the same inputs, a count of 0 keeps every channel's
 existing order, and the dialog words it without a possessive; nothing

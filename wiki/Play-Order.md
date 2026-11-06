@@ -28,9 +28,9 @@ and it starts keeping a separate place for the new order; switch back and
 the old place is still there.
 
 **Random** is not truly random: kraziTV draws each pick from a fixed
-sequence for that channel and collection, so the Up Next tab can show you
-the upcoming picks. Its **Reshuffle…** starts the picks over in a new
-order; see below.
+sequence for that channel and collection, until you reshuffle it, so the
+Up Next tab can show you the upcoming picks. Its **Reshuffle…** starts the
+picks over in a new order; see below.
 
 ![A random show's Up Next tab, listing its upcoming picks](images/show-properties-up-next.png)
 
