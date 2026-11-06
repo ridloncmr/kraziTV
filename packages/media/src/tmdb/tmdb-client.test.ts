@@ -170,7 +170,22 @@ describe("TmdbClient.searchMovies", () => {
     });
   });
 
-  it.each([401, 404, 500])(
+  it("reports a lookup TMDB answers 401 as a rejected key, not an outage", async () => {
+    const client = new TmdbClient({
+      fetch: answering(401).fetch,
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      client.searchMovies(TOKEN, { title: "Alien" }),
+    ).resolves.toEqual({
+      kind: "failed",
+      reason: "key_rejected",
+      message: "TMDB rejected the key",
+    });
+  });
+
+  it.each([404, 500])(
     "reports HTTP %i as a failure naming the status",
     async (status) => {
       const client = new TmdbClient({

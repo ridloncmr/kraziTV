@@ -154,7 +154,10 @@ export async function commitRefreshes(
       if (lookup.kind === "failed") {
         await pinned
           .updateTable("metadata_provider_refs")
-          .set({ refresh_error: lookup.message })
+          .set({
+            refresh_error: lookup.message,
+            refresh_error_kind: lookup.reason,
+          })
           .where("media_item_id", "=", due.id)
           .execute();
         continue;
@@ -167,7 +170,12 @@ export async function commitRefreshes(
         .execute();
       await pinned
         .updateTable("metadata_provider_refs")
-        .set({ fetched_at: fetchedAt, refresh_error: null, expired_at: null })
+        .set({
+          fetched_at: fetchedAt,
+          refresh_error: null,
+          refresh_error_kind: null,
+          expired_at: null,
+        })
         .where("media_item_id", "=", due.id)
         .execute();
       refreshed += 1;

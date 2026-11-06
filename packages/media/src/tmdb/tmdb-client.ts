@@ -255,6 +255,9 @@ export class TmdbClient {
         };
       }
       const { response } = answer;
+      // A 401 is TMDB refusing the key, which only the owner can fix, as
+      // `checkKey` reads it; any other status is TMDB's to recover from.
+      if (response.status === 401) return KEY_REJECTED_FAILURE;
       if (response.ok) {
         const { value } = answer;
         return value === undefined

@@ -5,7 +5,8 @@ import type { MetadataRefusal } from "./contracts.js";
 
 /**
  * Maps why a decision changed nothing to its answer. A TMDB failure's message
- * is logged, not sent: it names the outage, which the owner cannot act on.
+ * is logged, not sent; its kind chooses the answer, so a rejected key is
+ * named as the owner's to fix and anything else as an outage to retry.
  */
 export function sendMetadataRefusal(
   request: FastifyRequest,
@@ -39,9 +40,17 @@ export function sendMetadataRefusal(
       );
     case "lookup_failed":
       request.log.warn(
-        { reason: refusal.message },
+        { message: refusal.failure.message },
         "Could not read TMDB for a match decision",
       );
+      if (refusal.failure.reason === "key_rejected") {
+        return sendApiError(
+          reply,
+          409,
+          "tmdb_key_rejected",
+          "TMDB rejected the key. Check it in Account Settings.",
+        );
+      }
       return sendApiError(
         reply,
         502,
