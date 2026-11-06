@@ -12,8 +12,8 @@ A media root is a folder kraziTV scans for video files. You can add as many
 as you like: one for everything, or one each for movies, TV, and cartoons.
 Overlapping roots catalog the same files twice, so keep them separate.
 
-Click **Add media root…** and, in **Folder on the kraziTV server**, type the
-folder's path as the kraziTV computer sees it, starting from its root, or use
+Click **Add media root…** on the toolbar (or **Add a media root…** in the
+empty list) and, in **Folder on the kraziTV server**, type the folder's path as the kraziTV computer sees it, starting from its root, or use
 **Browse…** to find it. In Docker your media is under `/media`, as you set up in
 [Install](Install#your-media-folders).
 After you click **Add root**, kraziTV offers to scan the folder straight

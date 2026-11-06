@@ -1,6 +1,6 @@
 # Spec 0005: Third Polish Pass
 
-Status: In Development
+Status: Implemented
 
 ## Intent
 
@@ -51,7 +51,8 @@ programming behavior: **Reshuffle…** starts a new random order.
   sentences that say what to do: `internal_error` ("kraziTV hit a problem it
   could not recover from. Try again; if it keeps happening, check the kraziTV
   log."), `schedule_busy` ("kraziTV is busy updating this channel's schedule.
-  Try again in a moment."), `programming_assignment_not_found` ("That show is
+  Try again in a moment.", reworded in the second round; see below),
+  `programming_assignment_not_found` ("That show is
   no longer in the lineup. Refresh and pick again."), and
   `media_root_removal_pending` ("This folder was deleted while a channel was
   still airing from it. Add it again after 11/5/2026, 9:00 PM.", with the

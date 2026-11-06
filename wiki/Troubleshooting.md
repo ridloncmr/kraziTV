@@ -105,7 +105,9 @@ to shrink the gap.
   Settings." means TMDB no longer accepts your key: paste a new one in
   [Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key), then use
   **Retry failed lookups**. The same sentence shows when choosing a match
-  fails, or under **Refresh error** when a background refresh fails.
+  fails. Under **Refresh error** on a matched file it means a background
+  refresh failed: the match stays, and kraziTV tries again on its own every
+  hour and after every scan, so the error clears once TMDB answers.
 
 ## Rules fire at the wrong hour
 
@@ -121,6 +123,13 @@ Settings](Account-Settings#if-you-forget-it).
 
 A channel plays it, or a special uses it. Remove it from the channel's
 lineup, or cancel the special, first.
+
+## A message says to check the kraziTV log
+
+kraziTV hit a problem it could not recover from, and its log says what. With
+Docker, run `docker logs krazitv` (the name [Install](Install#with-docker)
+gives the container). From source, the log is the terminal running
+`npm start --workspace @krazitv/server`.
 
 ## Something else
 
