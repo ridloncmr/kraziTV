@@ -114,7 +114,7 @@ it("words the server's invalid_request by the field it names", async () => {
       error: {
         code: "invalid_request",
         message: "displayName: displayName must be at most 40 characters",
-        fields: [{ path: "displayName", code: "too_big" }],
+        fields: [{ path: "displayName", code: "too_big", maximum: 40 }],
       },
     },
     "POST",
@@ -123,7 +123,7 @@ it("words the server's invalid_request by the field it names", async () => {
   const { onSetUp, onAlreadySetUp } = renderSetup(api);
   submitSetup("Marguerite", "correct horse");
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "Type a name of 1 to 40 characters.",
+    "Use a shorter name: at most 40 characters.",
   );
   expect(onSetUp).not.toHaveBeenCalled();
   expect(onAlreadySetUp).not.toHaveBeenCalled();

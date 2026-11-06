@@ -17,7 +17,8 @@ is off the air, it says so and suggests where to look. See
 [Troubleshooting](Troubleshooting).
 
 The status line at the top says whether the browser can reach kraziTV at
-all.
+all. If Live Monitor cannot load your channels, it says what went wrong in
+place of the **Channel** list; press **Refresh** to try again.
 
 ---
 

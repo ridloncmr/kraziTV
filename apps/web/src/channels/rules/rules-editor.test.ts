@@ -291,6 +291,35 @@ it("says what to change for an invalid size pair instead of the server's message
   expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
 });
 
+it("words a too-long rule name from the limit the server sent", async () => {
+  const api = editorApi();
+  api.reply(
+    RULES,
+    {
+      error: {
+        code: "invalid_request",
+        message: "for logs",
+        fields: [{ path: "name", code: "too_big", maximum: 80 }],
+      },
+    },
+    "POST",
+    400,
+  );
+
+  const form = await openNewRule(api);
+  fireEvent.change(within(form).getByLabelText("Name"), {
+    target: { value: "December" },
+  });
+  showTab(form, "What plays");
+  fireEvent.click(within(form).getByLabelText(/Christmas Movies/));
+  fireEvent.click(within(form).getByRole("button", { name: "OK" }));
+
+  expect((await within(form).findByRole("alert")).textContent).toBe(
+    "Use a shorter name: at most 80 characters.",
+  );
+  expect(screen.queryByRole("dialog", { name: REBUILD })).toBeNull();
+});
+
 it("returns to What plays instead of saving a show's backwards range", async () => {
   const api = editorApi();
   const form = await openNewRule(api);

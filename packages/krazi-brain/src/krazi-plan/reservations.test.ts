@@ -272,6 +272,7 @@ describe("generateProgramming: reservations", () => {
         lastMediaItemId: "special3",
         lastPosition: 2,
         nextSelectionIndex: 0,
+        resetCount: 0,
       },
     });
   });
@@ -415,6 +416,7 @@ describe("generateProgramming: resuming around reservations", () => {
         lastMediaItemId: "office3",
         lastPosition: 2,
         nextSelectionIndex: 0,
+        resetCount: 0,
       },
     },
   ];

@@ -4,33 +4,86 @@ import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
 import { displayTime } from "../controls/formatting/display-time.js";
 import { ApiError } from "./api-error.js";
 
+/**
+ * One field a refusal names: its dotted path in the body, its Zod issue
+ * code, and what the server sends beside the code to word it by: the
+ * length limit a too-long or too-short value broke, and the kind of a
+ * problem a custom check found.
+ */
+type RefusedField = {
+  path: string;
+  code: string;
+  maximum?: number;
+  minimum?: number;
+  problemKind?: string;
+};
+
+/** A field's sentence, or how to word it from the limit the field carries. */
+type FieldSentence = string | ((field: RefusedField) => string);
+
+/**
+ * Words a length limit from the number the server sent, never a copy of
+ * it, so a changed cap can never make the sentence wrong; without one the
+ * sentence still says what to change.
+ */
+function limitSentence(
+  limit: "maximum" | "minimum",
+  withLimit: (limit: number) => string,
+  withoutLimit: string,
+): FieldSentence {
+  return (field) => {
+    const value = field[limit];
+    return value === undefined ? withoutLimit : withLimit(value);
+  };
+}
+
+// Every name the server caps, a channel's, a collection's, a show's, a
+// rule's, and the account's, says it the same way, with its own limit.
+const NAME_WORDS = {
+  too_small: "Type a name.",
+  too_big: limitSentence(
+    "maximum",
+    (maximum) => `Use a shorter name: at most ${maximum} characters.`,
+    "Use a shorter name.",
+  ),
+};
+
 // The owner's sentence for each field the server can refuse, by the Zod
 // issue code that refused it, saying what a good value looks like
 // (release-polish spec 0002). Keying by code keeps every sentence true: a
 // login refuses only a password's length cap, never its setup minimum. A
 // field or code not listed falls back to the server's message, so nothing
 // is silently lost.
-const FIELD_WORDS: Record<string, Partial<Record<string, string>>> = {
+const FIELD_WORDS: Record<string, Partial<Record<string, FieldSentence>>> = {
   number: {
     custom:
       "A channel number is a whole number such as 12, or one with a subchannel such as 12.1.",
   },
-  name: {
-    too_small: "Type a name.",
-    too_big:
-      "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
-  },
-  displayName: {
-    too_small: "Type a name of 1 to 40 characters.",
-    too_big: "Type a name of 1 to 40 characters.",
-  },
+  name: NAME_WORDS,
+  displayName: NAME_WORDS,
   password: {
-    too_small: "Use a password of at least 8 characters.",
-    too_big: "Use a password of at most 256 characters.",
+    too_small: limitSentence(
+      "minimum",
+      (minimum) => `Use a password of at least ${minimum} characters.`,
+      "Use a longer password.",
+    ),
+    too_big: limitSentence(
+      "maximum",
+      (maximum) => `Use a password of at most ${maximum} characters.`,
+      "Use a shorter password.",
+    ),
   },
   newPassword: {
-    too_small: "Use a new password of at least 8 characters.",
-    too_big: "Use a new password of at most 256 characters.",
+    too_small: limitSentence(
+      "minimum",
+      (minimum) => `Use a new password of at least ${minimum} characters.`,
+      "Use a longer new password.",
+    ),
+    too_big: limitSentence(
+      "maximum",
+      (maximum) => `Use a new password of at most ${maximum} characters.`,
+      "Use a shorter new password.",
+    ),
   },
   path: {
     custom:
@@ -48,13 +101,12 @@ const FIELD_WORDS: Record<string, Partial<Record<string, string>>> = {
   },
 };
 
-/** One field a refusal names: its dotted path in the body and its Zod issue code. */
-type RefusedField = { path: string; code: string };
-
 /**
  * The fields an `invalid_request` refusal names in `details.fields`, in the
- * server's order. The one parser of that shape, so every caller reads it
- * the same way; anything else has none.
+ * server's order, with the limit or problem kind each carries. The one
+ * parser of that shape, so every caller reads it the same way; an entry
+ * without a path and code is skipped, a value of the wrong type is left
+ * out, and anything else has none.
  */
 export function refusedFields(error: Error | undefined): RefusedField[] {
   if (!(error instanceof ApiError)) return [];
@@ -63,10 +115,20 @@ export function refusedFields(error: Error | undefined): RefusedField[] {
     : [];
   return fields.flatMap((field) => {
     if (typeof field !== "object" || field === null) return [];
-    const { path, code } = field as { path?: unknown; code?: unknown };
-    return typeof path === "string" && typeof code === "string"
-      ? [{ path, code }]
-      : [];
+    const { path, code, maximum, minimum, problemKind } = field as Record<
+      string,
+      unknown
+    >;
+    if (typeof path !== "string" || typeof code !== "string") return [];
+    return [
+      {
+        path,
+        code,
+        ...(typeof maximum === "number" && { maximum }),
+        ...(typeof minimum === "number" && { minimum }),
+        ...(typeof problemKind === "string" && { problemKind }),
+      },
+    ];
   });
 }
 
@@ -75,12 +137,14 @@ export function refusedFields(error: Error | undefined): RefusedField[] {
  * `assignments[1].name` is `name`, since the sentence for a field is the
  * same wherever the field sits.
  */
-function fieldSentence({ path, code }: RefusedField): string | undefined {
-  const name = path
+function fieldSentence(field: RefusedField): string | undefined {
+  const name = field.path
     .replace(/\[\d+\]/g, "")
     .split(".")
     .at(-1);
-  return name === undefined ? undefined : FIELD_WORDS[name]?.[code];
+  const sentence =
+    name === undefined ? undefined : FIELD_WORDS[name]?.[field.code];
+  return typeof sentence === "function" ? sentence(field) : sentence;
 }
 
 /**
@@ -110,7 +174,7 @@ function codeWords(
     case "internal_error":
       return "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.";
     case "schedule_busy":
-      return "kraziTV is busy updating this channel's schedule. Try again in a moment.";
+      return "kraziTV is busy saving another change. Try again in a moment.";
     case "programming_assignment_not_found":
       return "That show is no longer in the lineup. Refresh and pick again.";
     case "media_root_removal_pending":

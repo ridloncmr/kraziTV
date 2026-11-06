@@ -119,6 +119,35 @@ describe("GET /channels/:id/programming-preview", () => {
     ).toEqual(written.slice(0, 6));
   });
 
+  it("previews a reshuffled random show in its new order, as regeneration writes it", async () => {
+    const { server, db, clock } = await startScheduleScenarioServer({
+      source: null,
+    });
+    const show = await send(
+      server,
+      "POST",
+      ASSIGNMENTS_URL,
+      collectionAssignment(COLLECTION_ID, "random"),
+    );
+    clock.set(T0 + 30 * MINUTE);
+    await send(
+      server,
+      "POST",
+      `${ASSIGNMENTS_URL}/${show.body.id as string}/progress-reset`,
+      { mediaCollectionId: COLLECTION_ID },
+    );
+    const reshuffled = (await persistedTurns(db, T0 + 30 * MINUTE)).flat();
+
+    const preview = await send(server, "GET", `${PREVIEW_URL}?turns=4`);
+
+    // Restoration rewinds to the reshuffle's first pick under its new count.
+    const programs = (preview.body.turns as ApiTurn[]).flatMap((turn) =>
+      turn.programs.map((program) => [program.mediaItemId, program.startsAt]),
+    );
+    expect(programs.length).toBeGreaterThan(3);
+    expect(programs).toEqual(reshuffled.slice(0, programs.length));
+  });
+
   it("explains the continued turn, airtime overrun, and round order", async () => {
     const { server, officeId } = await scheduledServer();
 

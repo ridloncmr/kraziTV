@@ -2,10 +2,13 @@ import { expect, it } from "vitest";
 import { ApiError } from "./api-error.js";
 import { refusalWords, refusedFields } from "./refusal-words.js";
 
-// An invalid_request refusal as the server sends it: the fields in details.
-const invalid = (...fields: [path: string, code: string][]) =>
+// An invalid_request refusal as the server sends it: the fields in details,
+// each with any limit or problem kind the server adds beside its code.
+const invalid = (
+  ...fields: [path: string, code: string, extra?: Record<string, unknown>][]
+) =>
   new ApiError("invalid_request", "for logs", 400, {
-    fields: fields.map(([path, code]) => ({ path, code })),
+    fields: fields.map(([path, code, extra]) => ({ path, code, ...extra })),
   });
 
 it("says what a channel number looks like when the number is refused", () => {
@@ -20,22 +23,50 @@ it("words a field by its own name wherever it sits in the body", () => {
   );
 });
 
-it("words a field by the check it failed, so no sentence is wrong", () => {
-  // A long name is not a missing one. One sentence serves every name the
-  // server caps, so it names each cap: 120 for a channel or collection, 80
-  // for a show.
+it("words a too-long name from the limit the server sent, never its own copy", () => {
+  // A channel or collection name is capped at 120, a show's or rule's at 80.
+  expect(refusalWords(invalid(["name", "too_big", { maximum: 120 }]))).toBe(
+    "Use a shorter name: at most 120 characters.",
+  );
+  expect(
+    refusalWords(invalid(["assignments[0].name", "too_big", { maximum: 80 }])),
+  ).toBe("Use a shorter name: at most 80 characters.");
+  // The account's name says its own limit the same way.
+  expect(
+    refusalWords(invalid(["displayName", "too_big", { maximum: 40 }])),
+  ).toBe("Use a shorter name: at most 40 characters.");
+  // A refusal without a limit still says what to change, with no number.
   expect(refusalWords(invalid(["name", "too_big"]))).toBe(
-    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+    "Use a shorter name.",
   );
-  expect(refusalWords(invalid(["assignments[0].name", "too_big"]))).toBe(
-    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
-  );
+});
+
+it("words a password's length from the limit the server sent", () => {
   // A login refuses only the cap; the setup minimum belongs to setup.
-  expect(refusalWords(invalid(["password", "too_big"]))).toBe(
+  expect(refusalWords(invalid(["password", "too_big", { maximum: 256 }]))).toBe(
     "Use a password of at most 256 characters.",
   );
+  expect(
+    refusalWords(invalid(["password", "too_small", { minimum: 12 }])),
+  ).toBe("Use a password of at least 12 characters.");
+  expect(
+    refusalWords(invalid(["newPassword", "too_small", { minimum: 8 }])),
+  ).toBe("Use a new password of at least 8 characters.");
+  expect(refusalWords(invalid(["newPassword", "too_big"]))).toBe(
+    "Use a shorter new password.",
+  );
   expect(refusalWords(invalid(["password", "too_small"]))).toBe(
-    "Use a password of at least 8 characters.",
+    "Use a longer password.",
+  );
+});
+
+it("words a field by the check it failed, so no sentence is wrong", () => {
+  // A missing name is not a long one.
+  expect(refusalWords(invalid(["name", "too_small", { minimum: 1 }]))).toBe(
+    "Type a name.",
+  );
+  expect(refusalWords(invalid(["displayName", "too_small"]))).toBe(
+    "Type a name.",
   );
   // A collection special with no end and an end before the start share one sentence.
   expect(refusalWords(invalid(["endsAt", "custom"]))).toBe(
@@ -80,6 +111,24 @@ it("reads each refused field's path and code, skipping malformed entries", () =>
   ]);
   expect(refusedFields(new Error("Failed to fetch"))).toEqual([]);
   expect(refusedFields(undefined)).toEqual([]);
+});
+
+it("reads the limit and problem kind a refused field carries, dropping ill-typed ones", () => {
+  const error = new ApiError("invalid_request", "for logs", 400, {
+    fields: [
+      { path: "name", code: "too_big", maximum: 80 },
+      { path: "password", code: "too_small", minimum: 8 },
+      { path: "", code: "custom", problemKind: "unit" },
+      { path: "name", code: "too_big", maximum: "80", problemKind: 3 },
+    ],
+  });
+
+  expect(refusedFields(error)).toEqual([
+    { path: "name", code: "too_big", maximum: 80 },
+    { path: "password", code: "too_small", minimum: 8 },
+    { path: "", code: "custom", problemKind: "unit" },
+    { path: "name", code: "too_big" },
+  ]);
 });
 
 it("words a special refusal from its code and details", () => {
@@ -146,6 +195,15 @@ it("words a rule's stretch refusals by the problem's kind, naming the rule by na
   ).toBe(
     "A rule on this channel follows this show's settings, and this change would break them. Change the rule first: set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
   );
+});
+
+it("says kraziTV is busy saving another change, whatever the write", () => {
+  // The server's message is for logs; the words come from the code.
+  expect(
+    refusalWords(
+      new ApiError("schedule_busy", "for logs", 503, { retryable: true }),
+    ),
+  ).toBe("kraziTV is busy saving another change. Try again in a moment.");
 });
 
 it("has no words for an unknown code or an error that is not a refusal", () => {

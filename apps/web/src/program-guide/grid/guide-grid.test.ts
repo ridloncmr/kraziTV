@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { RefreshScope } from "../../http/resources/refresh-scope.js";
-import { adminFixtures } from "../../testing/admin-fixtures.js";
+import { adminFixtures, bareProgram } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
 import { fakeShell } from "../../testing/fake-shell.js";
 import { guideStart } from "./guide-geometry.js";
@@ -31,17 +31,6 @@ const startsAt = new Date(windowStart).toISOString();
 // Pixels from the window's start at four a minute, clipped at the left edge.
 const px = (time: string) =>
   Math.max(0, ((Date.parse(at(time)) - windowStart) / 60_000) * 4);
-// A program the server could word nothing about.
-const BARE_PROGRAM = {
-  title: "",
-  subTitle: null,
-  description: null,
-  releaseDate: null,
-  kind: null,
-  genres: [],
-  posterUrl: null,
-  episode: null,
-};
 // The starts every schedule read asked for, in order.
 const readStarts = (api: BrowserApi) =>
   api
@@ -73,7 +62,7 @@ function guideApi() {
         startsAt: at("19:22"),
         endsAt: at("19:45"),
         program: {
-          ...BARE_PROGRAM,
+          ...bareProgram,
           title: "Northwoods Nights",
           subTitle: "Episode Two",
           description: "The second night is longer.",
@@ -88,7 +77,7 @@ function guideApi() {
         title: "Reserved Movie",
         startsAt: at("20:00"),
         endsAt: at("21:30"),
-        program: { ...BARE_PROGRAM, title: "Reserved Movie" },
+        program: { ...bareProgram, title: "Reserved Movie" },
       },
     ],
     fillerIntervals: [

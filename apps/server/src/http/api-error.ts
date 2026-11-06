@@ -100,8 +100,9 @@ export function sendApiError(
 /**
  * Every body failure shares one code. `details.fields` names each failing
  * field by its dotted path and Zod issue code, so the web app can say what
- * to change; the message lists the issues plainly for logs and tests, never
- * as Zod's decorated printout (release-polish spec 0002).
+ * to change, with the limit or problem kind it words that change from; the
+ * message lists the issues plainly for logs and tests, never as Zod's
+ * decorated printout (release-polish spec 0002).
  */
 export function sendInvalidRequest(
   reply: FastifyReply,
@@ -110,6 +111,7 @@ export function sendInvalidRequest(
   const fields = error.issues.map((issue) => ({
     path: z.core.toDotPath(issue.path),
     code: issue.code,
+    ...issueDetails(issue),
   }));
   const message = error.issues
     .map((issue, index) => {
@@ -118,6 +120,27 @@ export function sendInvalidRequest(
     })
     .join("; ");
   return sendApiError(reply, 400, "invalid_request", message, { fields });
+}
+
+/**
+ * The values beside an issue's code that the web words a refusal from, so
+ * it never keeps its own copy of the server's limits or matches prose
+ * (release-polish decision 15): a numeric `maximum` or `minimum`, and the
+ * `problemKind` a custom issue carries in its params. Only new keys, so a
+ * client reading `path` and `code` alone is unaffected.
+ */
+function issueDetails(issue: z.core.$ZodIssue): Record<string, unknown> {
+  const details: Record<string, unknown> = {};
+  if (issue.code === "too_big" && typeof issue.maximum === "number") {
+    details.maximum = issue.maximum;
+  }
+  if (issue.code === "too_small" && typeof issue.minimum === "number") {
+    details.minimum = issue.minimum;
+  }
+  const problemKind: unknown =
+    issue.code === "custom" ? issue.params?.problemKind : undefined;
+  if (typeof problemKind === "string") details.problemKind = problemKind;
+  return details;
 }
 
 /** One 404 shape for every route that addresses a channel, in any domain. */
@@ -157,7 +180,7 @@ export function sendScheduleBusy(reply: FastifyReply): FastifyReply {
     reply,
     503,
     "schedule_busy",
-    "The schedule is busy; retry the request",
+    "kraziTV is busy saving another change. Try again in a moment.",
     { retryable: true },
   );
 }

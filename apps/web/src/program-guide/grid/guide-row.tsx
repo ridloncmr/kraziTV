@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   displayClockTime,
   displayTimeRange,
@@ -55,6 +55,18 @@ export function GuideRow({
     visible,
   );
   const [opened, setOpened] = useState<GuideBlock>();
+  const [watchAfterClose, setWatchAfterClose] = useState<string>();
+  useEffect(() => {
+    /**
+     * The card's Watch opens TV only once the card has closed. Closing returns
+     * focus to the program block while the guide is still in front; done in
+     * the same commit as opening TV, that focus would bring the guide back
+     * over TV and take the keys from it.
+     */
+    if (!watchAfterClose || opened) return;
+    setWatchAfterClose(undefined);
+    onWatch(watchAfterClose);
+  }, [watchAfterClose, opened, onWatch]);
   const blocks = schedule.data ? guideBlocks(schedule.data, windowStart) : [];
   return (
     <li className="guide-row">
@@ -125,7 +137,7 @@ export function GuideRow({
             channel.enabled && airingAt(opened, now)
               ? () => {
                   setOpened(undefined);
-                  onWatch(channel.id);
+                  setWatchAfterClose(channel.id);
                 }
               : undefined
           }

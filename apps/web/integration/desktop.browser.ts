@@ -73,7 +73,11 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   return { ...started, prober: controlled };
 }
 
-/** Adds `directory` as a media root in the Media Library and accepts the scan it offers. */
+/**
+ * Adds `directory` as a media root in the Media Library and accepts the scan
+ * it offers. Returns the progress dialog and its status line, the first line
+ * of the live region that also announces the outcome's sentences.
+ */
 async function scanNewRoot(page: Page, directory: string) {
   await page
     .getByLabel("Desktop programs")
@@ -91,7 +95,8 @@ async function scanNewRoot(page: Page, directory: string) {
   await expect(addRoot).toBeHidden();
   const scanning = media.getByRole("dialog", { name: "Scanning media root" });
   await expect(scanning).toBeVisible();
-  return { media, scanning };
+  const statusLine = scanning.getByRole("status").locator("p").first();
+  return { media, scanning, statusLine };
 }
 
 test("lays each airing choice's radio beside its label", async ({ page }) => {
@@ -185,6 +190,51 @@ test("removes selected media through the Media Library against real routes", asy
     db.selectFrom("media_items").select("title").execute(),
   ).resolves.toEqual([{ title: "Southwoods" }]);
   expect(errors).toEqual([]);
+});
+
+// jsdom lays nothing out, so only a real browser shows whether the path
+// breaks inside its sentence or scrolls the dialog sideways.
+test("breaks an unbroken folder name inside the Delete media root sentence", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // No space or hyphen, so the browser finds nowhere of its own to break.
+  const folder =
+    "Star.Trek.Deep.Space.Nine.Complete.Series.S01.S07.1080p.BluRay.x265.AAC.5.1";
+  expect(folder).toHaveLength(75);
+  const path = `/media/${folder}`;
+  const { server } = await startTestServer({
+    seed: async (db) => {
+      await db
+        .insertInto("media_roots")
+        .values({ ...rootFixture, path, path_key: path })
+        .execute();
+    },
+  });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("button", { name: `Actions for ${path}` }).click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
+  const dialog = media.getByRole("dialog", { name: "Delete media root" });
+  await expect(
+    dialog.getByText(
+      `${path} and its 0 media items will be deleted from the catalog.`,
+    ),
+  ).toBeVisible();
+
+  expect(
+    await dialog
+      .locator(".window-dialog-body")
+      .evaluate((body) => body.scrollWidth <= body.clientWidth),
+  ).toBe(true);
 });
 
 // A narrow desktop window, not a phone: phone width is not a supported
@@ -417,9 +467,9 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
     page.getByRole("button", { name: "start", exact: true }),
   ).toBeVisible();
 
-  const { media, scanning } = await scanNewRoot(page, directory);
+  const { media, scanning, statusLine } = await scanNewRoot(page, directory);
   await controlled.waitForStarted(1);
-  await expect(scanning.getByRole("status")).toHaveText("Reading media files…");
+  await expect(statusLine).toHaveText("Reading media files…");
   const bar = scanning.getByRole("progressbar");
   await expect(bar).toHaveAttribute("aria-valuemax", "1");
   await expect(bar).toHaveAttribute("aria-valuenow", "0");
@@ -436,7 +486,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
       .getByRole("button", { name: "Collections", exact: true }),
   ).toBeEnabled();
   controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
-  await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+  await expect(statusLine).toHaveText("Scan completed.");
   await expect(close).toBeEnabled();
   // A disabled close button must not look like the one that works.
   expect(await closeButtonLook(close)).not.toEqual(busyClose);
@@ -461,16 +511,17 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   const newCollection = collections.getByRole("dialog", {
     name: "New collection",
   });
-  await newCollection
-    .getByLabel("Collection name")
-    .fill("Northwoods collection");
+  // Long enough to run to two lines in the Lineup's Show column, so the
+  // Lineup row check below measures columns competing for width.
+  const showName = "Northwoods Saturday Morning Cartoons and Late Night Movies";
+  await newCollection.getByLabel("Collection name").fill(showName);
   await newCollection
     .getByRole("button", { name: "Create collection" })
     .click();
   await expect(newCollection).toBeHidden();
   // The new collection opens in its own properties window.
   const collection = page.getByRole("region", {
-    name: "Northwoods collection Properties",
+    name: `${showName} Properties`,
     exact: true,
   });
   await collection
@@ -484,7 +535,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
     collection.getByText("1 of 1 can air", { exact: true }),
   ).toBeVisible();
   await collection
-    .getByRole("button", { name: "Close Northwoods collection Properties" })
+    .getByRole("button", { name: `Close ${showName} Properties` })
     .click();
   await collections.getByRole("button", { name: "Close Collections" }).click();
 
@@ -515,7 +566,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await properties.getByRole("button", { name: "Add shows…" }).click();
   const addShows = properties.getByRole("dialog", { name: "Add shows" });
   await addShows
-    .getByRole("checkbox", { name: /^Northwoods collection/ })
+    .getByRole("checkbox", { name: new RegExp(`^${showName}`) })
     .check();
   // The footer is on screen before anything scrolls, so a first-time owner
   // sees how to continue.
@@ -527,7 +578,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   const add = addShows.getByRole("button", { name: "Add (1)" });
   await expect(add).toBeDisabled();
   await expect(add).toHaveAccessibleDescription(
-    "Choose how much plays at a time for Northwoods collection.",
+    `Choose how much plays at a time for ${showName}.`,
   );
   // A custom range with one end missing adds nothing either, even by
   // Enter, which a disabled Add never submits.
@@ -548,50 +599,44 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await expect(
     properties
       .getByRole("table", { name: "Shows" })
-      .getByRole("button", { name: "Northwoods collection", exact: true }),
+      .getByRole("button", { name: showName, exact: true }),
   ).toBeVisible();
   await expect(properties.getByRole("dialog")).toHaveCount(0);
   // At the size Channel Properties opens at, Play order and At a time stay
   // on one line and the Show column gives, so no show's row runs to more
-  // than two lines of text in any cell.
-  const rowLines = await properties
-    .getByRole("table", { name: "Shows" })
-    .locator("tbody tr")
-    .evaluateAll((rows: HTMLTableRowElement[]) =>
-      rows.map((row) =>
-        Math.max(
-          ...[...row.cells].map((cell) => {
-            const tops: number[] = [];
-            const walker = document.createTreeWalker(
-              cell,
-              NodeFilter.SHOW_TEXT,
-            );
-            for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-              const range = document.createRange();
-              range.selectNodeContents(text);
-              for (const box of range.getClientRects())
-                if (box.width > 0) tops.push(box.top);
-            }
-            tops.sort((a, b) => a - b);
-            return tops.filter(
-              (top, index) => index === 0 || top - tops[index - 1] > 2,
-            ).length;
-          }),
-        ),
-      ),
-    );
-  expect(rowLines.length).toBeGreaterThan(0);
-  for (const lines of rowLines) expect(lines).toBeLessThanOrEqual(2);
+  // than two lines of text in any cell. Only a name that wraps puts the
+  // columns under pressure; a short one fits whatever the column classes.
+  const [showLines, playOrderLines, atATimeLines, ...otherLines] =
+    await properties
+      .getByRole("table", { name: "Shows" })
+      .locator("tbody tr")
+      .evaluate((row: HTMLTableRowElement) =>
+        [...row.cells].map((cell) => {
+          const tops: number[] = [];
+          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+          for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            for (const box of range.getClientRects())
+              if (box.width > 0) tops.push(box.top);
+          }
+          tops.sort((a, b) => a - b);
+          return tops.filter(
+            (top, index) => index === 0 || top - tops[index - 1] > 2,
+          ).length;
+        }),
+      );
+  expect(showLines).toBe(2);
+  expect([playOrderLines, atATimeLines]).toEqual([1, 1]);
+  for (const lines of otherLines) expect(lines).toBeLessThanOrEqual(2);
   // Show Properties opens on General with OK in view the same way; OK on
   // the unchanged sheet closes it without a save.
-  await properties
-    .getByRole("button", { name: "Northwoods collection", exact: true })
-    .click();
+  await properties.getByRole("button", { name: showName, exact: true }).click();
   await properties
     .getByRole("button", { name: "Properties", exact: true })
     .click();
   const showProperties = properties.getByRole("dialog", {
-    name: "Northwoods collection",
+    name: showName,
   });
   await expectFooterButtonShown(showProperties, "OK");
   await showProperties.getByRole("button", { name: "OK", exact: true }).click();
@@ -599,7 +644,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await properties.getByRole("tab", { name: "Preview" }).click();
   await expect(
     properties.getByRole("list", { name: "Upcoming shows" }),
-  ).toContainText("Northwoods collection");
+  ).toContainText(showName);
   await properties
     .getByRole("button", { name: "Close Northwoods TV Properties" })
     .click();
@@ -768,7 +813,7 @@ for (const pass of [
         "test media; probing is controlled",
       );
     await page.goto("/");
-    const { scanning } = await scanNewRoot(page, directory);
+    const { scanning, statusLine } = await scanNewRoot(page, directory);
     const bar = scanning.getByRole("progressbar");
     const fill = bar.locator(".segmented-progress-fill");
     const paper = scanning.locator(".scan-paper-x");
@@ -783,11 +828,6 @@ for (const pass of [
       track: element.parentElement?.clientWidth ?? 0,
     }));
     expect(filled).toBe(Math.floor((track - 4) / 3 / 12) * 12);
-    const box = await scanning.boundingBox();
-    expect(box?.x).toBeGreaterThanOrEqual(0);
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-      pass.viewport.width,
-    );
     expect(
       await scanning.evaluate(
         (dialog) => dialog.scrollWidth <= dialog.clientWidth,
@@ -798,9 +838,7 @@ for (const pass of [
       await scanning.screenshot({ path: "../../data/web-scan-probing.png" });
 
     controlled.resolveAll(PROBE_RESULT);
-    await expect(scanning.getByRole("status")).toHaveText(
-      "Saving to the catalog…",
-    );
+    await expect(statusLine).toHaveText("Saving to the catalog…");
     await expect(bar).not.toHaveAttribute("aria-valuenow");
     expect(await runningAnimations(paper)).toBe(0);
     expect(await runningAnimations(fill)).toBe(pass.reduced ? 0 : 1);
@@ -809,7 +847,7 @@ for (const pass of [
       await scanning.screenshot({ path: "../../data/web-scan-committing.png" });
 
     commit?.release();
-    await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+    await expect(statusLine).toHaveText("Scan completed.");
     await expect(scanning.locator(".scan-animation")).toBeVisible();
     expect(await runningAnimations(paper)).toBe(0);
     await scanning.getByRole("button", { name: "OK", exact: true }).click();

@@ -259,7 +259,7 @@ it("refuses a collection name longer than 120 characters in the dialog, naming t
       error: {
         code: "invalid_request",
         message: "name: name must be at most 120 characters",
-        fields: [{ path: "name", code: "too_big" }],
+        fields: [{ path: "name", code: "too_big", maximum: 120 }],
       },
     },
     "POST",
@@ -275,7 +275,7 @@ it("refuses a collection name longer than 120 characters in the dialog, naming t
   fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
 
   expect((await within(dialog).findByRole("alert")).textContent).toBe(
-    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+    "Use a shorter name: at most 120 characters.",
   );
 });
 
@@ -884,4 +884,81 @@ it("offers Discover collections on the Manual tab it opens on, and its intro say
   });
   expect(await within(dialog).findByText("The Office")).toBeTruthy();
   expect(manual.getAttribute("aria-selected")).toBe("true");
+});
+
+it("shows the Automatic tab when Discover closes after creating an automatic collection from the Manual tab", async () => {
+  const api = renderApp();
+  const recommendations = "/media-collections/recommendations";
+  api.reply(recommendations, [officeRecommendation]);
+  const { memberCount: _, missingCount: __, ...created } = officeCollection;
+  api.reply(`${recommendations}/acceptance`, created, "POST", 201);
+  const manual = await screen.findByRole("tab", { name: "Manual" });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discover collections…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Discover collections",
+  });
+  api.reply("/media-collections", [...collections, officeCollection]);
+
+  fireEvent.click(
+    await within(dialog).findByRole("button", {
+      name: "Create automatic collection from The Office",
+    }),
+  );
+  await within(dialog).findByText(
+    "Created The Office as an automatic collection.",
+  );
+  // The tab changes when the dialog closes, never behind it.
+  expect(manual.getAttribute("aria-selected")).toBe("true");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+  expect(
+    screen
+      .getByRole("tab", { name: "Automatic" })
+      .getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(
+    await within(
+      screen.getByRole("tabpanel", { name: "Automatic" }),
+    ).findByRole("button", { name: /^Open The Office/ }),
+  ).toBeTruthy();
+});
+
+it("keeps the tab when Discover closes having created nothing, and shows Manual when it saved only a manual collection", async () => {
+  const api = renderApp();
+  const recommendations = "/media-collections/recommendations";
+  api.reply(recommendations, [officeRecommendation]);
+  const { memberCount: _, missingCount: __, ...office } = officeCollection;
+  api.reply(
+    `${recommendations}/acceptance`,
+    { ...office, maintenanceMode: "manual", criterion: null },
+    "POST",
+    201,
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  const discover = async () => {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Discover collections…" }),
+    );
+    return screen.findByRole("dialog", { name: "Discover collections" });
+  };
+  const selected = (name: string) =>
+    screen.getByRole("tab", { name }).getAttribute("aria-selected");
+
+  let dialog = await discover();
+  await within(dialog).findByText("The Office");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(selected("Automatic")).toBe("true");
+
+  dialog = await discover();
+  fireEvent.click(
+    await within(dialog).findByRole("button", {
+      name: "Save The Office as a manual collection",
+    }),
+  );
+  await within(dialog).findByText("Created The Office as a manual collection.");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+  expect(selected("Manual")).toBe("true");
 });

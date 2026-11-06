@@ -11,6 +11,7 @@ import {
   hasCollectionType,
 } from "../collection-types/collection-type.js";
 import { Pager } from "../controls/pager/pager.js";
+import { holdEnter } from "../controls/search-field/hold-enter.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import type { ProgramId } from "../desktop/contracts.js";
 import type { MediaCollection } from "../http/contracts/collections.js";
@@ -169,6 +170,7 @@ export function CollectionOrItemSearch({
               kind === "collections" ? "Collection name" : "Title or path"
             }
             onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={holdEnter}
           />
         </label>
         {kind === "collections" && collections && (

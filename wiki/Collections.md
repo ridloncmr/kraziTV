@@ -38,8 +38,11 @@ a reason and a member list. For each one:
 - **Save as manual collection** takes a snapshot that never changes.
 - **Dismiss** hides it. Tick **Show dismissed** later to bring it back.
 
-The dialog stays open so you can go down the list. Suggestions are worked
-out fresh each time you open it, so come back after adding new shows.
+The dialog stays open so you can go down the list. When you close it,
+Collections switches to the tab your new collections are on: **Automatic**
+if you created any automatic collection, else **Manual**. Suggestions are
+worked out fresh each time you open it, so come back after adding new
+shows.
 
 ![Discover collections](images/discover-collections.png)
 

@@ -39,6 +39,7 @@ import { PerSittingField } from "../stretch/per-sitting-field.js";
 import {
   MARATHON_PROBLEM_WORDS,
   marathonLabel,
+  stretchProblemWords,
 } from "../stretch/stretch-words.js";
 import { OCCASIONAL_MARATHONS } from "./marathons-control.js";
 import { joinShowNames } from "./picks/show-labels.js";
@@ -407,13 +408,16 @@ export function ShowPropertiesDialog({
 /**
  * Words the server's one check on a show's settings as a whole, its
  * marathon against Plays at a time, which it refuses as a field with no
- * path. The sheet holds saving on the same check, so this is the fallback
- * for a draft that slipped past it; any other error shows as it is.
+ * path, by the problem kind it sends beside its message (release-polish
+ * decision 15). The sheet holds saving on the same check, so this is the
+ * fallback for a draft that slipped past it; a refusal with no kind, and
+ * any other error, shows as it is.
  */
 function sheetError(error: Error | undefined): Error | undefined {
-  return refusedFields(error).some(
+  const problemKind = refusedFields(error).find(
     (field) => field.path === "" && field.code === "custom",
-  )
-    ? new Error(MARATHON_PROBLEM_WORDS.shorter)
-    : error;
+  )?.problemKind;
+  return problemKind === undefined
+    ? error
+    : new Error(stretchProblemWords(problemKind));
 }

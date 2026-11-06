@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { displayCount } from "../controls/formatting/display-count.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
+import { holdEnter } from "../controls/search-field/hold-enter.js";
 import { resourcePath } from "../http/api-client.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { useResource } from "../http/resources/use-resource.js";
@@ -50,11 +51,7 @@ export function MediaItemPicker({
           value={search}
           placeholder="Title or path"
           onChange={(event) => setSearch(event.target.value)}
-          // The search runs as the owner types, so Enter has nothing left to
-          // do here; it must never submit the form that holds the picker.
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.preventDefault();
-          }}
+          onKeyDown={holdEnter}
         />
       </label>
       <label>

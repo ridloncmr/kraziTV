@@ -50,7 +50,12 @@ function renderTv(
   onOpenChannels: () => void = () => {},
 ) {
   return render(
-    createElement(TvApp, { visible: true, request, onOpenChannels }),
+    createElement(TvApp, {
+      visible: true,
+      active: true,
+      request,
+      onOpenChannels,
+    }),
   );
 }
 
@@ -179,6 +184,7 @@ it("tunes the channel each Watch asks for, even one already asked for before", a
   view.rerender(
     createElement(TvApp, {
       visible: true,
+      active: true,
       request: { channelId: "two", count: 2 },
       onOpenChannels: () => {},
     }),
@@ -276,6 +282,7 @@ it("keeps the channel on screen while a Watch for a channel newer than its list 
   view.rerender(
     createElement(TvApp, {
       visible: true,
+      active: true,
       request: { channelId: "new", count: 2 },
       onOpenChannels: () => {},
     }),

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   screen,
@@ -20,6 +21,7 @@ import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelWindows } from "../../testing/channel-windows.js";
 import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
+import { pressEnter } from "../../testing/press-enter.js";
 
 afterEach(() => {
   cleanup();
@@ -629,32 +631,46 @@ it("holds OK and Apply while a chosen marathon length could run no longer than P
   });
 });
 
-it("words the server's own marathon-length refusal the same way the sheet does", async () => {
-  const { api } = await openLineup([
-    favoritesAssignment("chronological", {
-      marathonStretch: { kind: "programs", count: 10 },
-    }),
-  ]);
-  api.reply(
-    ASSIGNMENT,
-    {
-      error: {
-        code: "invalid_request",
-        message: "a marathon must be longer than the ordinary stretch",
-        fields: [{ path: "", code: "custom" }],
+// The server's message is for logs. Show Properties words its marathon
+// refusal by the kind the server sends beside it, as the sheet's own hold
+// does; one with no kind shows as any other refusal would.
+it.each([
+  {
+    problemKind: "shorter",
+    says: "Make the marathon longer than Plays at a time.",
+  },
+  {
+    problemKind: "unit",
+    says: "Set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
+  },
+  { problemKind: undefined, says: "for logs" },
+])(
+  "words the server's own marathon refusal of kind $problemKind the same way the sheet does",
+  async ({ problemKind, says }) => {
+    const { api } = await openLineup([
+      favoritesAssignment("chronological", {
+        marathonStretch: { kind: "programs", count: 10 },
+      }),
+    ]);
+    api.reply(
+      ASSIGNMENT,
+      {
+        error: {
+          code: "invalid_request",
+          message: "for logs",
+          fields: [{ path: "", code: "custom", problemKind }],
+        },
       },
-    },
-    "PATCH",
-    400,
-  );
-  const dialog = await openProperties();
-  rename(dialog, "Favorites night");
-  fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      "PATCH",
+      400,
+    );
+    const dialog = await openProperties();
+    rename(dialog, "Favorites night");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
-  expect((await within(dialog).findByRole("alert")).textContent).toBe(
-    "Make the marathon longer than Plays at a time.",
-  );
-});
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(says);
+  },
+);
 
 it("saves a show kept out of normal rotation and lists it as Rules only", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
@@ -872,14 +888,17 @@ it("offers a Random show's reset as a reshuffle that says what it does", async (
   ).toBeNull();
   const dialog = screen.getByRole("dialog", { name: "Reshuffle" });
   expect(dialog.textContent).toContain(
-    "Start Favorites's random picks over on this channel? What is airing now finishes; the schedule after it is rebuilt.",
+    "Reshuffle Favorites on this channel? Its random picks start over in a new order. What is airing now finishes; the schedule after it is rebuilt.",
   );
   expect(dialog.textContent).not.toMatch(/beginning|in random/i);
+  // No sentence builds a possessive from the show's name.
+  expect(dialog.textContent).not.toMatch(/'s\b/);
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Reshuffle" }));
   await within(dialog).findByText(
-    /Favorites's random picks start over after what is airing now/,
+    "Favorites plays in a new random order after what is airing now. Upcoming selections:",
   );
+  expect(dialog.textContent).not.toMatch(/'s\b/);
   await waitFor(() =>
     expect(
       within(dialog).getByRole("list", { name: "Upcoming selections" })
@@ -1550,6 +1569,46 @@ it("toggles Add shows between collections and filtered single items, keeping pic
   within(dialog).getByRole("button", { name: "Next (1)" });
   searchFor(dialog, "Collections");
   expect(result(dialog, "Favorites").checked).toBe(true);
+});
+
+it("searches with Enter in Add shows' search, never turning to the settings page", async () => {
+  const { api } = await openLineup([], [], serveSuggestions);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Favorites"));
+
+  pressEnter(
+    within(dialog).getByLabelText<HTMLInputElement>("Find collections"),
+  );
+  searchFor(dialog, "Single items");
+  await within(dialog).findByRole("checkbox", { name: /^Alpha / });
+  pressEnter(within(dialog).getByLabelText<HTMLInputElement>("Find media"));
+
+  // Still on the picks, with nothing sent.
+  within(dialog).getByRole("button", { name: "Next (1)" });
+  expect(within(dialog).queryByRole("button", { name: "Back" })).toBeNull();
+  expect(api.requestsTo(BATCH)).toEqual([]);
+});
+
+it("searches with Enter on a show's Contents, never saving or closing Properties", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [collectionWith("other", "Other")],
+    (api) =>
+      api.reply("/media-items", { items: adminFixtures.media, total: 2 }),
+  );
+  const dialog = await openProperties();
+  openTab(dialog, "Contents");
+  fireEvent.click(result(dialog, "Other"));
+
+  pressEnter(
+    within(dialog).getByLabelText<HTMLInputElement>("Find collections"),
+  );
+  await act(async () => {});
+
+  expect(patches(api)).toEqual([]);
+  expect(screen.getByRole("dialog", { name: "Favorites" })).toBe(dialog);
+  within(dialog).getByRole("tab", { name: "Contents", selected: true });
 });
 
 it("selects every pickable result from the results header, and clears them again", async () => {

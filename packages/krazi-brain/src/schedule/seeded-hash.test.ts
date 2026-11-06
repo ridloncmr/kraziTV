@@ -100,15 +100,36 @@ describe("deriveCollectionSeed", () => {
     ["col-2", 0xda3c9f9c],
     ["收藏", 0x05a9ff20],
   ])(
-    "pins the seed for collection %j on one channel",
+    "pins the seed for collection %j on one channel before any reset",
     (collectionId, expected) => {
-      expect(deriveCollectionSeed(CHANNEL_SEED, collectionId)).toBe(expected);
+      expect(deriveCollectionSeed(CHANNEL_SEED, collectionId, 0)).toBe(
+        expected,
+      );
     },
   );
 
   it("gives different collections on one channel different seeds", () => {
-    expect(deriveCollectionSeed(CHANNEL_SEED, "col-1")).not.toBe(
-      deriveCollectionSeed(CHANNEL_SEED, "col-2"),
+    expect(deriveCollectionSeed(CHANNEL_SEED, "col-1", 0)).not.toBe(
+      deriveCollectionSeed(CHANNEL_SEED, "col-2", 0),
+    );
+  });
+
+  it("gives each progress reset a new seed that repeats for the same count", () => {
+    const seeds = [0, 1, 2, 3].map((resetCount) =>
+      deriveCollectionSeed(CHANNEL_SEED, "col-1", resetCount),
+    );
+
+    expect(new Set(seeds).size).toBe(seeds.length);
+    expect(deriveCollectionSeed(CHANNEL_SEED, "col-1", 2)).toBe(seeds[2]);
+  });
+
+  it("never gives a reset collection the seed of another collection before its reset", () => {
+    // An ID ending in what looks like a count must not collide with it.
+    expect(deriveCollectionSeed(CHANNEL_SEED, "col", 1)).not.toBe(
+      deriveCollectionSeed(CHANNEL_SEED, "col:1", 0),
+    );
+    expect(deriveCollectionSeed(CHANNEL_SEED, "col", 1)).not.toBe(
+      deriveCollectionSeed(CHANNEL_SEED, "1:col", 0),
     );
   });
 });

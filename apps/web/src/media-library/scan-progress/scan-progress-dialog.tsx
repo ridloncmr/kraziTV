@@ -133,24 +133,26 @@ export function ScanProgressDialog({
             polled.phase === "enriching")
         }
       />
-      <p role="status" aria-live="polite">
-        {statusLine(polled, job.rootPath, ending)}
-      </p>
-      {running && <ScanProgress status={polled} />}
-      {ending === null && polled.phase === "failed" && (
-        <p>The catalog is unchanged.</p>
-      )}
-      {completed && tmdbKey.data?.configured === false && (
-        <p>TMDB isn&apos;t set up, so titles come from file names.</p>
-      )}
-      {completed && polled.kind === "retry" && polled.lookupCount === 0 && (
-        <p>Nothing here needed a lookup.</p>
-      )}
-      {completed &&
-        polled.kind === "scan" &&
-        polled.summary?.discoveredCount === 0 && (
-          <p>{noFilesFoundLine(polled.summary.supportedExtensions)}</p>
+      {/* The outcome's sentences share the live region with the status
+          line, so a screen reader hears them with it. */}
+      <div role="status" aria-live="polite">
+        <p>{statusLine(polled, job.rootPath, ending)}</p>
+        {ending === null && polled.phase === "failed" && (
+          <p>The catalog is unchanged.</p>
         )}
+        {completed && tmdbKey.data?.configured === false && (
+          <p>TMDB isn&apos;t set up, so titles come from file names.</p>
+        )}
+        {completed && polled.kind === "retry" && polled.lookupCount === 0 && (
+          <p>Nothing here needed a lookup.</p>
+        )}
+        {completed &&
+          polled.kind === "scan" &&
+          polled.summary?.discoveredCount === 0 && (
+            <p>{noFilesFoundLine(polled.summary.supportedExtensions)}</p>
+          )}
+      </div>
+      {running && <ScanProgress status={polled} />}
       {completed && polled.summary && (
         <dl className="facts">
           {summaryFacts(polled, polled.summary).map(([label, count]) => (
@@ -230,8 +232,9 @@ function noFilesFoundLine(extensions: readonly string[]): string {
 }
 
 /**
- * The live region's text. It depends on the phase and the job's fixed facts
- * only, so screen readers hear phase changes, never each count or file name.
+ * The live region's first line. It depends on the phase and the job's fixed
+ * facts only, so screen readers hear phase changes, never each count or file
+ * name.
  */
 function statusLine(
   status: ScanStatus,

@@ -40,6 +40,7 @@ import { unlistedEpisodeMigration } from "./032-unlisted-episode.js";
 import { assignmentNamesMigration } from "./033-assignment-names.js";
 import { rulePriorityRangeMigration } from "./034-rule-priority-range.js";
 import { lookupErrorKindMigration } from "./035-lookup-error-kind.js";
+import { progressResetCountMigration } from "./036-progress-reset-count.js";
 import type { DatabaseSchema } from "../schema/database-schema.js";
 
 const migrations: Readonly<Record<string, Migration>> = Object.freeze({
@@ -78,6 +79,7 @@ const migrations: Readonly<Record<string, Migration>> = Object.freeze({
   "033_assignment_names": assignmentNamesMigration,
   "034_rule_priority_range": rulePriorityRangeMigration,
   "035_lookup_error_kind": lookupErrorKindMigration,
+  "036_progress_reset_count": progressResetCountMigration,
 });
 
 class CommittedMigrationProvider implements MigrationProvider {

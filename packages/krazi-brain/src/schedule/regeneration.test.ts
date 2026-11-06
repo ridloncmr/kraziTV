@@ -168,6 +168,7 @@ describe("restorePlaybackProgress after a progress reset", () => {
     mediaCollectionId: "collection-1",
     playbackMode: "chronological",
     resetSequenceNumber: 20,
+    resetCount: 2,
   } as const;
 
   it("never returns ordered progress to an entry kept from before the reset", () => {
@@ -181,7 +182,7 @@ describe("restorePlaybackProgress after a progress reset", () => {
       {
         mediaCollectionId: "collection-1",
         playbackMode: "chronological",
-        progress: NO_PROGRESS,
+        progress: { ...NO_PROGRESS, resetCount: 2 },
       },
     ]);
   });
@@ -200,7 +201,29 @@ describe("restorePlaybackProgress after a progress reset", () => {
       {
         mediaCollectionId: "collection-1",
         playbackMode: "chronological",
-        progress: { ...NO_PROGRESS, lastMediaItemId: "c", lastPosition: 2 },
+        progress: {
+          ...NO_PROGRESS,
+          lastMediaItemId: "c",
+          lastPosition: 2,
+          resetCount: 2,
+        },
+      },
+    ]);
+  });
+
+  it("rewinds random progress after a reset under the current reset count", () => {
+    const restored = restorePlaybackProgress(
+      [entry(21, "random", 1), entry(22, "random", 2)],
+      [entry(19, "random", 41, "airing"), entry(20, "random", 0)],
+      [{ ...reset, playbackMode: "random" }],
+    );
+
+    // The deleted picks were drawn under count 2, so their replacements are too.
+    expect(restored).toEqual([
+      {
+        mediaCollectionId: "collection-1",
+        playbackMode: "random",
+        progress: { ...NO_PROGRESS, nextSelectionIndex: 1, resetCount: 2 },
       },
     ]);
   });

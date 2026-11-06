@@ -20,6 +20,7 @@ import {
 } from "../../testing/collection-api.js";
 import { CollectionEditor } from "./collection-editor.js";
 import { clickWhenEnabled } from "../../testing/click-when-enabled.js";
+import { pressEnter } from "../../testing/press-enter.js";
 
 afterEach(() => {
   cleanup();
@@ -380,6 +381,21 @@ it("filters without renumbering, moves to a position, sorts and discards back to
   click("Discard changes");
   expect(memberOrder()).toEqual(["Episode 10", "Alpha", "Zulu", "Episode 2"]);
   expect(screen.queryByText(/Unsaved changes/)).toBeNull();
+});
+
+it("searches with Enter in Find media and Filter members, never adding, removing, renaming, or saving", async () => {
+  const { api } = renderEditor(["z", "a"]);
+  fireEvent.click(await screen.findByLabelText("Select Episode 2"));
+  fireEvent.click(screen.getByLabelText("Select member Zulu"));
+
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Find media"));
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Filter members"));
+
+  expect(memberOrder()).toEqual(["Alpha", "Zulu"]);
+  expect(screen.queryByText(/Unsaved changes/)).toBeNull();
+  expect(
+    api.requests.filter((request) => ["PUT", "PATCH"].includes(request.method)),
+  ).toEqual([]);
 });
 
 it("labels a missing member as not airing until its file returns, with an icon beside the text", async () => {
