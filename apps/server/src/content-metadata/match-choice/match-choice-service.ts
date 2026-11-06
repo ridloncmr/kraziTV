@@ -6,6 +6,7 @@ import {
   type EpisodeLookup,
   type MovieLookup,
   type TmdbClient,
+  type TmdbLookupFailure,
 } from "@krazitv/media";
 import type { Kysely } from "kysely";
 
@@ -34,6 +35,14 @@ import {
 } from "./match-decision.js";
 import { readMatchEvidence } from "./match-evidence.js";
 import { groupReviewSteps } from "./review-steps.js";
+
+// A choice whose own item got no lookup back: an answer kraziTV cannot use,
+// never the owner's key to fix.
+const NO_ANSWER: TmdbLookupFailure = Object.freeze({
+  kind: "failed",
+  reason: "unreadable",
+  message: "TMDB gave no answer",
+});
 
 /**
  * Applies the owner's match decisions: choosing a candidate or a searched
@@ -136,7 +145,7 @@ export class MatchChoiceService {
         ? await this.#tmdb.searchMovies(apiKey, query)
         : await this.#tmdb.searchSeries(apiKey, query);
     if (found.kind === "failed") {
-      return { kind: "lookup_failed", message: found.message };
+      return { kind: "lookup_failed", failure: found };
     }
     return { kind: "found", candidates: found.value.map(matchCandidateOf) };
   }
@@ -186,7 +195,7 @@ export class MatchChoiceService {
     if (own?.kind !== "matched") {
       return {
         kind: "lookup_failed",
-        message: own?.kind === "failed" ? own.message : "TMDB gave no answer",
+        failure: own?.kind === "failed" ? own : NO_ANSWER,
       };
     }
 

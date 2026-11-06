@@ -121,6 +121,7 @@ describe("CatalogScanWriter metadata matches", () => {
           external_id: 348,
           fetched_at: LOOKED_UP_AT,
           refresh_error: null,
+          refresh_error_kind: null,
           expired_at: null,
         },
       ],
@@ -173,6 +174,7 @@ describe("CatalogScanWriter metadata matches", () => {
         external_id: 1437,
         fetched_at: LOOKED_UP_AT,
         refresh_error: null,
+        refresh_error_kind: null,
         expired_at: null,
       },
     ]);

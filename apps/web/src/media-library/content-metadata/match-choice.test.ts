@@ -348,3 +348,31 @@ it("keeps choices made before the walk-through closes early", async () => {
     ),
   );
 });
+
+it("words a choice refused for a rejected TMDB key as the key's to fix, not as an outage", async () => {
+  const api = await showLibrary([THING]);
+  api.reply(matchPath(THING.id, "candidates"), THE_THINGS);
+  api.reply(
+    matchPath(THING.id, "choice"),
+    { error: { code: "tmdb_key_rejected", message: "for logs" } },
+    "POST",
+    409,
+  );
+
+  fireEvent.click(
+    within(openMediaDetails("The Thing")).getByRole("button", {
+      name: "Choose match…",
+    }),
+  );
+  const dialog = within(
+    await screen.findByRole("dialog", { name: "Choose a match" }),
+  );
+  fireEvent.click(
+    await dialog.findByRole("button", { name: "Choose The Thing (1982)" }),
+  );
+
+  expect((await dialog.findByRole("alert")).textContent).toBe(
+    "TMDB rejected the key. Check it in Account Settings.",
+  );
+  expect(dialog.queryByText("for logs")).toBeNull();
+});

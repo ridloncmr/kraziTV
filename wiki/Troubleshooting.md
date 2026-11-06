@@ -99,8 +99,13 @@ to shrink the gap.
 - **Unmatched** or wrong: check the folder names against [Naming your
   files](Naming-Your-Files), fix them, and scan again. Or open the file's
   Details and **Correct details…**.
-- **Lookup failed**: TMDB was unreachable. Use **Retry failed lookups** on
-  the root.
+- **Lookup failed**: open the file's Details. "TMDB could not be reached;
+  kraziTV will try again." means TMDB was unreachable: use **Retry failed
+  lookups** on the root. "TMDB rejected the key. Check it in Account
+  Settings." means TMDB no longer accepts your key: paste a new one in
+  [Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key), then use
+  **Retry failed lookups**. The same sentence shows when choosing a match
+  fails, or under **Refresh error** when a background refresh fails.
 
 ## Rules fire at the wrong hour
 

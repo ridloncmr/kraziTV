@@ -36,6 +36,7 @@ export const noMetadata: ContentMetadata = {
   posterPath: null,
   refreshedAt: null,
   refreshError: null,
+  refreshErrorKind: null,
   tmdbDataExpired: false,
   tags: [],
   correctedFields: [],

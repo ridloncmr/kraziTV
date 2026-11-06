@@ -2,6 +2,7 @@ import { offAirWords } from "../channel-observation/airing-words.js";
 import { specialWords } from "../channels/specials/special-words.js";
 import { stretchProblemWords } from "../channels/stretch/stretch-words.js";
 import { displayTime } from "../controls/formatting/display-time.js";
+import { tmdbFailureWords } from "../media-library/content-metadata/match-state-label.js";
 import { ApiError } from "./api-error.js";
 
 /**
@@ -189,6 +190,10 @@ function codeWords(
       const fix = stretchProblemWords(details.problemKind);
       return `${rule} follows this show's settings, and this change would break them. Change the rule first: ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`;
     }
+    // A match decision TMDB refused for the key is the owner's to fix, said
+    // as Media details says a stored failure of that kind.
+    case "tmdb_key_rejected":
+      return tmdbFailureWords("key_rejected");
     // A channel with no shows is sent to the Lineup tab. Shows that cannot
     // air, or a reason added later, get the off-air words, which already
     // name every place to look; the server's sentence never shows.

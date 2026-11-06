@@ -192,6 +192,28 @@ it("says when a matched item's TMDB data expired, and words a failed refresh as 
   expect(dialog.queryByText(/TMDB data refreshed/)).toBeNull();
 });
 
+it("tells the owner to check the key when a refresh failed on a rejected key", async () => {
+  const rejected = {
+    ...ALIEN,
+    metadata: {
+      ...ALIEN.metadata,
+      refreshError: "TMDB rejected the key",
+      refreshErrorKind: "key_rejected" as const,
+    },
+  };
+  await showCatalog([rejected]);
+
+  const dialog = within(openDetails("Alien (1979)"));
+
+  expect(dialog.getByText("Matched")).toBeTruthy();
+  expect(
+    dialog
+      .getByText("TMDB rejected the key. Check it in Account Settings.")
+      .getAttribute("title"),
+  ).toBe("TMDB rejected the key");
+  expect(dialog.queryByText(/could not be reached/)).toBeNull();
+});
+
 it("says when a matched item's TMDB data was last refreshed", async () => {
   await showCatalog([ALIEN]);
 

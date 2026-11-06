@@ -200,7 +200,7 @@ describe("TMDB key routes", () => {
     expect(written).not.toContain(JSON.stringify(BROKEN_KEY).slice(1, -1));
     // The outage is still logged, so an operator can see why the save failed.
     expect(lines).toContainEqual(
-      expect.objectContaining({ reason: "TMDB request failed" }),
+      expect.objectContaining({ message: "TMDB request failed" }),
     );
   });
 });

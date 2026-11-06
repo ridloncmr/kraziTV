@@ -74,6 +74,7 @@ type ApiErrorCode =
   | "stream_startup_timeout"
   | "stream_unavailable"
   | "tmdb_key_changed"
+  | "tmdb_key_rejected"
   | "tmdb_key_required"
   | "tmdb_unreachable"
   | "too_many_attempts"

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import { send } from "../../testing/api-requests.js";
+import { captureLogLines } from "../../testing/captured-log-lines.js";
 import {
   CHOICE_DOCTOR_WHO_1963 as DOCTOR_WHO_1963,
   CHOICE_DOCTOR_WHO_2005 as DOCTOR_WHO_2005,
@@ -54,8 +55,16 @@ async function itemsWithCandidates(db: Kysely<DatabaseSchema>) {
 }
 
 // Boots a server over `files` with both Doctor Who series known, then scans.
+// Every warning the server logs lands in `lines`.
 async function scanned(files: string[]) {
-  const context = await startEnrichmentServer({ files });
+  const { lines, stream } = captureLogLines();
+  const context = {
+    ...(await startEnrichmentServer({
+      files,
+      logger: { level: "warn", stream },
+    })),
+    lines,
+  };
   context.tmdb.series.push(DOCTOR_WHO_1963, DOCTOR_WHO_2005);
   await scan(context.server);
   return context;
@@ -406,7 +415,7 @@ describe("match choice routes", () => {
   });
 
   it("refuses a choice TMDB cannot answer, leaving the item to choose again", async () => {
-    const { server, tmdb } = await scanned(["The Thing/movie.mkv"]);
+    const { server, tmdb, lines } = await scanned(["The Thing/movie.mkv"]);
     const thing = await idOf(server, "The Thing/movie.mkv");
     tmdb.unreachable = true;
 
@@ -418,6 +427,14 @@ describe("match choice routes", () => {
       status: 502,
       body: { error: { code: "tmdb_unreachable" } },
     });
+    // The outage's prose is logged under `message`, never `reason`.
+    expect(lines).toContainEqual(
+      expect.objectContaining({
+        message: "TMDB request failed",
+        msg: "Could not read TMDB for a match decision",
+      }),
+    );
+    expect(lines.some((line) => "reason" in line)).toBe(false);
     await expect(
       send(
         server,
@@ -425,6 +442,30 @@ describe("match choice routes", () => {
         `/metadata/matches/${thing}/candidates/${THE_THING_1982}/runtime`,
       ),
     ).resolves.toEqual({ status: 200, body: { runtimeMs: null } });
+    await expect(states(server)).resolves.toEqual({
+      "The Thing/movie.mkv": "ambiguous",
+    });
+  });
+
+  it("refuses a choice TMDB answers with a rejected key as tmdb_key_rejected, leaving the item to choose again", async () => {
+    const { server, tmdb } = await scanned(["The Thing/movie.mkv"]);
+    const thing = await idOf(server, "The Thing/movie.mkv");
+    tmdb.validKeys.clear();
+
+    await expect(
+      send(server, "POST", `/metadata/matches/${thing}/choice`, {
+        tmdbId: THE_THING_1982,
+      }),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "tmdb_key_rejected" } },
+    });
+    await expect(
+      send(server, "GET", `/metadata/matches/${thing}/search?title=Thing`),
+    ).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "tmdb_key_rejected" } },
+    });
     await expect(states(server)).resolves.toEqual({
       "The Thing/movie.mkv": "ambiguous",
     });
