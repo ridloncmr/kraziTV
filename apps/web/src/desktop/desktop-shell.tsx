@@ -192,6 +192,7 @@ export function DesktopShell({
                 <ProgramContents
                   id={window.id}
                   visible={!window.minimized && pageVisible}
+                  active={activeId === window.id}
                   connection={connection}
                   account={account}
                   onAccountChanged={onAccountChanged}
