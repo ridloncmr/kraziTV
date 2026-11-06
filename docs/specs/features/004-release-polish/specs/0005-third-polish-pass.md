@@ -1,6 +1,6 @@
 # Spec 0005: Third Polish Pass
 
-Status: Implemented
+Status: In Development
 
 ## Intent
 
@@ -12,8 +12,14 @@ step. Around it sit a dozen small items on the same first-run screens, three
 residuals from spec 0004, and a short list of things a first-time owner
 notices in the first ten minutes that are each a day's work. This spec closes
 them so the audit's next run finds the first-run path clean and the
-contributor path mapped. It extends specs 0001, 0002, and 0004; it changes no
-programming behavior.
+contributor path mapped. It extends specs 0001, 0002, and 0004; its first
+round changes no programming behavior.
+
+A second round, added on 2026-11-05 after the first merged (decisions 19
+and 20), closes the leftovers that round's reviews found: about twenty small
+items, most of them the same bug the first round fixed in one place still
+present in another. It fixes each everywhere it occurs. It changes one
+programming behavior: **Reshuffle…** starts a new random order.
 
 ## Behavior
 
@@ -126,6 +132,83 @@ minutes and a contributor can ship in a day. All seven are in scope
   (the field label and the empty-scan sentence) change with their screens.
 - This spec and the feature README say Implemented once the targets hold.
 
+## Second Round: The Leftovers
+
+Each item is fixed wherever the same bug occurs, not only where a reviewer
+saw it (decision 20).
+
+### Reshuffle starts a new order (decision 19)
+
+- **Reshuffle…** on a random show gives the collection a new random order on
+  that channel: the progress reset counts into the collection's random seed,
+  so the picks after a reshuffle differ from the ones before it, and the
+  same inputs still give the same order every time. Ordered modes are
+  unchanged. Regeneration and restoration use the current count, so an
+  earlier order never returns.
+- The question reads "Reshuffle Suits on this channel? Its random picks
+  start over in a new order. What is airing now finishes; the schedule
+  after it is rebuilt." and the result "Suits plays in a new random order
+  after what is airing now. Upcoming selections:". No sentence builds a
+  possessive from a show's name.
+
+### Keys go where the owner expects
+
+- Enter in a search box inside a dialog never submits or advances the
+  dialog: Add shows' search, the collection editor's catalog search and
+  member filter, and any other search field inside a form, as the special
+  editor's **Find media** already behaves. One shared way of doing it.
+- **Save special** stays disabled while a new preview is loading, so Enter
+  or a click never saves the preview that is being replaced.
+- When TV opens or is brought forward, its picture has the keyboard, so Up,
+  Down, M, and F work without a click first. Clicking TV's title bar still
+  lets the arrow keys move the window.
+
+### Screens that leave the owner guessing
+
+- After **Discover collections…** creates any collection, Collections shows
+  the Automatic tab, where they are, when the dialog closes.
+- When Live Monitor cannot load the channel list, it shows the connection
+  problem and **Refresh**, never an empty **Channel** list reading "Choose a
+  channel".
+- The empty-scan sentence is announced with the rest of the scan's status
+  to a screen reader.
+
+### Refusals the server words for the web
+
+- A revoked or rejected TMDB key is named as such everywhere, never as TMDB
+  being unreachable: a lookup that TMDB answers with 401 fails as
+  `key_rejected`; a failed metadata refresh stores its kind beside its text,
+  so Media details' **Refresh error** reads "TMDB rejected the key. Check it
+  in Account Settings."; and a match decision refused for a rejected key
+  answers `tmdb_key_rejected`, which the web words the same way. Logs name
+  the failure text `message`, never `reason`.
+- An invalid-request field carries what the web needs to word it: the limit
+  for a too-long value, and the problem kind for a show's marathon against
+  its Plays at a time. The web's too-long sentence names the limit the
+  server sent ("Use a shorter name: at most 80 characters.") and holds no
+  copy of the server's numbers, and Show Properties words the marathon
+  problem by its kind; any other refusal shows as `refusalWords` gives it.
+- The server refuses a rule name longer than 80 characters, as it does a
+  show's.
+- The busy refusal fits every write that can meet it: "kraziTV is busy
+  saving another change. Try again in a moment."
+
+### Contributor items
+
+- TV's channel memory and its starting-channel choice, which Live Monitor
+  also uses, live in a top-level folder of their own, and the `tv/` and
+  `channels/lineup/picks/` exception reasons say what is true now. Row
+  menus move focus with the same arrow-key helper the desktop and Start
+  use.
+- The browser walk's checks can fail: the Lineup row check uses a long show
+  name, the Delete media root sentence is measured in real layout with an
+  unbroken path, and the scan dialog's always-true box check is dropped.
+  Stopping the demo library's `start.mjs` stops its server too. No test
+  mock carries a copy of kraziBrain's prose.
+- The wiki says where the kraziTV log is, Media Library's page names both
+  of its add buttons as the screen does, and CONTRIBUTING's web map says
+  everything `app.tsx` chooses between and what Media Library holds.
+
 ## kraziTV Check
 
 - Schedule, playout timeline, channel state, kraziBrain, SignalPackager:
@@ -135,14 +218,19 @@ minutes and a contributor can ship in a day. All seven are in scope
 - Data model: the failed-lookup reason kind is stored beside the lookup
   error text (one nullable column and its migration), so the web never
   derives it from prose. Nothing else changes.
+- Second round: kraziBrain's random selection derives its seed from the
+  reset count as well (decision 19); one column stores the count and one
+  stores a refresh failure's kind, each with its migration. Schedule,
+  playout timeline, and provider adapters are otherwise unchanged.
 
 ## Decisions
 
 Settled with the owner on 2026-11-05 and recorded as decisions 15 to 18 in
 the [feature README](../README.md): kinds over the wire rather than a
 test-only contract; all seven first-run shortcuts in scope; the scan
-scenario's 390-wide pass dropped; names capped at 120. Tickets cite those
-instead of re-deciding them.
+scenario's 390-wide pass dropped; names capped at 120. Decisions 19 and 20
+settle the second round: Reshuffle starts a new order, and leftovers are
+fixed by kind of bug. Tickets cite those instead of re-deciding them.
 
 ## Acceptance Targets
 
@@ -183,12 +271,40 @@ instead of re-deciding them.
   message; a server test asserts the route forwards it and that a rejected
   key stores `reason: "key_rejected"`; the web tests choose by kind and hold
   no copy of the other packages' prose.
-- `npm run test:browser` passes with the scan scenario's narrow pass
+- The Browser job in CI passes with the scan scenario's narrow pass
   removed.
 - `npm run audit:strict` reports no error and no review item; E33 and E39
   name every file.
 - The link check, `plan:status:check`, and `agents:check` pass, and the wiki
   pages named under Docs match their screens.
+
+Second round:
+
+- A kraziBrain test reshuffles a random collection and sees a different
+  order of picks after the reset than before it, and the same order on a
+  second run with the same inputs; a server test regenerates after a reset
+  and keeps the new order. A jsdom test reads the Reshuffle question and
+  result sentences.
+- A jsdom test presses Enter in each search field inside a dialog form and
+  sees the dialog neither submit nor advance; one sees **Save special**
+  disabled while a preview is loading.
+- A jsdom test opens TV and presses Up with no click first and sees the
+  channel change.
+- A jsdom test creates a collection through Discover from the Manual tab and
+  sees the Automatic tab when the dialog closes; one fails the channel list
+  in Live Monitor and sees the problem and Refresh with no channel list; one
+  finishes an empty scan and finds the sentence inside the status region.
+- A media test answers a lookup with 401 and reads `key_rejected`; a server
+  test fails a refresh with a rejected key and reads its stored kind, and
+  one refuses a match decision with `tmdb_key_rejected`; a jsdom test reads
+  the owner sentence for each.
+- A server test posts an 81-character rule name and reads the too-long
+  refusal with its limit; a jsdom test words a too-long refusal from the
+  limit the server sent, and one words Show Properties' marathon problem by
+  kind.
+- The Browser job in CI passes with the stronger checks.
+- `npm run audit:strict` reports no error and no review item, with no
+  exception added.
 
 ## Out Of Scope
 
@@ -200,3 +316,5 @@ instead of re-deciding them.
 - Splitting the folders at the audit's eight-file limit before their ninth
   file arrives.
 - Right-click menus, a menu bar, or other XP chrome spec 0008 defers.
+- Live Monitor showing every channel at once (its description says "each
+  channel"; it shows one at a time).

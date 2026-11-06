@@ -1,6 +1,6 @@
 # Release Polish Feature
 
-Status: Implemented
+Status: In Development
 
 This feature takes kraziTV from "works" to "a non-technical first-time user,
 with minimal prompting, builds channels and enjoys it", inside the Windows XP
@@ -69,22 +69,34 @@ Settled with the owner on 2026-11-05 after the third run (commit `555d895`):
 18. Channel and collection names are capped at 120 characters on the server,
     refused with the existing too-long words.
 
+Settled with the owner on 2026-11-05 after spec 0005's first round merged
+(commit `69f61b8`):
+
+19. **Reshuffle…** starts a new random order. A random show's progress reset
+    counts into its random seed, so each reshuffle gives a fresh order that
+    is still the same on every run with the same inputs. This amends
+    programming spec 0003, whose reset kept the seed.
+20. The leftovers the third pass's reviews found become a second round of
+    spec 0005 (POLISH-054 to 062) rather than a new spec, and each is fixed
+    everywhere the same bug occurs, not at the one place a reviewer saw it.
+
 ## Related Specs
 
 Specs are listed in delivery order. Each spec's status is the `Status:` line at
 the top of the spec.
 
-| Spec                                                        | Description                                                                                                                    |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer                                                               |
-| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary                                                          |
-| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                        |
-| [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items         |
-| [0005-third-polish-pass](specs/0005-third-polish-pass.md)   | What the third audit found: a Preview tab that always answers, the last owner words, first-run shortcuts, and kinds over prose |
+| Spec                                                        | Description                                                                                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [0001-first-run-flow](specs/0001-first-run-flow.md)         | The first-run path without stalls, and the property-sheet footer                                                                                                |
+| [0002-owner-facing-words](specs/0002-owner-facing-words.md) | Every word the owner reads comes from the web app in owner vocabulary                                                                                           |
+| [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                                                         |
+| [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items                                          |
+| [0005-third-polish-pass](specs/0005-third-polish-pass.md)   | What the third audit found: a Preview tab that always answers, the last owner words, first-run shortcuts, kinds over prose, and the leftovers its reviews found |
 
 ## Out Of Scope
 
 - A setup wizard, a getting-started checklist, or a different desktop order.
 - Phone-width layout, touch target sizing, and the TV picture on a phone.
 - New programming features. Behavior changes here are limited to when a
-  dialog appears and what words a screen uses.
+  dialog appears and what words a screen uses, apart from decision 19's
+  reshuffle.
