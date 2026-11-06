@@ -576,7 +576,9 @@ changes.
 **Background refresh visibility.** The six-month refresh has no dialog. An
 item's details show `TMDB data refreshed <date>`; an item whose provider facts
 expired before a refresh succeeded shows `TMDB data expired. It will refresh when
-TMDB is reachable.` Refresh never runs on a root while a scan or retry job for
+TMDB is reachable.`, or, when the last refresh failed because TMDB rejected the
+key, `TMDB data expired. It will refresh once TMDB accepts the key in Account
+Settings.` Refresh never runs on a root while a scan or retry job for
 that root is active, so their commits never interleave.
 
 ### Processing And Commit

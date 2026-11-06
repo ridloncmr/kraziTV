@@ -13,10 +13,10 @@ broadcast Plex gets, so what you see is exactly what Plex viewers see.
 
 The keys a TV remote taught work too, with no click first: when TV opens
 or you bring it to the front, press **↑** or **↓** to change channel, **M**
-to mute or unmute, and **F** to go full screen or come back. If you click
-TV's title bar, the arrow keys move the window instead; click the picture to
-get the channel keys back. They leave the channel dropdown and the volume
-slider alone, so those keep working as usual.
+to mute or unmute, and **F** to go full screen or come back. They leave the
+channel dropdown and the volume slider alone, so those keep working as
+usual. If you click TV's title bar, the arrow keys move the window instead;
+click the picture to get the channel keys back.
 
 TV opens on the channel you watched last. **Watch** in My Channels or at
 the top of a channel's Properties, **Watch** on the card of a program on the

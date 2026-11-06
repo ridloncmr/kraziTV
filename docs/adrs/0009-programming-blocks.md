@@ -36,6 +36,11 @@ that deleted decisions consumed, so no second schedule is stored beneath it.
 Saving after a preview publishes; there are no drafts. See
 [programming spec 0007](../specs/features/002-programming/specs/0007-manual-programming.md).
 
+Amended on 2026-11-06: a random collection's seed also counts that channel's
+progress resets for it, so each **Reshuffle…** starts a new order that still
+repeats for the same inputs; a count of 0 keeps the earlier seed. See
+[release-polish decision 19](../specs/features/004-release-polish/README.md).
+
 ## Context
 
 kraziTV's end state is a TV programming scheduler. A user assigns collections to

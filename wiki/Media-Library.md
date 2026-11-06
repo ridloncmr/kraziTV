@@ -12,8 +12,9 @@ A media root is a folder kraziTV scans for video files. You can add as many
 as you like: one for everything, or one each for movies, TV, and cartoons.
 Overlapping roots catalog the same files twice, so keep them separate.
 
-Click **Add media root…** and, in **Folder on the kraziTV server**, type the
-folder's path as the kraziTV computer sees it, starting from its root, or use
+Click **Add media root…** on the toolbar (or **Add a media root…** in the
+empty list) and, in **Folder on the kraziTV server**, type the folder's path
+as the kraziTV computer sees it, starting from its root, or use
 **Browse…** to find it. In Docker your media is under `/media`, as you set up in
 [Install](Install#your-media-folders).
 After you click **Add root**, kraziTV offers to scan the folder straight
@@ -161,9 +162,11 @@ root. To keep files out for good, move them out of the root.
 
 TMDB asks that its data not be kept longer than six months. kraziTV refreshes
 each title's facts in the background once they are five months old. If TMDB
-cannot be reached for a long time, the title, description, genres, dates,
-and poster expire until a refresh succeeds, but the match, the episode
-numbers, and your corrections stay.
+cannot be reached for a long time, or rejects your key, the title,
+description, genres, dates, and poster expire until a refresh succeeds, but
+the match, the episode numbers, and your corrections stay. With a rejected
+key, the refresh waits until TMDB accepts the key: paste a new one in
+[Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key).
 
 ---
 

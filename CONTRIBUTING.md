@@ -145,28 +145,30 @@ The server keeps one folder per domain under `apps/server/src/`:
 
 The web app keeps one folder per desktop program under `apps/web/src/`,
 beside the shell and the pieces programs share. `app.tsx` chooses between
-the logon screen and the desktop, and `main.tsx` mounts it.
+setup, the logon screen, the wrong-address screen, and the desktop (its tests
+sit beside it), and `main.tsx` mounts it.
 
-| Folder                                     | What it owns                                                                          |
-| ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `desktop/`                                 | The desktop shell and its chrome: windows, the taskbar, Start, and the program list   |
-| `channels/`                                | My Channels and each channel's Properties window                                      |
-| `collections/`                             | Collections and each collection's Properties window                                   |
-| `media-library/`                           | Media Library and its TMDB matching dialogs                                           |
-| `program-guide/`, `tv/`, `live-monitor/`   | Program Guide, TV, and Live Monitor                                                   |
-| `plex-setup/`, `account-settings/`         | Plex Setup and Account Settings                                                       |
-| `logon/`                                   | The logon screen and first-run setup                                                  |
-| `program-host/`                            | Puts each program in its window; the one way a program opens another                  |
-| `controls/`                                | Shared controls: dialogs, menus, tabs, pagers, and time and number formatting         |
-| `http/`                                    | The API client, request and response shapes, and the words for server refusals        |
-| `channel-observation/`                     | Now-and-next and off-air words shared by My Channels, Live Monitor, and TV            |
-| `catalog-filter/`, `catalog-options/`      | The catalog Filter dialog, and the series, franchise, tag, and genre options it lists |
-| `collection-types/`, `media-availability/` | Collection type and media status labels shared across programs                        |
-| `media-search/`                            | The media and collection pickers                                                      |
-| `account-fields/`, `password-check/`       | Name and password checks shared by setup, the logon screen, and Account Settings      |
-| `tmdb-reminder/`                           | The tray balloon that asks the owner to set up TMDB                                   |
-| `branding/`                                | Program icons, account pictures, and attributions                                     |
-| `testing/`                                 | Test doubles and fixtures                                                             |
+| Folder                                     | What it owns                                                                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `desktop/`                                 | The desktop shell and its chrome: windows, the taskbar, Start, and the program list                                                |
+| `channels/`                                | My Channels and each channel's Properties window                                                                                   |
+| `collections/`                             | Collections and each collection's Properties window                                                                                |
+| `media-library/`                           | Media Library: media roots, scans, removal, and its TMDB matching dialogs                                                          |
+| `program-guide/`, `tv/`, `live-monitor/`   | Program Guide, TV, and Live Monitor                                                                                                |
+| `plex-setup/`, `account-settings/`         | Plex Setup and Account Settings                                                                                                    |
+| `logon/`                                   | The logon screen and first-run setup                                                                                               |
+| `program-host/`                            | Puts each program in its window; the one way a program opens another                                                               |
+| `controls/`                                | Shared controls: dialogs, menus, tabs, pagers, arrow-key navigation, search fields that hold Enter, and time and number formatting |
+| `http/`                                    | The API client, request and response shapes, and the words for server refusals                                                     |
+| `channel-observation/`                     | Now-and-next and off-air words shared by My Channels, Live Monitor, and TV                                                         |
+| `channel-tuning/`                          | The channel TV and Live Monitor open on, the channel up and down steps, and the channels this browser remembers                    |
+| `catalog-filter/`, `catalog-options/`      | The catalog Filter dialog, and the series, franchise, tag, and genre options it lists                                              |
+| `collection-types/`, `media-availability/` | Collection type and media status labels shared across programs                                                                     |
+| `media-search/`                            | The media and collection pickers                                                                                                   |
+| `account-fields/`, `password-check/`       | Name and password checks shared by setup, the logon screen, and Account Settings                                                   |
+| `tmdb-reminder/`                           | The tray balloon that asks the owner to set up TMDB                                                                                |
+| `branding/`                                | Program icons, account pictures, and attributions                                                                                  |
+| `testing/`                                 | Test doubles and fixtures                                                                                                          |
 
 Every package and app lays out `src/` the same way; the
 [`AGENTS.md` principles](AGENTS.md#governing-engineering-principles) give the
