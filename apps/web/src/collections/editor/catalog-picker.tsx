@@ -6,6 +6,7 @@ import {
 } from "../../catalog-filter/catalog-filter-dialog.js";
 import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { Pager } from "../../controls/pager/pager.js";
+import { holdEnter } from "../../controls/search-field/hold-enter.js";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
 import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
@@ -147,6 +148,7 @@ export function CatalogPicker({
           value={search}
           placeholder="Title or folder path"
           onChange={(event) => setSearch(event.target.value)}
+          onKeyDown={holdEnter}
         />
       </label>
       <div className="list-toolbar">

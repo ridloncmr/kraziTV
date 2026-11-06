@@ -204,6 +204,26 @@ it("searches with Enter in Find media, never saving or previewing again", async 
   expect(screen.getByRole("region", { name: "Special preview" })).toBeTruthy();
 });
 
+it("holds Save special while a new preview loads, so neither Enter nor a click saves the one it replaces", async () => {
+  const { api } = await previewSpecial(planned());
+  api.hold(PREVIEW, "POST");
+  api.reply(LIST, saved, "POST", 201);
+
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+  await waitFor(() => expect(api.requestsTo(PREVIEW)).toHaveLength(2));
+  const save = screen.getByRole<HTMLButtonElement>("button", {
+    name: "Save special",
+  });
+  expect(save.disabled).toBe(true);
+  pressEnter(screen.getByLabelText<HTMLInputElement>("Starts"));
+  fireEvent.click(save);
+  await act(async () => {});
+  expect(lastBody(api, LIST, "POST")).toBeUndefined();
+
+  api.release(PREVIEW, planned(), "POST");
+  await waitFor(() => expect(save.disabled).toBe(false));
+});
+
 it("previews again from Preview while a preview is current, never saving", async () => {
   const { api } = await previewSpecial(planned());
 
