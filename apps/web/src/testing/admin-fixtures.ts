@@ -1,4 +1,8 @@
-import type { Channel, ChannelState } from "../http/contracts/channels.js";
+import type {
+  Channel,
+  ChannelState,
+  GuideProgram,
+} from "../http/contracts/channels.js";
 import type { MediaCollectionSummary } from "../http/contracts/collections.js";
 import type { ContentMetadata, MediaItem } from "../http/contracts/media.js";
 import type {
@@ -35,6 +39,18 @@ export const noMetadata: ContentMetadata = {
   tmdbDataExpired: false,
   tags: [],
   correctedFields: [],
+};
+
+/** A guide program the server could word nothing about. */
+export const bareProgram: GuideProgram = {
+  title: "",
+  subTitle: null,
+  description: null,
+  releaseDate: null,
+  kind: null,
+  genres: [],
+  posterUrl: null,
+  episode: null,
 };
 
 /** Wire fixtures contain ISO instants and milliseconds, with membership order distinct from title and ID order. */

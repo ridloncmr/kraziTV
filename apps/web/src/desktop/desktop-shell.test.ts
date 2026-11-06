@@ -13,6 +13,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { PageRefreshScope } from "../http/resources/refresh-scope.js";
 import {
   adminFixtures,
+  bareProgram,
   collectionWith,
   favoritesAssignment,
 } from "../testing/admin-fixtures.js";
@@ -20,6 +21,7 @@ import { account } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { serveCollection } from "../testing/collection-api.js";
 import { fakeBroadcasts } from "../testing/fake-broadcasts.js";
+import { pressKey } from "../testing/press-key.js";
 import { DesktopShell } from "./desktop-shell.js";
 
 // TV's player needs Media Source Extensions, which jsdom lacks.
@@ -164,24 +166,22 @@ it("moves through the desktop icons with Up, Down, Home, and End, as Start does"
     }),
   );
   const icons = within(screen.getByLabelText("Desktop programs"));
-  const press = (key: string) =>
-    fireEvent.keyDown(document.activeElement ?? document.body, { key });
   const focused = () => document.activeElement?.textContent;
   icons.getByRole("button", { name: "My Channels" }).focus();
 
-  press("ArrowDown");
+  pressKey("ArrowDown");
   expect(focused()).toBe("Media Library");
-  press("End");
+  pressKey("End");
   expect(focused()).toBe("Account Settings");
   // The column wraps, as Start's do.
-  press("ArrowDown");
+  pressKey("ArrowDown");
   expect(focused()).toBe("My Channels");
-  press("ArrowUp");
+  pressKey("ArrowUp");
   expect(focused()).toBe("Account Settings");
-  press("Home");
+  pressKey("Home");
   expect(focused()).toBe("My Channels");
   // One column, so Left and Right stay put.
-  press("ArrowRight");
+  pressKey("ArrowRight");
   expect(focused()).toBe("My Channels");
   // The keys move focus only; nothing opens until Enter or a click.
   expect(screen.queryByRole("region")).toBeNull();
@@ -841,4 +841,116 @@ it("opens TV on the channel Watch names, and retunes an open TV", async () => {
       "/channels/one/stream",
     ),
   );
+});
+
+/** Serves a desktop with TV's lineup and an empty Media Library, then renders it. */
+async function renderDesktopWithTv() {
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/media-roots", []);
+  api.reply("/media-items", { items: [], total: 0 });
+  api.reply("/channels", adminFixtures.channels);
+  api.reply("/channels/one/now", adminFixtures.now);
+  api.reply("/channels/two/now", adminFixtures.now);
+  vi.stubGlobal("fetch", api.fetch);
+  vi.stubGlobal("innerWidth", 1280);
+  vi.stubGlobal("innerHeight", 800);
+  render(
+    createElement(DesktopShell, {
+      account,
+      onAccountChanged: () => {},
+      onLoggedOff: () => {},
+    }),
+  );
+  const shortcuts = await screen.findByLabelText("Desktop programs");
+  /** Opens a program from its desktop icon, as a double click there does. */
+  const open = (name: string) =>
+    fireEvent.click(within(shortcuts).getByRole("button", { name }));
+  /** The channel TV is tuned to, from its latest stream. */
+  const tunedPath = () => new URL(fakeBroadcasts.latest!.url).pathname;
+  return { api, open, tunedPath };
+}
+
+it("gives TV the keys when it opens and when it is brought forward, while other programs' title bars take focus", async () => {
+  const { open, tunedPath } = await renderDesktopWithTv();
+
+  open("TV");
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await within(tv).findByText("Alpha");
+  expect(tunedPath()).toBe("/channels/one/stream");
+  pressKey("ArrowUp");
+  expect(tunedPath()).toBe("/channels/two/stream");
+
+  open("Media Library");
+  const media = await screen.findByRole("region", { name: "Media Library" });
+  expect(document.activeElement).toBe(
+    within(media).getByLabelText(/Media Library window/),
+  );
+
+  const taskbar = screen.getByRole("navigation", { name: "Open programs" });
+  fireEvent.click(within(taskbar).getByRole("button", { name: "TV" }));
+  expect(tv.classList.contains("active")).toBe(true);
+  pressKey("ArrowDown");
+  expect(tunedPath()).toBe("/channels/one/stream");
+});
+
+it("leaves the keys on TV's title bar when focus moves there, so the arrows still move the window", async () => {
+  const { open, tunedPath } = await renderDesktopWithTv();
+  open("TV");
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await within(tv).findByText("Alpha");
+  open("Media Library");
+  await screen.findByRole("region", { name: "Media Library" });
+
+  const title = within(tv).getByLabelText(/TV window/);
+  act(() => title.focus());
+  expect(tv.classList.contains("active")).toBe(true);
+  expect(document.activeElement).toBe(title);
+  const before = Number.parseFloat(tv.style.left);
+  pressKey("ArrowRight");
+  expect(Number.parseFloat(tv.style.left)).toBeGreaterThan(before);
+  pressKey("ArrowUp");
+  expect(tunedPath()).toBe("/channels/one/stream");
+});
+
+it("gives TV the keys when the Program Guide's airing program card opens it", async () => {
+  const { api, open, tunedPath } = await renderDesktopWithTv();
+  const now = Date.now();
+  api.reply("/channels/one/schedule", {
+    scheduleRevision: 1,
+    entries: [
+      {
+        id: "entry-1",
+        title: "s01e01",
+        startsAt: new Date(now - 10 * 60_000).toISOString(),
+        endsAt: new Date(now + 10 * 60_000).toISOString(),
+        program: { ...bareProgram, title: "Northwoods Nights" },
+      },
+    ],
+    fillerIntervals: [],
+  });
+  api.reply("/channels/two/schedule", {
+    scheduleRevision: 1,
+    entries: [],
+    fillerIntervals: [],
+  });
+
+  open("Program Guide");
+  const guide = await screen.findByRole("region", { name: "Program Guide" });
+  const programs = await within(guide).findByRole("list", {
+    name: "Programs on Northwoods TV",
+  });
+  fireEvent.click(
+    within(programs).getByRole("button", { name: /Northwoods Nights/ }),
+  );
+  const card = await screen.findByRole("dialog", { name: "Northwoods Nights" });
+  fireEvent.click(within(card).getByRole("button", { name: "Watch" }));
+
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await within(tv).findByText("Alpha");
+  expect(tv.classList.contains("active")).toBe(true);
+  expect(guide.classList.contains("active")).toBe(false);
+  expect(tunedPath()).toBe("/channels/one/stream");
+  pressKey("ArrowUp");
+  expect(tunedPath()).toBe("/channels/two/stream");
 });

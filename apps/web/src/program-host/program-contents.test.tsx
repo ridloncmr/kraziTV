@@ -46,7 +46,7 @@ it.each([
   async ({ from, next, opens, task }) => {
     serveEmptyNetwork();
     const shell = fakeShell(from);
-    render(<ProgramContents id={from} visible {...shell.hostProps} />);
+    render(<ProgramContents id={from} visible active {...shell.hostProps} />);
 
     fireEvent.click(await screen.findByRole("button", { name: next }));
 
@@ -61,7 +61,7 @@ it.each([
 it("brings an open program forward instead of opening it twice", async () => {
   serveEmptyNetwork();
   const shell = fakeShell("channels", "guide");
-  render(<ProgramContents id="guide" visible {...shell.hostProps} />);
+  render(<ProgramContents id="guide" visible active {...shell.hostProps} />);
   const next = await screen.findByRole("button", { name: "Open My Channels" });
 
   fireEvent.click(next);
@@ -88,6 +88,7 @@ it.each([
         <ProgramContents
           id="channel-properties:two"
           visible
+          active
           {...shell.hostProps}
         />
       </CloseWindow.Provider>,

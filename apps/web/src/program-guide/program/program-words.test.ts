@@ -1,17 +1,9 @@
 import { expect, it } from "vitest";
 import type { GuideProgram } from "../../http/contracts/channels.js";
+import { bareProgram } from "../../testing/admin-fixtures.js";
 import { episodeCode, programMark } from "./program-words.js";
 
-const bare: GuideProgram = {
-  title: "Item",
-  subTitle: null,
-  description: null,
-  releaseDate: null,
-  kind: null,
-  genres: [],
-  posterUrl: null,
-  episode: null,
-};
+const bare: GuideProgram = { ...bareProgram, title: "Item" };
 
 it("codes an episode as its season folder would, spanning a multi-episode file", () => {
   expect(episodeCode({ season: 1, episode: 5, lastEpisode: null })).toBe(
