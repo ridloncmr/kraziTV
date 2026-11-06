@@ -5,9 +5,12 @@ import { apiUrl, resourcePath } from "../http/api-client.js";
 import type { Channel } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { startBroadcast } from "./broadcast-player.js";
-import { startingChannel, stepChannel } from "./channel-dial.js";
+import {
+  startingChannel,
+  stepChannel,
+} from "../channel-tuning/channel-dial.js";
 import { ScreenMessage, type ScreenState } from "./screen-message.js";
-import { readTvMemory, rememberTv } from "./tv-memory.js";
+import { readTvMemory, rememberTv } from "../channel-tuning/tv-memory.js";
 
 /** A request from My Channels or the Program Guide to watch one channel. */
 export interface WatchRequest {

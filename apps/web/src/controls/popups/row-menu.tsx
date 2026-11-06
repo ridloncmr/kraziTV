@@ -5,6 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { navigateWithArrows } from "../arrow-navigation/arrow-navigation.js";
 import { usePopupDismissal } from "./use-popup-dismissal.js";
 
 /** One command a row menu offers. */
@@ -79,23 +80,9 @@ export function RowMenu({
     close();
     item.onSelect();
   }
-  /** Moves focus among enabled commands with the arrow, Home, and End keys. */
+  /** Moves focus among enabled commands as one column of arrow-key entries. */
   function navigate(event: KeyboardEvent<HTMLDivElement>) {
-    const enabled = [
-      ...(menu.current?.querySelectorAll<HTMLButtonElement>("button:enabled") ??
-        []),
-    ];
-    if (enabled.length === 0) return;
-    const at = enabled.indexOf(document.activeElement as HTMLButtonElement);
-    const next = {
-      ArrowDown: (at + 1) % enabled.length,
-      ArrowUp: (at - 1 + enabled.length) % enabled.length,
-      Home: 0,
-      End: enabled.length - 1,
-    }[event.key];
-    if (next === undefined) return;
-    event.preventDefault();
-    enabled[next].focus();
+    if (menu.current) navigateWithArrows(event, [menu.current]);
   }
   return (
     <div ref={area} className="row-menu">
