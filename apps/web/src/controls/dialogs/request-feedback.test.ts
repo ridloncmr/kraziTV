@@ -63,16 +63,16 @@ it("says what to do when kraziTV fails, never the server's words", async () => {
   );
 });
 
-it("says to try again in a moment while the schedule is busy", async () => {
+it("says to try again in a moment while kraziTV is busy saving", async () => {
   const error = await refusedRequest(503, {
     code: "schedule_busy",
-    message: "The schedule is busy; retry the request",
+    message: "for logs",
     retryable: true,
   });
   render(createElement(RequestFeedback, { error }));
 
   expect(screen.getByRole("alert").textContent).toBe(
-    "kraziTV is busy updating this channel's schedule. Try again in a moment.",
+    "kraziTV is busy saving another change. Try again in a moment.",
   );
 });
 
