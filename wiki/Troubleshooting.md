@@ -107,7 +107,9 @@ to shrink the gap.
   **Retry failed lookups**. The same sentence shows when choosing a match
   fails. Under **Refresh error** on a matched file it means a background
   refresh failed: the match stays, and kraziTV tries again on its own every
-  hour and after every scan, so the error clears once TMDB answers.
+  hour and after every scan. The error clears once a refresh succeeds: when
+  TMDB can be reached again, or, if TMDB rejected the key, once you paste a
+  new one in [Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key).
 
 ## Rules fire at the wrong hour
 
