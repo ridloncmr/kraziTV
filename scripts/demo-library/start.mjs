@@ -31,8 +31,12 @@ const server = spawn(process.execPath, ["apps/server/dist/index.js"], {
   },
 });
 // Stopping this script stops the server too, so port 3100 comes free; the
-// script exits once the server has closed. A second signal meets the
-// server's default handler, which ends it at once.
-for (const signal of ["SIGINT", "SIGTERM"])
-  process.on(signal, () => server.kill(signal));
+// script exits once the server has closed. Detached, the server no longer
+// hears the terminal, so a closed terminal (SIGHUP) or Ctrl+\ (SIGQUIT)
+// reaches it as SIGTERM, the one besides SIGINT its graceful close handles.
+// A second signal meets the server's default handler, which ends it at once.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"])
+  process.on(signal, () =>
+    server.kill(signal === "SIGINT" ? "SIGINT" : "SIGTERM"),
+  );
 server.on("exit", (code) => process.exit(code ?? 0));
