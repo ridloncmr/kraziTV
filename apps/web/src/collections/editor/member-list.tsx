@@ -3,6 +3,7 @@ import { displayCount } from "../../controls/formatting/display-count.js";
 import { displayDuration } from "../../controls/formatting/display-duration.js";
 import { withIds } from "../../controls/selection/id-selection.js";
 import { Pager } from "../../controls/pager/pager.js";
+import { holdEnter } from "../../controls/search-field/hold-enter.js";
 import { useRangeToggle } from "../../controls/selection/use-range-toggle.js";
 import type { DraftMember } from "../contracts.js";
 import { moveMembers, sortMembers } from "./member-order.js";
@@ -83,6 +84,7 @@ export function MemberList({
             setFilter(event.target.value);
             setOffset(0);
           }}
+          onKeyDown={holdEnter}
         />
       </label>
       <div className="row-actions">

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   screen,
@@ -20,6 +21,7 @@ import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelWindows } from "../../testing/channel-windows.js";
 import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
+import { pressEnter } from "../../testing/press-enter.js";
 
 afterEach(() => {
   cleanup();
@@ -1550,6 +1552,46 @@ it("toggles Add shows between collections and filtered single items, keeping pic
   within(dialog).getByRole("button", { name: "Next (1)" });
   searchFor(dialog, "Collections");
   expect(result(dialog, "Favorites").checked).toBe(true);
+});
+
+it("searches with Enter in Add shows' search, never turning to the settings page", async () => {
+  const { api } = await openLineup([], [], serveSuggestions);
+  fireEvent.click(await screen.findByRole("button", { name: "Add shows…" }));
+  const dialog = screen.getByRole("dialog", { name: "Add shows" });
+  fireEvent.click(result(dialog, "Favorites"));
+
+  pressEnter(
+    within(dialog).getByLabelText<HTMLInputElement>("Find collections"),
+  );
+  searchFor(dialog, "Single items");
+  await within(dialog).findByRole("checkbox", { name: /^Alpha / });
+  pressEnter(within(dialog).getByLabelText<HTMLInputElement>("Find media"));
+
+  // Still on the picks, with nothing sent.
+  within(dialog).getByRole("button", { name: "Next (1)" });
+  expect(within(dialog).queryByRole("button", { name: "Back" })).toBeNull();
+  expect(api.requestsTo(BATCH)).toEqual([]);
+});
+
+it("searches with Enter on a show's Contents, never saving or closing Properties", async () => {
+  const { api } = await openLineup(
+    [favoritesAssignment("chronological")],
+    [collectionWith("other", "Other")],
+    (api) =>
+      api.reply("/media-items", { items: adminFixtures.media, total: 2 }),
+  );
+  const dialog = await openProperties();
+  openTab(dialog, "Contents");
+  fireEvent.click(result(dialog, "Other"));
+
+  pressEnter(
+    within(dialog).getByLabelText<HTMLInputElement>("Find collections"),
+  );
+  await act(async () => {});
+
+  expect(patches(api)).toEqual([]);
+  expect(screen.getByRole("dialog", { name: "Favorites" })).toBe(dialog);
+  within(dialog).getByRole("tab", { name: "Contents", selected: true });
 });
 
 it("selects every pickable result from the results header, and clears them again", async () => {

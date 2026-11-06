@@ -364,6 +364,7 @@ export function SpecialEditor({
             disabled={
               previewed === undefined ||
               previewed.result.conflicts.length > 0 ||
+              previewing.pending ||
               saving.pending
             }
           >
