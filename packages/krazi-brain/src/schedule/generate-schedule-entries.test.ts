@@ -464,6 +464,44 @@ describe("generateScheduleEntries: random collections", () => {
     expect(mediaIds(second.entries)).not.toEqual(mediaIds(first.entries));
   });
 
+  it("starts a new, repeatable order after each progress reset", () => {
+    const picks = (resetCount: number) =>
+      mediaIds(
+        generated(
+          generate(random(members), {
+            progress: { ...NO_PROGRESS, resetCount },
+            ...twentyEntries,
+          }),
+        ).entries,
+      );
+
+    // A count of 0 is the order the pinned selections above record.
+    expect(picks(0)).toEqual(
+      "e e d e e b d e d d b a a a a a d e e a".split(" "),
+    );
+    const reshuffled = picks(1);
+    expect(reshuffled).not.toEqual(picks(0));
+    expect(picks(2)).not.toEqual(reshuffled);
+    expect(picks(2)).not.toEqual(picks(0));
+    // A second run with the same inputs gives the same new order.
+    expect(picks(1)).toEqual(reshuffled);
+  });
+
+  it("keeps the reset count in the progress it returns", () => {
+    const result = generated(
+      generate(random(members), {
+        progress: { ...NO_PROGRESS, resetCount: 3, nextSelectionIndex: 5 },
+        through: STARTS_AT + 2 * 60_000,
+      }),
+    );
+
+    expect(result.progress).toEqual({
+      ...NO_PROGRESS,
+      resetCount: 3,
+      nextSelectionIndex: 7,
+    });
+  });
+
   it("resumes exactly across chunks", () => {
     const through = STARTS_AT + 2 * HOUR_MS;
 

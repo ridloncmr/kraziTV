@@ -67,7 +67,7 @@ function nextAiring(
   if (playbackMode === "random") {
     const selection = selectRandom(
       members,
-      deriveCollectionSeed(channelSeed, mediaCollectionId),
+      deriveCollectionSeed(channelSeed, mediaCollectionId, progress.resetCount),
       progress.nextSelectionIndex,
     );
     return {

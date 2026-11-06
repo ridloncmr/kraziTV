@@ -39,7 +39,12 @@ export async function loadProgress(
   for (const { mediaCollectionId, playbackMode } of scopes) {
     const row = await trx
       .selectFrom("channel_collection_progress")
-      .select(["last_media_item_id", "last_position", "next_selection_index"])
+      .select([
+        "last_media_item_id",
+        "last_position",
+        "next_selection_index",
+        "reset_count",
+      ])
       .where("channel_id", "=", channelId)
       .where("media_collection_id", "=", mediaCollectionId)
       .where("playback_mode", "=", playbackMode)
@@ -52,6 +57,7 @@ export async function loadProgress(
         lastMediaItemId: row.last_media_item_id,
         lastPosition: row.last_position,
         nextSelectionIndex: row.next_selection_index,
+        resetCount: row.reset_count,
       },
     });
   }
@@ -110,7 +116,7 @@ export async function readRestoredProgress(
     if (latest !== undefined) kept.push(latest);
     const reset = await trx
       .selectFrom("channel_collection_progress")
-      .select("reset_sequence_number")
+      .select(["reset_sequence_number", "reset_count"])
       .where("channel_id", "=", channelId)
       .where("media_collection_id", "=", mediaCollectionId)
       .where("playback_mode", "=", playbackMode)
@@ -120,6 +126,7 @@ export async function readRestoredProgress(
         mediaCollectionId,
         playbackMode,
         resetSequenceNumber: reset.reset_sequence_number,
+        resetCount: reset.reset_count,
       });
     }
   }
@@ -128,7 +135,8 @@ export async function readRestoredProgress(
 
 /**
  * Records the channel's progress through a collection in one playback mode,
- * creating the row on first use. Never touches the reset marker.
+ * creating the row on first use. Never touches the reset marker or count,
+ * which only a reset changes.
  */
 export async function upsertProgress(
   trx: Executor,
@@ -150,8 +158,9 @@ export async function upsertProgress(
 
 /**
  * Starts a channel's progress through a collection in one mode over from
- * the beginning, keeping random's seed, and marks the first entry generated
- * afterwards so restoration never returns to pre-reset progress.
+ * the beginning, counting the reset so random's seed gives a new order,
+ * and marks the first entry generated afterwards so restoration never
+ * returns to pre-reset progress.
  */
 export async function resetProgress(
   trx: Executor,
@@ -159,6 +168,13 @@ export async function resetProgress(
   resetSequenceNumber: number,
   now: number,
 ): Promise<void> {
+  const current = await trx
+    .selectFrom("channel_collection_progress")
+    .select("reset_count")
+    .where("channel_id", "=", scope.channelId)
+    .where("media_collection_id", "=", scope.mediaCollectionId)
+    .where("playback_mode", "=", scope.playbackMode)
+    .executeTakeFirst();
   await upsertProgressColumns(
     trx,
     scope,
@@ -167,6 +183,7 @@ export async function resetProgress(
       last_position: NO_PROGRESS.lastPosition,
       next_selection_index: NO_PROGRESS.nextSelectionIndex,
       reset_sequence_number: resetSequenceNumber,
+      reset_count: (current?.reset_count ?? NO_PROGRESS.resetCount) + 1,
     },
     now,
   );
@@ -203,6 +220,7 @@ async function upsertProgressColumns(
       | "last_position"
       | "next_selection_index"
       | "reset_sequence_number"
+      | "reset_count"
       | "order_fingerprint"
     >
   >,

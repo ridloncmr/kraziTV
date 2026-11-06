@@ -272,6 +272,7 @@ describe("generateProgramming: reservations", () => {
         lastMediaItemId: "special3",
         lastPosition: 2,
         nextSelectionIndex: 0,
+        resetCount: 0,
       },
     });
   });

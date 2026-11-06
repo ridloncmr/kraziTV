@@ -905,16 +905,55 @@ describe("progress reset", () => {
     ]);
   });
 
-  it("restarts random's selection index and keeps its seed", async () => {
+  it("restarts random's selection index in a new order, which regeneration keeps", async () => {
     const { server, db } = await airingSecondEntry("random");
-    const before = await airings(db);
+    // The first ten picks from T0, before any reshuffle.
+    const before = (await airings(db)).slice(0, 10);
 
     await send(server, "POST", RESET_URL, RESET_BODY);
 
-    const after = await airings(db);
-    // Selection index 0 picks what it picked at T0, from the same seed.
-    expect(after[2]).toEqual(before[0]);
-    expect(after.slice(2, 5).map(([, index]) => index)).toEqual([0, 1, 2]);
+    // The ten picks after the airing entry, from selection index 0 again.
+    const reshuffled = (await airings(db)).slice(2, 12);
+    expect(reshuffled.map(([, index]) => index)).toEqual(
+      before.map(([, index]) => index),
+    );
+    expect(reshuffled.map(([item]) => item)).not.toEqual(
+      before.map(([item]) => item),
+    );
+    const regenerated = await send(
+      server,
+      "POST",
+      `/channels/${CHANNEL_ID}/schedule/generate`,
+      { regenerate: true },
+    );
+    expect(regenerated.status).toBe(200);
+    expect((await airings(db)).slice(2, 12)).toEqual(reshuffled);
+    await expect(
+      db
+        .selectFrom("channel_collection_progress")
+        .select("reset_count")
+        .where("playback_mode", "=", "random")
+        .executeTakeFirst(),
+    ).resolves.toEqual({ reset_count: 1 });
+  });
+
+  it("never returns to an earlier random order on a second reshuffle", async () => {
+    const { server, db } = await airingSecondEntry("random");
+    const original = (await airings(db)).slice(0, 10);
+    await send(server, "POST", RESET_URL, RESET_BODY);
+    const first = (await airings(db)).slice(2, 12);
+
+    await send(server, "POST", RESET_URL, RESET_BODY);
+
+    const second = (await airings(db)).slice(2, 12);
+    expect(second.map(([, index]) => index)).toEqual(
+      first.map(([, index]) => index),
+    );
+    for (const earlier of [original, first]) {
+      expect(second.map(([item]) => item)).not.toEqual(
+        earlier.map(([item]) => item),
+      );
+    }
   });
 
   it("leaves other collections and modes untouched", async () => {
