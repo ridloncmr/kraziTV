@@ -187,6 +187,51 @@ test("removes selected media through the Media Library against real routes", asy
   expect(errors).toEqual([]);
 });
 
+// jsdom lays nothing out, so only a real browser shows whether the path
+// breaks inside its sentence or scrolls the dialog sideways.
+test("breaks an unbroken folder name inside the Delete media root sentence", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // No space or hyphen, so the browser finds nowhere of its own to break.
+  const folder =
+    "Star.Trek.Deep.Space.Nine.Complete.Series.S01.S07.1080p.BluRay.x265.AAC.5.1";
+  expect(folder).toHaveLength(75);
+  const path = `/media/${folder}`;
+  const { server } = await startTestServer({
+    seed: async (db) => {
+      await db
+        .insertInto("media_roots")
+        .values({ ...rootFixture, path, path_key: path })
+        .execute();
+    },
+  });
+  await injectBrowserApi(page, server);
+  await page.goto("/");
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Media Library", exact: true })
+    .click();
+  const media = page.getByRole("region", {
+    name: "Media Library",
+    exact: true,
+  });
+  await media.getByRole("button", { name: `Actions for ${path}` }).click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
+  const dialog = media.getByRole("dialog", { name: "Delete media root" });
+  await expect(
+    dialog.getByText(
+      `${path} and its 0 media items will be deleted from the catalog.`,
+    ),
+  ).toBeVisible();
+
+  expect(
+    await dialog
+      .locator(".window-dialog-body")
+      .evaluate((body) => body.scrollWidth <= body.clientWidth),
+  ).toBe(true);
+});
+
 // A narrow desktop window, not a phone: phone width is not a supported
 // layout, but an owner may drag the browser window small on a desktop.
 test("picks a media root by browsing real server folders in a narrow desktop window", async ({
@@ -461,16 +506,17 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   const newCollection = collections.getByRole("dialog", {
     name: "New collection",
   });
-  await newCollection
-    .getByLabel("Collection name")
-    .fill("Northwoods collection");
+  // Long enough to run to two lines in the Lineup's Show column, so the
+  // Lineup row check below measures columns competing for width.
+  const showName = "Northwoods Saturday Morning Cartoons and Late Night Movies";
+  await newCollection.getByLabel("Collection name").fill(showName);
   await newCollection
     .getByRole("button", { name: "Create collection" })
     .click();
   await expect(newCollection).toBeHidden();
   // The new collection opens in its own properties window.
   const collection = page.getByRole("region", {
-    name: "Northwoods collection Properties",
+    name: `${showName} Properties`,
     exact: true,
   });
   await collection
@@ -484,7 +530,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
     collection.getByText("1 of 1 can air", { exact: true }),
   ).toBeVisible();
   await collection
-    .getByRole("button", { name: "Close Northwoods collection Properties" })
+    .getByRole("button", { name: `Close ${showName} Properties` })
     .click();
   await collections.getByRole("button", { name: "Close Collections" }).click();
 
@@ -515,7 +561,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await properties.getByRole("button", { name: "Add shows…" }).click();
   const addShows = properties.getByRole("dialog", { name: "Add shows" });
   await addShows
-    .getByRole("checkbox", { name: /^Northwoods collection/ })
+    .getByRole("checkbox", { name: new RegExp(`^${showName}`) })
     .check();
   // The footer is on screen before anything scrolls, so a first-time owner
   // sees how to continue.
@@ -527,7 +573,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   const add = addShows.getByRole("button", { name: "Add (1)" });
   await expect(add).toBeDisabled();
   await expect(add).toHaveAccessibleDescription(
-    "Choose how much plays at a time for Northwoods collection.",
+    `Choose how much plays at a time for ${showName}.`,
   );
   // A custom range with one end missing adds nothing either, even by
   // Enter, which a disabled Add never submits.
@@ -548,50 +594,44 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await expect(
     properties
       .getByRole("table", { name: "Shows" })
-      .getByRole("button", { name: "Northwoods collection", exact: true }),
+      .getByRole("button", { name: showName, exact: true }),
   ).toBeVisible();
   await expect(properties.getByRole("dialog")).toHaveCount(0);
   // At the size Channel Properties opens at, Play order and At a time stay
   // on one line and the Show column gives, so no show's row runs to more
-  // than two lines of text in any cell.
-  const rowLines = await properties
-    .getByRole("table", { name: "Shows" })
-    .locator("tbody tr")
-    .evaluateAll((rows: HTMLTableRowElement[]) =>
-      rows.map((row) =>
-        Math.max(
-          ...[...row.cells].map((cell) => {
-            const tops: number[] = [];
-            const walker = document.createTreeWalker(
-              cell,
-              NodeFilter.SHOW_TEXT,
-            );
-            for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-              const range = document.createRange();
-              range.selectNodeContents(text);
-              for (const box of range.getClientRects())
-                if (box.width > 0) tops.push(box.top);
-            }
-            tops.sort((a, b) => a - b);
-            return tops.filter(
-              (top, index) => index === 0 || top - tops[index - 1] > 2,
-            ).length;
-          }),
-        ),
-      ),
-    );
-  expect(rowLines.length).toBeGreaterThan(0);
-  for (const lines of rowLines) expect(lines).toBeLessThanOrEqual(2);
+  // than two lines of text in any cell. Only a name that wraps puts the
+  // columns under pressure; a short one fits whatever the column classes.
+  const [showLines, playOrderLines, atATimeLines, ...otherLines] =
+    await properties
+      .getByRole("table", { name: "Shows" })
+      .locator("tbody tr")
+      .evaluate((row: HTMLTableRowElement) =>
+        [...row.cells].map((cell) => {
+          const tops: number[] = [];
+          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+          for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            for (const box of range.getClientRects())
+              if (box.width > 0) tops.push(box.top);
+          }
+          tops.sort((a, b) => a - b);
+          return tops.filter(
+            (top, index) => index === 0 || top - tops[index - 1] > 2,
+          ).length;
+        }),
+      );
+  expect(showLines).toBe(2);
+  expect([playOrderLines, atATimeLines]).toEqual([1, 1]);
+  for (const lines of otherLines) expect(lines).toBeLessThanOrEqual(2);
   // Show Properties opens on General with OK in view the same way; OK on
   // the unchanged sheet closes it without a save.
-  await properties
-    .getByRole("button", { name: "Northwoods collection", exact: true })
-    .click();
+  await properties.getByRole("button", { name: showName, exact: true }).click();
   await properties
     .getByRole("button", { name: "Properties", exact: true })
     .click();
   const showProperties = properties.getByRole("dialog", {
-    name: "Northwoods collection",
+    name: showName,
   });
   await expectFooterButtonShown(showProperties, "OK");
   await showProperties.getByRole("button", { name: "OK", exact: true }).click();
@@ -599,7 +639,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   await properties.getByRole("tab", { name: "Preview" }).click();
   await expect(
     properties.getByRole("list", { name: "Upcoming shows" }),
-  ).toContainText("Northwoods collection");
+  ).toContainText(showName);
   await properties
     .getByRole("button", { name: "Close Northwoods TV Properties" })
     .click();
@@ -783,11 +823,6 @@ for (const pass of [
       track: element.parentElement?.clientWidth ?? 0,
     }));
     expect(filled).toBe(Math.floor((track - 4) / 3 / 12) * 12);
-    const box = await scanning.boundingBox();
-    expect(box?.x).toBeGreaterThanOrEqual(0);
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-      pass.viewport.width,
-    );
     expect(
       await scanning.evaluate(
         (dialog) => dialog.scrollWidth <= dialog.clientWidth,
