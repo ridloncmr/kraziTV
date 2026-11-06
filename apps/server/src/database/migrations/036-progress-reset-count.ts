@@ -3,9 +3,9 @@ import type { Migration } from "kysely/migration";
 
 export const progressResetCountMigration: Migration = {
   // Counts each progress reset, which random's seed derives from, so a
-  // reshuffle starts a new order (release-polish decision 19). Existing
-  // progress starts at 0, which keeps the seed it had, so upgrading
-  // reorders no channel until its owner reshuffles.
+  // random progress reset starts a new order (release-polish decision 19).
+  // Existing progress starts at 0, which keeps the seed it had, so upgrading
+  // reorders no channel until its owner resets its progress.
   async up(db: Kysely<unknown>): Promise<void> {
     await sql`alter table channel_collection_progress
       add column reset_count integer not null default 0
