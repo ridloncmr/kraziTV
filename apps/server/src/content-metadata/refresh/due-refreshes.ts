@@ -5,6 +5,7 @@ import {
   type EpisodeLookup,
   type MovieLookup,
   type TmdbClient,
+  type TmdbLookupFailure,
 } from "@krazitv/media";
 import type { Kysely } from "kysely";
 
@@ -28,10 +29,10 @@ interface DueRefresh {
 /** A due item with what TMDB answered for it now. */
 export interface RefreshAnswer {
   due: DueRefresh;
-  lookup: Extract<MovieLookup | EpisodeLookup, { kind: "matched" }> | Failure;
+  lookup:
+    | Extract<MovieLookup | EpisodeLookup, { kind: "matched" }>
+    | TmdbLookupFailure;
 }
-
-type Failure = { kind: "failed"; message: string };
 
 /**
  * Reads every matched, cataloged item under an enabled root whose TMDB facts
@@ -153,9 +154,11 @@ export async function lookUpDue(
   return answers;
 }
 
-// Why an episode with no stored season or episode cannot be refreshed.
-const NO_PLACE: Failure = {
+// Why an episode with no stored season or episode cannot be refreshed: an
+// answer kraziTV cannot use, never the owner's key to fix.
+const NO_PLACE: TmdbLookupFailure = {
   kind: "failed",
+  reason: "unreadable",
   message: "kraziTV has no season and episode to look up",
 };
 
@@ -168,5 +171,9 @@ const NO_PLACE: Failure = {
  */
 function settled(lookup: MovieLookup | EpisodeLookup): RefreshAnswer["lookup"] {
   if (lookup.kind === "matched" || lookup.kind === "failed") return lookup;
-  return { kind: "failed", message: "TMDB no longer lists this title" };
+  return {
+    kind: "failed",
+    reason: "unreadable",
+    message: "TMDB no longer lists this title",
+  };
 }

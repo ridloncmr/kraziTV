@@ -1,5 +1,6 @@
 import { fromNullableSqliteBoolean } from "../database/columns/sqlite-boolean.js";
 import type { MetadataMatchTable } from "../database/schema/metadata-match-table.js";
+import type { MetadataProviderRefTable } from "../database/schema/metadata-provider-ref-table.js";
 import type {
   ContentIdentity,
   ContentMetadata,
@@ -37,6 +38,7 @@ export const METADATA_COLUMNS = [
   "content_facts.franchise_tmdb_id",
   "metadata_provider_refs.fetched_at",
   "metadata_provider_refs.refresh_error",
+  "metadata_provider_refs.refresh_error_kind",
   "metadata_provider_refs.expired_at",
   "metadata_corrections.title as corrected_title",
   "metadata_corrections.series_name as corrected_series_name",
@@ -69,6 +71,7 @@ export interface MetadataColumns {
   franchise_tmdb_id: number | null;
   fetched_at: number | null;
   refresh_error: string | null;
+  refresh_error_kind: MetadataProviderRefTable["refresh_error_kind"];
   expired_at: number | null;
   corrected_title: string | null;
   corrected_series_name: string | null;
@@ -127,6 +130,7 @@ export function effectiveMetadata(
     posterPath: row.poster_path,
     refreshedAt: row.fetched_at,
     refreshError: row.refresh_error,
+    refreshErrorKind: row.refresh_error_kind,
     tmdbDataExpired: row.expired_at !== null,
     tags: row.tags === null ? [] : (JSON.parse(row.tags) as string[]),
     correctedFields: corrected.flatMap(([field, value]) =>

@@ -2,6 +2,7 @@
 import { createElement } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { pressKey } from "../../testing/press-key.js";
 import { RowMenu } from "./row-menu.js";
 
 afterEach(cleanup);
@@ -50,6 +51,31 @@ it("moves among enabled commands with the arrow keys, skipping a disabled one", 
   expect(document.activeElement?.textContent).toBe("Enable");
   fireEvent.keyDown(menu, { key: "ArrowUp" });
   expect(document.activeElement?.textContent).toBe("Delete…");
+});
+
+it("jumps to the first and last enabled commands with Home and End, never onto a disabled one", () => {
+  render(
+    createElement(RowMenu, {
+      label: "Actions for /media",
+      items: [
+        { label: "Enable", onSelect: vi.fn() },
+        { label: "Rename", onSelect: vi.fn() },
+        { label: "Delete…", onSelect: vi.fn() },
+        { label: "Scan", disabled: true, onSelect: vi.fn() },
+      ],
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Actions for /media" }));
+
+  pressKey("ArrowDown");
+  expect(document.activeElement?.textContent).toBe("Rename");
+  pressKey("End");
+  expect(document.activeElement?.textContent).toBe("Delete…");
+  pressKey("Home");
+  expect(document.activeElement?.textContent).toBe("Enable");
+  pressKey("End");
+  pressKey("ArrowDown");
+  expect(document.activeElement?.textContent).toBe("Enable");
 });
 
 it("closes on Escape with focus back on the trigger, and on a press outside", () => {

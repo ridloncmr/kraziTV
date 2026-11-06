@@ -96,7 +96,8 @@ export class TrackMappingService {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
     const found = await this.#tmdb.searchSeries(apiKey, { title: query });
-    if (found.kind === "failed") return lookupFailed(found);
+    if (found.kind === "failed")
+      return { kind: "lookup_failed", failure: found };
     return { candidates: found.value.map(matchCandidateOf) };
   }
 
@@ -116,7 +117,8 @@ export class TrackMappingService {
     if ("kind" in read) return read;
     const { apiKey, folder } = read;
     const series = await this.#tmdb.seriesDetails(apiKey, tmdbSeriesId);
-    if (series.kind === "failed") return lookupFailed(series);
+    if (series.kind === "failed")
+      return { kind: "lookup_failed", failure: series };
     if (!series.value.seasons.some((listed) => listed.number === season)) {
       return { kind: "season_not_in_series" };
     }
@@ -125,7 +127,8 @@ export class TrackMappingService {
       tmdbSeriesId,
       season,
     );
-    if (fetched.kind === "failed") return lookupFailed(fetched);
+    if (fetched.kind === "failed")
+      return { kind: "lookup_failed", failure: fetched };
     const episodes = fetched.value.episodes.map((episode) => ({
       number: episode.number,
       title: episode.title ?? null,
@@ -195,7 +198,8 @@ export class TrackMappingService {
             }),
           );
     const failed = lookups.find((lookup) => lookup.kind === "failed");
-    if (failed?.kind === "failed") return lookupFailed(failed);
+    if (failed?.kind === "failed")
+      return { kind: "lookup_failed", failure: failed };
     // A track maps only to an episode the season lists, since the owner
     // picked it from that list.
     if (
@@ -300,9 +304,4 @@ function correctionOf(record: MetadataMatchRecord) {
     seasonNumber: lookup.season,
     episodeNumber: lookup.episode.first,
   };
-}
-
-// A TMDB read that failed, as the refusal the routes answer for it.
-function lookupFailed({ message }: { message: string }): MetadataRefusal {
-  return { kind: "lookup_failed", message };
 }

@@ -303,14 +303,8 @@
     {
       "rule": "nesting-depth",
       "files": ["apps/web/src/channels/lineup/picks/"],
-      "reason": "lineup/ has eight source files, so the next one makes it meet the grouping rule; picks/ (the selected-picks list, show labels, and the shows the Add shows dialog makes from its picks) is that grouping made one file early, so new picking code lands in a capability rather than a flat folder past its limit.",
+      "reason": "lineup/ holds nine source files today: six at its root (the Lineup tab, the Add shows dialog, the show Properties dialog, the Marathons control, the show draft, and the member names hook) and three in picks/ (the selected-picks list, show labels, and the shows the Add shows dialog makes from its picks). Nine is past the flat limit of eight, so lineup/ meets the grouping rule and picks/ is the capability that grouping makes.",
       "source": "docs/specs/features/004-release-polish/README.md (decision 11: \"channels/lineup/ is pre-split now: the picks files move into lineup/picks/\"); AGENTS.md (source layout: \"Nest further only when a capability itself meets the grouping rule above\")"
-    },
-    {
-      "rule": "grouping",
-      "files": ["apps/web/src/tv/"],
-      "reason": "Every file serves one desktop program, TV: its app, the broadcast player that plays a channel's signal through mpegts.js, the channel dial that picks which channel shows, the screen message over the picture, and the memory of what this browser last watched.",
-      "source": "AGENTS.md (source layout: group only \"more than four source files spanning more than one capability, or more than eight source files in total\")"
     }
   ]
 }

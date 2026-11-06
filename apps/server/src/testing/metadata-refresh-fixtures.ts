@@ -110,6 +110,7 @@ export async function stored({ db }: Library, id: string) {
       "metadata_provider_refs.external_id",
       "metadata_provider_refs.fetched_at",
       "metadata_provider_refs.refresh_error",
+      "metadata_provider_refs.refresh_error_kind",
       "metadata_provider_refs.expired_at",
     ])
     .where("media_items.id", "=", id)

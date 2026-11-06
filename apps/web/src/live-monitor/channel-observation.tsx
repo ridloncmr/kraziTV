@@ -9,8 +9,8 @@ import type { ProgramId } from "../desktop/contracts.js";
 import { resourcePath } from "../http/api-client.js";
 import type { Channel, ChannelState } from "../http/contracts/channels.js";
 import { useResource } from "../http/resources/use-resource.js";
-import { startingChannel } from "../tv/channel-dial.js";
-import { readTvMemory, rememberTv } from "../tv/tv-memory.js";
+import { startingChannel } from "../channel-tuning/channel-dial.js";
+import { readTvMemory, rememberTv } from "../channel-tuning/tv-memory.js";
 import {
   airingLabel,
   offAirWords,

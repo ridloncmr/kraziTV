@@ -24,7 +24,9 @@ export const LOOKUP_FAILED_LABEL = "Lookup failed";
  * cannot change what the owner is told to do. A rejected key is the owner's
  * to fix, so the sentence says where; anything else, TMDB unreachable, an
  * HTTP answer, or a reply kraziTV could not read, is kraziTV's to retry, as
- * is a failure with no kind: one stored before migration 035, or a refresh's.
+ * is a failure with no kind: a lookup's stored before migration 035, or a
+ * refresh's stored before migration 037. Refusals of a match decision for a
+ * rejected key read the same sentence.
  */
 export function tmdbFailureWords(
   kind: ContentMetadata["lookupErrorKind"],

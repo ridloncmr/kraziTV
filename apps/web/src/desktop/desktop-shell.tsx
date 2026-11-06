@@ -10,7 +10,7 @@ import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
 import type { WatchRequest } from "../tv/tv-app.js";
-import { navigateWithArrows } from "./arrow-navigation.js";
+import { navigateWithArrows } from "../controls/arrow-navigation/arrow-navigation.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
 import { Taskbar } from "./chrome/taskbar.js";
 import type {

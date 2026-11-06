@@ -1,12 +1,14 @@
 import type { KeyboardEvent } from "react";
 
 /**
- * Moves focus among the buttons of `columns` with the arrow keys, as XP's
- * Start menu and desktop did: Up and Down wrap within the focused column,
- * Home and End jump to its first and last entries, and Left and Right keep
- * the row in the next column, or its last entry when that column is
- * shorter. Focus outside every column, and every other key, keep their
- * meaning. Start passes its two columns; the desktop is one.
+ * Moves focus among the enabled buttons of `columns` with the arrow keys, as
+ * XP's Start menu, desktop, and context menus did: Up and Down wrap within
+ * the focused column, Home and End jump to its first and last entries, and
+ * Left and Right keep the row in the next column, or its last entry when
+ * that column is shorter. A disabled button cannot take focus, so it is
+ * never an entry. Focus outside every column, and every other key, keep
+ * their meaning. Start passes its two columns; the desktop and a row menu
+ * are one.
  */
 export function navigateWithArrows(
   event: KeyboardEvent<HTMLElement>,
@@ -16,7 +18,7 @@ export function navigateWithArrows(
   const column = columns.find((group) => group.contains(focused));
   if (!column) return;
   const buttons = (group: Element) => [
-    ...group.querySelectorAll<HTMLButtonElement>("button"),
+    ...group.querySelectorAll<HTMLButtonElement>("button:enabled"),
   ];
   const entries = buttons(column);
   const at = entries.indexOf(focused as HTMLButtonElement);

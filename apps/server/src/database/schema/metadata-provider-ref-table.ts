@@ -1,3 +1,5 @@
+import type { LookupErrorKind } from "./metadata-match-table.js";
+
 /** The provider record a media item's facts came from, and when they were fetched. */
 export interface MetadataProviderRefTable {
   media_item_id: string;
@@ -9,6 +11,8 @@ export interface MetadataProviderRefTable {
   fetched_at: number;
   /** Why the last background refresh failed; null after one that answered. */
   refresh_error: string | null;
+  /** The refresh failure's kind; null without a failure and for failures stored before migration 037. */
+  refresh_error_kind: LookupErrorKind | null;
   /** When expired provider facts were dropped; null while they are current. */
   expired_at: number | null;
 }

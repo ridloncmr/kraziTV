@@ -119,6 +119,7 @@ describe("MetadataRefreshService", () => {
     await expect(stored(library, library.episode)).resolves.toEqual({
       ...before,
       refresh_error: expect.any(String),
+      refresh_error_kind: "unreachable",
     });
     // A failed refresh changed no fact, so it asks for no pass.
     expect(library.collections.requests).toBe(0);
@@ -138,6 +139,7 @@ describe("MetadataRefreshService", () => {
       genres: "[]",
       poster_path: null,
       refresh_error: expect.any(String),
+      refresh_error_kind: "unreachable",
       expired_at: clock.now(),
     });
     expect(library.collections.requests).toBe(1);
@@ -158,7 +160,29 @@ describe("MetadataRefreshService", () => {
       series_name: "Firefly",
       fetched_at: clock.now(),
       refresh_error: null,
+      refresh_error_kind: null,
       expired_at: null,
+    });
+  });
+
+  it("records a refresh TMDB refuses for a rejected key as the key_rejected kind, which the item exposes", async () => {
+    const library = await trackedLibrary();
+    const { db, tmdb, clock, refresh } = library;
+    tmdb.validKeys.clear();
+    clock.advance(150 * DAY_MS);
+
+    await refresh.refreshDue();
+
+    await expect(stored(library, library.alien)).resolves.toMatchObject({
+      state: "matched",
+      title: "Alien",
+      refresh_error: "TMDB rejected the key",
+      refresh_error_kind: "key_rejected",
+    });
+    const item = await new MediaItemRepository(db).findById(library.alien);
+    expect(item?.metadata).toMatchObject({
+      refreshError: "TMDB rejected the key",
+      refreshErrorKind: "key_rejected",
     });
   });
 
@@ -177,6 +201,7 @@ describe("MetadataRefreshService", () => {
       state: "matched",
       title: "Alien",
       refresh_error: "TMDB answered HTTP 404",
+      refresh_error_kind: "http",
       expired_at: null,
     });
   });

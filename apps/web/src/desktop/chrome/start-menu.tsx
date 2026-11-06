@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { AccountPicture } from "../../branding/avatars/account-picture.js";
 import { DesktopProgramIcon } from "../../branding/icons/desktop-program-icon.js";
 import { SourceCodeLink } from "../../branding/attribution/source-code-link.js";
-import { navigateWithArrows } from "../arrow-navigation.js";
+import { navigateWithArrows } from "../../controls/arrow-navigation/arrow-navigation.js";
 import type { ProgramId } from "../contracts.js";
 import { programs } from "../programs.js";
 

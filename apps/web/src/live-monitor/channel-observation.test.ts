@@ -11,7 +11,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { UNREACHABLE_SENTENCE } from "../http/api-client.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { rememberTv } from "../tv/tv-memory.js";
+import { rememberTv } from "../channel-tuning/tv-memory.js";
 import { ChannelObservation } from "./channel-observation.js";
 
 afterEach(() => {

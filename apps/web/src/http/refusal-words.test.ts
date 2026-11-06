@@ -157,6 +157,10 @@ it("words the refusals one code explains in the screens' words, never the server
       }),
     ),
   ).toBe("Another show on this channel already plays that.");
+  // A rejected TMDB key reads as Media details reads a failure of that kind.
+  expect(refusalWords(new ApiError("tmdb_key_rejected", "for logs", 409))).toBe(
+    "TMDB rejected the key. Check it in Account Settings.",
+  );
 });
 
 it("words a rule's stretch refusals by the problem's kind, naming the rule by name", () => {

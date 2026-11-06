@@ -2,7 +2,7 @@
 import { join, resolve } from "node:path";
 
 import { TmdbClient, type MediaProber } from "@krazitv/media";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import type { Kysely } from "kysely";
 import { expect, vi } from "vitest";
 
@@ -71,11 +71,15 @@ export async function setupEnrichmentScan(options: SetupOptions) {
  * Boots the real server composition with the enrichment scanner, and match
  * choices and track mappings asking the same scripted TMDB, so route tests
  * scan real decisions. Each asks the server's real collection maintenance,
- * the one the server stops, for its passes.
+ * the one the server stops, for its passes. A `logger` lets a test read
+ * what the routes log; the server is silent without one.
  */
-export async function startEnrichmentServer(options: SetupOptions) {
+export async function startEnrichmentServer(
+  options: SetupOptions & { logger?: FastifyServerOptions["logger"] },
+) {
   const { tmdb, client } = scriptedTmdb();
   const { server, db, dependencies } = await startTestServer({
+    logger: options.logger,
     seed: (db) => seedEnrichment(db, options.key ?? true),
     overrides: (db, { collectionMaintenance: collections }) => {
       const tmdbKeys = new TmdbKeyService(db, client);

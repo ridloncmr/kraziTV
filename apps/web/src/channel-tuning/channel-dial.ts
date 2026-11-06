@@ -1,10 +1,10 @@
 import type { Channel } from "../http/contracts/channels.js";
 
 /**
- * The channel the TV shows: the first of `preferredIds` still enabled, such
- * as the one asked for, then the one on screen, otherwise the first enabled
- * channel in lineup order. A disabled channel broadcasts nothing, so the TV
- * never tunes one.
+ * The channel the TV, or Live Monitor, shows: the first of `preferredIds`
+ * still enabled, such as the one asked for, then the one on screen,
+ * otherwise the first enabled channel in lineup order. A disabled channel
+ * broadcasts nothing, so neither ever tunes one.
  */
 export function startingChannel(
   channels: readonly Channel[],
