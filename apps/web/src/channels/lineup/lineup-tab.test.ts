@@ -872,14 +872,17 @@ it("offers a Random show's reset as a reshuffle that says what it does", async (
   ).toBeNull();
   const dialog = screen.getByRole("dialog", { name: "Reshuffle" });
   expect(dialog.textContent).toContain(
-    "Start Favorites's random picks over on this channel? What is airing now finishes; the schedule after it is rebuilt.",
+    "Reshuffle Favorites on this channel? Its random picks start over in a new order. What is airing now finishes; the schedule after it is rebuilt.",
   );
   expect(dialog.textContent).not.toMatch(/beginning|in random/i);
+  // No sentence builds a possessive from the show's name.
+  expect(dialog.textContent).not.toMatch(/'s\b/);
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Reshuffle" }));
   await within(dialog).findByText(
-    /Favorites's random picks start over after what is airing now/,
+    "Favorites plays in a new random order after what is airing now. Upcoming selections:",
   );
+  expect(dialog.textContent).not.toMatch(/'s\b/);
   await waitFor(() =>
     expect(
       within(dialog).getByRole("list", { name: "Upcoming selections" })

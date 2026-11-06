@@ -13,8 +13,11 @@ import { UpcomingSelections } from "./programming-preview.js";
  * Confirms restarting a channel's progress through one assigned collection
  * in its playback mode, then shows the selections the regenerated schedule
  * airs next. A random order has no beginning to go back to, so there the
- * reset is worded as a reshuffle: its picks start over. The dialog owns its
- * request, so a refusal stays beside the confirmation.
+ * reset is worded as a reshuffle: its picks start over in a new order, as
+ * the server's reset gives the collection a new random seed. No sentence
+ * builds a possessive from the name, which reads wrongly for names ending
+ * in "s". The dialog owns its request, so a refusal stays beside the
+ * confirmation.
  */
 export function ProgressResetDialog({
   path,
@@ -57,7 +60,7 @@ export function ProgressResetDialog({
         <>
           <p>
             {random
-              ? `${collectionName}'s random picks start over after what is airing now.`
+              ? `${collectionName} plays in a new random order after what is airing now.`
               : `${collectionName} restarts in ${modeWords} after what is airing now.`}{" "}
             Upcoming selections:
           </p>
@@ -76,9 +79,9 @@ export function ProgressResetDialog({
         <>
           {random ? (
             <p>
-              Start <strong>{collectionName}</strong>&apos;s random picks over
-              on this channel? What is airing now finishes; the schedule after
-              it is rebuilt.
+              Reshuffle <strong>{collectionName}</strong> on this channel? Its
+              random picks start over in a new order. What is airing now
+              finishes; the schedule after it is rebuilt.
             </p>
           ) : (
             <p>
