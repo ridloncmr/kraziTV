@@ -214,6 +214,53 @@ it("tells the owner to check the key when a refresh failed on a rejected key", a
   expect(dialog.queryByText(/could not be reached/)).toBeNull();
 });
 
+it("says expired data refreshes once TMDB accepts the key when its refresh failed on a rejected key", async () => {
+  const rejected = {
+    ...ALIEN,
+    metadata: {
+      ...ALIEN.metadata,
+      refreshError: "TMDB rejected the key",
+      refreshErrorKind: "key_rejected" as const,
+      tmdbDataExpired: true,
+    },
+  };
+  await showCatalog([rejected]);
+
+  const dialog = within(openDetails("Alien (1979)"));
+
+  expect(
+    dialog.getByText(
+      "TMDB data expired. It will refresh once TMDB accepts the key in Account Settings.",
+    ),
+  ).toBeTruthy();
+  expect(dialog.queryByText(/when TMDB is reachable/)).toBeNull();
+});
+
+it.each(["unreachable", "http", "unreadable", null] as const)(
+  "says expired data refreshes when TMDB is reachable when its refresh failed of kind %s",
+  async (refreshErrorKind) => {
+    const expired = {
+      ...ALIEN,
+      metadata: {
+        ...ALIEN.metadata,
+        refreshError: refreshErrorKind && "TMDB answered HTTP 500",
+        refreshErrorKind,
+        tmdbDataExpired: true,
+      },
+    };
+    await showCatalog([expired]);
+
+    const dialog = within(openDetails("Alien (1979)"));
+
+    expect(
+      dialog.getByText(
+        "TMDB data expired. It will refresh when TMDB is reachable.",
+      ),
+    ).toBeTruthy();
+    expect(dialog.queryByText(/accepts the key/)).toBeNull();
+  },
+);
+
 it("says when a matched item's TMDB data was last refreshed", async () => {
   await showCatalog([ALIEN]);
 
