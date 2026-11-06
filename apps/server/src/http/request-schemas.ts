@@ -46,13 +46,23 @@ export const nameField = z.string().trim().min(1, "name must not be empty");
  * A channel or collection name: a display name of at most 120 characters,
  * so a pasted paragraph is refused instead of stored (release-polish
  * decision 18). The cap is not on `nameField` itself: its other callers
- * carry titles, tags, search text, and rule names, which that decision
- * does not cap.
+ * carry titles, tags, and search text, which that decision does not cap.
  */
 export const longNameField = nameField.max(
   120,
   "name must be at most 120 characters",
 );
+
+/**
+ * An assignment or rule name: trimmed and at most 80 characters, so a
+ * rule's name is capped as an assignment's is (release-polish spec 0005).
+ * Not built on `nameField`, because a blank assignment name means it is
+ * named by its members; a rule adds the non-empty check itself.
+ */
+export const shortNameField = z
+  .string()
+  .trim()
+  .max(80, "name must be at most 80 characters");
 
 /**
  * The three stretch shapes an assignment or rule source sets; kraziBrain's

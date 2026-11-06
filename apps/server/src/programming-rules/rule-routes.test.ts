@@ -348,6 +348,44 @@ describe("programming rule routes", () => {
     });
   });
 
+  it("refuses an 81-character name as too_big with its limit, as an assignment's", async () => {
+    const { server } = await startServer();
+
+    const refused = await send(server, "POST", RULES_URL, {
+      ...decemberBody,
+      name: "n".repeat(81),
+    });
+
+    expect(refused).toMatchObject({
+      status: 400,
+      body: {
+        error: {
+          code: "invalid_request",
+          fields: [{ path: "name", code: "too_big", maximum: 80 }],
+        },
+      },
+    });
+    await expect(
+      send(server, "POST", RULES_URL, {
+        ...decemberBody,
+        name: "n".repeat(80),
+      }),
+    ).resolves.toMatchObject({ status: 201 });
+  });
+
+  it("refuses an empty name as too_small with its limit", async () => {
+    const { server } = await startServer();
+
+    await expect(
+      send(server, "POST", RULES_URL, { ...decemberBody, name: "  " }),
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        error: { fields: [{ path: "name", code: "too_small", minimum: 1 }] },
+      },
+    });
+  });
+
   it.each([1, 5])("accepts priority %d", async (priority) => {
     const { server } = await startServer();
 

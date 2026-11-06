@@ -119,7 +119,7 @@ describe("POST /channels", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toMatchObject({
       code: "invalid_request",
-      fields: [{ path: "name", code: "too_big" }],
+      fields: [{ path: "name", code: "too_big", maximum: 120 }],
     });
     expect((await get(server, "/channels")).json()).toEqual([]);
   });

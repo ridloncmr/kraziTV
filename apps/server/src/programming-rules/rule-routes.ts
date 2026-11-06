@@ -9,7 +9,11 @@ import {
   sendInvalidRequest,
 } from "../http/api-error.js";
 import { toApiTimestamp } from "../http/api-timestamp.js";
-import { idParams, nameField, stretchField } from "../http/request-schemas.js";
+import {
+  idParams,
+  shortNameField,
+  stretchField,
+} from "../http/request-schemas.js";
 import type { ScheduleService } from "../schedules/schedule-service.js";
 import type { RuleSourceRefusal, SavedRule } from "./contracts.js";
 import { ruleChange } from "./rule-change.js";
@@ -47,7 +51,7 @@ const ruleSource = z.strictObject({
 // saved order. Omitted conditions are unrestricted. Each source appears once.
 const ruleBody = z
   .strictObject({
-    name: nameField,
+    name: shortNameField.min(1, "name must not be empty"),
     behavior: z.enum(RULE_BEHAVIORS),
     priority: z.number().int().min(1).max(5),
     dates: dates.default({ kind: "any" }),

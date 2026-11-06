@@ -86,16 +86,22 @@ describe("marathon stretches", () => {
       status: 201,
       body: { marathonStretch: body.marathonStretch },
     });
-    for (const [marathonStretch, reason] of [
+    // The kind, not the prose, tells the web which sentence to show.
+    for (const [marathonStretch, problemKind] of [
       [{ kind: "airtime", minutes: 180 }, "unit"],
-      [{ kind: "programs", count: 2 }, "longer"],
+      [{ kind: "programs", count: 2 }, "shorter"],
     ] as const) {
-      const refused = await send(server, "POST", ASSIGNMENTS_URL, {
-        ...body,
-        marathonStretch,
+      await expect(
+        send(server, "POST", ASSIGNMENTS_URL, { ...body, marathonStretch }),
+      ).resolves.toMatchObject({
+        status: 400,
+        body: {
+          error: {
+            code: "invalid_request",
+            fields: [{ path: "", code: "custom", problemKind }],
+          },
+        },
       });
-      expect(refused.status).toBe(400);
-      expect(JSON.stringify(refused.body)).toContain(reason);
     }
   });
 
