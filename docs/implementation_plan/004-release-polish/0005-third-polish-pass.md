@@ -828,7 +828,9 @@ previewing.
 Complete on 2026-11-05. TV's picture takes the keyboard when TV opens and
 whenever its window comes to the front, unless focus is already in TV's
 window, so Up, Down, M, and F work without a click; the shell tells TV
-whether its window is in front. Nothing deferred.
+whether its window is in front. The Program Guide card's **Watch** opens
+TV only after the card closes, so the card's focus return no longer brings
+the guide back over TV. Nothing deferred.
 
 **Goal**: Up, Down, M, and F work in TV without a click first.
 

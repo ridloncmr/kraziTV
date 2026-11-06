@@ -13,6 +13,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { PageRefreshScope } from "../http/resources/refresh-scope.js";
 import {
   adminFixtures,
+  bareProgram,
   collectionWith,
   favoritesAssignment,
 } from "../testing/admin-fixtures.js";
@@ -867,7 +868,7 @@ async function renderDesktopWithTv() {
     fireEvent.click(within(shortcuts).getByRole("button", { name }));
   /** The channel TV is tuned to, from its latest stream. */
   const tunedPath = () => new URL(fakeBroadcasts.latest!.url).pathname;
-  return { open, tunedPath };
+  return { api, open, tunedPath };
 }
 
 it("gives TV the keys when it opens and when it is brought forward, while other programs' title bars take focus", async () => {
@@ -888,7 +889,7 @@ it("gives TV the keys when it opens and when it is brought forward, while other 
 
   const taskbar = screen.getByRole("navigation", { name: "Open programs" });
   fireEvent.click(within(taskbar).getByRole("button", { name: "TV" }));
-  expect(tv.className).toContain("active");
+  expect(tv.classList.contains("active")).toBe(true);
   pressKey("ArrowDown");
   expect(tunedPath()).toBe("/channels/one/stream");
 });
@@ -903,11 +904,53 @@ it("leaves the keys on TV's title bar when focus moves there, so the arrows stil
 
   const title = within(tv).getByLabelText(/TV window/);
   act(() => title.focus());
-  expect(tv.className).toContain("active");
+  expect(tv.classList.contains("active")).toBe(true);
   expect(document.activeElement).toBe(title);
   const before = Number.parseFloat(tv.style.left);
   pressKey("ArrowRight");
   expect(Number.parseFloat(tv.style.left)).toBeGreaterThan(before);
   pressKey("ArrowUp");
   expect(tunedPath()).toBe("/channels/one/stream");
+});
+
+it("gives TV the keys when the Program Guide's airing program card opens it", async () => {
+  const { api, open, tunedPath } = await renderDesktopWithTv();
+  const now = Date.now();
+  api.reply("/channels/one/schedule", {
+    scheduleRevision: 1,
+    entries: [
+      {
+        id: "entry-1",
+        title: "s01e01",
+        startsAt: new Date(now - 10 * 60_000).toISOString(),
+        endsAt: new Date(now + 10 * 60_000).toISOString(),
+        program: { ...bareProgram, title: "Northwoods Nights" },
+      },
+    ],
+    fillerIntervals: [],
+  });
+  api.reply("/channels/two/schedule", {
+    scheduleRevision: 1,
+    entries: [],
+    fillerIntervals: [],
+  });
+
+  open("Program Guide");
+  const guide = await screen.findByRole("region", { name: "Program Guide" });
+  const programs = await within(guide).findByRole("list", {
+    name: "Programs on Northwoods TV",
+  });
+  fireEvent.click(
+    within(programs).getByRole("button", { name: /Northwoods Nights/ }),
+  );
+  const card = await screen.findByRole("dialog", { name: "Northwoods Nights" });
+  fireEvent.click(within(card).getByRole("button", { name: "Watch" }));
+
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await within(tv).findByText("Alpha");
+  expect(tv.classList.contains("active")).toBe(true);
+  expect(guide.classList.contains("active")).toBe(false);
+  expect(tunedPath()).toBe("/channels/one/stream");
+  pressKey("ArrowUp");
+  expect(tunedPath()).toBe("/channels/two/stream");
 });
