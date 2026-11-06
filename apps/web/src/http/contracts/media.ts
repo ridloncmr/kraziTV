@@ -89,6 +89,8 @@ export interface ContentMetadata {
   refreshedAt: string | null;
   /** Why the last background refresh failed; the match stays. */
   refreshError: string | null;
+  /** Which way the last background refresh failed; null without a failure and for failures stored before migration 037. */
+  refreshErrorKind: ContentMetadata["lookupErrorKind"];
   /** True once TMDB facts went six months unrefreshed and were dropped. */
   tmdbDataExpired: boolean;
   /** The owner's tags and themes; TMDB never sets them. */

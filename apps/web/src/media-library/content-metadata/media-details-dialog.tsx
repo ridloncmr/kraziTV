@@ -66,7 +66,7 @@ export function MediaDetailsDialog({
   const corrected = new Set(metadata.correctedFields);
   // Each fact with whether the owner's correction decides it. A failure is
   // one owner sentence saying what to do; the stored text stays as its
-  // tooltip. A refresh failure is stored without a kind.
+  // tooltip.
   const facts: Fact[] = [
     { label: "Match", value: matchStateLabel(metadata) },
     failureFact("Why", item.probeError, "kraziTV could not read this file"),
@@ -75,7 +75,11 @@ export function MediaDetailsDialog({
       metadata.lookupError,
       tmdbFailureWords(metadata.lookupErrorKind),
     ),
-    failureFact("Refresh error", metadata.refreshError, tmdbFailureWords(null)),
+    failureFact(
+      "Refresh error",
+      metadata.refreshError,
+      tmdbFailureWords(metadata.refreshErrorKind),
+    ),
     { label: "Title", value: metadata.title, byOwner: corrected.has("title") },
     {
       label: "Series",
