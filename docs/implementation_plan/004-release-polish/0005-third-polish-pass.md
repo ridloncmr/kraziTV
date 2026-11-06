@@ -24,11 +24,11 @@ Progress: 21 of 24 tickets complete.
 | POLISH-054 | Reshuffle starts a new order                                            | Complete on 2026-11-06 |
 | POLISH-055 | A rejected TMDB key is called that                                      | Open                   |
 | POLISH-056 | Refusals carry what the web words                                       | Complete on 2026-11-06 |
-| POLISH-057 | Enter never submits from a search box                                   | Complete on 2026-11-05 |
-| POLISH-058 | TV takes the keys when it opens                                         | Complete on 2026-11-05 |
-| POLISH-059 | Discover's tab, Live Monitor's failed list, the announced scan sentence | Complete on 2026-11-05 |
+| POLISH-057 | Enter never submits from a search box                                   | Complete on 2026-11-06 |
+| POLISH-058 | TV takes the keys when it opens                                         | Complete on 2026-11-06 |
+| POLISH-059 | Discover's tab, Live Monitor's failed list, the announced scan sentence | Complete on 2026-11-06 |
 | POLISH-060 | Shared code in its own place                                            | Open                   |
-| POLISH-061 | Browser checks that can fail, and a demo that stops whole               | Complete on 2026-11-05 |
+| POLISH-061 | Browser checks that can fail, and a demo that stops whole               | Complete on 2026-11-06 |
 | POLISH-062 | Docs, statuses, and the second round's screens                          | Open                   |
 
 <!-- plan-progress:end -->
@@ -812,7 +812,7 @@ marathon problem by kind, and the busy sentence.
 
 **Status**
 
-Complete on 2026-11-05. Every search box the ticket names cancels Enter
+Complete on 2026-11-06. Every search box the ticket names cancels Enter
 through one `holdEnter` in `controls/search-field/`, so Add shows stays on
 its picks and a show's Contents tab no longer saves on Enter, and Save
 special is disabled while a new preview loads.
@@ -848,7 +848,7 @@ previewing.
 
 **Status**
 
-Complete on 2026-11-05. TV's picture takes the keyboard when TV opens and
+Complete on 2026-11-06. TV's picture takes the keyboard when TV opens and
 whenever its window comes to the front, unless focus is already in TV's
 window, so Up, Down, M, and F work without a click; the shell tells TV
 whether its window is in front. The Program Guide card's **Watch** opens
@@ -881,7 +881,7 @@ does the same.
 
 **Status**
 
-Complete on 2026-11-05. Closing Discover after it created a collection
+Complete on 2026-11-06. Closing Discover after it created a collection
 shows the Automatic tab (Manual when it saved only manual snapshots), a
 channel list Live Monitor cannot read shows the problem and Refresh with no
 **Channel** list, and the scan dialog's outcome sentences, the empty-scan one
@@ -947,7 +947,7 @@ excepted count no higher than before.
 
 **Status**
 
-Complete on 2026-11-05. The Lineup row check runs on a 58-character show
+Complete on 2026-11-06. The Lineup row check runs on a 58-character show
 name that wraps and asserts Play order and At a time stay on one line, a new
 browser step measures the Delete media root sentence with a 75-character
 unbroken folder name, the scan dialog's box check is gone, and `start.mjs`
