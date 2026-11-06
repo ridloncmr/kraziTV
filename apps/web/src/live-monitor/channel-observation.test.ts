@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { UNREACHABLE_SENTENCE } from "../http/api-client.js";
 import { adminFixtures } from "../testing/admin-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { rememberTv } from "../tv/tv-memory.js";
@@ -118,6 +119,32 @@ it("opens My Channels from the empty state when there are no channels", async ()
 
   expect(openProgram).toHaveBeenCalledWith("channels");
   expect(screen.getByText(/No channels yet/).className).toBe("empty-state");
+});
+
+it("shows the problem and Refresh, with no channel list, when the channel list cannot be read", async () => {
+  const api = monitorApi();
+  api.handle("/channels", () => {
+    throw new TypeError("Failed to fetch");
+  });
+  render(
+    createElement(ChannelObservation, { visible: true, openProgram: () => {} }),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveProperty(
+    "textContent",
+    UNREACHABLE_SENTENCE,
+  );
+  expect(screen.queryByLabelText("Channel")).toBeNull();
+  expect(screen.queryByText(/Choose a channel/)).toBeNull();
+
+  api.reply("/channels", adminFixtures.channels);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+  expect(await screen.findByLabelText("Channel")).toBeTruthy();
+  expect(
+    await screen.findByText("Off air — programming resumes at 8:00 PM"),
+  ).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
 });
 
 it("opens on the first enabled channel, then on the channel chosen when it last closed", async () => {

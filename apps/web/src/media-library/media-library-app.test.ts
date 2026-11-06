@@ -460,9 +460,17 @@ async function startScan() {
   return screen.getByRole("dialog", { name: "Scanning media root" });
 }
 
-/** The dialog's polite live region, which announces phase changes only. */
-function statusLine(dialog: HTMLElement) {
+/**
+ * The dialog's polite live region, which announces phase changes and the
+ * outcome's sentences, never counts.
+ */
+function statusRegion(dialog: HTMLElement) {
   return within(dialog).getByRole("status");
+}
+
+/** The live region's first line: the phase or outcome itself. */
+function statusLine(dialog: HTMLElement) {
+  return statusRegion(dialog).firstElementChild!;
 }
 
 it("opens the progress dialog on start and locks only the Media Library window", async () => {
@@ -723,8 +731,8 @@ it.each([
     );
     expect(shown).toEqual(facts);
     expect(
-      within(dialog).queryByText("The catalog is unchanged.")?.textContent ??
-        null,
+      within(statusRegion(dialog)).queryByText("The catalog is unchanged.")
+        ?.textContent ?? null,
     ).toBe(note);
     expect(
       within(dialog)
@@ -764,7 +772,7 @@ it.each([
     await advance();
 
     expect(
-      within(dialog).queryByText(
+      within(statusRegion(dialog)).queryByText(
         "TMDB isn't set up, so titles come from file names.",
       ) !== null,
     ).toBe(shown);
@@ -783,9 +791,30 @@ it("says what kraziTV looks for, in the server's words, when a scan finds no fil
   });
   await advance(1_000);
 
-  expect(within(dialog).getByText(/^No video files found\./).textContent).toBe(
+  // Inside the live region, so a screen reader hears it with "Scan completed."
+  expect(
+    within(statusRegion(dialog)).getByText(/^No video files found\./)
+      .textContent,
+  ).toBe(
     "No video files found. kraziTV looks for .mkv, .ogv, and .avi in this folder and its subfolders.",
   );
+  expect(statusLine(dialog).textContent).toBe("Scan completed.");
+});
+
+it("announces with the outcome that a lookup retry found nothing to look up", async () => {
+  const { scan } = renderScanLibrary([mediaRoot()]);
+  const dialog = await startScan();
+  scan.status = scanStatus({
+    kind: "retry",
+    phase: "completed",
+    summary: scanSummary(),
+  });
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(
+    within(statusRegion(dialog)).getByText("Nothing here needed a lookup."),
+  ).toBeTruthy();
 });
 
 it.each([

@@ -41,6 +41,10 @@ export function CollectionsApp({
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
   const [discovering, setDiscovering] = useState(false);
+  // The tab holding what Discover created in this visit, if anything:
+  // Automatic once any automatic collection was created, else Manual.
+  const [discovered, setDiscovered] =
+    useState<MediaCollection["maintenanceMode"]>();
   // A save or delete in Collection Properties reads the grid again; a
   // created collection opens in its own window once its dialog has closed.
   const openCreated = usePropertiesList(
@@ -59,6 +63,27 @@ export function CollectionsApp({
     setTab(collection.maintenanceMode);
     setType(null);
     collections.refresh();
+  }
+
+  /** Notes a collection Discover created and reloads the grid behind the dialog. */
+  function discoveredOne(collection: MediaCollection) {
+    setDiscovered((current) =>
+      current === "automatic" ? current : collection.maintenanceMode,
+    );
+    collections.refresh();
+  }
+
+  /**
+   * Closes Discover on the tab holding what it created, with no type filter,
+   * so the new cards are in view; creating nothing keeps the tab.
+   */
+  function closeDiscover() {
+    setDiscovering(false);
+    if (discovered) {
+      setTab(discovered);
+      setType(null);
+    }
+    setDiscovered(undefined);
   }
   return (
     <div className="program-page">
@@ -95,10 +120,7 @@ export function CollectionsApp({
         />
       )}
       {discovering && (
-        <DiscoverDialog
-          onCreated={collections.refresh}
-          onClose={() => setDiscovering(false)}
-        />
+        <DiscoverDialog onCreated={discoveredOne} onClose={closeDiscover} />
       )}
       {creating === "automatic" && (
         <NewAutomaticCollectionDialog
