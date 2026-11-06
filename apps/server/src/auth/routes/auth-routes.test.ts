@@ -186,7 +186,7 @@ describe("auth routes", () => {
     expect(response.body.error).toEqual({
       code: "invalid_request",
       message: "displayName: displayName must be at most 40 characters",
-      fields: [{ path: "displayName", code: "too_big" }],
+      fields: [{ path: "displayName", code: "too_big", maximum: 40 }],
     });
   });
 

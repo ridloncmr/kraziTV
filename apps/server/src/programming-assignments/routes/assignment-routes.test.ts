@@ -453,7 +453,14 @@ describe("programming assignment routes", () => {
 
       expect(response).toMatchObject({
         status: 503,
-        body: { error: { code: "schedule_busy", retryable: true } },
+        body: {
+          error: {
+            code: "schedule_busy",
+            message:
+              "kraziTV is busy saving another change. Try again in a moment.",
+            retryable: true,
+          },
+        },
       });
     } finally {
       await holder.release();

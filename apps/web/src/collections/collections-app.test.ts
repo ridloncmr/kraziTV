@@ -259,7 +259,7 @@ it("refuses a collection name longer than 120 characters in the dialog, naming t
       error: {
         code: "invalid_request",
         message: "name: name must be at most 120 characters",
-        fields: [{ path: "name", code: "too_big" }],
+        fields: [{ path: "name", code: "too_big", maximum: 120 }],
       },
     },
     "POST",
@@ -275,7 +275,7 @@ it("refuses a collection name longer than 120 characters in the dialog, naming t
   fireEvent.click(screen.getByRole("button", { name: "Create collection" }));
 
   expect((await within(dialog).findByRole("alert")).textContent).toBe(
-    "Use a shorter name: at most 120 characters for a channel or collection, or 80 for a show.",
+    "Use a shorter name: at most 120 characters.",
   );
 });
 

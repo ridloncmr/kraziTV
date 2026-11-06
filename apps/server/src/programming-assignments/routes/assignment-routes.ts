@@ -15,7 +15,11 @@ import {
   sendInvalidRequest,
 } from "../../http/api-error.js";
 import { toApiTimestamp } from "../../http/api-timestamp.js";
-import { idParams, stretchField } from "../../http/request-schemas.js";
+import {
+  idParams,
+  shortNameField,
+  stretchField,
+} from "../../http/request-schemas.js";
 import type { ScheduleEntry } from "../../schedules/contracts.js";
 import type { SchedulePreview } from "../../schedules/preview/schedule-preview.js";
 import type { ScheduleService } from "../../schedules/schedule-service.js";
@@ -51,10 +55,7 @@ const member = z.discriminatedUnion("kind", [
 const settingsBody = z
   .strictObject({
     // Omitted or blank means the show is named by its members.
-    name: z
-      .string()
-      .trim()
-      .max(80)
+    name: shortNameField
       .nullable()
       .default(null)
       .transform((name) => name || null),
@@ -80,7 +81,12 @@ const settingsBody = z
       body.marathonStretch,
     );
     if (problem !== null) {
-      context.addIssue({ code: "custom", message: problem.message });
+      // The kind lets the web word the problem without reading the prose.
+      context.addIssue({
+        code: "custom",
+        message: problem.message,
+        params: { problemKind: problem.kind },
+      });
     }
   })
   .refine(

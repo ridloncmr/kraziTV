@@ -629,32 +629,46 @@ it("holds OK and Apply while a chosen marathon length could run no longer than P
   });
 });
 
-it("words the server's own marathon-length refusal the same way the sheet does", async () => {
-  const { api } = await openLineup([
-    favoritesAssignment("chronological", {
-      marathonStretch: { kind: "programs", count: 10 },
-    }),
-  ]);
-  api.reply(
-    ASSIGNMENT,
-    {
-      error: {
-        code: "invalid_request",
-        message: "a marathon must be longer than the ordinary stretch",
-        fields: [{ path: "", code: "custom" }],
+// The server's message is for logs. Show Properties words its marathon
+// refusal by the kind the server sends beside it, as the sheet's own hold
+// does; one with no kind shows as any other refusal would.
+it.each([
+  {
+    problemKind: "shorter",
+    says: "Make the marathon longer than Plays at a time.",
+  },
+  {
+    problemKind: "unit",
+    says: "Set the marathon in the same unit as Plays at a time: programs with programs, minutes with minutes.",
+  },
+  { problemKind: undefined, says: "for logs" },
+])(
+  "words the server's own marathon refusal of kind $problemKind the same way the sheet does",
+  async ({ problemKind, says }) => {
+    const { api } = await openLineup([
+      favoritesAssignment("chronological", {
+        marathonStretch: { kind: "programs", count: 10 },
+      }),
+    ]);
+    api.reply(
+      ASSIGNMENT,
+      {
+        error: {
+          code: "invalid_request",
+          message: "for logs",
+          fields: [{ path: "", code: "custom", problemKind }],
+        },
       },
-    },
-    "PATCH",
-    400,
-  );
-  const dialog = await openProperties();
-  rename(dialog, "Favorites night");
-  fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      "PATCH",
+      400,
+    );
+    const dialog = await openProperties();
+    rename(dialog, "Favorites night");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
-  expect((await within(dialog).findByRole("alert")).textContent).toBe(
-    "Make the marathon longer than Plays at a time.",
-  );
-});
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(says);
+  },
+);
 
 it("saves a show kept out of normal rotation and lists it as Rules only", async () => {
   const { api } = await openLineup([favoritesAssignment("chronological")]);
