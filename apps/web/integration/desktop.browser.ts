@@ -73,7 +73,11 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
   return { ...started, prober: controlled };
 }
 
-/** Adds `directory` as a media root in the Media Library and accepts the scan it offers. */
+/**
+ * Adds `directory` as a media root in the Media Library and accepts the scan
+ * it offers. Returns the progress dialog and its status line, the first line
+ * of the live region that also announces the outcome's sentences.
+ */
 async function scanNewRoot(page: Page, directory: string) {
   await page
     .getByLabel("Desktop programs")
@@ -91,7 +95,8 @@ async function scanNewRoot(page: Page, directory: string) {
   await expect(addRoot).toBeHidden();
   const scanning = media.getByRole("dialog", { name: "Scanning media root" });
   await expect(scanning).toBeVisible();
-  return { media, scanning };
+  const statusLine = scanning.getByRole("status").locator("p").first();
+  return { media, scanning, statusLine };
 }
 
 test("lays each airing choice's radio beside its label", async ({ page }) => {
@@ -417,9 +422,9 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
     page.getByRole("button", { name: "start", exact: true }),
   ).toBeVisible();
 
-  const { media, scanning } = await scanNewRoot(page, directory);
+  const { media, scanning, statusLine } = await scanNewRoot(page, directory);
   await controlled.waitForStarted(1);
-  await expect(scanning.getByRole("status")).toHaveText("Reading media files…");
+  await expect(statusLine).toHaveText("Reading media files…");
   const bar = scanning.getByRole("progressbar");
   await expect(bar).toHaveAttribute("aria-valuemax", "1");
   await expect(bar).toHaveAttribute("aria-valuenow", "0");
@@ -436,7 +441,7 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
       .getByRole("button", { name: "Collections", exact: true }),
   ).toBeEnabled();
   controlled.resolveAll({ ...PROBE_RESULT, durationMs: 1_200_000 });
-  await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+  await expect(statusLine).toHaveText("Scan completed.");
   await expect(close).toBeEnabled();
   // A disabled close button must not look like the one that works.
   expect(await closeButtonLook(close)).not.toEqual(busyClose);
@@ -768,7 +773,7 @@ for (const pass of [
         "test media; probing is controlled",
       );
     await page.goto("/");
-    const { scanning } = await scanNewRoot(page, directory);
+    const { scanning, statusLine } = await scanNewRoot(page, directory);
     const bar = scanning.getByRole("progressbar");
     const fill = bar.locator(".segmented-progress-fill");
     const paper = scanning.locator(".scan-paper-x");
@@ -798,9 +803,7 @@ for (const pass of [
       await scanning.screenshot({ path: "../../data/web-scan-probing.png" });
 
     controlled.resolveAll(PROBE_RESULT);
-    await expect(scanning.getByRole("status")).toHaveText(
-      "Saving to the catalog…",
-    );
+    await expect(statusLine).toHaveText("Saving to the catalog…");
     await expect(bar).not.toHaveAttribute("aria-valuenow");
     expect(await runningAnimations(paper)).toBe(0);
     expect(await runningAnimations(fill)).toBe(pass.reduced ? 0 : 1);
@@ -809,7 +812,7 @@ for (const pass of [
       await scanning.screenshot({ path: "../../data/web-scan-committing.png" });
 
     commit?.release();
-    await expect(scanning.getByRole("status")).toHaveText("Scan completed.");
+    await expect(statusLine).toHaveText("Scan completed.");
     await expect(scanning.locator(".scan-animation")).toBeVisible();
     expect(await runningAnimations(paper)).toBe(0);
     await scanning.getByRole("button", { name: "OK", exact: true }).click();

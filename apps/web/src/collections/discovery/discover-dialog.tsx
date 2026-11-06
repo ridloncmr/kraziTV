@@ -25,8 +25,8 @@ export function DiscoverDialog({
   onCreated,
   onClose,
 }: {
-  /** Tells the Collections program a collection was created behind the dialog. */
-  onCreated: () => void;
+  /** Tells the Collections program which collection was created behind the dialog. */
+  onCreated: (collection: MediaCollection) => void;
   onClose: () => void;
 }) {
   const [showDismissed, setShowDismissed] = useState(false);
@@ -64,7 +64,7 @@ export function DiscoverDialog({
           `Created ${collection.name} as ${mode === "automatic" ? "an automatic" : "a manual"} collection.`,
         );
         recommendations.refresh();
-        onCreated();
+        onCreated(collection);
       },
     );
   }

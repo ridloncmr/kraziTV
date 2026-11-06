@@ -51,27 +51,32 @@ export function ChannelObservation({
     visible,
     10_000,
   );
+  // A list that could not be read has nothing to choose from, so only the
+  // problem and Refresh show.
+  const unlisted = channels.error !== undefined && !channels.data;
   return (
     <>
       <div className="inline-form">
-        <label>
-          Channel
-          <select
-            value={selected}
-            onChange={(event) => {
-              setChosen(event.target.value);
-              rememberTv({ monitorChannelId: event.target.value });
-            }}
-          >
-            {!selected && <option value="">Choose a channel</option>}
-            {channels.data?.map((channel) => (
-              <option value={channel.id} key={channel.id}>
-                {channel.number} · {channel.name}
-                {channel.enabled ? "" : " (disabled)"}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!unlisted && (
+          <label>
+            Channel
+            <select
+              value={selected}
+              onChange={(event) => {
+                setChosen(event.target.value);
+                rememberTv({ monitorChannelId: event.target.value });
+              }}
+            >
+              {!selected && <option value="">Choose a channel</option>}
+              {channels.data?.map((channel) => (
+                <option value={channel.id} key={channel.id}>
+                  {channel.number} · {channel.name}
+                  {channel.enabled ? "" : " (disabled)"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           disabled={now.loading}
           onClick={() => {
