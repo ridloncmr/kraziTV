@@ -16,6 +16,7 @@ import type {
   ProposalRow,
 } from "../contracts.js";
 import { storeCorrection } from "../corrections/store-correction.js";
+import { lookupFailed } from "../lookup-failed.js";
 import { matchCandidateOf } from "../match-choice/match-candidate.js";
 import { replaceMatchRows } from "../persistence/match-rows.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
@@ -96,8 +97,7 @@ export class TrackMappingService {
     const apiKey = await this.#tmdbKeys.readKey();
     if (apiKey === undefined) return { kind: "tmdb_key_missing" };
     const found = await this.#tmdb.searchSeries(apiKey, { title: query });
-    if (found.kind === "failed")
-      return { kind: "lookup_failed", failure: found };
+    if (found.kind === "failed") return lookupFailed(found);
     return { candidates: found.value.map(matchCandidateOf) };
   }
 
@@ -117,8 +117,7 @@ export class TrackMappingService {
     if ("kind" in read) return read;
     const { apiKey, folder } = read;
     const series = await this.#tmdb.seriesDetails(apiKey, tmdbSeriesId);
-    if (series.kind === "failed")
-      return { kind: "lookup_failed", failure: series };
+    if (series.kind === "failed") return lookupFailed(series);
     if (!series.value.seasons.some((listed) => listed.number === season)) {
       return { kind: "season_not_in_series" };
     }
@@ -127,8 +126,7 @@ export class TrackMappingService {
       tmdbSeriesId,
       season,
     );
-    if (fetched.kind === "failed")
-      return { kind: "lookup_failed", failure: fetched };
+    if (fetched.kind === "failed") return lookupFailed(fetched);
     const episodes = fetched.value.episodes.map((episode) => ({
       number: episode.number,
       title: episode.title ?? null,
@@ -198,8 +196,7 @@ export class TrackMappingService {
             }),
           );
     const failed = lookups.find((lookup) => lookup.kind === "failed");
-    if (failed?.kind === "failed")
-      return { kind: "lookup_failed", failure: failed };
+    if (failed?.kind === "failed") return lookupFailed(failed);
     // A track maps only to an episode the season lists, since the owner
     // picked it from that list.
     if (

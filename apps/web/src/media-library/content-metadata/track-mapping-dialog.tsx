@@ -131,31 +131,31 @@ export function TrackMappingDialog({
               />
             </label>
           </div>
-          {search.data && (
-            <ul className="match-candidates">
-              {search.data.candidates.length === 0 && (
-                <li>TMDB found no series by that name.</li>
-              )}
-              {search.data.candidates.map((candidate) => {
-                const name = `${candidate.title} (${candidate.releaseDate?.slice(0, 4) ?? "year unknown"})`;
-                return (
-                  <li key={candidate.tmdbId}>
-                    <label className="choice">
-                      <input
-                        type="radio"
-                        name="series"
-                        checked={series?.tmdbId === candidate.tmdbId}
-                        onChange={() =>
-                          setSeries({ tmdbId: candidate.tmdbId, title: name })
-                        }
-                      />
-                      {name}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {search.data &&
+            (search.data.candidates.length === 0 ? (
+              <p role="status">TMDB found no series by that name.</p>
+            ) : (
+              <ul className="match-candidates">
+                {search.data.candidates.map((candidate) => {
+                  const name = `${candidate.title} (${candidate.releaseDate?.slice(0, 4) ?? "year unknown"})`;
+                  return (
+                    <li key={candidate.tmdbId}>
+                      <label className="choice">
+                        <input
+                          type="radio"
+                          name="series"
+                          checked={series?.tmdbId === candidate.tmdbId}
+                          onChange={() =>
+                            setSeries({ tmdbId: candidate.tmdbId, title: name })
+                          }
+                        />
+                        {name}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            ))}
           {search.data && <TmdbAttribution />}
           <div className="dialog-actions">
             <button type="submit" disabled={pending || series === undefined}>

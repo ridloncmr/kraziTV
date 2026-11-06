@@ -55,10 +55,11 @@ export function deriveChannelSeed(
  * Derives the seed random selection uses for one collection on one channel.
  * Keyed by collection rather than block, so separate blocks of the same
  * collection continue one sequence while different collections stay unrelated.
- * Each progress reset counts in, so a reshuffle starts a new order that still
- * repeats for the same inputs. A count of 0 keeps the seed channels had
- * before resets counted, so no channel reorders until its owner reshuffles;
- * later counts use their own label, so they never collide with it.
+ * Each progress reset counts in, so a random progress reset starts a new
+ * order that still repeats for the same inputs. A count of 0 keeps the seed
+ * channels had before resets counted, so no channel reorders until its owner
+ * resets its progress; later counts use their own label, so they never
+ * collide with it.
  */
 export function deriveCollectionSeed(
   channelSeed: number,

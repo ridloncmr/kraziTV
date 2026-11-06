@@ -32,7 +32,7 @@ export function findRegenerationBoundary(
  * reset is ignored, so restoration never returns to pre-reset progress; a
  * collection and mode none of whose deleted entries follow its reset keeps
  * the reset progress. Restored progress carries the current reset count, so
- * random never returns to an order from before the latest reshuffle.
+ * random never returns to an order from before the latest progress reset.
  */
 export function restorePlaybackProgress(
   deletedEntries: readonly RestorableEntry[],

@@ -25,6 +25,7 @@ import {
   replaceMatchRows,
 } from "../persistence/match-rows.js";
 import { recordMatchedDuration } from "../persistence/matched-duration.js";
+import { lookupFailed } from "../lookup-failed.js";
 import type { TmdbKeyService } from "../tmdb-key/tmdb-key-service.js";
 import { matchCandidateOf } from "./match-candidate.js";
 import {
@@ -145,7 +146,7 @@ export class MatchChoiceService {
         ? await this.#tmdb.searchMovies(apiKey, query)
         : await this.#tmdb.searchSeries(apiKey, query);
     if (found.kind === "failed") {
-      return { kind: "lookup_failed", failure: found };
+      return lookupFailed(found);
     }
     return { kind: "found", candidates: found.value.map(matchCandidateOf) };
   }
@@ -193,10 +194,7 @@ export class MatchChoiceService {
     const lookups = await this.#lookUpChoice(apiKey, chosen, tmdbId);
     const own = lookups.find(({ item }) => item.id === mediaItemId)?.lookup;
     if (own?.kind !== "matched") {
-      return {
-        kind: "lookup_failed",
-        failure: own?.kind === "failed" ? own : NO_ANSWER,
-      };
+      return lookupFailed(own?.kind === "failed" ? own : NO_ANSWER);
     }
 
     const lookedUpAt = this.#now();

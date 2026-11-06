@@ -525,6 +525,29 @@ it("previews a series and creates an automatic collection listed under Automatic
   ).toBe("The OfficeTV series: The Office2 itemsUp to date");
 });
 
+it("shows only the problem when the series list cannot be read, with no list to choose from", async () => {
+  const api = renderApp();
+  api.reply(
+    "/media-collections/series",
+    { error: { code: "internal_error", message: "Database locked" } },
+    "GET",
+    500,
+  );
+  fireEvent.click(await screen.findByRole("tab", { name: "Automatic" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "New automatic collection…" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "New automatic collection",
+  });
+
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.",
+  );
+  expect(within(dialog).queryByRole("combobox")).toBeNull();
+  expect(within(dialog).queryByText("Choose a series")).toBeNull();
+});
+
 it("creates an automatic collection from a tag in use", async () => {
   const api = renderApp();
   api.reply("/media-collections/series", catalogSeries);

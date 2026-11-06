@@ -313,4 +313,30 @@ describe("track mapping routes", () => {
       body: { error: { code: "tmdb_key_required" } },
     });
   });
+
+  it("refuses every TMDB read that fails, naming a rejected key as the owner's to fix", async () => {
+    const { server, tmdb } = await scanned();
+    const mapping = await mappingOf(server, TRACKS.first);
+    const reads = async (status: number, code: string) => {
+      for (const path of [
+        "/metadata/series-search?query=Some",
+        `${mapping}/proposal?tmdbSeriesId=${SOME_SHOW.id}&season=1`,
+      ]) {
+        await expect(send(server, "GET", path)).resolves.toMatchObject({
+          status,
+          body: { error: { code } },
+        });
+      }
+      await expect(apply(server, ACCEPTED)).resolves.toMatchObject({
+        status,
+        body: { error: { code } },
+      });
+    };
+
+    tmdb.unreachable = true;
+    await reads(502, "tmdb_unreachable");
+    tmdb.unreachable = false;
+    tmdb.validKeys.clear();
+    await reads(409, "tmdb_key_rejected");
+  });
 });

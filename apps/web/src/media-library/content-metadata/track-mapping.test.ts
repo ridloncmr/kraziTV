@@ -10,6 +10,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   ALIEN,
   DISC_TRACK,
+  SOME_SHOW_SEARCH,
   TRACK_FOLDER,
 } from "../../testing/admin-fixtures.js";
 import {
@@ -63,6 +64,26 @@ it("searches from the folder's series, proposes rows, and applies the edited row
     "Some Show",
   );
   expect(dialog.getByLabelText<HTMLInputElement>("Season").value).toBe("1");
+  fireEvent.click(dialog.getByRole("button", { name: "Search TMDB" }));
+  await dialog.findByRole("radio", { name: "Some Show (2010)" });
+
+  // A name TMDB does not know is announced, with nothing listed to choose.
+  api.reply("/metadata/series-search", { candidates: [] });
+  fireEvent.change(dialog.getByLabelText("Series"), {
+    target: { value: "No Such Show" },
+  });
+  fireEvent.click(dialog.getByRole("button", { name: "Search TMDB" }));
+  await waitFor(() =>
+    expect(dialog.getByRole("status").textContent).toBe(
+      "TMDB found no series by that name.",
+    ),
+  );
+  expect(dialog.queryByRole("list")).toBeNull();
+
+  api.reply("/metadata/series-search", SOME_SHOW_SEARCH);
+  fireEvent.change(dialog.getByLabelText("Series"), {
+    target: { value: "Some Show" },
+  });
   fireEvent.click(dialog.getByRole("button", { name: "Search TMDB" }));
   fireEvent.click(
     await dialog.findByRole("radio", { name: "Some Show (2010)" }),
