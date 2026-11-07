@@ -52,7 +52,7 @@ channel, so anything already on another show is marked as taken.
   lands on a file's turn, it plays once as usual and the marathon is lost
   for that round.
 
-In the Lineup table, a wheel carries a **Wheel** badge. In the Preview tab,
+In the Lineup table, a wheel carries a **Wheel** badge under its name. In the Preview tab,
 a wheel you named is listed under that name; an unnamed wheel's turns are
 listed under the member that plays each one.
 

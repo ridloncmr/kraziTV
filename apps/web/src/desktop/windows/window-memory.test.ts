@@ -8,6 +8,7 @@ afterEach(() => localStorage.clear());
 const channels: DesktopWindow = {
   id: "channels",
   openedOrder: 0,
+  opens: 1,
   x: 200,
   y: 90,
   width: 800,

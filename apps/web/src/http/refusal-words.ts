@@ -100,6 +100,22 @@ const FIELD_WORDS: Record<string, Partial<Record<string, FieldSentence>>> = {
     custom: "Pick an end after the start.",
     invalid_format: "Type an end date and time.",
   },
+  // A rule's calendar conditions, each on the rule's When tab. A range
+  // ending before it starts and a day that does not exist share one
+  // sentence per field, true of both.
+  endDate: {
+    custom: "On the When tab, pick a Through date on or after the From date.",
+  },
+  startMonthDay: {
+    custom: "On the When tab, type a From day that exists, as MM-DD.",
+  },
+  endMonthDay: {
+    custom: "On the When tab, type a Through day that exists, as MM-DD.",
+  },
+  endMinute: {
+    custom:
+      "On the When tab, pick hours that end at a different time than they start.",
+  },
 };
 
 /**

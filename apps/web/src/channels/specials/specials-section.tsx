@@ -192,7 +192,7 @@ export function SpecialsSection({
           key={editing}
           channelId={channelId}
           special={edited}
-          collections={collections.data}
+          collections={collections}
           visible={visible}
           saved={changed}
           onDirtyChange={onDirtyChange}

@@ -50,6 +50,9 @@ channel moves on to the next show. A show with several collections is a
 
 ![The Lineup tab](images/channel-lineup.png)
 
+A long show name stops after two lines with **…**; point at it to read the
+whole name.
+
 Click **Add shows…**, tick collections, or switch to **Single items** to
 pick individual episodes or movies, and click **Next**.
 

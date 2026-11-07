@@ -6,7 +6,7 @@ import { useAccountTask } from "./use-account-task.js";
 
 /**
  * Account Settings' **Change my name** task: one box filled with the current
- * name. It checks the name as setup does, so a refused name never reaches the
+ * name. It checks the name as setup does, so a blank name never reaches the
  * server, and hands the server's answer to `onChanged`.
  */
 export function ChangeNameView({

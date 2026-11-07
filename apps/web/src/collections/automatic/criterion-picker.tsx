@@ -135,7 +135,7 @@ export function CriterionPicker({
   }, [criterion, groupName, previewed, onChoice]);
   const { pick, choose, explain, empty, unit } = KINDS[kind];
   // A list that could not be read has nothing to choose from, so only the
-  // problem shows.
+  // problem and Refresh show.
   const unlisted = groups.error !== undefined && !groups.data;
 
   /** Counts items in the unit the chosen kind holds, such as "2 episodes". */
@@ -164,6 +164,15 @@ export function CriterionPicker({
         ))}
       </fieldset>
       <p>{explain}</p>
+      {unlisted && (
+        <button
+          type="button"
+          disabled={disabled || groups.loading}
+          onClick={groups.refresh}
+        >
+          Refresh
+        </button>
+      )}
       {!unlisted &&
         (groups.data?.length === 0 ? (
           <p className="empty-state">{empty}</p>

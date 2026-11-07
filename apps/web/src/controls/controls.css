@@ -246,9 +246,19 @@
   padding: 0 4px;
   white-space: nowrap;
 }
-/* A cell that holds only badges, such as the Lineup tab's, starts its first badge flush with the column. */
-.badge-cell > .row-badge:first-child {
+/* A line of badges under a name, such as a Lineup show's, starts its first badge flush with the name. */
+.badge-line {
+  margin-top: 2px;
+}
+.badge-line > .row-badge:first-child {
   margin-left: 0;
+}
+/* A name in a narrow column stops at two lines with an ellipsis; its element shows the rest on hover. */
+.clamp-two-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 /* A selected row is title-bar blue with white text, as XP list views were; everything in it, links and warnings included, turns white. */
 .program-page .selected-row {

@@ -28,13 +28,10 @@ export interface WatchRequest {
  */
 export function TvApp({
   visible,
-  active,
   request,
   onOpenChannels,
 }: {
   visible: boolean;
-  /** Whether TV's window is the one in front, which is when TV takes the keys. */
-  active: boolean;
   request: WatchRequest | undefined;
   onOpenChannels: () => void;
 }) {
@@ -78,7 +75,6 @@ export function TvApp({
   const [attempt, setAttempt] = useState(0);
   const video = useRef<HTMLVideoElement>(null);
   const picture = useRef<HTMLDivElement>(null);
-  const page = useRef<HTMLDivElement>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const tunedId = tuned?.id;
 
@@ -126,18 +122,6 @@ export function TvApp({
       muted,
     });
   }, [tunedId, chosenId, volume, muted]);
-
-  useEffect(() => {
-    /**
-     * Opening TV or bringing it forward hands it the keys, so Up, Down, M,
-     * and F work without a click first. Focus already in TV's window stays,
-     * so a title bar reached by Tab or a click still moves the window. Runs
-     * before the window's own effect, which then leaves the title bar alone.
-     */
-    const element = page.current;
-    const frame = element?.closest(".app-window") ?? element;
-    if (active && !frame?.contains(document.activeElement)) element?.focus();
-  }, [active]);
 
   useEffect(() => {
     /** The full screen button names what it will do, however full screen ended. */
@@ -193,10 +177,11 @@ export function TvApp({
 
   return (
     <div
-      ref={page}
       className="program-page tv-page"
-      // Focusable, so a click on the picture puts the keys in TV's hands.
+      // Focusable, so a click on the picture puts the keys in TV's hands, and
+      // the window hands them here whenever TV comes forward or is opened.
       tabIndex={-1}
+      data-window-keys
       onKeyDown={answerKey}
     >
       <div

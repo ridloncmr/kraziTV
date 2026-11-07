@@ -51,13 +51,13 @@ export function ChannelObservation({
     visible,
     10_000,
   );
-  // A list that could not be read has nothing to choose from, so only the
-  // problem and Refresh show.
-  const unlisted = channels.error !== undefined && !channels.data;
+  // Only a read list with channels in it has anything to choose from; while
+  // it loads, or when it could not be read, Refresh shows alone.
+  const listed = (channels.data?.length ?? 0) > 0;
   return (
     <>
       <div className="inline-form">
-        {!unlisted && (
+        {listed && (
           <label>
             Channel
             <select

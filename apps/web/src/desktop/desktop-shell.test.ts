@@ -894,6 +894,22 @@ it("gives TV the keys when it opens and when it is brought forward, while other 
   expect(tunedPath()).toBe("/channels/one/stream");
 });
 
+it("gives TV the keys back when it is picked from Start while already in front", async () => {
+  const { open, tunedPath } = await renderDesktopWithTv();
+  open("TV");
+  const tv = await screen.findByRole("region", { name: "TV" });
+  await within(tv).findByText("Alpha");
+
+  const start = screen.getByRole("button", { name: "start" });
+  act(() => start.focus());
+  fireEvent.click(start);
+  const menu = screen.getByRole("navigation", { name: "Start programs" });
+  fireEvent.click(within(menu).getByRole("button", { name: /^TV/ }));
+  expect(document.activeElement).toBe(tv.querySelector(".tv-page"));
+  pressKey("ArrowUp");
+  expect(tunedPath()).toBe("/channels/two/stream");
+});
+
 it("leaves the keys on TV's title bar when focus moves there, so the arrows still move the window", async () => {
   const { open, tunedPath } = await renderDesktopWithTv();
   open("TV");

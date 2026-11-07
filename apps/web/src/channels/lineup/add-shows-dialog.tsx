@@ -208,7 +208,6 @@ export function AddShowsDialog({
                         Wheel name
                         <input
                           value={name}
-                          maxLength={80}
                           placeholder={joinShowNames(
                             picks.map((pick) => pick.name),
                           )}

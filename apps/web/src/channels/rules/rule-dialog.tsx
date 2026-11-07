@@ -154,7 +154,6 @@ function GeneralFields({
         Name
         <input
           required
-          maxLength={80}
           placeholder="Christmas movies"
           value={draft.name}
           onChange={(event) => edit({ name: event.target.value })}

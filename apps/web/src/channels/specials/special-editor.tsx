@@ -9,10 +9,10 @@ import { WindowDialog } from "../../controls/dialogs/window-dialog.js";
 import { useUnsavedReport } from "../../desktop/windows/use-unsaved-report.js";
 import { resourcePath } from "../../http/api-client.js";
 import { ApiError } from "../../http/api-error.js";
-import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
 import { useMutation } from "../../http/resources/use-resource.js";
 import type {
+  CollectionList,
   Special,
   SpecialPreview as Preview,
   SpecialPreviewSource,
@@ -58,7 +58,7 @@ export function SpecialEditor({
 }: {
   channelId: string;
   special?: Special;
-  collections: MediaCollection[] | undefined;
+  collections: CollectionList;
   visible: boolean;
   saved: () => void;
   /** Reports whether the form holds edits not yet saved. */

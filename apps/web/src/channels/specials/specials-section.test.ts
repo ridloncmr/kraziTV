@@ -321,6 +321,41 @@ it("saves a collection block with its explicit end", async () => {
   );
 });
 
+it("shows the problem and Refresh in the editor when the collection list cannot be read", async () => {
+  const api = new BrowserApi();
+  api.reply(LIST, []);
+  api.reply(
+    "/media-collections",
+    { error: { code: "internal_error", message: "Database locked" } },
+    "GET",
+    500,
+  );
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(SpecialsSection, {
+      channelId: "one",
+      visible: true,
+      onDirtyChange: () => {},
+    }),
+  );
+  await startNewSpecial();
+  fireEvent.click(screen.getByLabelText("A collection, until a set end"));
+  const editor = screen.getByRole("dialog");
+
+  expect((await within(editor).findByRole("alert")).textContent).toBe(
+    "kraziTV hit a problem it could not recover from. Try again; if it keeps happening, check the kraziTV log.",
+  );
+  expect(within(editor).queryByLabelText("Collection")).toBeNull();
+  expect(within(editor).queryByText("Choose a collection")).toBeNull();
+
+  api.reply("/media-collections", adminFixtures.collections);
+  fireEvent.click(within(editor).getByRole("button", { name: "Refresh" }));
+  expect(
+    await within(editor).findByRole("option", { name: "Favorites" }),
+  ).toBeTruthy();
+  expect(within(editor).queryByRole("button", { name: "Refresh" })).toBeNull();
+});
+
 it("narrows the collection list by collection type, keeping the chosen collection listed", async () => {
   renderSection([], [...adminFixtures.collections, officeCollection]);
   await startNewSpecial();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type PointerEvent } from "react";
 import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import {
   rowClickProps,
@@ -122,7 +122,6 @@ export function LineupTab({
                 <th className="narrow-column">At a time</th>
                 <th className="narrow-column">Marathons</th>
                 <th>Rules</th>
-                <th aria-label="Rotation" />
                 <th aria-label="Actions" />
               </tr>
             </thead>
@@ -143,8 +142,25 @@ export function LineupTab({
                       className="text-button"
                       onClick={() => setSelectedId(assignment.id)}
                     >
-                      {showName(assignment)}
+                      <span
+                        className="clamp-two-lines"
+                        onPointerEnter={titleWhenCut}
+                      >
+                        {showName(assignment)}
+                      </span>
                     </button>
+                    {/* Under the name, so the Show column keeps the width a badge column took. */}
+                    {(assignment.members.length > 1 ||
+                      assignment.participation === "rule_only") && (
+                      <div className="badge-line">
+                        {assignment.members.length > 1 && (
+                          <span className="row-badge">Wheel</span>
+                        )}
+                        {assignment.participation === "rule_only" && (
+                          <span className="row-badge">Rules only</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="narrow-column">{orderLabel(assignment)}</td>
                   <td className="narrow-column">
@@ -167,14 +183,6 @@ export function LineupTab({
                       ruleNames={rulesNaming(assignment.id)}
                       ruleOnly={assignment.participation === "rule_only"}
                     />
-                  </td>
-                  <td className="badge-cell">
-                    {assignment.members.length > 1 && (
-                      <span className="row-badge">Wheel</span>
-                    )}
-                    {assignment.participation === "rule_only" && (
-                      <span className="row-badge">Rules only</span>
-                    )}
                   </td>
                   <td>
                     <RowMenu
@@ -314,6 +322,16 @@ export function LineupTab({
       )}
     </section>
   );
+}
+
+/**
+ * Puts the full text in the hover title only when two lines cut it short,
+ * so a name that fits shows no tip repeating it. Measured on each hover,
+ * since a resized window changes where it is cut.
+ */
+function titleWhenCut(event: PointerEvent<HTMLElement>) {
+  const text = event.currentTarget;
+  text.title = text.scrollHeight > text.clientHeight ? text.textContent : "";
 }
 
 /**

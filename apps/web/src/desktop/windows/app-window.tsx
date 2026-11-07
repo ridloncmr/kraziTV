@@ -122,9 +122,17 @@ export function AppWindow({
     fromB: number;
   } | null>(null);
   useEffect(() => {
-    if (active && !frame.current?.contains(document.activeElement))
-      titleBar.current?.focus();
-  }, [active]);
+    /**
+     * Coming forward or being opened again hands the window the keys: to the
+     * element its program marks with `data-window-keys`, such as TV's
+     * picture, else the title bar. Focus already inside stays, so a title bar
+     * reached by Tab or a click still moves the window.
+     */
+    if (!active || frame.current?.contains(document.activeElement)) return;
+    const keys =
+      frame.current?.querySelector<HTMLElement>("[data-window-keys]");
+    (keys ?? titleBar.current)?.focus();
+  }, [active, window.opens]);
   const shown = withinViewport(window, viewport);
   /** Commits a move bounded to the usable viewport so the entire title bar remains recoverable. */
   function move(x: number, y: number) {

@@ -107,6 +107,33 @@ describe("findCalendarProblem", () => {
       "window minutes must be whole minutes from 0 through 1439",
     ],
   ])("refuses %j", (partial, problem) => {
-    expect(findCalendarProblem({ ...ANYTIME, ...partial })).toBe(problem);
+    expect(findCalendarProblem({ ...ANYTIME, ...partial })?.message).toBe(
+      problem,
+    );
+  });
+
+  it.each<[Partial<CalendarConditions>, string[]]>([
+    [
+      {
+        dates: {
+          kind: "one_off",
+          startDate: "2027-01-02",
+          endDate: "2027-01-01",
+        },
+      },
+      ["dates", "endDate"],
+    ],
+    [
+      {
+        dates: { kind: "annual", startMonthDay: "13-01", endMonthDay: "12-31" },
+      },
+      ["dates", "startMonthDay"],
+    ],
+    [{ weekdays: [7] }, ["weekdays"]],
+    [{ window: { startMinute: 600, endMinute: 600 } }, ["window", "endMinute"]],
+  ])("names the field %j refuses", (partial, field) => {
+    expect(findCalendarProblem({ ...ANYTIME, ...partial })?.field).toEqual(
+      field,
+    );
   });
 });

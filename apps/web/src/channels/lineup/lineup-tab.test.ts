@@ -149,15 +149,19 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
       within(table)
         .getAllByRole("row")
         .slice(1)
-        .map((row) =>
-          [...(row as HTMLTableRowElement).cells]
-            .slice(0, 6)
-            .map((cell) => cell.textContent),
-        ),
+        .map((row) => {
+          const [show, ...rest] = [...(row as HTMLTableRowElement).cells];
+          // The name, then the badges on their line under it.
+          return [
+            show.querySelector("button")!.textContent,
+            show.querySelector(".badge-line")?.textContent ?? "",
+            ...rest.slice(0, 4).map((cell) => cell.textContent),
+          ];
+        }),
     ).toEqual([
-      ["Favorites", "Episode order", "~1 hr", "up to 3 hrs", "", ""],
-      ["The Office + Parks + 1 more", "Random", "3 programs", "", "", "Wheel"],
-      ["Alpha", "—", "1 program", "", "", "Rules only"],
+      ["Favorites", "", "Episode order", "~1 hr", "up to 3 hrs", ""],
+      ["The Office + Parks + 1 more", "Wheel", "Random", "3 programs", "", ""],
+      ["Alpha", "Rules only", "—", "1 program", "", ""],
     ]),
   );
   expect(screen.queryByRole("button", { name: /Move/ })).toBeNull();
@@ -208,6 +212,31 @@ it("keeps Play order, At a time, and Marathons on one line at their words' width
   // row's actions out of the window.
   expect(column("Show").whiteSpace).not.toBe("nowrap");
   expect(column("Rules").whiteSpace).not.toBe("nowrap");
+});
+
+it("cuts a long name at two lines and shows it whole on hover, but gives a name that fits no tip", async () => {
+  await openLineup([favoritesAssignment("episode")]);
+  const name = (await screen.findByRole("button", { name: "Favorites" }))
+    .firstElementChild as HTMLElement;
+  expect(name.className).toBe("clamp-two-lines");
+  // jsdom lays nothing out, so the heights say whether two lines cut it.
+  const lay = (scrollHeight: number) => {
+    Object.defineProperty(name, "scrollHeight", {
+      value: scrollHeight,
+      configurable: true,
+    });
+    Object.defineProperty(name, "clientHeight", {
+      value: 28,
+      configurable: true,
+    });
+  };
+
+  lay(56);
+  fireEvent.pointerEnter(name);
+  expect(name.title).toBe("Favorites");
+  lay(28);
+  fireEvent.pointerEnter(name);
+  expect(name.title).toBe("");
 });
 
 it("names the rules that select each show, and says when a rules-only show has none", async () => {

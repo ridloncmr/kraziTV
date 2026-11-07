@@ -49,24 +49,9 @@ it("shows one welcome panel with the three fields, the name focused", () => {
 
 it.each([
   {
-    refusal: "a 41-character name",
-    fields: ["n".repeat(41), "correct horse"],
-    says: "Your name must be 40 characters or fewer.",
-  },
-  {
     refusal: "a blank name",
     fields: ["   ", "correct horse"],
     says: "Type your name.",
-  },
-  {
-    refusal: "a 7-character password",
-    fields: ["Marguerite", "seven77"],
-    says: "Your password must be at least 8 characters.",
-  },
-  {
-    refusal: "a 257-character password",
-    fields: ["Marguerite", "p".repeat(257)],
-    says: "Your password must be 256 characters or fewer.",
   },
   {
     refusal: "mismatched passwords",
@@ -127,6 +112,31 @@ it("words the server's invalid_request by the field it names", async () => {
   );
   expect(onSetUp).not.toHaveBeenCalled();
   expect(onAlreadySetUp).not.toHaveBeenCalled();
+});
+
+it("leaves a password's length to the server and words its refusal from the limit it sent", async () => {
+  const api = new BrowserApi();
+  api.reply(
+    "/auth/setup",
+    {
+      error: {
+        code: "invalid_request",
+        message: "password: password must be at least 8 characters",
+        fields: [{ path: "password", code: "too_small", minimum: 8 }],
+      },
+    },
+    "POST",
+    400,
+  );
+  renderSetup(api);
+  submitSetup("Marguerite", "seven77");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Use a password of at least 8 characters.",
+  );
+  expect(api.requestsTo("/auth/setup")[0]?.body).toEqual({
+    displayName: "Marguerite",
+    password: "seven77",
+  });
 });
 
 it("reports a 409 already_set_up instead of showing it", async () => {

@@ -44,7 +44,8 @@ export function SetupScreen({
       : (refusalWords(setup.error) ?? setup.error.message));
 
   /**
-   * Checks the fields first, so a refused form never reaches the server. The
+   * Checks for a blank name and a mismatched confirmation first, which only
+   * the browser can see; the server judges lengths and says its limits. The
    * name counts after trimming, as the server counts it; a password never does.
    */
   function submit(event: FormEvent<HTMLFormElement>) {
