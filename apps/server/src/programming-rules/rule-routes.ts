@@ -76,9 +76,14 @@ const ruleBody = z
       ),
   })
   .superRefine((body, context) => {
+    // The issue names the field at fault, so the web says what to change.
     const problem = findCalendarProblem(body);
     if (problem !== null) {
-      context.addIssue({ code: "custom", message: problem });
+      context.addIssue({
+        code: "custom",
+        message: problem.message,
+        path: problem.field,
+      });
     }
   });
 

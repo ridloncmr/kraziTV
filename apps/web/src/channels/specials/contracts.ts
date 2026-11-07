@@ -1,3 +1,4 @@
+import type { MediaCollection } from "../../http/contracts/collections.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
 
 // The API shapes of specials that My Channels' specials files share.
@@ -72,4 +73,15 @@ export interface SpecialPreview {
   deferredProgram?: { mediaItemId: string; title: string } | null;
   /** The ordinary program after it; none beyond the horizon. */
   resumesWith?: { mediaItemId: string; title: string; startsAt: string } | null;
+}
+
+/**
+ * The collection list the Specials tab read, as the editor needs it: the
+ * collections once they arrive, why the read failed, and how to read again.
+ */
+export interface CollectionList {
+  data: MediaCollection[] | undefined;
+  error: Error | undefined;
+  loading: boolean;
+  refresh: () => void;
 }

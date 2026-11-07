@@ -36,6 +36,10 @@ means it does not limit the rule.
   before they start run past midnight and count as the day they began, so
   a Friday 8 PM to 2 AM rule covers early Saturday morning.
 
+A one-off range cannot end before it starts, a yearly day must exist, and
+hours cannot start and end at the same time. If one of these is wrong,
+**OK** says which to fix on the **When** tab.
+
 Dates and times follow kraziTV's programming timezone, which the dialog
 names. See [Settings](Settings#the-timezone) if it is not yours.
 

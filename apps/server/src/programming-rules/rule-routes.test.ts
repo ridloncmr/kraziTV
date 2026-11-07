@@ -307,7 +307,7 @@ describe("programming rule routes", () => {
     });
   });
 
-  it("refuses invalid calendar conditions with kraziBrain's reason", async () => {
+  it("refuses invalid calendar conditions with kraziBrain's reason, naming the field", async () => {
     const { server } = await startServer();
 
     const response = await send(server, "POST", RULES_URL, {
@@ -319,6 +319,9 @@ describe("programming rule routes", () => {
     expect(JSON.stringify(response.body)).toContain(
       "a window must not start and end at the same minute",
     );
+    expect(response.body).toMatchObject({
+      error: { fields: [{ path: "window.endMinute", code: "custom" }] },
+    });
   });
 
   it.each([

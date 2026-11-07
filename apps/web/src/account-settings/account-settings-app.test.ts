@@ -77,18 +77,31 @@ it("opens from Start, whose entry draws the account's picture", async () => {
   ).toBeTruthy();
 });
 
-it.each([
-  { refusal: "a blank name", name: "   ", says: "Type your name." },
-  {
-    refusal: "a 41-character name",
-    name: "n".repeat(41),
-    says: "Your name must be 40 characters or fewer.",
-  },
-])("refuses $refusal without sending it", async ({ name, says }) => {
+it("refuses a blank name without sending it", async () => {
   const { api, window } = await openFromShortcut();
-  submitName(window, name);
-  expect(within(window).getByRole("alert").textContent).toBe(says);
+  submitName(window, "   ");
+  expect(within(window).getByRole("alert").textContent).toBe("Type your name.");
   expect(api.requestsTo("/account")).toHaveLength(0);
+});
+
+it("leaves a name's length to the server and words its refusal from the limit it sent", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply(
+    "/account",
+    {
+      error: {
+        code: "invalid_request",
+        message: "displayName: displayName must be at most 40 characters",
+        fields: [{ path: "displayName", code: "too_big", maximum: 40 }],
+      },
+    },
+    "PATCH",
+    400,
+  );
+  submitName(window, "n".repeat(41));
+  expect((await within(window).findByRole("alert")).textContent).toBe(
+    "Use a shorter name: at most 40 characters.",
+  );
 });
 
 it("starts the name box filled with the current name", async () => {
@@ -194,25 +207,35 @@ function passwordBox(window: HTMLElement, label: string) {
   return within(window).getByLabelText<HTMLInputElement>(label);
 }
 
-it.each([
-  {
-    refusal: "a 7-character new password",
-    next: "seven77",
-    confirm: "seven77",
-    says: "Your password must be at least 8 characters.",
-  },
-  {
-    refusal: "a mismatched confirmation",
-    next: "correct horse",
-    confirm: "correct horsf",
-    says: "The passwords you typed do not match.",
-  },
-])("refuses $refusal without sending it", async ({ next, confirm, says }) => {
+it("refuses a mismatched confirmation without sending it", async () => {
   const { api, window } = await openFromShortcut();
-  fillPassword(window, "old password", next, confirm);
+  fillPassword(window, "old password", "correct horse", "correct horsf");
   submitPassword(window);
-  expect(within(window).getByRole("alert").textContent).toBe(says);
+  expect(within(window).getByRole("alert").textContent).toBe(
+    "The passwords you typed do not match.",
+  );
   expect(api.requestsTo("/account/password")).toHaveLength(0);
+});
+
+it("leaves a new password's length to the server and words its refusal from the limit it sent", async () => {
+  const { api, window } = await openFromShortcut();
+  api.reply(
+    "/account/password",
+    {
+      error: {
+        code: "invalid_request",
+        message: "newPassword: password must be at least 8 characters",
+        fields: [{ path: "newPassword", code: "too_small", minimum: 8 }],
+      },
+    },
+    "PUT",
+    400,
+  );
+  fillPassword(window, "old password", "seven77", "seven77");
+  submitPassword(window);
+  expect((await within(window).findByRole("alert")).textContent).toBe(
+    "Use a new password of at least 8 characters.",
+  );
 });
 
 it("disables the password form while the change is pending", async () => {

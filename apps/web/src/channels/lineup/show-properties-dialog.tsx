@@ -220,7 +220,6 @@ export function ShowPropertiesDialog({
                     Name
                     <input
                       value={draft.name}
-                      maxLength={80}
                       placeholder={joinShowNames(members.map(name))}
                       aria-describedby={nameHintId}
                       onChange={(event) => edit({ name: event.target.value })}

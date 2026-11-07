@@ -525,7 +525,7 @@ it("previews a series and creates an automatic collection listed under Automatic
   ).toBe("The OfficeTV series: The Office2 itemsUp to date");
 });
 
-it("shows only the problem when the series list cannot be read, with no list to choose from", async () => {
+it("shows only the problem and Refresh when the series list cannot be read, with no list to choose from", async () => {
   const api = renderApp();
   api.reply(
     "/media-collections/series",
@@ -546,6 +546,13 @@ it("shows only the problem when the series list cannot be read, with no list to 
   );
   expect(within(dialog).queryByRole("combobox")).toBeNull();
   expect(within(dialog).queryByText("Choose a series")).toBeNull();
+
+  api.reply("/media-collections/series", catalogSeries);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Refresh" }));
+  expect(
+    await within(dialog).findByRole("combobox", { name: "Series" }),
+  ).toBeTruthy();
+  expect(within(dialog).queryByRole("button", { name: "Refresh" })).toBeNull();
 });
 
 it("creates an automatic collection from a tag in use", async () => {

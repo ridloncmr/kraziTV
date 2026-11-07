@@ -12,9 +12,9 @@ import { AccountTaskForm } from "./account-task-form.js";
 import { useAccountTask } from "./use-account-task.js";
 
 /**
- * Account Settings' **Change my password** task. It checks the new password
- * and its confirmation as setup does, so a refused pair never reaches the
- * server. Every answer stays on this page; none is a `401`, so the desktop
+ * Account Settings' **Change my password** task. It checks the confirmation
+ * as setup does, so a mismatched pair never reaches the server; the server
+ * judges the new password's length. Every answer stays on this page; none is a `401`, so the desktop
  * stays open. A throttled change counts its wait down and holds back
  * **Change Password** until it ends, as the logon screen does. Success calls
  * `onDone`, whose leaving the page clears it.

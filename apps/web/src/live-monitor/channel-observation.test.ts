@@ -121,6 +121,21 @@ it("opens My Channels from the empty state when there are no channels", async ()
   expect(screen.getByText(/No channels yet/).className).toBe("empty-state");
 });
 
+it("shows no channel list until the list arrives", async () => {
+  const api = monitorApi();
+  api.hold("/channels");
+  render(
+    createElement(ChannelObservation, { visible: true, openProgram: () => {} }),
+  );
+
+  expect(await screen.findByText("Working… Please wait.")).toBeTruthy();
+  expect(screen.queryByLabelText("Channel")).toBeNull();
+  expect(screen.queryByText(/Choose a channel/)).toBeNull();
+
+  api.release("/channels", adminFixtures.channels);
+  expect(await screen.findByLabelText("Channel")).toBeTruthy();
+});
+
 it("shows the problem and Refresh, with no channel list, when the channel list cannot be read", async () => {
   const api = monitorApi();
   api.handle("/channels", () => {

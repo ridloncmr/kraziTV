@@ -104,7 +104,6 @@ describe("desktop windows", () => {
     let state = windowReducer([], { type: "open", id: "channels" });
     state = windowReducer(state, { type: "open", id: "media" });
     expect(windowReducer(state, { type: "focus", id: "media" })).toBe(state);
-    expect(windowReducer(state, { type: "open", id: "media" })).toBe(state);
     expect(
       windowReducer(state, { type: "focus", id: "channels" }).at(-1)?.id,
     ).toBe("channels");
@@ -141,5 +140,12 @@ describe("desktop windows", () => {
     });
     state = windowReducer(state, { type: "maximize", id: "media" });
     expect(state[0]).toMatchObject({ width: 900, height: 600 });
+  });
+
+  it("counts an open of the window already in front, but not a press inside it", () => {
+    const state = windowReducer([], { type: "open", id: "tv" });
+    expect(state[0].opens).toBe(1);
+    expect(windowReducer(state, { type: "focus", id: "tv" })).toBe(state);
+    expect(windowReducer(state, { type: "open", id: "tv" })[0].opens).toBe(2);
   });
 });

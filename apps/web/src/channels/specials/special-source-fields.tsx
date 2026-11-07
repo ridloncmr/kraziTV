@@ -5,11 +5,11 @@ import {
   hasCollectionType,
 } from "../../collection-types/collection-type.js";
 import { CheckboxOption } from "../../controls/checkbox-option/checkbox-option.js";
-import type { MediaCollection } from "../../http/contracts/collections.js";
+import { RequestFeedback } from "../../controls/dialogs/request-feedback.js";
 import type { PlaybackMode } from "../../http/contracts/programming.js";
 import { MediaItemPicker } from "../../media-search/media-item-picker.js";
 import { PlayOrderField } from "../members/play-order-field.js";
-import type { SpecialPreviewSource } from "./contracts.js";
+import type { CollectionList, SpecialPreviewSource } from "./contracts.js";
 
 /** What kind of programming a special airs. */
 export type SourceKind = SpecialPreviewSource["kind"];
@@ -56,7 +56,7 @@ export function SpecialSourceFields({
   items: readonly string[];
   collectionId: string;
   mode: PlaybackMode;
-  collections: MediaCollection[] | undefined;
+  collections: CollectionList;
   visible: boolean;
   onKind: (kind: SourceKind) => void;
   onItems: (items: string[]) => void;
@@ -119,34 +119,51 @@ export function SpecialSourceFields({
         </ol>
       ) : (
         <>
-          {collections && (
-            <CollectionTypeSelect
-              collections={collections}
-              value={type}
-              onChange={setType}
-            />
+          {collections.data === undefined && collections.error ? (
+            // A list that could not be read has nothing to choose from, so
+            // only Refresh and the problem show.
+            <>
+              <button
+                type="button"
+                disabled={collections.loading}
+                onClick={collections.refresh}
+              >
+                Refresh
+              </button>
+              <RequestFeedback error={collections.error} />
+            </>
+          ) : (
+            <>
+              {collections.data && (
+                <CollectionTypeSelect
+                  collections={collections.data}
+                  value={type}
+                  onChange={setType}
+                />
+              )}
+              <label>
+                Collection
+                <select
+                  required
+                  value={collectionId}
+                  onChange={(event) => onCollection(event.target.value)}
+                >
+                  <option value="">Choose a collection</option>
+                  {collections.data
+                    ?.filter(
+                      (collection) =>
+                        collection.id === collectionId ||
+                        hasCollectionType(collection, type),
+                    )
+                    .map((collection) => (
+                      <option key={collection.id} value={collection.id}>
+                        {collection.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </>
           )}
-          <label>
-            Collection
-            <select
-              required
-              value={collectionId}
-              onChange={(event) => onCollection(event.target.value)}
-            >
-              <option value="">Choose a collection</option>
-              {collections
-                ?.filter(
-                  (collection) =>
-                    collection.id === collectionId ||
-                    hasCollectionType(collection, type),
-                )
-                .map((collection) => (
-                  <option key={collection.id} value={collection.id}>
-                    {collection.name}
-                  </option>
-                ))}
-            </select>
-          </label>
           <PlayOrderField
             mode={mode}
             hint

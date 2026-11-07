@@ -21,13 +21,11 @@ import { TvApp, type WatchRequest } from "../tv/tv-app.js";
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
  * `onTmdbKeyChanged`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
  * `tmdbTaskRequest` only when the tray or Media Library asks, `watchRequest` only when a channel is watched,
- * `active` only when this window comes to the front or leaves it, and each kind's properties windows only
- * when that kind saves a change.
+ * and each kind's properties windows only when that kind saves a change.
  */
 export const ProgramContents = memo(function ProgramContents({
   id,
   visible,
-  active,
   connection,
   account,
   onAccountChanged,
@@ -42,8 +40,6 @@ export const ProgramContents = memo(function ProgramContents({
 }: {
   id: WindowId;
   visible: boolean;
-  /** Whether this window is the one in front; TV takes the keys when it is. */
-  active: boolean;
   connection: string;
   account: AccountProfile;
   onAccountChanged: (account: AccountProfile) => void;
@@ -117,7 +113,6 @@ export const ProgramContents = memo(function ProgramContents({
       return (
         <TvApp
           visible={visible}
-          active={active}
           request={watchRequest}
           onOpenChannels={openChannels}
         />

@@ -30,6 +30,11 @@ export interface DesktopWindow {
   id: WindowId;
   /** Creation order keeps taskbar positions stable when stacking order changes. */
   openedOrder: number;
+  /**
+   * Counts how often the window was opened, so opening one already in front
+   * still hands it the keys, as picking it from Start did on XP.
+   */
+  opens: number;
   x: number;
   y: number;
   width: number;

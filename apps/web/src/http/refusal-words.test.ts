@@ -41,6 +41,21 @@ it("words a too-long name from the limit the server sent, never its own copy", (
   );
 });
 
+it("says on which tab and how to fix a rule's refused calendar conditions", () => {
+  expect(refusalWords(invalid(["dates.endDate", "custom"]))).toBe(
+    "On the When tab, pick a Through date on or after the From date.",
+  );
+  expect(refusalWords(invalid(["dates.startMonthDay", "custom"]))).toBe(
+    "On the When tab, type a From day that exists, as MM-DD.",
+  );
+  expect(refusalWords(invalid(["dates.endMonthDay", "custom"]))).toBe(
+    "On the When tab, type a Through day that exists, as MM-DD.",
+  );
+  expect(refusalWords(invalid(["window.endMinute", "custom"]))).toBe(
+    "On the When tab, pick hours that end at a different time than they start.",
+  );
+});
+
 it("words a password's length from the limit the server sent", () => {
   // A login refuses only the cap; the setup minimum belongs to setup.
   expect(refusalWords(invalid(["password", "too_big", { maximum: 256 }]))).toBe(

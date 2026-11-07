@@ -23,8 +23,11 @@ export function windowReducer(
     if (!existing && action.type === "focus") return state;
     // Every pointer press in a window focuses it; keeping the state when it is
     // already the visible top window lets React skip re-rendering the desktop.
+    // An open still counts there, so the window takes the keys back.
     if (existing && !existing.minimized && state.at(-1) === existing)
-      return state;
+      return action.type === "focus"
+        ? state
+        : [...state.slice(0, -1), { ...existing, opens: existing.opens + 1 }];
     const offset = 24 * state.length;
     const program = programOf(action.id);
     const placed = {
@@ -42,12 +45,17 @@ export function windowReducer(
     const item = existing ?? {
       id: action.id,
       openedOrder: Math.max(-1, ...state.map((entry) => entry.openedOrder)) + 1,
+      opens: 0,
       ...placed,
       ...(front && { x: front.x + 24, y: front.y + 24 }),
     };
     return [
       ...state.filter((entry) => entry.id !== action.id),
-      { ...item, minimized: false },
+      {
+        ...item,
+        minimized: false,
+        opens: item.opens + (action.type === "open" ? 1 : 0),
+      },
     ];
   }
   return state.map((item) => {
