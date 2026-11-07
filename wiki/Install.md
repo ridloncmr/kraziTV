@@ -23,7 +23,7 @@ docker run -d --name krazitv -p 3000:3000 \
   -v /path/to/your/media:/media:ro \
   -e PUBLIC_BASE_URL=http://192.168.1.10:3000 \
   -e KRAZITV_PROGRAMMING_TIMEZONE=America/New_York \
-  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.4
+  ghcr.io/ridloncmr/krazitv:v0.9.0-rc.5
 ```
 
 Most people change only three things: the media folder, the address, and
@@ -36,7 +36,7 @@ the timezone. Here is every part of the command:
 | `-v /path/to/your/media:/media:ro`      | Yes, one per drive or folder | Each folder holding movies or shows. kraziTV in Docker sees only what you list here. See [Your media folders](#your-media-folders). | kraziTV has no media to play.                                          |
 | `-e PUBLIC_BASE_URL=...`                | Usually                      | This computer's address on your network. See [Your address](#your-address).                                                         | Only Plex and browsers on this computer can use kraziTV.               |
 | `-e KRAZITV_PROGRAMMING_TIMEZONE=...`   | Recommended                  | Your timezone, such as `America/Chicago`. [Settings](Settings#the-timezone) lists the common ones.                                  | kraziTV uses UTC, so a rule for 8 PM fires at 8 PM UTC, not your 8 PM. |
-| `ghcr.io/ridloncmr/krazitv:v0.9.0-rc.4` | Yes                          | The version to run. The [releases page](https://github.com/ridloncmr/kraziTV/releases) lists every one.                             |                                                                        |
+| `ghcr.io/ridloncmr/krazitv:v0.9.0-rc.5` | Yes                          | The version to run. The [releases page](https://github.com/ridloncmr/kraziTV/releases) lists every one.                             |                                                                        |
 
 You can also add `--restart unless-stopped` after `-d` so kraziTV starts
 again when the computer restarts. Without it, run `docker start krazitv`
@@ -179,7 +179,7 @@ same `docker run` command again with the new tag. Your data is in the
 volume, so nothing is lost:
 
 ```bash
-docker pull ghcr.io/ridloncmr/krazitv:v0.9.0-rc.4
+docker pull ghcr.io/ridloncmr/krazitv:v0.9.0-rc.5
 docker rm -f krazitv
 docker run ...   # the same command as before
 ```
