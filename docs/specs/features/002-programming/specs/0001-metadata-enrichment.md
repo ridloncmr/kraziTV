@@ -62,8 +62,8 @@ provider operations already exist, or supersede accepted architectural decisions
 7. For a folder of ambiguous disc-track files, the user can map every track to an
    episode in one **Map tracks to episodes** dialog instead of correcting each file.
 8. Without a key, the desktop reminds the owner that only generic probing
-   happens: a TMDB icon in the system tray and, at most once per reminder
-   period, a tray balloon offering **Set up TMDB** (see
+   happens: a tray icon and, at most once per reminder period, a tray
+   balloon offering **Set up TMDB** (see
    [TMDB Setup Reminder](#tmdb-setup-reminder)).
 
 A provider outage reports enrichment failures without turning technically usable
@@ -159,21 +159,24 @@ Without a key the catalog still scans, but titles come only from path hints.
 The desktop shell says so where the owner will see it, without blocking any
 program:
 
-- **Tray icon.** While no key is set, the system tray shows a TMDB icon labeled
-  `TMDB isn't set up`. It stays even after the owner turns the reminder off,
-  so the setting is never lost. Clicking it opens the balloon.
-- **Tray balloon.** At desktop start, the balloon opens by itself when no key
-  is set, at least one media root exists, and the reminder is due. With no
-  media root there is nothing to enrich, so it stays closed. It reads:
+- **Tray icon.** While no key is set, the system tray shows the tray
+  assistant's head labeled `TMDB isn't set up`. It stays even after the owner
+  turns the reminder off, so the setting is never lost. Clicking it opens the
+  balloon.
+- **Tray balloon.** The balloon opens by itself at most once per desktop
+  start: the first time no key is set, at least one media root exists, and
+  the reminder is due, which may be mid-session, such as right after the
+  first media root is added. With no media root there is nothing to enrich,
+  so it stays closed. It reads:
   `TMDB isn't set up` / `kraziTV can only read titles from file names. Set up
 TMDB to look up series, episodes, and movies.` Its actions:
 
-  | Action              | Effect                                                                    |
-  | ------------------- | ------------------------------------------------------------------------- |
-  | **Set up TMDB**     | Opens Account Settings on the Set up TMDB task; snoozes like Remind later |
-  | **Remind me later** | Closes the balloon; it opens by itself again after 7 days                 |
-  | **Don't remind me** | Closes the balloon; it never opens by itself again in this browser        |
-  | Close (**✕**)       | Same as **Remind me later**                                               |
+  | Action              | Effect                                                                           |
+  | ------------------- | -------------------------------------------------------------------------------- |
+  | **Set up TMDB**     | Opens Account Settings on the Set up TMDB task; snoozes like **Remind me later** |
+  | **Remind me later** | Closes the balloon; it opens by itself again after 7 days                        |
+  | **Don't remind me** | Closes the balloon; it never opens by itself again in this browser               |
+  | Close (**✕**)       | Same as **Remind me later**                                                      |
 
 - **Reminder state is desktop shell state.** The browser keeps it in
   `localStorage`, so each browser reminds on its own. Unreadable or missing
@@ -644,9 +647,10 @@ None.
   manually collected, and broadcast.
 - No route ever returns the TMDB key; a rejected key is never stored.
 - Without a TMDB key, a scan makes no TMDB calls and records no enrichment errors.
-- Without a TMDB key, the tray shows the TMDB icon; the balloon opens by itself
-  only when a media root exists and the reminder is due, and **Remind me later**
-  and **Don't remind me** hold for 7 days and for good in that browser.
+- Without a TMDB key, the tray shows its reminder icon; the balloon opens by
+  itself at most once per desktop start, only when a media root exists and
+  the reminder is due, and **Remind me later** and **Don't remind me** hold
+  for 7 days and for good in that browser.
 - Provider-sourced facts are refreshed in the background or dropped before they
   are six months old, without a catalog scan; user corrections are kept.
 - Lookups back off on HTTP `429` instead of failing the scan.
