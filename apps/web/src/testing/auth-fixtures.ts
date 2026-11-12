@@ -58,7 +58,7 @@ export async function bootDesktop(
   script?.(api);
   render(createElement(App));
   await screen.findByRole("button", { name: "start" });
-  // The shell reads media roots last as it starts, for the TMDB reminder.
+  // The shell reads media roots last as it starts, for the tray reminders.
   await waitFor(() => {
     if (api.requestsTo("/media-roots").length === 0) {
       throw new Error("the desktop has not read media roots yet");

@@ -29,9 +29,105 @@
     transform: translateY(-3.5px) scaleY(1.15);
   }
 }
-/* Reduced motion leaves the wisp standing still at its resting opacity. */
+/*
+ * The tray's reminder icon, Gregg's head, and its XP balloon. The balloon
+ * rises above the tray, flush with its right edge as XP's were, and has its
+ * own close. It is 20 px wider than the TMDB balloon was, so the head row
+ * keeps the longest title to two lines beside Gregg.
+ */
+.tray-reminders {
+  display: flex;
+}
+.tray-reminder-icon {
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  display: flex;
+  cursor: pointer;
+}
+.tray-reminder-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.tray-balloon {
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 4px);
+  width: 300px;
+  padding: 10px 12px;
+  background: #ffffe1;
+  color: #000;
+  border: 1px solid #000;
+  border-radius: 8px;
+  box-shadow: 2px 2px 6px rgb(0 0 0 / 35%);
+  font-size: 11px;
+  /* The tray keeps its own items on one line; the balloon's text must wrap. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  z-index: 1000;
+  /* Rises from the tray as XP balloons did. */
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .tray-balloon {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* Gregg beside the title, his quip one line under it. */
+.tray-balloon-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tray-balloon-gregg {
+  display: flex;
+  flex: none;
+}
+/* The title stops short of the close button instead of running under it. */
+.tray-balloon strong {
+  display: block;
+  padding-right: 16px;
+}
+.tray-balloon p {
+  margin: 6px 0 8px;
+}
+/* His voice, quieter than the title and the plain sentence below. */
+.tray-balloon .tray-balloon-quip {
+  margin: 2px 0 0;
+  color: #4a4a4a;
+  font-style: italic;
+}
+.tray-balloon-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tray-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/*
+ * Reduced motion leaves the wisp standing still at its resting opacity, and
+ * keeps the balloon's fade, which says it appeared, without the rise. These
+ * follow the rules they override, since this sheet loads after desktop.css.
+ */
 @media (prefers-reduced-motion: reduce) {
   .gregg-smoke {
     animation: none;
+  }
+  .tray-balloon {
+    transition-property: opacity;
+  }
+  @starting-style {
+    .tray-balloon {
+      transform: none;
+    }
   }
 }

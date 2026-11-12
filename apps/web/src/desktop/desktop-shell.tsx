@@ -8,7 +8,8 @@ import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
-import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
+import { trayReminders } from "../tray-reminders/tray-reminder-list.js";
+import { TrayReminders } from "../tray-reminders/tray-reminders.js";
 import type { WatchRequest } from "../tv/tv-app.js";
 import { navigateWithArrows } from "../controls/arrow-navigation/arrow-navigation.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
@@ -44,8 +45,9 @@ function usableViewport(): DesktopViewport {
  * Log Off confirmation is open, the desktop behind it is inert. The account
  * comes from the app root, which alone holds it, so a change made in Account
  * Settings goes back up through `onAccountChanged` and redraws everything.
- * The shell also owns whether a TMDB key is set, for the tray reminder; a save
- * in Account Settings re-reads it through `onTmdbKeyChanged`.
+ * The shell also reads whether a TMDB key is set and the media roots, for the
+ * tray reminders; a save in Account Settings re-reads the key through
+ * `onTmdbKeyChanged`.
  */
 export function DesktopShell({
   account,
@@ -218,14 +220,12 @@ export function DesktopShell({
           displayName={account.displayName}
           logOff={() => setLoggingOff(true)}
           tray={
-            <TmdbTrayReminder
-              configured={tmdbKey.data?.configured}
-              hasMediaRoots={
-                mediaRoots.data === undefined
-                  ? undefined
-                  : mediaRoots.data.length > 0
-              }
-              onSetUp={() => openProgram("account", "set-up-tmdb")}
+            <TrayReminders
+              reminders={trayReminders({
+                tmdbKey: tmdbKey.data,
+                mediaRoots: mediaRoots.data,
+                setUpTmdb: () => openProgram("account", "set-up-tmdb"),
+              })}
             />
           }
         />

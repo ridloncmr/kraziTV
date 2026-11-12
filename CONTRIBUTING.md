@@ -166,7 +166,7 @@ sit beside it), and `main.tsx` mounts it.
 | `collection-types/`, `media-availability/` | Collection type and media status labels shared across programs                                                                     |
 | `media-search/`                            | The media and collection pickers                                                                                                   |
 | `account-fields/`, `password-check/`       | Name and password checks shared by setup, the logon screen, and Account Settings                                                   |
-| `tmdb-reminder/`                           | The tray balloon that asks the owner to set up TMDB                                                                                |
+| `tray-reminders/`                          | The tray's reminder list, its one icon and balloon, the owner's stored choices, and Gregg's drawings                               |
 | `branding/`                                | Program icons, account pictures, and attributions                                                                                  |
 | `testing/`                                 | Test doubles and fixtures                                                                                                          |
 
