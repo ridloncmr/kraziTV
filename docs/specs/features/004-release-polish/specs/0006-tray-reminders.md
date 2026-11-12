@@ -1,6 +1,6 @@
 # Spec 0006: Tray Reminders And The Tray Assistant
 
-Status: Accepted
+Status: Implemented
 
 ## Problem
 
@@ -173,7 +173,7 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 - **Motion.** The balloon fades in as it does today. A thin wisp of smoke
   drifts from the cigarette while a balloon is open; with reduced motion it
   is still. Nothing else moves.
-- **Quips.** One line under the title, in his manner. First drafts:
+- **Quips.** One line under the title, in his manner:
 
   | Reminder            | Quip                                                                       |
   | ------------------- | -------------------------------------------------------------------------- |

@@ -1,6 +1,6 @@
 # Release Polish Feature
 
-Status: In Development
+Status: Implemented
 
 This feature takes kraziTV from "works" to "a non-technical first-time user,
 with minimal prompting, builds channels and enjoys it", inside the Windows XP
