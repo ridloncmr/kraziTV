@@ -152,6 +152,9 @@ IDs, and is free for non-commercial use.
 
 ### TMDB Setup Reminder
 
+[Release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md)
+shows this reminder as the first of its tray reminders, written in the tray assistant's words, and adds what follows a saved key.
+
 Without a key the catalog still scans, but titles come only from path hints.
 The desktop shell says so where the owner will see it, without blocking any
 program:
