@@ -18,7 +18,7 @@ import type {
 } from "../../http/contracts/media.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
-import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
+import { applyStylesheet } from "../../testing/apply-stylesheet.js";
 import { mediaRoot } from "../../testing/scan-fixtures.js";
 import { MediaLibraryApp } from "../media-library-app.js";
 
@@ -193,7 +193,7 @@ it("previews a root removal with its path and item count", async () => {
 });
 
 it("breaks a scene-named root path inside its sentence rather than scrolling the dialog sideways", async () => {
-  applyControlsStylesheet();
+  applyStylesheet("controls/controls.css");
   const path =
     "/volume1/Media/TV/Star.Trek.Deep.Space.Nine.S01-S07.1080p.BluRay.x265/Disc1";
   expect(path).toHaveLength(75);

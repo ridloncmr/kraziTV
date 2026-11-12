@@ -1,0 +1,37 @@
+/*
+ * The tray assistant's smoke (spec 0006, The tray assistant). A thin wisp
+ * drifts up from Gregg's cigarette and thins out while a balloon is open,
+ * over and over, with opacity and transform only: slow and low-contrast, so
+ * it reads as a character breathing rather than as motion the owner should
+ * look at. `transform-box: fill-box` makes the wisp rise and stretch from
+ * its own base instead of the drawing's origin. Both ends of the loop sit
+ * at opacity 0, so the jump back to the start is never seen.
+ */
+.gregg-smoke {
+  opacity: 0.45;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: gregg-smoke 5.2s linear infinite;
+}
+@keyframes gregg-smoke {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scaleY(0.8);
+  }
+  30% {
+    opacity: 0.45;
+  }
+  65% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3.5px) scaleY(1.15);
+  }
+}
+/* Reduced motion leaves the wisp standing still at its resting opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .gregg-smoke {
+    animation: none;
+  }
+}

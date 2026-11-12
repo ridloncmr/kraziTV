@@ -33,9 +33,9 @@ reminders written in the words of an original kraziTV character.
 
 ## Non-Goals
 
-- Reminders to probe files again after an upgrade, such as the source facts
-  of the [broadcast profiles feature](../../005-broadcast-profiles/README.md).
-  That feature decides how its backfill happens (decision 23).
+- Reminders to probe files again after an upgrade, such as for the source
+  facts a future broadcast profiles feature adds. That feature decides how its
+  backfill happens (decision 23 in the [feature README](../README.md)).
 - A notification center, history, or error toasts. Failures keep showing
   where they happen.
 - Creating collections automatically. Accepting a collection recommendation
@@ -95,9 +95,11 @@ explains it. Every reminder follows the same rules:
 | 2     | Files not looked up | A key is set, no scan or lookup runs, and some enabled root has files never looked up                                 | 312 files haven't been looked up on TMDB  | Look them up so kraziTV can name their shows and suggest collections.                              | **Look them up**: starts the same lookup a key save starts      |
 | 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and there is at least one collection recommendation | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
 
-- Reminder 1 is the existing TMDB reminder. Its words, conditions, and stored
-  choice carry over unchanged, so an owner who chose **Don't remind me**
-  before this change is not asked again.
+- Reminder 1 is the existing TMDB reminder. Its words, condition, and stored
+  choice carry over, so an owner who chose **Don't remind me** before this
+  change is not asked again. Like every reminder, it now opens by itself the
+  first time its condition holds after the desktop starts, which can be
+  mid-session, such as right after the first media root is added.
 - Reminder 2 counts only files never looked up, not failed lookups, so a
   rejected key or a TMDB outage does not nag. Its action still retries failed
   lookups along with them.
@@ -113,8 +115,7 @@ explains it. Every reminder follows the same rules:
 ### The tray assistant
 
 The assistant is Gregg, kraziTV's own character, drawn for this release. He
-is not
-Clippy, not a paperclip, and borrows nothing from Microsoft's Office
+is not Clippy, not a paperclip, and borrows nothing from Microsoft's Office
 Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 
 - **Look.** A small beige CRT television with rabbit-ear antennas. His screen
@@ -148,7 +149,7 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
   counts while it has any.
 - The root menu's **Retry failed lookups** becomes **Look up on TMDB**, which
   looks up the root's outstanding files, never-looked-up and failed alike. It
-  is enabled while the root has any and a key is set.
+  is enabled while the root is enabled, has any, and a key is set.
 
 ## Technical Behavior
 
@@ -179,8 +180,15 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
   lookups itself: it stays a metadata-key route, and if the second request
   fails, reminder 2 offers the same lookup again.
 - The shell already reads `/media-roots`, which carries each root's job and
-  counts. While any root's job runs, it polls that read every few seconds so
-  the tray count moves and reminders 2 and 3 can open when lookups end. It
+  counts, but only at desktop start and when the page is shown again.
+  Whenever something starts a job, the shell refreshes that read: the Set up
+  TMDB task's lookup, the tray's **Look them up**, and Media Library's **Look
+  up on TMDB** or a scan. Programs reach it through a callback the shell
+  passes down through the program host (`ProgramContents`), the way
+  `onTmdbKeyChanged` carries `tmdbKey.refresh` to Account Settings; the tray,
+  which lives in the shell, refreshes it directly.
+- While any root's job runs, the shell polls `/media-roots` every few seconds
+  so the tray count moves and reminders 2 and 3 can open when lookups end. It
   reads `/media-collections/recommendations` only while reminder 3's other
   conditions hold.
 - `tmdb-reminder/` becomes `tray-reminders/`: the reminder list (each entry a
@@ -242,4 +250,5 @@ None.
   the Collections ready balloon and Discover.
 - The wiki's First Run, Set Up TMDB, The Desktop, and Media Library pages
   describe the reminders, the assistant, and the new root menu item, with
-  refreshed screenshots.
+  refreshed screenshots, and Troubleshooting's **Lookup failed** advice names
+  **Look up on TMDB** instead of **Retry failed lookups**.
