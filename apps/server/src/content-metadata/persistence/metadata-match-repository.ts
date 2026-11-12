@@ -2,6 +2,7 @@ import { dirname, sep } from "node:path";
 
 import type { Kysely } from "kysely";
 
+import { wouldSearch } from "../../catalog-scan/enrichment/group-lookups.js";
 import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RetryItem, RetryScope } from "../contracts.js";
 import {
@@ -48,8 +49,10 @@ export class MetadataMatchRepository {
    * meanwhile. Whatever the decision, every available item with a probed
    * duration is covered, except an extra, which a retry never changes.
    * An outstanding scope covers only items never looked up or whose last
-   * lookup failed. Undefined when the scope's item is unknown or removed; an
-   * outstanding scope names its root, which the scanner checks.
+   * lookup failed, and of those never looked up only the ones a lookup would
+   * search for, as each root's not-looked-up count does. Undefined when the
+   * scope's item is unknown or removed; an outstanding scope names its root,
+   * which the scanner checks.
    */
   async findRetryItems(
     scope: RetryScope,
@@ -66,6 +69,7 @@ export class MetadataMatchRepository {
     if (anchor === undefined) return undefined;
     const rows = await this.#db
       .selectFrom("media_items")
+      .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
       .leftJoin(
         "metadata_matches",
         "metadata_matches.media_item_id",
@@ -76,6 +80,7 @@ export class MetadataMatchRepository {
         "media_items.path",
         "media_items.path_key",
         "media_items.duration_ms",
+        "media_roots.path as root_path",
         "metadata_matches.state",
         "metadata_matches.looked_up_at",
       ])
@@ -96,7 +101,9 @@ export class MetadataMatchRepository {
         .filter((row) =>
           scope.scope === "item"
             ? row.id === scope.mediaItemId
-            : scope.scope === "outstanding" || row.path_key.startsWith(folder),
+            : scope.scope === "outstanding"
+              ? row.state !== null || wouldSearch(row.root_path, row.path)
+              : row.path_key.startsWith(folder),
         )
         .map((row) => ({
           id: row.id,

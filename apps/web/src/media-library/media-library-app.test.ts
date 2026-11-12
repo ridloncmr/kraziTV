@@ -816,7 +816,7 @@ it("announces with the outcome that a lookup retry found nothing to look up", as
   });
   await advance(1_000);
 
-  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(statusLine(dialog).textContent).toBe("TMDB lookup completed.");
   expect(
     within(statusRegion(dialog)).getByText("Nothing here needed a lookup."),
   ).toBeTruthy();
@@ -1336,7 +1336,9 @@ it("looks up a root's outstanding files in the progress dialog, opening at enric
 
   chooseRootAction("Look up on TMDB");
   await advance();
-  const dialog = screen.getByRole("dialog", { name: "Retrying TMDB lookups" });
+  const dialog = screen.getByRole("dialog", {
+    name: "Looking up files on TMDB",
+  });
 
   expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
   expect(within(dialog).getByText("0 of 4 looked up")).toBeTruthy();
@@ -1351,7 +1353,7 @@ it("looks up a root's outstanding files in the progress dialog, opening at enric
     summary: scanSummary({ matchedCount: 3, lookupErrorCount: 1 }),
   });
   await advance(1_000);
-  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(statusLine(dialog).textContent).toBe("TMDB lookup completed.");
   expect(within(dialog).getByText("Matched")).toBeTruthy();
   expect(within(dialog).queryByText("Files found")).toBeNull();
   expect(within(dialog).queryByText("Could not be read")).toBeNull();

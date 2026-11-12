@@ -50,7 +50,11 @@ reminders written in the words of an original kraziTV character.
 
 - When **Save** in the Set up TMDB task stores a valid key, kraziTV starts a
   lookup of every outstanding file on every enabled, idle media root. A file
-  is outstanding when it was never looked up or its last lookup failed.
+  is outstanding when it was never looked up or its last lookup failed. A
+  file never looked up counts only when a lookup would search for it: an
+  episode with a series and episode number, or a movie title. A disc track
+  before mapping, or a file naming no episode, is never outstanding, though
+  the **Not looked up** filter still lists it.
 - The task's saved confirmation then says how many files are being looked up:
   "kraziTV is looking up 1,234 files on TMDB. Keep working; the tray will tell
   you when it's done." With nothing outstanding it says only that the key is
@@ -163,11 +167,13 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 ### Server
 
 - `RootMatchCounts` gains `notLookedUp`: available, non-extra items whose
-  match state is `not_looked_up`. `GET /media-roots` carries it with the
-  other counts.
+  match state is `not_looked_up` and that a lookup would search for
+  (`wouldSearch` in `catalog-scan/enrichment/group-lookups.ts`).
+  `GET /media-roots` carries it with the other counts.
 - The lookup retry scope `failed` becomes `outstanding`: items never looked up
-  or whose last lookup failed, using the existing `isRetryable` and
-  `isFailedLookup` predicates. Its `mediaRootId` is optional; without one,
+  that a lookup would search for (`wouldSearch`), or whose last lookup failed,
+  using the existing `isRetryable` and `isFailedLookup` predicates. Its
+  `mediaRootId` is optional; without one,
   `POST /metadata/lookup-retries` starts a retry on every enabled root that has
   outstanding items and no running job, and skips the rest. Media Library's
   menu was the only caller of `failed`, so the old scope is removed, not kept

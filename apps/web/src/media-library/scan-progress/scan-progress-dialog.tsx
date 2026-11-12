@@ -117,9 +117,11 @@ export function ScanProgressDialog({
     polled.phase === "committing" || reply?.phase === "committing";
   return (
     <WindowDialog
+      // A lookup retry also looks up files never looked up, so its words never
+      // say "retry".
       title={
         job.status.kind === "retry"
-          ? "Retrying TMDB lookups"
+          ? "Looking up files on TMDB"
           : "Scanning media root"
       }
       busy={running}
@@ -256,7 +258,7 @@ function statusLine(
       return "Saving to the catalog…";
     case "completed":
       return status.kind === "retry"
-        ? "Lookup retry completed."
+        ? "TMDB lookup completed."
         : "Scan completed.";
     case "failed":
       return status.error?.message ?? "";
