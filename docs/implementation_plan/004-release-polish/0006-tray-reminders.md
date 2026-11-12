@@ -155,10 +155,11 @@ that any later reminder joins as data, shown with Gregg.
 **Scope**: Move `tmdb-reminder/` to `tray-reminders/`. A reminder is a
 condition, its words (title, sentence, quip), and a main action; the shell
 evaluates them in the spec's order. One tray icon, Gregg's head, shows while
-any condition holds, labelled with the balloon it would open. One balloon at a
-time. A reminder opens by itself at most once per desktop start, the first
-time its condition holds while it is due, which may be mid-session. Each
-reminder stores its own choice; the TMDB reminder keeps
+any reminder shows, labelled with the balloon it would open; reminder 1 shows
+whenever no key is set but holds, and so opens by itself, only once a media
+root exists. One balloon at a time. A reminder opens by itself at most once
+per desktop start, the first time its condition holds while it is due, which
+may be mid-session. Each reminder stores its own choice; the TMDB reminder keeps
 `krazitv.tmdbReminder` and its stored shape, so existing choices carry over.
 Gregg sits beside every balloon's title, his quip under it. Words live in one
 `tray-reminder-words.ts`. Reminder 1 ships here with its spec words and quip.
