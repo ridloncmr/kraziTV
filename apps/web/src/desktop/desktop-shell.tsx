@@ -56,13 +56,14 @@ function usableViewport(): DesktopViewport {
  * comes from the app root, which alone holds it, so a change made in Account
  * Settings goes back up through `onAccountChanged` and redraws everything.
  * The shell also reads whether a TMDB key is set and the media roots, for the
- * tray reminders; a save in Account Settings re-reads the key through
- * `onTmdbKeyChanged`, and a program that starts a scan or lookup re-reads
- * the roots through `onScanJobStarted`, so the tray follows the job. Once
- * the library has settled with nothing left to look up, it also reads the
- * collection recommendations for the Collections ready reminder, and
- * re-reads them through `onRecommendationDecided` whenever Discover decides
- * one, so the tray counts only what is still to decide.
+ * tray reminders; a key saved or removed in Account Settings re-reads the
+ * roots and then the key through `onTmdbKeyChanged`, and a program that
+ * starts a scan or lookup re-reads the roots through `onScanJobStarted`, so
+ * the tray follows the job. Once the library has settled with nothing left
+ * to look up, it also reads the collection recommendations for the
+ * Collections ready reminder, and re-reads them through
+ * `onRecommendationDecided` whenever Discover decides one, so the tray
+ * counts only what is still to decide.
  */
 export function DesktopShell({
   account,
@@ -110,6 +111,24 @@ export function DesktopShell({
       (root) => root.scan !== null && isScanRunning(root.scan),
     ) ?? false;
   if (anyJobRunning !== jobsRunning) setJobsRunning(anyJobRunning);
+  // Set while a changed key waits for the roots read it asked for. Read
+  // together, the key could land first beside roots from before its lookup
+  // started, and Files not looked up would hold for a moment and spend its
+  // one automatic open (spec 0006).
+  const keyAwaitsRoots = useRef(false);
+  const { refresh: refreshTmdbKey } = tmdbKey;
+  const { refresh: refreshMediaRoots } = mediaRoots;
+  /** A key was saved or removed: re-reads the roots, then the key. */
+  const tmdbKeyChanged = useCallback(() => {
+    keyAwaitsRoots.current = true;
+    refreshMediaRoots();
+  }, [refreshMediaRoots]);
+  // A roots read answering, or failing, lets a waiting key be read.
+  useEffect(() => {
+    if (!keyAwaitsRoots.current) return;
+    keyAwaitsRoots.current = false;
+    refreshTmdbKey();
+  }, [mediaRoots.data, mediaRoots.error, refreshTmdbKey]);
   // Read only while nothing is left to look up, the one time Collections
   // ready can hold, so a library being looked up is never asked for them.
   const recommendations = useResource<Recommendation[]>(
@@ -244,8 +263,8 @@ export function DesktopShell({
                   onAccountChanged={onAccountChanged}
                   tmdbTaskRequest={tmdbTaskRequest}
                   discoverRequest={discoverRequest}
-                  onTmdbKeyChanged={tmdbKey.refresh}
-                  onScanJobStarted={mediaRoots.refresh}
+                  onTmdbKeyChanged={tmdbKeyChanged}
+                  onScanJobStarted={refreshMediaRoots}
                   onRecommendationDecided={recommendations.refresh}
                   openProgram={openProgram}
                   watchRequest={watchRequest}
@@ -275,7 +294,7 @@ export function DesktopShell({
                 recommendations: recommendations.data,
                 setUpTmdb: () => openProgram("account", "set-up-tmdb"),
                 // The tray lives in the shell, so it re-reads the roots itself.
-                lookUpFiles: () => void lookUpEveryRoot(mediaRoots.refresh),
+                lookUpFiles: () => void lookUpEveryRoot(refreshMediaRoots),
                 makeCollections: () =>
                   openProgram("collections", "discover-collections"),
               })}

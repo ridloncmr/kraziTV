@@ -50,10 +50,14 @@ export const ProgramContents = memo(function ProgramContents({
   tmdbTaskRequest: number;
   /** Counts requests to open Collections on its Discover dialog. */
   discoverRequest: number;
+  /**
+   * Tells the shell a key was saved, once its lookup answered, or removed,
+   * so its tray re-reads the roots and the key.
+   */
   onTmdbKeyChanged: () => void;
   /**
-   * Tells the shell a scan or lookup job started, as Set up TMDB's lookup and
-   * Media Library's scans and lookups do, so its tray follows the job.
+   * Tells the shell a scan or lookup job started, as Media Library's scans
+   * and lookups do, so its tray follows the job.
    */
   onScanJobStarted: () => void;
   /**
@@ -163,7 +167,6 @@ export const ProgramContents = memo(function ProgramContents({
           onAccountChanged={onAccountChanged}
           tmdbTaskRequest={tmdbTaskRequest}
           onTmdbKeyChanged={onTmdbKeyChanged}
-          onScanJobStarted={onScanJobStarted}
         />
       );
   }

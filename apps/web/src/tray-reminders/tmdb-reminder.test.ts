@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { bootDesktop } from "../testing/auth-fixtures.js";
-import type { BrowserApi } from "../testing/browser-api.js";
+import {
+  bootDesktop,
+  openShortcut,
+  renderDesktopShell,
+} from "../testing/auth-fixtures.js";
+import { BrowserApi } from "../testing/browser-api.js";
+import { elapse } from "../testing/fake-time.js";
 import { regainFocus } from "../testing/regain-focus.js";
-import { mediaRoot } from "../testing/scan-fixtures.js";
+import {
+  idleRoot,
+  lookingUpRoot,
+  mediaRoot,
+} from "../testing/scan-fixtures.js";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   localStorage.clear();
 });
@@ -36,6 +46,12 @@ async function boot({
 const trayIcon = () =>
   within(screen.getByRole("contentinfo")).queryByRole("button", {
     name: "TMDB isn't set up",
+  });
+
+/** The tray's one icon, by whatever it is labelled. */
+const anyTrayIcon = () =>
+  within(screen.getByRole("contentinfo")).queryByRole("button", {
+    name: /TMDB/,
   });
 
 /** The balloon, or null while it is closed. */
@@ -235,31 +251,106 @@ it("Set up TMDB opens Account Settings on the task, and a saved key removes the 
   await vi.waitFor(() => expect(trayIcon()).toBeNull());
 });
 
-it("removes the icon once the key is saved, while its lookup is still being asked for", async () => {
-  const api = await boot();
+it("keeps TMDB isn't set up and opens no other balloon while a saved key's lookup starts, then follows it", async () => {
+  vi.useFakeTimers();
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/metadata/tmdb-key", { configured: false });
+  // A first run: the catalog scan has left files no lookup has searched for.
+  api.reply("/media-roots", [idleRoot("root", 12)]);
+  api.reply("/media-collections/recommendations", []);
+  renderDesktopShell(api);
+  await elapse(0);
   fireEvent.click(
-    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
-      name: "Account Settings",
-    }),
+    within(balloon()!).getByRole("button", { name: "Set up TMDB" }),
   );
+  await elapse(0);
   const window = screen.getByRole("region", { name: "Account Settings" });
-  fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
   api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
   api.reply("/metadata/tmdb-key", { configured: true });
   api.hold("/metadata/lookup-retries", "POST");
-  fireEvent.change(
-    await within(window).findByLabelText("API Read Access Token"),
-    { target: { value: "eyJ.token.sig" } },
-  );
+  fireEvent.change(within(window).getByLabelText("API Read Access Token"), {
+    target: { value: "eyJ.token.sig" },
+  });
   fireEvent.click(within(window).getByRole("button", { name: "Save" }));
-  await vi.waitFor(() =>
-    expect(api.requestsTo("/metadata/lookup-retries")).toHaveLength(1),
-  );
+  await elapse(0);
+  expect(api.requestsTo("/metadata/lookup-retries")).toHaveLength(1);
 
-  // The key is saved whatever the lookup answers, so the tray need not wait.
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
-  expect(within(window).getByLabelText("API Read Access Token")).toBeTruthy();
+  // The key is saved, but its lookup has not started: no files reminder.
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(trayIcon()).toBeTruthy();
+
+  // The lookup starts; the roots that show its job are slow to answer.
+  api.hold("/media-roots");
+  api.release(
+    "/metadata/lookup-retries",
+    { lookupCount: 12, busyRootCount: 0 },
+    "POST",
+    202,
+  );
+  await elapse(0);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(anyTrayIcon()?.getAttribute("aria-label")).toBe("TMDB isn't set up");
+
+  api.release("/media-roots", [lookingUpRoot("root", 0, 12)]);
+  api.reply("/media-roots", [lookingUpRoot("root", 0, 12)]);
+  await elapse(0);
+  expect(anyTrayIcon()?.getAttribute("aria-label")).toBe(
+    "Looking up files on TMDB: 0 of 12",
+  );
+  expect(screen.queryByRole("dialog")).toBeNull();
+
+  // The jobs end with files left over, as when a busy root was skipped.
+  api.reply("/media-roots", [idleRoot("root", 3)]);
+  await elapse(3_000);
+  expect(screen.getAllByRole("dialog")).toEqual([
+    screen.getByRole("dialog", {
+      name: "3 files haven't been looked up on TMDB",
+    }),
+  ]);
 });
+
+it.each([
+  [
+    "refused",
+    409,
+    "tmdb_key_required",
+    "Set up TMDB in Account Settings first.",
+  ],
+  ["fails", 500, "internal_error", "Internal server error"],
+])(
+  "still reports a saved key to the tray when its lookup is %s",
+  async (_, status, code, message) => {
+    const api = await boot({ roots: [idleRoot("root", 12)] });
+    const window = openShortcut("Account Settings");
+    fireEvent.click(
+      within(window).getByRole("button", { name: "Set up TMDB" }),
+    );
+    api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
+    api.reply("/metadata/tmdb-key", { configured: true });
+    api.reply(
+      "/metadata/lookup-retries",
+      { error: { code, message } },
+      "POST",
+      status,
+    );
+    fireEvent.change(
+      await within(window).findByLabelText("API Read Access Token"),
+      { target: { value: "eyJ.token.sig" } },
+    );
+    fireEvent.click(within(window).getByRole("button", { name: "Save" }));
+
+    // The tray offers the same lookup again for the files still left.
+    await vi.waitFor(() =>
+      expect(anyTrayIcon()?.getAttribute("aria-label")).toBe(
+        "12 files haven't been looked up on TMDB",
+      ),
+    );
+    expect(within(window).getByRole("status").textContent).toBe(
+      "Your TMDB key is saved.",
+    );
+  },
+);
 
 it("opens Account Settings at home after a tray request was cancelled and the window closed", async () => {
   await boot();

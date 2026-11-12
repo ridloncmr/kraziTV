@@ -16,24 +16,21 @@ type View = "home" | "name" | "picture" | "password" | "tmdb";
  * home when it finishes or is cancelled. The account belongs to the app
  * root; a change goes up through `onAccountChanged` and comes back as props.
  * Each new `tmdbTaskRequest` from the tray opens the Set up TMDB task, and a
- * saved or removed key is reported through `onTmdbKeyChanged`: a save as
- * soon as the key is stored, not once its lookup answers. A saved key comes
- * home with the sentence its lookup earned, which stays until the owner
- * picks another task.
+ * saved or removed key is reported through `onTmdbKeyChanged`: a save once
+ * the lookup it starts has answered, so the shell reads the started jobs
+ * with the key. A saved key comes home with the sentence its lookup earned,
+ * which stays until the owner picks another task.
  */
 export function AccountSettingsApp({
   account,
   onAccountChanged,
   tmdbTaskRequest,
   onTmdbKeyChanged,
-  onScanJobStarted,
 }: {
   account: AccountProfile;
   onAccountChanged: (account: AccountProfile) => void;
   tmdbTaskRequest: number;
   onTmdbKeyChanged: () => void;
-  /** Tells the shell a job started, so it re-reads the media roots. */
-  onScanJobStarted: () => void;
 }) {
   const [view, setShownView] = useState<View>("home");
   // What the last finished task left to say on the home page.
@@ -86,7 +83,6 @@ export function AccountSettingsApp({
         onSaved={(sentence) => setView("home", sentence)}
         onRemoved={keyRemoved}
         onCancel={home}
-        onScanJobStarted={onScanJobStarted}
       />
     );
   return (
