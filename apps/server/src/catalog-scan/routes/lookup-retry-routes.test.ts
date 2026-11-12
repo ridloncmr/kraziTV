@@ -8,6 +8,10 @@ import {
   scanThroughRoutes,
   startEnrichmentServer,
 } from "../../testing/enrichment-scan.js";
+import {
+  SCAN_FIREFLY,
+  SCRIPTED_TMDB_KEY,
+} from "../../testing/scan-metadata.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
@@ -60,6 +64,43 @@ describe("POST /metadata/lookup-retries", () => {
       phase: "completed",
       summary: { matchedCount: 1 },
     });
+  });
+
+  // Spec 0006: the browser's first-run walk takes this path through the
+  // screens; here the routes alone show the key a save stores is the one
+  // the lookup reads, and that what it matches is recommended.
+  it("looks up what a keyless scan left once the owner saves a key, then recommends the series", async () => {
+    const files = [
+      "Firefly/Season 1/s01e01.mkv",
+      "Firefly/Season 1/s01e02.mkv",
+    ];
+    const { server, tmdb } = await startEnrichmentServer({ key: false, files });
+    tmdb.series.push(SCAN_FIREFLY);
+    await scanThroughRoutes(server);
+
+    const saved = await send(server, "PUT", "/metadata/tmdb-key", {
+      apiKey: SCRIPTED_TMDB_KEY,
+    });
+    const started = await send(server, "POST", RETRIES, {
+      scope: "outstanding",
+    });
+    const finished = await waitForScan(server, rootFixture.id);
+    const recommended = await send(
+      server,
+      "GET",
+      "/media-collections/recommendations",
+    );
+
+    expect(saved.status).toBe(200);
+    expect(started.body).toEqual({ lookupCount: 2, busyRootCount: 0 });
+    expect(finished).toMatchObject({ summary: { matchedCount: 2 } });
+    expect(recommended.body).toMatchObject([
+      {
+        criterion: { kind: "series", tmdbId: SCAN_FIREFLY.id },
+        reason: "2 cataloged episodes of the TV series Firefly",
+        decision: null,
+      },
+    ]);
   });
 
   it("answers scan_in_progress while the root's scan runs", async () => {

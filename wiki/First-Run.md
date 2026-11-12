@@ -34,21 +34,33 @@ one for movies.
 
 ## 3. Set up TMDB
 
-A yellow icon in the system tray reminds you that TMDB is not set up. With
-a free TMDB key, kraziTV recognizes your series, seasons, episodes, and
-movies, and can build collections for you. Without it, kraziTV only knows
-what your file names say.
+Once you have a media root, a balloon pops up from the system tray:
+**TMDB isn't set up**. It comes from Gregg, kraziTV's tray assistant, a
+weary old television who tells you what kraziTV needs from you next; see
+[The desktop](The-Desktop#the-tray-and-gregg). With a free TMDB
+key, kraziTV recognizes your series, seasons, episodes, and movies, and
+can build collections for you. Without it, kraziTV only knows what your
+file names say.
 
-[Set it up](Set-Up-TMDB) now, then scan each media root
-again from its row menu. The rescan only looks up files that were never
-matched, so it is quick. [Media Library](Media-Library) explains what the lookups find.
+![Gregg's balloon when TMDB isn't set up](images/tray-balloon.png)
+
+[Set it up](Set-Up-TMDB) now; the balloon's **Set up TMDB** button takes
+you straight there. When you click **Save**, kraziTV looks up every file
+your scan could not, on its own, and says how many: "kraziTV is looking up
+1,234 files on TMDB. Keep working; the tray will tell you when it's done."
+There is nothing to scan again. Point at Gregg in the tray to see how far
+the lookups have got. [Media Library](Media-Library) explains what they
+find.
 
 ## 4. Keep some collections
 
-Open **Collections** and click **Discover collections…**. kraziTV
-suggests one collection per series and movie franchise it recognized.
-Click **Create automatic collection** on the ones you want. An automatic
-collection keeps itself up to date as you add files.
+When the lookups finish, Gregg's balloon says what kraziTV found, such as
+**kraziTV found 14 shows and 3 movie series**. Click **Make collections**.
+Collections opens on **Discover collections**, which suggests one
+collection per series and movie franchise kraziTV recognized. Click
+**Create automatic collection** on the ones you want. An automatic
+collection keeps itself up to date as you add files. You can come back to
+the suggestions any time with **Discover collections…** in Collections.
 
 You can skip this step: a channel can also play a single series or movie
 you pick directly. But collections are what make channels easy to build.

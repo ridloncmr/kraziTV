@@ -15,7 +15,13 @@ import { ControlledProber } from "../../server/src/testing/controlled-prober.js"
 import { IdleMetadataRefresh } from "../../server/src/testing/idle-metadata-refresh.js";
 import { PROBE_RESULT } from "../../server/src/testing/discovery-fixtures.js";
 import { recordingLog } from "../../server/src/testing/recording-log.js";
-import { withoutTmdbKey } from "../../server/src/testing/scan-metadata.js";
+import {
+  SCAN_FIREFLY,
+  SCRIPTED_TMDB_KEY,
+  scriptedTmdb,
+  withScriptedTmdb,
+  withoutTmdbKey,
+} from "../../server/src/testing/scan-metadata.js";
 import { startScheduleScenarioServer } from "../../server/src/testing/schedule-server.js";
 import {
   detachBrowserApi,
@@ -31,13 +37,17 @@ import {
 
 let prober: ControlledProber | undefined;
 let commit: TestBarrier | undefined;
-// No scenario here is about tray reminders, and the test servers set no
-// TMDB key, so a root added or seeded would open the TMDB balloon by itself
-// over the bottom-right of the screen, where clicks land.
+let lookup: TestBarrier | undefined;
+// The test servers set no TMDB key, so a root added or seeded would open the
+// TMDB balloon by itself over the bottom-right of the screen, where clicks
+// land; no scenario here is about that reminder. The first-run TMDB walk is
+// about the reminders a saved key leads to, which keep their own stored
+// choices: it clicks nothing between saving the key and their balloon.
 test.beforeEach(({ page }) => declineTmdbReminder(page));
 test.afterEach(async ({ page }) => {
   await detachBrowserApi(page);
   commit?.release();
+  lookup?.release();
   prober?.resolveAll(PROBE_RESULT);
   await cleanUpTestEnvironment();
 });
@@ -45,9 +55,16 @@ test.afterEach(async ({ page }) => {
 /**
  * Starts a real server whose scans probe through a `ControlledProber`, so
  * the test settles each probe. With `holdCommit`, a completed commit waits
- * in `committing` until the test releases `commit`.
+ * in `committing` until the test releases `commit`. Without `tmdb` no key
+ * can be saved and nothing is looked up; with it, Set up TMDB saves the key
+ * that scripted TMDB accepts, and scans and lookups use it.
  */
-async function startScanServer(options: { holdCommit?: boolean } = {}) {
+async function startScanServer(
+  options: {
+    holdCommit?: boolean;
+    tmdb?: ReturnType<typeof scriptedTmdb>;
+  } = {},
+) {
   const controlled = new ControlledProber();
   prober = controlled;
   const held = options.holdCommit ? (commit = createBarrier()) : undefined;
@@ -56,24 +73,28 @@ async function startScanServer(options: { holdCommit?: boolean } = {}) {
     overrides: (
       db,
       { mediaRoots, schedules, catalogRemovals, collectionMaintenance },
-    ) => ({
-      scanner: new CatalogScanner({
-        roots: mediaRoots,
-        prober: controlled,
-        writer: new CatalogScanWriter(db),
-        schedules: {
-          ensureAllEnabled: async (log) => {
-            await held?.wait();
-            await schedules.ensureAllEnabled(log);
+    ) => {
+      const tmdb = options.tmdb && withScriptedTmdb(db, options.tmdb.client);
+      return {
+        ...(tmdb && { tmdbKeys: tmdb.tmdbKeys }),
+        scanner: new CatalogScanner({
+          roots: mediaRoots,
+          prober: controlled,
+          writer: new CatalogScanWriter(db),
+          schedules: {
+            ensureAllEnabled: async (log) => {
+              await held?.wait();
+              await schedules.ensureAllEnabled(log);
+            },
           },
-        },
-        removals: catalogRemovals,
-        metadataRefresh: new IdleMetadataRefresh(),
-        collections: collectionMaintenance,
-        metadata: withoutTmdbKey(),
-        log: recordingLog(),
-      }),
-    }),
+          removals: catalogRemovals,
+          metadataRefresh: new IdleMetadataRefresh(),
+          collections: collectionMaintenance,
+          metadata: tmdb?.metadata ?? withoutTmdbKey(),
+          log: recordingLog(),
+        }),
+      };
+    },
   });
   return { ...started, prober: controlled };
 }
@@ -753,6 +774,107 @@ test("operates the real catalog-to-Plex loop", async ({ page }) => {
   // The taskbar sits on the bottom edge of the 800px-tall desktop.
   const tray = await page.locator(".taskbar").boundingBox();
   expect(tray?.y).toBe(800 - 32);
+});
+
+// Spec 0006: the step a first-time owner stalled on. A scan made before TMDB
+// was set up leaves every file not looked up; saving a key looks them up,
+// the tray counts them while they run, and once a poll sees them end it
+// offers what they found. The balloon is the walk's last step, since it
+// opens by itself over the bottom-right of the screen.
+test("looks up a first scan once TMDB is set up, then offers its collections from the tray", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const tmdb = scriptedTmdb();
+  tmdb.tmdb.series.push(SCAN_FIREFLY);
+  // Holds the series search, so the tray is read while the lookups run.
+  const search = (lookup = createBarrier());
+  tmdb.tmdb.holds.set("/3/search/tv", search);
+  const { server, prober: controlled } = await startScanServer({ tmdb });
+  await injectBrowserApi(page, server);
+  const directory = await createTemporaryDirectory();
+  const season = join(directory, "Firefly", "Season 1");
+  await mkdir(season, { recursive: true });
+  for (const file of ["s01e01.mp4", "s01e02.mp4"])
+    await writeFile(join(season, file), "test media; probing is controlled");
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+
+  const { media, scanning, statusLine } = await scanNewRoot(page, directory);
+  await controlled.waitForStarted(2);
+  controlled.resolveAll(PROBE_RESULT);
+  await expect(statusLine).toHaveText("Scan completed.");
+  await scanning.getByRole("button", { name: "OK", exact: true }).click();
+  // With no key nothing was looked up, and the root says how much.
+  await expect(
+    media.getByText("2 not looked up", { exact: true }),
+  ).toBeVisible();
+  await media.getByRole("button", { name: "Close Media Library" }).click();
+
+  await page
+    .getByLabel("Desktop programs")
+    .getByRole("button", { name: "Account Settings", exact: true })
+    .click();
+  const settings = page.getByRole("region", {
+    name: "Account Settings",
+    exact: true,
+  });
+  await settings
+    .getByRole("button", { name: "Set up TMDB", exact: true })
+    .click();
+  await settings.getByLabel("API Read Access Token").fill(SCRIPTED_TMDB_KEY);
+  await settings.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    settings.getByText(
+      "kraziTV is looking up 2 files on TMDB. Keep working; the tray will tell you when it's done.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  // The tray icon carries the running count; no balloon opens for it.
+  await expect(
+    page.getByRole("button", {
+      name: "Looking up files on TMDB: 0 of 2",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".tray-balloon")).toHaveCount(0);
+
+  search.release();
+  // The shell polls the roots every few seconds while a job runs, so the
+  // balloon waits for the poll that sees the lookups end.
+  const balloon = page.getByRole("dialog", {
+    name: "kraziTV found 1 show",
+    exact: true,
+  });
+  await expect(balloon).toBeVisible({ timeout: 15_000 });
+  await expect(balloon).toHaveAccessibleDescription(
+    "Make it into a collection, then put it on a channel.",
+  );
+  await expect(balloon.getByRole("img", { name: "Gregg" })).toBeVisible();
+  const make = balloon.getByRole("button", {
+    name: "Make collections",
+    exact: true,
+  });
+  // A balloon that opened by itself leaves the focus where it was.
+  await expect(make).not.toBeFocused();
+  await make.click();
+  await expect(balloon).toBeHidden();
+  const discover = page
+    .getByRole("region", { name: "Collections", exact: true })
+    .getByRole("dialog", { name: "Discover collections" });
+  await expect(discover).toBeVisible();
+  await expect(
+    discover.getByText("2 cataloged episodes of the TV series Firefly", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    discover.getByRole("button", {
+      name: "Create automatic collection from Firefly",
+    }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 /**
