@@ -34,9 +34,13 @@ export function scanPath(rootId: string): string {
  * page started, one another client started (`409` `scan_in_progress`), or the
  * first running job in media-root order once the dialog is free. Which job is
  * followed and which were acknowledged is transient page state; every outcome
- * shown comes from the server's status.
+ * shown comes from the server's status. Every job the server answers a start
+ * with is reported through `onStarted`, so the desktop shell can follow it.
  */
-export function useScanJob(roots: MediaRoot[] | undefined) {
+export function useScanJob(
+  roots: MediaRoot[] | undefined,
+  onStarted: () => void,
+) {
   const owner = useRef<AbortController | null>(null);
   const [followed, setFollowed] = useState<FollowedScan | null>(null);
   // Jobs the user closed with OK; a list read before the close still shows
@@ -124,8 +128,10 @@ export function useScanJob(roots: MediaRoot[] | undefined) {
         knownRootPath ??
         roots?.find((root) => root.id === status.rootId)?.path ??
         "";
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         setFollowed((current) => current ?? { rootPath, status });
+        onStarted();
+      }
     } catch (failure) {
       if (!controller.signal.aborted) setError(toError(failure));
     } finally {

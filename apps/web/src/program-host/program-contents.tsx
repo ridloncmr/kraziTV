@@ -19,7 +19,7 @@ import { TvApp, type WatchRequest } from "../tv/tv-app.js";
  * Memoized because the shell re-renders on every window move, focus and health poll; a program
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
- * `onTmdbKeyChanged`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
+ * `onTmdbKeyChanged`, `onScanJobStarted`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
  * `tmdbTaskRequest` only when the tray or Media Library asks, `watchRequest` only when a channel is watched,
  * and each kind's properties windows only when that kind saves a change.
  */
@@ -31,6 +31,7 @@ export const ProgramContents = memo(function ProgramContents({
   onAccountChanged,
   tmdbTaskRequest,
   onTmdbKeyChanged,
+  onScanJobStarted,
   openProgram,
   watchRequest,
   watchChannel,
@@ -45,6 +46,11 @@ export const ProgramContents = memo(function ProgramContents({
   onAccountChanged: (account: AccountProfile) => void;
   tmdbTaskRequest: number;
   onTmdbKeyChanged: () => void;
+  /**
+   * Tells the shell a scan or lookup job started, as Set up TMDB's lookup and
+   * Media Library's scans and lookups do, so its tray follows the job.
+   */
+  onScanJobStarted: () => void;
   /**
    * Opens another program, as a refusal's link to where it is resolved does;
    * with a task, opens it on that task, as Media Library's Set up TMDB does.
@@ -98,7 +104,13 @@ export const ProgramContents = memo(function ProgramContents({
         />
       );
     case "media":
-      return <MediaLibraryApp visible={visible} openProgram={openProgram} />;
+      return (
+        <MediaLibraryApp
+          visible={visible}
+          openProgram={openProgram}
+          onScanJobStarted={onScanJobStarted}
+        />
+      );
     case "collections":
       return <CollectionsApp visible={visible} windows={collectionWindows} />;
     case "guide":
@@ -134,6 +146,7 @@ export const ProgramContents = memo(function ProgramContents({
           onAccountChanged={onAccountChanged}
           tmdbTaskRequest={tmdbTaskRequest}
           onTmdbKeyChanged={onTmdbKeyChanged}
+          onScanJobStarted={onScanJobStarted}
         />
       );
   }

@@ -84,11 +84,15 @@ export function tooManyAttempts(retryAfterSeconds?: number) {
 /** Opens Account Settings from its desktop shortcut and returns its window. */
 export async function openFromShortcut(state?: AuthState) {
   const api = await bootDesktop(state);
+  return { api, window: openShortcut("Account Settings") };
+}
+
+/** Opens a program from its shortcut on a booted desktop and returns its window. */
+export function openShortcut(name: string) {
   fireEvent.click(
     within(screen.getByLabelText("Desktop programs")).getByRole("button", {
-      name: "Account Settings",
+      name,
     }),
   );
-  const window = screen.getByRole("region", { name: "Account Settings" });
-  return { api, window };
+  return screen.getByRole("region", { name });
 }

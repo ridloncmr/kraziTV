@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
-import {
-  act,
-  cleanup,
-  fireEvent,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { bootDesktop } from "../testing/auth-fixtures.js";
 import type { BrowserApi } from "../testing/browser-api.js";
+import { regainFocus } from "../testing/regain-focus.js";
 import { mediaRoot } from "../testing/scan-fixtures.js";
 
 afterEach(() => {
@@ -46,17 +41,6 @@ const trayIcon = () =>
 /** The balloon, or null while it is closed. */
 const balloon = () =>
   screen.queryByRole("dialog", { name: "TMDB isn't set up" });
-
-/** Reloads the shell's reads, as the browser window regaining focus does. */
-function regainFocus() {
-  // Separate acts, so React sees the window lose focus before it returns.
-  act(() => {
-    globalThis.dispatchEvent(new Event("blur"));
-  });
-  act(() => {
-    globalThis.dispatchEvent(new Event("focus"));
-  });
-}
 
 /** Reads the stored reminder state, as the next desktop start would. */
 const stored = () =>
@@ -249,6 +233,32 @@ it("Set up TMDB opens Account Settings on the task, and a saved key removes the 
   fireEvent.click(within(window).getByRole("button", { name: "Save" }));
 
   await vi.waitFor(() => expect(trayIcon()).toBeNull());
+});
+
+it("removes the icon once the key is saved, while its lookup is still being asked for", async () => {
+  const api = await boot();
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "Account Settings",
+    }),
+  );
+  const window = screen.getByRole("region", { name: "Account Settings" });
+  fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
+  api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.hold("/metadata/lookup-retries", "POST");
+  fireEvent.change(
+    await within(window).findByLabelText("API Read Access Token"),
+    { target: { value: "eyJ.token.sig" } },
+  );
+  fireEvent.click(within(window).getByRole("button", { name: "Save" }));
+  await vi.waitFor(() =>
+    expect(api.requestsTo("/metadata/lookup-retries")).toHaveLength(1),
+  );
+
+  // The key is saved whatever the lookup answers, so the tray need not wait.
+  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  expect(within(window).getByLabelText("API Read Access Token")).toBeTruthy();
 });
 
 it("opens Account Settings at home after a tray request was cancelled and the window closed", async () => {

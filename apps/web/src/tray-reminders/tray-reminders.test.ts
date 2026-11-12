@@ -93,6 +93,15 @@ it("hands the icon to the next reminder when the first ends, which then opens by
   );
   expect(balloon()).toBeNull();
   expect(icon()!.getAttribute("aria-label")).toBe("first title");
+
+  // The first ends again: the second leads once more, but has had its turn too.
+  rerender(
+    createElement(TrayReminders, {
+      reminders: [ended("first"), reminder("second")],
+    }),
+  );
+  expect(balloon()).toBeNull();
+  expect(icon()!.getAttribute("aria-label")).toBe("second title");
 });
 
 it("never opens a reminder by itself while it only shows, but its icon opens it with focus", () => {
@@ -158,6 +167,48 @@ it.each([
     ).toBeTruthy();
   },
 );
+
+/** A status the tray shows while work runs, counting `done`. */
+const running = (done: number) => ({
+  title: `${done} done title`,
+  sentence: "Running sentence.",
+  quip: "Running quip.",
+});
+
+it("lets a showing reminder lead over the status, which takes the icon only after, never opening by itself", async () => {
+  const { rerender } = render(
+    createElement(TrayReminders, {
+      reminders: [reminder("first")],
+      status: running(1),
+    }),
+  );
+  await screen.findByRole("dialog", { name: "first title" });
+
+  rerender(
+    createElement(TrayReminders, {
+      reminders: [ended("first")],
+      status: running(1),
+    }),
+  );
+
+  expect(icon()!.getAttribute("aria-label")).toBe("1 done title");
+  expect(balloon()).toBeNull();
+});
+
+it("keeps the status balloon open while its count moves, and closes it when the work ends", () => {
+  const { rerender } = render(
+    createElement(TrayReminders, { reminders: [], status: running(1) }),
+  );
+  fireEvent.click(icon()!);
+  expect(screen.getByRole("dialog", { name: "1 done title" })).toBeTruthy();
+
+  rerender(createElement(TrayReminders, { reminders: [], status: running(2) }));
+  expect(screen.getByRole("dialog", { name: "2 done title" })).toBeTruthy();
+
+  rerender(createElement(TrayReminders, { reminders: [], status: undefined }));
+  expect(balloon()).toBeNull();
+  expect(icon()).toBeNull();
+});
 
 it("keeps the balloon's rise out of reduced motion in the stylesheet that draws it", () => {
   applyStylesheet("tray-reminders/tray-reminders.css");

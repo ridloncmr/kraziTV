@@ -102,6 +102,89 @@ it("sends the trimmed key, then returns home", async () => {
   ).toMatchObject([{ body: { apiKey: "eyJ.token.sig" } }]);
 });
 
+const LOOKUP_PATH = "/metadata/lookup-retries";
+
+/** Saves a key the server accepts, its lookup answering `lookup`, and waits for home. */
+async function saveAcceptedKey(lookup: unknown, lookupStatus = 202) {
+  const opened = await openTmdbTask(false);
+  opened.api.reply(KEY_PATH, { configured: true }, "PUT");
+  opened.api.reply(LOOKUP_PATH, lookup, "POST", lookupStatus);
+  saveKey(opened.window, "eyJ.token.sig");
+  await expectHome(opened.window);
+  return opened;
+}
+
+it.each([
+  [
+    1234,
+    "kraziTV is looking up 1,234 files on TMDB. Keep working; the tray will tell you when it's done.",
+  ],
+  [
+    1,
+    "kraziTV is looking up 1 file on TMDB. Keep working; the tray will tell you when it's done.",
+  ],
+])(
+  "looks up every root's outstanding files once the key is saved, and says how many (%i)",
+  async (lookupCount, sentence) => {
+    const { api, window } = await saveAcceptedKey({
+      lookupCount,
+      busyRootCount: 1,
+    });
+
+    expect(within(window).getByRole("status").textContent).toBe(sentence);
+    // Every root: the request names no root, and goes only after the save.
+    const lookups = api.requestsTo(LOOKUP_PATH);
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]).toMatchObject({ method: "POST" });
+    expect(lookups[0].body).toEqual({ scope: "outstanding" });
+    const order = api.requests.filter((request) => request.method !== "GET");
+    expect(order.map((request) => request.path)).toEqual([
+      KEY_PATH,
+      LOOKUP_PATH,
+    ]);
+  },
+);
+
+it("says only that the key is saved when nothing was started", async () => {
+  const { window } = await saveAcceptedKey({
+    lookupCount: 0,
+    busyRootCount: 2,
+  });
+
+  expect(within(window).getByRole("status").textContent).toBe(
+    "Your TMDB key is saved.",
+  );
+});
+
+it("keeps the key saved and says nothing more when the lookup is refused", async () => {
+  const { window } = await saveAcceptedKey(
+    {
+      error: { code: "internal_error", message: "Internal server error" },
+    },
+    500,
+  );
+
+  expect(within(window).getByRole("status").textContent).toBe(
+    "Your TMDB key is saved.",
+  );
+  expect(within(window).queryByRole("alert")).toBeNull();
+});
+
+it("clears the saved sentence once the owner picks another task", async () => {
+  const { window } = await saveAcceptedKey({
+    lookupCount: 3,
+    busyRootCount: 0,
+  });
+
+  fireEvent.click(
+    within(window).getByRole("button", { name: "Change my name" }),
+  );
+  fireEvent.click(within(window).getByRole("button", { name: "Cancel" }));
+
+  await expectHome(window);
+  expect(within(window).queryByRole("status")).toBeNull();
+});
+
 it("refuses a blank key without sending it", async () => {
   const { api, window } = await openTmdbTask(false);
 
@@ -135,6 +218,7 @@ it("shows the server's invalid_tmdb_key message and stays on the task", async ()
     "TMDB did not accept this key.",
   );
   expect(within(window).getByLabelText("API Read Access Token")).toBeTruthy();
+  expect(api.requestsTo(LOOKUP_PATH)).toEqual([]);
 });
 
 /** Presses the task's **Remove** and returns the question it opens. */
@@ -162,6 +246,9 @@ it("asks before removing the key, then removes it and returns home", async () =>
   expect(
     api.requestsTo(KEY_PATH).filter((request) => request.method !== "GET"),
   ).toMatchObject([{ method: "DELETE" }]);
+  // Nothing to look up without a key, and nothing to confirm.
+  expect(api.requestsTo(LOOKUP_PATH)).toEqual([]);
+  expect(within(window).queryByRole("status")).toBeNull();
 });
 
 it("keeps the key when the question is cancelled", async () => {

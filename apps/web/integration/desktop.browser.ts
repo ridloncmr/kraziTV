@@ -21,6 +21,7 @@ import {
   detachBrowserApi,
   injectBrowserApi,
 } from "../src/testing/injected-api.js";
+import { declineTmdbReminder } from "../src/testing/declined-tmdb-reminder.js";
 import { CatalogScanner } from "../../server/src/catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../../server/src/catalog-scan/writer/catalog-scan-writer.js";
 import {
@@ -30,6 +31,10 @@ import {
 
 let prober: ControlledProber | undefined;
 let commit: TestBarrier | undefined;
+// No scenario here is about tray reminders, and the test servers set no
+// TMDB key, so a root added or seeded would open the TMDB balloon by itself
+// over the bottom-right of the screen, where clicks land.
+test.beforeEach(({ page }) => declineTmdbReminder(page));
 test.afterEach(async ({ page }) => {
   await detachBrowserApi(page);
   commit?.release();
