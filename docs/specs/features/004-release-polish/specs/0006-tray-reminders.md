@@ -67,17 +67,23 @@ reminders written in the words of an original kraziTV character.
 A tray reminder is a condition the desktop shell watches, with a balloon that
 explains it. Every reminder follows the same rules:
 
-- **One icon.** The tray shows the assistant's 16 px head while any reminder's
-  condition holds or a lookup runs, whatever the owner chose about balloons,
-  so a reminder is never lost. Its accessible name and tooltip are the title
-  of the balloon it would open.
-- **One balloon at a time.** When several reminders hold, the first in the
-  table below wins. Clicking the icon opens that one.
+- **Shows, and holds.** A reminder shows while the tray icon carries it, and
+  holds while its balloon may open by itself. For reminders 2 and 3 these are
+  the same condition. Reminder 1 shows whenever no key is set, but holds only
+  once a media root exists, so the setting is never lost even with nothing to
+  look up yet.
+- **One icon.** The tray shows the assistant's 16 px head while any reminder
+  shows or a lookup runs, whatever the owner chose about balloons, so a
+  reminder is never lost. Its accessible name and tooltip are the title of
+  the balloon it would open.
+- **One balloon at a time.** When several reminders show, the first in the
+  table below leads. Clicking the icon opens that one.
 - **Opens by itself at most once per desktop start.** A reminder's balloon
-  opens by itself the first time its condition holds after the desktop
-  starts, if the owner's stored choice says it is due. Its condition may first
-  hold mid-session, such as when lookups finish. Closing it never brings it
-  back before the next desktop start.
+  opens by itself the first time it leads while it holds after the desktop
+  starts, if the owner's stored choice says it is due. It may first hold
+  mid-session, such as when lookups finish. Closing it never brings it back
+  before the next desktop start, and a reminder that only shows never opens
+  by itself.
 - **The same three answers.** The main action, **Remind me later** (and ✕ and
   Escape), which waits 7 days, and **Don't remind me**, which stops it opening
   by itself in this browser. The main action snoozes like **Remind me later**.
@@ -91,15 +97,16 @@ explains it. Every reminder follows the same rules:
 
 | Order | Reminder            | Shows while                                                                                                           | Title                                     | Sentence                                                                                           | Main action                                                     |
 | ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| 1     | TMDB isn't set up   | No key is set and at least one media root exists                                                                      | TMDB isn't set up                         | kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies. | **Set up TMDB**: opens Account Settings on the Set up TMDB task |
+| 1     | TMDB isn't set up   | No key is set; it holds only once at least one media root exists                                                      | TMDB isn't set up                         | kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies. | **Set up TMDB**: opens Account Settings on the Set up TMDB task |
 | 2     | Files not looked up | A key is set, no scan or lookup runs, and some enabled root has files never looked up                                 | 312 files haven't been looked up on TMDB  | Look them up so kraziTV can name their shows and suggest collections.                              | **Look them up**: starts the same lookup a key save starts      |
 | 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and there is at least one collection recommendation | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
 
 - Reminder 1 is the existing TMDB reminder. Its words, condition, and stored
   choice carry over, so an owner who chose **Don't remind me** before this
-  change is not asked again. Like every reminder, it now opens by itself the
-  first time its condition holds after the desktop starts, which can be
-  mid-session, such as right after the first media root is added.
+  change is not asked again. Its icon still shows whenever no key is set, as
+  spec 0001 has it. Like every reminder, it now opens by itself the first
+  time it holds after the desktop starts, which can be mid-session, such as
+  right after the first media root is added.
 - Reminder 2 counts only files never looked up, not failed lookups, so a
   rejected key or a TMDB outage does not nag. Its action still retries failed
   lookups along with them.
