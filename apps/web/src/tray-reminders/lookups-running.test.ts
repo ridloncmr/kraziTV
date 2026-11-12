@@ -15,6 +15,7 @@ import {
   mediaRoot,
   scanStatus,
 } from "../testing/scan-fixtures.js";
+import { trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -24,12 +25,6 @@ afterEach(() => {
 });
 
 const QUIP = "It's being processed. Everything is always being processed.";
-
-/** The tray's one icon, by whatever it is labelled. */
-const trayIcon = () =>
-  within(screen.getByRole("contentinfo")).queryByRole("button", {
-    name: /TMDB/,
-  });
 
 /** Everything this browser stores, so a test can prove a status adds nothing. */
 function stored(): Record<string, string | null> {

@@ -25,22 +25,24 @@ const TMDB_API_SETTINGS_URL = "https://www.themoviedb.org/settings/api";
  * balloon can finish. TMDB's terms require the logo and notice here.
  * A saved key then starts the lookup of every root's outstanding files
  * (spec 0006): the key route stays a key route, so this task asks for it.
+ * The key is reported only once that lookup has answered, so the tray never
+ * sees the key set while the roots still read as before the lookup started.
  */
 export function SetUpTmdbView({
   onKeyChanged,
   onSaved,
   onRemoved,
   onCancel,
-  onScanJobStarted,
 }: {
-  /** The key is saved, before its lookup answers, so the shell re-reads it. */
+  /**
+   * The key is saved and its lookup has answered, so the shell re-reads the
+   * roots that now carry the started jobs, and then the key.
+   */
   onKeyChanged: () => void;
   /** The key is saved; `confirmation` says what its lookup started. */
   onSaved: (confirmation: string) => void;
   onRemoved: () => void;
   onCancel: () => void;
-  /** The shell re-reads the media roots, which now carry the started jobs. */
-  onScanJobStarted: () => void;
 }) {
   const status = useResource<TmdbKeyStatus>(KEY_PATH);
   const [removing, setRemoving] = useState(false);
@@ -59,21 +61,17 @@ export function SetUpTmdbView({
    * Starts the all-roots lookup once the key is saved, and reports the key
    * saved whatever it answers: a refused lookup stays unsaid, because the
    * tray offers the same lookup again for files still not looked up.
-   * Closing the window mid-request still lets the shell re-read the roots
-   * once the server has answered.
+   * Closing the window mid-request still reports the key once the server
+   * has answered.
    */
   function lookUpLibrary() {
     setLookingUp(true);
-    void lookUpEveryRoot(onScanJobStarted).then((lookupCount) => {
+    void lookUpEveryRoot(onKeyChanged).then((lookupCount) => {
       setLookingUp(false);
       onSaved(keySavedSentence(lookupCount));
     });
   }
-  // The key is saved whatever its lookup answers, so the shell hears at once.
-  const task = useAccountTask(KEY_PATH, "PUT", prepare, () => {
-    onKeyChanged();
-    lookUpLibrary();
-  });
+  const task = useAccountTask(KEY_PATH, "PUT", prepare, lookUpLibrary);
 
   return (
     <AccountTaskForm
