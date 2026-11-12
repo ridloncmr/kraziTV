@@ -23,7 +23,7 @@ export function withoutTmdbKey(): ConstructorParameters<
     metadataMatches: {
       findSettledPathKeys: async () => new Set<string>(),
       findRetryItems: async (scope) =>
-        scope.scope === "failed"
+        scope.scope === "outstanding"
           ? { rootId: scope.mediaRootId, items: [] }
           : undefined,
     },

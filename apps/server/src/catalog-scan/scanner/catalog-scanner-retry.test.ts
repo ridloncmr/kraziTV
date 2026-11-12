@@ -1,7 +1,14 @@
+import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { rootFixture } from "../../testing/catalog-fixtures.js";
+import type { MediaRootTable } from "../../database/schema/media-root-table.js";
 import {
+  animeRootFixture,
+  rootFixture,
+} from "../../testing/catalog-fixtures.js";
+import {
+  addRoot,
+  catalogNotLookedUp,
   itemId,
   scannedWithFailures,
   ALIEN_PATH as ALIEN,
@@ -17,14 +24,26 @@ import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
 afterEach(cleanUpTestEnvironment);
 
-const FAILED = { scope: "failed", mediaRootId: rootFixture.id } as const;
+const OUTSTANDING = {
+  scope: "outstanding",
+  mediaRootId: rootFixture.id,
+} as const;
+// A movie the scripted TMDB answers with several candidates.
+const THE_THING = "The Thing/movie.mkv";
+const DISABLED_ROOT: Insertable<MediaRootTable> = {
+  ...rootFixture,
+  id: "root-disabled",
+  path: "/media/disabled",
+  path_key: "/media/disabled",
+  enabled: 0,
+};
 
 describe("CatalogScanner lookup retry", () => {
   it("looks up a root's failed lookups again from enriching, with no probe calls", async () => {
     const context = await scannedWithFailures([ALIEN]);
     const probe = vi.spyOn(context.prober, "probe");
 
-    const started = await context.scanner.retry(FAILED);
+    const started = await context.scanner.retry(OUTSTANDING);
     const status = await waitForScanEnd(context);
 
     expect(started).toMatchObject({
@@ -45,12 +64,28 @@ describe("CatalogScanner lookup retry", () => {
     ]);
   });
 
+  it("looks up a root's never-looked-up files along with its failed lookups", async () => {
+    const context = await scannedWithFailures([ALIEN]);
+    await catalogNotLookedUp(context, rootFixture.id, THE_THING);
+
+    const status = await retryToEnd(context, OUTSTANDING);
+
+    expect(status).toMatchObject({
+      lookupCount: 2,
+      summary: { matchedCount: 1, ambiguousCount: 1 },
+    });
+    await expect(matchDecisions(context)).resolves.toMatchObject([
+      { file: ALIEN, state: "matched" },
+      { file: THE_THING, state: "ambiguous" },
+    ]);
+  });
+
   it("answers scan_in_progress to a scan started during a retry", async () => {
     const context = await scannedWithFailures([ALIEN]);
     const held = createBarrier();
     context.tmdb.holds.set("/3/search/movie", held);
 
-    await context.scanner.retry(FAILED);
+    await context.scanner.retry(OUTSTANDING);
     await held.reached;
     const scan = await context.scanner.start(rootFixture.id);
     held.release();
@@ -66,7 +101,7 @@ describe("CatalogScanner lookup retry", () => {
     const held = createBarrier();
     context.tmdb.holds.set("/3/search/movie", held);
 
-    await context.scanner.retry(FAILED);
+    await context.scanner.retry(OUTSTANDING);
     await held.reached;
     // Catalog removal refuses while the retry's job runs, so the removal is
     // written directly, as one racing the job would land.
@@ -120,7 +155,7 @@ describe("CatalogScanner lookup retry", () => {
     const held = createBarrier();
     context.tmdb.holds.set("/3/search/movie", held);
 
-    await context.scanner.retry(FAILED);
+    await context.scanner.retry(OUTSTANDING);
     await held.reached;
     await context.db
       .updateTable("metadata_matches")
@@ -212,7 +247,7 @@ describe("CatalogScanner lookup retry", () => {
     const held = createBarrier();
     context.tmdb.holds.set("/3/search/movie", held);
 
-    await context.scanner.retry(FAILED);
+    await context.scanner.retry(OUTSTANDING);
     await held.reached;
     context.scanner.cancel(rootFixture.id);
     held.release();
@@ -222,5 +257,102 @@ describe("CatalogScanner lookup retry", () => {
     await expect(matchDecisions(context)).resolves.toMatchObject([
       { state: "unmatched", lookupError: expect.any(String) },
     ]);
+  });
+});
+
+describe("CatalogScanner lookup retry of every root", () => {
+  it("starts a lookup on every enabled root with outstanding files, counting what they will look up", async () => {
+    const context = await scannedWithFailures([ALIEN]);
+    await addRoot(context, animeRootFixture);
+    await addRoot(context, DISABLED_ROOT);
+    await catalogNotLookedUp(context, animeRootFixture.id, ALIEN);
+    await catalogNotLookedUp(context, animeRootFixture.id, THE_THING);
+    await catalogNotLookedUp(context, DISABLED_ROOT.id, ALIEN);
+
+    const started = await context.scanner.retryEveryRoot();
+    const ends = await Promise.all([
+      waitForScanEnd(context),
+      waitForScanEnd(context, animeRootFixture.id),
+    ]);
+
+    expect(started).toEqual({
+      kind: "started",
+      lookupCount: 3,
+      busyRootCount: 0,
+    });
+    expect(ends).toMatchObject([
+      { kind: "retry", phase: "completed", summary: { matchedCount: 1 } },
+      {
+        kind: "retry",
+        phase: "completed",
+        summary: { matchedCount: 1, ambiguousCount: 1 },
+      },
+    ]);
+    expect(context.scanner.status(DISABLED_ROOT.id)).toBeUndefined();
+  });
+
+  it("skips a root whose scan is running and reports it as busy", async () => {
+    const context = await setupEnrichmentScan({ files: [ALIEN] });
+    await addRoot(context, animeRootFixture);
+    await catalogNotLookedUp(context, animeRootFixture.id, ALIEN);
+    const held = createBarrier();
+    context.tmdb.holds.set("/3/search/movie", held);
+    await context.scanner.start(rootFixture.id);
+    await held.reached;
+
+    const started = await context.scanner.retryEveryRoot();
+    held.release();
+    const [scan, retry] = await Promise.all([
+      waitForScanEnd(context),
+      waitForScanEnd(context, animeRootFixture.id),
+    ]);
+
+    expect(started).toEqual({
+      kind: "started",
+      lookupCount: 1,
+      busyRootCount: 1,
+    });
+    expect(scan).toMatchObject({ kind: "scan", phase: "completed" });
+    expect(retry).toMatchObject({ kind: "retry", phase: "completed" });
+  });
+
+  it("starts nothing on a root with nothing outstanding", async () => {
+    const context = await setupEnrichmentScan({ files: [ALIEN] });
+    await scanToEnd(context);
+    const calls = context.tmdb.requests.length;
+
+    const started = await context.scanner.retryEveryRoot();
+
+    expect(started).toEqual({
+      kind: "started",
+      lookupCount: 0,
+      busyRootCount: 0,
+    });
+    expect(context.scanner.status(rootFixture.id)).toMatchObject({
+      kind: "scan",
+    });
+    expect(context.tmdb.requests).toHaveLength(calls);
+  });
+
+  it("refuses without a TMDB key, starting nothing", async () => {
+    const context = await setupEnrichmentScan({ key: false, files: [ALIEN] });
+    await scanToEnd(context);
+
+    const started = await context.scanner.retryEveryRoot();
+
+    expect(started).toEqual({ kind: "tmdb_key_missing" });
+    expect(context.scanner.status(rootFixture.id)).toMatchObject({
+      kind: "scan",
+    });
+    expect(context.tmdb.requests).toEqual([]);
+  });
+
+  it("refuses once shutdown has begun", async () => {
+    const context = await scannedWithFailures([ALIEN]);
+    await context.scanner.shutdown();
+
+    await expect(context.scanner.retryEveryRoot()).resolves.toEqual({
+      kind: "shutting_down",
+    });
   });
 });

@@ -153,13 +153,14 @@ export interface CatalogFilter {
 
 /**
  * One root's match counts over its cataloged items, extras included in
- * `items`. `failedLookups` counts exactly what a failed-lookup retry of the
- * root would look up.
+ * `items`. `notLookedUp` and `failedLookups` together count exactly what an
+ * outstanding lookup retry of the root would look up.
  */
 export interface RootMatchCounts {
   items: number;
   matched: number;
   needsChoice: number;
+  notLookedUp: number;
   failedLookups: number;
 }
 

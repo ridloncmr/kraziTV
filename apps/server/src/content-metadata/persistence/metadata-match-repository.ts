@@ -6,6 +6,7 @@ import type { DatabaseSchema } from "../../database/schema/database-schema.js";
 import type { RetryItem, RetryScope } from "../contracts.js";
 import {
   isFailedLookup,
+  isNotLookedUp,
   isRetryable,
 } from "../../media-items/media-item-repository.js";
 import { isSettledMatch } from "./settled-match.js";
@@ -46,14 +47,15 @@ export class MetadataMatchRepository {
    * decision it holds now so the retry's commit can tell whether it changed
    * meanwhile. Whatever the decision, every available item with a probed
    * duration is covered, except an extra, which a retry never changes.
-   * Undefined when the scope's item is unknown or removed; a failed-lookup
-   * scope names its root, which the scanner checks.
+   * An outstanding scope covers only items never looked up or whose last
+   * lookup failed. Undefined when the scope's item is unknown or removed; an
+   * outstanding scope names its root, which the scanner checks.
    */
   async findRetryItems(
     scope: RetryScope,
   ): Promise<{ rootId: string; items: RetryItem[] } | undefined> {
     const anchor =
-      scope.scope === "failed"
+      scope.scope === "outstanding"
         ? { media_root_id: scope.mediaRootId, path_key: "" }
         : await this.#db
             .selectFrom("media_items")
@@ -80,7 +82,9 @@ export class MetadataMatchRepository {
       .where("media_items.media_root_id", "=", anchor.media_root_id)
       .where("media_items.removed_at", "is", null)
       .where(isRetryable)
-      .$if(scope.scope === "failed", (query) => query.where(isFailedLookup))
+      .$if(scope.scope === "outstanding", (query) =>
+        query.where((eb) => eb.or([isNotLookedUp(eb), isFailedLookup(eb)])),
+      )
       .$narrowType<{ duration_ms: number }>()
       .orderBy("media_items.path_key")
       .execute();
@@ -92,7 +96,7 @@ export class MetadataMatchRepository {
         .filter((row) =>
           scope.scope === "item"
             ? row.id === scope.mediaItemId
-            : scope.scope === "failed" || row.path_key.startsWith(folder),
+            : scope.scope === "outstanding" || row.path_key.startsWith(folder),
         )
         .map((row) => ({
           id: row.id,

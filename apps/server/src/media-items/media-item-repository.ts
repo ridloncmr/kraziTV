@@ -84,9 +84,9 @@ export class MediaItemRepository {
 
   /**
    * Counts each root's cataloged items by match state, for the root list.
-   * A root without items is absent. The failed-lookup count uses the
-   * retry's own rules, so it is zero exactly when a retry would look up
-   * nothing.
+   * A root without items is absent. The not-looked-up and failed-lookup
+   * counts use the outstanding retry's own rules, so together they are zero
+   * exactly when that retry would look up nothing.
    */
   async countMatchesByRoot(): Promise<Map<string, RootMatchCounts>> {
     const rows = await this.#db
@@ -108,6 +108,10 @@ export class MediaItemRepository {
           .countAll<number>()
           .filterWhere((f) => hasMatchState(f, "ambiguous"))
           .as("needsChoice"),
+        eb.fn
+          .countAll<number>()
+          .filterWhere((f) => f.and([isRetryable(f), isNotLookedUp(f)]))
+          .as("notLookedUp"),
         eb.fn
           .countAll<number>()
           .filterWhere((f) => f.and([isRetryable(f), isFailedLookup(f)]))
@@ -223,9 +227,20 @@ export async function findUnknownMediaItemIds(
 }
 
 /**
+ * True for an item never looked up: it has no decision row. Reads
+ * `metadata_matches` left-joined to the item, so the match-state filter,
+ * the outstanding lookup retry, and each root's count share one rule.
+ */
+export function isNotLookedUp(
+  eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">,
+) {
+  return eb("metadata_matches.state", "is", null);
+}
+
+/**
  * True for an item whose last lookup failed: unmatched with a lookup error,
- * never an extra. Reads `metadata_matches` joined to the item, so a
- * failed-lookup retry and each root's count share one rule.
+ * never an extra. Reads `metadata_matches` joined to the item, so the
+ * outstanding lookup retry and each root's count share one rule.
  */
 export function isFailedLookup(
   eb: ExpressionBuilder<DatabaseSchema, "metadata_matches">,
@@ -274,7 +289,7 @@ function hasMatchState(
 ): Expression<SqlBool> {
   switch (state) {
     case "not_looked_up":
-      return eb("metadata_matches.state", "is", null);
+      return isNotLookedUp(eb);
     case "file_changed":
       return eb.and([
         eb("metadata_matches.state", "=", "matched"),
