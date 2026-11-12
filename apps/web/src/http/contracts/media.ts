@@ -15,12 +15,15 @@ export interface MediaRoot {
 }
 /**
  * One root's cataloged items, extras included, and how many are matched,
- * need the owner's choice, or failed a lookup a retry would repeat.
+ * need the owner's choice, were never looked up, or failed a lookup.
+ * `notLookedUp` and `failedLookups` together are what the root's
+ * outstanding lookup retry looks up.
  */
 interface RootMatchCounts {
   items: number;
   matched: number;
   needsChoice: number;
+  notLookedUp: number;
   failedLookups: number;
 }
 /** A `GET /media-items` filter parameter, repeated once per value it keeps. */

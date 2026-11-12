@@ -80,6 +80,25 @@ Settled with the owner on 2026-11-05 after spec 0005's first round merged
     spec 0005 (POLISH-054 to 062) rather than a new spec, and each is fixed
     everywhere the same bug occurs, not at the one place a reviewer saw it.
 
+Settled with the owner on 2026-11-08 after a first-time owner's walk on
+a fresh rc.5 install stalled between saving a TMDB key and building a
+channel:
+
+21. Saving a TMDB key looks up every outstanding file by itself. The tray
+    then says what kraziTV found instead of asking the owner to rescan.
+22. Tray reminders get a face for 1.0: an original kraziTV character, a CRT
+    television with a cigarette and the personality of a disillusioned tax
+    man. He is never a paperclip and borrows nothing from Clippy.
+23. Reminders to probe files again after an upgrade belong to the feature
+    that adds the new facts, such as broadcast profiles, not to spec 0006.
+24. The Collections ready reminder returns only when there are more
+    recommendations than when the owner last answered it, never weekly for
+    ones already seen. Amended on 2026-11-12 at the owner's request at the
+    Gregg pick: its balloon also offers **Remind me after** a number of new
+    ones the owner types, which brings it back once that many more are
+    waiting than the fewest the browser has seen since, with no 7-day wait,
+    so making collections out of the ones already shown never holds it back.
+
 ## Related Specs
 
 Specs are listed in delivery order. Each spec's status is the `Status:` line at
@@ -92,6 +111,7 @@ the top of the spec.
 | [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                                                         |
 | [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items                                          |
 | [0005-third-polish-pass](specs/0005-third-polish-pass.md)   | What the third audit found: a Preview tab that always answers, the last owner words, first-run shortcuts, kinds over prose, and the leftovers its reviews found |
+| [0006-tray-reminders](specs/0006-tray-reminders.md)         | Saving a TMDB key looks the library up, and tray reminders say plainly what to do next, each with the tray assistant's one-line quip                            |
 
 ## Out Of Scope
 
@@ -99,4 +119,4 @@ the top of the spec.
 - Phone-width layout, touch target sizing, and the TV picture on a phone.
 - New programming features. Behavior changes here are limited to when a
   dialog appears and what words a screen uses, apart from decision 19's
-  reshuffle.
+  reshuffle and decision 21's lookup on key save.

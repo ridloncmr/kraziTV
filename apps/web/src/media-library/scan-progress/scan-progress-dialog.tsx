@@ -16,7 +16,8 @@ import {
   MATCH_STATE_LABELS,
 } from "../content-metadata/match-state-label.js";
 import { ScanAnimation } from "./scan-animation.js";
-import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
+import { isScanRunning } from "../../scan-jobs/scan-running.js";
+import { scanPath, type FollowedScan } from "./use-scan-job.js";
 
 /** The codes a poll answers with once the server no longer holds the job. */
 const LOST_CODES = new Set(["scan_not_found", "media_root_not_found"]);
@@ -117,9 +118,11 @@ export function ScanProgressDialog({
     polled.phase === "committing" || reply?.phase === "committing";
   return (
     <WindowDialog
+      // A lookup retry also looks up files never looked up, so its words never
+      // say "retry".
       title={
         job.status.kind === "retry"
-          ? "Retrying TMDB lookups"
+          ? "Looking up files on TMDB"
           : "Scanning media root"
       }
       busy={running}
@@ -234,15 +237,18 @@ function noFilesFoundLine(extensions: readonly string[]): string {
 /**
  * The live region's first line. It depends on the phase and the job's fixed
  * facts only, so screen readers hear phase changes, never each count or file
- * name.
+ * name. A lookup's endings say lookup, as its title does.
  */
 function statusLine(
   status: ScanStatus,
   rootPath: string,
   ending: "lost" | "superseded" | null,
 ): string {
+  const lookup = status.kind === "retry";
   if (ending === "lost")
-    return "This scan is no longer running on the server. The catalog may be unchanged; scan again.";
+    return lookup
+      ? "This lookup is no longer running on the server. The catalog may be unchanged; look up again."
+      : "This scan is no longer running on the server. The catalog may be unchanged; scan again.";
   if (ending === "superseded")
     return "A newer scan of this media root replaced this one.";
   switch (status.phase) {
@@ -255,20 +261,20 @@ function statusLine(
     case "committing":
       return "Saving to the catalog…";
     case "completed":
-      return status.kind === "retry"
-        ? "Lookup retry completed."
-        : "Scan completed.";
+      return lookup ? "TMDB lookup completed." : "Scan completed.";
     case "failed":
       return status.error?.message ?? "";
     case "cancelled":
-      return "Scan cancelled. The catalog is unchanged.";
+      return lookup
+        ? "TMDB lookup cancelled. The catalog is unchanged."
+        : "Scan cancelled. The catalog is unchanged.";
   }
 }
 
 /**
  * Counts and the progress bar of a running job, outside the live region.
  * Only probing and enriching know their totals, so the bar is determinate
- * only then.
+ * only then. The bar is named for the job, a scan or a lookup.
  */
 function ScanProgress({ status }: { status: ScanStatus }) {
   const step = progressStep(status);
@@ -276,7 +282,7 @@ function ScanProgress({ status }: { status: ScanStatus }) {
     <>
       {step?.last && <p className="path-cell">{step.last}</p>}
       <SegmentedProgressBar
-        label="Scan progress"
+        label={status.kind === "retry" ? "Lookup progress" : "Scan progress"}
         progress={step && { value: step.done, max: Math.max(step.total, 1) }}
       />
       <p>

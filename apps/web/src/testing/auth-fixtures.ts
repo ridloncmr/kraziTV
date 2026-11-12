@@ -9,6 +9,8 @@ import {
 import { vi } from "vitest";
 import type { AuthState } from "../http/contracts/auth.js";
 import { App } from "../app.js";
+import { DesktopShell } from "../desktop/desktop-shell.js";
+import { PageRefreshScope } from "../http/resources/refresh-scope.js";
 import { BrowserApi } from "./browser-api.js";
 
 /** The one account the web tests log on as; its name differs from every label. */
@@ -58,13 +60,31 @@ export async function bootDesktop(
   script?.(api);
   render(createElement(App));
   await screen.findByRole("button", { name: "start" });
-  // The shell reads media roots last as it starts, for the TMDB reminder.
+  // The shell reads media roots last as it starts, for the tray reminders.
   await waitFor(() => {
     if (api.requestsTo("/media-roots").length === 0) {
       throw new Error("the desktop has not read media roots yet");
     }
   });
   return api;
+}
+
+/**
+ * Renders the desktop shell alone on `api`, inside the page's refresh scope
+ * as the app root does, for a test under fake timers that steps through the
+ * shell's polling without waiting on the app root's auth read.
+ */
+export function renderDesktopShell(api: BrowserApi): void {
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(PageRefreshScope, {
+      children: createElement(DesktopShell, {
+        account,
+        onAccountChanged: () => {},
+        onLoggedOff: () => {},
+      }),
+    }),
+  );
 }
 
 /**
@@ -84,11 +104,15 @@ export function tooManyAttempts(retryAfterSeconds?: number) {
 /** Opens Account Settings from its desktop shortcut and returns its window. */
 export async function openFromShortcut(state?: AuthState) {
   const api = await bootDesktop(state);
+  return { api, window: openShortcut("Account Settings") };
+}
+
+/** Opens a program from its shortcut on a booted desktop and returns its window. */
+export function openShortcut(name: string) {
   fireEvent.click(
     within(screen.getByLabelText("Desktop programs")).getByRole("button", {
-      name: "Account Settings",
+      name,
     }),
   );
-  const window = screen.getByRole("region", { name: "Account Settings" });
-  return { api, window };
+  return screen.getByRole("region", { name });
 }

@@ -46,7 +46,11 @@ it("pages the catalog on the server and restarts at the first page for a new sea
     api.requests.filter((request) => request.path === "/media-items").at(-1)
       ?.query;
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
 
   await screen.findByText("1–50 of 120");
@@ -74,7 +78,13 @@ it.each([
     api.reply("/metadata/tmdb-key", { configured });
     vi.stubGlobal("fetch", api.fetch);
     const openProgram = vi.fn();
-    render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+    render(
+      createElement(MediaLibraryApp, {
+        visible: true,
+        openProgram,
+        onScanJobStarted: () => {},
+      }),
+    );
     await screen.findByText(/No media roots yet/);
     await waitFor(() =>
       expect(api.requestsTo("/metadata/tmdb-key")).toHaveLength(1),
@@ -141,7 +151,11 @@ it("keeps the current rows on screen while the next page loads", async () => {
   api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   await screen.findByText("Alpha");
 
@@ -172,7 +186,11 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -238,7 +256,11 @@ it("words a relative path in Browse and a root still airing after its delete, ne
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -279,7 +301,11 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -292,7 +318,9 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   const dialog = screen.getByRole("dialog", { name: "Add media root" });
   await within(dialog).findByText("/media was added. Scan it now?");
   const scanButton = within(dialog).getByRole("button", { name: "Scan" });
-  expect(document.activeElement).toBe(scanButton);
+  // Scan takes focus in an effect, which React may run a task after the
+  // question renders when the render used up its time slice.
+  await waitFor(() => expect(document.activeElement).toBe(scanButton));
   // The list refreshed on the add, before the owner answered.
   expect(api.readAfterLastWrite("/media-roots")).toBe(true);
 
@@ -331,7 +359,11 @@ it("raises Scan in the row of a never-scanned root only, starting the same scan 
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
 
   const scanButton = await screen.findByRole("button", { name: "Scan /media" });
@@ -374,7 +406,11 @@ it("fills the path by browsing server folders from the typed path", async () => 
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -404,15 +440,21 @@ const SCAN_PATH = "/media-roots/root/scan";
  * timers so each one-second poll is driven explicitly. The scan route answers
  * with whatever `scan.status` holds at each poll.
  */
-function renderScanLibrary(roots: MediaRoot[], first = scanStatus()) {
+function renderScanLibrary(
+  roots: MediaRoot[],
+  first = scanStatus(),
+  tmdbKeyConfigured = true,
+) {
   vi.useFakeTimers();
   const api = new BrowserApi();
   const scan = { status: first };
   api.reply("/media-roots", roots);
+  api.reply("/metadata/tmdb-key", { configured: tmdbKeyConfigured });
   api.reply("/media-items", { items: [], total: 0 });
   api.reply(SCAN_PATH, first, "POST", 202);
   api.handle(SCAN_PATH, () => api.response(scan.status));
   vi.stubGlobal("fetch", api.fetch);
+  const jobStarted = vi.fn();
   const tree = (visible: boolean) =>
     createElement(
       "div",
@@ -421,13 +463,19 @@ function renderScanLibrary(roots: MediaRoot[], first = scanStatus()) {
       createElement(
         WindowDialogFrame,
         null,
-        createElement(MediaLibraryApp, { visible, openProgram: () => {} }),
+        createElement(MediaLibraryApp, {
+          visible,
+          openProgram: () => {},
+          onScanJobStarted: jobStarted,
+        }),
       ),
     );
   const view = render(tree(true));
   return {
     api,
     scan,
+    /** What the shell was told each time a job started. */
+    jobStarted,
     setVisible: (visible: boolean) => view.rerender(tree(visible)),
     count: (path: string, method = "GET") =>
       api.requests.filter(
@@ -811,7 +859,7 @@ it("announces with the outcome that a lookup retry found nothing to look up", as
   });
   await advance(1_000);
 
-  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(statusLine(dialog).textContent).toBe("TMDB lookup completed.");
   expect(
     within(statusRegion(dialog)).getByText("Nothing here needed a lookup."),
   ).toBeTruthy();
@@ -980,6 +1028,63 @@ it("reports other start rejections in the page feedback and opens no dialog", as
   );
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("status")).toBeNull();
+});
+
+it.each([
+  ["Scan", SCAN_PATH],
+  ["Look up on TMDB", "/metadata/lookup-retries"],
+])(
+  "tells the shell once %s starts a job, so the tray follows it",
+  async (action, path) => {
+    const { api, jobStarted } = renderScanLibrary([
+      mediaRoot({
+        matchCounts: {
+          items: 3,
+          matched: 0,
+          needsChoice: 0,
+          notLookedUp: 3,
+          failedLookups: 0,
+        },
+      }),
+    ]);
+    api.reply(
+      "/metadata/lookup-retries",
+      scanStatus({ kind: "retry", phase: "enriching", lookupCount: 3 }),
+      "POST",
+      202,
+    );
+    await advance();
+    expect(jobStarted).not.toHaveBeenCalled();
+
+    chooseRootAction(action);
+    await advance();
+
+    expect(api.requestsTo(path).some(({ method }) => method === "POST")).toBe(
+      true,
+    );
+    expect(jobStarted).toHaveBeenCalledOnce();
+  },
+);
+
+it("tells the shell nothing when a start is refused", async () => {
+  const { api, jobStarted } = renderScanLibrary([mediaRoot()]);
+  api.reply(
+    SCAN_PATH,
+    {
+      error: {
+        code: "media_root_disabled",
+        message: "Media root root is disabled; enable it before scanning",
+      },
+    },
+    "POST",
+    409,
+  );
+  await advance();
+  chooseRootAction("Scan");
+  await advance();
+
+  expect(screen.getByRole("alert")).toBeTruthy();
+  expect(jobStarted).not.toHaveBeenCalled();
 });
 
 it("keeps the last known status through a failed poll and retries", async () => {
@@ -1160,30 +1265,131 @@ it("follows a later scan of the same root without the earlier job's status", asy
   expect(within(dialog).getByText("3 found")).toBeTruthy();
 });
 
-it("shows each root's match counts and disables Retry failed lookups when none failed", async () => {
+it("shows each root's match counts, not-looked-up files formatted like the others", async () => {
   renderScanLibrary([
     mediaRoot({
-      matchCounts: { items: 12, matched: 9, needsChoice: 2, failedLookups: 0 },
+      matchCounts: {
+        items: 4_000,
+        matched: 2_100,
+        needsChoice: 2,
+        notLookedUp: 1_312,
+        failedLookups: 0,
+      },
+    }),
+    mediaRoot({
+      id: "done",
+      path: "/done",
+      matchCounts: {
+        items: 12,
+        matched: 9,
+        needsChoice: 0,
+        notLookedUp: 0,
+        failedLookups: 3,
+      },
     }),
   ]);
   await advance();
 
-  const row = screen.getByText("/media").closest("tr") as HTMLElement;
-  expect(within(row).getByText(/9 of 12 matched/)).toBeTruthy();
-  expect(within(row).getByText("2 need your choice")).toBeTruthy();
-  expect(within(row).queryByText(/\d+ failed lookups/)).toBeNull();
-  fireEvent.click(
-    within(row).getByRole("button", { name: "Actions for /media" }),
-  );
-  expect(
-    screen.getByRole<HTMLButtonElement>("menuitem", {
-      name: "Retry failed lookups",
-    }).disabled,
-  ).toBe(true);
+  const matches = (path: string) =>
+    within(
+      screen
+        .getByText(path)
+        .closest("tr")!
+        .querySelector<HTMLElement>(".root-matches")!,
+    );
+  const media = matches("/media");
+  expect(media.getByText(/2,100 of 4,000 matched/)).toBeTruthy();
+  expect(media.getByText("2 need your choice")).toBeTruthy();
+  expect(media.getByText("1,312 not looked up")).toBeTruthy();
+  expect(media.queryByText(/failed lookup/)).toBeNull();
+  const done = matches("/done");
+  expect(done.getByText("3 failed lookups")).toBeTruthy();
+  expect(done.queryByText(/not looked up/)).toBeNull();
 });
 
+it.each([
+  {
+    when: "files were never looked up",
+    enabled: true,
+    configured: true,
+    notLookedUp: 3,
+    failedLookups: 0,
+    offered: true,
+  },
+  {
+    when: "lookups failed",
+    enabled: true,
+    configured: true,
+    notLookedUp: 0,
+    failedLookups: 2,
+    offered: true,
+  },
+  {
+    when: "nothing is outstanding",
+    enabled: true,
+    configured: true,
+    notLookedUp: 0,
+    failedLookups: 0,
+    offered: false,
+  },
+  {
+    when: "the root is disabled",
+    enabled: false,
+    configured: true,
+    notLookedUp: 3,
+    failedLookups: 2,
+    offered: false,
+  },
+  {
+    when: "no TMDB key is set",
+    enabled: true,
+    configured: false,
+    notLookedUp: 3,
+    failedLookups: 2,
+    offered: false,
+  },
+])(
+  "offers Look up on TMDB only while it would look something up ($when)",
+  async ({ enabled, configured, notLookedUp, failedLookups, offered }) => {
+    renderScanLibrary(
+      [
+        mediaRoot({
+          enabled,
+          lastScannedAt: "2026-11-10T12:00:00.000Z",
+          matchCounts: {
+            items: 9,
+            matched: 9 - notLookedUp - failedLookups,
+            needsChoice: 0,
+            notLookedUp,
+            failedLookups,
+          },
+        }),
+      ],
+      scanStatus(),
+      configured,
+    );
+    await advance();
+
+    fireEvent.click(screen.getByRole("button", { name: "Actions for /media" }));
+    expect(
+      screen.getByRole<HTMLButtonElement>("menuitem", {
+        name: "Look up on TMDB",
+      }).disabled,
+    ).toBe(!offered);
+    expect(
+      screen.queryByRole("menuitem", { name: "Retry failed lookups" }),
+    ).toBeNull();
+  },
+);
+
 it("says a root with no media has none, rather than 0 of 0 matched", async () => {
-  const empty = { items: 0, matched: 0, needsChoice: 0, failedLookups: 0 };
+  const empty = {
+    items: 0,
+    matched: 0,
+    needsChoice: 0,
+    notLookedUp: 0,
+    failedLookups: 0,
+  };
   renderScanLibrary([
     mediaRoot({
       id: "new",
@@ -1207,10 +1413,16 @@ it("says a root with no media has none, rather than 0 of 0 matched", async () =>
   expect(screen.queryByText(/0 of 0 matched/)).toBeNull();
 });
 
-it("retries a root's failed lookups in the progress dialog, opening at enriching and summarizing lookups only", async () => {
+it("looks up a root's outstanding files in the progress dialog, opening at enriching and summarizing lookups only", async () => {
   const { api, scan } = renderScanLibrary([
     mediaRoot({
-      matchCounts: { items: 4, matched: 0, needsChoice: 0, failedLookups: 4 },
+      matchCounts: {
+        items: 4,
+        matched: 0,
+        needsChoice: 0,
+        notLookedUp: 3,
+        failedLookups: 1,
+      },
     }),
   ]);
   const retry = scanStatus({
@@ -1222,14 +1434,16 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
   api.reply("/metadata/lookup-retries", retry, "POST", 202);
   await advance();
 
-  chooseRootAction("Retry failed lookups");
+  chooseRootAction("Look up on TMDB");
   await advance();
-  const dialog = screen.getByRole("dialog", { name: "Retrying TMDB lookups" });
+  const dialog = screen.getByRole("dialog", {
+    name: "Looking up files on TMDB",
+  });
 
   expect(statusLine(dialog).textContent).toBe("Looking up media on TMDB…");
   expect(within(dialog).getByText("0 of 4 looked up")).toBeTruthy();
   expect(api.requestsTo("/metadata/lookup-retries")).toMatchObject([
-    { method: "POST", body: { scope: "failed", mediaRootId: "root" } },
+    { method: "POST", body: { scope: "outstanding", mediaRootId: "root" } },
   ]);
 
   scan.status = scanStatus({
@@ -1239,8 +1453,74 @@ it("retries a root's failed lookups in the progress dialog, opening at enriching
     summary: scanSummary({ matchedCount: 3, lookupErrorCount: 1 }),
   });
   await advance(1_000);
-  expect(statusLine(dialog).textContent).toBe("Lookup retry completed.");
+  expect(statusLine(dialog).textContent).toBe("TMDB lookup completed.");
   expect(within(dialog).getByText("Matched")).toBeTruthy();
   expect(within(dialog).queryByText("Files found")).toBeNull();
   expect(within(dialog).queryByText("Could not be read")).toBeNull();
+});
+
+/** Starts a lookup of the root's outstanding files and returns its dialog. */
+async function startLookup() {
+  const { api, scan } = renderScanLibrary([
+    mediaRoot({
+      matchCounts: {
+        items: 4,
+        matched: 0,
+        needsChoice: 0,
+        notLookedUp: 4,
+        failedLookups: 0,
+      },
+    }),
+  ]);
+  const retry = scanStatus({
+    kind: "retry",
+    phase: "enriching",
+    lookupCount: 4,
+  });
+  scan.status = retry;
+  api.reply("/metadata/lookup-retries", retry, "POST", 202);
+  await advance();
+  chooseRootAction("Look up on TMDB");
+  await advance();
+  const dialog = screen.getByRole("dialog", {
+    name: "Looking up files on TMDB",
+  });
+  return { api, scan, retry, dialog };
+}
+
+it("names a lookup's progress bar for the lookup, not a scan", async () => {
+  const { dialog } = await startLookup();
+
+  expect(
+    within(dialog).getByRole("progressbar", { name: "Lookup progress" }),
+  ).toBeTruthy();
+});
+
+it("says a cancelled lookup was a TMDB lookup", async () => {
+  const { scan, retry, dialog } = await startLookup();
+  scan.status = scanStatus({
+    ...retry,
+    phase: "cancelled",
+    cancelRequested: true,
+  });
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe(
+    "TMDB lookup cancelled. The catalog is unchanged.",
+  );
+});
+
+it("says a lookup the server no longer holds is a lookup", async () => {
+  const { api, dialog } = await startLookup();
+  api.handle(SCAN_PATH, () =>
+    api.response(
+      { error: { code: "scan_not_found", message: "No scan" } },
+      404,
+    ),
+  );
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe(
+    "This lookup is no longer running on the server. The catalog may be unchanged; look up again.",
+  );
 });

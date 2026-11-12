@@ -87,6 +87,16 @@ export type RetryStart =
   ScanStart | { kind: "item_not_found" } | { kind: "tmdb_key_missing" };
 
 /**
+ * Whether a lookup retry of every root's outstanding items started. Started
+ * counts what its jobs will look up and the enabled roots it skipped because
+ * a job already ran there; it refuses only for the whole server.
+ */
+export type EveryRootRetryStart =
+  | { kind: "started"; lookupCount: number; busyRootCount: number }
+  | { kind: "tmdb_key_missing" }
+  | { kind: "shutting_down" };
+
+/**
  * The wire form of a scan status, with ISO 8601 timestamps. Defined here so
  * media-root routes can carry it without importing the scan routes.
  */

@@ -36,7 +36,12 @@ import type {
   RetryScope,
 } from "../../content-metadata/contracts.js";
 import { admitRoot } from "../root-admission.js";
-import type { RetryStart, ScanStart, ScanStatus } from "../contracts.js";
+import type {
+  EveryRootRetryStart,
+  RetryStart,
+  ScanStart,
+  ScanStatus,
+} from "../contracts.js";
 import {
   failed,
   finishJob,
@@ -50,7 +55,8 @@ import {
 } from "./scan-job.js";
 
 interface CatalogScannerOptions {
-  roots: Pick<MediaRootRepository, "findById">;
+  /** `list` serves a lookup retry of every root. */
+  roots: Pick<MediaRootRepository, "findById" | "list">;
   /** Must be the process-wide concurrency-limited prober. */
   prober: MediaProber;
   writer: Pick<CatalogScanWriter, "commit" | "commitRetry">;
@@ -64,8 +70,9 @@ interface CatalogScannerOptions {
    */
   metadataRefresh: Pick<MetadataRefreshService, "checkNow">;
   /**
-   * Asked for a pass once every job ends, since a scan or lookup retry may
-   * change the catalog and facts automatic collections match on.
+   * Asked for a pass as every job ends, since a scan or lookup retry may
+   * change the catalog and facts automatic collections match on. A job that
+   * reached its commit turns terminal only once that pass has ended.
    */
   collections: Pick<CollectionMaintenance, "request">;
   /** Where enrichment reads the owner's key, settled items, and a retry's items. */
@@ -165,6 +172,50 @@ export class CatalogScanner {
     );
   }
 
+  /**
+   * Starts a lookup retry of the outstanding items on every enabled root
+   * that has any, without waiting for them, and counts what the started jobs
+   * look up. A root with a running job is skipped and counted as busy: a
+   * scan reads the key only once it reaches enrichment, so one that has not
+   * yet uses the key on its own. Refuses only for the whole server, with no
+   * TMDB key or once shutdown has begun.
+   */
+  async retryEveryRoot(): Promise<EveryRootRetryStart> {
+    const apiKey = await this.#metadata.tmdbKeys.readKey();
+    const roots = await this.#roots.list();
+    if (this.#closing) return { kind: "shutting_down" };
+    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
+    let lookupCount = 0;
+    let busyRootCount = 0;
+    for (const found of roots) {
+      // Admission is decided before the read, so a disabled or busy root
+      // costs none.
+      let admission = this.#refuseScan(found.id, found);
+      let items: readonly RetryItem[] = [];
+      if (admission.kind === "admitted") {
+        const target = await this.#metadata.metadataMatches.findRetryItems({
+          scope: "outstanding",
+          mediaRootId: found.id,
+        });
+        items = target?.items ?? [];
+        // Checked again after the read's await, as `retry` checks, so a
+        // shutdown or a scan started meanwhile wins; jobs already started
+        // here are cancelled by the shutdown that refuses the rest.
+        admission = this.#refuseScan(found.id, found);
+      }
+      if (admission.kind === "shutting_down") return admission;
+      if (admission.kind === "scan_in_progress") busyRootCount += 1;
+      if (admission.kind !== "admitted" || items.length === 0) continue;
+      const { status } = this.#register(found, "retry", (job) =>
+        this.#executeRetry(job, found, items, apiKey),
+      );
+      // Enrichment sets the job's lookup count before its first await, so
+      // the first status already holds it.
+      lookupCount += status.lookupCount;
+    }
+    return { kind: "started", lookupCount, busyRootCount };
+  }
+
   /** Reads the root's running or latest terminal job from memory only. */
   status(rootId: string): ScanStatus | undefined {
     const job = this.#jobs.get(rootId);
@@ -251,9 +302,10 @@ export class CatalogScanner {
 
   /**
    * Runs one job to its terminal phase. Every unexpected error becomes
-   * `scan_failed`, so the promise shutdown awaits always resolves. Once the
-   * job is terminal its root is free, so the TMDB refresh is asked to check,
-   * and collection maintenance is asked for a pass over what it committed.
+   * `scan_failed`, so the promise shutdown awaits always resolves. Every job
+   * asks collection maintenance for a pass over what it may have committed.
+   * Once the job is terminal its root is free, so the TMDB refresh is asked
+   * to check.
    */
   async #run(
     job: ScanJob,
@@ -275,9 +327,15 @@ export class CatalogScanner {
         },
       };
     }
+    const pass = this.#collections.request();
+    // A job that reached its commit stays committing until its pass ends, as
+    // it does for its schedule pass, so whoever sees it end reads automatic
+    // collections and metadata orders that match what it committed. One that
+    // ended earlier committed nothing and ends at once. The request never
+    // rejects and settles at once after maintenance shuts down.
+    if (job.status.phase === "committing") await pass;
     finishJob(job.status, outcome, this.#now());
     this.#metadataRefresh.checkNow();
-    void this.#collections.request();
   }
 
   // Runs every stage in order, recording progress; each stage before the commit observes the job's signal.

@@ -62,8 +62,8 @@ provider operations already exist, or supersede accepted architectural decisions
 7. For a folder of ambiguous disc-track files, the user can map every track to an
    episode in one **Map tracks to episodes** dialog instead of correcting each file.
 8. Without a key, the desktop reminds the owner that only generic probing
-   happens: a TMDB icon in the system tray and, at most once per reminder
-   period, a tray balloon offering **Set up TMDB** (see
+   happens: a tray icon and, at most once per reminder period, a tray
+   balloon offering **Set up TMDB** (see
    [TMDB Setup Reminder](#tmdb-setup-reminder)).
 
 A provider outage reports enrichment failures without turning technically usable
@@ -152,32 +152,43 @@ IDs, and is free for non-commercial use.
 
 ### TMDB Setup Reminder
 
+[Release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md)
+shows this reminder as the first of its tray reminders, with the tray
+assistant's one-line quip under its plain title and sentence, and adds what
+follows a saved key.
+
 Without a key the catalog still scans, but titles come only from path hints.
 The desktop shell says so where the owner will see it, without blocking any
 program:
 
-- **Tray icon.** While no key is set, the system tray shows a TMDB icon labeled
-  `TMDB isn't set up`. It stays even after the owner turns the reminder off,
-  so the setting is never lost. Clicking it opens the balloon.
-- **Tray balloon.** At desktop start, the balloon opens by itself when no key
-  is set, at least one media root exists, and the reminder is due. With no
-  media root there is nothing to enrich, so it stays closed. It reads:
+- **Tray icon.** While no key is set, the system tray shows the tray
+  assistant's head labeled `TMDB isn't set up`. It stays even after the owner
+  turns the reminder off, so the setting is never lost. Clicking it opens the
+  balloon.
+- **Tray balloon.** The balloon opens by itself at most once per desktop
+  start: the first time no key is set, at least one media root exists, and
+  the reminder is due, which may be mid-session, such as right after the
+  first media root is added. With no media root there is nothing to enrich,
+  so it stays closed. It reads:
   `TMDB isn't set up` / `kraziTV can only read titles from file names. Set up
 TMDB to look up series, episodes, and movies.` Its actions:
 
-  | Action              | Effect                                                                    |
-  | ------------------- | ------------------------------------------------------------------------- |
-  | **Set up TMDB**     | Opens Account Settings on the Set up TMDB task; snoozes like Remind later |
-  | **Remind me later** | Closes the balloon; it opens by itself again after 7 days                 |
-  | **Don't remind me** | Closes the balloon; it never opens by itself again in this browser        |
-  | Close (**✕**)       | Same as **Remind me later**                                               |
+  | Action              | Effect                                                                           |
+  | ------------------- | -------------------------------------------------------------------------------- |
+  | **Set up TMDB**     | Opens Account Settings on the Set up TMDB task; snoozes like **Remind me later** |
+  | **Remind me later** | Closes the balloon; it opens by itself again after 7 days                        |
+  | **Don't remind me** | Closes the balloon; it never opens by itself again in this browser               |
+  | Close (**✕**)       | Same as **Remind me later**                                                      |
 
 - **Reminder state is desktop shell state.** The browser keeps it in
   `localStorage`, so each browser reminds on its own. Unreadable or missing
   state counts as due. It never reaches the server or changes enrichment.
-- **A saved key ends the reminder at once.** Saving a key removes the icon and
-  closes the balloon; removing the key brings the icon back, and the balloon
-  follows the stored reminder state.
+- **A saved key ends the reminder once its lookup answers.** Set up TMDB
+  reports the key only after its lookup has answered; the tray icon then
+  stays only while those lookups run or another tray reminder shows
+  ([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#saving-a-key-looks-the-library-up)).
+  Removing the key brings the icon back, and the balloon follows the stored
+  reminder state.
 - **Scan summary.** A completed scan without a key adds the line
   `TMDB isn't set up, so titles come from file names.` to its summary.
 
@@ -453,11 +464,13 @@ When a completed scan reports items needing a choice, its summary offers a
 ### Finding Media In Media Library
 
 **Root match counts.** Each media root row shows a **Matches** column:
-`<matched> of <items> matched`, followed by `<n> need your choice` and
-`<n> failed lookups` when either is non-zero. `<items>` counts the root's
-cataloged items, extras included. `<n> failed lookups` counts exactly the
-items **Retry failed lookups** would look up, so the button is disabled when
-it is 0, as it is while the root is disabled.
+`<matched> of <items> matched`, followed by `<n> need your choice`,
+`<n> not looked up`, and `<n> failed lookups` when each is non-zero. `<items>`
+counts the root's cataloged items, extras included. `<n> not looked up` and
+`<n> failed lookups` together count exactly the items the root menu's **Look
+up on TMDB** would look up, so the item is disabled when both are 0, as it is
+while the root is disabled or no TMDB key is set
+([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#media-library)).
 
 **Filter.** A **Filter…** button above the cataloged media list opens the
 **Filter media** window dialog of filter sections. The owner checks values,
@@ -544,11 +557,11 @@ match state is settled, so a rescan of a matched library makes almost no calls.
 A scan searches each movie title and year once, even when several files share
 it.
 
-| Item state                                 | Looked up on scan                                      |
-| ------------------------------------------ | ------------------------------------------------------ |
-| New, unmatched, or last lookup failed      | Yes                                                    |
-| Matched, rejected, ambiguous, or corrected | No; state is kept, and ambiguous items keep candidates |
-| Extra                                      | Never                                                  |
+| Item state                                           | Looked up on scan                                      |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| New, not looked up, unmatched, or last lookup failed | Yes                                                    |
+| Matched, rejected, ambiguous, or corrected           | No; state is kept, and ambiguous items keep candidates |
+| Extra                                                | Never                                                  |
 
 **The `enriching` phase.** A scan job's phases become
 `discovering -> probing -> enriching -> committing -> completed`. Enriching starts
@@ -568,8 +581,13 @@ and lookup-error counts; when any item is ambiguous it adds
 
 **Metadata-only retry.** A retry runs as a scan job of the root with only
 `enriching -> committing`, shown in the same progress dialog and subject to the
-same one-job-per-root rule. Its scope is one item, one folder, or every item in
-the root whose last lookup failed. A retry looks up the items in its scope
+same one-job-per-root rule. Its scope is one item, one folder, or every
+outstanding item in the root: never looked up but searchable from its path
+hints, or whose last lookup failed.
+Without a root, the outstanding scope starts a retry on every enabled root
+that has outstanding items and no running job
+([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#server)).
+A retry looks up the items in its scope
 regardless of match state, except corrected fields and extras, which it never
 changes.
 
@@ -635,21 +653,24 @@ None.
   manually collected, and broadcast.
 - No route ever returns the TMDB key; a rejected key is never stored.
 - Without a TMDB key, a scan makes no TMDB calls and records no enrichment errors.
-- Without a TMDB key, the tray shows the TMDB icon; the balloon opens by itself
-  only when a media root exists and the reminder is due, and **Remind me later**
-  and **Don't remind me** hold for 7 days and for good in that browser.
+- Without a TMDB key, the tray shows its reminder icon; the balloon opens by
+  itself at most once per desktop start, only when a media root exists and
+  the reminder is due, and **Remind me later** and **Don't remind me** hold
+  for 7 days and for good in that browser.
 - Provider-sourced facts are refreshed in the background or dropped before they
   are six months old, without a catalog scan; user corrections are kept.
 - Lookups back off on HTTP `429` instead of failing the scan.
-- A rescan looks up only new, unmatched, and failed-lookup items; matched,
-  rejected, ambiguous, corrected, and extra items make no TMDB calls.
+- A rescan looks up only new, not-looked-up, unmatched, and failed-lookup
+  items; matched, rejected, ambiguous, corrected, and extra items make no TMDB
+  calls.
 - A scan with a TMDB key reports an `enriching` phase between `probing` and
   `committing`; without a key, or with nothing to look up, it skips the phase.
 - Cancelling during `enriching` leaves the catalog unchanged.
 - The completed summary reports matched, ambiguous, unmatched, and lookup-error
   counts.
 - A metadata-only retry runs as an `enriching -> committing` job scoped to an
-  item, a folder, or a root's failed lookups, and never changes corrected fields.
+  item, a folder, or a root's outstanding lookups (never looked up or failed),
+  and never changes corrected fields.
 - Background refresh never runs on a root while a scan or retry job for it is
   active, and each item shows when its TMDB data was last refreshed or that it
   expired.
@@ -675,8 +696,9 @@ None.
   genre, and tag, any of them together, and a
   series, franchise, genre, or tag filter matches what the same collection
   criterion matches.
-- Each media root shows its matched, needing-choice, and failed-lookup counts,
-  and **Retry failed lookups** is disabled when the root has none.
+- Each media root shows its matched, needing-choice, not-looked-up, and
+  failed-lookup counts, and **Look up on TMDB** is disabled when the root has
+  no file not looked up and no failed lookup.
 - **Review matches** shows one step per series folder or movie file, where
   the series folder is the outermost naming folder, so `Survivor/` with 44
   season folders is one step; commits each choice or correction as it is

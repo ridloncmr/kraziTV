@@ -299,7 +299,7 @@ it("retries an item's lookup and opens the progress dialog at enriching", async 
     within(openDetails("Outage")).getByRole("button", { name: "Retry lookup" }),
   );
   const progress = await screen.findByRole("dialog", {
-    name: "Retrying TMDB lookups",
+    name: "Looking up files on TMDB",
   });
 
   expect(within(progress).getByRole("status").textContent).toBe(

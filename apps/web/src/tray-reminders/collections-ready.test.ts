@@ -1,0 +1,422 @@
+// @vitest-environment jsdom
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  within,
+} from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { openShortcut, renderDesktopShell } from "../testing/auth-fixtures.js";
+import { BrowserApi } from "../testing/browser-api.js";
+import {
+  officeCollection,
+  recommendation,
+  severalRecommendations,
+} from "../testing/collection-api.js";
+import { DAY_MS, elapse } from "../testing/fake-time.js";
+import { regainFocus } from "../testing/regain-focus.js";
+import { idleRoot, lookingUpRoot } from "../testing/scan-fixtures.js";
+import { bootTray, SETTLED_LIBRARY } from "../testing/tray-boot.js";
+import {
+  storedReminder,
+  storeReminder,
+  trayIcon,
+} from "../testing/tray-queries.js";
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
+
+const STORAGE_KEY = "krazitv.collectionsReadyReminder";
+const RECOMMENDATIONS = "/media-collections/recommendations";
+
+/** 14 series and 3 franchises still to decide. */
+const fourteenAndThree = [
+  ...severalRecommendations("series", 14),
+  ...severalRecommendations("franchise", 3, 100),
+];
+
+/** Stores a choice as if the owner had answered at an earlier start. */
+const answered = (state: unknown) => storeReminder(STORAGE_KEY, state);
+
+it("opens by itself counting the recommendations still to decide by kind, without taking focus", async () => {
+  const focused = document.activeElement;
+  await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: [
+      ...fourteenAndThree,
+      // Already saved as a manual collection, so nothing left to decide.
+      recommendation("series", 999, {
+        decision: "accepted",
+        collectionId: "manual-1",
+      }),
+    ],
+  });
+
+  const balloon = await screen.findByRole("dialog", {
+    name: "kraziTV found 14 shows and 3 movie series",
+  });
+  expect(
+    within(balloon).getByText(
+      "Make them into collections, then put them on a channel.",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(balloon).getByText(
+      "I sorted your whole library. No, nobody thanked me either.",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(balloon).getByRole("button", { name: "Make collections" }),
+  ).toBeTruthy();
+  expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
+    "kraziTV found 14 shows and 3 movie series",
+  );
+  expect(document.activeElement).toBe(focused);
+});
+
+it.each([
+  [severalRecommendations("series", 2), "kraziTV found 2 shows"],
+  [severalRecommendations("franchise", 3), "kraziTV found 3 movie series"],
+  [
+    [recommendation("series", 1), recommendation("franchise", 2)],
+    "kraziTV found 1 show and 1 movie series",
+  ],
+  [severalRecommendations("series", 1_204), "kraziTV found 1,204 shows"],
+])(
+  "leaves out a kind with none and counts one as one: %#",
+  async (listed, title) => {
+    await bootTray({ ...SETTLED_LIBRARY, recommendations: listed });
+
+    expect(await screen.findByRole("dialog", { name: title })).toBeTruthy();
+  },
+);
+
+it("words a single recommendation as one", async () => {
+  await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: [recommendation("franchise", 7)],
+  });
+
+  const balloon = await screen.findByRole("dialog", {
+    name: "kraziTV found 1 movie series",
+  });
+  expect(
+    within(balloon).getByText(
+      "Make it into a collection, then put it on a channel.",
+    ),
+  ).toBeTruthy();
+});
+
+it("stays away while every recommendation is decided", async () => {
+  const api = await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: [
+      recommendation("series", 1, {
+        decision: "accepted",
+        collectionId: "manual-1",
+      }),
+    ],
+  });
+  await vi.waitFor(() =>
+    expect(api.requestsTo(RECOMMENDATIONS)).not.toHaveLength(0),
+  );
+
+  expect(trayIcon(/^kraziTV found/)).toBeNull();
+});
+
+it.each([
+  ["no key is set", false, [idleRoot("a")]],
+  ["a job runs", true, [lookingUpRoot("a", 1, 2), idleRoot("b")]],
+  ["files are left to look up", true, [idleRoot("a", 3)]],
+] as const)(
+  "never reads recommendations while %s",
+  async (_, configured, roots) => {
+    const api = await bootTray({
+      configured,
+      roots,
+      recommendations: fourteenAndThree,
+    });
+    await vi.waitFor(() =>
+      expect(api.requestsTo("/metadata/tmdb-key")).not.toHaveLength(0),
+    );
+    // With no key the balloon's Set up TMDB may be open beside the icon.
+    await screen.findAllByRole("button", { name: /TMDB/ });
+
+    expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(0);
+    expect(screen.queryByRole("dialog", { name: /kraziTV found/ })).toBeNull();
+  },
+);
+
+it("opens by itself once the lookups end with recommendations", async () => {
+  vi.useFakeTimers();
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply("/media-roots", [lookingUpRoot("a", 10, 100)]);
+  api.reply(RECOMMENDATIONS, fourteenAndThree);
+  renderDesktopShell(api);
+  await elapse(0);
+  expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(0);
+
+  api.reply("/media-roots", [idleRoot("a")]);
+  await elapse(3_000);
+  await elapse(0);
+
+  expect(
+    screen.getByRole("dialog", {
+      name: "kraziTV found 14 shows and 3 movie series",
+    }),
+  ).toBeTruthy();
+  expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(1);
+});
+
+it("counts nothing from an earlier settle while the next one's read is unanswered", async () => {
+  vi.useFakeTimers();
+  const api = new BrowserApi();
+  api.reply("/health", { status: "ok" });
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply("/media-roots", [idleRoot("a")]);
+  api.reply(RECOMMENDATIONS, severalRecommendations("series", 2));
+  renderDesktopShell(api);
+  await elapse(0);
+  expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
+    "kraziTV found 2 shows",
+  );
+
+  // A lookup starts and ends; the read made once it ends is still out.
+  api.reply("/media-roots", [lookingUpRoot("a", 1, 2)]);
+  regainFocus();
+  await elapse(0);
+  expect(trayIcon(/^kraziTV found/)).toBeNull();
+  api.reply("/media-roots", [idleRoot("a")]);
+  api.hold(RECOMMENDATIONS);
+  const readsBefore = api.requestsTo(RECOMMENDATIONS).length;
+  await elapse(3_000);
+  await elapse(0);
+  expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(readsBefore + 1);
+  expect(trayIcon(/^kraziTV found/)).toBeNull();
+
+  api.release(RECOMMENDATIONS, severalRecommendations("series", 3));
+  await elapse(0);
+  expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
+    "kraziTV found 3 shows",
+  );
+});
+
+it("keeps its balloon open while the page is hidden and shown again", async () => {
+  const visibility = vi.spyOn(document, "visibilityState", "get");
+  const api = await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: severalRecommendations("series", 2),
+  });
+  await screen.findByRole("dialog", { name: "kraziTV found 2 shows" });
+  /** Hides or shows the page, as switching browser tabs does. */
+  const showPage = (state: DocumentVisibilityState) => {
+    visibility.mockReturnValue(state);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  };
+
+  const reads = api.requestsTo(RECOMMENDATIONS).length;
+  showPage("hidden");
+  showPage("visible");
+
+  await vi.waitFor(() =>
+    expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(reads + 1),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "kraziTV found 2 shows" }),
+  ).toBeTruthy();
+});
+
+it("opens Collections on Discover from Make collections, and remembers how many it answered", async () => {
+  const api = await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: fourteenAndThree,
+  });
+  api.reply("/media-collections", []);
+  const balloon = await screen.findByRole("dialog", {
+    name: "kraziTV found 14 shows and 3 movie series",
+  });
+  const before = Date.now();
+
+  fireEvent.click(
+    within(balloon).getByRole("button", { name: "Make collections" }),
+  );
+
+  const collections = screen.getByRole("region", { name: "Collections" });
+  expect(
+    await within(collections).findByRole("dialog", {
+      name: "Discover collections",
+    }),
+  ).toBeTruthy();
+  expect(storedReminder(STORAGE_KEY)).toEqual({
+    remindAfter: expect.any(Number),
+    answeredCount: 17,
+  });
+  const { remindAfter } = storedReminder(STORAGE_KEY) as {
+    remindAfter: number;
+  };
+  expect(remindAfter - before).toBeGreaterThanOrEqual(7 * DAY_MS);
+  expect(localStorage.getItem("krazitv.tmdbReminder")).toBeNull();
+  expect(localStorage.getItem("krazitv.notLookedUpReminder")).toBeNull();
+});
+
+it("follows decisions made in Discover without waiting for the window to regain focus", async () => {
+  const api = await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: fourteenAndThree,
+  });
+  api.reply("/media-collections", []);
+  fireEvent.click(
+    within(
+      await screen.findByRole("dialog", { name: /kraziTV found/ }),
+    ).getByRole("button", { name: "Make collections" }),
+  );
+  const discover = await within(
+    screen.getByRole("region", { name: "Collections" }),
+  ).findByRole("dialog", { name: "Discover collections" });
+  await within(discover).findByRole("button", { name: "Dismiss series 1" });
+
+  // A dismissal leaves 13 shows and 3 movie series still to decide.
+  api.reply(`${RECOMMENDATIONS}/dismissal`, null, "POST", 204);
+  api.reply(RECOMMENDATIONS, fourteenAndThree.slice(1));
+  fireEvent.click(
+    within(discover).getByRole("button", { name: "Dismiss series 1" }),
+  );
+  await vi.waitFor(() =>
+    expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
+      "kraziTV found 13 shows and 3 movie series",
+    ),
+  );
+
+  // Accepting the last undecided one leaves nothing to remind about.
+  api.reply(`${RECOMMENDATIONS}/acceptance`, officeCollection, "POST", 201);
+  api.reply(RECOMMENDATIONS, [
+    recommendation("series", 2, {
+      decision: "accepted",
+      collectionId: "manual-2",
+    }),
+  ]);
+  fireEvent.click(
+    within(discover).getByRole("button", {
+      name: "Create automatic collection from series 2",
+    }),
+  );
+  await vi.waitFor(() => expect(trayIcon(/^kraziTV found/)).toBeNull());
+});
+
+it("opens Discover in a Collections window already open, as often as asked, and not on a later plain open", async () => {
+  const api = await bootTray({
+    ...SETTLED_LIBRARY,
+    recommendations: fourteenAndThree,
+  });
+  api.reply("/media-collections", []);
+  await screen.findByRole("dialog", { name: /kraziTV found/ });
+  const collections = openShortcut("Collections");
+  await within(collections).findByRole("button", {
+    name: "Discover collections…",
+  });
+  expect(within(collections).queryByRole("dialog")).toBeNull();
+
+  /** Opens the balloon from the tray icon and makes collections. */
+  const makeCollections = () => {
+    fireEvent.click(trayIcon(/^kraziTV found/)!);
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: /kraziTV found/ })).getByRole(
+        "button",
+        { name: "Make collections" },
+      ),
+    );
+  };
+  makeCollections();
+  expect(screen.getAllByRole("region", { name: "Collections" })).toHaveLength(
+    1,
+  );
+  const discover = await within(collections).findByRole("dialog", {
+    name: "Discover collections",
+  });
+
+  // Closed, Discover opens again on the next request.
+  fireEvent.click(within(discover).getByRole("button", { name: "Close" }));
+  expect(within(collections).queryByRole("dialog")).toBeNull();
+  makeCollections();
+  await within(collections).findByRole("dialog", {
+    name: "Discover collections",
+  });
+
+  // A plain open after Collections closes shows its page, not Discover.
+  fireEvent.click(screen.getByRole("button", { name: "Close Collections" }));
+  const reopened = openShortcut("Collections");
+  await within(reopened).findByRole("button", {
+    name: "Discover collections…",
+  });
+  expect(within(reopened).queryByRole("dialog")).toBeNull();
+});
+
+it.each([
+  [
+    "as many as when last answered",
+    { remindAfter: 0, answeredCount: 17 },
+    fourteenAndThree,
+    false,
+  ],
+  [
+    "fewer than when last answered",
+    { remindAfter: 0, answeredCount: 20 },
+    fourteenAndThree,
+    false,
+  ],
+  [
+    "more than when last answered",
+    { remindAfter: 0, answeredCount: 16 },
+    fourteenAndThree,
+    true,
+  ],
+  [
+    "more, but still snoozed",
+    { remindAfter: Number.MAX_SAFE_INTEGER, answeredCount: 3 },
+    fourteenAndThree,
+    false,
+  ],
+  ["more, after Don't remind me", { never: true }, fourteenAndThree, false],
+])(
+  "opens by itself with %s only when its snooze is over too",
+  async (_, state, listed, opens) => {
+    answered(state);
+    const api = await bootTray({ ...SETTLED_LIBRARY, recommendations: listed });
+    await vi.waitFor(() =>
+      expect(api.requestsTo(RECOMMENDATIONS)).not.toHaveLength(0),
+    );
+
+    // The icon shows either way, so the owner can still open it.
+    await screen.findByRole("button", {
+      name: "kraziTV found 14 shows and 3 movie series",
+    });
+    expect(screen.queryByRole("dialog") !== null).toBe(opens);
+  },
+);
+
+it.each([
+  ["Remind me later", { remindAfter: expect.any(Number), answeredCount: 17 }],
+  ["Close", { remindAfter: expect.any(Number), answeredCount: 17 }],
+  ["Don't remind me", { never: true }],
+])("stores %s with its own key alone", async (answer, state) => {
+  await bootTray({ ...SETTLED_LIBRARY, recommendations: fourteenAndThree });
+  const balloon = await screen.findByRole("dialog", {
+    name: /kraziTV found/,
+  });
+
+  fireEvent.click(within(balloon).getByRole("button", { name: answer }));
+
+  expect(storedReminder(STORAGE_KEY)).toEqual(state);
+  expect(localStorage.getItem("krazitv.tmdbReminder")).toBeNull();
+  expect(localStorage.getItem("krazitv.notLookedUpReminder")).toBeNull();
+});

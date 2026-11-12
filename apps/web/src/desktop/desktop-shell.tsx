@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { DesktopProgramIcon } from "../branding/icons/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
+import type { Recommendation } from "../http/contracts/collections.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { Tooltip } from "../controls/popups/tooltip.js";
@@ -8,7 +9,14 @@ import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
-import { TmdbTrayReminder } from "../tmdb-reminder/tmdb-tray-reminder.js";
+import { lookUpEveryRoot } from "../scan-jobs/every-root-lookup.js";
+import { anyRootJobRunning } from "../scan-jobs/scan-running.js";
+import {
+  filesLeftToLookUp,
+  lookupsRunning,
+  trayReminders,
+} from "../tray-reminders/tray-reminder-list.js";
+import { TrayReminders } from "../tray-reminders/tray-reminders.js";
 import type { WatchRequest } from "../tv/tv-app.js";
 import { navigateWithArrows } from "../controls/arrow-navigation/arrow-navigation.js";
 import { LogOffDialog } from "./chrome/log-off-dialog.js";
@@ -29,6 +37,9 @@ import { windowReducer } from "./windows/window-state.js";
 /** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
 const TASKBAR_HEIGHT_PX = 32;
 
+/** How often the shell re-reads the media roots while a scan or lookup runs. */
+const JOB_POLL_MS = 3_000;
+
 /** Reads the desktop area above the taskbar from the browser window. */
 function usableViewport(): DesktopViewport {
   return {
@@ -44,8 +55,16 @@ function usableViewport(): DesktopViewport {
  * Log Off confirmation is open, the desktop behind it is inert. The account
  * comes from the app root, which alone holds it, so a change made in Account
  * Settings goes back up through `onAccountChanged` and redraws everything.
- * The shell also owns whether a TMDB key is set, for the tray reminder; a save
- * in Account Settings re-reads it through `onTmdbKeyChanged`.
+ * The shell also reads whether a TMDB key is set and the media roots, for the
+ * tray reminders; a key saved or removed in Account Settings re-reads the
+ * roots and then the key through `onTmdbKeyChanged`, and a program that
+ * starts a scan or lookup re-reads the roots through `onScanJobStarted`, so
+ * the tray follows the job. Each time the library settles with nothing left
+ * to look up, it also reads the collection recommendations for the
+ * Collections ready reminder, which counts nothing until that read answers,
+ * and re-reads them through
+ * `onRecommendationDecided` whenever Discover decides one, so the tray
+ * counts only what is still to decide.
  */
 export function DesktopShell({
   account,
@@ -79,7 +98,56 @@ export function DesktopShell({
     10_000,
   );
   const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", pageVisible);
-  const mediaRoots = useResource<MediaRoot[]>("/media-roots", pageVisible);
+  // Polled only while some root's job runs, so the tray's lookup count
+  // moves and the reminders see the jobs end; otherwise read as the page
+  // starts, shows again, or a program says it started a job.
+  const [jobsRunning, setJobsRunning] = useState(false);
+  const mediaRoots = useResource<MediaRoot[]>(
+    "/media-roots",
+    pageVisible,
+    jobsRunning ? JOB_POLL_MS : 0,
+  );
+  const anyJobRunning = anyRootJobRunning(mediaRoots.data ?? []);
+  if (anyJobRunning !== jobsRunning) setJobsRunning(anyJobRunning);
+  // Set while a changed key waits for the roots read it asked for. Read
+  // together, the key could land first beside roots from before its lookup
+  // started, and Files not looked up would hold for a moment and spend its
+  // one automatic open (spec 0006).
+  const keyAwaitsRoots = useRef(false);
+  const { refresh: refreshTmdbKey } = tmdbKey;
+  const { refresh: refreshMediaRoots } = mediaRoots;
+  /** A key was saved or removed: re-reads the roots, then the key. */
+  const tmdbKeyChanged = useCallback(() => {
+    keyAwaitsRoots.current = true;
+    refreshMediaRoots();
+  }, [refreshMediaRoots]);
+  // A roots read answering, or failing, lets a waiting key be read.
+  useEffect(() => {
+    if (!keyAwaitsRoots.current) return;
+    keyAwaitsRoots.current = false;
+    refreshTmdbKey();
+  }, [mediaRoots.data, mediaRoots.error, refreshTmdbKey]);
+  // Read only while nothing is left to look up, the one time Collections
+  // ready can hold, so a library being looked up is never asked for them.
+  const settled = filesLeftToLookUp(tmdbKey.data, mediaRoots.data) === 0;
+  const recommendations = useResource<Recommendation[]>(
+    "/media-collections/recommendations",
+    pageVisible && settled,
+  );
+  // The answer held while the library was last unsettled. The hook keeps it
+  // until the read made for the next settle lands, and `loading` only turns
+  // on in the effect after that render, so the tray is given nothing until
+  // a new answer replaces it and never counts what an earlier lookup left.
+  // A hidden page unsettles nothing, so a shown balloon survives a tab
+  // switch.
+  const [outdatedRecommendations, setOutdatedRecommendations] =
+    useState<Recommendation[]>();
+  if (!settled && recommendations.data !== outdatedRecommendations)
+    setOutdatedRecommendations(recommendations.data);
+  const currentRecommendations =
+    recommendations.data === outdatedRecommendations
+      ? undefined
+      : recommendations.data;
   // Counts requests to open Account Settings on the TMDB task, so a repeat
   // request still reaches a window that is already open. It restarts at 0
   // when that window closes, so a later plain open shows its home page.
@@ -89,14 +157,25 @@ export function DesktopShell({
     !windows.some((window) => window.id === "account")
   )
     setTmdbTaskRequest(0);
+  // Counts requests to open Collections on Discover, as the TMDB task's
+  // are counted, and restarts at 0 when Collections closes.
+  const [discoverRequest, setDiscoverRequest] = useState(0);
+  if (
+    discoverRequest !== 0 &&
+    !windows.some((window) => window.id === "collections")
+  )
+    setDiscoverRequest(0);
   /**
-   * Opens or focuses a program. Asked for the Set up TMDB task, it also asks
-   * Account Settings to show that task. Stable, so memoized program contents
-   * never re-render for it.
+   * Opens or focuses a program. Asked for a task, it also asks the program
+   * to show it: Account Settings its Set up TMDB task, Collections its
+   * Discover dialog. Stable, so memoized program contents never re-render
+   * for it.
    */
   const openProgram = useCallback((id: ProgramId, task?: ProgramTask) => {
     dispatch({ type: "open", id });
     if (task === "set-up-tmdb") setTmdbTaskRequest((count) => count + 1);
+    if (task === "discover-collections")
+      setDiscoverRequest((count) => count + 1);
   }, []);
   // The latest request to watch a channel on TV, counted like the TMDB task
   // request and cleared once TV closes, so a plain open later starts on the
@@ -196,7 +275,10 @@ export function DesktopShell({
                   account={account}
                   onAccountChanged={onAccountChanged}
                   tmdbTaskRequest={tmdbTaskRequest}
-                  onTmdbKeyChanged={tmdbKey.refresh}
+                  discoverRequest={discoverRequest}
+                  onTmdbKeyChanged={tmdbKeyChanged}
+                  onScanJobStarted={refreshMediaRoots}
+                  onRecommendationDecided={recommendations.refresh}
                   openProgram={openProgram}
                   watchRequest={watchRequest}
                   watchChannel={watchChannel}
@@ -218,14 +300,18 @@ export function DesktopShell({
           displayName={account.displayName}
           logOff={() => setLoggingOff(true)}
           tray={
-            <TmdbTrayReminder
-              configured={tmdbKey.data?.configured}
-              hasMediaRoots={
-                mediaRoots.data === undefined
-                  ? undefined
-                  : mediaRoots.data.length > 0
-              }
-              onSetUp={() => openProgram("account", "set-up-tmdb")}
+            <TrayReminders
+              reminders={trayReminders({
+                tmdbKey: tmdbKey.data,
+                mediaRoots: mediaRoots.data,
+                recommendations: currentRecommendations,
+                setUpTmdb: () => openProgram("account", "set-up-tmdb"),
+                // The tray lives in the shell, so it re-reads the roots itself.
+                lookUpFiles: () => void lookUpEveryRoot(refreshMediaRoots),
+                makeCollections: () =>
+                  openProgram("collections", "discover-collections"),
+              })}
+              status={lookupsRunning(mediaRoots.data)}
             />
           }
         />

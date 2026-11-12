@@ -50,7 +50,60 @@ export function mediaRoot(overrides: Partial<MediaRoot> = {}): MediaRoot {
     enabled: true,
     lastScannedAt: null,
     scan: null,
-    matchCounts: { items: 0, matched: 0, needsChoice: 0, failedLookups: 0 },
+    matchCounts: {
+      items: 0,
+      matched: 0,
+      needsChoice: 0,
+      notLookedUp: 0,
+      failedLookups: 0,
+    },
     ...overrides,
   };
+}
+
+/** A root `id` whose lookup job runs, `done` of `total` files so far. */
+export function lookingUpRoot(
+  id: string,
+  done: number,
+  total: number,
+  kind: "scan" | "retry" = "retry",
+): MediaRoot {
+  return mediaRoot({
+    id,
+    path: `/media/${id}`,
+    scan: scanStatus({
+      id: `job-${id}`,
+      rootId: id,
+      kind,
+      phase: "enriching",
+      lookupCount: total,
+      lookedUpCount: done,
+    }),
+  });
+}
+
+/**
+ * A root `id` whose last lookup job has ended, leaving `notLookedUp` files
+ * a lookup would still search for.
+ */
+export function idleRoot(id: string, notLookedUp = 0): MediaRoot {
+  return mediaRoot({
+    id,
+    path: `/media/${id}`,
+    scan: scanStatus({
+      id: `job-${id}`,
+      rootId: id,
+      kind: "retry",
+      phase: "completed",
+      lookupCount: 50,
+      lookedUpCount: 50,
+    }),
+    matchCounts: {
+      items: 50 + notLookedUp,
+      matched: 50,
+      needsChoice: 0,
+      notLookedUp,
+      failedLookups: 0,
+    },
+  });
 }

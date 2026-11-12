@@ -69,16 +69,26 @@ you.
 ## 5. Add it to kraziTV
 
 In Account Settings, choose **Set up TMDB**, paste the token, and click
-**Save**. The reminder balloon in the system tray has a **Set up TMDB**
-button that takes you straight there, and so does the **Set up TMDB…**
-button at the top of [Media Library](Media-Library) until a key is saved.
+**Save**. The **TMDB isn't set up** balloon in the system tray has a
+**Set up TMDB** button that takes you straight there, and so does the
+**Set up TMDB…** button at the top of [Media Library](Media-Library) until
+a key is saved.
 
 ![Set up TMDB, with a key already saved](images/set-up-tmdb.png)
 
-kraziTV checks the key with TMDB before saving it. The yellow tray icon
-goes away once a key is set. If you added the key after scanning, scan
-each root again in [Media Library](Media-Library) so your files get looked
-up.
+kraziTV checks the key with TMDB before saving it. Once it is saved,
+kraziTV looks up every file a scan could not, in every enabled media root,
+with no rescan. Account Settings says how many: "kraziTV is looking up
+1,234 files on TMDB. Keep working; the tray will tell you when it's done."
+With nothing to look up it says "Your TMDB key is saved." A root that is
+already scanning is left alone; anything its scan misses, the tray offers
+to look up afterwards.
+
+While the lookups run, Gregg stays in the tray; point at him to read
+"Looking up files on TMDB: 340 of 1,234". When they finish, his balloon
+offers **Look them up** if any files are still left over, and otherwise
+tells you what kraziTV found and offers **Make collections**.
+[The desktop](The-Desktop#the-tray-and-gregg) explains every balloon.
 
 ## Changing or removing the key
 

@@ -22,12 +22,19 @@ away. A root you choose not to scan keeps a **Scan** button in its row until
 you do.
 
 Each root's row shows when it was last scanned and how many of its files
-were matched on TMDB. The row menu holds the rest:
+were matched on TMDB, followed by what is still open, such as "12 need your
+choice", "312 not looked up", or "3 failed lookups". The row menu holds the
+rest:
 
 - **Scan** reads the folder again and picks up new, changed, and missing
   files.
-- **Retry failed lookups** asks TMDB again about files it could not look up
-  last time.
+- **Look up on TMDB** looks up the root's files that were never looked up,
+  and asks again about the ones whose lookup failed, in a **Looking up
+  files on TMDB** dialog. It needs a TMDB key and is greyed out when the
+  root has nothing to look up. Saving a key does the same for every root on
+  its own, and Gregg's **Look them up** balloon offers it for files left
+  over (see [The desktop](The-Desktop#the-tray-and-gregg)), so you mostly
+  need it after TMDB was unreachable.
 - **Disable** stops scans and background refreshes for that root. Its files
   stay in the catalog.
 - **Delete…** removes the root and all of its files from the catalog. The
@@ -56,11 +63,11 @@ exactly as it was.
 
 Scanning again is quick. Files already matched, rejected, awaiting your
 choice, or corrected are never looked up again, so your matches and
-corrections survive every scan. Only files still **Unmatched** or **Lookup
-failed** are asked about again. A file that has disappeared is marked
-**Missing** and stops airing until it returns. A file kraziTV cannot open
-is marked **Could not be read**, and a file shorter than a second counts as
-too short; neither airs. A file that moved or was renamed counts as a new
+corrections survive every scan. Only files still **Not looked up**,
+**Unmatched**, or **Lookup failed** are asked about again. A file that has
+disappeared is marked **Missing** and stops airing until it returns. A file
+kraziTV cannot open is marked **Could not be read**, and a file shorter than
+a second counts as too short; neither airs. A file that moved or was renamed counts as a new
 file.
 
 ## Matching on TMDB

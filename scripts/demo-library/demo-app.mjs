@@ -1,6 +1,7 @@
 // Opens the demo kraziTV for the screenshot scripts, and hides what still
 // shows of the owner's computer before each shot.
 
+import { existsSync, realpathSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,16 +28,25 @@ export function openDemoApp({ width, height }) {
   });
 }
 
-// The demo runs on the owner's computer, so its media folder and this
-// computer's network addresses would show. Shots swap them for the example
-// values the docs use elsewhere.
-const machineValues = [
-  [join(repoRoot, "data", "demo", "media"), "/media"],
-  ...Object.values(networkInterfaces())
-    .flat()
-    .filter((address) => address.family === "IPv4" && !address.internal)
-    .map((address) => [address.address, "192.168.1.10"]),
-];
+/**
+ * The demo runs on the owner's computer, so its media folder and this
+ * computer's network addresses would show. Shots swap them for the example
+ * values the docs use elsewhere. The folder is resolved, because a git
+ * worktree links `data/demo` to the main checkout's, whose path the demo's
+ * database holds. Read when a shot is taken, not when this module loads, so
+ * importing it without a built demo throws nothing; with no demo folder
+ * there is no folder to hide.
+ */
+function machineValues() {
+  const media = join(repoRoot, "data", "demo", "media");
+  return [
+    ...(existsSync(media) ? [[realpathSync(media), "/media"]] : []),
+    ...Object.values(networkInterfaces())
+      .flat()
+      .filter((address) => address.family === "IPv4" && !address.internal)
+      .map((address) => [address.address, "192.168.1.10"]),
+  ];
+}
 
 /** Replaces machine values in the page's text and form fields; call before every shot. */
 export function hideMachineValues(page) {
@@ -57,5 +67,5 @@ export function hideMachineValues(page) {
     for (const field of document.querySelectorAll("input, textarea")) {
       field.value = swap(field.value);
     }
-  }, machineValues);
+  }, machineValues());
 }

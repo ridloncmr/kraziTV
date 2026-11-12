@@ -18,15 +18,23 @@ import { CreateCollectionDialog } from "./landing/create-collection-dialog.js";
  * Collections select programming eligibility independently of filesystem
  * discovery roots. A card opens its collection in Collection Properties, a
  * window of its own beside this one, so the grid stays in view and several
- * collections can be open at once.
+ * collections can be open at once. Each new `discoverRequest`, such as the
+ * Collections ready balloon's, opens Discover, whether or not this window
+ * was already open.
  */
 export function CollectionsApp({
   visible,
   windows,
+  discoverRequest,
+  onRecommendationDecided,
 }: {
   visible: boolean;
   /** Each collection's own Collection Properties: opened from here. */
   windows: PropertiesWindows;
+  /** Counts requests to open Discover; 0 when none was made. */
+  discoverRequest: number;
+  /** Tells the shell Discover decided a recommendation, so its tray re-reads them. */
+  onRecommendationDecided: () => void;
 }) {
   const collections = useResource<MediaCollectionSummary[]>(
     "/media-collections",
@@ -41,6 +49,14 @@ export function CollectionsApp({
   const [creating, setCreating] =
     useState<MediaCollection["maintenanceMode"]>();
   const [discovering, setDiscovering] = useState(false);
+  // Adjusted during render, not in an effect, so Discover shows on the
+  // first paint after the request, whether or not this window was open.
+  // The shell restarts the count only once this window has closed.
+  const [handledRequest, setHandledRequest] = useState(0);
+  if (discoverRequest !== handledRequest) {
+    setHandledRequest(discoverRequest);
+    setDiscovering(true);
+  }
   // The tab holding what Discover created in this visit, if anything:
   // Automatic once any automatic collection was created, else Manual.
   const [discovered, setDiscovered] =
@@ -120,7 +136,11 @@ export function CollectionsApp({
         />
       )}
       {discovering && (
-        <DiscoverDialog onCreated={discoveredOne} onClose={closeDiscover} />
+        <DiscoverDialog
+          onCreated={discoveredOne}
+          onRecommendationDecided={onRecommendationDecided}
+          onClose={closeDiscover}
+        />
       )}
       {creating === "automatic" && (
         <NewAutomaticCollectionDialog

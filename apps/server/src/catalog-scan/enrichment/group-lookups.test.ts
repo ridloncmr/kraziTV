@@ -1,8 +1,11 @@
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import type { HintedCandidate } from "../contracts.js";
+import { ROOT } from "../../testing/enrichment-scan.js";
 import { hinted } from "../../testing/metadata-match-fixtures.js";
-import { groupLookups } from "./group-lookups.js";
+import { groupLookups, wouldSearch } from "./group-lookups.js";
 
 // Each group's search hints and the path keys it decides for.
 function summarize(items: readonly HintedCandidate[], settled: string[] = []) {
@@ -165,5 +168,41 @@ describe("groupLookups", () => {
       "Firefly/Featurettes/making-of.mkv",
     ]);
     expect(groups).toEqual([]);
+  });
+});
+
+describe("wouldSearch", () => {
+  it("accepts exactly the files a lookup puts in a search", () => {
+    const files = [
+      "Alien (1979)/movie.mkv",
+      "Alien (1979)/Featurettes/making-of.mkv",
+      "Firefly/Season 1/b.mkv",
+      "Firefly/Season 1/s01e01.mkv",
+      "Show/Disc 1/title_t00.mkv",
+    ];
+    const searched = summarize(files.map((file) => hinted(file))).groups;
+
+    const accepted = files.filter((file) =>
+      wouldSearch(ROOT, join(ROOT, file)),
+    );
+
+    expect(accepted).toEqual([
+      "Alien (1979)/movie.mkv",
+      "Firefly/Season 1/s01e01.mkv",
+    ]);
+    expect(searched.flatMap((group) => group.files).sort()).toEqual(accepted);
+  });
+
+  it("answers each file by its root as well as its path when asked again", () => {
+    // A movie's folder names its title, so under the movie's own folder as a
+    // root the same file names nothing, and outside it hints nothing at all.
+    const path = join(ROOT, "Alien (1979)/movie.mkv");
+    const roots = [ROOT, join(ROOT, "Alien (1979)"), join(ROOT, "Elsewhere")];
+
+    const first = roots.map((root) => wouldSearch(root, path));
+    const again = roots.map((root) => wouldSearch(root, path));
+
+    expect(first).toEqual([true, false, false]);
+    expect(again).toEqual(first);
   });
 });

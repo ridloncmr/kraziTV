@@ -41,6 +41,7 @@ const PAGE_SIZE = 50;
 export function MediaLibraryApp({
   visible,
   openProgram,
+  onScanJobStarted,
 }: {
   visible: boolean;
   /**
@@ -48,10 +49,12 @@ export function MediaLibraryApp({
    * My Channels, where a special blocking a removal is resolved.
    */
   openProgram: (id: ProgramId, task?: ProgramTask) => void;
+  /** Tells the shell a scan or lookup started, so its tray follows the job. */
+  onScanJobStarted: () => void;
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   // Whether a TMDB key is set, read as the tray reminder reads it; a failed
-  // read only hides the Set up TMDB link.
+  // read only hides the Set up TMDB link and leaves Look up on TMDB off.
   const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", visible);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
@@ -67,7 +70,7 @@ export function MediaLibraryApp({
   const mutation = useMutation();
   // Refresh reloads open dialogs too, not just the lists.
   const { refresh: refreshWindow } = useRefreshScope();
-  const scan = useScanJob(roots.data);
+  const scan = useScanJob(roots.data, onScanJobStarted);
   // Which request the feedback reports, so an earlier root write's success
   // never reads as the result of a scan start.
   const [lastRequest, setLastRequest] = useState<"root" | "scan" | "removal">(
@@ -93,7 +96,7 @@ export function MediaLibraryApp({
     setLastRequest("scan");
     void scan.start(root);
   }
-  /** Looks an item, its folder, or a root's failed lookups up again, followed like a scan. */
+  /** Looks up an item, its folder, or a root's outstanding files (never looked up or failed) on TMDB, followed like a scan. */
   function retryLookups(scope: RetryScope) {
     setLastRequest("scan");
     void scan.retry(scope);
@@ -232,13 +235,19 @@ export function MediaLibraryApp({
                               onSelect: () => startScan(root),
                             },
                             {
-                              label: "Retry failed lookups",
+                              // Offered only when the server would start a
+                              // job that looks something up; a key unknown
+                              // because its read failed counts as unset.
+                              label: "Look up on TMDB",
                               disabled:
                                 !root.enabled ||
-                                root.matchCounts.failedLookups === 0,
+                                tmdbKey.data?.configured !== true ||
+                                root.matchCounts.notLookedUp +
+                                  root.matchCounts.failedLookups ===
+                                  0,
                               onSelect: () =>
                                 retryLookups({
-                                  scope: "failed",
+                                  scope: "outstanding",
                                   mediaRootId: root.id,
                                 }),
                             },

@@ -5,7 +5,11 @@ import {
   detachBrowserApi,
   injectBrowserApi,
 } from "../src/testing/injected-api.js";
+import { declineTmdbReminder } from "../src/testing/declined-tmdb-reminder.js";
 
+// The scenario's seeded media root and missing TMDB key would open the
+// TMDB balloon by itself; this file is not about reminders.
+test.beforeEach(({ page }) => declineTmdbReminder(page));
 test.afterEach(async ({ page }) => {
   await detachBrowserApi(page);
   await cleanUpTestEnvironment();

@@ -1,0 +1,152 @@
+/*
+ * The tray assistant's smoke (spec 0006, The tray assistant). A thin wisp
+ * drifts up from Gregg's cigarette and thins out while a balloon is open,
+ * over and over, with opacity and transform only: slow and low-contrast, so
+ * it reads as a character breathing rather than as motion the owner should
+ * look at. `transform-box: fill-box` makes the wisp rise and stretch from
+ * its own base instead of the drawing's origin. Both ends of the loop sit
+ * at opacity 0, so the jump back to the start is never seen.
+ */
+.gregg-smoke {
+  opacity: 0.45;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: gregg-smoke 5.2s linear infinite;
+}
+@keyframes gregg-smoke {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scaleY(0.8);
+  }
+  30% {
+    opacity: 0.45;
+  }
+  65% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3.5px) scaleY(1.15);
+  }
+}
+/*
+ * The tray's reminder icon, Gregg's head, and its XP balloon. The balloon
+ * rises above the tray, flush with its right edge as XP's were, and has its
+ * own close. It is 20 px wider than the TMDB balloon was, so the head row
+ * keeps the longest title to two lines beside Gregg.
+ */
+.tray-reminders {
+  display: flex;
+}
+.tray-reminder-icon {
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  display: flex;
+  cursor: pointer;
+}
+.tray-reminder-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.tray-balloon {
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 4px);
+  width: 300px;
+  padding: 10px 12px;
+  background: #ffffe1;
+  color: #000;
+  border: 1px solid #000;
+  border-radius: 8px;
+  box-shadow: 2px 2px 6px rgb(0 0 0 / 35%);
+  font-size: 11px;
+  /* The tray keeps its own items on one line; the balloon's text must wrap. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  z-index: 1000;
+  /* Rises from the tray as XP balloons did. */
+  transition:
+    opacity var(--xp-duration-popup) var(--xp-ease-out),
+    transform var(--xp-duration-popup) var(--xp-ease-out);
+}
+@starting-style {
+  .tray-balloon {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* Gregg beside the title, his quip one line under it. */
+.tray-balloon-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tray-balloon-gregg {
+  display: flex;
+  flex: none;
+}
+/* The title stops short of the close button instead of running under it. */
+.tray-balloon strong {
+  display: block;
+  padding-right: 16px;
+}
+.tray-balloon p {
+  margin: 6px 0 8px;
+}
+/* His voice, quieter than the title and the plain sentence below. */
+.tray-balloon .tray-balloon-quip {
+  margin: 2px 0 0;
+  color: #4a4a4a;
+  font-style: italic;
+}
+.tray-balloon-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tray-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/*
+ * Collections ready's Remind me after row, on a line of its own under the
+ * other answers: the button, a field two digits wide, and "new ones". Its
+ * refusal sits right under it, tighter than the balloon's sentences.
+ */
+.tray-balloon-after {
+  margin-top: 6px;
+}
+.tray-balloon-after-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tray-balloon-after input {
+  width: 4em;
+}
+.tray-balloon .tray-balloon-after p {
+  margin: 4px 0 0;
+}
+/*
+ * Reduced motion leaves the wisp standing still at its resting opacity, and
+ * keeps the balloon's fade, which says it appeared, without the rise. These
+ * follow the rules they override, since this sheet loads after desktop.css.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .gregg-smoke {
+    animation: none;
+  }
+  .tray-balloon {
+    transition-property: opacity;
+  }
+  @starting-style {
+    .tray-balloon {
+      transform: none;
+    }
+  }
+}

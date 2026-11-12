@@ -5,23 +5,12 @@ import type { MediaRoot } from "../../http/contracts/media.js";
 import type { RetryScope } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
+import { isScanRunning } from "../../scan-jobs/scan-running.js";
 
 /** The scan job a progress dialog follows, with the root path its status line names. */
 export interface FollowedScan {
   rootPath: string;
   status: ScanStatus;
-}
-
-/** The phases after which a scan job never changes again. */
-const TERMINAL_PHASES: ReadonlySet<ScanStatus["phase"]> = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-]);
-
-/** A running job still changes on the server, so its dialog keeps polling and stays busy. */
-export function isScanRunning(status: ScanStatus): boolean {
-  return !TERMINAL_PHASES.has(status.phase);
 }
 
 /** The scan route of one media root, shared by start, poll, and cancel. */
@@ -34,9 +23,13 @@ export function scanPath(rootId: string): string {
  * page started, one another client started (`409` `scan_in_progress`), or the
  * first running job in media-root order once the dialog is free. Which job is
  * followed and which were acknowledged is transient page state; every outcome
- * shown comes from the server's status.
+ * shown comes from the server's status. Every job the server answers a start
+ * with is reported through `onStarted`, so the desktop shell can follow it.
  */
-export function useScanJob(roots: MediaRoot[] | undefined) {
+export function useScanJob(
+  roots: MediaRoot[] | undefined,
+  onStarted: () => void,
+) {
   const owner = useRef<AbortController | null>(null);
   const [followed, setFollowed] = useState<FollowedScan | null>(null);
   // Jobs the user closed with OK; a list read before the close still shows
@@ -124,8 +117,10 @@ export function useScanJob(roots: MediaRoot[] | undefined) {
         knownRootPath ??
         roots?.find((root) => root.id === status.rootId)?.path ??
         "";
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         setFollowed((current) => current ?? { rootPath, status });
+        onStarted();
+      }
     } catch (failure) {
       if (!controller.signal.aborted) setError(toError(failure));
     } finally {

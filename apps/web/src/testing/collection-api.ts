@@ -1,4 +1,8 @@
-import type { CatalogGroup } from "../http/contracts/collections.js";
+import type {
+  CatalogGroup,
+  CollectionMember,
+  Recommendation,
+} from "../http/contracts/collections.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { adminFixtures, collectionWith, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
@@ -39,6 +43,63 @@ export const catalogFranchises: CatalogGroup[] = [
   { tmdbId: 84, name: "Indiana Jones Collection", itemCount: 3 },
 ];
 
+/** A cataloged item as a collection member at `position`: exactly the server's member projection, so no catalog-only field leaks in. */
+function memberOf(
+  { id, title, path, status, durationMs }: MediaItem,
+  position: number,
+): CollectionMember {
+  return { position, mediaItemId: id, title, path, status, durationMs };
+}
+
+/**
+ * An undecided recommendation of `kind` as the server lists it, named
+ * for its TMDB ID and holding both fixture episodes; its member count is
+ * their number, as the server derives it. Tests override only the facts
+ * they assert, such as its decision.
+ */
+export function recommendation(
+  kind: Recommendation["criterion"]["kind"],
+  tmdbId: number,
+  overrides: Partial<Recommendation> = {},
+): Recommendation {
+  const members = episodes.map(memberOf);
+  return {
+    criterion: { kind, tmdbId },
+    name: `${kind} ${tmdbId}`,
+    reason: `${members.length} cataloged items of ${kind} ${tmdbId}`,
+    memberCount: members.length,
+    members,
+    seasonCount: kind === "series" ? 1 : null,
+    collectionId: null,
+    decision: null,
+    ...overrides,
+  };
+}
+
+/** `count` undecided recommendations of `kind`, numbered from `from`. */
+export function severalRecommendations(
+  kind: Recommendation["criterion"]["kind"],
+  count: number,
+  from = 1,
+): Recommendation[] {
+  return Array.from({ length: count }, (_, index) =>
+    recommendation(kind, from + index),
+  );
+}
+
+/**
+ * `count` series recommendations each already saved as a manual collection,
+ * numbered from 1, as after the owner made them all collections.
+ */
+export function decidedRecommendations(count: number): Recommendation[] {
+  return Array.from({ length: count }, (_, index) =>
+    recommendation("series", index + 1, {
+      decision: "accepted",
+      collectionId: `manual-${index + 1}`,
+    }),
+  );
+}
+
 /** An automatic series collection holding both fixture episodes. */
 export const officeCollection = collectionWith("office", "The Office", {
   maintenanceMode: "automatic",
@@ -69,9 +130,7 @@ export function serveCollection(
     saved.map((mediaItemId, position) => {
       const item = catalog.find((media) => media.id === mediaItemId);
       if (!item) throw new Error(`Unknown fixture media ${mediaItemId}`);
-      // Exactly the server's member projection, so no catalog-only field leaks in.
-      const { title, path, status, durationMs } = item;
-      return { position, mediaItemId, title, path, status, durationMs };
+      return memberOf(item, position);
     });
   const path = `/media-collections/${id}`;
   api.handle(`${path}/items`, () => api.response(members()));

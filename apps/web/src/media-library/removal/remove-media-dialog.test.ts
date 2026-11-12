@@ -18,7 +18,7 @@ import type {
 } from "../../http/contracts/media.js";
 import { adminFixtures } from "../../testing/admin-fixtures.js";
 import { BrowserApi } from "../../testing/browser-api.js";
-import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
+import { applyStylesheet } from "../../testing/apply-stylesheet.js";
 import { mediaRoot } from "../../testing/scan-fixtures.js";
 import { MediaLibraryApp } from "../media-library-app.js";
 
@@ -103,7 +103,13 @@ function renderLibrary(
   api.reply("/media-roots", [root]);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+  render(
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram,
+      onScanJobStarted: () => {},
+    }),
+  );
   return api;
 }
 
@@ -126,7 +132,10 @@ it("clears the catalog selection, leaving nothing to remove", async () => {
   });
   expect(clear.disabled).toBe(true);
 
-  fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
+  // The toolbar renders before the catalog rows arrive.
+  fireEvent.click(
+    await screen.findByRole("checkbox", { name: "Select Alpha" }),
+  );
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Zulu" }));
   expect(clear.disabled).toBe(false);
   fireEvent.click(clear);
@@ -148,7 +157,8 @@ it("keeps Delete… disabled until a row is selected, and previews the selection
   expect(remove.disabled).toBe(true);
   api.hold(PREVIEW, "POST");
 
-  fireEvent.click(screen.getByText("Zulu"));
+  // The toolbar renders before the catalog rows arrive.
+  fireEvent.click(await screen.findByText("Zulu"));
   fireEvent.click(remove);
   const dialog = screen.getByRole("dialog", { name: "Delete media" });
 
@@ -193,7 +203,7 @@ it("previews a root removal with its path and item count", async () => {
 });
 
 it("breaks a scene-named root path inside its sentence rather than scrolling the dialog sideways", async () => {
-  applyControlsStylesheet();
+  applyStylesheet("controls/controls.css");
   const path =
     "/volume1/Media/TV/Star.Trek.Deep.Space.Nine.S01-S07.1080p.BluRay.x265/Disc1";
   expect(path).toHaveLength(75);

@@ -9,17 +9,21 @@ import {
 } from "../../http/api-error.js";
 import { idParams } from "../../http/request-schemas.js";
 import type { MediaRootRepository } from "../../media-roots/media-root-repository.js";
-import type { RetryStart } from "../contracts.js";
+import type { EveryRootRetryStart, RetryStart } from "../contracts.js";
 import type { CatalogScanner } from "../scanner/catalog-scanner.js";
 import { toApiScanStatus } from "./api-scan-status.js";
 
-// A retry names one item, the folder holding one item, or a root's failed lookups.
+// A retry names one item, the folder holding one item, or the outstanding
+// lookups of one root or, without a root, of every root.
 const retryBody = z.union([
   z.strictObject({
     scope: z.enum(["item", "folder"]),
     mediaItemId: z.string(),
   }),
-  z.strictObject({ scope: z.literal("failed"), mediaRootId: z.string() }),
+  z.strictObject({
+    scope: z.literal("outstanding"),
+    mediaRootId: z.string().optional(),
+  }),
 ]);
 
 /**
@@ -45,14 +49,24 @@ export function registerCatalogScanRoutes(
     const body = retryBody.safeParse(request.body);
     if (!body.success) return sendInvalidRequest(reply, body.error);
     const scope = body.data;
-    const result = await scanner.retry(scope);
-    if (scope.scope === "failed") {
+    if (scope.scope === "outstanding") {
       const id = scope.mediaRootId;
+      if (id === undefined) {
+        const result = await scanner.retryEveryRoot();
+        if (result.kind !== "started") return sendServerRefusal(reply, result);
+        const { lookupCount, busyRootCount } = result;
+        return reply.status(202).send({ lookupCount, busyRootCount });
+      }
+      const result = await scanner.retry({
+        scope: "outstanding",
+        mediaRootId: id,
+      });
       return sendScanStart(reply, result, {
         details: { mediaRootId: id },
         notFound: () => sendMediaRootNotFound(reply, id),
       });
     }
+    const result = await scanner.retry(scope);
     const id = scope.mediaItemId;
     return sendScanStart(reply, result, {
       details: { mediaItemId: id },
@@ -110,6 +124,20 @@ function sendScanStart(
         "The media root is already being scanned",
         details,
       );
+    default:
+      return sendServerRefusal(reply, result);
+  }
+}
+
+/**
+ * Maps the refusals that concern the whole server rather than one root or
+ * item, which a retry of every root shares with every other start.
+ */
+function sendServerRefusal(
+  reply: FastifyReply,
+  refusal: Exclude<EveryRootRetryStart, { kind: "started" }>,
+): FastifyReply {
+  switch (refusal.kind) {
     case "tmdb_key_missing":
       return sendApiError(
         reply,

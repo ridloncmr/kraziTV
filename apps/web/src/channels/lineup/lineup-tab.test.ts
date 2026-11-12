@@ -20,7 +20,7 @@ import { BrowserApi } from "../../testing/browser-api.js";
 import { openChannelTab } from "../../testing/channel-tabs.js";
 import { chooseOption, chosenOption } from "../../testing/choose-option.js";
 import { ChannelWindows } from "../../testing/channel-windows.js";
-import { applyControlsStylesheet } from "../../testing/controls-stylesheet.js";
+import { applyStylesheet } from "../../testing/apply-stylesheet.js";
 import { pressEnter } from "../../testing/press-enter.js";
 
 afterEach(() => {
@@ -170,7 +170,7 @@ it("lists each show's name, order, per sitting, marathons, and rotation, with no
 });
 
 it("keeps Play order, At a time, and Marathons on one line at their words' width, so the Show column gives", async () => {
-  applyControlsStylesheet();
+  applyStylesheet("controls/controls.css");
   await openLineup([
     favoritesAssignment("release", {
       ordinaryStretch: { kind: "programs", count: 2 },

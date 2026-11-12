@@ -711,14 +711,17 @@ button:disabled {
     transform: translateX(155px);
   }
 }
-/* Reduced motion keeps the fades, which say what appeared, and drops every movement. */
+/*
+ * Reduced motion keeps the fades, which say what appeared, and drops every
+ * movement. The tray balloon's rule sits in tray-reminders.css, after the
+ * transition it overrides.
+ */
 @media (prefers-reduced-motion: reduce) {
   .boot-progress span {
     animation: none;
   }
   .app-window,
   .start-menu,
-  .tray-balloon,
   .log-off-dialog {
     transition-property: opacity;
   }
@@ -728,7 +731,6 @@ button:disabled {
   @starting-style {
     .app-window,
     .start-menu,
-    .tray-balloon,
     .log-off-dialog {
       transform: none;
     }
@@ -791,70 +793,4 @@ button:disabled {
 .boot-failure button:disabled,
 .log-off-footer button:disabled {
   opacity: 0.55;
-}
-/*
- * The TMDB reminder's tray icon and its XP balloon. The balloon rises above
- * the tray, flush with its right edge as XP's were, and has its own close.
- */
-.tmdb-tray {
-  display: flex;
-}
-.tmdb-tray-icon {
-  background: transparent;
-  border: 0;
-  padding: 2px;
-  display: flex;
-  cursor: pointer;
-}
-.tmdb-tray-icon svg {
-  width: 16px;
-  height: 16px;
-}
-.tray-balloon {
-  position: absolute;
-  right: 4px;
-  bottom: calc(100% + 4px);
-  width: 280px;
-  padding: 10px 12px;
-  background: #ffffe1;
-  color: #000;
-  border: 1px solid #000;
-  border-radius: 8px;
-  box-shadow: 2px 2px 6px rgb(0 0 0 / 35%);
-  font-size: 11px;
-  /* The tray keeps its own items on one line; the balloon's text must wrap. */
-  white-space: normal;
-  overflow-wrap: break-word;
-  z-index: 1000;
-  /* Rises from the tray as XP balloons did. */
-  transition:
-    opacity var(--xp-duration-popup) var(--xp-ease-out),
-    transform var(--xp-duration-popup) var(--xp-ease-out);
-}
-@starting-style {
-  .tray-balloon {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-/* The title stops short of the close button instead of running under it. */
-.tray-balloon strong {
-  display: block;
-  padding-right: 16px;
-}
-.tray-balloon p {
-  margin: 6px 0 8px;
-}
-.tray-balloon-close {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-.tray-balloon-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
