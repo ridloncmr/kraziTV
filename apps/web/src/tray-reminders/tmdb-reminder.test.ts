@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { bootDesktop } from "../testing/auth-fixtures.js";
 import type { BrowserApi } from "../testing/browser-api.js";
@@ -41,6 +47,17 @@ const trayIcon = () =>
 const balloon = () =>
   screen.queryByRole("dialog", { name: "TMDB isn't set up" });
 
+/** Reloads the shell's reads, as the browser window regaining focus does. */
+function regainFocus() {
+  // Separate acts, so React sees the window lose focus before it returns.
+  act(() => {
+    globalThis.dispatchEvent(new Event("blur"));
+  });
+  act(() => {
+    globalThis.dispatchEvent(new Event("focus"));
+  });
+}
+
 /** Reads the stored reminder state, as the next desktop start would. */
 const stored = () =>
   JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
@@ -57,6 +74,67 @@ it("opens the balloon by itself with no key, a media root, and no stored state",
     ),
   ).toBeTruthy();
   expect(trayIcon()).toBeTruthy();
+});
+
+it("shows Gregg beside the title with his quip under it, and his head as the tray icon", async () => {
+  await boot();
+
+  const opened = await screen.findByRole("dialog", {
+    name: "TMDB isn't set up",
+  });
+  const head = opened.querySelector<HTMLElement>(".tray-balloon-head")!;
+  expect(within(head).getByRole("img", { name: "Gregg" })).toBeTruthy();
+  expect(head.querySelector(".gregg-smoke")).not.toBeNull();
+  const title = within(head).getByText("TMDB isn't set up");
+  const quip = within(head).getByText(
+    "Right now I'm reading titles off file names. Nobody should live like this.",
+  );
+  expect(
+    title.compareDocumentPosition(quip) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  // The plain sentence, not the quip, still describes the balloon.
+  expect(
+    document.getElementById(opened.getAttribute("aria-describedby")!)
+      ?.textContent,
+  ).toBe(
+    "kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies.",
+  );
+  expect(trayIcon()!.querySelector("svg")!.getAttribute("viewBox")).toBe(
+    "0 0 16 16",
+  );
+});
+
+it("opens the balloon by itself when the first media root appears mid-session, without taking focus", async () => {
+  const api = await boot({ roots: [] });
+  await screen.findByRole("button", { name: "TMDB isn't set up" });
+  expect(balloon()).toBeNull();
+  const focused = document.activeElement;
+
+  api.reply("/media-roots", [mediaRoot({ id: "root-1", path: "D:/Media" })]);
+  regainFocus();
+
+  const opened = await screen.findByRole("dialog", {
+    name: "TMDB isn't set up",
+  });
+  expect(opened.contains(document.activeElement)).toBe(false);
+  expect(document.activeElement).toBe(focused);
+});
+
+it("opens by itself at most once per desktop start, even when its condition stops and holds again", async () => {
+  const api = await boot();
+  await screen.findByRole("dialog", { name: "TMDB isn't set up" });
+
+  // The owner never answers; a key set elsewhere closes it unrecorded.
+  api.reply("/metadata/tmdb-key", { configured: true });
+  regainFocus();
+  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  expect(stored()).toBeNull();
+
+  // The key goes again: the icon returns, but the balloon has had its turn.
+  api.reply("/metadata/tmdb-key", { configured: false });
+  regainFocus();
+  await screen.findByRole("button", { name: "TMDB isn't set up" });
+  expect(balloon()).toBeNull();
 });
 
 it("shows only the tray icon when no media root exists", async () => {
@@ -77,6 +155,7 @@ it("shows neither icon nor balloon when a key is set", async () => {
 
 it.each([
   ["a snooze that has not ended", { remindAfter: Date.now() + DAY_MS }],
+  // Stored by the balloon before it became a tray reminder, under the same key.
   ["Don't remind me", { never: true }],
 ])(
   "keeps the balloon closed after %s, but the icon opens it",
