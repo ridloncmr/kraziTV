@@ -95,7 +95,8 @@ explains it. Every reminder follows the same rules:
 - **The same three answers.** The main action, **Remind me later** (and ✕ and
   Escape), which waits 7 days, and **Don't remind me**, which stops it opening
   by itself in this browser. The main action snoozes like **Remind me later**.
-  Each reminder stores its own choice.
+  Reminder 3 adds a fourth, **Remind me after** a number of new ones,
+  described below. Each reminder stores its own choice.
 - **Never takes focus on its own.** As today, an automatic balloon never moves
   focus from the window the owner is using; one the owner opens focuses its
   main action.
@@ -133,7 +134,22 @@ explains it. Every reminder follows the same rules:
 - Reminder 3 is also due only when there are more recommendations than when
   the owner last answered it, which the browser stores with its choice.
   Recommendations the owner has already seen never bring it back on their
-  own, so an owner who ignores them is not asked every week.
+  own, so an owner who ignores them is not asked every week. This holds for
+  **Make collections**, **Remind me later**, ✕, Escape, and **Don't remind
+  me**, as decision 24 has it.
+- Reminder 3's balloon also offers **Remind me after**, on a row of its own
+  under the other answers: the button, a number field labelled "New ones to
+  wait for" holding 5 at first, and the words "new ones". Choosing it closes
+  the balloon and brings it back once that many new recommendations are
+  waiting, with no 7-day wait. New ones are counted from the fewest still to
+  decide that the browser has seen since the answer, so making collections
+  out of the ones already shown never holds it back: answered "after 5" with
+  17 waiting, then all 17 decided, it returns once 5 more are waiting. The
+  field takes whole numbers from 1 to 99; anything else stores nothing and
+  the balloon says "Enter a whole number from 1 to 99." under the row.
+  Pressing Enter in the field chooses it, and Escape still closes the
+  balloon as ✕ does. Its title, sentence, and Gregg's quip are unchanged,
+  and opening by itself still never focuses the field.
 
 ### The tray assistant
 
@@ -232,7 +248,13 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
   `krazitv.collectionsReadyReminder`. Each stores `{ remindAfter }` or
   `{ never: true }`, as the TMDB reminder always has, except that Collections
   ready's snooze also stores the count it was answered at,
-  `{ remindAfter, answeredCount }`, for decision 24.
+  `{ remindAfter, answeredCount }`, for decision 24, and its **Remind me
+  after** stores `{ afterNew, lowestSeen }`: the number chosen and the count
+  still to decide when it was chosen. Whenever the shell reads fewer
+  recommendations still to decide while that answer stands, it lowers
+  `lowestSeen` to that count, and the reminder is due once the count reaches
+  `lowestSeen + afterNew`. Only a read made for the library's latest settle
+  counts, never a count of 0 taken while files are left to look up.
 - `ProgramTask` gains a task that opens Collections with its Discover dialog
   open, beside `set-up-tmdb`.
 
@@ -276,6 +298,11 @@ None.
   change does not see it open by itself afterwards.
 - Each reminder's **Remind me later**, ✕, Escape, and **Don't remind me** are
   stored per reminder; one never silences another.
+- Collections ready's **Remind me after** stores the number chosen with the
+  count it was chosen at, and the balloon opens by itself again once that
+  many new recommendations are waiting, counted from the fewest seen since,
+  with no 7-day wait. A number outside 1 to 99, or not whole, is refused and
+  stores nothing.
 - No automatic balloon moves focus. The tray icon is labelled with the
   balloon it opens. Smoke is still under reduced motion.
 - Media Library shows the not-looked-up count and **Look up on TMDB**

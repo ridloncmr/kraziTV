@@ -70,7 +70,7 @@ at the top of each plan are generated from ticket Status blocks by
 - [Release Polish Spec 0003 Implementation Plan: Release Readiness](004-release-polish/0003-release-readiness.md) - 11 of 11 tickets complete
 - [Release Polish Spec 0004 Implementation Plan: Second Polish Pass](004-release-polish/0004-second-polish-pass.md) - 13 of 13 tickets complete
 - [Release Polish Spec 0005 Implementation Plan: Third Polish Pass](004-release-polish/0005-third-polish-pass.md) - 24 of 24 tickets complete
-- [Release Polish Spec 0006 Implementation Plan: Tray Reminders](004-release-polish/0006-tray-reminders.md) - 6 of 7 tickets complete
+- [Release Polish Spec 0006 Implementation Plan: Tray Reminders](004-release-polish/0006-tray-reminders.md) - 6 of 8 tickets complete
 
 <!-- plan-index:end -->
 
