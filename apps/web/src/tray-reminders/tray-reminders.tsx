@@ -45,15 +45,16 @@ export function TrayReminders({
   const sentenceId = useId();
   const leadKey = lead?.storageKey;
   const leadHolds = lead?.holds === true;
+  const leadCount = lead?.count;
   useEffect(() => {
     // Decided once per reminder, the first time it leads holding, so a
     // later refresh never reopens a balloon the owner closed.
     if (leadKey === undefined || !leadHolds) return;
     if (openedBySelf.current.has(leadKey)) return;
     openedBySelf.current.add(leadKey);
-    if (isReminderDue(leadKey, Date.now()))
+    if (isReminderDue(leadKey, Date.now(), leadCount))
       setOpened((current) => current ?? { key: leadKey, focus: false });
-  }, [leadKey, leadHolds]);
+  }, [leadKey, leadHolds, leadCount]);
   useEffect(() => {
     if (opened?.focus) focusOnOpen.current?.focus();
   }, [opened]);
@@ -75,7 +76,9 @@ export function TrayReminders({
   };
   /** ✕ and Escape: the same as **Remind me later**; a status only closes. */
   const dismiss = () =>
-    close(lead && (() => snoozeReminder(lead.storageKey, Date.now())));
+    close(
+      lead && (() => snoozeReminder(lead.storageKey, Date.now(), lead.count)),
+    );
   return (
     <div className="tray-reminders">
       <Tooltip id="tray-reminder-tip" text={words.title} placement="above-end">
@@ -127,7 +130,7 @@ export function TrayReminders({
                 ref={focusOnOpen}
                 onClick={() =>
                   close(() => {
-                    snoozeReminder(lead.storageKey, Date.now());
+                    snoozeReminder(lead.storageKey, Date.now(), lead.count);
                     lead.act();
                   })
                 }

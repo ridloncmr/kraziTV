@@ -1,11 +1,35 @@
+import type { Recommendation } from "../http/contracts/collections.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
-import { isScanRunning } from "../media-library/scan-progress/use-scan-job.js";
+import { isScanRunning } from "../scan-jobs/scan-running.js";
 import type { TrayReminder, TrayStatusWords } from "./contracts.js";
 import {
+  collectionsReadyWords,
+  filesNotLookedUpWords,
   lookupsRunningWords,
   TMDB_REMINDER_WORDS,
 } from "./tray-reminder-words.js";
+
+/**
+ * How many files are left to look up once the library has settled: a key
+ * is set, no scan or lookup runs, and every root's never-looked-up files
+ * that a lookup would search for are summed over the enabled roots. Failed
+ * lookups are left out, so a rejected key or a TMDB outage does not nag.
+ * Undefined while unsettled or while a read has not answered, so reminders
+ * 2 and 3 never act on a guess; the shell reads recommendations only while
+ * this is 0.
+ */
+export function filesLeftToLookUp(
+  tmdbKey: TmdbKeyStatus | undefined,
+  mediaRoots: readonly MediaRoot[] | undefined,
+): number | undefined {
+  if (tmdbKey?.configured !== true || mediaRoots === undefined) return;
+  if (mediaRoots.some((root) => root.scan !== null && isScanRunning(root.scan)))
+    return;
+  return mediaRoots
+    .filter((root) => root.enabled)
+    .reduce((sum, root) => sum + root.matchCounts.notLookedUp, 0);
+}
 
 /**
  * The tray reminders in the spec's order (spec 0006, Tray reminders),
@@ -14,19 +38,47 @@ import {
  * its original storage key, so a choice made before the tray grew reminders
  * still counts. Its icon shows whenever no key is set, as spec 0001 has it,
  * so the setting is never lost; its balloon opens by itself only once there
- * is media to look up.
+ * is media to look up. Files not looked up and Collections ready show
+ * exactly while they hold. Collections ready counts only recommendations
+ * still to decide, not ones already saved as manual collections, and is
+ * due again only when there are more of them than the owner last answered.
  */
 export function trayReminders({
   tmdbKey,
   mediaRoots,
+  recommendations,
   setUpTmdb,
+  lookUpFiles,
+  makeCollections,
 }: {
   tmdbKey: TmdbKeyStatus | undefined;
   mediaRoots: readonly MediaRoot[] | undefined;
+  /**
+   * The shell's read, made only while nothing is left to look up and
+   * ignored otherwise, since an answer kept from an earlier read may be out
+   * of date.
+   */
+  recommendations: readonly Recommendation[] | undefined;
   /** Opens Account Settings on the Set up TMDB task. */
   setUpTmdb: () => void;
+  /** Starts the lookup of every root's outstanding files. */
+  lookUpFiles: () => void;
+  /** Opens Collections on its Discover dialog. */
+  makeCollections: () => void;
 }): TrayReminder[] {
   const noKey = tmdbKey?.configured === false;
+  const left = filesLeftToLookUp(tmdbKey, mediaRoots);
+  const undecided =
+    left === 0
+      ? (recommendations ?? []).filter(
+          (recommendation) => recommendation.decision === null,
+        )
+      : [];
+  const showCount = undecided.filter(
+    (recommendation) => recommendation.criterion.kind === "series",
+  ).length;
+  const notLookedUp = left !== undefined && left > 0;
+  const collectionsReady = undecided.length > 0;
   return [
     {
       storageKey: "krazitv.tmdbReminder",
@@ -34,6 +86,21 @@ export function trayReminders({
       shows: noKey,
       holds: noKey && (mediaRoots?.length ?? 0) > 0,
       act: setUpTmdb,
+    },
+    {
+      storageKey: "krazitv.notLookedUpReminder",
+      words: filesNotLookedUpWords(left ?? 0),
+      shows: notLookedUp,
+      holds: notLookedUp,
+      act: lookUpFiles,
+    },
+    {
+      storageKey: "krazitv.collectionsReadyReminder",
+      words: collectionsReadyWords(showCount, undecided.length - showCount),
+      shows: collectionsReady,
+      holds: collectionsReady,
+      count: undecided.length,
+      act: makeCollections,
     },
   ];
 }

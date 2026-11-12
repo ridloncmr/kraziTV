@@ -14,6 +14,50 @@ export const TMDB_REMINDER_WORDS: TrayReminderWords = {
 };
 
 /**
+ * Reminder 2, Files not looked up (spec 0006): how many files no lookup has
+ * searched for yet, its title and sentence worded for one file or several.
+ * The button keeps the spec's one name, **Look them up**, whatever the
+ * count, so the wiki and any advice name one action.
+ */
+export function filesNotLookedUpWords(count: number): TrayReminderWords {
+  const one = count === 1;
+  return {
+    title: one
+      ? "1 file hasn't been looked up on TMDB"
+      : `${displayCount(count)} files haven't been looked up on TMDB`,
+    sentence: one
+      ? "Look it up so kraziTV can name its show and suggest collections."
+      : "Look them up so kraziTV can name their shows and suggest collections.",
+    quip: "Paperwork doesn't file itself. I've checked.",
+    action: "Look them up",
+  };
+}
+
+/**
+ * Reminder 3, Collections ready (spec 0006): the recommendations still to
+ * decide, series counted as shows and franchises as movie series, leaving
+ * out a kind with none; "series" reads the same for one or several.
+ */
+export function collectionsReadyWords(
+  shows: number,
+  movieSeries: number,
+): TrayReminderWords {
+  const found = [
+    shows > 0 && `${displayCount(shows)} ${shows === 1 ? "show" : "shows"}`,
+    movieSeries > 0 && `${displayCount(movieSeries)} movie series`,
+  ].filter(Boolean);
+  return {
+    title: `kraziTV found ${found.join(" and ")}`,
+    sentence:
+      shows + movieSeries === 1
+        ? "Make it into a collection, then put it on a channel."
+        : "Make them into collections, then put them on a channel.",
+    quip: "I sorted your whole library. No, nobody thanked me either.",
+    action: "Make collections",
+  };
+}
+
+/**
  * The tray's status while lookups run (spec 0006, Lookups running): files
  * looked up so far of every file the running jobs look up, counted as the
  * rest of the app counts.
