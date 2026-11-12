@@ -153,7 +153,9 @@ IDs, and is free for non-commercial use.
 ### TMDB Setup Reminder
 
 [Release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md)
-shows this reminder as the first of its tray reminders, written in the tray assistant's words, and adds what follows a saved key.
+shows this reminder as the first of its tray reminders, with the tray
+assistant's one-line quip under its plain title and sentence, and adds what
+follows a saved key.
 
 Without a key the catalog still scans, but titles come only from path hints.
 The desktop shell says so where the owner will see it, without blocking any
@@ -181,9 +183,12 @@ TMDB to look up series, episodes, and movies.` Its actions:
 - **Reminder state is desktop shell state.** The browser keeps it in
   `localStorage`, so each browser reminds on its own. Unreadable or missing
   state counts as due. It never reaches the server or changes enrichment.
-- **A saved key ends the reminder at once.** Saving a key removes the icon and
-  closes the balloon; removing the key brings the icon back, and the balloon
-  follows the stored reminder state.
+- **A saved key ends the reminder once its lookup answers.** Set up TMDB
+  reports the key only after its lookup has answered; the tray icon then
+  stays only while those lookups run or another tray reminder shows
+  ([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#saving-a-key-looks-the-library-up)).
+  Removing the key brings the icon back, and the balloon follows the stored
+  reminder state.
 - **Scan summary.** A completed scan without a key adds the line
   `TMDB isn't set up, so titles come from file names.` to its summary.
 
@@ -552,11 +557,11 @@ match state is settled, so a rescan of a matched library makes almost no calls.
 A scan searches each movie title and year once, even when several files share
 it.
 
-| Item state                                 | Looked up on scan                                      |
-| ------------------------------------------ | ------------------------------------------------------ |
-| New, unmatched, or last lookup failed      | Yes                                                    |
-| Matched, rejected, ambiguous, or corrected | No; state is kept, and ambiguous items keep candidates |
-| Extra                                      | Never                                                  |
+| Item state                                           | Looked up on scan                                      |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| New, not looked up, unmatched, or last lookup failed | Yes                                                    |
+| Matched, rejected, ambiguous, or corrected           | No; state is kept, and ambiguous items keep candidates |
+| Extra                                                | Never                                                  |
 
 **The `enriching` phase.** A scan job's phases become
 `discovering -> probing -> enriching -> committing -> completed`. Enriching starts
@@ -655,8 +660,9 @@ None.
 - Provider-sourced facts are refreshed in the background or dropped before they
   are six months old, without a catalog scan; user corrections are kept.
 - Lookups back off on HTTP `429` instead of failing the scan.
-- A rescan looks up only new, unmatched, and failed-lookup items; matched,
-  rejected, ambiguous, corrected, and extra items make no TMDB calls.
+- A rescan looks up only new, not-looked-up, unmatched, and failed-lookup
+  items; matched, rejected, ambiguous, corrected, and extra items make no TMDB
+  calls.
 - A scan with a TMDB key reports an `enriching` phase between `probing` and
   `committing`; without a key, or with nothing to look up, it skips the phase.
 - Cancelling during `enriching` leaves the catalog unchanged.
