@@ -132,7 +132,10 @@ it("clears the catalog selection, leaving nothing to remove", async () => {
   });
   expect(clear.disabled).toBe(true);
 
-  fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
+  // The toolbar renders before the catalog rows arrive.
+  fireEvent.click(
+    await screen.findByRole("checkbox", { name: "Select Alpha" }),
+  );
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Zulu" }));
   expect(clear.disabled).toBe(false);
   fireEvent.click(clear);
@@ -154,7 +157,8 @@ it("keeps Delete… disabled until a row is selected, and previews the selection
   expect(remove.disabled).toBe(true);
   api.hold(PREVIEW, "POST");
 
-  fireEvent.click(screen.getByText("Zulu"));
+  // The toolbar renders before the catalog rows arrive.
+  fireEvent.click(await screen.findByText("Zulu"));
   fireEvent.click(remove);
   const dialog = screen.getByRole("dialog", { name: "Delete media" });
 
