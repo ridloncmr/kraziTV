@@ -3,8 +3,8 @@ import type { MediaRoot } from "../../http/contracts/media.js";
 
 /**
  * A root's match counts in a few words: how much of it is matched, then
- * what still needs the owner, shown only when there is some. A root with no
- * media says so instead of "0 of 0 matched".
+ * what still needs the owner or a lookup, shown only when there is some. A
+ * root with no media says so instead of "0 of 0 matched".
  */
 export function RootMatches({
   counts,
@@ -21,6 +21,11 @@ export function RootMatches({
       {counts.needsChoice > 0 && (
         <small className="secondary">
           {displayCount(counts.needsChoice)} need your choice
+        </small>
+      )}
+      {counts.notLookedUp > 0 && (
+        <small className="secondary">
+          {displayCount(counts.notLookedUp)} not looked up
         </small>
       )}
       {counts.failedLookups > 0 && (

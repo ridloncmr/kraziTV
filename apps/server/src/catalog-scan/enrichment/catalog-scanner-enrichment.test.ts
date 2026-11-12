@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { rootFixture } from "../../testing/catalog-fixtures.js";
 import {
@@ -6,6 +6,7 @@ import {
   idOf,
   matchDecisions,
   metadataOf,
+  saveOwnerKey,
   scanThroughRoutes,
   scanToEnd,
   setupEnrichmentScan,
@@ -85,6 +86,52 @@ describe("CatalogScanner enrichment", () => {
     });
     expect(context.tmdb.requests).toEqual([]);
     await expect(matchDecisions(context)).resolves.toEqual([]);
+  });
+
+  it("looks up on the next scan a file a keyless scan left not looked up", async () => {
+    const context = await setupEnrichmentScan({
+      key: false,
+      files: [ALIEN_PATH],
+    });
+    await scanToEnd(context);
+    await saveOwnerKey(context.db);
+
+    const rescan = await scanToEnd(context);
+
+    expect(rescan).toMatchObject({
+      lookupCount: 1,
+      summary: { matchedCount: 1 },
+    });
+    await expect(matchDecisions(context)).resolves.toMatchObject([
+      { file: ALIEN_PATH, state: "matched" },
+    ]);
+  });
+
+  it("uses a key saved after the scan started, since it reads the key on reaching enrichment", async () => {
+    const context = await setupEnrichmentScan({
+      key: false,
+      files: [ALIEN_PATH],
+    });
+    const probing = createBarrier();
+    const probe = context.prober.probe;
+    vi.spyOn(context.prober, "probe").mockImplementation(
+      async (path, options) => {
+        await probing.wait();
+        return probe(path, options);
+      },
+    );
+
+    await context.scanner.start(rootFixture.id);
+    await probing.reached;
+    await saveOwnerKey(context.db);
+    probing.release();
+    const status = await waitForScanEnd(context);
+
+    expect(status).toMatchObject({
+      phase: "completed",
+      lookupCount: 1,
+      summary: { matchedCount: 1 },
+    });
   });
 
   it("makes no TMDB call when rescanning a matched and an ambiguous item", async () => {

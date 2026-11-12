@@ -97,12 +97,12 @@ export type MetadataRefusal =
 
 /**
  * Which cataloged items a lookup retry covers: one item, every item in the
- * folder holding that item and the folders below it, or every item in a root
- * whose last lookup failed.
+ * folder holding that item and the folders below it, or every outstanding
+ * item in a root: never looked up, or whose last lookup failed.
  */
 export type RetryScope =
   | { scope: "item" | "folder"; mediaItemId: string }
-  | { scope: "failed"; mediaRootId: string };
+  | { scope: "outstanding"; mediaRootId: string };
 
 /** An item's match decision as a retry read it; null when it had none. */
 export type DecisionRead = {

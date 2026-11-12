@@ -660,15 +660,22 @@ describe("content metadata", () => {
     expect(paths).not.toContain(PATHS.movie);
   });
 
-  it("counts each root's matches, failed lookups as a retry would find them", async () => {
+  it("counts each root's matches, outstanding lookups as a retry would find them", async () => {
     const server = await startWithMetadata(async (db) => {
-      // A missing file's failed lookup is not retried, so it is not counted.
+      // A missing file is never looked up, so neither its failed lookup nor
+      // a missing file with no lookup at all is counted.
       await db
         .insertInto("media_items")
-        .values({
-          ...itemFixtureAt("item-gone", "/media/movies/Gone/movie.mkv"),
-          status: "missing",
-        })
+        .values([
+          {
+            ...itemFixtureAt("item-gone", "/media/movies/Gone/movie.mkv"),
+            status: "missing",
+          },
+          {
+            ...itemFixtureAt("item-new-gone", "/media/movies/Lost/movie.mkv"),
+            status: "missing",
+          },
+        ])
         .execute();
       await db
         .insertInto("metadata_matches")
@@ -689,7 +696,13 @@ describe("content metadata", () => {
     expect(roots.json()).toMatchObject([
       {
         id: rootFixture.id,
-        matchCounts: { items: 9, matched: 2, needsChoice: 1, failedLookups: 1 },
+        matchCounts: {
+          items: 10,
+          matched: 2,
+          needsChoice: 1,
+          notLookedUp: 1,
+          failedLookups: 1,
+        },
       },
     ]);
   });

@@ -51,7 +51,7 @@ export function MediaLibraryApp({
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   // Whether a TMDB key is set, read as the tray reminder reads it; a failed
-  // read only hides the Set up TMDB link.
+  // read only hides the Set up TMDB link and leaves Look up on TMDB off.
   const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", visible);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MediaFilter>({});
@@ -93,7 +93,7 @@ export function MediaLibraryApp({
     setLastRequest("scan");
     void scan.start(root);
   }
-  /** Looks an item, its folder, or a root's failed lookups up again, followed like a scan. */
+  /** Looks up an item, its folder, or a root's outstanding files (never looked up or failed) on TMDB, followed like a scan. */
   function retryLookups(scope: RetryScope) {
     setLastRequest("scan");
     void scan.retry(scope);
@@ -232,13 +232,19 @@ export function MediaLibraryApp({
                               onSelect: () => startScan(root),
                             },
                             {
-                              label: "Retry failed lookups",
+                              // Offered only when the server would start a
+                              // job that looks something up; a key unknown
+                              // because its read failed counts as unset.
+                              label: "Look up on TMDB",
                               disabled:
                                 !root.enabled ||
-                                root.matchCounts.failedLookups === 0,
+                                tmdbKey.data?.configured !== true ||
+                                root.matchCounts.notLookedUp +
+                                  root.matchCounts.failedLookups ===
+                                  0,
                               onSelect: () =>
                                 retryLookups({
-                                  scope: "failed",
+                                  scope: "outstanding",
                                   mediaRootId: root.id,
                                 }),
                             },

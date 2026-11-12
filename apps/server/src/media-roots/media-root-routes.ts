@@ -34,6 +34,7 @@ const NO_ITEMS: RootMatchCounts = {
   items: 0,
   matched: 0,
   needsChoice: 0,
+  notLookedUp: 0,
   failedLookups: 0,
 };
 
