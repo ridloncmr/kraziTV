@@ -707,6 +707,33 @@ describe("content metadata", () => {
     ]);
   });
 
+  it("counts a never-looked-up file as not looked up only when a lookup would search for it", async () => {
+    // A disc track waits for track mapping and a season-folder file with no
+    // episode number names no episode, so no lookup ever searches for them.
+    const server = await startServer([
+      itemFixtureAt("item-track", "/media/anime/Show/Disc 1/title_t00.mkv", {
+        media_root_id: animeRootFixture.id,
+      }),
+      itemFixtureAt("item-no-episode", "/media/anime/Firefly/Season 1/b.mkv", {
+        media_root_id: animeRootFixture.id,
+      }),
+      itemFixtureAt("item-new", PATHS.notLookedUp),
+    ]);
+
+    const roots = await server.inject({ method: "GET", url: "/media-roots" });
+
+    expect(roots.json()).toMatchObject([
+      {
+        id: animeRootFixture.id,
+        matchCounts: { items: 2, notLookedUp: 0, failedLookups: 0 },
+      },
+      {
+        id: rootFixture.id,
+        matchCounts: { items: 1, notLookedUp: 1, failedLookups: 0 },
+      },
+    ]);
+  });
+
   it("lists each item's match state and accepted TMDB facts", async () => {
     const server = await startWithMetadata();
 

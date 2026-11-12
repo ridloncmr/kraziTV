@@ -1,6 +1,7 @@
 import type { Insertable } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { MetadataMatchRepository } from "../../content-metadata/persistence/metadata-match-repository.js";
 import type { MediaRootTable } from "../../database/schema/media-root-table.js";
 import {
   animeRootFixture,
@@ -22,7 +23,11 @@ import { correctionRow } from "../../testing/metadata-match-fixtures.js";
 import { createBarrier } from "../../testing/test-barrier.js";
 import { cleanUpTestEnvironment } from "../../testing/test-environment.js";
 
-afterEach(cleanUpTestEnvironment);
+afterEach(async () => {
+  // One case spies on the repository's prototype, which every later case shares.
+  vi.restoreAllMocks();
+  await cleanUpTestEnvironment();
+});
 
 const OUTSTANDING = {
   scope: "outstanding",
@@ -30,6 +35,10 @@ const OUTSTANDING = {
 } as const;
 // A movie the scripted TMDB answers with several candidates.
 const THE_THING = "The Thing/movie.mkv";
+// Never-looked-up files whose path hints give a lookup nothing to search
+// for: a disc track waiting for track mapping, and a season-folder file with
+// no episode number.
+const UNSEARCHABLE = ["Show/Disc 1/title_t00.mkv", "Firefly/Season 1/b.mkv"];
 const DISABLED_ROOT: Insertable<MediaRootTable> = {
   ...rootFixture,
   id: "root-disabled",
@@ -354,5 +363,81 @@ describe("CatalogScanner lookup retry of every root", () => {
     await expect(context.scanner.retryEveryRoot()).resolves.toEqual({
       kind: "shutting_down",
     });
+  });
+
+  it("answers shutting_down when shutdown begins between roots, cancelling the jobs it started", async () => {
+    // The anime root lists first, so its job starts before the fixture
+    // root's outstanding items are read.
+    const context = await scannedWithFailures([ALIEN]);
+    await addRoot(context, animeRootFixture);
+    await catalogNotLookedUp(context, animeRootFixture.id, ALIEN);
+    const searching = createBarrier();
+    context.tmdb.holds.set("/3/search/movie", searching);
+    const reading = createBarrier();
+    const read = MetadataMatchRepository.prototype.findRetryItems;
+    vi.spyOn(
+      MetadataMatchRepository.prototype,
+      "findRetryItems",
+    ).mockImplementation(async function (this: MetadataMatchRepository, scope) {
+      if (scope.scope === "outstanding" && scope.mediaRootId === rootFixture.id)
+        await reading.wait();
+      return read.call(this, scope);
+    });
+
+    const started = context.scanner.retryEveryRoot();
+    await Promise.all([searching.reached, reading.reached]);
+    const stopped = context.scanner.shutdown();
+    searching.release();
+    reading.release();
+
+    await expect(started).resolves.toEqual({ kind: "shutting_down" });
+    await stopped;
+    expect(context.scanner.status(animeRootFixture.id)).toMatchObject({
+      kind: "retry",
+      phase: "cancelled",
+    });
+    expect(context.scanner.status(rootFixture.id)).toMatchObject({
+      kind: "scan",
+    });
+  });
+
+  it("treats a root holding only files no lookup searches for as having nothing outstanding", async () => {
+    const context = await setupEnrichmentScan({ files: [] });
+    await addRoot(context, animeRootFixture);
+    for (const file of UNSEARCHABLE) {
+      await catalogNotLookedUp(context, animeRootFixture.id, file);
+    }
+
+    const everyRoot = await context.scanner.retryEveryRoot();
+    const startedRoots = [rootFixture.id, animeRootFixture.id].filter(
+      (id) => context.scanner.status(id) !== undefined,
+    );
+    // The single-root form answers it as it answers the empty fixture root.
+    const empty = await retryToEnd(context, OUTSTANDING);
+    await context.scanner.retry({
+      scope: "outstanding",
+      mediaRootId: animeRootFixture.id,
+    });
+    const unsearchable = await waitForScanEnd(context, animeRootFixture.id);
+
+    expect(everyRoot).toEqual({
+      kind: "started",
+      lookupCount: 0,
+      busyRootCount: 0,
+    });
+    expect(startedRoots).toEqual([]);
+    const nothingLookedUp = {
+      kind: "retry",
+      phase: "completed",
+      lookupCount: 0,
+      lookedUpCount: 0,
+      summary: { matchedCount: 0, unmatchedCount: 0, lookupErrorCount: 0 },
+    };
+    expect([empty, unsearchable]).toMatchObject([
+      nothingLookedUp,
+      nothingLookedUp,
+    ]);
+    expect(context.tmdb.requests).toEqual([]);
+    await expect(matchDecisions(context)).resolves.toEqual([]);
   });
 });

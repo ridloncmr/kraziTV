@@ -24,6 +24,7 @@ import type {
   MediaItemQuery,
   RootMatchCounts,
 } from "./contracts.js";
+import { wouldSearch } from "../catalog-scan/enrichment/group-lookups.js";
 import { correctsAnyFact } from "../content-metadata/persistence/corrected-columns.js";
 import {
   effectiveMetadata,
@@ -86,9 +87,32 @@ export class MediaItemRepository {
    * Counts each root's cataloged items by match state, for the root list.
    * A root without items is absent. The not-looked-up and failed-lookup
    * counts use the outstanding retry's own rules, so together they are zero
-   * exactly when that retry would look up nothing.
+   * exactly when that retry would look up nothing: a never-looked-up file
+   * counts only when a lookup would search for it, which only its path hints
+   * decide, so those files' paths are read and checked here.
    */
   async countMatchesByRoot(): Promise<Map<string, RootMatchCounts>> {
+    const neverLookedUp = await this.#db
+      .selectFrom("media_items")
+      .innerJoin("media_roots", "media_roots.id", "media_items.media_root_id")
+      .leftJoin(
+        "metadata_matches",
+        "metadata_matches.media_item_id",
+        "media_items.id",
+      )
+      .where("media_items.removed_at", "is", null)
+      .where((eb) => eb.and([isRetryable(eb), isNotLookedUp(eb)]))
+      .select([
+        "media_items.media_root_id",
+        "media_items.path",
+        "media_roots.path as root_path",
+      ])
+      .execute();
+    const notLookedUp = new Map<string, number>();
+    for (const { media_root_id, path, root_path } of neverLookedUp) {
+      if (!wouldSearch(root_path, path)) continue;
+      notLookedUp.set(media_root_id, (notLookedUp.get(media_root_id) ?? 0) + 1);
+    }
     const rows = await this.#db
       .selectFrom("media_items")
       .leftJoin(
@@ -110,17 +134,16 @@ export class MediaItemRepository {
           .as("needsChoice"),
         eb.fn
           .countAll<number>()
-          .filterWhere((f) => f.and([isRetryable(f), isNotLookedUp(f)]))
-          .as("notLookedUp"),
-        eb.fn
-          .countAll<number>()
           .filterWhere((f) => f.and([isRetryable(f), isFailedLookup(f)]))
           .as("failedLookups"),
       ])
       .groupBy("media_items.media_root_id")
       .execute();
     return new Map(
-      rows.map(({ media_root_id, ...counts }) => [media_root_id, counts]),
+      rows.map(({ media_root_id, ...counts }) => [
+        media_root_id,
+        { ...counts, notLookedUp: notLookedUp.get(media_root_id) ?? 0 },
+      ]),
     );
   }
 

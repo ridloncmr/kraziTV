@@ -154,7 +154,9 @@ export interface CatalogFilter {
 /**
  * One root's match counts over its cataloged items, extras included in
  * `items`. `notLookedUp` and `failedLookups` together count exactly what an
- * outstanding lookup retry of the root would look up.
+ * outstanding lookup retry of the root would look up, so a never-looked-up
+ * file whose path hints give nothing to search for, such as a disc track
+ * before mapping, is in `items` only.
  */
 export interface RootMatchCounts {
   items: number;
