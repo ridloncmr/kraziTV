@@ -12,6 +12,7 @@ import { BrowserApi } from "../testing/browser-api.js";
 import { officeCollection, recommendation } from "../testing/collection-api.js";
 import { elapse } from "../testing/fake-time.js";
 import { idleRoot, lookingUpRoot } from "../testing/scan-fixtures.js";
+import { trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -54,12 +55,6 @@ async function boot(
   });
 }
 
-/** The tray's one icon, by whatever it is labelled. */
-const trayIcon = () =>
-  within(screen.getByRole("contentinfo")).queryByRole("button", {
-    name: /^kraziTV found/,
-  });
-
 /** Reads this reminder's stored choice, as the next desktop start would. */
 const stored = () =>
   JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
@@ -95,7 +90,7 @@ it("opens by itself counting the recommendations still to decide by kind, withou
   expect(
     within(balloon).getByRole("button", { name: "Make collections" }),
   ).toBeTruthy();
-  expect(trayIcon()?.getAttribute("aria-label")).toBe(
+  expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
     "kraziTV found 14 shows and 3 movie series",
   );
   expect(document.activeElement).toBe(focused);
@@ -142,7 +137,7 @@ it("stays away while every recommendation is decided", async () => {
     expect(api.requestsTo(RECOMMENDATIONS)).not.toHaveLength(0),
   );
 
-  expect(trayIcon()).toBeNull();
+  expect(trayIcon(/^kraziTV found/)).toBeNull();
 });
 
 it.each([
@@ -236,7 +231,7 @@ it("follows decisions made in Discover without waiting for the window to regain 
     within(discover).getByRole("button", { name: "Dismiss series 1" }),
   );
   await vi.waitFor(() =>
-    expect(trayIcon()?.getAttribute("aria-label")).toBe(
+    expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
       "kraziTV found 13 shows and 3 movie series",
     ),
   );
@@ -254,7 +249,7 @@ it("follows decisions made in Discover without waiting for the window to regain 
       name: "Create automatic collection from series 2",
     }),
   );
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  await vi.waitFor(() => expect(trayIcon(/^kraziTV found/)).toBeNull());
 });
 
 it("opens Discover in a Collections window already open, as often as asked, and not on a later plain open", async () => {
@@ -268,7 +263,7 @@ it("opens Discover in a Collections window already open, as often as asked, and 
 
   /** Opens the balloon from the tray icon and makes collections. */
   const makeCollections = () => {
-    fireEvent.click(trayIcon()!);
+    fireEvent.click(trayIcon(/^kraziTV found/)!);
     fireEvent.click(
       within(screen.getByRole("dialog", { name: /kraziTV found/ })).getByRole(
         "button",

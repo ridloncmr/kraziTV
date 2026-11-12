@@ -11,6 +11,7 @@ import {
   lookingUpRoot,
   mediaRoot,
 } from "../testing/scan-fixtures.js";
+import { trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -32,12 +33,6 @@ async function boot(roots: MediaRoot[], configured = true) {
     scripted.reply("/media-collections/recommendations", []);
   });
 }
-
-/** The tray's one icon, by whatever it is labelled. */
-const trayIcon = () =>
-  within(screen.getByRole("contentinfo")).queryByRole("button", {
-    name: /TMDB/,
-  });
 
 /** Reads this reminder's stored choice, as the next desktop start would. */
 const stored = () =>

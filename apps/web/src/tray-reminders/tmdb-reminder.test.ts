@@ -14,6 +14,7 @@ import {
   lookingUpRoot,
   mediaRoot,
 } from "../testing/scan-fixtures.js";
+import { trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -42,18 +43,6 @@ async function boot({
   return api;
 }
 
-/** The tray icon, found by the label the spec gives it. */
-const trayIcon = () =>
-  within(screen.getByRole("contentinfo")).queryByRole("button", {
-    name: "TMDB isn't set up",
-  });
-
-/** The tray's one icon, by whatever it is labelled. */
-const anyTrayIcon = () =>
-  within(screen.getByRole("contentinfo")).queryByRole("button", {
-    name: /TMDB/,
-  });
-
 /** The balloon, or null while it is closed. */
 const balloon = () =>
   screen.queryByRole("dialog", { name: "TMDB isn't set up" });
@@ -73,7 +62,7 @@ it("opens the balloon by itself with no key, a media root, and no stored state",
       "kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies.",
     ),
   ).toBeTruthy();
-  expect(trayIcon()).toBeTruthy();
+  expect(trayIcon("TMDB isn't set up")).toBeTruthy();
 });
 
 it("shows Gregg beside the title with his quip under it, and his head as the tray icon", async () => {
@@ -99,9 +88,11 @@ it("shows Gregg beside the title with his quip under it, and his head as the tra
   ).toBe(
     "kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies.",
   );
-  expect(trayIcon()!.querySelector("svg")!.getAttribute("viewBox")).toBe(
-    "0 0 16 16",
-  );
+  expect(
+    trayIcon("TMDB isn't set up")!
+      .querySelector("svg")!
+      .getAttribute("viewBox"),
+  ).toBe("0 0 16 16");
 });
 
 it("opens the balloon by itself when the first media root appears mid-session, without taking focus", async () => {
@@ -127,7 +118,7 @@ it("opens by itself at most once per desktop start, even when its condition stop
   // The owner never answers; a key set elsewhere closes it unrecorded.
   api.reply("/metadata/tmdb-key", { configured: true });
   regainFocus();
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
   expect(stored()).toBeNull();
 
   // The key goes again: the icon returns, but the balloon has had its turn.
@@ -149,7 +140,7 @@ it("shows only the tray icon when no media root exists", async () => {
 it("shows neither icon nor balloon when a key is set", async () => {
   await boot({ configured: true });
 
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
   expect(balloon()).toBeNull();
 });
 
@@ -208,7 +199,7 @@ it.each(["Remind me later", "Close"])(
     const { remindAfter } = stored() as { remindAfter: number };
     expect(remindAfter).toBeGreaterThanOrEqual(before + 7 * DAY_MS);
     expect(remindAfter).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
-    expect(trayIcon()).toBeTruthy();
+    expect(trayIcon("TMDB isn't set up")).toBeTruthy();
   },
 );
 
@@ -223,7 +214,7 @@ it("Don't remind me closes the balloon for good but keeps the icon", async () =>
 
   expect(balloon()).toBeNull();
   expect(stored()).toEqual({ never: true });
-  expect(trayIcon()).toBeTruthy();
+  expect(trayIcon("TMDB isn't set up")).toBeTruthy();
 });
 
 it("Set up TMDB opens Account Settings on the task, and a saved key removes the icon", async () => {
@@ -248,7 +239,7 @@ it("Set up TMDB opens Account Settings on the task, and a saved key removes the 
   });
   fireEvent.click(within(window).getByRole("button", { name: "Save" }));
 
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
 });
 
 it("keeps TMDB isn't set up and opens no other balloon while a saved key's lookup starts, then follows it", async () => {
@@ -278,7 +269,7 @@ it("keeps TMDB isn't set up and opens no other balloon while a saved key's looku
 
   // The key is saved, but its lookup has not started: no files reminder.
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(trayIcon()).toBeTruthy();
+  expect(trayIcon("TMDB isn't set up")).toBeTruthy();
 
   // The lookup starts; the roots that show its job are slow to answer.
   api.hold("/media-roots");
@@ -290,12 +281,12 @@ it("keeps TMDB isn't set up and opens no other balloon while a saved key's looku
   );
   await elapse(0);
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(anyTrayIcon()?.getAttribute("aria-label")).toBe("TMDB isn't set up");
+  expect(trayIcon()?.getAttribute("aria-label")).toBe("TMDB isn't set up");
 
   api.release("/media-roots", [lookingUpRoot("root", 0, 12)]);
   api.reply("/media-roots", [lookingUpRoot("root", 0, 12)]);
   await elapse(0);
-  expect(anyTrayIcon()?.getAttribute("aria-label")).toBe(
+  expect(trayIcon()?.getAttribute("aria-label")).toBe(
     "Looking up files on TMDB: 0 of 12",
   );
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -342,7 +333,7 @@ it.each([
 
     // The tray offers the same lookup again for the files still left.
     await vi.waitFor(() =>
-      expect(anyTrayIcon()?.getAttribute("aria-label")).toBe(
+      expect(trayIcon()?.getAttribute("aria-label")).toBe(
         "12 files haven't been looked up on TMDB",
       ),
     );
@@ -400,7 +391,7 @@ it("keeps the balloon closed when a removed key brings the icon back after Don't
     { target: { value: "eyJ.token.sig" } },
   );
   fireEvent.click(within(window).getByRole("button", { name: "Save" }));
-  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
 
   // The key reads as set until the DELETE lands, so the task offers Remove.
   api.handle(
@@ -423,7 +414,7 @@ it("keeps the balloon closed when a removed key brings the icon back after Don't
     ).getByRole("button", { name: "Remove" }),
   );
 
-  await vi.waitFor(() => expect(trayIcon()).toBeTruthy());
+  await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeTruthy());
   expect(balloon()).toBeNull();
 });
 
