@@ -51,11 +51,53 @@ window to the front or restore it from being minimized.
 
 The system tray on the right holds:
 
-- **A yellow warning icon** while TMDB is not set up. Click it to see why
-  and to set it up. See [Set up TMDB](Set-Up-TMDB).
+- **Gregg**, a small television's head, while kraziTV has something to
+  tell you or files are being looked up on TMDB. See below.
 - **A dot** that is green while the browser can reach kraziTV and amber
   when it cannot; hover it to read why. Clicking it opens Live Monitor.
 - **The clock.**
+
+## The tray and Gregg
+
+Gregg is kraziTV's tray assistant: a tired beige television with rabbit
+ears, an accountant's green visor, and a cigarette, who has seen every
+shoebox of receipts and does the paperwork anyway. He never wanders around
+the desktop. He sits in the tray and speaks through balloons, like the ones
+XP's tray popped up.
+
+![Gregg's balloon when TMDB isn't set up](images/tray-balloon.png)
+
+Each balloon says plainly what is wrong and what its first button does;
+Gregg's own remark sits in italics under the title. There is one icon and
+one balloon at a time. Pointing at the icon shows the title of the balloon
+it opens, and clicking it opens that balloon. When more than one thing
+needs you, the balloon higher in this list comes first. The numbers in
+the titles are examples:
+
+| Balloon                                       | When                                                                                            | First button                                                                        |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **TMDB isn't set up**                         | No TMDB key is saved. It pops up on its own only once you have a media root                     | **Set up TMDB** opens Account Settings on that task. See [Set up TMDB](Set-Up-TMDB) |
+| **312 files haven't been looked up on TMDB**  | A key is saved, nothing is being scanned or looked up, and some files never were                | **Look them up** looks up every root's leftover files, failed lookups included      |
+| **kraziTV found 14 shows and 3 movie series** | Nothing is left to look up, and kraziTV has collections to suggest that you have not decided on | **Make collections** opens [Collections](Collections) on **Discover collections**   |
+
+Every balloon also has **Remind me later** and **Don't remind me**:
+
+- **Remind me later**, the ✕, and Escape close it, and it does not pop up
+  on its own again for 7 days. The first button counts the same.
+- **Don't remind me** stops that balloon popping up on its own in this
+  browser. Gregg's icon still shows while the balloon applies, so you can
+  always click it.
+
+Each balloon remembers its own answer, so silencing one never silences
+another. A balloon pops up on its own at most once each time you open
+kraziTV in your browser, which can be partway through, such as when
+lookups finish. It never takes the keyboard away from the window you are
+using. **kraziTV found…** comes back on its own only when there are more
+suggestions than when you last answered it.
+
+While files are being looked up on TMDB, Gregg's icon reads "Looking up
+files on TMDB: 340 of 1,234". Clicking it shows the same count, with only a
+✕ to close it; nothing pops up on its own while lookups run.
 
 ## Start
 

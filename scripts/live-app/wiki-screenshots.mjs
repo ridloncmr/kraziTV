@@ -102,6 +102,43 @@ const outline = async (clicks) => {
     }
   }, boxes);
 };
+/**
+ * The TMDB reminder's balloon, as an owner sees it opening by itself on a
+ * desktop start with a media root and no key. The seeded demo has a key and
+ * nothing left to decide, so no reminder shows there: this browser alone is
+ * told no key is set, and the reminder's stored choice is cleared so it is
+ * due. Nothing reaches the demo's server, and the web app runs unchanged.
+ */
+async function shootTrayBalloon() {
+  await page
+    .context()
+    .route("**/metadata/tmdb-key", (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({ json: { configured: false } })
+        : route.continue(),
+    );
+  await page.evaluate(() =>
+    globalThis.localStorage.removeItem("krazitv.tmdbReminder"),
+  );
+  await page.reload();
+  const balloon = page.getByRole("dialog", { name: "TMDB isn't set up" });
+  await balloon.waitFor({ timeout: 15_000 });
+  // Smoke drifts while the balloon is open; let the fade-in finish first.
+  await page.waitForTimeout(600);
+  const box = await balloon.boundingBox();
+  const viewport = page.viewportSize();
+  const left = Math.max(0, box.x - 40);
+  const top = Math.max(0, box.y - 40);
+  await page.screenshot({
+    path: `${out}tray-balloon.png`,
+    clip: {
+      x: left,
+      y: top,
+      width: viewport.width - left,
+      height: viewport.height - top,
+    },
+  });
+}
 const lastDialog = () => page.getByRole("dialog").last();
 const cancelDialog = () =>
   lastDialog().getByRole("button", { name: "Cancel", exact: true }).click();
@@ -311,6 +348,8 @@ try {
     page.getByRole("button", { name: "Save", exact: true }),
   ]);
   await closeWindow("Account Settings");
+
+  await shootTrayBalloon();
   console.log(`Saved the wiki screenshots to ${out}`);
 } finally {
   await browser.close();

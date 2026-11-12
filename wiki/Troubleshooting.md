@@ -93,18 +93,19 @@ to shrink the gap.
 
 ## My shows are not matched
 
-- No TMDB key: follow [Set up TMDB](Set-Up-TMDB), then scan again.
+- No TMDB key: follow [Set up TMDB](Set-Up-TMDB). Saving the key looks
+  your files up; there is no need to scan again.
 - **Needs your choice**: click **Review matches** in Media Library and
   answer the questions.
 - **Unmatched** or wrong: check the folder names against [Naming your
   files](Naming-Your-Files), fix them, and scan again. Or open the file's
   Details and **Correct details…**.
 - **Lookup failed**: open the file's Details. "TMDB could not be reached;
-  kraziTV will try again." means TMDB was unreachable: use **Retry failed
-  lookups** on the root. "TMDB rejected the key. Check it in Account
+  kraziTV will try again." means TMDB was unreachable: use **Look up on
+  TMDB** on the root. "TMDB rejected the key. Check it in Account
   Settings." means TMDB no longer accepts your key: paste a new one in
-  [Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key), then use
-  **Retry failed lookups**. The same sentence shows when choosing a match
+  [Set up TMDB](Set-Up-TMDB#changing-or-removing-the-key), which looks up
+  the failed files again on its own. The same sentence shows when choosing a match
   fails. Under **Refresh error** on a matched file it means a background
   refresh failed: the match stays, and kraziTV tries again on its own every
   hour and after every scan. The error clears once a refresh succeeds: when

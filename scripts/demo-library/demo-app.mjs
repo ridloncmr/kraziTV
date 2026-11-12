@@ -1,6 +1,7 @@
 // Opens the demo kraziTV for the screenshot scripts, and hides what still
 // shows of the owner's computer before each shot.
 
+import { realpathSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,9 +30,11 @@ export function openDemoApp({ width, height }) {
 
 // The demo runs on the owner's computer, so its media folder and this
 // computer's network addresses would show. Shots swap them for the example
-// values the docs use elsewhere.
+// values the docs use elsewhere. The folder is resolved, because a git
+// worktree links `data/demo` to the main checkout's, whose path the demo's
+// database holds.
 const machineValues = [
-  [join(repoRoot, "data", "demo", "media"), "/media"],
+  [realpathSync(join(repoRoot, "data", "demo", "media")), "/media"],
   ...Object.values(networkInterfaces())
     .flat()
     .filter((address) => address.family === "IPv4" && !address.internal)
