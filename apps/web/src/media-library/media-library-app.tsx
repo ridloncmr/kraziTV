@@ -93,7 +93,7 @@ export function MediaLibraryApp({
     setLastRequest("scan");
     void scan.start(root);
   }
-  /** Looks an item, its folder, or a root's failed lookups up again, followed like a scan. */
+  /** Looks up an item, its folder, or a root's outstanding files (never looked up or failed) on TMDB, followed like a scan. */
   function retryLookups(scope: RetryScope) {
     setLastRequest("scan");
     void scan.retry(scope);
