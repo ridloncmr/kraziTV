@@ -326,7 +326,8 @@ Complete on 2026-11-12. The owner picked take A, the outlined 1970s portable,
 on the drafts sheet on 2026-11-12, and the drawing files were swapped from
 take C with the smoke drawn last in a lighter grey; the balloon screenshot was
 retaken from the demo library. Setting spec 0006 and the feature README to
-Implemented waits for POLISH-070, which the owner added at the pick.
+Implemented waits for POLISH-070, which the owner added at the pick. Both
+are now done.
 
 **Goal**: The owner picks the Gregg kraziTV ships, and the spec is done.
 
