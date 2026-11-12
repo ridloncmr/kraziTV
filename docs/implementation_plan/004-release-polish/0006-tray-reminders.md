@@ -101,6 +101,10 @@ with an optional root, whose all-roots form answers with the items its jobs
 look up and the busy roots it skipped, and Media Library shows each root's
 "N not looked up" and offers **Look up on TMDB**. Calling the all-roots form
 from Set up TMDB is POLISH-066, and the wiki's Media Library page is POLISH-068.
+Deferred: `apps/server/src/media-items/media-item-repository.ts` is over 500
+lines, an audit review item, and stands until `media-items/` is regrouped into
+`routes/` and `persistence/` capability folders with the catalog filter
+predicates in their own file, a change that touches about 32 imports.
 
 **Goal**: The server can look up every file that was never looked up or
 whose lookup failed, on one root or all of them, and Media Library offers it.
@@ -280,11 +284,11 @@ the lookup count, the Collections ready balloon, and Discover against scripted
 TMDB answers, and the wiki's First Run, Set Up TMDB, The Desktop, Media
 Library, and Troubleshooting pages describe Gregg, the three reminders, the
 key-save lookup, and **Look up on TMDB**, with their demo screenshots retaken
-and a new balloon shot. Deferred: after Save, Set up TMDB reports the key
-changed before its lookup answers, so the Files not looked up balloon can open
-by itself for an instant on the stale roots read and spend its once-per-start
-open; the shell should refresh the key and roots together or defer the key
-refresh until the lookup answers.
+and a new balloon shot. The key-save race this ticket found, where Set up
+TMDB reported the key before its lookup answered so Files not looked up could
+spend its one automatic open on a stale roots read, was fixed in a POLISH-066
+follow-up: the key is reported once the lookup answers, and the shell re-reads
+the roots before the key.
 
 **Goal**: The browser suite proves the path that stalled, and owners can
 read about it.

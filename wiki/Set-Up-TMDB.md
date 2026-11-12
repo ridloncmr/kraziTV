@@ -86,8 +86,8 @@ to look up afterwards.
 
 While the lookups run, Gregg stays in the tray; point at him to read
 "Looking up files on TMDB: 340 of 1,234". When they finish, his balloon
-tells you what kraziTV found and offers **Make collections**. If any files
-are still left over, his **Look them up** balloon offers to finish them.
+offers **Look them up** if any files are still left over, and otherwise
+tells you what kraziTV found and offers **Make collections**.
 [The desktop](The-Desktop#the-tray-and-gregg) explains every balloon.
 
 ## Changing or removing the key

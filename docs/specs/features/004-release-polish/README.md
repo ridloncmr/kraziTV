@@ -107,7 +107,7 @@ the top of the spec.
 | [0003-release-readiness](specs/0003-release-readiness.md)   | Published image, truthful docs, the audit rule, and contributor hygiene                                                                                         |
 | [0004-second-polish-pass](specs/0004-second-polish-pass.md) | What the second audit found: dialog footers, unreachable-server words, the last developer words, and contributor items                                          |
 | [0005-third-polish-pass](specs/0005-third-polish-pass.md)   | What the third audit found: a Preview tab that always answers, the last owner words, first-run shortcuts, kinds over prose, and the leftovers its reviews found |
-| [0006-tray-reminders](specs/0006-tray-reminders.md)         | Saving a TMDB key looks the library up, and tray reminders written in the tray assistant's words say what to do next                                            |
+| [0006-tray-reminders](specs/0006-tray-reminders.md)         | Saving a TMDB key looks the library up, and tray reminders say plainly what to do next, each with the tray assistant's one-line quip                            |
 
 ## Out Of Scope
 

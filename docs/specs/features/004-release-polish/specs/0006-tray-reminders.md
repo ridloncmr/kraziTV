@@ -207,13 +207,16 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
   outstanding lookup, and Account Settings' home page shows its count. The
   key route does not start lookups itself: it stays a metadata-key route, and
   if the second request fails, reminder 2 offers the same lookup again.
+- Set up TMDB reports the key changed only once its lookup has answered, and
+  the shell then re-reads the roots before the key, so no reminder sees the
+  new key beside roots read before the lookup started.
 - The shell already reads `/media-roots`, which carries each root's job and
   counts, but only at desktop start and when the page is shown again.
   Whenever something starts a job, the shell refreshes that read: the Set up
   TMDB task's lookup, the tray's **Look them up**, and Media Library's **Look
   up on TMDB** or a scan. Programs reach it through a callback the shell
-  passes down through the program host (`ProgramContents`), the way
-  `onTmdbKeyChanged` carries `tmdbKey.refresh` to Account Settings; the tray,
+  passes down through the program host (`ProgramContents`), as it passes
+  `onTmdbKeyChanged` to Account Settings; the tray,
   which lives in the shell, refreshes it directly.
 - While any root's job runs, the shell polls `/media-roots` every few seconds
   so the tray count moves and reminders 2 and 3 can open when lookups end. It
