@@ -163,9 +163,13 @@ function withoutPath(
 /**
  * A program owns its write until completion or close; concurrent submissions
  * are blocked. Success is silent, as an XP sheet's Apply was: a caller whose
- * action needs a sentence keeps its own, as removal does.
+ * action needs a sentence keeps its own, as removal does. With
+ * `outlivesClose`, the write belongs to the library rather than the window,
+ * as a saved TMDB key does: closing the program neither aborts it nor drops
+ * its success callback, which must then act only on what outlives the
+ * program.
  */
-export function useMutation() {
+export function useMutation({ outlivesClose = false } = {}) {
   const owner = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const [pending, setPending] = useState(false);
@@ -174,10 +178,13 @@ export function useMutation() {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      owner.current?.abort();
+      if (!outlivesClose) owner.current?.abort();
     };
-  }, []);
-  /** Success callbacks run only while this program still owns the result. */
+  }, [outlivesClose]);
+  /**
+   * Success callbacks run only while this program still owns the result, or
+   * once the server answers when the write outlives the program.
+   */
   async function run<T>(
     path: string,
     method: string,
@@ -195,7 +202,8 @@ export function useMutation() {
         body,
         signal: controller.signal,
       });
-      if (!mounted.current || controller.signal.aborted) return;
+      if (controller.signal.aborted) return;
+      if (!mounted.current && !outlivesClose) return;
       onSuccess?.(value);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)

@@ -1456,3 +1456,69 @@ it("looks up a root's outstanding files in the progress dialog, opening at enric
   expect(within(dialog).queryByText("Files found")).toBeNull();
   expect(within(dialog).queryByText("Could not be read")).toBeNull();
 });
+
+/** Starts a lookup of the root's outstanding files and returns its dialog. */
+async function startLookup() {
+  const { api, scan } = renderScanLibrary([
+    mediaRoot({
+      matchCounts: {
+        items: 4,
+        matched: 0,
+        needsChoice: 0,
+        notLookedUp: 4,
+        failedLookups: 0,
+      },
+    }),
+  ]);
+  const retry = scanStatus({
+    kind: "retry",
+    phase: "enriching",
+    lookupCount: 4,
+  });
+  scan.status = retry;
+  api.reply("/metadata/lookup-retries", retry, "POST", 202);
+  await advance();
+  chooseRootAction("Look up on TMDB");
+  await advance();
+  const dialog = screen.getByRole("dialog", {
+    name: "Looking up files on TMDB",
+  });
+  return { api, scan, retry, dialog };
+}
+
+it("names a lookup's progress bar for the lookup, not a scan", async () => {
+  const { dialog } = await startLookup();
+
+  expect(
+    within(dialog).getByRole("progressbar", { name: "Lookup progress" }),
+  ).toBeTruthy();
+});
+
+it("says a cancelled lookup was a TMDB lookup", async () => {
+  const { scan, retry, dialog } = await startLookup();
+  scan.status = scanStatus({
+    ...retry,
+    phase: "cancelled",
+    cancelRequested: true,
+  });
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe(
+    "TMDB lookup cancelled. The catalog is unchanged.",
+  );
+});
+
+it("says a lookup the server no longer holds is a lookup", async () => {
+  const { api, dialog } = await startLookup();
+  api.handle(SCAN_PATH, () =>
+    api.response(
+      { error: { code: "scan_not_found", message: "No scan" } },
+      404,
+    ),
+  );
+  await advance(1_000);
+
+  expect(statusLine(dialog).textContent).toBe(
+    "This lookup is no longer running on the server. The catalog may be unchanged; look up again.",
+  );
+});

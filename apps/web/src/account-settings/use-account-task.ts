@@ -19,15 +19,18 @@ export interface AccountTask {
  * request from its fields, a client refusal never reaches the server, and the
  * server's answer goes to `onDone`. A server refusal stays in `error`, not
  * thrown, so the task's page can show it and the owner can correct and resend.
+ * `outlivesClose` lets a request whose effect belongs to the library, not the
+ * window, finish and reach `onDone` after Account Settings closes.
  */
 export function useAccountTask<T>(
   path: string,
   method: string,
   prepare: (form: FormData) => TaskRequest,
   onDone: (answer: T) => void,
+  { outlivesClose = false } = {},
 ): AccountTask {
   const [refusal, setRefusal] = useState<string>();
-  const request = useMutation();
+  const request = useMutation({ outlivesClose });
 
   /** Sends what the task prepared from its fields, unless the task refused them. */
   function submit(event: FormEvent<HTMLFormElement>) {

@@ -1,20 +1,21 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import {
-  bootDesktop,
-  openShortcut,
-  renderDesktopShell,
-} from "../testing/auth-fixtures.js";
+import { openShortcut, renderDesktopShell } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { elapse } from "../testing/fake-time.js";
+import { DAY_MS, elapse } from "../testing/fake-time.js";
 import { regainFocus } from "../testing/regain-focus.js";
 import {
   idleRoot,
   lookingUpRoot,
   mediaRoot,
 } from "../testing/scan-fixtures.js";
-import { trayIcon } from "../testing/tray-queries.js";
+import { bootTray } from "../testing/tray-boot.js";
+import {
+  storedReminder,
+  trayBalloon,
+  trayIcon,
+} from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -24,41 +25,23 @@ afterEach(() => {
 });
 
 const STORAGE_KEY = "krazitv.tmdbReminder";
-const DAY_MS = 24 * 60 * 60 * 1_000;
+/** A first run: no key set yet, and one media root to look up. */
+const firstRun = {
+  configured: false,
+  roots: [mediaRoot({ id: "root-1", path: "D:/Media" })],
+};
 
-/** Boots the desktop with the server reporting `configured` and `roots`. */
-async function boot({
-  configured = false,
-  roots = [mediaRoot({ id: "root-1", path: "D:/Media" })],
-}: { configured?: boolean; roots?: unknown[] } = {}) {
-  const api = await bootDesktop(undefined, (scripted: BrowserApi) => {
-    scripted.reply("/metadata/tmdb-key", { configured });
-    scripted.reply("/media-roots", roots);
-  });
-  // Both reads settle before the reminder decides.
-  await vi.waitFor(() => {
-    expect(api.requestsTo("/metadata/tmdb-key")).not.toHaveLength(0);
-    expect(api.requestsTo("/media-roots")).not.toHaveLength(0);
-  });
-  return api;
-}
-
-/** The balloon, or null while it is closed. */
-const balloon = () =>
-  screen.queryByRole("dialog", { name: "TMDB isn't set up" });
-
-/** Reads the stored reminder state, as the next desktop start would. */
-const stored = () =>
-  JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
+/** This reminder's balloon title. */
+const TITLE = "TMDB isn't set up";
 
 it("opens the balloon by itself with no key, a media root, and no stored state", async () => {
-  await boot();
+  await bootTray(firstRun);
 
   expect(
     await screen.findByRole("dialog", { name: "TMDB isn't set up" }),
   ).toBeTruthy();
   expect(
-    within(balloon()!).getByText(
+    within(trayBalloon(TITLE)!).getByText(
       "kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies.",
     ),
   ).toBeTruthy();
@@ -66,7 +49,7 @@ it("opens the balloon by itself with no key, a media root, and no stored state",
 });
 
 it("shows Gregg beside the title with his quip under it, and his head as the tray icon", async () => {
-  await boot();
+  await bootTray(firstRun);
 
   const opened = await screen.findByRole("dialog", {
     name: "TMDB isn't set up",
@@ -96,9 +79,9 @@ it("shows Gregg beside the title with his quip under it, and his head as the tra
 });
 
 it("opens the balloon by itself when the first media root appears mid-session, without taking focus", async () => {
-  const api = await boot({ roots: [] });
+  const api = await bootTray({ ...firstRun, roots: [] });
   await screen.findByRole("button", { name: "TMDB isn't set up" });
-  expect(balloon()).toBeNull();
+  expect(trayBalloon(TITLE)).toBeNull();
   const focused = document.activeElement;
 
   api.reply("/media-roots", [mediaRoot({ id: "root-1", path: "D:/Media" })]);
@@ -112,36 +95,36 @@ it("opens the balloon by itself when the first media root appears mid-session, w
 });
 
 it("opens by itself at most once per desktop start, even when its condition stops and holds again", async () => {
-  const api = await boot();
+  const api = await bootTray(firstRun);
   await screen.findByRole("dialog", { name: "TMDB isn't set up" });
 
   // The owner never answers; a key set elsewhere closes it unrecorded.
   api.reply("/metadata/tmdb-key", { configured: true });
   regainFocus();
   await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
-  expect(stored()).toBeNull();
+  expect(storedReminder(STORAGE_KEY)).toBeNull();
 
   // The key goes again: the icon returns, but the balloon has had its turn.
   api.reply("/metadata/tmdb-key", { configured: false });
   regainFocus();
   await screen.findByRole("button", { name: "TMDB isn't set up" });
-  expect(balloon()).toBeNull();
+  expect(trayBalloon(TITLE)).toBeNull();
 });
 
 it("shows only the tray icon when no media root exists", async () => {
-  await boot({ roots: [] });
+  await bootTray({ ...firstRun, roots: [] });
 
   expect(
     await screen.findByRole("button", { name: "TMDB isn't set up" }),
   ).toBeTruthy();
-  expect(balloon()).toBeNull();
+  expect(trayBalloon(TITLE)).toBeNull();
 });
 
 it("shows neither icon nor balloon when a key is set", async () => {
-  await boot({ configured: true });
+  await bootTray({ ...firstRun, configured: true });
 
   await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeNull());
-  expect(balloon()).toBeNull();
+  expect(trayBalloon(TITLE)).toBeNull();
 });
 
 it.each([
@@ -152,13 +135,13 @@ it.each([
   "keeps the balloon closed after %s, but the icon opens it",
   async (_, state) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    await boot();
+    await bootTray(firstRun);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "TMDB isn't set up" }),
     );
 
-    expect(balloon()).toBeTruthy();
+    expect(trayBalloon(TITLE)).toBeTruthy();
   },
 );
 
@@ -167,7 +150,7 @@ it("opens the balloon again once a snooze has ended", async () => {
     STORAGE_KEY,
     JSON.stringify({ remindAfter: Date.now() - 1 }),
   );
-  await boot();
+  await bootTray(firstRun);
 
   expect(
     await screen.findByRole("dialog", { name: "TMDB isn't set up" }),
@@ -176,7 +159,7 @@ it("opens the balloon again once a snooze has ended", async () => {
 
 it("treats unreadable stored state as due", async () => {
   localStorage.setItem(STORAGE_KEY, "{not json");
-  await boot();
+  await bootTray(firstRun);
 
   expect(
     await screen.findByRole("dialog", { name: "TMDB isn't set up" }),
@@ -186,7 +169,7 @@ it("treats unreadable stored state as due", async () => {
 it.each(["Remind me later", "Close"])(
   "%s closes the balloon and snoozes it for 7 days",
   async (action) => {
-    await boot();
+    await bootTray(firstRun);
     const before = Date.now();
 
     fireEvent.click(
@@ -195,8 +178,10 @@ it.each(["Remind me later", "Close"])(
       ).getByRole("button", { name: action }),
     );
 
-    expect(balloon()).toBeNull();
-    const { remindAfter } = stored() as { remindAfter: number };
+    expect(trayBalloon(TITLE)).toBeNull();
+    const { remindAfter } = storedReminder(STORAGE_KEY) as {
+      remindAfter: number;
+    };
     expect(remindAfter).toBeGreaterThanOrEqual(before + 7 * DAY_MS);
     expect(remindAfter).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
     expect(trayIcon("TMDB isn't set up")).toBeTruthy();
@@ -204,7 +189,7 @@ it.each(["Remind me later", "Close"])(
 );
 
 it("Don't remind me closes the balloon for good but keeps the icon", async () => {
-  await boot();
+  await bootTray(firstRun);
 
   fireEvent.click(
     within(
@@ -212,13 +197,13 @@ it("Don't remind me closes the balloon for good but keeps the icon", async () =>
     ).getByRole("button", { name: "Don't remind me" }),
   );
 
-  expect(balloon()).toBeNull();
-  expect(stored()).toEqual({ never: true });
+  expect(trayBalloon(TITLE)).toBeNull();
+  expect(storedReminder(STORAGE_KEY)).toEqual({ never: true });
   expect(trayIcon("TMDB isn't set up")).toBeTruthy();
 });
 
 it("Set up TMDB opens Account Settings on the task, and a saved key removes the icon", async () => {
-  const api = await boot();
+  const api = await bootTray(firstRun);
   fireEvent.click(
     within(
       await screen.findByRole("dialog", { name: "TMDB isn't set up" }),
@@ -229,8 +214,10 @@ it("Set up TMDB opens Account Settings on the task, and a saved key removes the 
   expect(
     await within(window).findByLabelText("API Read Access Token"),
   ).toBeTruthy();
-  expect(balloon()).toBeNull();
-  expect(stored()).toMatchObject({ remindAfter: expect.any(Number) });
+  expect(trayBalloon(TITLE)).toBeNull();
+  expect(storedReminder(STORAGE_KEY)).toMatchObject({
+    remindAfter: expect.any(Number),
+  });
 
   api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
   api.reply("/metadata/tmdb-key", { configured: true });
@@ -253,7 +240,7 @@ it("keeps TMDB isn't set up and opens no other balloon while a saved key's looku
   renderDesktopShell(api);
   await elapse(0);
   fireEvent.click(
-    within(balloon()!).getByRole("button", { name: "Set up TMDB" }),
+    within(trayBalloon(TITLE)!).getByRole("button", { name: "Set up TMDB" }),
   );
   await elapse(0);
   const window = screen.getByRole("region", { name: "Account Settings" });
@@ -312,7 +299,7 @@ it.each([
 ])(
   "still reports a saved key to the tray when its lookup is %s",
   async (_, status, code, message) => {
-    const api = await boot({ roots: [idleRoot("root", 12)] });
+    const api = await bootTray({ ...firstRun, roots: [idleRoot("root", 12)] });
     const window = openShortcut("Account Settings");
     fireEvent.click(
       within(window).getByRole("button", { name: "Set up TMDB" }),
@@ -344,7 +331,7 @@ it.each([
 );
 
 it("opens Account Settings at home after a tray request was cancelled and the window closed", async () => {
-  await boot();
+  await bootTray(firstRun);
   fireEvent.click(
     within(
       await screen.findByRole("dialog", { name: "TMDB isn't set up" }),
@@ -370,11 +357,11 @@ it("opens Account Settings at home after a tray request was cancelled and the wi
 
 it("keeps the balloon closed when a removed key brings the icon back after Don't remind me", async () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ never: true }));
-  const api = await boot();
+  const api = await bootTray(firstRun);
   fireEvent.click(
     await screen.findByRole("button", { name: "TMDB isn't set up" }),
   );
-  expect(balloon()).toBeTruthy();
+  expect(trayBalloon(TITLE)).toBeTruthy();
 
   // Saved from Account Settings directly, not from the balloon.
   fireEvent.click(
@@ -415,11 +402,11 @@ it("keeps the balloon closed when a removed key brings the icon back after Don't
   );
 
   await vi.waitFor(() => expect(trayIcon("TMDB isn't set up")).toBeTruthy());
-  expect(balloon()).toBeNull();
+  expect(trayBalloon(TITLE)).toBeNull();
 });
 
 it("closes on Escape, snoozing as Close does, and the icon reports whether it is open", async () => {
-  await boot({ roots: [] });
+  await bootTray({ ...firstRun, roots: [] });
   const icon = await screen.findByRole("button", { name: "TMDB isn't set up" });
   expect(icon.getAttribute("aria-expanded")).toBe("false");
 
@@ -427,8 +414,10 @@ it("closes on Escape, snoozing as Close does, and the icon reports whether it is
   expect(icon.getAttribute("aria-expanded")).toBe("true");
   // Opened on request, so focus moves into it.
   expect(document.activeElement?.textContent).toBe("Set up TMDB");
-  fireEvent.keyDown(balloon()!, { key: "Escape" });
+  fireEvent.keyDown(trayBalloon(TITLE)!, { key: "Escape" });
 
-  expect(balloon()).toBeNull();
-  expect(stored()).toMatchObject({ remindAfter: expect.any(Number) });
+  expect(trayBalloon(TITLE)).toBeNull();
+  expect(storedReminder(STORAGE_KEY)).toMatchObject({
+    remindAfter: expect.any(Number),
+  });
 });

@@ -1,12 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { MediaRoot } from "../http/contracts/media.js";
-import {
-  bootDesktop,
-  openShortcut,
-  renderDesktopShell,
-} from "../testing/auth-fixtures.js";
+import { openShortcut, renderDesktopShell } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { elapse } from "../testing/fake-time.js";
 import {
@@ -15,6 +10,7 @@ import {
   mediaRoot,
   scanStatus,
 } from "../testing/scan-fixtures.js";
+import { bootTray } from "../testing/tray-boot.js";
 import { trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
@@ -36,27 +32,21 @@ function stored(): Record<string, string | null> {
   );
 }
 
-/** Boots the desktop with a key set and the server reporting `roots`. */
-async function boot(roots: MediaRoot[], configured = true) {
-  const api = await bootDesktop(undefined, (scripted: BrowserApi) => {
-    scripted.reply("/metadata/tmdb-key", { configured });
-    scripted.reply("/media-roots", roots);
-  });
-  return api;
-}
-
 it("counts every running lookup on the icon, and never opens a balloon by itself", async () => {
-  await boot([
-    lookingUpRoot("a", 300, 1000),
-    lookingUpRoot("b", 40, 234, "scan"),
-    // A scan still probing has nothing to look up yet; an ended job counts nothing.
-    mediaRoot({
-      id: "c",
-      path: "/media/c",
-      scan: scanStatus({ id: "job-c", rootId: "c", phase: "probing" }),
-    }),
-    idleRoot("d"),
-  ]);
+  await bootTray({
+    configured: true,
+    roots: [
+      lookingUpRoot("a", 300, 1000),
+      lookingUpRoot("b", 40, 234, "scan"),
+      // A scan still probing has nothing to look up yet; an ended job counts nothing.
+      mediaRoot({
+        id: "c",
+        path: "/media/c",
+        scan: scanStatus({ id: "job-c", rootId: "c", phase: "probing" }),
+      }),
+      idleRoot("d"),
+    ],
+  });
 
   const icon = await screen.findByRole("button", {
     name: "Looking up files on TMDB: 340 of 1,234",
@@ -69,7 +59,7 @@ it("counts every running lookup on the icon, and never opens a balloon by itself
 });
 
 it("opens a status balloon with the count, Gregg's quip, and only a close button", async () => {
-  await boot([lookingUpRoot("a", 340, 1234)]);
+  await bootTray({ configured: true, roots: [lookingUpRoot("a", 340, 1234)] });
   const icon = await screen.findByRole("button", {
     name: "Looking up files on TMDB: 340 of 1,234",
   });
@@ -101,7 +91,7 @@ it("opens a status balloon with the count, Gregg's quip, and only a close button
 });
 
 it("closes the status balloon on Escape without storing anything", async () => {
-  await boot([lookingUpRoot("a", 1, 2)]);
+  await bootTray({ configured: true, roots: [lookingUpRoot("a", 1, 2)] });
   const icon = await screen.findByRole("button", {
     name: "Looking up files on TMDB: 1 of 2",
   });
@@ -115,7 +105,7 @@ it("closes the status balloon on Escape without storing anything", async () => {
 });
 
 it("still leads with TMDB isn't set up while a lookup runs without a key", async () => {
-  await boot([lookingUpRoot("a", 1, 2)], false);
+  await bootTray({ configured: false, roots: [lookingUpRoot("a", 1, 2)] });
 
   expect(
     await screen.findByRole("button", { name: "TMDB isn't set up" }),
@@ -174,7 +164,7 @@ it("follows a running scan that has not looked anything up yet", async () => {
 });
 
 it("follows the lookup a saved key starts, re-reading the roots at once", async () => {
-  const api = await boot([mediaRoot()], false);
+  const api = await bootTray({ configured: false, roots: [mediaRoot()] });
   const window = openShortcut("Account Settings");
   fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
   api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
@@ -201,7 +191,7 @@ it("follows the lookup a saved key starts, re-reading the roots at once", async 
 });
 
 it("still follows the lookup when Account Settings closes before it answers", async () => {
-  const api = await boot([mediaRoot()], false);
+  const api = await bootTray({ configured: false, roots: [mediaRoot()] });
   const window = openShortcut("Account Settings");
   fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
   api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
@@ -235,6 +225,48 @@ it("still follows the lookup when Account Settings closes before it answers", as
   ).toBeTruthy();
 });
 
+it("still starts the lookup when Account Settings closes while the key saves", async () => {
+  const api = await bootTray({ configured: false, roots: [mediaRoot()] });
+  const window = openShortcut("Account Settings");
+  fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
+  api.hold("/metadata/tmdb-key", "PUT");
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.reply(
+    "/metadata/lookup-retries",
+    { lookupCount: 12, busyRootCount: 0 },
+    "POST",
+    202,
+  );
+  fireEvent.change(
+    await within(window).findByLabelText("API Read Access Token"),
+    { target: { value: "eyJ.token.sig" } },
+  );
+  fireEvent.click(within(window).getByRole("button", { name: "Save" }));
+  await vi.waitFor(() =>
+    expect(
+      api
+        .requestsTo("/metadata/tmdb-key")
+        .filter((request) => request.method === "PUT"),
+    ).toHaveLength(1),
+  );
+
+  // The server keeps the key whether or not the window waits for it.
+  fireEvent.click(
+    screen.getByRole("button", { name: "Close Account Settings" }),
+  );
+  api.reply("/media-roots", [lookingUpRoot("root", 0, 12)]);
+  api.release("/metadata/tmdb-key", { configured: true }, "PUT");
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Looking up files on TMDB: 0 of 12",
+    }),
+  ).toBeTruthy();
+  expect(api.requestsTo("/metadata/lookup-retries")).toMatchObject([
+    { method: "POST", body: { scope: "outstanding" } },
+  ]);
+});
+
 it("follows the lookup Media Library starts, re-reading the roots at once", async () => {
   const root = mediaRoot({
     matchCounts: {
@@ -245,7 +277,7 @@ it("follows the lookup Media Library starts, re-reading the roots at once", asyn
       failedLookups: 0,
     },
   });
-  const api = await boot([root]);
+  const api = await bootTray({ configured: true, roots: [root] });
   api.reply("/media-items", { items: [], total: 0 });
   api.reply("/metadata/match-reviews", { steps: [] });
   const retry = scanStatus({

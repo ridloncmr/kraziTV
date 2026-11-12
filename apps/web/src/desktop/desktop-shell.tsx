@@ -10,7 +10,7 @@ import { useResource } from "../http/resources/use-resource.js";
 import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
 import { lookUpEveryRoot } from "../scan-jobs/every-root-lookup.js";
-import { isScanRunning } from "../scan-jobs/scan-running.js";
+import { anyRootJobRunning } from "../scan-jobs/scan-running.js";
 import {
   filesLeftToLookUp,
   lookupsRunning,
@@ -59,9 +59,10 @@ function usableViewport(): DesktopViewport {
  * tray reminders; a key saved or removed in Account Settings re-reads the
  * roots and then the key through `onTmdbKeyChanged`, and a program that
  * starts a scan or lookup re-reads the roots through `onScanJobStarted`, so
- * the tray follows the job. Once the library has settled with nothing left
+ * the tray follows the job. Each time the library settles with nothing left
  * to look up, it also reads the collection recommendations for the
- * Collections ready reminder, and re-reads them through
+ * Collections ready reminder, which counts nothing until that read answers,
+ * and re-reads them through
  * `onRecommendationDecided` whenever Discover decides one, so the tray
  * counts only what is still to decide.
  */
@@ -106,10 +107,7 @@ export function DesktopShell({
     pageVisible,
     jobsRunning ? JOB_POLL_MS : 0,
   );
-  const anyJobRunning =
-    mediaRoots.data?.some(
-      (root) => root.scan !== null && isScanRunning(root.scan),
-    ) ?? false;
+  const anyJobRunning = anyRootJobRunning(mediaRoots.data ?? []);
   if (anyJobRunning !== jobsRunning) setJobsRunning(anyJobRunning);
   // Set while a changed key waits for the roots read it asked for. Read
   // together, the key could land first beside roots from before its lookup
@@ -131,10 +129,25 @@ export function DesktopShell({
   }, [mediaRoots.data, mediaRoots.error, refreshTmdbKey]);
   // Read only while nothing is left to look up, the one time Collections
   // ready can hold, so a library being looked up is never asked for them.
+  const settled = filesLeftToLookUp(tmdbKey.data, mediaRoots.data) === 0;
   const recommendations = useResource<Recommendation[]>(
     "/media-collections/recommendations",
-    pageVisible && filesLeftToLookUp(tmdbKey.data, mediaRoots.data) === 0,
+    pageVisible && settled,
   );
+  // The answer held while the library was last unsettled. The hook keeps it
+  // until the read made for the next settle lands, and `loading` only turns
+  // on in the effect after that render, so the tray is given nothing until
+  // a new answer replaces it and never counts what an earlier lookup left.
+  // A hidden page unsettles nothing, so a shown balloon survives a tab
+  // switch.
+  const [outdatedRecommendations, setOutdatedRecommendations] =
+    useState<Recommendation[]>();
+  if (!settled && recommendations.data !== outdatedRecommendations)
+    setOutdatedRecommendations(recommendations.data);
+  const currentRecommendations =
+    recommendations.data === outdatedRecommendations
+      ? undefined
+      : recommendations.data;
   // Counts requests to open Account Settings on the TMDB task, so a repeat
   // request still reaches a window that is already open. It restarts at 0
   // when that window closes, so a later plain open shows its home page.
@@ -291,7 +304,7 @@ export function DesktopShell({
               reminders={trayReminders({
                 tmdbKey: tmdbKey.data,
                 mediaRoots: mediaRoots.data,
-                recommendations: recommendations.data,
+                recommendations: currentRecommendations,
                 setUpTmdb: () => openProgram("account", "set-up-tmdb"),
                 // The tray lives in the shell, so it re-reads the roots itself.
                 lookUpFiles: () => void lookUpEveryRoot(refreshMediaRoots),
