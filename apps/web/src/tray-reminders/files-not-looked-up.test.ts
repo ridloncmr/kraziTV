@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { MediaRoot } from "../http/contracts/media.js";
-import { bootDesktop, renderDesktopShell } from "../testing/auth-fixtures.js";
+import { renderDesktopShell } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { elapse } from "../testing/fake-time.js";
 import { regainFocus } from "../testing/regain-focus.js";
@@ -11,7 +10,8 @@ import {
   lookingUpRoot,
   mediaRoot,
 } from "../testing/scan-fixtures.js";
-import { trayIcon } from "../testing/tray-queries.js";
+import { bootTray } from "../testing/tray-boot.js";
+import { storedReminder, trayIcon } from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -25,38 +25,29 @@ const SENTENCE =
   "Look them up so kraziTV can name their shows and suggest collections.";
 const QUIP = "Paperwork doesn't file itself. I've checked.";
 
-/** Boots the desktop with the server reporting `configured` and `roots`. */
-async function boot(roots: MediaRoot[], configured = true) {
-  return bootDesktop(undefined, (scripted: BrowserApi) => {
-    scripted.reply("/metadata/tmdb-key", { configured });
-    scripted.reply("/media-roots", roots);
-    scripted.reply("/media-collections/recommendations", []);
-  });
-}
-
-/** Reads this reminder's stored choice, as the next desktop start would. */
-const stored = () =>
-  JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
-
 it("opens by itself with the never-looked-up files of every enabled root, without taking focus", async () => {
   const focused = document.activeElement;
-  await boot([
-    idleRoot("a", 300),
-    idleRoot("b", 12),
-    // A disabled root's files are not counted, nor is a failed lookup.
-    { ...idleRoot("c", 500), enabled: false },
-    mediaRoot({
-      id: "d",
-      path: "/media/d",
-      matchCounts: {
-        items: 40,
-        matched: 0,
-        needsChoice: 0,
-        notLookedUp: 0,
-        failedLookups: 40,
-      },
-    }),
-  ]);
+  await bootTray({
+    configured: true,
+    recommendations: [],
+    roots: [
+      idleRoot("a", 300),
+      idleRoot("b", 12),
+      // A disabled root's files are not counted, nor is a failed lookup.
+      { ...idleRoot("c", 500), enabled: false },
+      mediaRoot({
+        id: "d",
+        path: "/media/d",
+        matchCounts: {
+          items: 40,
+          matched: 0,
+          needsChoice: 0,
+          notLookedUp: 0,
+          failedLookups: 40,
+        },
+      }),
+    ],
+  });
 
   const balloon = await screen.findByRole("dialog", {
     name: "312 files haven't been looked up on TMDB",
@@ -73,7 +64,11 @@ it("opens by itself with the never-looked-up files of every enabled root, withou
 });
 
 it("counts one file as one, keeping the button's one name", async () => {
-  await boot([idleRoot("a", 1)]);
+  await bootTray({
+    configured: true,
+    recommendations: [],
+    roots: [idleRoot("a", 1)],
+  });
 
   const balloon = await screen.findByRole("dialog", {
     name: "1 file hasn't been looked up on TMDB",
@@ -89,7 +84,11 @@ it("counts one file as one, keeping the button's one name", async () => {
 });
 
 it("stays away with no key, leaving the tray to TMDB isn't set up", async () => {
-  await boot([idleRoot("a", 300)], false);
+  await bootTray({
+    configured: false,
+    recommendations: [],
+    roots: [idleRoot("a", 300)],
+  });
 
   await screen.findByRole("dialog", { name: "TMDB isn't set up" });
   expect(
@@ -98,7 +97,11 @@ it("stays away with no key, leaving the tray to TMDB isn't set up", async () => 
 });
 
 it("stays away while nothing is left to look up", async () => {
-  const api = await boot([idleRoot("a", 0)]);
+  const api = await bootTray({
+    configured: true,
+    recommendations: [],
+    roots: [idleRoot("a", 0)],
+  });
   await vi.waitFor(() =>
     expect(
       api.requestsTo("/media-collections/recommendations"),
@@ -148,7 +151,11 @@ it("waits while a job runs, then opens by itself once when the jobs end with fil
 });
 
 it("looks every root up from Look them up, following the jobs it starts, and snoozes only itself", async () => {
-  const api = await boot([idleRoot("a", 300), idleRoot("b", 12)]);
+  const api = await bootTray({
+    configured: true,
+    recommendations: [],
+    roots: [idleRoot("a", 300), idleRoot("b", 12)],
+  });
   const balloon = await screen.findByRole("dialog", {
     name: "312 files haven't been looked up on TMDB",
   });
@@ -176,12 +183,18 @@ it("looks every root up from Look them up, following the jobs it starts, and sno
   expect(
     api.requestsTo("/metadata/lookup-retries").map((request) => request.body),
   ).toEqual([{ scope: "outstanding" }]);
-  expect(stored()).toEqual({ remindAfter: expect.any(Number) });
+  expect(storedReminder(STORAGE_KEY)).toEqual({
+    remindAfter: expect.any(Number),
+  });
   expect(localStorage.getItem("krazitv.tmdbReminder")).toBeNull();
 });
 
 it("keeps offering itself when Look them up is refused", async () => {
-  const api = await boot([idleRoot("a", 3)]);
+  const api = await bootTray({
+    configured: true,
+    recommendations: [],
+    roots: [idleRoot("a", 3)],
+  });
   const balloon = await screen.findByRole("dialog", {
     name: "3 files haven't been looked up on TMDB",
   });

@@ -10,6 +10,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { applyStylesheet } from "../testing/apply-stylesheet.js";
 import { styleRules } from "../testing/style-rules.js";
+import { storedReminder, trayBalloon } from "../testing/tray-queries.js";
 import type { TrayReminder } from "./contracts.js";
 import { TrayReminders } from "./tray-reminders.js";
 
@@ -43,15 +44,6 @@ const ended = (name: string) => reminder(name, { shows: false, holds: false });
 
 /** The tray's one icon, by whatever title it carries. */
 const icon = () => screen.queryByRole("button", { name: /title$/ });
-
-/** The open balloon, or null. */
-const balloon = () => screen.queryByRole("dialog");
-
-/** Reads one reminder's stored choice. */
-const stored = (name: string) =>
-  JSON.parse(
-    localStorage.getItem(`krazitv.${name}Reminder`) ?? "null",
-  ) as unknown;
 
 it("opens only the first holding reminder, and the icon names that one", async () => {
   render(
@@ -91,7 +83,7 @@ it("hands the icon to the next reminder when the first ends, which then opens by
       reminders: [reminder("first"), reminder("second")],
     }),
   );
-  expect(balloon()).toBeNull();
+  expect(trayBalloon()).toBeNull();
   expect(icon()!.getAttribute("aria-label")).toBe("first title");
 
   // The first ends again: the second leads once more, but has had its turn too.
@@ -100,7 +92,7 @@ it("hands the icon to the next reminder when the first ends, which then opens by
       reminders: [ended("first"), reminder("second")],
     }),
   );
-  expect(balloon()).toBeNull();
+  expect(trayBalloon()).toBeNull();
   expect(icon()!.getAttribute("aria-label")).toBe("second title");
 });
 
@@ -110,7 +102,7 @@ it("never opens a reminder by itself while it only shows, but its icon opens it 
       reminders: [reminder("first", { holds: false })],
     }),
   );
-  expect(balloon()).toBeNull();
+  expect(trayBalloon()).toBeNull();
 
   fireEvent.click(icon()!);
 
@@ -131,9 +123,11 @@ it("runs the main action and snoozes only that reminder", () => {
   fireEvent.click(screen.getByRole("button", { name: "Do first" }));
 
   expect(act).toHaveBeenCalledOnce();
-  expect(balloon()).toBeNull();
-  expect(stored("first")).toMatchObject({ remindAfter: expect.any(Number) });
-  expect(stored("second")).toBeNull();
+  expect(trayBalloon()).toBeNull();
+  expect(storedReminder("krazitv.firstReminder")).toMatchObject({
+    remindAfter: expect.any(Number),
+  });
+  expect(storedReminder("krazitv.secondReminder")).toBeNull();
 });
 
 it.each([
@@ -154,9 +148,9 @@ it.each([
     if (answer === "Escape") fireEvent.keyDown(opened, { key: "Escape" });
     else fireEvent.click(within(opened).getByRole("button", { name: answer }));
 
-    expect(balloon()).toBeNull();
-    expect(stored("first")).toEqual(choice);
-    expect(stored("second")).toBeNull();
+    expect(trayBalloon()).toBeNull();
+    expect(storedReminder("krazitv.firstReminder")).toEqual(choice);
+    expect(storedReminder("krazitv.secondReminder")).toBeNull();
     rerender(
       createElement(TrayReminders, {
         reminders: [ended("first"), reminder("second")],
@@ -192,7 +186,7 @@ it("lets a showing reminder lead over the status, which takes the icon only afte
   );
 
   expect(icon()!.getAttribute("aria-label")).toBe("1 done title");
-  expect(balloon()).toBeNull();
+  expect(trayBalloon()).toBeNull();
 });
 
 it("keeps the status balloon open while its count moves, and closes it when the work ends", () => {
@@ -206,7 +200,7 @@ it("keeps the status balloon open while its count moves, and closes it when the 
   expect(screen.getByRole("dialog", { name: "2 done title" })).toBeTruthy();
 
   rerender(createElement(TrayReminders, { reminders: [], status: undefined }));
-  expect(balloon()).toBeNull();
+  expect(trayBalloon()).toBeNull();
   expect(icon()).toBeNull();
 });
 

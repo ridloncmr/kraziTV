@@ -1,7 +1,7 @@
 import type { Recommendation } from "../http/contracts/collections.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
-import { isScanRunning } from "../scan-jobs/scan-running.js";
+import { anyRootJobRunning, isScanRunning } from "../scan-jobs/scan-running.js";
 import type { TrayReminder, TrayStatusWords } from "./contracts.js";
 import {
   collectionsReadyWords,
@@ -24,8 +24,7 @@ export function filesLeftToLookUp(
   mediaRoots: readonly MediaRoot[] | undefined,
 ): number | undefined {
   if (tmdbKey?.configured !== true || mediaRoots === undefined) return;
-  if (mediaRoots.some((root) => root.scan !== null && isScanRunning(root.scan)))
-    return;
+  if (anyRootJobRunning(mediaRoots)) return;
   return mediaRoots
     .filter((root) => root.enabled)
     .reduce((sum, root) => sum + root.matchCounts.notLookedUp, 0);
@@ -54,9 +53,10 @@ export function trayReminders({
   tmdbKey: TmdbKeyStatus | undefined;
   mediaRoots: readonly MediaRoot[] | undefined;
   /**
-   * The shell's read, made only while nothing is left to look up and
-   * ignored otherwise, since an answer kept from an earlier read may be out
-   * of date.
+   * The shell's read, made only while nothing is left to look up, and
+   * undefined until the read made for the library's latest settle answers,
+   * so an answer from before a lookup is never counted. Ignored while files
+   * are left to look up.
    */
   recommendations: readonly Recommendation[] | undefined;
   /** Opens Account Settings on the Set up TMDB task. */

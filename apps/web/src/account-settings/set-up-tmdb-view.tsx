@@ -61,8 +61,9 @@ export function SetUpTmdbView({
    * Starts the all-roots lookup once the key is saved, and reports the key
    * saved whatever it answers: a refused lookup stays unsaid, because the
    * tray offers the same lookup again for files still not looked up.
-   * Closing the window mid-request still reports the key once the server
-   * has answered.
+   * The save and this lookup belong to the library, not the window, so
+   * closing the window mid-request still starts the lookup and reports the
+   * key once the server has answered.
    */
   function lookUpLibrary() {
     setLookingUp(true);
@@ -71,7 +72,9 @@ export function SetUpTmdbView({
       onSaved(keySavedSentence(lookupCount));
     });
   }
-  const task = useAccountTask(KEY_PATH, "PUT", prepare, lookUpLibrary);
+  const task = useAccountTask(KEY_PATH, "PUT", prepare, lookUpLibrary, {
+    outlivesClose: true,
+  });
 
   return (
     <AccountTaskForm
