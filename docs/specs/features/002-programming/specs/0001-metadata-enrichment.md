@@ -577,7 +577,8 @@ and lookup-error counts; when any item is ambiguous it adds
 **Metadata-only retry.** A retry runs as a scan job of the root with only
 `enriching -> committing`, shown in the same progress dialog and subject to the
 same one-job-per-root rule. Its scope is one item, one folder, or every
-outstanding item in the root: never looked up, or whose last lookup failed.
+outstanding item in the root: never looked up but searchable from its path
+hints, or whose last lookup failed.
 Without a root, the outstanding scope starts a retry on every enabled root
 that has outstanding items and no running job
 ([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#server)).

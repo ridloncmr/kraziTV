@@ -55,16 +55,20 @@ reminders written in the words of an original kraziTV character.
   episode with a series and episode number, or a movie title. A disc track
   before mapping, or a file naming no episode, is never outstanding, though
   the **Not looked up** filter still lists it.
-- The task's saved confirmation then says how many files are being looked up:
-  "kraziTV is looking up 1,234 files on TMDB. Keep working; the tray will tell
-  you when it's done." With nothing outstanding it says only that the key is
-  saved, as today.
+- Account Settings then returns to its home page, which says how many files
+  are being looked up: "kraziTV is looking up 1,234 files on TMDB. Keep
+  working; the tray will tell you when it's done." ("1 file" for one). When
+  the lookup started nothing, or could not start, it reads "Your TMDB key is
+  saved." instead. The sentence stays until the owner picks another task.
 - A root with a scan or lookup already running is skipped. A running scan
   that has not reached its lookup step yet uses the new key on its own; the
   outstanding-files reminder below catches anything else.
-- While any lookup runs, the tray icon shows, and its tooltip reads "Looking
-  up files on TMDB: 340 of 1,234". Clicking it opens a status balloon with the
-  same count and a close button. No balloon opens by itself for progress.
+- While any lookup runs and no reminder shows, the tray icon shows, and its
+  tooltip reads "Looking up files on TMDB: 340 of 1,234". Clicking it opens a
+  status balloon with the same count as its title, Gregg's quip, the sentence
+  "kraziTV is looking your files up on TMDB. Keep working; the tray will tell
+  you when it's done.", and only a close button. ✕ and Escape close it
+  without storing anything. No balloon opens by itself for progress.
 
 ### Tray reminders
 
@@ -103,7 +107,7 @@ explains it. Every reminder follows the same rules:
 | ----- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | 1     | TMDB isn't set up   | No key is set; it holds only once at least one media root exists                                                                   | TMDB isn't set up                         | kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies. | **Set up TMDB**: opens Account Settings on the Set up TMDB task |
 | 2     | Files not looked up | A key is set, no scan or lookup runs, and some enabled root has outstanding never-looked-up files, those a lookup would search for | 312 files haven't been looked up on TMDB  | Look them up so kraziTV can name their shows and suggest collections.                              | **Look them up**: starts the same lookup a key save starts      |
-| 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and there is at least one collection recommendation              | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
+| 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and at least one collection recommendation is still to decide    | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
 
 - Reminder 1 is the existing TMDB reminder. Its words, condition, and stored
   choice carry over, so an owner who chose **Don't remind me** before this
@@ -113,11 +117,19 @@ explains it. Every reminder follows the same rules:
   right after the first media root is added.
 - Reminder 2 counts only files never looked up, not failed lookups, so a
   rejected key or a TMDB outage does not nag. Its action still retries failed
-  lookups along with them.
-- Reminder 3's title counts recommendations by kind: series as "shows",
-  franchises as "movie series", leaving out a kind with none ("kraziTV found
-  14 shows"). It is how a first-time owner learns kraziTV can make collections
-  for them; the Discover dialog stays the place to choose them.
+  lookups along with them. For one file its title and sentence read "1 file
+  hasn't been looked up on TMDB" and "Look it up so kraziTV can name its show
+  and suggest collections.", but its button always reads **Look them up**, so
+  every page and piece of advice names one action.
+- "Nothing is left to look up" means reminder 2's count is 0: failed lookups
+  and disabled roots never keep reminder 3 away.
+- Reminder 3 counts only recommendations still to decide: one already
+  accepted or dismissed is never counted. Its title counts them by kind:
+  series as "shows", franchises as "movie series", leaving out a kind with
+  none ("kraziTV found 14 shows"; "kraziTV found 1 show"). With only one, its
+  sentence reads "Make it into a collection, then put it on a channel." It is
+  how a first-time owner learns kraziTV can make collections for them; the
+  Discover dialog stays the place to choose them.
 - Reminder 3 is also due only when there are more recommendations than when
   the owner last answered it, which the browser stores with its choice.
   Recommendations the owner has already seen never bring it back on their
@@ -161,6 +173,9 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 - The root menu's **Retry failed lookups** becomes **Look up on TMDB**, which
   looks up the root's outstanding files, never-looked-up and failed alike. It
   is enabled while the root is enabled, has any, and a key is set.
+- The progress dialog every lookup opens, from **Look up on TMDB** or a
+  file's or folder's retry, is titled **Looking up files on TMDB** and ends
+  with **TMDB lookup completed.**, since it no longer only retries.
 
 ## Technical Behavior
 
@@ -189,9 +204,9 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 ### Web
 
 - The Set up TMDB task, after a successful save, asks for the all-roots
-  outstanding lookup and shows its count. The key route does not start
-  lookups itself: it stays a metadata-key route, and if the second request
-  fails, reminder 2 offers the same lookup again.
+  outstanding lookup, and Account Settings' home page shows its count. The
+  key route does not start lookups itself: it stays a metadata-key route, and
+  if the second request fails, reminder 2 offers the same lookup again.
 - The shell already reads `/media-roots`, which carries each root's job and
   counts, but only at desktop start and when the page is shown again.
   Whenever something starts a job, the shell refreshes that read: the Set up
@@ -203,13 +218,18 @@ Assistant: no paperclip, no wire eyebrows, no "It looks like you're…" line.
 - While any root's job runs, the shell polls `/media-roots` every few seconds
   so the tray count moves and reminders 2 and 3 can open when lookups end. It
   reads `/media-collections/recommendations` only while reminder 3's other
-  conditions hold.
+  conditions hold, and reads them again whenever Discover accepts, dismisses,
+  or restores one, so reminder 3's count follows the owner's decisions.
 - `tmdb-reminder/` becomes `tray-reminders/`: the reminder list (each entry a
   condition, words, and a main action), the stored choices, the balloon, and
   the assistant drawn as one SVG per file under `drawings/`. Words live in one
   `*-words.ts` beside them (decision 1). The TMDB reminder keeps its storage
-  key `krazitv.tmdbReminder`; each new reminder gets its own key in the same
-  shape.
+  key `krazitv.tmdbReminder`; Files not looked up stores under
+  `krazitv.notLookedUpReminder` and Collections ready under
+  `krazitv.collectionsReadyReminder`. Each stores `{ remindAfter }` or
+  `{ never: true }`, as the TMDB reminder always has, except that Collections
+  ready's snooze also stores the count it was answered at,
+  `{ remindAfter, answeredCount }`, for decision 24.
 - `ProgramTask` gains a task that opens Collections with its Discover dialog
   open, beside `set-up-tmdb`.
 
@@ -241,8 +261,8 @@ None.
 ## Acceptance Criteria
 
 - Saving a key on a catalog with never-looked-up files starts a lookup job on
-  each idle enabled root holding them, and the Set up TMDB task names the
-  file count. A busy root is skipped and reported.
+  each idle enabled root holding them, and Account Settings names the file
+  count. A busy root is skipped and reported.
 - After those jobs end with recommendations, the Collections ready balloon
   opens by itself once, and **Make collections** opens Collections on
   Discover.
