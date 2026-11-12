@@ -74,7 +74,7 @@ export function trayReminders({
           (recommendation) => recommendation.decision === null,
         )
       : [];
-  const shows = undecided.filter(
+  const showCount = undecided.filter(
     (recommendation) => recommendation.criterion.kind === "series",
   ).length;
   const notLookedUp = left !== undefined && left > 0;
@@ -96,7 +96,7 @@ export function trayReminders({
     },
     {
       storageKey: "krazitv.collectionsReadyReminder",
-      words: collectionsReadyWords(shows, undecided.length - shows),
+      words: collectionsReadyWords(showCount, undecided.length - showCount),
       shows: collectionsReady,
       holds: collectionsReady,
       count: undecided.length,

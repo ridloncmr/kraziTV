@@ -77,7 +77,7 @@ it("opens by itself with the never-looked-up files of every enabled root, withou
   expect(document.activeElement).toBe(focused);
 });
 
-it("counts one file as one", async () => {
+it("counts one file as one, keeping the button's one name", async () => {
   await boot([idleRoot("a", 1)]);
 
   const balloon = await screen.findByRole("dialog", {
@@ -89,7 +89,7 @@ it("counts one file as one", async () => {
     ),
   ).toBeTruthy();
   expect(
-    within(balloon).getByRole("button", { name: "Look it up" }),
+    within(balloon).getByRole("button", { name: "Look them up" }),
   ).toBeTruthy();
 });
 

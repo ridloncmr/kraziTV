@@ -60,7 +60,9 @@ function usableViewport(): DesktopViewport {
  * `onTmdbKeyChanged`, and a program that starts a scan or lookup re-reads
  * the roots through `onScanJobStarted`, so the tray follows the job. Once
  * the library has settled with nothing left to look up, it also reads the
- * collection recommendations for the Collections ready reminder.
+ * collection recommendations for the Collections ready reminder, and
+ * re-reads them through `onRecommendationDecided` whenever Discover decides
+ * one, so the tray counts only what is still to decide.
  */
 export function DesktopShell({
   account,
@@ -244,6 +246,7 @@ export function DesktopShell({
                   discoverRequest={discoverRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   onScanJobStarted={mediaRoots.refresh}
+                  onRecommendationDecided={recommendations.refresh}
                   openProgram={openProgram}
                   watchRequest={watchRequest}
                   watchChannel={watchChannel}

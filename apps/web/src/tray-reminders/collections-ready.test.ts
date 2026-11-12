@@ -9,7 +9,7 @@ import {
   renderDesktopShell,
 } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { recommendation } from "../testing/collection-api.js";
+import { officeCollection, recommendation } from "../testing/collection-api.js";
 import { elapse } from "../testing/fake-time.js";
 import { idleRoot, lookingUpRoot } from "../testing/scan-fixtures.js";
 
@@ -215,6 +215,46 @@ it("opens Collections on Discover from Make collections, and remembers how many 
   expect(remindAfter - before).toBeGreaterThanOrEqual(7 * DAY_MS);
   expect(localStorage.getItem("krazitv.tmdbReminder")).toBeNull();
   expect(localStorage.getItem("krazitv.notLookedUpReminder")).toBeNull();
+});
+
+it("follows decisions made in Discover without waiting for the window to regain focus", async () => {
+  const api = await boot(fourteenAndThree);
+  fireEvent.click(
+    within(
+      await screen.findByRole("dialog", { name: /kraziTV found/ }),
+    ).getByRole("button", { name: "Make collections" }),
+  );
+  const discover = await within(
+    screen.getByRole("region", { name: "Collections" }),
+  ).findByRole("dialog", { name: "Discover collections" });
+  await within(discover).findByRole("button", { name: "Dismiss series 1" });
+
+  // A dismissal leaves 13 shows and 3 movie series still to decide.
+  api.reply(`${RECOMMENDATIONS}/dismissal`, null, "POST", 204);
+  api.reply(RECOMMENDATIONS, fourteenAndThree.slice(1));
+  fireEvent.click(
+    within(discover).getByRole("button", { name: "Dismiss series 1" }),
+  );
+  await vi.waitFor(() =>
+    expect(trayIcon()?.getAttribute("aria-label")).toBe(
+      "kraziTV found 13 shows and 3 movie series",
+    ),
+  );
+
+  // Accepting the last undecided one leaves nothing to remind about.
+  api.reply(`${RECOMMENDATIONS}/acceptance`, officeCollection, "POST", 201);
+  api.reply(RECOMMENDATIONS, [
+    recommendation("series", 2, {
+      decision: "accepted",
+      collectionId: "manual-2",
+    }),
+  ]);
+  fireEvent.click(
+    within(discover).getByRole("button", {
+      name: "Create automatic collection from series 2",
+    }),
+  );
+  await vi.waitFor(() => expect(trayIcon()).toBeNull());
 });
 
 it("opens Discover in a Collections window already open, as often as asked, and not on a later plain open", async () => {

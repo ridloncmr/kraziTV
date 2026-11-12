@@ -30,6 +30,7 @@ export function CollectionWindows({
       visible,
       windows: windows.collections,
       discoverRequest: 0,
+      onRecommendationDecided: () => {},
     }),
     ...windows.open.map((id) =>
       createElement(PropertiesTestWindow, {

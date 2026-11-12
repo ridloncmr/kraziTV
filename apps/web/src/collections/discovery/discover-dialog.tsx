@@ -23,10 +23,16 @@ const RECOMMENDATIONS = "/media-collections/recommendations";
  */
 export function DiscoverDialog({
   onCreated,
+  onRecommendationDecided,
   onClose,
 }: {
   /** Tells the Collections program which collection was created behind the dialog. */
   onCreated: (collection: MediaCollection) => void;
+  /**
+   * Tells the shell a recommendation was accepted, dismissed, or restored,
+   * so the tray's Collections ready count follows the owner's decisions.
+   */
+  onRecommendationDecided: () => void;
   onClose: () => void;
 }) {
   const [showDismissed, setShowDismissed] = useState(false);
@@ -64,12 +70,16 @@ export function DiscoverDialog({
           `Created ${collection.name} as ${mode === "automatic" ? "an automatic" : "a manual"} collection.`,
         );
         recommendations.refresh();
+        onRecommendationDecided();
         onCreated(collection);
       },
     );
   }
 
-  /** Dismisses or restores a recommendation, then rereads the list it left. */
+  /**
+   * Dismisses or restores a recommendation, then rereads the list it left
+   * and tells the shell, whose tray counts what is still to decide.
+   */
   function decide(
     recommendation: Recommendation,
     action: "dismissal" | "restoration",
@@ -79,7 +89,10 @@ export function DiscoverDialog({
       `${RECOMMENDATIONS}/${action}`,
       "POST",
       { criterion: recommendation.criterion },
-      recommendations.refresh,
+      () => {
+        recommendations.refresh();
+        onRecommendationDecided();
+      },
     );
   }
 

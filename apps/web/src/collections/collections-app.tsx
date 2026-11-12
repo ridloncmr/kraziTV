@@ -26,12 +26,15 @@ export function CollectionsApp({
   visible,
   windows,
   discoverRequest,
+  onRecommendationDecided,
 }: {
   visible: boolean;
   /** Each collection's own Collection Properties: opened from here. */
   windows: PropertiesWindows;
   /** Counts requests to open Discover; 0 when none was made. */
   discoverRequest: number;
+  /** Tells the shell Discover decided a recommendation, so its tray re-reads them. */
+  onRecommendationDecided: () => void;
 }) {
   const collections = useResource<MediaCollectionSummary[]>(
     "/media-collections",
@@ -133,7 +136,11 @@ export function CollectionsApp({
         />
       )}
       {discovering && (
-        <DiscoverDialog onCreated={discoveredOne} onClose={closeDiscover} />
+        <DiscoverDialog
+          onCreated={discoveredOne}
+          onRecommendationDecided={onRecommendationDecided}
+          onClose={closeDiscover}
+        />
       )}
       {creating === "automatic" && (
         <NewAutomaticCollectionDialog

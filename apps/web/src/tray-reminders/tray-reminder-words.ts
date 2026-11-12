@@ -15,7 +15,9 @@ export const TMDB_REMINDER_WORDS: TrayReminderWords = {
 
 /**
  * Reminder 2, Files not looked up (spec 0006): how many files no lookup has
- * searched for yet, worded for one file or several.
+ * searched for yet, its title and sentence worded for one file or several.
+ * The button keeps the spec's one name, **Look them up**, whatever the
+ * count, so the wiki and any advice name one action.
  */
 export function filesNotLookedUpWords(count: number): TrayReminderWords {
   const one = count === 1;
@@ -27,7 +29,7 @@ export function filesNotLookedUpWords(count: number): TrayReminderWords {
       ? "Look it up so kraziTV can name its show and suggest collections."
       : "Look them up so kraziTV can name their shows and suggest collections.",
     quip: "Paperwork doesn't file itself. I've checked.",
-    action: one ? "Look it up" : "Look them up",
+    action: "Look them up",
   };
 }
 
