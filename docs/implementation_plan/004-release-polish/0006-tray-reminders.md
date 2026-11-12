@@ -47,14 +47,15 @@ scheduling, playout, or provider change.
 
 ### POLISH-063: Gregg, drawn
 
-**Goal**: Gregg exists as kraziTV's own drawing, picked by the owner before
-any balloon uses him.
+**Goal**: Gregg exists as kraziTV's own drawing. The run builds with a
+provisional take and the owner picks the final one at its end.
 
 **Scope**: Draw three or four distinct takes on the spec's description (beige
 CRT, rabbit ears, half-lidded screen face, green eyeshade visor, loosened tie,
-cigarette) and show them to the owner side by side at 48 px and 16 px, on the
-XP balloon's background, light and dark. After the owner picks one, finish it
-as inline SVG drawings, one per file, in `apps/web/src/tray-reminders/drawings/`:
+cigarette) with the same component names and props, so one take can replace
+another by swapping files, and keep them side by side at 48 px and 16 px on
+the XP balloon's background, light and dark. Finish a provisional pick as
+inline SVG drawings, one per file, in `apps/web/src/tray-reminders/drawings/`:
 the 48 px balloon figure with a separately addressable smoke wisp, and the
 16 px tray head, which must still read as a TV with a cigarette at that size.
 Animate the smoke with CSS only while `prefers-reduced-motion` is not
@@ -63,14 +64,16 @@ Animate the smoke with CSS only while `prefers-reduced-motion` is not
 **Out of scope**: Using him in the tray or balloon (POLISH-065). Any paperclip
 shape, wire eyebrows, or other Office Assistant trait.
 
-**Blocking dependencies**: None. The owner's pick gates the finished files.
+**Blocking dependencies**: None. The owner's final pick comes after
+POLISH-068; a different pick then swaps the drawing files and retakes the
+screenshots that show him.
 
 **Implementation notes**: Use the `animate` skill for the smoke: slow,
 low-contrast, opacity and transform only. Keep each drawing a plain React
 component returning `<svg>` with `aria-hidden`; the balloon names him in
 text.
 
-**Verification**: The owner's pick recorded in the PR. A render test that
+**Verification**: The provisional pick and its reason recorded in the PR. A render test that
 each drawing mounts and the smoke element carries the reduced-motion rule.
 `npm run typecheck`, `npm run lint`, `npm run audit:strict`.
 
