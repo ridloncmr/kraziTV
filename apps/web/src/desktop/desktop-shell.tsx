@@ -8,7 +8,11 @@ import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
-import { trayReminders } from "../tray-reminders/tray-reminder-list.js";
+import { isScanRunning } from "../media-library/scan-progress/use-scan-job.js";
+import {
+  lookupsRunning,
+  trayReminders,
+} from "../tray-reminders/tray-reminder-list.js";
 import { TrayReminders } from "../tray-reminders/tray-reminders.js";
 import type { WatchRequest } from "../tv/tv-app.js";
 import { navigateWithArrows } from "../controls/arrow-navigation/arrow-navigation.js";
@@ -30,6 +34,9 @@ import { windowReducer } from "./windows/window-state.js";
 /** The taskbar's height; `--xp-taskbar-height` in xp-tokens.css draws it. */
 const TASKBAR_HEIGHT_PX = 32;
 
+/** How often the shell re-reads the media roots while a scan or lookup runs. */
+const JOB_POLL_MS = 3_000;
+
 /** Reads the desktop area above the taskbar from the browser window. */
 function usableViewport(): DesktopViewport {
   return {
@@ -47,7 +54,8 @@ function usableViewport(): DesktopViewport {
  * Settings goes back up through `onAccountChanged` and redraws everything.
  * The shell also reads whether a TMDB key is set and the media roots, for the
  * tray reminders; a save in Account Settings re-reads the key through
- * `onTmdbKeyChanged`.
+ * `onTmdbKeyChanged`, and a program that starts a scan or lookup re-reads
+ * the roots through `onScanJobStarted`, so the tray follows the job.
  */
 export function DesktopShell({
   account,
@@ -81,7 +89,20 @@ export function DesktopShell({
     10_000,
   );
   const tmdbKey = useResource<TmdbKeyStatus>("/metadata/tmdb-key", pageVisible);
-  const mediaRoots = useResource<MediaRoot[]>("/media-roots", pageVisible);
+  // Polled only while some root's job runs, so the tray's lookup count
+  // moves and the reminders see the jobs end; otherwise read as the page
+  // starts, shows again, or a program says it started a job.
+  const [jobsRunning, setJobsRunning] = useState(false);
+  const mediaRoots = useResource<MediaRoot[]>(
+    "/media-roots",
+    pageVisible,
+    jobsRunning ? JOB_POLL_MS : 0,
+  );
+  const anyJobRunning =
+    mediaRoots.data?.some(
+      (root) => root.scan !== null && isScanRunning(root.scan),
+    ) ?? false;
+  if (anyJobRunning !== jobsRunning) setJobsRunning(anyJobRunning);
   // Counts requests to open Account Settings on the TMDB task, so a repeat
   // request still reaches a window that is already open. It restarts at 0
   // when that window closes, so a later plain open shows its home page.
@@ -199,6 +220,7 @@ export function DesktopShell({
                   onAccountChanged={onAccountChanged}
                   tmdbTaskRequest={tmdbTaskRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
+                  onScanJobStarted={mediaRoots.refresh}
                   openProgram={openProgram}
                   watchRequest={watchRequest}
                   watchChannel={watchChannel}
@@ -226,6 +248,7 @@ export function DesktopShell({
                 mediaRoots: mediaRoots.data,
                 setUpTmdb: () => openProgram("account", "set-up-tmdb"),
               })}
+              status={lookupsRunning(mediaRoots.data)}
             />
           }
         />

@@ -11,6 +11,13 @@ export interface TrayReminderWords {
 }
 
 /**
+ * What the tray says about work under way, such as running lookups (spec
+ * 0006): the icon carries its title only while no reminder shows, and its
+ * balloon opens only when asked, offers only ✕, and stores nothing.
+ */
+export type TrayStatusWords = Omit<TrayReminderWords, "action">;
+
+/**
  * One tray reminder as the shell evaluates it now (spec 0006, Tray
  * reminders): its words, whether it shows and holds, and its main action.
  * The tray shows the first reminder in the list that shows.

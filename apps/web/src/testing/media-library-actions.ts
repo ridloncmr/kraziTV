@@ -26,7 +26,11 @@ export async function showMediaLibrary(
   api.reply("/metadata/match-reviews", { steps });
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: vi.fn() }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: vi.fn(),
+      onScanJobStarted: vi.fn(),
+    }),
   );
   await screen.findByText(items[0].title);
   return api;

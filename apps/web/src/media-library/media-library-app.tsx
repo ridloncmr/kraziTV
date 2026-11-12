@@ -41,6 +41,7 @@ const PAGE_SIZE = 50;
 export function MediaLibraryApp({
   visible,
   openProgram,
+  onScanJobStarted,
 }: {
   visible: boolean;
   /**
@@ -48,6 +49,8 @@ export function MediaLibraryApp({
    * My Channels, where a special blocking a removal is resolved.
    */
   openProgram: (id: ProgramId, task?: ProgramTask) => void;
+  /** Tells the shell a scan or lookup started, so its tray follows the job. */
+  onScanJobStarted: () => void;
 }) {
   const roots = useResource<MediaRoot[]>("/media-roots", visible);
   // Whether a TMDB key is set, read as the tray reminder reads it; a failed
@@ -67,7 +70,7 @@ export function MediaLibraryApp({
   const mutation = useMutation();
   // Refresh reloads open dialogs too, not just the lists.
   const { refresh: refreshWindow } = useRefreshScope();
-  const scan = useScanJob(roots.data);
+  const scan = useScanJob(roots.data, onScanJobStarted);
   // Which request the feedback reports, so an earlier root write's success
   // never reads as the result of a scan start.
   const [lastRequest, setLastRequest] = useState<"root" | "scan" | "removal">(

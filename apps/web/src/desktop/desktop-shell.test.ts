@@ -22,6 +22,7 @@ import { BrowserApi } from "../testing/browser-api.js";
 import { serveCollection } from "../testing/collection-api.js";
 import { fakeBroadcasts } from "../testing/fake-broadcasts.js";
 import { pressKey } from "../testing/press-key.js";
+import { regainFocus } from "../testing/regain-focus.js";
 import { DesktopShell } from "./desktop-shell.js";
 
 // TV's player needs Media Source Extensions, which jsdom lacks.
@@ -351,10 +352,7 @@ it("reloads a window brought to the front, and every open window when the browse
   fireEvent.pointerDown(screen.getByRole("region", { name: "Plex Setup" }));
   await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(2));
 
-  act(() => {
-    globalThis.dispatchEvent(new Event("blur"));
-    globalThis.dispatchEvent(new Event("focus"));
-  });
+  regainFocus();
   await waitFor(() => expect(api.requestsTo("/plex/setup")).toHaveLength(3));
 });
 

@@ -3,12 +3,18 @@ import { TmdbAttribution } from "../branding/attribution/tmdb-attribution.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../controls/dialogs/window-dialog.js";
 import { formText } from "../controls/formatting/form-text.js";
-import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
+import type {
+  EveryRootLookup,
+  TmdbKeyStatus,
+} from "../http/contracts/metadata.js";
+import { apiRequest } from "../http/api-client.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
 import { AccountTaskForm } from "./account-task-form.js";
+import { keySavedSentence } from "./tmdb-key-words.js";
 import { useAccountTask } from "./use-account-task.js";
 
 const KEY_PATH = "/metadata/tmdb-key";
+const LOOKUP_PATH = "/metadata/lookup-retries";
 
 // TMDB's page that shows the owner's API Read Access Token, once signed in.
 const TMDB_API_SETTINGS_URL = "https://www.themoviedb.org/settings/api";
@@ -21,16 +27,26 @@ const TMDB_API_SETTINGS_URL = "https://www.themoviedb.org/settings/api";
  * does, and says what the owner keeps. The task says where the free token
  * comes from and links there in a new tab, so an owner sent here by the tray
  * balloon can finish. TMDB's terms require the logo and notice here.
+ * A saved key then starts the lookup of every root's outstanding files
+ * (spec 0006): the key route stays a key route, so this task asks for it.
  */
 export function SetUpTmdbView({
-  onDone,
+  onSaved,
+  onRemoved,
   onCancel,
+  onScanJobStarted,
 }: {
-  onDone: () => void;
+  /** The key is saved; `confirmation` says what its lookup started. */
+  onSaved: (confirmation: string) => void;
+  onRemoved: () => void;
   onCancel: () => void;
+  /** The shell re-reads the media roots, which now carry the started jobs. */
+  onScanJobStarted: () => void;
 }) {
   const status = useResource<TmdbKeyStatus>(KEY_PATH);
   const [removing, setRemoving] = useState(false);
+  // Whether the lookup a save starts is still being asked for.
+  const [lookingUp, setLookingUp] = useState(false);
 
   /** **Save** sends the trimmed token, never a blank one. */
   function prepare(form: FormData) {
@@ -39,13 +55,39 @@ export function SetUpTmdbView({
       ? { refusal: "Paste your TMDB API Read Access Token." }
       : { body: { apiKey } };
   }
-  const task = useAccountTask(KEY_PATH, "PUT", prepare, onDone);
+
+  /**
+   * Starts the all-roots lookup once the key is saved, and reports the key
+   * saved whatever it answers: a refused lookup stays unsaid, because the
+   * tray offers the same lookup again for files still not looked up. The
+   * request is not this window's to cancel: the jobs belong to the library,
+   * so closing the window mid-request still lets the shell re-read the roots
+   * once the server has answered.
+   */
+  function lookUpLibrary() {
+    setLookingUp(true);
+    void apiRequest<EveryRootLookup>(LOOKUP_PATH, {
+      method: "POST",
+      body: { scope: "outstanding" },
+    })
+      .then(
+        (answer) => answer.lookupCount,
+        () => 0,
+      )
+      .then((lookupCount) => {
+        onScanJobStarted();
+        setLookingUp(false);
+        onSaved(keySavedSentence(lookupCount));
+      });
+  }
+  const task = useAccountTask(KEY_PATH, "PUT", prepare, lookUpLibrary);
 
   return (
     <AccountTaskForm
       title="Set up TMDB"
       submitLabel="Save"
-      task={task}
+      // The page stays busy until the lookup answers, so Save is not sent twice.
+      task={{ ...task, pending: task.pending || lookingUp }}
       otherAction={
         status.data?.configured && (
           <button type="button" onClick={() => setRemoving(true)}>
@@ -86,7 +128,7 @@ export function SetUpTmdbView({
       <TmdbAttribution />
       {removing && (
         <RemoveKeyQuestion
-          onRemoved={onDone}
+          onRemoved={onRemoved}
           onClose={() => setRemoving(false)}
         />
       )}

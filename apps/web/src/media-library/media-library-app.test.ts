@@ -46,7 +46,11 @@ it("pages the catalog on the server and restarts at the first page for a new sea
     api.requests.filter((request) => request.path === "/media-items").at(-1)
       ?.query;
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
 
   await screen.findByText("1–50 of 120");
@@ -74,7 +78,13 @@ it.each([
     api.reply("/metadata/tmdb-key", { configured });
     vi.stubGlobal("fetch", api.fetch);
     const openProgram = vi.fn();
-    render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+    render(
+      createElement(MediaLibraryApp, {
+        visible: true,
+        openProgram,
+        onScanJobStarted: () => {},
+      }),
+    );
     await screen.findByText(/No media roots yet/);
     await waitFor(() =>
       expect(api.requestsTo("/metadata/tmdb-key")).toHaveLength(1),
@@ -141,7 +151,11 @@ it("keeps the current rows on screen while the next page loads", async () => {
   api.reply("/media-items", { items: [adminFixtures.media[0]], total: 120 });
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   await screen.findByText("Alpha");
 
@@ -172,7 +186,11 @@ it("keeps a rejected path in its dialog, then lists the added root", async () =>
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -238,7 +256,11 @@ it("words a relative path in Browse and a root still airing after its delete, ne
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -279,7 +301,11 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -331,7 +357,11 @@ it("raises Scan in the row of a never-scanned root only, starting the same scan 
   api.hold("/media-roots/root/scan", "POST");
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
 
   const scanButton = await screen.findByRole("button", { name: "Scan /media" });
@@ -374,7 +404,11 @@ it("fills the path by browsing server folders from the typed path", async () => 
   );
   vi.stubGlobal("fetch", api.fetch);
   render(
-    createElement(MediaLibraryApp, { visible: true, openProgram: () => {} }),
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram: () => {},
+      onScanJobStarted: () => {},
+    }),
   );
   fireEvent.click(
     await screen.findByRole("button", { name: "Add a media root…" }),
@@ -418,6 +452,7 @@ function renderScanLibrary(
   api.reply(SCAN_PATH, first, "POST", 202);
   api.handle(SCAN_PATH, () => api.response(scan.status));
   vi.stubGlobal("fetch", api.fetch);
+  const jobStarted = vi.fn();
   const tree = (visible: boolean) =>
     createElement(
       "div",
@@ -426,13 +461,19 @@ function renderScanLibrary(
       createElement(
         WindowDialogFrame,
         null,
-        createElement(MediaLibraryApp, { visible, openProgram: () => {} }),
+        createElement(MediaLibraryApp, {
+          visible,
+          openProgram: () => {},
+          onScanJobStarted: jobStarted,
+        }),
       ),
     );
   const view = render(tree(true));
   return {
     api,
     scan,
+    /** What the shell was told each time a job started. */
+    jobStarted,
     setVisible: (visible: boolean) => view.rerender(tree(visible)),
     count: (path: string, method = "GET") =>
       api.requests.filter(
@@ -985,6 +1026,63 @@ it("reports other start rejections in the page feedback and opens no dialog", as
   );
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("status")).toBeNull();
+});
+
+it.each([
+  ["Scan", SCAN_PATH],
+  ["Look up on TMDB", "/metadata/lookup-retries"],
+])(
+  "tells the shell once %s starts a job, so the tray follows it",
+  async (action, path) => {
+    const { api, jobStarted } = renderScanLibrary([
+      mediaRoot({
+        matchCounts: {
+          items: 3,
+          matched: 0,
+          needsChoice: 0,
+          notLookedUp: 3,
+          failedLookups: 0,
+        },
+      }),
+    ]);
+    api.reply(
+      "/metadata/lookup-retries",
+      scanStatus({ kind: "retry", phase: "enriching", lookupCount: 3 }),
+      "POST",
+      202,
+    );
+    await advance();
+    expect(jobStarted).not.toHaveBeenCalled();
+
+    chooseRootAction(action);
+    await advance();
+
+    expect(api.requestsTo(path).some(({ method }) => method === "POST")).toBe(
+      true,
+    );
+    expect(jobStarted).toHaveBeenCalledOnce();
+  },
+);
+
+it("tells the shell nothing when a start is refused", async () => {
+  const { api, jobStarted } = renderScanLibrary([mediaRoot()]);
+  api.reply(
+    SCAN_PATH,
+    {
+      error: {
+        code: "media_root_disabled",
+        message: "Media root root is disabled; enable it before scanning",
+      },
+    },
+    "POST",
+    409,
+  );
+  await advance();
+  chooseRootAction("Scan");
+  await advance();
+
+  expect(screen.getByRole("alert")).toBeTruthy();
+  expect(jobStarted).not.toHaveBeenCalled();
 });
 
 it("keeps the last known status through a failed poll and retries", async () => {

@@ -103,7 +103,13 @@ function renderLibrary(
   api.reply("/media-roots", [root]);
   api.reply("/media-items", { items: adminFixtures.media, total: 2 });
   vi.stubGlobal("fetch", api.fetch);
-  render(createElement(MediaLibraryApp, { visible: true, openProgram }));
+  render(
+    createElement(MediaLibraryApp, {
+      visible: true,
+      openProgram,
+      onScanJobStarted: () => {},
+    }),
+  );
   return api;
 }
 

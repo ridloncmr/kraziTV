@@ -64,6 +64,16 @@ export interface TrackProposal {
 export type RetryScope =
   | { scope: "item" | "folder"; mediaItemId: string }
   | { scope: "outstanding"; mediaRootId: string };
+/**
+ * `POST /metadata/lookup-retries` with `{ scope: "outstanding" }` and no
+ * root: one job started on every enabled, idle root with outstanding files.
+ */
+export interface EveryRootLookup {
+  /** The files the started jobs look up, summed over their roots. */
+  lookupCount: number;
+  /** Roots skipped because a scan or lookup was already running there. */
+  busyRootCount: number;
+}
 /** `/metadata/tmdb-key`: whether a TMDB key is set; the key itself never leaves the server. */
 export interface TmdbKeyStatus {
   configured: boolean;
