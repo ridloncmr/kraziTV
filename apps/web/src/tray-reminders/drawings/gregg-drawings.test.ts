@@ -31,6 +31,8 @@ it("draws the 48 px figure as a decorative SVG with one smoke wisp of its own", 
   expect(svg.getAttribute("viewBox")).toBe("0 0 48 48");
   expect(svg.getAttribute("class")).toBe("placed");
   expect(svg.querySelectorAll(".gregg-smoke")).toHaveLength(1);
+  // Drawn last, so the wisp rises over the glass and nothing covers it.
+  expect(svg.lastElementChild?.classList.contains("gregg-smoke")).toBe(true);
   // The balloon names him in text; the drawing itself says nothing.
   expect(svg.textContent).toBe("");
 });

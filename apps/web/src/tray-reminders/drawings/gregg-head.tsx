@@ -1,11 +1,11 @@
 /**
- * Gregg at 16 px for the tray (spec 0006, The tray assistant): the same
- * heavy ink at 1.5 px on a squat outlined box with two leg stubs, rabbit
- * ears, a rounded dark screen, the visor as a green arc over the top bezel,
- * two eye slits, a flat mouth, and an outlined cigarette whose orange ember
- * pokes past the body, so he still reads as a TV with a cigarette on the
- * tray's blue. No smoke at this size; it would be a stray pixel. Decorative:
- * the tray icon's label names the balloon it opens.
+ * Gregg at 16 px for the tray (spec 0006, The tray assistant): drawn on the
+ * pixel grid, not scaled from the figure. Rabbit ears, the outlined beige
+ * cabinet, a dark screen with the visor as a green band across its top, two
+ * eye slits, a flat mouth, one dial, and the cigarette ending in an orange
+ * ember past the screen's edge, which is what still reads as a TV with a
+ * cigarette on the tray's blue. No smoke at this size; it would be a stray
+ * pixel. Decorative: the tray icon's label names the balloon it opens.
  */
 export function GreggHead({ className }: { className?: string }) {
   return (
@@ -16,53 +16,42 @@ export function GreggHead({ className }: { className?: string }) {
       height="16"
       aria-hidden="true"
     >
+      {/* Rabbit ears at 45 degrees, the one angle a 1 px line keeps crisp. */}
       <path
         d="M6.5 4.5 3.5 1M9.5 4.5 12.5 1"
-        stroke="#26201a"
-        strokeWidth="1.5"
+        stroke="#4a3d2a"
         strokeLinecap="round"
       />
-      <path
-        d="M4 14.5 3 16M12 14.5l1 1.5"
-        stroke="#26201a"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+      {/* The cabinet on half-pixel bounds, so its 1 px outline is not blurred. */}
       <rect
         x="1.5"
         y="4.5"
         width="13"
         height="10"
-        rx="2"
-        fill="#e1cfa5"
-        stroke="#26201a"
-        strokeWidth="1.5"
+        rx="1.5"
+        fill="#ddc9a0"
+        stroke="#4a3d2a"
       />
-      <rect x="3.5" y="6.5" width="7.5" height="6" rx="2" fill="#243030" />
+      {/* The screen, left of the dial, whole pixels so it stays a solid block. */}
+      <rect x="3" y="6" width="8" height="7" fill="#2d3a37" />
+      {/* The visor as a green band over the screen's top edge. */}
+      <rect x="2.5" y="5.5" width="9" height="1.5" fill="#2f9e63" />
+      {/* Two eye slits and a flat mouth: the face at this size. */}
+      <rect x="4" y="8" width="2" height="1" fill="#d7dfd8" />
+      <rect x="7" y="8" width="2" height="1" fill="#d7dfd8" />
+      <path d="M5 10.5h3" stroke="#d7dfd8" />
+      {/* One dial beside the screen keeps the portable's screen-left layout. */}
+      <circle cx="12.75" cy="8" r=".9" fill="#4a3d2a" />
+      {/* The cigarette, pale on the dark screen, with its ember past the bezel. */}
       <path
-        d="M2.5 6.5Q7.5 4.5 12.5 6.5"
-        stroke="#2e9d62"
-        strokeWidth="2"
-        fill="none"
-      />
-      <rect x="4.5" y="8.5" width="2" height="1" fill="#d9e1d7" />
-      <rect x="8" y="8.5" width="2" height="1" fill="#d9e1d7" />
-      <path d="M5.5 11h3" stroke="#d9e1d7" strokeWidth="1.2" />
-      <circle cx="12.75" cy="9" r=".9" fill="#26201a" />
-      <path
-        d="M8.5 11 13.5 13"
-        stroke="#26201a"
-        strokeWidth="2.6"
+        d="M8 10.5 13.5 12.5"
+        stroke="#f3efe3"
+        strokeWidth="1.4"
         strokeLinecap="round"
       />
-      <path
-        d="M8.5 11 13.5 13"
-        stroke="#f3efe4"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-      <circle cx="13.9" cy="13.2" r="1.1" fill="#ff6a2b" />
-      <rect x="5.5" y="12.5" width="1.6" height="3.5" fill="#b23a2f" />
+      <circle cx="13.9" cy="12.7" r="1" fill="#ff6a2b" />
+      {/* The tie's blade below the cabinet. */}
+      <rect x="5.5" y="13" width="1.5" height="3" fill="#a73a2e" />
     </svg>
   );
 }
