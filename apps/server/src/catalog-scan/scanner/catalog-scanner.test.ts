@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { discoverMediaFiles, MediaProbeError } from "@krazitv/media";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CollectionMaintenance } from "../../media-collections/maintenance/collection-maintenance.js";
 import { RecordingCollectionMaintenance } from "../../testing/recording-collection-maintenance.js";
 import {
   FIXTURE_TIME,
@@ -48,6 +49,11 @@ interface SetupOptions {
   ensureAllEnabled?: () => Promise<void>;
   /** Replaces the purge that follows a completed commit. */
   purge?: () => Promise<void>;
+  /**
+   * Hands the scanner the real collection maintenance, whose every pass
+   * waits on this before it begins, instead of the recording double.
+   */
+  maintenancePass?: () => Promise<void>;
 }
 
 // Wires the real writer and repository against a seeded temporary database.
@@ -83,6 +89,14 @@ async function setup(options: SetupOptions = {}) {
   // Whether the root still read as scanning at each refresh check.
   const refreshChecks: boolean[] = [];
   const collections = new RecordingCollectionMaintenance();
+  // No automatic collections or metadata orders are seeded, so a real pass
+  // never reaches the schedule service.
+  const maintenance = new CollectionMaintenance({
+    db: database.db,
+    schedules: { applyInputChange: vi.fn() },
+    log,
+    hooks: { beforePass: options.maintenancePass },
+  });
   const scanner: CatalogScanner = new CatalogScanner({
     metadata: withoutTmdbKey(),
     roots: new MediaRootRepository(database.db),
@@ -96,7 +110,7 @@ async function setup(options: SetupOptions = {}) {
       checkNow: () =>
         void refreshChecks.push(scanner.isScanning(rootFixture.id)),
     },
-    collections,
+    collections: options.maintenancePass ? maintenance : collections,
     log,
     discover,
     now: () => (time += 1_000),
@@ -111,6 +125,7 @@ async function setup(options: SetupOptions = {}) {
     log,
     refreshChecks,
     collections,
+    maintenance,
   };
 }
 
@@ -477,6 +492,72 @@ describe("CatalogScanner", () => {
     expect(await finished(scanner)).toMatchObject({ phase: "completed" });
     expect(refreshChecks).toEqual([false]);
     expect(collections.requests).toBe(1);
+  });
+
+  it("keeps a completed job committing until the collection pass it asked for ends", async () => {
+    const pass = createBarrier();
+    const { scanner, prober, refreshChecks } = await setup({
+      maintenancePass: () => pass.wait(),
+    });
+
+    await start(scanner);
+    await prober.waitForStarted(3);
+    prober.resolveAll(PROBE_RESULT);
+    await pass.reached;
+    await flushMicrotasks(10);
+    // A reader that sees the job end must read what the pass maintained.
+    expect(scanner.status(rootFixture.id)).toMatchObject({
+      phase: "committing",
+      finishedAt: null,
+    });
+    expect(scanner.isScanning(rootFixture.id)).toBe(true);
+    expect(refreshChecks).toEqual([]);
+
+    pass.release();
+    expect(await finished(scanner)).toMatchObject({ phase: "completed" });
+    expect(refreshChecks).toEqual([false]);
+  });
+
+  it("ends a cancelled job without waiting for the collection pass, since it committed nothing", async () => {
+    const pass = createBarrier();
+    const { scanner, prober, maintenance } = await setup({
+      concurrency: 1,
+      maintenancePass: () => pass.wait(),
+    });
+    // A pass already running, as another writer's would be.
+    const running = maintenance.request();
+    await pass.reached;
+
+    await start(scanner);
+    await prober.waitForStarted(1);
+    scanner.cancel(rootFixture.id);
+    prober.rejectCancelled(path("a"));
+
+    expect(await finished(scanner)).toMatchObject({ phase: "cancelled" });
+    pass.release();
+    await running;
+  });
+
+  it("ends a committing job at shutdown when shutdown leaves its collection pass unstarted", async () => {
+    const pass = createBarrier();
+    const { scanner, prober, maintenance } = await setup({
+      maintenancePass: () => pass.wait(),
+    });
+    // The job's request waits behind this running pass for the next one.
+    const running = maintenance.request();
+    await pass.reached;
+    await start(scanner);
+    await prober.waitForStarted(3);
+    prober.resolveAll(PROBE_RESULT);
+    await flushMicrotasks(10);
+    expect(scanner.status(rootFixture.id)?.phase).toBe("committing");
+
+    const stopped = Promise.all([scanner.shutdown(), maintenance.shutdown()]);
+    pass.release();
+    await stopped;
+    await running;
+
+    expect(scanner.status(rootFixture.id)?.phase).toBe("completed");
   });
 
   it("asks the TMDB refresh to check once a cancelled job ends", async () => {

@@ -325,6 +325,35 @@ describe("CatalogScanner lookup retry of every root", () => {
     expect(retry).toMatchObject({ kind: "retry", phase: "completed" });
   });
 
+  it("reads outstanding items only for the roots it may start", async () => {
+    const context = await setupEnrichmentScan({ files: [ALIEN] });
+    await addRoot(context, animeRootFixture);
+    await addRoot(context, DISABLED_ROOT);
+    await catalogNotLookedUp(context, animeRootFixture.id, ALIEN);
+    await catalogNotLookedUp(context, DISABLED_ROOT.id, ALIEN);
+    const held = createBarrier();
+    context.tmdb.holds.set("/3/search/movie", held);
+    await context.scanner.start(rootFixture.id);
+    await held.reached;
+    const read = vi.spyOn(MetadataMatchRepository.prototype, "findRetryItems");
+
+    const started = await context.scanner.retryEveryRoot();
+    held.release();
+    await Promise.all([
+      waitForScanEnd(context),
+      waitForScanEnd(context, animeRootFixture.id),
+    ]);
+
+    expect(started).toEqual({
+      kind: "started",
+      lookupCount: 1,
+      busyRootCount: 1,
+    });
+    expect(read.mock.calls).toEqual([
+      [{ scope: "outstanding", mediaRootId: animeRootFixture.id }],
+    ]);
+  });
+
   it("starts nothing on a root with nothing outstanding", async () => {
     const context = await setupEnrichmentScan({ files: [ALIEN] });
     await scanToEnd(context);

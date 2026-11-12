@@ -70,8 +70,9 @@ interface CatalogScannerOptions {
    */
   metadataRefresh: Pick<MetadataRefreshService, "checkNow">;
   /**
-   * Asked for a pass once every job ends, since a scan or lookup retry may
-   * change the catalog and facts automatic collections match on.
+   * Asked for a pass as every job ends, since a scan or lookup retry may
+   * change the catalog and facts automatic collections match on. A job that
+   * reached its commit turns terminal only once that pass has ended.
    */
   collections: Pick<CollectionMaintenance, "request">;
   /** Where enrichment reads the owner's key, settled items, and a retry's items. */
@@ -187,14 +188,21 @@ export class CatalogScanner {
     let lookupCount = 0;
     let busyRootCount = 0;
     for (const found of roots) {
-      const target = await this.#metadata.metadataMatches.findRetryItems({
-        scope: "outstanding",
-        mediaRootId: found.id,
-      });
-      const items = target?.items ?? [];
-      // Checked after each read's await, as `retry` checks; jobs already
-      // started here are cancelled by the shutdown that refuses the rest.
-      const admission = this.#refuseScan(found.id, found);
+      // Admission is decided before the read, so a disabled or busy root
+      // costs none.
+      let admission = this.#refuseScan(found.id, found);
+      let items: readonly RetryItem[] = [];
+      if (admission.kind === "admitted") {
+        const target = await this.#metadata.metadataMatches.findRetryItems({
+          scope: "outstanding",
+          mediaRootId: found.id,
+        });
+        items = target?.items ?? [];
+        // Checked again after the read's await, as `retry` checks, so a
+        // shutdown or a scan started meanwhile wins; jobs already started
+        // here are cancelled by the shutdown that refuses the rest.
+        admission = this.#refuseScan(found.id, found);
+      }
       if (admission.kind === "shutting_down") return admission;
       if (admission.kind === "scan_in_progress") busyRootCount += 1;
       if (admission.kind !== "admitted" || items.length === 0) continue;
@@ -294,9 +302,10 @@ export class CatalogScanner {
 
   /**
    * Runs one job to its terminal phase. Every unexpected error becomes
-   * `scan_failed`, so the promise shutdown awaits always resolves. Once the
-   * job is terminal its root is free, so the TMDB refresh is asked to check,
-   * and collection maintenance is asked for a pass over what it committed.
+   * `scan_failed`, so the promise shutdown awaits always resolves. Every job
+   * asks collection maintenance for a pass over what it may have committed.
+   * Once the job is terminal its root is free, so the TMDB refresh is asked
+   * to check.
    */
   async #run(
     job: ScanJob,
@@ -318,9 +327,15 @@ export class CatalogScanner {
         },
       };
     }
+    const pass = this.#collections.request();
+    // A job that reached its commit stays committing until its pass ends, as
+    // it does for its schedule pass, so whoever sees it end reads automatic
+    // collections and metadata orders that match what it committed. One that
+    // ended earlier committed nothing and ends at once. The request never
+    // rejects and settles at once after maintenance shuts down.
+    if (job.status.phase === "committing") await pass;
     finishJob(job.status, outcome, this.#now());
     this.#metadataRefresh.checkNow();
-    void this.#collections.request();
   }
 
   // Runs every stage in order, recording progress; each stage before the commit observes the job's signal.
