@@ -226,7 +226,10 @@ it("saves a Friday evening feature with its own turn and marathon lengths", asyn
   fireEvent.click(
     within(christmas).getByLabelText("Change how much plays at a time"),
   );
-  chooseOption(within(christmas).getByLabelText("Plays at a time"), "2 movies");
+  const perSitting = within(christmas).getByLabelText("Plays at a time");
+  // The presets name movies once the show's stretch suggestion has loaded.
+  await within(perSitting).findByRole("option", { name: "2 movies" });
+  chooseOption(perSitting, "2 movies");
   fireEvent.change(within(christmas).getByLabelText("Marathons"), {
     target: { value: "replace" },
   });
