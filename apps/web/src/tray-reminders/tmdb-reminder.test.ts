@@ -235,6 +235,32 @@ it("Set up TMDB opens Account Settings on the task, and a saved key removes the 
   await vi.waitFor(() => expect(trayIcon()).toBeNull());
 });
 
+it("removes the icon once the key is saved, while its lookup is still being asked for", async () => {
+  const api = await boot();
+  fireEvent.click(
+    within(screen.getByLabelText("Desktop programs")).getByRole("button", {
+      name: "Account Settings",
+    }),
+  );
+  const window = screen.getByRole("region", { name: "Account Settings" });
+  fireEvent.click(within(window).getByRole("button", { name: "Set up TMDB" }));
+  api.reply("/metadata/tmdb-key", { configured: true }, "PUT");
+  api.reply("/metadata/tmdb-key", { configured: true });
+  api.hold("/metadata/lookup-retries", "POST");
+  fireEvent.change(
+    await within(window).findByLabelText("API Read Access Token"),
+    { target: { value: "eyJ.token.sig" } },
+  );
+  fireEvent.click(within(window).getByRole("button", { name: "Save" }));
+  await vi.waitFor(() =>
+    expect(api.requestsTo("/metadata/lookup-retries")).toHaveLength(1),
+  );
+
+  // The key is saved whatever the lookup answers, so the tray need not wait.
+  await vi.waitFor(() => expect(trayIcon()).toBeNull());
+  expect(within(window).getByLabelText("API Read Access Token")).toBeTruthy();
+});
+
 it("opens Account Settings at home after a tray request was cancelled and the window closed", async () => {
   await boot();
   fireEvent.click(

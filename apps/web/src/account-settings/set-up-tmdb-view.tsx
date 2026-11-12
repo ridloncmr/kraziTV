@@ -31,11 +31,14 @@ const TMDB_API_SETTINGS_URL = "https://www.themoviedb.org/settings/api";
  * (spec 0006): the key route stays a key route, so this task asks for it.
  */
 export function SetUpTmdbView({
+  onKeyChanged,
   onSaved,
   onRemoved,
   onCancel,
   onScanJobStarted,
 }: {
+  /** The key is saved, before its lookup answers, so the shell re-reads it. */
+  onKeyChanged: () => void;
   /** The key is saved; `confirmation` says what its lookup started. */
   onSaved: (confirmation: string) => void;
   onRemoved: () => void;
@@ -80,7 +83,11 @@ export function SetUpTmdbView({
         onSaved(keySavedSentence(lookupCount));
       });
   }
-  const task = useAccountTask(KEY_PATH, "PUT", prepare, lookUpLibrary);
+  // The key is saved whatever its lookup answers, so the shell hears at once.
+  const task = useAccountTask(KEY_PATH, "PUT", prepare, () => {
+    onKeyChanged();
+    lookUpLibrary();
+  });
 
   return (
     <AccountTaskForm
