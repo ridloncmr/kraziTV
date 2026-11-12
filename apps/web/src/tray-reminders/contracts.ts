@@ -33,7 +33,10 @@ export interface TrayReminder {
   /**
    * How many things it found, for a reminder that is due again only when
    * there are more than when the owner last answered it (decision 24);
-   * stored with each answer. Undefined for a reminder that ignores counts.
+   * stored with each answer. A reminder with a count also offers **Remind me
+   * after** a number of new ones. Undefined for a reminder that ignores
+   * counts, and while the count is not known, such as while files are left
+   * to look up or the read made for the latest settle has not answered.
    */
   count?: number;
   /** The main action, run after the balloon closes and snoozes. */

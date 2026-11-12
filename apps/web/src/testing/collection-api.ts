@@ -76,6 +76,30 @@ export function recommendation(
   };
 }
 
+/** `count` undecided recommendations of `kind`, numbered from `from`. */
+export function severalRecommendations(
+  kind: Recommendation["criterion"]["kind"],
+  count: number,
+  from = 1,
+): Recommendation[] {
+  return Array.from({ length: count }, (_, index) =>
+    recommendation(kind, from + index),
+  );
+}
+
+/**
+ * `count` series recommendations each already saved as a manual collection,
+ * numbered from 1, as after the owner made them all collections.
+ */
+export function decidedRecommendations(count: number): Recommendation[] {
+  return Array.from({ length: count }, (_, index) =>
+    recommendation("series", index + 1, {
+      decision: "accepted",
+      collectionId: `manual-${index + 1}`,
+    }),
+  );
+}
+
 /** An automatic series collection holding both fixture episodes. */
 export const officeCollection = collectionWith("office", "The Office", {
   maintenanceMode: "automatic",

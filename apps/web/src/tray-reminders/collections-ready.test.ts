@@ -7,15 +7,22 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Recommendation } from "../http/contracts/collections.js";
 import { openShortcut, renderDesktopShell } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
-import { officeCollection, recommendation } from "../testing/collection-api.js";
+import {
+  officeCollection,
+  recommendation,
+  severalRecommendations,
+} from "../testing/collection-api.js";
 import { DAY_MS, elapse } from "../testing/fake-time.js";
 import { regainFocus } from "../testing/regain-focus.js";
 import { idleRoot, lookingUpRoot } from "../testing/scan-fixtures.js";
-import { bootTray } from "../testing/tray-boot.js";
-import { storedReminder, trayIcon } from "../testing/tray-queries.js";
+import { bootTray, SETTLED_LIBRARY } from "../testing/tray-boot.js";
+import {
+  storedReminder,
+  storeReminder,
+  trayIcon,
+} from "../testing/tray-queries.js";
 
 afterEach(() => {
   cleanup();
@@ -28,34 +35,19 @@ afterEach(() => {
 const STORAGE_KEY = "krazitv.collectionsReadyReminder";
 const RECOMMENDATIONS = "/media-collections/recommendations";
 
-/** `count` undecided recommendations of `kind`, numbered from `from`. */
-function several(
-  kind: Recommendation["criterion"]["kind"],
-  count: number,
-  from = 1,
-): Recommendation[] {
-  return Array.from({ length: count }, (_, index) =>
-    recommendation(kind, from + index),
-  );
-}
-
 /** 14 series and 3 franchises still to decide. */
 const fourteenAndThree = [
-  ...several("series", 14),
-  ...several("franchise", 3, 100),
+  ...severalRecommendations("series", 14),
+  ...severalRecommendations("franchise", 3, 100),
 ];
 
-/** A settled library: a key set, no job running, nothing left to look up. */
-const settled = { configured: true, roots: [idleRoot("a")] };
-
 /** Stores a choice as if the owner had answered at an earlier start. */
-const answered = (state: unknown) =>
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+const answered = (state: unknown) => storeReminder(STORAGE_KEY, state);
 
 it("opens by itself counting the recommendations still to decide by kind, without taking focus", async () => {
   const focused = document.activeElement;
   await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: [
       ...fourteenAndThree,
       // Already saved as a manual collection, so nothing left to decide.
@@ -89,17 +81,17 @@ it("opens by itself counting the recommendations still to decide by kind, withou
 });
 
 it.each([
-  [several("series", 2), "kraziTV found 2 shows"],
-  [several("franchise", 3), "kraziTV found 3 movie series"],
+  [severalRecommendations("series", 2), "kraziTV found 2 shows"],
+  [severalRecommendations("franchise", 3), "kraziTV found 3 movie series"],
   [
     [recommendation("series", 1), recommendation("franchise", 2)],
     "kraziTV found 1 show and 1 movie series",
   ],
-  [several("series", 1_204), "kraziTV found 1,204 shows"],
+  [severalRecommendations("series", 1_204), "kraziTV found 1,204 shows"],
 ])(
   "leaves out a kind with none and counts one as one: %#",
   async (listed, title) => {
-    await bootTray({ ...settled, recommendations: listed });
+    await bootTray({ ...SETTLED_LIBRARY, recommendations: listed });
 
     expect(await screen.findByRole("dialog", { name: title })).toBeTruthy();
   },
@@ -107,7 +99,7 @@ it.each([
 
 it("words a single recommendation as one", async () => {
   await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: [recommendation("franchise", 7)],
   });
 
@@ -123,7 +115,7 @@ it("words a single recommendation as one", async () => {
 
 it("stays away while every recommendation is decided", async () => {
   const api = await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: [
       recommendation("series", 1, {
         decision: "accepted",
@@ -190,7 +182,7 @@ it("counts nothing from an earlier settle while the next one's read is unanswere
   api.reply("/health", { status: "ok" });
   api.reply("/metadata/tmdb-key", { configured: true });
   api.reply("/media-roots", [idleRoot("a")]);
-  api.reply(RECOMMENDATIONS, several("series", 2));
+  api.reply(RECOMMENDATIONS, severalRecommendations("series", 2));
   renderDesktopShell(api);
   await elapse(0);
   expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
@@ -210,7 +202,7 @@ it("counts nothing from an earlier settle while the next one's read is unanswere
   expect(api.requestsTo(RECOMMENDATIONS)).toHaveLength(readsBefore + 1);
   expect(trayIcon(/^kraziTV found/)).toBeNull();
 
-  api.release(RECOMMENDATIONS, several("series", 3));
+  api.release(RECOMMENDATIONS, severalRecommendations("series", 3));
   await elapse(0);
   expect(trayIcon(/^kraziTV found/)?.getAttribute("aria-label")).toBe(
     "kraziTV found 3 shows",
@@ -220,8 +212,8 @@ it("counts nothing from an earlier settle while the next one's read is unanswere
 it("keeps its balloon open while the page is hidden and shown again", async () => {
   const visibility = vi.spyOn(document, "visibilityState", "get");
   const api = await bootTray({
-    ...settled,
-    recommendations: several("series", 2),
+    ...SETTLED_LIBRARY,
+    recommendations: severalRecommendations("series", 2),
   });
   await screen.findByRole("dialog", { name: "kraziTV found 2 shows" });
   /** Hides or shows the page, as switching browser tabs does. */
@@ -246,7 +238,7 @@ it("keeps its balloon open while the page is hidden and shown again", async () =
 
 it("opens Collections on Discover from Make collections, and remembers how many it answered", async () => {
   const api = await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: fourteenAndThree,
   });
   api.reply("/media-collections", []);
@@ -279,7 +271,7 @@ it("opens Collections on Discover from Make collections, and remembers how many 
 
 it("follows decisions made in Discover without waiting for the window to regain focus", async () => {
   const api = await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: fourteenAndThree,
   });
   api.reply("/media-collections", []);
@@ -323,7 +315,7 @@ it("follows decisions made in Discover without waiting for the window to regain 
 
 it("opens Discover in a Collections window already open, as often as asked, and not on a later plain open", async () => {
   const api = await bootTray({
-    ...settled,
+    ...SETTLED_LIBRARY,
     recommendations: fourteenAndThree,
   });
   api.reply("/media-collections", []);
@@ -399,7 +391,7 @@ it.each([
   "opens by itself with %s only when its snooze is over too",
   async (_, state, listed, opens) => {
     answered(state);
-    const api = await bootTray({ ...settled, recommendations: listed });
+    const api = await bootTray({ ...SETTLED_LIBRARY, recommendations: listed });
     await vi.waitFor(() =>
       expect(api.requestsTo(RECOMMENDATIONS)).not.toHaveLength(0),
     );
@@ -414,9 +406,10 @@ it.each([
 
 it.each([
   ["Remind me later", { remindAfter: expect.any(Number), answeredCount: 17 }],
+  ["Close", { remindAfter: expect.any(Number), answeredCount: 17 }],
   ["Don't remind me", { never: true }],
 ])("stores %s with its own key alone", async (answer, state) => {
-  await bootTray({ ...settled, recommendations: fourteenAndThree });
+  await bootTray({ ...SETTLED_LIBRARY, recommendations: fourteenAndThree });
   const balloon = await screen.findByRole("dialog", {
     name: /kraziTV found/,
   });

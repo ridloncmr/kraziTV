@@ -88,12 +88,23 @@ Every balloon also has **Remind me later** and **Don't remind me**:
   browser. Gregg's icon still shows while the balloon applies, so you can
   always click it.
 
+**kraziTV found…** has one more, on its own line: **Remind me after**, a
+number box holding 5, and "new ones". Type how many new suggestions to
+wait for, from 1 to 99, then click **Remind me after** or press Enter. The
+balloon pops up on its own again once that many new ones are waiting, with
+no 7-day wait. New ones count from the fewest you have had left to decide
+since, so making collections out of the ones it already showed never holds
+it back: answer after 5 with 17 waiting, decide all 17, and it comes back
+once 5 more turn up. Anything else in the box, such as 0 or 2.5, gets
+"Enter a whole number from 1 to 99." and nothing is saved.
+
 Each balloon remembers its own answer, so silencing one never silences
 another. A balloon pops up on its own at most once each time you open
 kraziTV in your browser, which can be partway through, such as when
 lookups finish. It never takes the keyboard away from the window you are
-using. **kraziTV found…** comes back on its own only when there are more
-suggestions than when you last answered it.
+using. Unless you chose **Remind me after**, **kraziTV found…** comes back
+on its own only when there are more suggestions than when you last
+answered it.
 
 While files are being looked up on TMDB, Gregg's icon reads "Looking up
 files on TMDB: 340 of 1,234". Clicking it shows the same count, with only a

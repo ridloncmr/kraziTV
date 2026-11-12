@@ -22,3 +22,10 @@ export const trayBalloon = (name?: string | RegExp) =>
  */
 export const storedReminder = (storageKey: string) =>
   JSON.parse(localStorage.getItem(storageKey) ?? "null") as unknown;
+
+/**
+ * Stores one reminder's choice under its storage key as if the owner had
+ * answered it at an earlier desktop start.
+ */
+export const storeReminder = (storageKey: string, state: unknown) =>
+  localStorage.setItem(storageKey, JSON.stringify(state));

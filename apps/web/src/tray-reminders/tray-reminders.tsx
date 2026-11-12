@@ -5,13 +5,21 @@ import { GreggFigure } from "./drawings/gregg-figure.js";
 import { GreggHead } from "./drawings/gregg-head.js";
 import {
   isReminderDue,
+  recordCountSeen,
+  remindAfterNew,
   snoozeReminder,
   stopReminder,
 } from "./reminder-state.js";
-import { BALLOON_WORDS } from "./tray-reminder-words.js";
+import {
+  BALLOON_WORDS,
+  REMIND_AFTER_NEW_WORDS,
+} from "./tray-reminder-words.js";
 
 // The status balloon's key; no reminder's storage key is ever this.
 const STATUS_KEY = "status";
+// Remind me after's first number and its largest (spec 0006, Tray reminders).
+const FIRST_AFTER_NEW = 5;
+const MOST_AFTER_NEW = 99;
 
 /**
  * The system tray's one reminder icon, Gregg's head, and the one balloon it
@@ -20,7 +28,9 @@ const STATUS_KEY = "status";
  * opens by itself at most once per desktop start, the first time it leads
  * with its condition holding and its stored choice due, which may be
  * mid-session. It never blocks a window and never takes focus by itself.
- * While no reminder shows, a `status` such as running lookups takes the
+ * A reminder with a count also offers **Remind me after** a number of new
+ * ones, counted from the fewest it has been seen with since. While no
+ * reminder shows, a `status` such as running lookups takes the
  * icon: its balloon opens only when asked and has only ✕, with nothing to
  * answer or store.
  */
@@ -58,6 +68,20 @@ export function TrayReminders({
   useEffect(() => {
     if (opened?.focus) focusOnOpen.current?.focus();
   }, [opened]);
+  // Every known count as one value the effect below can follow. A count is
+  // known only once the shell has read it for a settled library, so a guess
+  // of 0 while files are left or a read is out never lowers what was seen.
+  const counts = JSON.stringify(
+    reminders.flatMap(({ storageKey, count }) =>
+      count === undefined ? [] : [[storageKey, count]],
+    ),
+  );
+  useEffect(() => {
+    // Lowers each Remind me after answer's fewest seen whether or not its
+    // reminder shows, since everything decided is when it falls furthest.
+    for (const [storageKey, count] of JSON.parse(counts) as [string, number][])
+      recordCountSeen(storageKey, count);
+  }, [counts]);
 
   // What the icon carries: the leading reminder, else the status. The
   // status's key is fixed, so its balloon stays open as its count moves.
@@ -145,8 +169,79 @@ export function TrayReminders({
               </button>
             </div>
           )}
+          {lead && leadCount !== undefined && (
+            <RemindAfterNew
+              choose={(afterNew) =>
+                close(() =>
+                  remindAfterNew(lead.storageKey, afterNew, leadCount),
+                )
+              }
+            />
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Collections ready's **Remind me after** row (decision 24, amended): the
+ * button, a number field, and "new ones". The button and Enter in the field
+ * both choose it; a number outside 1 to 99, or not whole, is refused under
+ * the row and nothing is chosen. The form skips the browser's own
+ * validation, so its bubble never stands in for the balloon's words, and
+ * Escape bubbles to the balloon, which closes as ✕ does. It mounts with
+ * the balloon, so each open starts again at 5.
+ */
+function RemindAfterNew({
+  choose,
+}: {
+  /** Records the number chosen and closes the balloon. */
+  choose: (afterNew: number) => void;
+}) {
+  const [value, setValue] = useState(String(FIRST_AFTER_NEW));
+  const [refused, setRefused] = useState(false);
+  const refusalId = useId();
+  return (
+    <form
+      className="tray-balloon-after"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        // An emptied field reads as 0, which is refused like any other.
+        const afterNew = Number(value);
+        if (
+          Number.isInteger(afterNew) &&
+          afterNew >= 1 &&
+          afterNew <= MOST_AFTER_NEW
+        )
+          choose(afterNew);
+        else setRefused(true);
+      }}
+    >
+      <div className="tray-balloon-after-row">
+        <button type="submit">{REMIND_AFTER_NEW_WORDS.action}</button>
+        <input
+          type="number"
+          min={1}
+          max={MOST_AFTER_NEW}
+          step={1}
+          aria-label={REMIND_AFTER_NEW_WORDS.field}
+          aria-invalid={refused}
+          aria-describedby={refused ? refusalId : undefined}
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setRefused(false);
+          }}
+        />
+        <span>{REMIND_AFTER_NEW_WORDS.unit}</span>
+      </div>
+      {refused && (
+        <p id={refusalId} role="alert" className="error-message">
+          {REMIND_AFTER_NEW_WORDS.refusal}
+        </p>
+      )}
+    </form>
   );
 }
