@@ -63,11 +63,11 @@ exactly as it was.
 
 Scanning again is quick. Files already matched, rejected, awaiting your
 choice, or corrected are never looked up again, so your matches and
-corrections survive every scan. Only files still **Unmatched** or **Lookup
-failed** are asked about again. A file that has disappeared is marked
-**Missing** and stops airing until it returns. A file kraziTV cannot open
-is marked **Could not be read**, and a file shorter than a second counts as
-too short; neither airs. A file that moved or was renamed counts as a new
+corrections survive every scan. Only files still **Not looked up**,
+**Unmatched**, or **Lookup failed** are asked about again. A file that has
+disappeared is marked **Missing** and stops airing until it returns. A file
+kraziTV cannot open is marked **Could not be read**, and a file shorter than
+a second counts as too short; neither airs. A file that moved or was renamed counts as a new
 file.
 
 ## Matching on TMDB

@@ -11,7 +11,6 @@ import { TrackMappingService } from "../content-metadata/track-mapping/track-map
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
 import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
-import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { MediaRootRepository } from "../media-roots/media-root-repository.js";
 import type { ScanStatus } from "../catalog-scan/contracts.js";
 import type { RetryScope } from "../content-metadata/contracts.js";
@@ -62,7 +61,13 @@ export async function setupEnrichmentScan(options: SetupOptions) {
     options.durations,
   );
   const collections = new RecordingCollectionMaintenance();
-  const scanner = enrichmentScanner(db, client, options, prober, collections);
+  const scanner = enrichmentScanner(
+    db,
+    withScriptedTmdb(db, client),
+    options,
+    prober,
+    collections,
+  );
   return { db, scanner, tmdb, prober, collections };
 }
 
@@ -81,12 +86,20 @@ export async function startEnrichmentServer(
     logger: options.logger,
     seed: (db) => seedEnrichment(db, options.key ?? true),
     overrides: (db, { collectionMaintenance: collections }) => {
-      const tmdbKeys = new TmdbKeyService(db, client);
+      // One key service for the key routes and the scanner, as index.ts
+      // shares it, so a test can save the owner's key through Set up TMDB's
+      // route after a keyless scan and the next lookup reads it.
+      const scripted = withScriptedTmdb(db, client);
+      const { tmdbKeys } = scripted;
       return {
-        // The key routes ask the same scripted TMDB, so a test can save the
-        // owner's key through Set up TMDB's route after a keyless scan.
         tmdbKeys,
-        scanner: enrichmentScanner(db, client, options, undefined, collections),
+        scanner: enrichmentScanner(
+          db,
+          scripted,
+          options,
+          undefined,
+          collections,
+        ),
         matchChoices: new MatchChoiceService(db, tmdbKeys, client, collections),
         trackMappings: new TrackMappingService(
           db,
@@ -179,10 +192,11 @@ export async function saveOwnerKey(db: Kysely<DatabaseSchema>): Promise<void> {
   await db.updateTable("server_settings").set({ tmdb_api_key: KEY }).execute();
 }
 
-// A scanner with real persistence that discovers `files` below ROOT.
+// A scanner with real persistence that discovers `files` below ROOT and
+// looks up through the caller's scripted key service and client.
 function enrichmentScanner(
   db: Kysely<DatabaseSchema>,
-  client: TmdbClient,
+  { metadata }: ReturnType<typeof withScriptedTmdb>,
   { files, probeFailures = [], durations, tmdb: wrap }: SetupOptions,
   prober: MediaProber = metadataProber(ROOT, probeFailures, durations),
   collections: Pick<
@@ -201,9 +215,9 @@ function enrichmentScanner(
     collections,
     log: recordingLog(),
     metadata: {
-      ...withScriptedTmdb(db, client).metadata,
+      ...metadata,
       // A wrapper keeps the real client's surface, so the cast adds nothing.
-      tmdb: wrap ? (wrap(client) as TmdbClient) : client,
+      tmdb: wrap ? (wrap(metadata.tmdb) as TmdbClient) : metadata.tmdb,
     },
     discover: async () =>
       files.map((file) => {
