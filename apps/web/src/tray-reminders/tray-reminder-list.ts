@@ -99,7 +99,12 @@ export function trayReminders({
       words: collectionsReadyWords(showCount, undecided.length - showCount),
       shows: collectionsReady,
       holds: collectionsReady,
-      count: undecided.length,
+      // Known only from an answered read for a settled library, so the 0
+      // reported while files are left or the read is out is never stored.
+      count:
+        left === 0 && recommendations !== undefined
+          ? undecided.length
+          : undefined,
       act: makeCollections,
     },
   ];

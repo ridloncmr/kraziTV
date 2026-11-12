@@ -93,7 +93,11 @@ channel:
     that adds the new facts, such as broadcast profiles, not to spec 0006.
 24. The Collections ready reminder returns only when there are more
     recommendations than when the owner last answered it, never weekly for
-    ones already seen.
+    ones already seen. Amended on 2026-11-12 at the owner's request at the
+    Gregg pick: its balloon also offers **Remind me after** a number of new
+    ones the owner types, which brings it back once that many more are
+    waiting than the fewest the browser has seen since, with no 7-day wait,
+    so making collections out of the ones already shown never holds it back.
 
 ## Related Specs
 

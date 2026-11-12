@@ -114,6 +114,25 @@
   gap: 6px;
 }
 /*
+ * Collections ready's Remind me after row, on a line of its own under the
+ * other answers: the button, a field two digits wide, and "new ones". Its
+ * refusal sits right under it, tighter than the balloon's sentences.
+ */
+.tray-balloon-after {
+  margin-top: 6px;
+}
+.tray-balloon-after-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tray-balloon-after input {
+  width: 4em;
+}
+.tray-balloon .tray-balloon-after p {
+  margin: 4px 0 0;
+}
+/*
  * Reduced motion leaves the wisp standing still at its resting opacity, and
  * keeps the balloon's fade, which says it appeared, without the rise. These
  * follow the rules they override, since this sheet loads after desktop.css.

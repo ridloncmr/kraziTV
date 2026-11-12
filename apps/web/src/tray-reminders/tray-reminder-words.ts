@@ -74,6 +74,18 @@ export function lookupsRunningWords(
   };
 }
 
+/**
+ * Collections ready's fourth answer (decision 24, amended): the button, the
+ * label of the number field beside it, the words after the field, and the
+ * refusal for a number outside 1 to 99 or not whole.
+ */
+export const REMIND_AFTER_NEW_WORDS = {
+  action: "Remind me after",
+  field: "New ones to wait for",
+  unit: "new ones",
+  refusal: "Enter a whole number from 1 to 99.",
+};
+
 /** The words every balloon shares: its answers beside the main action, and Gregg's name. */
 export const BALLOON_WORDS = {
   later: "Remind me later",
