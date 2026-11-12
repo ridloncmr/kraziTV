@@ -213,7 +213,7 @@ directly. The shell then polls `/media-roots` every few seconds while any
 root's job runs. While a
 lookup runs, the tray icon shows with the tooltip "Looking up files on TMDB:
 340 of 1,234", and clicking it opens a status balloon with that count, Gregg's
-running quip, and a close button. It never opens by itself.
+running quip, a plain sentence, and a close button. It never opens by itself.
 
 **Out of scope**: Reminders 2 and 3 (POLISH-067).
 
@@ -248,7 +248,8 @@ and one click takes the owner on.
 **Scope**: Reminder 2, "N files haven't been looked up on TMDB", holds while a
 key is set, no job runs, and some enabled root has `notLookedUp > 0`; **Look
 them up** starts the all-roots lookup. Reminder 3 holds while a key is set,
-no job runs, nothing is left to look up, and recommendations exist; its title
+no job runs, nothing is left to look up, and recommendations are still to
+decide; its title
 counts series as "shows" and franchises as "movie series", leaving out a kind
 with none. It is due only when there are more recommendations than when the
 owner last answered it (decision 24), stored with its choice. **Make
