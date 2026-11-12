@@ -23,7 +23,7 @@ describe("POST /metadata/lookup-retries", () => {
     tmdb.unreachable = false;
 
     const started = await send(server, "POST", RETRIES, {
-      scope: "failed",
+      scope: "outstanding",
       mediaRootId: rootFixture.id,
     });
     const finished = await waitForScan(server, rootFixture.id);
@@ -37,6 +37,28 @@ describe("POST /metadata/lookup-retries", () => {
       kind: "retry",
       phase: "completed",
       summary: { matchedCount: 1, discoveredCount: 0 },
+    });
+  });
+
+  it("looks up every root's outstanding files, answering how many and how many roots were busy", async () => {
+    const { server, tmdb } = await startEnrichmentServer({ files: [ALIEN] });
+    tmdb.unreachable = true;
+    await scanThroughRoutes(server);
+    tmdb.unreachable = false;
+
+    const started = await send(server, "POST", RETRIES, {
+      scope: "outstanding",
+    });
+    const finished = await waitForScan(server, rootFixture.id);
+
+    expect(started).toEqual({
+      status: 202,
+      body: { lookupCount: 1, busyRootCount: 0 },
+    });
+    expect(finished).toMatchObject({
+      kind: "retry",
+      phase: "completed",
+      summary: { matchedCount: 1 },
     });
   });
 
@@ -78,9 +100,15 @@ describe("POST /metadata/lookup-retries", () => {
 
     const answers = await Promise.all([
       send(server, "POST", RETRIES, { scope: "item", mediaItemId: "nope" }),
-      send(server, "POST", RETRIES, { scope: "failed", mediaRootId: "nope" }),
+      send(server, "POST", RETRIES, {
+        scope: "outstanding",
+        mediaRootId: "nope",
+      }),
       send(server, "POST", RETRIES, { scope: "item", mediaItemId: id }),
+      send(server, "POST", RETRIES, { scope: "outstanding" }),
       send(server, "POST", RETRIES, { scope: "root", mediaRootId: "x" }),
+      // The failed-lookup scope became `outstanding`.
+      send(server, "POST", RETRIES, { scope: "failed", mediaRootId: "x" }),
     ]);
 
     expect(
@@ -89,6 +117,8 @@ describe("POST /metadata/lookup-retries", () => {
       [404, "media_item_not_found"],
       [404, "media_root_not_found"],
       [409, "tmdb_key_required"],
+      [409, "tmdb_key_required"],
+      [400, "invalid_request"],
       [400, "invalid_request"],
     ]);
   });

@@ -55,12 +55,15 @@ export interface TrackProposal {
   }[];
 }
 /**
- * What `POST /metadata/lookup-retries` looks up again: one item, the folder
- * holding one item, or every failed lookup in a root.
+ * What `POST /metadata/lookup-retries` looks up as one root's scan job: one
+ * item, the folder holding one item, or a root's outstanding files, never
+ * looked up or whose lookup failed. Without `mediaRootId` the server starts
+ * one job per root and answers with counts instead of a scan status, so
+ * that form is not a scope this job-following request sends.
  */
 export type RetryScope =
   | { scope: "item" | "folder"; mediaItemId: string }
-  | { scope: "failed"; mediaRootId: string };
+  | { scope: "outstanding"; mediaRootId: string };
 /** `/metadata/tmdb-key`: whether a TMDB key is set; the key itself never leaves the server. */
 export interface TmdbKeyStatus {
   configured: boolean;

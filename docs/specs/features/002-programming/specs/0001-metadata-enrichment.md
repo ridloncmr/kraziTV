@@ -456,11 +456,13 @@ When a completed scan reports items needing a choice, its summary offers a
 ### Finding Media In Media Library
 
 **Root match counts.** Each media root row shows a **Matches** column:
-`<matched> of <items> matched`, followed by `<n> need your choice` and
-`<n> failed lookups` when either is non-zero. `<items>` counts the root's
-cataloged items, extras included. `<n> failed lookups` counts exactly the
-items **Retry failed lookups** would look up, so the button is disabled when
-it is 0, as it is while the root is disabled.
+`<matched> of <items> matched`, followed by `<n> need your choice`,
+`<n> not looked up`, and `<n> failed lookups` when each is non-zero. `<items>`
+counts the root's cataloged items, extras included. `<n> not looked up` and
+`<n> failed lookups` together count exactly the items the root menu's **Look
+up on TMDB** would look up, so the item is disabled when both are 0, as it is
+while the root is disabled or no TMDB key is set
+([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#media-library)).
 
 **Filter.** A **Filter…** button above the cataloged media list opens the
 **Filter media** window dialog of filter sections. The owner checks values,
@@ -571,8 +573,12 @@ and lookup-error counts; when any item is ambiguous it adds
 
 **Metadata-only retry.** A retry runs as a scan job of the root with only
 `enriching -> committing`, shown in the same progress dialog and subject to the
-same one-job-per-root rule. Its scope is one item, one folder, or every item in
-the root whose last lookup failed. A retry looks up the items in its scope
+same one-job-per-root rule. Its scope is one item, one folder, or every
+outstanding item in the root: never looked up, or whose last lookup failed.
+Without a root, the outstanding scope starts a retry on every enabled root
+that has outstanding items and no running job
+([release-polish spec 0006](../../004-release-polish/specs/0006-tray-reminders.md#server)).
+A retry looks up the items in its scope
 regardless of match state, except corrected fields and extras, which it never
 changes.
 
@@ -652,7 +658,8 @@ None.
 - The completed summary reports matched, ambiguous, unmatched, and lookup-error
   counts.
 - A metadata-only retry runs as an `enriching -> committing` job scoped to an
-  item, a folder, or a root's failed lookups, and never changes corrected fields.
+  item, a folder, or a root's outstanding lookups (never looked up or failed),
+  and never changes corrected fields.
 - Background refresh never runs on a root while a scan or retry job for it is
   active, and each item shows when its TMDB data was last refreshed or that it
   expired.
@@ -678,8 +685,9 @@ None.
   genre, and tag, any of them together, and a
   series, franchise, genre, or tag filter matches what the same collection
   criterion matches.
-- Each media root shows its matched, needing-choice, and failed-lookup counts,
-  and **Retry failed lookups** is disabled when the root has none.
+- Each media root shows its matched, needing-choice, not-looked-up, and
+  failed-lookup counts, and **Look up on TMDB** is disabled when the root has
+  no file not looked up and no failed lookup.
 - **Review matches** shows one step per series folder or movie file, where
   the series folder is the outermost naming folder, so `Survivor/` with 44
   season folders is one step; commits each choice or correction as it is

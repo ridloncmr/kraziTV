@@ -3,12 +3,13 @@ import { join, resolve } from "node:path";
 
 import { TmdbClient, type MediaProber } from "@krazitv/media";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
-import type { Kysely } from "kysely";
+import type { Insertable, Kysely } from "kysely";
 import { expect, vi } from "vitest";
 
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
 import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
 import type { DatabaseSchema } from "../database/schema/database-schema.js";
+import type { MediaRootTable } from "../database/schema/media-root-table.js";
 import type { CollectionMaintenance } from "../media-collections/maintenance/collection-maintenance.js";
 import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
@@ -19,7 +20,7 @@ import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { isRunning } from "../catalog-scan/scanner/scan-job.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { send, waitForScan } from "./api-requests.js";
-import { rootFixture } from "./catalog-fixtures.js";
+import { itemFixtureAt, rootFixture } from "./catalog-fixtures.js";
 import { RecordingCollectionMaintenance } from "./recording-collection-maintenance.js";
 import { recordingLog } from "./recording-log.js";
 import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
@@ -126,16 +127,55 @@ async function seedEnrichment(
   db: Kysely<DatabaseSchema>,
   key: boolean,
 ): Promise<void> {
+  await addRoot({ db }, rootFixture);
+  if (key) await saveOwnerKey(db);
+}
+
+/**
+ * Saves a root at its native path, as the fixture root is saved at ROOT,
+ * since path hints read folders with this platform's rules.
+ */
+export async function addRoot(
+  { db }: { db: Kysely<DatabaseSchema> },
+  root: Insertable<MediaRootTable>,
+): Promise<void> {
+  const path = resolve(root.path);
   await db
     .insertInto("media_roots")
-    .values({ ...rootFixture, path: ROOT, path_key: ROOT })
+    .values({ ...root, path, path_key: path })
     .execute();
-  if (key) {
-    await db
-      .updateTable("server_settings")
-      .set({ tmdb_api_key: KEY })
-      .execute();
-  }
+}
+
+/**
+ * Catalogs `file` below a saved root as a scan without a TMDB key leaves it:
+ * available and never looked up, with no decision row.
+ */
+export async function catalogNotLookedUp(
+  { db }: { db: Kysely<DatabaseSchema> },
+  rootId: string,
+  file: string,
+): Promise<void> {
+  const root = await db
+    .selectFrom("media_roots")
+    .select("path")
+    .where("id", "=", rootId)
+    .executeTakeFirstOrThrow();
+  await db
+    .insertInto("media_items")
+    .values(
+      itemFixtureAt(`${rootId}:${file}`, join(root.path, file), {
+        media_root_id: rootId,
+      }),
+    )
+    .execute();
+}
+
+/**
+ * Saves the key the scripted TMDB accepts, as Set up TMDB stores it, so a
+ * test can save it after a keyless scan or while a scan runs.
+ */
+export async function saveOwnerKey(db: Kysely<DatabaseSchema>): Promise<void> {
+  await db.updateTable("server_settings").set({ tmdb_api_key: KEY }).execute();
 }
 
 // A scripted TMDB knowing the fixture movies and accepting the owner's key,
@@ -186,12 +226,14 @@ function enrichmentScanner(
 
 type EnrichmentScan = Awaited<ReturnType<typeof setupEnrichmentScan>>;
 
-// Waits for the fixture root's job to reach its terminal status.
-export function waitForScanEnd({
-  scanner,
-}: EnrichmentScan): Promise<ScanStatus> {
+// Waits for a root's job, the fixture root's by default, to reach its
+// terminal status.
+export function waitForScanEnd(
+  { scanner }: EnrichmentScan,
+  rootId: string = rootFixture.id,
+): Promise<ScanStatus> {
   return vi.waitFor(() => {
-    const status = scanner.status(rootFixture.id);
+    const status = scanner.status(rootId);
     if (status === undefined || isRunning(status)) throw new Error("running");
     return status;
   });

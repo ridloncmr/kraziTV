@@ -36,7 +36,12 @@ import type {
   RetryScope,
 } from "../../content-metadata/contracts.js";
 import { admitRoot } from "../root-admission.js";
-import type { RetryStart, ScanStart, ScanStatus } from "../contracts.js";
+import type {
+  EveryRootRetryStart,
+  RetryStart,
+  ScanStart,
+  ScanStatus,
+} from "../contracts.js";
 import {
   failed,
   finishJob,
@@ -50,7 +55,8 @@ import {
 } from "./scan-job.js";
 
 interface CatalogScannerOptions {
-  roots: Pick<MediaRootRepository, "findById">;
+  /** `list` serves a lookup retry of every root. */
+  roots: Pick<MediaRootRepository, "findById" | "list">;
   /** Must be the process-wide concurrency-limited prober. */
   prober: MediaProber;
   writer: Pick<CatalogScanWriter, "commit" | "commitRetry">;
@@ -163,6 +169,43 @@ export class CatalogScanner {
     return this.#register(root, "retry", (job) =>
       this.#executeRetry(job, root, target.items, apiKey),
     );
+  }
+
+  /**
+   * Starts a lookup retry of the outstanding items on every enabled root
+   * that has any, without waiting for them, and counts what the started jobs
+   * look up. A root with a running job is skipped and counted as busy: a
+   * scan reads the key only once it reaches enrichment, so one that has not
+   * yet uses the key on its own. Refuses only for the whole server, with no
+   * TMDB key or once shutdown has begun.
+   */
+  async retryEveryRoot(): Promise<EveryRootRetryStart> {
+    const apiKey = await this.#metadata.tmdbKeys.readKey();
+    const roots = await this.#roots.list();
+    if (this.#closing) return { kind: "shutting_down" };
+    if (apiKey === undefined) return { kind: "tmdb_key_missing" };
+    let lookupCount = 0;
+    let busyRootCount = 0;
+    for (const found of roots) {
+      const target = await this.#metadata.metadataMatches.findRetryItems({
+        scope: "outstanding",
+        mediaRootId: found.id,
+      });
+      const items = target?.items ?? [];
+      // Checked after each read's await, as `retry` checks; jobs already
+      // started here are cancelled by the shutdown that refuses the rest.
+      const admission = this.#refuseScan(found.id, found);
+      if (admission.kind === "shutting_down") return admission;
+      if (admission.kind === "scan_in_progress") busyRootCount += 1;
+      if (admission.kind !== "admitted" || items.length === 0) continue;
+      const { status } = this.#register(found, "retry", (job) =>
+        this.#executeRetry(job, found, items, apiKey),
+      );
+      // Enrichment sets the job's lookup count before its first await, so
+      // the first status already holds it.
+      lookupCount += status.lookupCount;
+    }
+    return { kind: "started", lookupCount, busyRootCount };
   }
 
   /** Reads the root's running or latest terminal job from memory only. */
