@@ -13,11 +13,9 @@ import { pino } from "pino";
 
 import { buildServer, type ServerDependencies } from "../app.js";
 import { AuthService } from "../auth/auth-service.js";
-import { MetadataMatchRepository } from "../content-metadata/persistence/metadata-match-repository.js";
 import { MatchChoiceService } from "../content-metadata/match-choice/match-choice-service.js";
 import { CorrectionService } from "../content-metadata/corrections/correction-service.js";
 import { TrackMappingService } from "../content-metadata/track-mapping/track-mapping-service.js";
-import { TmdbKeyService } from "../content-metadata/tmdb-key/tmdb-key-service.js";
 import { CatalogScanner } from "../catalog-scan/scanner/catalog-scanner.js";
 import { CatalogScanWriter } from "../catalog-scan/writer/catalog-scan-writer.js";
 import { CatalogRemovalService } from "../catalog-removal/catalog-removal-service.js";
@@ -44,6 +42,7 @@ import { ControlledProber } from "./controlled-prober.js";
 import { plexSettingsFixture } from "./plex-fixtures.js";
 import { RecordingChannelRuntime } from "./recording-channel-runtime.js";
 import { IdleMetadataRefresh } from "./idle-metadata-refresh.js";
+import { withScriptedTmdb } from "./scan-metadata.js";
 import { ScriptedTmdbFetch } from "./scripted-tmdb-fetch.js";
 import { SignedInAuthenticator } from "./signed-in-authenticator.js";
 
@@ -137,7 +136,7 @@ export async function startTestServer(
     fetch: new ScriptedTmdbFetch().fetch,
     timeoutMs: 1_000,
   });
-  const tmdbKeys = new TmdbKeyService(database.db, tmdb);
+  const { tmdbKeys, metadata } = withScriptedTmdb(database.db, tmdb);
   const matchChoices = new MatchChoiceService(
     database.db,
     tmdbKeys,
@@ -157,11 +156,7 @@ export async function startTestServer(
       removals,
       metadataRefresh: new IdleMetadataRefresh(),
       collections,
-      metadata: {
-        tmdbKeys,
-        metadataMatches: new MetadataMatchRepository(database.db),
-        tmdb,
-      },
+      metadata,
       log: pino({ level: "silent" }),
     });
   // Built per dependency set, so default removals follow an overridden
