@@ -192,4 +192,17 @@ describe("wouldSearch", () => {
     ]);
     expect(searched.flatMap((group) => group.files).sort()).toEqual(accepted);
   });
+
+  it("answers each file by its root as well as its path when asked again", () => {
+    // A movie's folder names its title, so under the movie's own folder as a
+    // root the same file names nothing, and outside it hints nothing at all.
+    const path = join(ROOT, "Alien (1979)/movie.mkv");
+    const roots = [ROOT, join(ROOT, "Alien (1979)"), join(ROOT, "Elsewhere")];
+
+    const first = roots.map((root) => wouldSearch(root, path));
+    const again = roots.map((root) => wouldSearch(root, path));
+
+    expect(first).toEqual([true, false, false]);
+    expect(again).toEqual(first);
+  });
 });

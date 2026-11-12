@@ -74,16 +74,33 @@ export function groupLookups(
   return { extras, groups: [...groups.values()] };
 }
 
+// How many answers wouldSearch keeps: about 10 MB at some 200 bytes each,
+// and more than twice the never-looked-up files of a 20,000-file catalog.
+const SEARCHABLE_LIMIT = 50_000;
+
+// wouldSearch's answers by root path and file path. The answer depends on
+// nothing else, so an entry is never stale: a renamed or moved file has a new
+// key, and its old key is merely unused until the next clear.
+const searchable = new Map<string, boolean>();
+
 /**
  * Whether a lookup would search TMDB for the file at `path` below
  * `rootPath`. A scan or lookup retry never decides a file it does not search
  * for, such as a disc track before mapping, so the not-looked-up count and
  * the outstanding lookup retry take only files this accepts; otherwise such a
- * file would stay outstanding for good.
+ * file would stay outstanding for good. The root list polls that count while
+ * a lookup runs, so each path's hints are parsed once and remembered; the
+ * memory is cleared whole when full, dropping keys of files since moved.
  */
 export function wouldSearch(rootPath: string, path: string): boolean {
+  const key = `${rootPath}\u0000${path}`;
+  const known = searchable.get(key);
+  if (known !== undefined) return known;
   const hints = pathHintsBelow(rootPath, path);
-  return hints !== undefined && searchFor(hints) !== undefined;
+  const answer = hints !== undefined && searchFor(hints) !== undefined;
+  if (searchable.size >= SEARCHABLE_LIMIT) searchable.clear();
+  searchable.set(key, answer);
+  return answer;
 }
 
 // The search a file's hints call for: an episode with a series and episode

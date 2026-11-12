@@ -734,6 +734,40 @@ describe("content metadata", () => {
     ]);
   });
 
+  it("recounts never-looked-up files by their current paths after files move between scans", async () => {
+    // A disc track is never searched for until it moves to a movie folder,
+    // and a movie renamed into a disc folder stops being searched for, so
+    // each count must follow the paths the latest scan found.
+    const heat = "/media/movies/Heat (1995)/heat.mkv";
+    const track = "/media/movies/Box/Disc 1/title_t00.mkv";
+    const ronin = "/media/movies/Ronin (1998)/ronin.mkv";
+    const renamedHeat = "/media/movies/Box/Disc 1/title_t01.mkv";
+    const { server, db } = await startTestServer({
+      seed: async (db) => {
+        await db.insertInto("media_roots").values(rootFixture).execute();
+      },
+    });
+    const writer = new CatalogScanWriter(db, {
+      createId: sequentialIds("item"),
+    });
+    const notLookedUpAfterScan = async (paths: string[]) => {
+      await writer.commit({
+        rootId: rootFixture.id,
+        scannedAt: LOOKED_UP_AT,
+        candidates: paths.map(candidate),
+        metadataMatches: [],
+      });
+      const roots = await server.inject({ method: "GET", url: "/media-roots" });
+      return roots.json<{ matchCounts: { notLookedUp: number } }[]>()[0]
+        ?.matchCounts.notLookedUp;
+    };
+
+    expect(await notLookedUpAfterScan([heat, track])).toBe(1);
+    expect(await notLookedUpAfterScan([heat, ronin])).toBe(2);
+    expect(await notLookedUpAfterScan([renamedHeat, ronin])).toBe(1);
+    expect(await notLookedUpAfterScan([heat, track])).toBe(1);
+  });
+
   it("lists each item's match state and accepted TMDB facts", async () => {
     const server = await startWithMetadata();
 
