@@ -99,11 +99,11 @@ explains it. Every reminder follows the same rules:
   line. The title and sentence alone always say what is wrong and what the
   button does.
 
-| Order | Reminder            | Shows while                                                                                                           | Title                                     | Sentence                                                                                           | Main action                                                     |
-| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| 1     | TMDB isn't set up   | No key is set; it holds only once at least one media root exists                                                      | TMDB isn't set up                         | kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies. | **Set up TMDB**: opens Account Settings on the Set up TMDB task |
-| 2     | Files not looked up | A key is set, no scan or lookup runs, and some enabled root has files never looked up                                 | 312 files haven't been looked up on TMDB  | Look them up so kraziTV can name their shows and suggest collections.                              | **Look them up**: starts the same lookup a key save starts      |
-| 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and there is at least one collection recommendation | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
+| Order | Reminder            | Shows while                                                                                                                        | Title                                     | Sentence                                                                                           | Main action                                                     |
+| ----- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1     | TMDB isn't set up   | No key is set; it holds only once at least one media root exists                                                                   | TMDB isn't set up                         | kraziTV can only read titles from file names. Set up TMDB to look up series, episodes, and movies. | **Set up TMDB**: opens Account Settings on the Set up TMDB task |
+| 2     | Files not looked up | A key is set, no scan or lookup runs, and some enabled root has outstanding never-looked-up files, those a lookup would search for | 312 files haven't been looked up on TMDB  | Look them up so kraziTV can name their shows and suggest collections.                              | **Look them up**: starts the same lookup a key save starts      |
+| 3     | Collections ready   | A key is set, no scan or lookup runs, nothing is left to look up, and there is at least one collection recommendation              | kraziTV found 14 shows and 3 movie series | Make them into collections, then put them on a channel.                                            | **Make collections**: opens Collections on Discover             |
 
 - Reminder 1 is the existing TMDB reminder. Its words, condition, and stored
   choice carry over, so an owner who chose **Don't remind me** before this
@@ -246,8 +246,9 @@ None.
 - After those jobs end with recommendations, the Collections ready balloon
   opens by itself once, and **Make collections** opens Collections on
   Discover.
-- With files still never looked up after jobs end, the Files not looked up
-  balloon opens by itself once, and **Look them up** starts the lookup.
+- With outstanding never-looked-up files, those a lookup would search for,
+  still left after jobs end, the Files not looked up balloon opens by itself
+  once, and **Look them up** starts the lookup.
 - An owner who chose **Don't remind me** on the TMDB balloon before this
   change does not see it open by itself afterwards.
 - Each reminder's **Remind me later**, ✕, Escape, and **Don't remind me** are
