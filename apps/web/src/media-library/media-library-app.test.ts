@@ -318,7 +318,9 @@ it("offers to scan an added root, with Scan focused, and opens the progress dial
   const dialog = screen.getByRole("dialog", { name: "Add media root" });
   await within(dialog).findByText("/media was added. Scan it now?");
   const scanButton = within(dialog).getByRole("button", { name: "Scan" });
-  expect(document.activeElement).toBe(scanButton);
+  // Scan takes focus in an effect, which React may run a task after the
+  // question renders when the render used up its time slice.
+  await waitFor(() => expect(document.activeElement).toBe(scanButton));
   // The list refreshed on the add, before the owner answered.
   expect(api.readAfterLastWrite("/media-roots")).toBe(true);
 
