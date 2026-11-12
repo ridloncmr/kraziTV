@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { DesktopProgramIcon } from "../branding/icons/desktop-program-icon.js";
 import type { AccountProfile } from "../http/contracts/auth.js";
+import type { Recommendation } from "../http/contracts/collections.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { Tooltip } from "../controls/popups/tooltip.js";
@@ -8,8 +9,10 @@ import { RefreshScope } from "../http/resources/refresh-scope.js";
 import { useResource } from "../http/resources/use-resource.js";
 import { CANT_REACH_WORDS } from "../http/api-client.js";
 import { ProgramContents } from "../program-host/program-contents.js";
-import { isScanRunning } from "../media-library/scan-progress/use-scan-job.js";
+import { lookUpEveryRoot } from "../scan-jobs/every-root-lookup.js";
+import { isScanRunning } from "../scan-jobs/scan-running.js";
 import {
+  filesLeftToLookUp,
   lookupsRunning,
   trayReminders,
 } from "../tray-reminders/tray-reminder-list.js";
@@ -55,7 +58,9 @@ function usableViewport(): DesktopViewport {
  * The shell also reads whether a TMDB key is set and the media roots, for the
  * tray reminders; a save in Account Settings re-reads the key through
  * `onTmdbKeyChanged`, and a program that starts a scan or lookup re-reads
- * the roots through `onScanJobStarted`, so the tray follows the job.
+ * the roots through `onScanJobStarted`, so the tray follows the job. Once
+ * the library has settled with nothing left to look up, it also reads the
+ * collection recommendations for the Collections ready reminder.
  */
 export function DesktopShell({
   account,
@@ -103,6 +108,12 @@ export function DesktopShell({
       (root) => root.scan !== null && isScanRunning(root.scan),
     ) ?? false;
   if (anyJobRunning !== jobsRunning) setJobsRunning(anyJobRunning);
+  // Read only while nothing is left to look up, the one time Collections
+  // ready can hold, so a library being looked up is never asked for them.
+  const recommendations = useResource<Recommendation[]>(
+    "/media-collections/recommendations",
+    pageVisible && filesLeftToLookUp(tmdbKey.data, mediaRoots.data) === 0,
+  );
   // Counts requests to open Account Settings on the TMDB task, so a repeat
   // request still reaches a window that is already open. It restarts at 0
   // when that window closes, so a later plain open shows its home page.
@@ -112,14 +123,25 @@ export function DesktopShell({
     !windows.some((window) => window.id === "account")
   )
     setTmdbTaskRequest(0);
+  // Counts requests to open Collections on Discover, as the TMDB task's
+  // are counted, and restarts at 0 when Collections closes.
+  const [discoverRequest, setDiscoverRequest] = useState(0);
+  if (
+    discoverRequest !== 0 &&
+    !windows.some((window) => window.id === "collections")
+  )
+    setDiscoverRequest(0);
   /**
-   * Opens or focuses a program. Asked for the Set up TMDB task, it also asks
-   * Account Settings to show that task. Stable, so memoized program contents
-   * never re-render for it.
+   * Opens or focuses a program. Asked for a task, it also asks the program
+   * to show it: Account Settings its Set up TMDB task, Collections its
+   * Discover dialog. Stable, so memoized program contents never re-render
+   * for it.
    */
   const openProgram = useCallback((id: ProgramId, task?: ProgramTask) => {
     dispatch({ type: "open", id });
     if (task === "set-up-tmdb") setTmdbTaskRequest((count) => count + 1);
+    if (task === "discover-collections")
+      setDiscoverRequest((count) => count + 1);
   }, []);
   // The latest request to watch a channel on TV, counted like the TMDB task
   // request and cleared once TV closes, so a plain open later starts on the
@@ -219,6 +241,7 @@ export function DesktopShell({
                   account={account}
                   onAccountChanged={onAccountChanged}
                   tmdbTaskRequest={tmdbTaskRequest}
+                  discoverRequest={discoverRequest}
                   onTmdbKeyChanged={tmdbKey.refresh}
                   onScanJobStarted={mediaRoots.refresh}
                   openProgram={openProgram}
@@ -246,7 +269,12 @@ export function DesktopShell({
               reminders={trayReminders({
                 tmdbKey: tmdbKey.data,
                 mediaRoots: mediaRoots.data,
+                recommendations: recommendations.data,
                 setUpTmdb: () => openProgram("account", "set-up-tmdb"),
+                // The tray lives in the shell, so it re-reads the roots itself.
+                lookUpFiles: () => void lookUpEveryRoot(mediaRoots.refresh),
+                makeCollections: () =>
+                  openProgram("collections", "discover-collections"),
               })}
               status={lookupsRunning(mediaRoots.data)}
             />

@@ -30,6 +30,12 @@ export interface TrayReminder {
   shows: boolean;
   /** Whether its condition holds, so its balloon may open by itself; implies `shows`. */
   holds: boolean;
+  /**
+   * How many things it found, for a reminder that is due again only when
+   * there are more than when the owner last answered it (decision 24);
+   * stored with each answer. Undefined for a reminder that ignores counts.
+   */
+  count?: number;
   /** The main action, run after the balloon closes and snoozes. */
   act: () => void;
 }

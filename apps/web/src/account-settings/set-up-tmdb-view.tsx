@@ -3,18 +3,14 @@ import { TmdbAttribution } from "../branding/attribution/tmdb-attribution.js";
 import { RequestFeedback } from "../controls/dialogs/request-feedback.js";
 import { WindowDialog } from "../controls/dialogs/window-dialog.js";
 import { formText } from "../controls/formatting/form-text.js";
-import type {
-  EveryRootLookup,
-  TmdbKeyStatus,
-} from "../http/contracts/metadata.js";
-import { apiRequest } from "../http/api-client.js";
+import type { TmdbKeyStatus } from "../http/contracts/metadata.js";
 import { useMutation, useResource } from "../http/resources/use-resource.js";
+import { lookUpEveryRoot } from "../scan-jobs/every-root-lookup.js";
 import { AccountTaskForm } from "./account-task-form.js";
 import { keySavedSentence } from "./tmdb-key-words.js";
 import { useAccountTask } from "./use-account-task.js";
 
 const KEY_PATH = "/metadata/tmdb-key";
-const LOOKUP_PATH = "/metadata/lookup-retries";
 
 // TMDB's page that shows the owner's API Read Access Token, once signed in.
 const TMDB_API_SETTINGS_URL = "https://www.themoviedb.org/settings/api";
@@ -62,26 +58,16 @@ export function SetUpTmdbView({
   /**
    * Starts the all-roots lookup once the key is saved, and reports the key
    * saved whatever it answers: a refused lookup stays unsaid, because the
-   * tray offers the same lookup again for files still not looked up. The
-   * request is not this window's to cancel: the jobs belong to the library,
-   * so closing the window mid-request still lets the shell re-read the roots
+   * tray offers the same lookup again for files still not looked up.
+   * Closing the window mid-request still lets the shell re-read the roots
    * once the server has answered.
    */
   function lookUpLibrary() {
     setLookingUp(true);
-    void apiRequest<EveryRootLookup>(LOOKUP_PATH, {
-      method: "POST",
-      body: { scope: "outstanding" },
-    })
-      .then(
-        (answer) => answer.lookupCount,
-        () => 0,
-      )
-      .then((lookupCount) => {
-        onScanJobStarted();
-        setLookingUp(false);
-        onSaved(keySavedSentence(lookupCount));
-      });
+    void lookUpEveryRoot(onScanJobStarted).then((lookupCount) => {
+      setLookingUp(false);
+      onSaved(keySavedSentence(lookupCount));
+    });
   }
   // The key is saved whatever its lookup answers, so the shell hears at once.
   const task = useAccountTask(KEY_PATH, "PUT", prepare, () => {

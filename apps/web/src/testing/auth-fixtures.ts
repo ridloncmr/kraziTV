@@ -9,6 +9,8 @@ import {
 import { vi } from "vitest";
 import type { AuthState } from "../http/contracts/auth.js";
 import { App } from "../app.js";
+import { DesktopShell } from "../desktop/desktop-shell.js";
+import { PageRefreshScope } from "../http/resources/refresh-scope.js";
 import { BrowserApi } from "./browser-api.js";
 
 /** The one account the web tests log on as; its name differs from every label. */
@@ -65,6 +67,24 @@ export async function bootDesktop(
     }
   });
   return api;
+}
+
+/**
+ * Renders the desktop shell alone on `api`, inside the page's refresh scope
+ * as the app root does, for a test under fake timers that steps through the
+ * shell's polling without waiting on the app root's auth read.
+ */
+export function renderDesktopShell(api: BrowserApi): void {
+  vi.stubGlobal("fetch", api.fetch);
+  render(
+    createElement(PageRefreshScope, {
+      children: createElement(DesktopShell, {
+        account,
+        onAccountChanged: () => {},
+        onLoggedOff: () => {},
+      }),
+    }),
+  );
 }
 
 /**

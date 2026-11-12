@@ -45,6 +45,7 @@ export function fakeShell(...open: WindowId[]) {
       account,
       onAccountChanged: vi.fn(),
       tmdbTaskRequest: 0,
+      discoverRequest: 0,
       onTmdbKeyChanged: vi.fn(),
       onScanJobStarted: vi.fn(),
       openProgram,

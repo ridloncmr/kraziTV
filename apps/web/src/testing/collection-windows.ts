@@ -26,7 +26,11 @@ export function CollectionWindows({
   return createElement(
     Fragment,
     null,
-    createElement(CollectionsApp, { visible, windows: windows.collections }),
+    createElement(CollectionsApp, {
+      visible,
+      windows: windows.collections,
+      discoverRequest: 0,
+    }),
     ...windows.open.map((id) =>
       createElement(PropertiesTestWindow, {
         key: id,

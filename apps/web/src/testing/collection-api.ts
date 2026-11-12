@@ -1,4 +1,7 @@
-import type { CatalogGroup } from "../http/contracts/collections.js";
+import type {
+  CatalogGroup,
+  Recommendation,
+} from "../http/contracts/collections.js";
 import type { MediaItem } from "../http/contracts/media.js";
 import { adminFixtures, collectionWith, noMetadata } from "./admin-fixtures.js";
 import type { BrowserApi } from "./browser-api.js";
@@ -38,6 +41,29 @@ export const catalogFranchises: CatalogGroup[] = [
   { tmdbId: 8091, name: "Alien Collection", itemCount: 4 },
   { tmdbId: 84, name: "Indiana Jones Collection", itemCount: 3 },
 ];
+
+/**
+ * An undecided recommendation of `kind` as the server lists it, named
+ * for its TMDB ID; tests override only the facts they assert, such as its
+ * decision.
+ */
+export function recommendation(
+  kind: Recommendation["criterion"]["kind"],
+  tmdbId: number,
+  overrides: Partial<Recommendation> = {},
+): Recommendation {
+  return {
+    criterion: { kind, tmdbId },
+    name: `${kind} ${tmdbId}`,
+    reason: `2 cataloged items of ${kind} ${tmdbId}`,
+    memberCount: 2,
+    members: [],
+    seasonCount: kind === "series" ? 1 : null,
+    collectionId: null,
+    decision: null,
+    ...overrides,
+  };
+}
 
 /** An automatic series collection holding both fixture episodes. */
 export const officeCollection = collectionWith("office", "The Office", {

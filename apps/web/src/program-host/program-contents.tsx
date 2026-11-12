@@ -20,7 +20,8 @@ import { TvApp, type WatchRequest } from "../tv/tv-app.js";
  * re-renders only when its own state or these props change. The account changes identity only
  * when it is edited, and the app root keeps `onAccountChanged` stable; the shell keeps
  * `onTmdbKeyChanged`, `onScanJobStarted`, `openProgram`, `watchChannel`, and `markUnsaved` stable, changes
- * `tmdbTaskRequest` only when the tray or Media Library asks, `watchRequest` only when a channel is watched,
+ * `tmdbTaskRequest` only when the tray or Media Library asks, `discoverRequest` only when the tray asks,
+ * `watchRequest` only when a channel is watched,
  * and each kind's properties windows only when that kind saves a change.
  */
 export const ProgramContents = memo(function ProgramContents({
@@ -30,6 +31,7 @@ export const ProgramContents = memo(function ProgramContents({
   account,
   onAccountChanged,
   tmdbTaskRequest,
+  discoverRequest,
   onTmdbKeyChanged,
   onScanJobStarted,
   openProgram,
@@ -45,6 +47,8 @@ export const ProgramContents = memo(function ProgramContents({
   account: AccountProfile;
   onAccountChanged: (account: AccountProfile) => void;
   tmdbTaskRequest: number;
+  /** Counts requests to open Collections on its Discover dialog. */
+  discoverRequest: number;
   onTmdbKeyChanged: () => void;
   /**
    * Tells the shell a scan or lookup job started, as Set up TMDB's lookup and
@@ -112,7 +116,13 @@ export const ProgramContents = memo(function ProgramContents({
         />
       );
     case "collections":
-      return <CollectionsApp visible={visible} windows={collectionWindows} />;
+      return (
+        <CollectionsApp
+          visible={visible}
+          windows={collectionWindows}
+          discoverRequest={discoverRequest}
+        />
+      );
     case "guide":
       return (
         <ProgramGuideApp

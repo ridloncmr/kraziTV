@@ -16,7 +16,8 @@ import {
   MATCH_STATE_LABELS,
 } from "../content-metadata/match-state-label.js";
 import { ScanAnimation } from "./scan-animation.js";
-import { isScanRunning, scanPath, type FollowedScan } from "./use-scan-job.js";
+import { isScanRunning } from "../../scan-jobs/scan-running.js";
+import { scanPath, type FollowedScan } from "./use-scan-job.js";
 
 /** The codes a poll answers with once the server no longer holds the job. */
 const LOST_CODES = new Set(["scan_not_found", "media_root_not_found"]);

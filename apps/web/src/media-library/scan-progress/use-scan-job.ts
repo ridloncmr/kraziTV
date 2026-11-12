@@ -5,23 +5,12 @@ import type { MediaRoot } from "../../http/contracts/media.js";
 import type { RetryScope } from "../../http/contracts/metadata.js";
 import type { ScanStatus } from "../../http/contracts/scan.js";
 import { toError } from "../../http/to-error.js";
+import { isScanRunning } from "../../scan-jobs/scan-running.js";
 
 /** The scan job a progress dialog follows, with the root path its status line names. */
 export interface FollowedScan {
   rootPath: string;
   status: ScanStatus;
-}
-
-/** The phases after which a scan job never changes again. */
-const TERMINAL_PHASES: ReadonlySet<ScanStatus["phase"]> = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-]);
-
-/** A running job still changes on the server, so its dialog keeps polling and stays busy. */
-export function isScanRunning(status: ScanStatus): boolean {
-  return !TERMINAL_PHASES.has(status.phase);
 }
 
 /** The scan route of one media root, shared by start, poll, and cancel. */

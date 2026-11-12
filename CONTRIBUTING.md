@@ -167,6 +167,7 @@ sit beside it), and `main.tsx` mounts it.
 | `media-search/`                            | The media and collection pickers                                                                                                   |
 | `account-fields/`, `password-check/`       | Name and password checks shared by setup, the logon screen, and Account Settings                                                   |
 | `tray-reminders/`                          | The tray's reminder list, its one icon and balloon, the owner's stored choices, and Gregg's drawings                               |
+| `scan-jobs/`                               | Whether a scan or lookup job still runs, and the lookup of every root's outstanding files, shared by the shell and programs        |
 | `branding/`                                | Program icons, account pictures, and attributions                                                                                  |
 | `testing/`                                 | Test doubles and fixtures                                                                                                          |
 

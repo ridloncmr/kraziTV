@@ -1,23 +1,20 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { DesktopShell } from "../desktop/desktop-shell.js";
 import type { MediaRoot } from "../http/contracts/media.js";
 import {
-  account,
   bootDesktop,
   openShortcut,
+  renderDesktopShell,
 } from "../testing/auth-fixtures.js";
 import { BrowserApi } from "../testing/browser-api.js";
 import { elapse } from "../testing/fake-time.js";
-import { mediaRoot, scanStatus } from "../testing/scan-fixtures.js";
+import {
+  idleRoot,
+  lookingUpRoot,
+  mediaRoot,
+  scanStatus,
+} from "../testing/scan-fixtures.js";
 
 afterEach(() => {
   cleanup();
@@ -27,43 +24,6 @@ afterEach(() => {
 });
 
 const QUIP = "It's being processed. Everything is always being processed.";
-
-/** A root whose job runs a lookup, `done` of `total` files so far. */
-function lookingUp(
-  id: string,
-  done: number,
-  total: number,
-  kind: "scan" | "retry" = "retry",
-): MediaRoot {
-  return mediaRoot({
-    id,
-    path: `/media/${id}`,
-    scan: scanStatus({
-      id: `job-${id}`,
-      rootId: id,
-      kind,
-      phase: "enriching",
-      lookupCount: total,
-      lookedUpCount: done,
-    }),
-  });
-}
-
-/** A root whose last job has ended. */
-function idle(id: string): MediaRoot {
-  return mediaRoot({
-    id,
-    path: `/media/${id}`,
-    scan: scanStatus({
-      id: `job-${id}`,
-      rootId: id,
-      kind: "retry",
-      phase: "completed",
-      lookupCount: 50,
-      lookedUpCount: 50,
-    }),
-  });
-}
 
 /** The tray's one icon, by whatever it is labelled. */
 const trayIcon = () =>
@@ -92,15 +52,15 @@ async function boot(roots: MediaRoot[], configured = true) {
 
 it("counts every running lookup on the icon, and never opens a balloon by itself", async () => {
   await boot([
-    lookingUp("a", 300, 1000),
-    lookingUp("b", 40, 234, "scan"),
+    lookingUpRoot("a", 300, 1000),
+    lookingUpRoot("b", 40, 234, "scan"),
     // A scan still probing has nothing to look up yet; an ended job counts nothing.
     mediaRoot({
       id: "c",
       path: "/media/c",
       scan: scanStatus({ id: "job-c", rootId: "c", phase: "probing" }),
     }),
-    idle("d"),
+    idleRoot("d"),
   ]);
 
   const icon = await screen.findByRole("button", {
@@ -114,7 +74,7 @@ it("counts every running lookup on the icon, and never opens a balloon by itself
 });
 
 it("opens a status balloon with the count, Gregg's quip, and only a close button", async () => {
-  await boot([lookingUp("a", 340, 1234)]);
+  await boot([lookingUpRoot("a", 340, 1234)]);
   const icon = await screen.findByRole("button", {
     name: "Looking up files on TMDB: 340 of 1,234",
   });
@@ -146,7 +106,7 @@ it("opens a status balloon with the count, Gregg's quip, and only a close button
 });
 
 it("closes the status balloon on Escape without storing anything", async () => {
-  await boot([lookingUp("a", 1, 2)]);
+  await boot([lookingUpRoot("a", 1, 2)]);
   const icon = await screen.findByRole("button", {
     name: "Looking up files on TMDB: 1 of 2",
   });
@@ -160,7 +120,7 @@ it("closes the status balloon on Escape without storing anything", async () => {
 });
 
 it("still leads with TMDB isn't set up while a lookup runs without a key", async () => {
-  await boot([lookingUp("a", 1, 2)], false);
+  await boot([lookingUpRoot("a", 1, 2)], false);
 
   expect(
     await screen.findByRole("button", { name: "TMDB isn't set up" }),
@@ -172,15 +132,8 @@ it("polls the media roots while a job runs, moving the count, and stops when non
   const api = new BrowserApi();
   api.reply("/health", { status: "ok" });
   api.reply("/metadata/tmdb-key", { configured: true });
-  api.reply("/media-roots", [lookingUp("a", 10, 100)]);
-  vi.stubGlobal("fetch", api.fetch);
-  render(
-    createElement(DesktopShell, {
-      account,
-      onAccountChanged: () => {},
-      onLoggedOff: () => {},
-    }),
-  );
+  api.reply("/media-roots", [lookingUpRoot("a", 10, 100)]);
+  renderDesktopShell(api);
   await elapse(0);
   expect(trayIcon()?.getAttribute("aria-label")).toBe(
     "Looking up files on TMDB: 10 of 100",
@@ -188,14 +141,14 @@ it("polls the media roots while a job runs, moving the count, and stops when non
   const reads = () => api.requestsTo("/media-roots").length;
   const first = reads();
 
-  api.reply("/media-roots", [lookingUp("a", 60, 100)]);
+  api.reply("/media-roots", [lookingUpRoot("a", 60, 100)]);
   await elapse(3_000);
   expect(reads()).toBe(first + 1);
   expect(trayIcon()?.getAttribute("aria-label")).toBe(
     "Looking up files on TMDB: 60 of 100",
   );
 
-  api.reply("/media-roots", [idle("a")]);
+  api.reply("/media-roots", [idleRoot("a")]);
   await elapse(3_000);
   expect(trayIcon()).toBeNull();
   const stopped = reads();
@@ -212,19 +165,12 @@ it("follows a running scan that has not looked anything up yet", async () => {
   api.reply("/media-roots", [
     mediaRoot({ scan: scanStatus({ phase: "probing" }) }),
   ]);
-  vi.stubGlobal("fetch", api.fetch);
-  render(
-    createElement(DesktopShell, {
-      account,
-      onAccountChanged: () => {},
-      onLoggedOff: () => {},
-    }),
-  );
+  renderDesktopShell(api);
   await elapse(0);
   expect(trayIcon()).toBeNull();
 
   // The scan reaches its lookups on the next poll.
-  api.reply("/media-roots", [lookingUp("root", 0, 12, "scan")]);
+  api.reply("/media-roots", [lookingUpRoot("root", 0, 12, "scan")]);
   await elapse(3_000);
 
   expect(trayIcon()?.getAttribute("aria-label")).toBe(
@@ -245,7 +191,7 @@ it("follows the lookup a saved key starts, re-reading the roots at once", async 
     202,
   );
   // What the server's roots say once the lookup has started.
-  api.reply("/media-roots", [lookingUp("root", 0, 12)]);
+  api.reply("/media-roots", [lookingUpRoot("root", 0, 12)]);
   fireEvent.change(
     await within(window).findByLabelText("API Read Access Token"),
     { target: { value: "eyJ.token.sig" } },
@@ -279,7 +225,7 @@ it("still follows the lookup when Account Settings closes before it answers", as
   fireEvent.click(
     screen.getByRole("button", { name: "Close Account Settings" }),
   );
-  api.reply("/media-roots", [lookingUp("root", 0, 12)]);
+  api.reply("/media-roots", [lookingUpRoot("root", 0, 12)]);
   api.release(
     "/metadata/lookup-retries",
     { lookupCount: 12, busyRootCount: 0 },
